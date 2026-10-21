@@ -616,6 +616,30 @@ abstract final class RestageDecoders {
         applyTextScaling: source.v<bool>([...path, 'applyTextScaling']),
       );
 
+  /// [style] with a `packages/<package>/` family that arrived without its
+  /// package split into family and package, so merging it over a packaged
+  /// ambient style does not prefix it twice. Fallbacks under the same prefix
+  /// lose it too.
+  static TextStyle packagedFont(TextStyle style) {
+    final family = style.fontFamily;
+    if (family == null || !family.startsWith('packages/')) return style;
+    final separator = family.indexOf('/', 'packages/'.length);
+    if (separator < 0 || separator == family.length - 1) return style;
+    final package = family.substring('packages/'.length, separator);
+    final prefix = 'packages/$package/';
+    final fallback = style.fontFamilyFallback;
+    return style.copyWith(
+      fontFamily: family.substring(prefix.length),
+      package: package,
+      fontFamilyFallback: fallback == null
+          ? null
+          : [
+              for (final name in fallback)
+                name.startsWith(prefix) ? name.substring(prefix.length) : name,
+            ],
+    );
+  }
+
   /// Decodes a nullable `TextDecoration`.
   static TextDecoration? textDecoration(DataSource source, List<Object> path) {
     if (!source.isList(path) && source.v<String>(path) == null) return null;
@@ -882,7 +906,7 @@ abstract final class RestageDecoders {
 
   static TextStyle? _textStyle(DataSource source, List<Object> path) {
     if (!source.isMap(path)) return null;
-    return TextStyle(
+    return packagedFont(TextStyle(
       inherit: source.v<bool>([...path, 'inherit']) ?? true,
       color: ArgumentDecoders.color(source, [...path, 'color']),
       backgroundColor:
@@ -941,7 +965,7 @@ abstract final class RestageDecoders {
         source,
         [...path, 'overflow'],
       ),
-    );
+    ));
   }
 
   static double? _finiteNumber(DataSource source, List<Object> path) {

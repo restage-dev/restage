@@ -19,6 +19,7 @@ import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
+import 'package:restage_codegen/src/dsl_parse_diagnostic.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
@@ -409,7 +410,12 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
           message: 'Translator emitted invalid screen RFW for '
-              '"${source.id}": $error.',
+              '"${source.id}": $error '
+              '${dslParseFailureDetail(
+            text,
+            error,
+            translation.emissionSources,
+          )}',
           location: '${source.assetId.path}#'
               '${source.declaration.name ?? '<unnamed>'}',
         ),
@@ -662,7 +668,12 @@ final class OnboardingScreenBuilder implements Builder {
           Issue(
             code: IssueCode.malformedTranslatorOutput,
             message: 'Translator emitted invalid onboarding RFW for '
-                '"${src.id}": $e.',
+                '"${src.id}": $e '
+                '${dslParseFailureDetail(
+              text,
+              e,
+              translation.emissionSources,
+            )}',
             location: '${assetId.path}#${src.className}',
           ),
         );

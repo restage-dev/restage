@@ -753,8 +753,12 @@ Object x(BuildContext context) => const RestoreAction();
 ''');
 
       const expectedMessage =
-          "The authored commerce event 'restore' is unsupported. Authored "
-          'surfaces cannot initiate purchases or restores. Applications '
+          "The event name 'restore' is reserved for commerce. The reserved "
+          'names are purchase, restore, restage.purchase, restage.restore and '
+          'their outcome events such as restage.purchase.failed. Rename the '
+          "event, for example to 'restore_tapped'; any other name works. "
+          'Authored surfaces cannot initiate purchases or restores. '
+          'Applications '
           'invoke the typed commerce boundary from explicit host-controlled '
           'code. The current facade is unavailable until activated.';
       expect(

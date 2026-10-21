@@ -1759,6 +1759,17 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
         ),
         StructuredField(
+          wireId: WireId('p0181'),
+          name: 'textBaseline',
+          type: PropertyType.enumValue,
+          description:
+              'The common baseline that should be aligned between this text span and its parent text span, or, for the root text spans, with the line box.',
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextBaseline')),
+        ),
+        StructuredField(
           wireId: WireId('p0107'),
           name: 'height',
           type: PropertyType.real,

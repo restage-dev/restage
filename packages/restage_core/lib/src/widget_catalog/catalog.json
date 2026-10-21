@@ -2646,6 +2646,22 @@
           }
         },
         {
+          "wireId": "p0670",
+          "name": "textBaseline",
+          "type": "enumValue",
+          "description": "",
+          "enumType": "TextBaseline",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "TextBaseline"
+            }
+          }
+        },
+        {
           "wireId": "p0531",
           "name": "spacing",
           "type": "real",
@@ -7465,6 +7481,22 @@
           }
         },
         {
+          "wireId": "p0671",
+          "name": "textBaseline",
+          "type": "enumValue",
+          "description": "",
+          "enumType": "TextBaseline",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "TextBaseline"
+            }
+          }
+        },
+        {
           "wireId": "p0542",
           "name": "spacing",
           "type": "real",
@@ -7785,8 +7817,545 @@
           "constructorNullable": true
         },
         {
+          "wireId": "p0672",
+          "name": "container",
+          "type": "boolean",
+          "description": "",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0673",
+          "name": "explicitChildNodes",
+          "type": "boolean",
+          "description": "",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0674",
+          "name": "excludeSemantics",
+          "type": "boolean",
+          "description": "",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0675",
+          "name": "blockUserActions",
+          "type": "boolean",
+          "description": "",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0676",
+          "name": "enabled",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0677",
+          "name": "checked",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0678",
+          "name": "mixed",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0679",
+          "name": "selected",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0680",
+          "name": "toggled",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0681",
+          "name": "button",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0682",
+          "name": "slider",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0683",
+          "name": "keyboardKey",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0684",
+          "name": "link",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0685",
+          "name": "header",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0686",
+          "name": "headingLevel",
+          "type": "integer",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "integer",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "int"
+            }
+          }
+        },
+        {
+          "wireId": "p0687",
+          "name": "textField",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0688",
+          "name": "readOnly",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0689",
+          "name": "focusable",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0690",
+          "name": "focused",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0691",
+          "name": "inMutuallyExclusiveGroup",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0692",
+          "name": "obscured",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0693",
+          "name": "multiline",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0694",
+          "name": "scopesRoute",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0695",
+          "name": "namesRoute",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0696",
+          "name": "hidden",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0697",
+          "name": "image",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0698",
+          "name": "liveRegion",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0699",
+          "name": "expanded",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0700",
+          "name": "isRequired",
+          "type": "boolean",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0701",
+          "name": "maxValueLength",
+          "type": "integer",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "integer",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "int"
+            }
+          }
+        },
+        {
+          "wireId": "p0702",
+          "name": "currentValueLength",
+          "type": "integer",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "integer",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "int"
+            }
+          }
+        },
+        {
+          "wireId": "p0703",
+          "name": "identifier",
+          "type": "string",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
           "wireId": "p0647",
           "name": "label",
+          "type": "string",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
+          "wireId": "p0704",
+          "name": "value",
+          "type": "string",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
+          "wireId": "p0705",
+          "name": "hint",
+          "type": "string",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
+          "wireId": "p0706",
+          "name": "tooltip",
           "type": "string",
           "description": "",
           "constructorNullable": true,
@@ -10730,6 +11299,20 @@
           }
         },
         {
+          "wireId": "p0283",
+          "name": "textBaseline",
+          "type": "enumValue",
+          "description": "The common baseline that should be aligned between this text span and its parent text span, or, for the root text spans, with the line box.",
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "TextBaseline"
+            }
+          }
+        },
+        {
           "wireId": "p0195",
           "name": "height",
           "type": "real",
@@ -10924,20 +11507,6 @@
             "enumRef": {
               "libraryUri": "package:flutter/src/painting/text_painter.dart",
               "symbolName": "TextOverflow"
-            }
-          }
-        },
-        {
-          "wireId": "p0283",
-          "name": "textBaseline",
-          "type": "enumValue",
-          "description": "Baseline used to align text.",
-          "valueShape": {
-            "kind": "enumValue",
-            "propertyType": "enumValue",
-            "enumRef": {
-              "libraryUri": "dart:ui",
-              "symbolName": "TextBaseline"
             }
           }
         },

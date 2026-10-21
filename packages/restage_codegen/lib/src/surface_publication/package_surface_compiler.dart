@@ -2126,7 +2126,10 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       for (final artifact in assembly.artifacts)
         if (artifact.role.isPayloadSection) artifact.path,
   ]);
-  _attachCompiledFitContracts(manifestInputs, input);
+  final fit = _attachCompiledFitContracts(manifestInputs, input);
+  issues.addAll(fit.issues);
+  warnings.addAll(fit.warnings);
+  if (issues.isNotEmpty) return _invalidResult(issues);
   final manifest = _buildManifest(
     manifestInputs,
     issues: issues,
@@ -2318,12 +2321,17 @@ bool _isReferencedByAnotherPaywallFlow(
   return false;
 }
 
-void _attachCompiledFitContracts(
+/// Attaches each publication's compiled screen contracts and fit requirement,
+/// returning a diagnostic for every publication whose fit does not project.
+/// A deprecated source annotation gets a warning instead of an error.
+({List<Issue> issues, List<String> warnings}) _attachCompiledFitContracts(
   List<SurfacePublicationAssemblyInput> assemblies,
   PackageSurfaceCompilationInput input,
 ) {
   final catalog = input.catalog;
-  if (catalog == null) return;
+  if (catalog == null) return (issues: const [], warnings: const []);
+  // Why a screen output has no compiled contract, by output path.
+  final missing = <String, String>{};
   final sourceByIdentity = {
     for (final source in input.roster.declarations)
       source.declarationIdentity: source,
@@ -2339,21 +2347,49 @@ void _attachCompiledFitContracts(
   for (final artifact in input.renderedSources) {
     final source = sourceByIdentity[artifact.declarationIdentity];
     final screenInput = artifact.compiledScreenInput;
-    if (source == null || screenInput == null) continue;
+    if (source == null) continue;
+    if (screenInput == null) {
+      for (final output in source.outputs) {
+        missing[output.path] = source.isCanonical
+            ? 'it has no typed screen contract'
+            : 'it is declared with a deprecated annotation, which has no '
+                'typed screen contract; use @Paywall or @Screen';
+      }
+      continue;
+    }
     final inspected = inspectScreenEventContract(screenInput);
     final events = inspected.schema;
-    if (events == null) continue;
+    if (events == null) {
+      for (final output in source.outputs) {
+        missing[output.path] = 'its typed events do not resolve: '
+            '${inspected.issues.map((issue) => issue.message).join(' ')}';
+      }
+      continue;
+    }
     for (final output in source.outputs) {
       final occurrenceSet =
           artifact.rfwCatalogOccurrenceSetsByOutputRole[output.role];
-      if (occurrenceSet == null) continue;
+      if (occurrenceSet == null) {
+        if (output.path.endsWith('.rfw')) {
+          missing[output.path] = 'it has no resolved catalog occurrences';
+        }
+        continue;
+      }
       final origins = occurrenceSet.input.catalogConstructors;
       final entries = [
         for (final origin in origins)
           catalog.findByName(origin.constructorName,
               WidgetLibrary.fromNamespace(origin.catalogLibraryNamespace)),
       ];
-      if (entries.any((entry) => entry == null)) continue;
+      if (entries.any((entry) => entry == null)) {
+        missing[output.path] = 'the catalog has no entry for '
+            '${[
+          for (final (index, origin) in origins.indexed)
+            if (entries[index] == null)
+              '${origin.catalogLibraryNamespace}:${origin.constructorName}',
+        ].join(', ')}';
+        continue;
+      }
       final selectedLibraries = entries.map((entry) => entry!.library).toSet();
       templates[output.path] = SurfaceCompiledScreenContractV1(
         context: hostDataContractOf(screenInput.rootParams),
@@ -2384,7 +2420,15 @@ void _attachCompiledFitContracts(
               _measurementPublicationOwnedPath(entry.key, selector) ==
                   artifact.path)
           .toList();
-      if (matches.length != 1) continue;
+      if (matches.length != 1) {
+        missing.putIfAbsent(
+          artifact.path,
+          () => matches.isEmpty
+              ? 'no compiled screen contract was built for it'
+              : 'more than one compiled screen contract matches it',
+        );
+        continue;
+      }
       final contract = matches.single.value;
       final library = fmt.decodeLibraryBlob(Uint8List.fromList(artifact.bytes));
       // Final Measurement wrappers are host-installed calls. The original
@@ -2393,7 +2437,8 @@ void _attachCompiledFitContracts(
         ResolvedRfwCatalogOccurrenceSet.resolve(
                 parsedLibrary: library, input: contract.catalogResolution)
             .inspectFinalBody(library);
-      } on FormatException {
+      } on FormatException catch (error) {
+        missing[artifact.path] = error.message;
         continue;
       }
       final hash = CapabilitySidecar.hashBlob(artifact.bytes);
@@ -2410,23 +2455,15 @@ void _attachCompiledFitContracts(
         // supply a complete contract for this publication.
         contracts.remove(hash);
         conflictingHashes.add(hash);
+        missing[artifact.path] = 'another screen with the same bytes declares '
+            'different typed events or host data';
         continue;
       }
       contracts[hash] = contract;
     }
-    final roots = input.roster.declarations
-        .where((source) =>
-            source.effectiveId == assembly.slug &&
-            source.surface == assembly.surface &&
-            source.kind ==
-                switch (assembly.sourceKind) {
-                  SurfaceSourceKind.screen => RestageRosterSourceKind.screen,
-                  SurfaceSourceKind.paywall => RestageRosterSourceKind.paywall,
-                  SurfaceSourceKind.flowGraph => RestageRosterSourceKind.flow,
-                })
-        .toList();
+    final declaration = _assemblyDeclaration(assembly, input);
     final element =
-        roots.length == 1 ? elements[roots.single.declarationIdentity] : null;
+        declaration == null ? null : elements[declaration.declarationIdentity];
     assemblies[index] = assembly.withCompiledContracts(
         contracts: contracts,
         presentation:
@@ -2463,6 +2500,8 @@ void _attachCompiledFitContracts(
       document.version
     )] = closure;
   }
+  final issues = <Issue>[];
+  final warnings = <String>[];
   for (var index = 0; index < assemblies.length; index++) {
     final assembly = assemblies[index];
     final closure = closures.firstWhere((closure) =>
@@ -2494,11 +2533,53 @@ void _attachCompiledFitContracts(
           contracts: assembly.compiledScreenContracts,
           presentation: assembly.declaredPresentation,
           requirement: requirement);
-    } on FormatException {
-      // Ordinary publication remains available when complete typed or hosting
-      // evidence is unavailable. The verifier reports the concrete refusal.
+    } on FormatException catch (error) {
+      final reasons = {
+        for (final artifact in assembly.artifacts)
+          if (missing[artifact.path] case final reason?)
+            '${artifact.path}: $reason',
+      };
+      final declaration = _assemblyDeclaration(assembly, input);
+      if (declaration != null && !declaration.isCanonical) {
+        warnings.add(
+          '${declaration.span.path}:${declaration.span.startLine}: '
+          '${legacyAnnotationWarning(declaration, assembly.surface, assembly.slug)}',
+        );
+        continue;
+      }
+      issues.add(
+        Issue(
+          code: IssueCode.surfaceFitUnavailable,
+          message: "The ${assembly.surface.wireName} '${assembly.slug}' "
+              'cannot be delivered: Restage cannot work out what it needs '
+              'from the app (${error.message})'
+              '${reasons.isEmpty ? '' : '. ${reasons.join('. ')}'}.',
+          location: declaration == null
+              ? assembly.slug
+              : '${declaration.span.path}:${declaration.span.startLine}',
+        ),
+      );
     }
   }
+  return (issues: issues, warnings: warnings);
+}
+
+RestageSourceDeclaration? _assemblyDeclaration(
+  SurfacePublicationAssemblyInput assembly,
+  PackageSurfaceCompilationInput input,
+) {
+  final roots = input.roster.declarations
+      .where((source) =>
+          source.effectiveId == assembly.slug &&
+          source.surface == assembly.surface &&
+          source.kind ==
+              switch (assembly.sourceKind) {
+                SurfaceSourceKind.screen => RestageRosterSourceKind.screen,
+                SurfaceSourceKind.paywall => RestageRosterSourceKind.paywall,
+                SurfaceSourceKind.flowGraph => RestageRosterSourceKind.flow,
+              })
+      .toList();
+  return roots.length == 1 ? roots.single : null;
 }
 
 SurfacePresentationV1? _declaredSurfacePresentation(Element declaration) {
@@ -5597,4 +5678,23 @@ final class _PartAccumulator {
   final String header;
   final Version languageVersion;
   final Set<String> fragments;
+}
+
+/// Names the deprecated annotation [declaration] uses and its replacement.
+@visibleForTesting
+String legacyAnnotationWarning(
+  RestageSourceDeclaration declaration,
+  Surface surface,
+  String slug,
+) {
+  final legacy = declaration.legacyAnnotation;
+  final replacement = switch (declaration.kind) {
+    RestageRosterSourceKind.paywall => '@Paywall(id: ...)',
+    RestageRosterSourceKind.flow =>
+      '@FlowGraph(id: ..., surface: Surface.${surface.name})',
+    _ => '@Screen(id: ...)',
+  };
+  return "The ${surface.wireName} '$slug' uses "
+      '${legacy == null ? 'a deprecated annotation' : '@$legacy, which is deprecated,'} '
+      'and cannot be delivered over the air. Use $replacement.';
 }

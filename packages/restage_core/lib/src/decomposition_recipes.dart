@@ -599,10 +599,10 @@ const PropertyOverride kOffsetZeroOverride = PropertyOverride(
 /// need. Authors set semantic alignment via `mainAxisAlignment` /
 /// `crossAxisAlignment` instead.
 ///
-/// `textBaseline` is excluded via the centralized type denylist
-/// (`TextBaseline`). `textDirection` and `verticalDirection` are excluded
-/// here explicitly — their types are enum-valued and are legitimately
-/// surfaced by `Wrap`, so they cannot be added to the global denylist.
+/// `textBaseline` is surfaced; `crossAxisAlignment: baseline` needs it.
+/// `textDirection` and `verticalDirection` are excluded here explicitly —
+/// their types are enum-valued and are legitimately surfaced by `Wrap`, so
+/// they cannot be added to the global denylist.
 ///
 /// `spacing` is surfaced — the modern Flex gap idiom, a `length`/`real`
 /// slot reusing the existing decoder (`Wrap` already surfaces it).

@@ -17,6 +17,7 @@ import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
+import 'package:restage_codegen/src/dsl_parse_diagnostic.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -409,8 +410,12 @@ _CompiledPaywallForm? _compilePaywallForm({
       Issue(
         code: IssueCode.malformedTranslatorOutput,
         message: 'Translator emitted DSL that failed to parse for '
-            '"${source.id}" ($sourceIdentifier): $error. This is a '
-            'codegen bug.',
+            '"${source.id}" ($sourceIdentifier): $error '
+            '${dslParseFailureDetail(
+          text,
+          error,
+          translation.emissionSources,
+        )} This is a codegen bug.',
         location: '${source.assetId.path}#${source.className}',
       ),
     );
@@ -1071,7 +1076,12 @@ final class RestageCodegenBuilder implements Builder {
         Issue(
           code: IssueCode.malformedTranslatorOutput,
           message: 'Translator emitted DSL that failed to parse for '
-              '"${src.id}" ($sourceIdentifier): $e. This is a codegen bug.',
+              '"${src.id}" ($sourceIdentifier): $e '
+              '${dslParseFailureDetail(
+            source,
+            e,
+            translation.emissionSources,
+          )} This is a codegen bug.',
           location: '${src.assetId.path}#${src.className}',
         ),
       );

@@ -237,3 +237,4 @@
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0178","kind":"alloc","name":"brightness","owner":"w0007","source":"package:flutter/src/cupertino/nav_bar.dart#CupertinoNavigationBar.brightness","type":"property"}
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0179","kind":"alloc","name":"textInputAction","owner":"w0010","source":"package:flutter/src/cupertino/text_field.dart#CupertinoTextField.textInputAction","type":"property"}
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0180","kind":"alloc","name":"keyboardType","owner":"w0010","source":"package:flutter/src/cupertino/text_field.dart#CupertinoTextField.keyboardType","type":"property"}
+{"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0181","kind":"alloc","name":"textBaseline","owner":"s0004","source":"package:flutter/src/painting/text_style.dart#TextStyle.textBaseline","type":"property"}

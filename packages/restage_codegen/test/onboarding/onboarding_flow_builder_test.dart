@@ -675,8 +675,7 @@ void main() {
 
     test('lowers decision and sub-flow graph nodes with child result filtering',
         () async {
-      final childFlowJson = _profileChildFlowJson();
-      final sources = _graphFlowSources(childFlowJson);
+      final sources = _graphFlowSources();
       final readerWriter = await _readerWriterWith(sources);
 
       final result = await testBuilders(
@@ -707,7 +706,14 @@ void main() {
       expect(profile.flow, 'profile_child');
       expect(
         profile.contentHash,
-        FlowContentHash.computeString(childFlowJson),
+        FlowContentHash.compute(
+          result.readerWriter.testing.readBytes(
+            AssetId(
+              'apps_examples',
+              'assets/onboarding/flows/profile_child.flow.json',
+            ),
+          ),
+        ),
       );
       expect(
         profile.input['parentIsPro'],
@@ -748,7 +754,7 @@ void main() {
     });
 
     test('the flow reference names the child flows it enters', () async {
-      final sources = _graphFlowSources(_profileChildFlowJson());
+      final sources = _graphFlowSources();
       final readerWriter = await _readerWriterWith(sources);
 
       final result = await testBuilders(
@@ -3192,11 +3198,87 @@ abstract final class CommerceFlowEvents {
 ''',
     };
 
-Map<String, String> _graphFlowSources(String childFlowJson) => {
+Map<String, String> _graphFlowSources() => {
       'apps_examples|lib/onboarding/screens/welcome.dart':
           _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|assets/onboarding/flows/profile_child.flow.json':
-          childFlowJson,
+      'apps_examples|lib/onboarding/screens/profile.dart':
+          _screenSource('profile', 'ProfileScreen', 'decide'),
+      'apps_examples|lib/onboarding/flows/profile_child.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/profile.dart';
+
+part 'restage.generated/profile_child.restage.g.dart';
+
+@OnboardingFlow(id: 'profile_child', version: 1, minClient: 3)
+final class ProfileChildFlow extends RestageFlow {
+  const ProfileChildFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final branch = flowNode('branch');
+    final done = endState('done');
+
+    return flow(
+      initial: profileScreenRef,
+      flowState: const {
+        'parentIsPro': FlowStateDeclaration(
+          type: FlowDataType.bool,
+          classification: FlowStateClassification.internal,
+          defaultValue: false,
+        ),
+        'accepted': FlowStateDeclaration(
+          type: FlowDataType.bool,
+          classification: FlowStateClassification.exportable,
+          defaultValue: false,
+        ),
+      },
+      outbound: const FlowOutboundDeclarations(
+        terminalResult: FlowOutboundPayloadDeclaration(
+          fields: {
+            'accepted': FlowOutboundField(
+              type: FlowDataType.bool,
+              ref: StateFlowOutboundRef(key: 'accepted'),
+            ),
+          },
+        ),
+      ),
+      states: [
+        screen(profileScreenRef).on(ProfileScreen.decide).goTo(branch),
+        decision(
+          branch,
+          branches: [
+            flowBranch(
+              when: const FlowBranchPredicate(
+                fields: {
+                  'parentIsPro': EqualsFlowPredicateCondition(
+                    value: LiteralFlowValueSource(
+                      type: FlowDataType.bool,
+                      value: true,
+                    ),
+                  ),
+                },
+              ),
+              target: done,
+              stateWrites: const {
+                'accepted': FlowStateWrite(
+                  type: FlowDataType.bool,
+                  value: LiteralFlowValueSource(
+                    type: FlowDataType.bool,
+                    value: true,
+                  ),
+                ),
+              },
+            ),
+          ],
+          defaultBranch: flowBranchTarget(done),
+        ),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+''',
       'apps_examples|lib/onboarding/flows/first_run.dart': '''
 import 'package:restage/restage.dart';
 
@@ -3338,58 +3420,6 @@ Map<String, Object?> _decodeProfileChild(Map<String, Object?> result) {
 }
 ''',
     };
-
-String _profileChildFlowJson() {
-  const document = FlowDocument(
-    flow: 'profile_child',
-    version: 1,
-    schemaVersion: 1,
-    minClient: 3,
-    initial: 'branch',
-    flowState: {
-      'parentIsPro': FlowStateDeclaration(
-        type: FlowDataType.bool,
-        classification: FlowStateClassification.internal,
-        defaultValue: false,
-      ),
-    },
-    outbound: FlowOutboundDeclarations(
-      terminalResult: FlowOutboundPayloadDeclaration(
-        fields: {
-          'accepted': FlowOutboundField(
-            type: FlowDataType.bool,
-            ref: EventFlowOutboundRef(key: 'accepted'),
-          ),
-        },
-      ),
-    ),
-    screenArtifacts: {},
-    states: {
-      'branch': DecisionFlowState(
-        branches: [
-          FlowBranch(
-            when: FlowBranchPredicate(
-              fields: {
-                'parentIsPro': EqualsFlowPredicateCondition(
-                  value: LiteralFlowValueSource(
-                    type: FlowDataType.bool,
-                    value: true,
-                  ),
-                ),
-              },
-            ),
-            target: 'accepted',
-          ),
-        ],
-        defaultBranch: FlowBranchTarget(target: 'declined'),
-      ),
-      'accepted': EndFlowState(result: {'accepted': true}),
-      'declined': EndFlowState(result: {'accepted': false}),
-    },
-  );
-  FlowDocumentValidation.checkValid(document);
-  return utf8.decode(FlowDocumentCodec.encodeCanonicalJson(document));
-}
 
 Map<String, String> _actionSources() => {
       'apps_examples|lib/onboarding/screens/welcome.dart':

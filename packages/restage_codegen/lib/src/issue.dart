@@ -289,6 +289,10 @@ enum IssueCode {
   /// ships with placeholder state.
   stateShapeUnsupported,
 
+  /// A published surface whose host requirements cannot be projected, so
+  /// delivery has no fit to check it against.
+  surfaceFitUnavailable,
+
   /// A surface references a widget from a custom library whose catalog
   /// metadata declares no capability version, so the delivery-time capability
   /// floor for that library cannot be derived. The author must declare an
@@ -670,7 +674,8 @@ enum IssueCode {
         IssueCode.customWidgetNameCollision ||
         IssueCode.themeReadOutOfContract ||
         IssueCode.themeReadIntermediateVariable ||
-        IssueCode.stateShapeUnsupported =>
+        IssueCode.stateShapeUnsupported ||
+        IssueCode.surfaceFitUnavailable =>
           false,
       };
 

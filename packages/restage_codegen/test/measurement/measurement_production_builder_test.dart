@@ -2724,6 +2724,9 @@ Future<
 }) async {
   final sources = <String, String>{
     asset: source,
+    // The surface has been pushed, so ambiguous matches need review.
+    'apps_examples|.restage/receipts/acme/main/app/surface/general/ledger/'
+        'production/push-r1.json': '{}',
     if (priorOutput != null)
       'apps_examples|$kRestageMeasurementCompilerLedgerSourcePath':
           priorOutput.encodeCanonicalJson(),

@@ -1,6 +1,8 @@
 // Analyzer-to-publication assembly seam.
 // ignore_for_file: public_member_api_docs
 
+import 'dart:collection';
+
 import 'package:collection/collection.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_rfw_presentation_discovery.dart';
@@ -119,17 +121,31 @@ final class MeasurementPublicationPlanningResult {
 
 /// Reconciles source locators and constructs strict pre-carrier route plans.
 abstract final class MeasurementPublicationPlanner {
+  /// An ambiguous match asks for a decision only on a surface that
+  /// [wasPushed]; before its first push no identity has left the machine, so
+  /// the planner settles it.
   static MeasurementPublicationPlanningResult plan({
     required Iterable<MeasurementPublicationPlanningInput> publications,
     required RestageMeasurementCompilerOutputV1 priorOutput,
     required MeasurementCompilerPolicyInput policy,
+    required bool Function(MeasurementPublicationSelectorV1 selector) wasPushed,
   }) {
     final orderedPublications = publications.toList()
       ..sort((left, right) => left.selector.key.compareTo(right.selector.key));
-    final descriptors = _sourceDescriptors(orderedPublications);
+    final selectorsByLocator =
+        <String, Set<MeasurementPublicationSelectorV1>>{};
+    final descriptors = _sourceDescriptors(
+      orderedPublications,
+      onDescriptor: (locator, selector) =>
+          (selectorsByLocator[locator] ??= {}).add(selector),
+    );
     final reconciliation = _reconcile(
       descriptors: descriptors,
       priorOutput: priorOutput,
+      wasPushed: (locator) {
+        final selectors = selectorsByLocator[locator];
+        return selectors == null || selectors.any(wasPushed);
+      },
     );
     final errors = <String>[...reconciliation.errors];
     final plans = <String, MeasurementPublicationRoutePlanV1>{};
@@ -176,11 +192,16 @@ abstract final class MeasurementPublicationPlanner {
 }
 
 Map<String, _CurrentNodeDescriptor> _sourceDescriptors(
-  List<MeasurementPublicationPlanningInput> publications,
-) {
-  final descriptors = <String, _CurrentNodeDescriptor>{};
+  List<MeasurementPublicationPlanningInput> publications, {
+  required void Function(
+    String locator,
+    MeasurementPublicationSelectorV1 selector,
+  ) onDescriptor,
+}) {
+  final descriptors = _NotifyingDescriptors(onDescriptor);
   final discoveries = <String, MeasurementSourceDiscoveryResult>{};
   for (final publication in publications) {
+    descriptors.selector = publication.selector;
     final artifacts = _routeArtifacts(publication.entry);
     final rootEdge = artifacts
         .singleWhere((a) => a.parentOccurrenceEdgeToken == null)
@@ -461,6 +482,7 @@ Map<String, MeasurementCompilerLedgerNode> _mutualBestMatches({
 _LedgerReconciliation _reconcile({
   required Map<String, _CurrentNodeDescriptor> descriptors,
   required RestageMeasurementCompilerOutputV1 priorOutput,
+  required bool Function(String locator) wasPushed,
 }) {
   var nextSequence = priorOutput.nextIdentitySequence;
   final priorByLocator = <String, MeasurementCompilerLedgerNode>{};
@@ -664,13 +686,16 @@ _LedgerReconciliation _reconcile({
       final relocation =
           relocationsByTarget[descriptor.structuralOccurrenceKey];
       final selected = candidates
-          .where(
-            (candidate) =>
-                relocation?.fromStructuralOccurrenceKey ==
-                    candidate.structuralOccurrenceKey &&
-                relocation?.codeIdentityId == candidate.codeIdentityId,
-          )
-          .firstOrNull;
+              .where(
+                (candidate) =>
+                    relocation?.fromStructuralOccurrenceKey ==
+                        candidate.structuralOccurrenceKey &&
+                    relocation?.codeIdentityId == candidate.codeIdentityId,
+              )
+              .firstOrNull ??
+          (wasPushed(descriptor.structuralOccurrenceKey)
+              ? null
+              : candidates.first);
       if (selected == null) {
         proposals.add(
           MeasurementCompilerLedgerProposal(
@@ -1531,6 +1556,43 @@ String _opaqueId({
   required Object? value,
 }) =>
     '$prefix${measurementDomainDigest(domain, value)}';
+
+/// Descriptors by locator, reporting each locator a publication touches.
+final class _NotifyingDescriptors
+    extends MapBase<String, _CurrentNodeDescriptor> {
+  _NotifyingDescriptors(this._onDescriptor);
+
+  final void Function(String, MeasurementPublicationSelectorV1) _onDescriptor;
+  final _descriptors = <String, _CurrentNodeDescriptor>{};
+  MeasurementPublicationSelectorV1? selector;
+
+  @override
+  _CurrentNodeDescriptor? operator [](Object? key) => _descriptors[key];
+
+  @override
+  void operator []=(String key, _CurrentNodeDescriptor value) {
+    _descriptors[key] = value;
+    _onDescriptor(key, selector!);
+  }
+
+  @override
+  _CurrentNodeDescriptor putIfAbsent(
+    String key,
+    _CurrentNodeDescriptor Function() ifAbsent,
+  ) {
+    _onDescriptor(key, selector!);
+    return _descriptors.putIfAbsent(key, ifAbsent);
+  }
+
+  @override
+  void clear() => _descriptors.clear();
+
+  @override
+  Iterable<String> get keys => _descriptors.keys;
+
+  @override
+  _CurrentNodeDescriptor? remove(Object? key) => _descriptors.remove(key);
+}
 
 final class _CurrentNodeDescriptor {
   const _CurrentNodeDescriptor({

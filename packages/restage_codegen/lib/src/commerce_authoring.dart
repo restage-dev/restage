@@ -76,12 +76,18 @@ Issue unsupportedCommerceHelperIssue(
     );
 
 /// Creates the diagnostic for a reserved authored event name.
-Issue unsupportedCommerceEventIssue(String name, String location) => Issue(
-      code: IssueCode.unsupportedCommerceAuthoring,
-      message: "The authored commerce event '$name' is unsupported. "
-          '$_commerceBoundaryGuidance',
-      location: location,
-    );
+Issue unsupportedCommerceEventIssue(String name, String location) {
+  final suggestion = '${name.split('.').last}_tapped';
+  return Issue(
+    code: IssueCode.unsupportedCommerceAuthoring,
+    message: "The event name '$name' is reserved for commerce. The reserved "
+        'names are purchase, restore, restage.purchase, restage.restore and '
+        'their outcome events such as restage.purchase.failed. Rename the '
+        "event, for example to '$suggestion'; any other name works. "
+        '$_commerceBoundaryGuidance',
+    location: location,
+  );
+}
 
 /// Creates the diagnostic for an authored event using the reserved tap name.
 Issue reservedMeasurementEventIssue(String location) => Issue(

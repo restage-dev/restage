@@ -150,6 +150,31 @@ void main() {
       expect(issue.code, IssueCode.customWidgetUnsupportedReducible);
       expect(issue.message, contains('not supported in delivered surfaces'));
       expect(issue.message, isNot(contains('cannot express')));
+      expect(issue.message, isNot(contains('later')));
+    });
+
+    test('a widget with no catalog entry says how to add one', () async {
+      final issue = await issueFor(
+        ImperativeWidget(
+          _key,
+          blockers: const [
+            Blocker(
+              kind: BlockerKind.unrecognisedComposedWidget,
+              location: '$_key@9:7',
+              detail: 'VIcon(name)',
+            ),
+          ],
+        ),
+      );
+      expect(
+        issue.message,
+        allOf(
+          startsWith("The custom widget 'AcmeWidget' has no catalog entry"),
+          contains('VIcon(name)'),
+          contains("renders from your app's compiled code"),
+          contains('@RestageLibrary'),
+        ),
+      );
     });
 
     test('an unrecognisedComposedWidget blocker is reducible', () async {

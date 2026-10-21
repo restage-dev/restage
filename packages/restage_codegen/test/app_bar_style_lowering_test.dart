@@ -1015,9 +1015,9 @@ void main() {
       expect(
         lerp['a'],
         isA<fmt.Switch>().having(
-          (value) => value.outputs[false],
-          'null branch',
-          isA<fmt.Switch>(),
+          (value) => value.outputs.containsKey(false),
+          'null branch present',
+          isFalse,
         ),
       );
     });

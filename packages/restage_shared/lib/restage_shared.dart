@@ -48,6 +48,7 @@ export 'src/placements/placement_geometry.dart';
 export 'src/placements/placement_history.dart';
 export 'src/placements/placement_management.dart';
 export 'src/placements/placement_screen_sample.dart';
+export 'src/receipts/receipt_path.dart';
 export 'src/render_bundle/bounded_png.dart';
 export 'src/render_bundle/render_bundle_engine_set.dart';
 export 'src/render_bundle/render_bundle_head.dart';

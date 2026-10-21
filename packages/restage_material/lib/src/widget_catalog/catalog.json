@@ -6275,6 +6275,20 @@
           }
         },
         {
+          "wireId": "p0537",
+          "name": "textBaseline",
+          "type": "enumValue",
+          "description": "The common baseline that should be aligned between this text span and its parent text span, or, for the root text spans, with the line box.",
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "TextBaseline"
+            }
+          }
+        },
+        {
           "wireId": "p0198",
           "name": "height",
           "type": "real",
