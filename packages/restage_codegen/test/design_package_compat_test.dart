@@ -201,20 +201,16 @@ Future<void> _expectPaywallRfwText(
     rfwTextMatcher: matcher,
   );
   final diagnosticPrefix = 'RestageCodegenBuilder on $path:\n';
-  final declarationDiagnostic = <String>[
-    '${diagnosticPrefix}Measurement is unavailable for ',
-    'package:apps_examples/paywalls/$stem.dart#$className: ',
-    'Invalid argument(s): A non-Flutter widget occurrence must resolve ',
-    'to the real @RestageWidget marker. The surface compiles unmeasured.',
-  ].join();
-  final artifactDiagnostic = <String>[
+  final unmeasured = <String>[
     '${diagnosticPrefix}Measurement is unavailable for paywall/$stem: ',
-    'no resolved source for assets/paywalls/$stem.rfw. ',
-    'The surface compiles unmeasured.',
+    'A non-Flutter widget occurrence must resolve to the real '
+        '@RestageWidget marker. ',
+    'The surface compiles unmeasured, so its taps and views are not '
+        'counted.',
   ].join();
   expect(
     diagnostics,
-    <String>[declarationDiagnostic, artifactDiagnostic],
+    <String>[unmeasured],
     reason: 'the surface must build clean',
   );
 }

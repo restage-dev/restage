@@ -703,6 +703,8 @@ ResolvedTypeKind _resolvedKindForPropertyType(PropertyType type) {
     PropertyType.string => ResolvedTypeKind.string,
     PropertyType.stringList => ResolvedTypeKind.stringList,
     PropertyType.booleanList => ResolvedTypeKind.booleanList,
+    PropertyType.integerList => ResolvedTypeKind.integerList,
+    PropertyType.realList => ResolvedTypeKind.realList,
     PropertyType.color => ResolvedTypeKind.color,
     PropertyType.edgeInsets => ResolvedTypeKind.edgeInsets,
     PropertyType.alignment => ResolvedTypeKind.alignment,

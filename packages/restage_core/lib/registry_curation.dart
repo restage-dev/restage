@@ -71,6 +71,12 @@ const Map<String, String> kPropertyLabels = {
   propertyLabels: kPropertyLabels,
 )
 const List<BuiltinWidgetCuration> kCuration = [
+  BuiltinWidgetCuration<AbsorbPointer>(
+    category: WidgetCategory.input,
+    // The next GLOBAL content version — see the note on `ColoredBox`.
+    sinceVersion: 16,
+    excludeParams: ['ignoringSemantics'],
+  ),
   BuiltinWidgetCuration<Align>(
     category: WidgetCategory.layout,
     propertyOverrides: {
@@ -436,6 +442,14 @@ const List<BuiltinWidgetCuration> kCuration = [
       'trackpadScrollCausesScale',
       'trackpadScrollToScaleFactor',
     ],
+    // The next GLOBAL content version — see the note on `ColoredBox`.
+    propertyOverrides: {'behavior': PropertyOverride(sinceVersion: 16)},
+  ),
+  BuiltinWidgetCuration<IgnorePointer>(
+    category: WidgetCategory.input,
+    // The next GLOBAL content version — see the note on `ColoredBox`.
+    sinceVersion: 16,
+    excludeParams: ['ignoringSemantics'],
   ),
   BuiltinWidgetCuration<Image>(
     category: WidgetCategory.decoration,

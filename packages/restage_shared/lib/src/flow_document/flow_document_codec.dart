@@ -869,6 +869,24 @@ FlowActionResultPredicate _decodeActionResultPredicate(
         field: _requiredString(json, 'field'),
         value: _requiredBool(json, 'value'),
       );
+    case 'always':
+      _rejectUnknownKeys(json, const {'kind'}, path);
+      return const AlwaysActionResultPredicate();
+    case 'matches':
+      _rejectUnknownKeys(json, const {'fields', 'kind', 'result'}, path);
+      final result = _optionalObject(json, 'result');
+      final fields = _optionalObject(json, 'fields');
+      if (result == null && (fields == null || fields.isEmpty)) {
+        throw FormatException('"$path" must declare a result or fields.');
+      }
+      return MatchesActionResultPredicate(
+        result: result == null
+            ? null
+            : _decodePredicateCondition(result, '$path.result'),
+        fields: fields == null
+            ? const {}
+            : _decodeBranchPredicate(fields, '$path.fields').fields,
+      );
     default:
       throw FormatException(
         'Unsupported action result predicate kind "$kind".',
@@ -1221,6 +1239,15 @@ Map<String, Object?> _encodeActionResultPredicate(
         'kind': predicate.kind,
         'field': field,
         'value': value,
+      };
+    case AlwaysActionResultPredicate():
+      return {'kind': predicate.kind};
+    case MatchesActionResultPredicate(:final result, :final fields):
+      return {
+        'kind': predicate.kind,
+        if (result != null) 'result': _encodePredicateCondition(result),
+        if (fields.isNotEmpty)
+          'fields': _encodeBranchPredicate(FlowBranchPredicate(fields: fields)),
       };
   }
 }

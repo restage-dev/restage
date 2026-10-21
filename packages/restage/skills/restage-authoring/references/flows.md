@@ -225,6 +225,11 @@ final permissionFlow = FlowDefinition(
 );
 ```
 
+`continueWhen` can also return `true` to continue whatever the result, or compare the
+result or its final fields with literals joined with `&&`, such as
+`(result) => result.status == 'granted' && result.attempts < 3`. The build checks each
+comparison against the result type.
+
 The app supplies its platform handler through the generated actions class:
 
 <!-- skill-check: declarations -->

@@ -361,7 +361,7 @@ void main() {
             allOf(
               contains('Badge('),
               // The nullable decode coalesces to the reproduced ctor default.
-              contains("?? 'new'"),
+              matches(RegExp(r"\?\?\s*'new'")),
             ),
           ),
         },
@@ -405,7 +405,7 @@ void main() {
         outputs: {
           'apps_examples|lib/user_factories.g.dart': decodedMatches(
             allOf(
-              contains('label: source.v<String>'),
+              contains('label: RestageDecoders.string('),
               // No `??`: the nullable decode assigns to a nullable slot.
               isNot(contains('??')),
             ),
@@ -730,7 +730,7 @@ void main() {
         outputs: {
           'apps_examples|lib/user_factories.g.dart': decodedMatches(
             // Ctor order: `title` (String) BEFORE `badge` (the reconstruction).
-            stringContainsInOrder(['source.v<String>', 'Badge(']),
+            stringContainsInOrder(['RestageDecoders.string(', 'Badge(']),
           ),
         },
       );

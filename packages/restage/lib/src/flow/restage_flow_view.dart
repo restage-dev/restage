@@ -633,6 +633,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
       child: screen.nativeScreen == null
           ? content
           : RestagePaywallEventTargetScope(
+              flowStep: true,
               owner: controller,
               content: screen,
               isCurrent: () =>

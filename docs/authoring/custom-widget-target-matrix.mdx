@@ -25,7 +25,7 @@ callback signatures.
 |---|---|---|
 | Public inputs of the unnamed constructor: named or positional `this.` parameters, supported `super.` parameters, generic types, and a plain parameter assigned unchanged to one public final field | Yes | The generated code calls your constructor the way ordinary Dart would |
 | Required and optional inputs, nullable inputs, an explicit `null`, non-null defaults on nullable inputs, and an input left out | Yes | A missing input stays different from one set to `null` |
-| `bool`, `int`, `double`, `String`, `Color`, `EdgeInsets`, `Alignment`, `Offset`, `FontWeight`, `Duration`, `Curve`, and enums | Yes, matched by the resolved Dart type | Built-in RFW decoders, with the imports generated for you |
+| `bool`, `int`, `double`, `String`, `Color`, `EdgeInsets`, `Alignment`, `Offset`, `FontWeight`, `Duration`, `Curve`, enums, and `List<String>`, `List<int>`, `List<double>`, `List<num>`, or `List<bool>` | Yes, matched by the resolved Dart type | Built-in RFW decoders, with the imports generated for you |
 | `Widget` and `List<Widget>` inputs under any name, including several on one class | Yes, with no slot annotation or reserved name | Each child or list of children is read from its own property |
 | Your data classes, nested data classes, supported lists, maps with string keys, and named records | Yes, where RFW has a decoder for every value inside | The value is rebuilt through your constructors, in order |
 | `void` callbacks with no argument, or one required positional argument of a supported type | Yes; the Dart property name is the event name | The event fires with no value, or with its one value |

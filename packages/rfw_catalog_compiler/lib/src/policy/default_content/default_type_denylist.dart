@@ -69,7 +69,6 @@ const Set<String> kBuiltInTypeDenylist = {
   'BoxConstraints',
   'MouseCursor',
   'SystemMouseCursors',
-  'HitTestBehavior',
   'DragStartBehavior',
 
   // Scroll abstractions the catalog doesn't surface.

@@ -501,7 +501,7 @@ void main() {
       );
     });
 
-    test('RFW builder fails loud for an A2UI-only scalar-list field', () async {
+    test('RFW builder registers a scalar-list field', () async {
       const widgetSource = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -538,8 +538,8 @@ void main() {
         onLog: (record) => logs.add(record.message),
       );
 
-      expect(result.succeeded, isFalse);
-      expect(logs.join('\n'), contains('Unsupported property type List<int>'));
+      expect(result.succeeded, isTrue, reason: logs.join('\n'));
+      expect(logs.join('\n'), isNot(contains('Unsupported property type')));
     });
 
     test('emits an issue when two files declare the same (library, name)',

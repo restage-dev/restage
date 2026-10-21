@@ -52,6 +52,8 @@ final class ResolvedType {
       ResolvedTypeKind.string => PropertyType.string,
       ResolvedTypeKind.stringList => PropertyType.stringList,
       ResolvedTypeKind.booleanList => PropertyType.booleanList,
+      ResolvedTypeKind.integerList => PropertyType.integerList,
+      ResolvedTypeKind.realList => PropertyType.realList,
       ResolvedTypeKind.color => PropertyType.color,
       ResolvedTypeKind.edgeInsets => PropertyType.edgeInsets,
       ResolvedTypeKind.alignment => PropertyType.alignment,
@@ -117,6 +119,12 @@ enum ResolvedTypeKind {
   /// List of boolean literals (a multi-toggle widget's per-child selection
   /// flags).
   booleanList,
+
+  /// List of integer literals.
+  integerList,
+
+  /// List of floating-point literals.
+  realList,
 
   /// Color value.
   color,

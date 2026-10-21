@@ -45,6 +45,13 @@ When the user taps the button, the flow runs the action and moves to `ReadyScree
 only if `continueWhen` accepts the result. Here that means the user granted the
 permission.
 
+`continueWhen` takes a one-parameter arrow function. It can return `true` to continue
+whatever the result, the result itself or a final `bool` field of it (negated with `!` if
+you like), or comparisons of the result or its final fields with literals, joined with
+`&&`: `==` and `!=` for a `bool`, `int` or `String`, and `<`, `<=`, `>` and `>=` for an
+`int`. For example, `(result) => result.status == 'granted' && result.attempts < 3`. The
+build checks each comparison against the action's result type.
+
 Save the first screen in `lib/screens/permission.dart`:
 
 ```dart

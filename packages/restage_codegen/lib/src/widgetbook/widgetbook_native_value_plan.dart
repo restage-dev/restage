@@ -471,6 +471,8 @@ final class WidgetbookNativeValuePlanner {
       PropertyType.length ||
       PropertyType.alignmentXY ||
       PropertyType.booleanList ||
+      PropertyType.integerList ||
+      PropertyType.realList ||
       PropertyType.dataReference ||
       PropertyType.gradient ||
       PropertyType.border ||
@@ -680,6 +682,8 @@ final class WidgetbookNativeValuePlanner {
             PropertyType.length ||
             PropertyType.alignmentXY ||
             PropertyType.booleanList ||
+            PropertyType.integerList ||
+            PropertyType.realList ||
             PropertyType.dataReference ||
             PropertyType.gradient ||
             PropertyType.border ||
@@ -1240,6 +1244,8 @@ void _validateNativeInput(
     PropertyType.length ||
     PropertyType.alignmentXY ||
     PropertyType.booleanList ||
+    PropertyType.integerList ||
+    PropertyType.realList ||
     PropertyType.dataReference ||
     PropertyType.gradient ||
     PropertyType.border ||
@@ -1424,6 +1430,8 @@ void _validatePropertyDartType(
     PropertyType.length ||
     PropertyType.alignmentXY ||
     PropertyType.booleanList ||
+    PropertyType.integerList ||
+    PropertyType.realList ||
     PropertyType.dataReference ||
     PropertyType.gradient ||
     PropertyType.border ||

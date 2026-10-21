@@ -3632,6 +3632,8 @@ String _numberArgumentExpression(
     case PropertyType.inlineSpan:
     case PropertyType.selectionOptionList:
     case PropertyType.booleanList:
+    case PropertyType.integerList:
+    case PropertyType.realList:
     case PropertyType.curve:
     case PropertyType.unknown:
       throw StateError(
@@ -3710,6 +3712,8 @@ String _defaultFor(PropertyEntry property, Map<String, String> prefixes) {
     case PropertyType.inlineSpan:
     case PropertyType.selectionOptionList:
     case PropertyType.booleanList:
+    case PropertyType.integerList:
+    case PropertyType.realList:
     case PropertyType.curve:
     case PropertyType.unknown:
       return 'null';
@@ -4712,6 +4716,8 @@ A2uiSchemaNode? _dataNode(
     case PropertyType.decorationImage:
     case PropertyType.selectionOptionList:
     case PropertyType.booleanList:
+    case PropertyType.integerList:
+    case PropertyType.realList:
     case PropertyType.locale:
     case PropertyType.fontFeatureList:
     case PropertyType.fontVariationList:

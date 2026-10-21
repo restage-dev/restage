@@ -1880,8 +1880,8 @@ final class ExpressionTranslator {
     return null;
   }
 
-  /// A string interpolation outside a Text: one value, or refused, since the
-  /// data language cannot join strings.
+  /// A string interpolation outside a String slot: one value, or refused,
+  /// since only a String slot's decoder joins parts.
   String _stringInterpolation(StringInterpolation expr, List<Issue> issues) {
     final parts = _interpolationParts(expr, issues);
     if (parts == null) return '';
@@ -1890,10 +1890,10 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unsupportedInterpolation,
-        message: 'A string that joins text and values can only be the text '
-            'of a Text widget, because a delivered surface cannot join '
-            'strings. Show it with Text, or pass the finished string in as '
-            'one value. Found: ${expr.toSource()}.',
+        message: 'A string that joins text and values works as the text of '
+            'a Text and as a String property of a built-in widget or of a '
+            'custom widget your app renders. Here, pass the finished string '
+            'in as one value. Found: ${expr.toSource()}.',
         location: _locationOf(expr),
       ),
     );
@@ -1987,6 +1987,46 @@ final class ExpressionTranslator {
     final plain = _translateSlotValue(text, PropertyType.string, issues);
     if (_diagnosedEmpty(plain, issues, before)) return '';
     return '{ text: $plain }';
+  }
+
+  /// Whether [value] for a widget's own String [property] joins text and
+  /// values; that property's decoder joins a list of parts.
+  bool _joinsStringParts(PropertyEntry property, Expression value) =>
+      property.type == PropertyType.string &&
+      property.synthetic == null &&
+      _needsTextSpans(value);
+
+  /// Lowers a String slot's value that joins text and values to a list of
+  /// parts, which the slot's decoder joins; a conditional selects per arm.
+  String _joinedStringValue(Expression text, List<Issue> issues) {
+    final value = _resolveBoundIdentifier(text);
+    final helper = value is MethodInvocation
+        ? _walk.inlined.helpers[value.methodName.element]
+        : null;
+    if (helper != null) {
+      return _inHelperBody(
+        helper,
+        value as MethodInvocation,
+        issues,
+        (body) => _joinedStringValue(body, issues),
+        refused: '',
+      );
+    }
+    if (value is ConditionalExpression) {
+      return _conditionalSwitch(
+        value,
+        issues,
+        (arm) => _needsTextSpans(arm)
+            ? _joinedStringValue(arm, issues)
+            : _translateSlotValue(arm, PropertyType.string, issues),
+      );
+    }
+    if (value is StringInterpolation) {
+      final parts = _interpolationParts(value, issues);
+      if (parts == null) return '';
+      return parts.length == 1 ? parts.single : '[${parts.join(', ')}]';
+    }
+    return _translateSlotValue(text, PropertyType.string, issues);
   }
 
   String _escapeForDsl(String s) =>
@@ -2089,12 +2129,25 @@ final class ExpressionTranslator {
       return dsl;
     }
 
+    // Any other non-null String the surface can read: a build() local, a
+    // condition, a widget argument.
+    final type = inner.staticType;
+    if (type != null &&
+        type.isDartCoreString &&
+        type.nullabilitySuffix == NullabilitySuffix.none) {
+      final before = issues.length;
+      final value = _translateSlotValue(inner, PropertyType.string, issues);
+      if (_diagnosedEmpty(value, issues, before)) return null;
+      if (value.isNotEmpty) return value;
+    }
+
     issues.add(
       Issue(
         code: IssueCode.unsupportedInterpolation,
-        message: 'Only recognized String helpers or String State fields may '
-            'appear inside string interpolation. Found: ${_nodeKind(inner)} '
-            '${inner.toSource()}.',
+        message: 'An interpolated value must be a non-null String the '
+            'surface can read: host data, a State field, a build() local, a '
+            'condition over them, or a String helper. Found: '
+            '${_nodeKind(inner)} ${inner.toSource()}.',
         location: _locationOf(inner),
       ),
     );
@@ -5168,11 +5221,31 @@ final class ExpressionTranslator {
       // coerced to an empty map at the runtime boundary (and a flow
       // `.capture()` reads the reserved `value` key). A map literal already
       // carries named fields, so it is emitted as-is.
+      // A map value is the event's arguments, as the SDK delivers it, so
+      // its keys must be Strings.
+      final mapType = _dartCoreMapType(arg.argumentExpression.staticType);
+      final keyType = mapType?.typeArguments.first;
+      if (mapType != null &&
+          (!keyType!.isDartCoreString ||
+              keyType.nullabilitySuffix != NullabilitySuffix.none)) {
+        issues.add(
+          Issue(
+            code: IssueCode.invalidEventConfiguration,
+            message: 'An event value that is a map becomes the event '
+                'arguments, so its keys must be Strings; got '
+                '${mapType.getDisplayString()}. Declare it as a '
+                'Map<String, ...>.',
+            location: _locationOf(arg),
+          ),
+        );
+        return null;
+      }
       final translated =
           _translateHelperArgument(arg.argumentExpression, issues);
-      final isMapLiteral = arg is SetOrMapLiteral && arg.isMap;
       positional.add(
-        isMapLiteral ? translated : '{ $kCapturedEventValueKey: $translated }',
+        mapType != null
+            ? translated
+            : '{ $kCapturedEventValueKey: $translated }',
       );
     }
     return HelperCallArgs(positional: positional, named: named);
@@ -6859,7 +6932,12 @@ final class ExpressionTranslator {
             issues,
           );
           if (inlined != null) return inlined;
-          issues.add(_customWidgetIssue(classification, widgetName, anchor));
+          issues.add(
+            _withUnbuiltCatalogNote(
+              _customWidgetIssue(classification, widgetName, anchor),
+              widgetClass,
+            ),
+          );
           return '';
         }
       }
@@ -7106,13 +7184,15 @@ final class ExpressionTranslator {
       }
       final isIconSlot = positionalProp.synthetic == _kIconDataSynthetic;
       if (isIconSlot) _resetResolvedIcon();
-      final value = _translateSlotValue(
-        positionals[i],
-        positionalProp.type,
-        issues,
-        property: positionalProp,
-        sourceParameter: sourceParameters[positionals[i]],
-      );
+      final value = _joinsStringParts(positionalProp, positionals[i])
+          ? _joinedStringValue(positionals[i], issues)
+          : _translateSlotValue(
+              positionals[i],
+              positionalProp.type,
+              issues,
+              property: positionalProp,
+              sourceParameter: sourceParameters[positionals[i]],
+            );
       if (value.isEmpty && issues.length > before) return '';
       emitted.add(
         '${_rfwMapKey(propName)}: '
@@ -7194,13 +7274,15 @@ final class ExpressionTranslator {
       final before = issues.length;
       final isIconSlot = prop.synthetic == _kIconDataSynthetic;
       if (isIconSlot) _resetResolvedIcon();
-      final value = _translateSlotValue(
-        a.argumentExpression,
-        prop.type,
-        issues,
-        property: prop,
-        sourceParameter: sourceParameters[a.argumentExpression],
-      );
+      final value = _joinsStringParts(prop, a.argumentExpression)
+          ? _joinedStringValue(a.argumentExpression, issues)
+          : _translateSlotValue(
+              a.argumentExpression,
+              prop.type,
+              issues,
+              property: prop,
+              sourceParameter: sourceParameters[a.argumentExpression],
+            );
       if (value.isEmpty && issues.length > before) return '';
       // An asymmetric `BorderRadius` value (a direct `borderRadius:` arg, e.g.
       // ClipRRect) fans out onto the per-corner slots instead of the uniform
@@ -8573,12 +8655,29 @@ final class ExpressionTranslator {
     PropertyEntry? property,
   }) {
     late final String translated;
+    final paramSlot =
+        param.type == null ? null : inferPropertyType(param.type!);
     if (property != null) {
       translated = _translateSlotValue(
         stripped,
         property.type,
         issues,
         property: property,
+        // A widget argument is measured where it is passed; an event's marker
+        // is attached below.
+        sourceParameter: property.type == PropertyType.widget ||
+                property.type == PropertyType.widgetList
+            ? param.sourceParameter
+            : null,
+      );
+    } else if (paramSlot == PropertyType.widget ||
+        paramSlot == PropertyType.widgetList) {
+      // A widget argument is measured where it is passed.
+      translated = _translateSlotValue(
+        stripped,
+        paramSlot!,
+        issues,
+        sourceParameter: param.sourceParameter,
       );
     } else {
       final paramType = param.type;
@@ -11085,6 +11184,30 @@ final class ExpressionTranslator {
     return _translate(coalesce.read, issues);
   }
 
+  /// [issue], noting when [widgetClass] is a `@RestageWidget` whose package
+  /// has no widget in the catalog at all: its widget catalog did not build.
+  Issue _withUnbuiltCatalogNote(Issue issue, ClassElement widgetClass) {
+    final annotated = widgetClass.metadata.annotations.any(
+      (annotation) =>
+          annotation.element?.enclosingElement?.name == 'RestageWidget',
+    );
+    final library = widgetClass.library.identifier;
+    if (!annotated || !library.startsWith('package:')) return issue;
+    final package = '${library.substring(0, library.indexOf('/'))}/';
+    if (catalog.widgets.any((entry) => entry.flutterType.startsWith(package))) {
+      return issue;
+    }
+    return Issue(
+      code: issue.code,
+      message: "${issue.message} This package's widget catalog did not "
+          'build, so the widget has no entry yet: fix the widget catalog '
+          'errors first.',
+      location: issue.location,
+      capabilityGapSubject: issue.capabilityGapSubject,
+      buildNoticeIdentity: issue.buildNoticeIdentity,
+    );
+  }
+
   /// The diagnostic for a recognised custom widget that has no catalog entry
   /// and does not inline, from its [classification].
   Issue _customWidgetIssue(
@@ -12689,23 +12812,23 @@ String? _paywallEventName(
   HelperRegistry helpers,
   Map<Element, Expression> bindings,
 ) {
-  if (node.realTarget != null || node.methodName.name != 'paywallEvent') {
+  final method = node.methodName.name;
+  if (node.realTarget != null ||
+      (method != 'paywallEvent' && method != 'surfaceEvent')) {
     return null;
   }
   final element = node.methodName.element;
   final helper = element == null
-      ? helpers.findByNameOnly(node.methodName.name)
-      : helpers.find(
-          node.methodName.name,
-          element.library?.identifier ?? '',
-        );
-  if (helper?.name != 'paywallEvent') return null;
+      ? helpers.findByNameOnly(method)
+      : helpers.find(method, element.library?.identifier ?? '');
+  if (helper?.name != method) return null;
   final args = node.argumentList.arguments;
   if (args.isEmpty || args.first is NamedArgument) return null;
   var first = args.first.argumentExpression;
   while (first is ParenthesizedExpression) {
     first = first.expression;
   }
+  if (method == 'surfaceEvent') return authoredEventName(node);
   // Fold authored names through the same scalar boundary as emission so
   // generated navigation events cannot collide with them.
   final folded = tryFoldScalarConstant(first, localBindings: bindings);
@@ -12809,6 +12932,8 @@ bool propertyTypeAcceptsThemeKind(
       PropertyType.boolean ||
       PropertyType.integer ||
       PropertyType.booleanList ||
+      PropertyType.integerList ||
+      PropertyType.realList ||
       PropertyType.event ||
       PropertyType.dataReference ||
       PropertyType.gradient ||
@@ -12873,6 +12998,8 @@ bool propertyTypeAcceptsDeviceKind(
       PropertyType.integer ||
       PropertyType.stringList ||
       PropertyType.booleanList ||
+      PropertyType.integerList ||
+      PropertyType.realList ||
       PropertyType.event ||
       PropertyType.dataReference ||
       PropertyType.gradient ||
@@ -12923,6 +13050,10 @@ bool _propertyTypeAcceptsHostDataShape(
     PropertyType.boolean => scalar == HostDataScalarKind.boolean,
     PropertyType.stringList => listElementScalar == HostDataScalarKind.string,
     PropertyType.booleanList => listElementScalar == HostDataScalarKind.boolean,
+    PropertyType.integerList => listElementScalar == HostDataScalarKind.integer,
+    PropertyType.realList =>
+      listElementScalar == HostDataScalarKind.doubleValue ||
+          listElementScalar == HostDataScalarKind.number,
     _ => false,
   };
 }
@@ -12931,6 +13062,8 @@ PropertyType? _inspectedListItemPropertyType(PropertyType type) =>
     switch (type) {
       PropertyType.stringList => PropertyType.string,
       PropertyType.booleanList => PropertyType.boolean,
+      PropertyType.integerList => PropertyType.integer,
+      PropertyType.realList => PropertyType.real,
       PropertyType.boxShadowList ||
       PropertyType.shadowList ||
       PropertyType.fontFeatureList ||
@@ -12993,6 +13126,16 @@ PropertyType? _propertyTypeForParameter(DartType? type) {
       elementShape: HostDataScalarShape(kind: HostDataScalarKind.boolean),
     ) =>
       PropertyType.booleanList,
+    HostDataListShape(
+      elementShape: HostDataScalarShape(kind: HostDataScalarKind.integer),
+    ) =>
+      PropertyType.integerList,
+    HostDataListShape(
+      elementShape: HostDataScalarShape(
+        kind: HostDataScalarKind.doubleValue || HostDataScalarKind.number,
+      ),
+    ) =>
+      PropertyType.realList,
     _ => PropertyType.unknown,
   };
 }

@@ -15,6 +15,7 @@ import 'package:rfw/rfw.dart' hide Switch;
 /// keyed by widget name.
 const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
     <String, LocalWidgetBuilder>{
+  'AbsorbPointer': buildAbsorbPointer,
   'Align': buildAlign,
   'AnimatedAlign': buildAnimatedAlign,
   'AnimatedContainer': buildAnimatedContainer,
@@ -44,6 +45,7 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
   'Flexible': buildFlexible,
   'FractionallySizedBox': buildFractionallySizedBox,
   'GestureDetector': buildGestureDetector,
+  'IgnorePointer': buildIgnorePointer,
   'Image': buildImage,
   'ImageAsset': buildImageAsset,
   'IntrinsicHeight': buildIntrinsicHeight,
@@ -77,6 +79,14 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
   'Visibility': buildVisibility,
   'Wrap': buildWrap,
 };
+
+/// Builds the catalog's `AbsorbPointer` widget from [source].
+Widget buildAbsorbPointer(BuildContext context, DataSource source) {
+  return AbsorbPointer(
+    absorbing: source.v<bool>(const <Object>['absorbing']) ?? true,
+    child: source.optionalChild(const <Object>['child']),
+  );
+}
 
 /// Builds the catalog's `Align` widget from [source].
 Widget buildAlign(BuildContext context, DataSource source) {
@@ -192,10 +202,10 @@ Widget buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: source.v<String>(const <Object>['debugLabel']),
-        fontFamily: source.v<String>(const <Object>['fontFamily']),
+        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
+        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: source.v<String>(const <Object>['fontPackage']),
+        package: RestageDecoders.string(source, <Object>['fontPackage']),
         overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip)),
     textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
@@ -540,10 +550,10 @@ Widget buildDefaultTextStyle(BuildContext context, DataSource source) {
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: source.v<String>(const <Object>['debugLabel']),
-        fontFamily: source.v<String>(const <Object>['fontFamily']),
+        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
+        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: source.v<String>(const <Object>['fontPackage']),
+        package: RestageDecoders.string(source, <Object>['fontPackage']),
         overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip)),
     textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
@@ -567,10 +577,10 @@ Widget buildExpanded(BuildContext context, DataSource source) {
 /// Builds the catalog's `FadeInImageAssetNetwork` widget from [source].
 Widget buildFadeInImageAssetNetwork(BuildContext context, DataSource source) {
   return RestageFadeInImage.assetNetwork(
-    placeholder: source.v<String>(const <Object>['placeholder']) ??
+    placeholder: RestageDecoders.string(source, <Object>['placeholder']) ??
         (throw ArgumentError(
             'FadeInImageAssetNetwork.placeholder is required.')),
-    image: source.v<String>(const <Object>['image']) ??
+    image: RestageDecoders.string(source, <Object>['image']) ??
         (throw ArgumentError('FadeInImageAssetNetwork.image is required.')),
     imageScale:
         RestageDecoders.positiveLayoutScalar(source, <Object>['imageScale']) ??
@@ -630,6 +640,16 @@ Widget buildGestureDetector(BuildContext context, DataSource source) {
     onTap: source.voidHandler(const <Object>['onTap']),
     onDoubleTap: source.voidHandler(const <Object>['onDoubleTap']),
     onLongPress: source.voidHandler(const <Object>['onLongPress']),
+    behavior: RestageDecoders.enumByName<HitTestBehavior>(
+        HitTestBehavior.values, source, <Object>['behavior']),
+    child: source.optionalChild(const <Object>['child']),
+  );
+}
+
+/// Builds the catalog's `IgnorePointer` widget from [source].
+Widget buildIgnorePointer(BuildContext context, DataSource source) {
+  return IgnorePointer(
+    ignoring: source.v<bool>(const <Object>['ignoring']) ?? true,
     child: source.optionalChild(const <Object>['child']),
   );
 }
@@ -637,9 +657,9 @@ Widget buildGestureDetector(BuildContext context, DataSource source) {
 /// Builds the catalog's `Image` widget from [source].
 Widget buildImage(BuildContext context, DataSource source) {
   return RestageImage.network(
-    source.v<String>(const <Object>['url']) ??
+    RestageDecoders.string(source, <Object>['url']) ??
         (throw ArgumentError('Image.url is required.')),
-    semanticLabel: source.v<String>(const <Object>['semanticLabel']),
+    semanticLabel: RestageDecoders.string(source, <Object>['semanticLabel']),
     width: RestageDecoders.constraintScalar(source, <Object>['width']),
     height: RestageDecoders.constraintScalar(source, <Object>['height']),
     color: ArgumentDecoders.color(source, <Object>['color']),
@@ -661,9 +681,9 @@ Widget buildImage(BuildContext context, DataSource source) {
 /// Builds the catalog's `ImageAsset` widget from [source].
 Widget buildImageAsset(BuildContext context, DataSource source) {
   return RestageImage.asset(
-    source.v<String>(const <Object>['name']) ??
+    RestageDecoders.string(source, <Object>['name']) ??
         (throw ArgumentError('ImageAsset.name is required.')),
-    semanticLabel: source.v<String>(const <Object>['semanticLabel']),
+    semanticLabel: RestageDecoders.string(source, <Object>['semanticLabel']),
     width: RestageDecoders.constraintScalar(source, <Object>['width']),
     height: RestageDecoders.constraintScalar(source, <Object>['height']),
     color: ArgumentDecoders.color(source, <Object>['color']),
@@ -781,13 +801,13 @@ Widget buildRestageFormattedNumber(BuildContext context, DataSource source) {
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: source.v<String>(const <Object>['debugLabel']),
-        fontFamily: source.v<String>(const <Object>['fontFamily']),
+        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
+        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: source.v<String>(const <Object>['fontPackage']),
+        package: RestageDecoders.string(source, <Object>['fontPackage']),
         overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
     value: source.v<double>(const <Object>['value']),
-    numberLocale: source.v<String>(const <Object>['numberLocale']),
+    numberLocale: RestageDecoders.string(source, <Object>['numberLocale']),
     textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     maxLines: source.v<int>(const <Object>['maxLines']),
@@ -848,14 +868,14 @@ Widget buildRestagePrice(BuildContext context, DataSource source) {
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: source.v<String>(const <Object>['debugLabel']),
-        fontFamily: source.v<String>(const <Object>['fontFamily']),
+        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
+        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: source.v<String>(const <Object>['fontPackage']),
+        package: RestageDecoders.string(source, <Object>['fontPackage']),
         overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
     value: source.v<double>(const <Object>['value']),
-    numberLocale: source.v<String>(const <Object>['numberLocale']),
-    symbol: source.v<String>(const <Object>['symbol']),
+    numberLocale: RestageDecoders.string(source, <Object>['numberLocale']),
+    symbol: RestageDecoders.string(source, <Object>['symbol']),
     decimalDigits: source.v<int>(const <Object>['decimalDigits']),
     textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
@@ -1047,11 +1067,11 @@ Widget buildSemantics(BuildContext context, DataSource source) {
     isRequired: source.v<bool>(const <Object>['isRequired']),
     maxValueLength: source.v<int>(const <Object>['maxValueLength']),
     currentValueLength: source.v<int>(const <Object>['currentValueLength']),
-    identifier: source.v<String>(const <Object>['identifier']),
-    label: source.v<String>(const <Object>['label']),
-    value: source.v<String>(const <Object>['value']),
-    hint: source.v<String>(const <Object>['hint']),
-    tooltip: source.v<String>(const <Object>['tooltip']),
+    identifier: RestageDecoders.string(source, <Object>['identifier']),
+    label: RestageDecoders.string(source, <Object>['label']),
+    value: RestageDecoders.string(source, <Object>['value']),
+    hint: RestageDecoders.string(source, <Object>['hint']),
+    tooltip: RestageDecoders.string(source, <Object>['tooltip']),
     child: source.optionalChild(const <Object>['child']),
   );
 }
@@ -1090,7 +1110,7 @@ Widget buildStack(BuildContext context, DataSource source) {
 /// Builds the catalog's `Text` widget from [source].
 Widget buildText(BuildContext context, DataSource source) {
   return Text(
-    source.v<String>(const <Object>['text']) ??
+    RestageDecoders.string(source, <Object>['text']) ??
         (throw ArgumentError('Text.text is required.')),
     style: RestageDecoders.packagedFont(TextStyle(
         inherit: source.v<bool>(const <Object>['inherit']) ?? true,
@@ -1100,10 +1120,9 @@ Widget buildText(BuildContext context, DataSource source) {
         fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
             resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
                 as double?,
-        fontWeight:
-            ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
-                resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
-                    as FontWeight?,
+        fontWeight: ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
+            resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
+                as FontWeight?,
         fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
         letterSpacing:
@@ -1113,7 +1132,8 @@ Widget buildText(BuildContext context, DataSource source) {
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
+        leadingDistribution:
+            RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
         locale: ArgumentDecoders.locale(source, <Object>['locale']),
         foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
         background: ArgumentDecoders.paint(source, <Object>['background']),
@@ -1124,16 +1144,16 @@ Widget buildText(BuildContext context, DataSource source) {
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: source.v<String>(const <Object>['debugLabel']),
-        fontFamily: source.v<String>(const <Object>['fontFamily']),
+        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
+        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: source.v<String>(const <Object>['fontPackage']),
+        package: RestageDecoders.string(source, <Object>['fontPackage']),
         overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
     textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     softWrap: source.v<bool>(const <Object>['softWrap']),
     maxLines: source.v<int>(const <Object>['maxLines']),
-    semanticsLabel: source.v<String>(const <Object>['semanticsLabel']),
+    semanticsLabel: RestageDecoders.string(source, <Object>['semanticsLabel']),
     textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
         TextWidthBasis.values, source, <Object>['textWidthBasis']),
   );
@@ -1152,10 +1172,9 @@ Widget buildTextRich(BuildContext context, DataSource source) {
         fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
             resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
                 as double?,
-        fontWeight:
-            ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
-                resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
-                    as FontWeight?,
+        fontWeight: ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
+            resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
+                as FontWeight?,
         fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
         letterSpacing:
@@ -1165,7 +1184,8 @@ Widget buildTextRich(BuildContext context, DataSource source) {
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
+        leadingDistribution:
+            RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
         locale: ArgumentDecoders.locale(source, <Object>['locale']),
         foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
         background: ArgumentDecoders.paint(source, <Object>['background']),
@@ -1176,16 +1196,16 @@ Widget buildTextRich(BuildContext context, DataSource source) {
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: source.v<String>(const <Object>['debugLabel']),
-        fontFamily: source.v<String>(const <Object>['fontFamily']),
+        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
+        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: source.v<String>(const <Object>['fontPackage']),
+        package: RestageDecoders.string(source, <Object>['fontPackage']),
         overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
     textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     softWrap: source.v<bool>(const <Object>['softWrap']),
     maxLines: source.v<int>(const <Object>['maxLines']),
-    semanticsLabel: source.v<String>(const <Object>['semanticsLabel']),
+    semanticsLabel: RestageDecoders.string(source, <Object>['semanticsLabel']),
     textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
         TextWidthBasis.values, source, <Object>['textWidthBasis']),
   );

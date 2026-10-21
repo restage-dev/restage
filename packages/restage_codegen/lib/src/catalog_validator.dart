@@ -337,6 +337,8 @@ bool _scalarValueMismatch(PropertyType type, Object? value) {
     // A list of booleans (a multi-toggle widget's per-child selection flags),
     // never a bare scalar.
     case PropertyType.booleanList:
+    case PropertyType.integerList:
+    case PropertyType.realList:
     case PropertyType.structured:
     // A recursive span map (Text.rich / TextSpan), never a bare scalar — the
     // explicit classification for the new structured-slot type (decided here,

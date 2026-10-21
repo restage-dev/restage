@@ -85,8 +85,8 @@ final class Catalog {
   /// diff-tooled (e.g. fresh emissions outside a release flow).
   final List<CompatRule>? compatRules;
 
-  /// The catalog *content* version — the maximum [WidgetEntry.sinceVersion]
-  /// over all widgets, floored at [kBaselineCatalogVersion].
+  /// The catalog *content* version — the maximum `sinceVersion` over all
+  /// widgets and their properties, floored at [kBaselineCatalogVersion].
   ///
   /// Derived (never stored) so it cannot drift from the entries it
   /// summarizes. An empty catalog reports the baseline. Delegates to the

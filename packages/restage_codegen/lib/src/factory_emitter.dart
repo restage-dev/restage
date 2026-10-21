@@ -2167,6 +2167,8 @@ bool _isEmittableProperty(
     // A list of booleans decoded by the bespoke `RestageDecoders.booleanList`
     // — mechanically emittable like the other bespoke-decoder list slots.
     case PropertyType.booleanList:
+    case PropertyType.integerList:
+    case PropertyType.realList:
       return true;
     case PropertyType.enumValue:
       // The decoder calls `RestageDecoders.enumByName<T>(T.values, ...)`,
@@ -2399,6 +2401,8 @@ bool _decoderReturnsNullable(PropertyType type) {
     case PropertyType.selectionOptionList:
     // `RestageDecoders.booleanList(...)` returns a nullable `List<bool>?`.
     case PropertyType.booleanList:
+    case PropertyType.integerList:
+    case PropertyType.realList:
       return true;
     case PropertyType.widget:
     case PropertyType.widgetList:
@@ -2671,6 +2675,10 @@ String _customMapTerminalType(
       return 'List<RestageSelectionOption>';
     case PropertyType.booleanList:
       return 'List<bool>';
+    case PropertyType.integerList:
+      return 'List<int>';
+    case PropertyType.realList:
+      return 'List<double>';
     case PropertyType.widget:
     case PropertyType.widgetList:
     case PropertyType.event:
@@ -4007,7 +4015,8 @@ String _decoderCallFor(
           ? 'RestageDecoders.number(source, $path)'
           : 'source.v<double>($directPath)';
     case PropertyType.string:
-      return 'source.v<String>($directPath)';
+      // A list of strings is joined, so a surface can build text from parts.
+      return 'RestageDecoders.string(source, $path)';
     case PropertyType.stringList:
       // Fail-safe: a present-but-degenerate list (a non-string element on a
       // corrupt / tamper wire) DROPS the bad element rather than throwing,
@@ -4083,6 +4092,10 @@ String _decoderCallFor(
       // A list of booleans (a multi-toggle widget's per-child selection
       // flags), decoded into a real `List<bool>?` by the bespoke decoder.
       return 'RestageDecoders.booleanList(source, $path)';
+    case PropertyType.integerList:
+      return 'RestageDecoders.integerList(source, $path)';
+    case PropertyType.realList:
+      return 'RestageDecoders.realList(source, $path)';
     case PropertyType.widget:
       // Custom factories select the decoder and cast from constructor
       // nullability: a required nullable argument is still emitted

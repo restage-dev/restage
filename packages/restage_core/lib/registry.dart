@@ -19,6 +19,44 @@ final Catalog kRegistry = Catalog(
   },
   widgets: [
     WidgetEntry(
+      wireId: WireId('w0062'),
+      name: 'AbsorbPointer',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.input,
+      description: 'A widget that absorbs pointers during hit testing.',
+      flutterType: 'package:flutter/src/widgets/basic.dart#AbsorbPointer',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0707'),
+          name: 'absorbing',
+          type: PropertyType.boolean,
+          description:
+              'Whether this widget absorbs pointers during hit testing.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0708'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0709'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 16,
+    ),
+    WidgetEntry(
       wireId: WireId('w0001'),
       name: 'Align',
       library: WidgetLibrary.core,
@@ -3565,6 +3603,21 @@ final Catalog kRegistry = Catalog(
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
+          wireId: WireId('p0710'),
+          name: 'behavior',
+          type: PropertyType.enumValue,
+          description:
+              'How this gesture detector should behave during hit testing when deciding how the hit test propagates to children and whether to consider targets behind this one.',
+          sinceVersion: 16,
+          enumType: 'HitTestBehavior',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/rendering/proxy_box.dart',
+                  symbolName: 'HitTestBehavior')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0617'),
           name: 'analyticsId',
           type: PropertyType.string,
@@ -3572,6 +3625,43 @@ final Catalog kRegistry = Catalog(
           synthetic: 'analyticsId',
         ),
       ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0063'),
+      name: 'IgnorePointer',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.input,
+      description: 'A widget that is invisible during hit testing.',
+      flutterType: 'package:flutter/src/widgets/basic.dart#IgnorePointer',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0711'),
+          name: 'ignoring',
+          type: PropertyType.boolean,
+          description: 'Whether this widget is ignored during hit testing.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0712'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0713'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 16,
     ),
     WidgetEntry(
       wireId: WireId('w0018'),
@@ -10155,4 +10245,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.core` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kCoreCatalogContentVersion = 14;
+const int kCoreCatalogContentVersion = 16;

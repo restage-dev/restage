@@ -667,6 +667,7 @@ PropertyEntry _copyPropertyWithValueShape(
 ) {
   return PropertyEntry(
     wireId: base.wireId,
+    sinceVersion: base.sinceVersion,
     name: base.name,
     type: base.type,
     description: base.description,

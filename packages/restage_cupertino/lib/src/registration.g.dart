@@ -119,7 +119,8 @@ Widget buildCupertinoNavigationBar(BuildContext context, DataSource source) {
         source.v<bool>(const <Object>['automaticallyImplyLeading']) ?? true,
     automaticallyImplyMiddle:
         source.v<bool>(const <Object>['automaticallyImplyMiddle']) ?? true,
-    previousPageTitle: source.v<String>(const <Object>['previousPageTitle']),
+    previousPageTitle:
+        RestageDecoders.string(source, <Object>['previousPageTitle']),
     middle: source.optionalChild(const <Object>['middle']),
     trailing: source.optionalChild(const <Object>['trailing']),
     backgroundColor:
@@ -157,7 +158,7 @@ Widget buildCupertinoSwitch(BuildContext context, DataSource source) {
 /// Builds the catalog's `CupertinoTextField` widget from [source].
 Widget buildCupertinoTextField(BuildContext context, DataSource source) {
   return CupertinoTextField(
-    placeholder: source.v<String>(const <Object>['placeholder']),
+    placeholder: RestageDecoders.string(source, <Object>['placeholder']),
     textInputAction: RestageDecoders.enumByName<TextInputAction>(
         TextInputAction.values, source, <Object>['textInputAction']),
     obscureText: source.v<bool>(const <Object>['obscureText']) ?? false,
@@ -285,7 +286,7 @@ Widget buildCupertinoSearchTextField(BuildContext context, DataSource source) {
         source, const <Object>['onChanged']),
     onSubmitted: RestageDecoders.valueChanged<String>(
         source, const <Object>['onSubmitted']),
-    placeholder: source.v<String>(const <Object>['placeholder']),
+    placeholder: RestageDecoders.string(source, <Object>['placeholder']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
     itemSize:
@@ -303,6 +304,6 @@ Widget buildCupertinoCheckbox(BuildContext context, DataSource source) {
         source, const <Object>['onChanged']),
     activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
     checkColor: ArgumentDecoders.color(source, <Object>['checkColor']),
-    semanticLabel: source.v<String>(const <Object>['semanticLabel']),
+    semanticLabel: RestageDecoders.string(source, <Object>['semanticLabel']),
   );
 }

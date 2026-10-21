@@ -557,6 +557,29 @@ final class ObjectBoolFieldEqualsActionResultPredicate
   String get kind => 'objectBoolFieldEquals';
 }
 
+/// Continues whatever the action returns.
+final class AlwaysActionResultPredicate extends FlowActionResultPredicate {
+  const AlwaysActionResultPredicate();
+
+  @override
+  String get kind => 'always';
+}
+
+/// Compares the result, or fields of an object result, with literals; every
+/// condition must hold.
+final class MatchesActionResultPredicate extends FlowActionResultPredicate {
+  const MatchesActionResultPredicate({this.result, this.fields = const {}});
+
+  /// A condition on the whole result.
+  final FlowPredicateCondition? result;
+
+  /// Conditions on fields of an object result.
+  final Map<String, FlowPredicateCondition> fields;
+
+  @override
+  String get kind => 'matches';
+}
+
 final class GotoFlowTransition extends FlowTransition {
   const GotoFlowTransition(this.target, {this.stateWrites = const {}});
 

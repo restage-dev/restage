@@ -8,6 +8,50 @@
   },
   "widgets": [
     {
+      "wireId": "w0062",
+      "name": "AbsorbPointer",
+      "library": "restage.core",
+      "category": "input",
+      "description": "A widget that absorbs pointers during hit testing.",
+      "flutterType": "package:flutter/src/widgets/basic.dart#AbsorbPointer",
+      "childrenSlot": "single",
+      "properties": [
+        {
+          "wireId": "p0707",
+          "name": "absorbing",
+          "type": "boolean",
+          "description": "Whether this widget absorbs pointers during hit testing.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0708",
+          "name": "child",
+          "type": "widget",
+          "description": "",
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0709",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ],
+      "sinceVersion": 16
+    },
+    {
       "wireId": "w0001",
       "name": "Align",
       "library": "restage.core",
@@ -4542,6 +4586,23 @@
           "category": "behavior"
         },
         {
+          "wireId": "p0710",
+          "name": "behavior",
+          "type": "enumValue",
+          "description": "How this gesture detector should behave during hit testing when deciding how the hit test propagates to children and whether to consider targets behind this one.",
+          "enumType": "HitTestBehavior",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "package:flutter/src/rendering/proxy_box.dart",
+              "symbolName": "HitTestBehavior"
+            }
+          },
+          "sinceVersion": 16
+        },
+        {
           "wireId": "p0617",
           "name": "analyticsId",
           "type": "string",
@@ -4549,6 +4610,50 @@
           "synthetic": "analyticsId"
         }
       ]
+    },
+    {
+      "wireId": "w0063",
+      "name": "IgnorePointer",
+      "library": "restage.core",
+      "category": "input",
+      "description": "A widget that is invisible during hit testing.",
+      "flutterType": "package:flutter/src/widgets/basic.dart#IgnorePointer",
+      "childrenSlot": "single",
+      "properties": [
+        {
+          "wireId": "p0711",
+          "name": "ignoring",
+          "type": "boolean",
+          "description": "Whether this widget is ignored during hit testing.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0712",
+          "name": "child",
+          "type": "widget",
+          "description": "",
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0713",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ],
+      "sinceVersion": 16
     },
     {
       "wireId": "w0018",

@@ -10,13 +10,16 @@ const List<HelperDefinition> onboardingHelpers = [
     returnCategory: HelperReturnCategory.voidCallback,
     translate: _translateScreenEvent,
   ),
-  HelperDefinition(
-    name: 'surfaceEvent',
-    libraryOrigin: _kSdkLibraryOrigin,
-    returnCategory: HelperReturnCategory.voidCallback,
-    translate: _translateScreenEvent,
-  ),
+  surfaceEventHelper,
 ];
+
+/// The `surfaceEvent` helper, shared by screens, flows and paywalls.
+const HelperDefinition surfaceEventHelper = HelperDefinition(
+  name: 'surfaceEvent',
+  libraryOrigin: _kSdkLibraryOrigin,
+  returnCategory: HelperReturnCategory.voidCallback,
+  translate: _translateScreenEvent,
+);
 
 String _translateScreenEvent(HelperCallArgs args) {
   if (args.positional.isEmpty) {

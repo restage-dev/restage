@@ -9,6 +9,8 @@ import 'package:rfw_catalog_schema/src/property_metadata.dart';
 import 'package:rfw_catalog_schema/src/property_type.dart';
 import 'package:rfw_catalog_schema/src/restage_constraints.dart';
 import 'package:rfw_catalog_schema/src/validation_expr.dart';
+import 'package:rfw_catalog_schema/src/widget_entry.dart'
+    show kBaselineCatalogVersion;
 import 'package:rfw_catalog_schema/src/wire_id.dart';
 
 /// One property on a catalog widget entry.
@@ -54,7 +56,12 @@ final class PropertyEntry {
     this.deprecated,
     this.structuredRef,
     this.valueShape,
+    this.sinceVersion = kBaselineCatalogVersion,
   });
+
+  /// The content version that added this property to its widget. A surface
+  /// that sets it needs a client at this version or later.
+  final int sinceVersion;
 
   /// Stable wire identity for this property. Library-scoped — two
   /// properties in the same library never share a wire ID even across

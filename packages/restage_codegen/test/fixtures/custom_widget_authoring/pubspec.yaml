@@ -1,0 +1,3 @@
+name: apps_examples
+environment:
+  sdk: ^3.6.0

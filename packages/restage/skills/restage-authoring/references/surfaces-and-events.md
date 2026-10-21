@@ -88,16 +88,23 @@ UpperCamelCase, then `Event`.
   `arguments`.
 - Don't wrap it in a closure: `() => surfaceEvent(...)` returns the callback without
   calling it, so the event never fires when your own widget shows. The build warns.
-- In a standalone `@Paywall()`, fire events with `paywallEvent('name', args: {...})`.
-  The generated paywall mount delivers them as `PaywallCustomEvent` with `eventName`
-  and `args`. A paywall used as a flow step declares `SurfaceEvent`s for its
+- In a standalone `@Paywall()`, fire events with `paywallEvent('name', args: {...})`
+  or with `surfaceEvent(event)` and a declared `SurfaceEvent`. The generated paywall
+  mount delivers them as `PaywallCustomEvent` with `eventName` and `args`; a
+  `surfaceEvent` value arrives as `args['value']`. The names `purchase`, `restore`
+  and `restage.purchase…`/`restage.restore…` are reserved; use names such as
+  `restore_purchases`. A paywall used as a flow step declares `SurfaceEvent`s for its
   transitions, like any screen.
 - `@Paywall(completesOn: [ProUpgradePaywall.startTrial])` marks that tap as a
   completed interaction for measurement. Declare the event with
   `static const startTrial = SurfaceEvent<void>('start_trial');`. The host still
   performs purchases and navigation; this does not close a route or advance a
   flow. Other exits are recorded as dismissals. Naming an event that no tap fires
-  stops the build.
+  stops the build. A tap on your own `@RestageWidget`'s callback counts, including
+  one inside a wrapper widget's `Widget` child.
+- For a parent `GestureDetector` that owns the tap over a child with its own,
+  wrap the child in `IgnorePointer` and set `behavior: HitTestBehavior.opaque`;
+  without it the detector misses taps the ignored child would have received.
 - The dashboard and MCP name each tap from a `Semantics(label: ...)` around it, or
   else from its text, its tooltip, then its icon. Wrap a tap in
   `Semantics(label: 'Choose plan')` to name it yourself.
@@ -184,8 +191,12 @@ Column(
 - Static list spreads preserve their elements. C-style loops, null-aware spreads,
   set iteration and arbitrary `.map()` calls are not substitutes for collection
   `for`.
-- Runtime string interpolation requires non-null `String` values. Format prices,
-  dates and counts in app code before passing them as host data.
+- Runtime string interpolation requires non-null `String` values: host data,
+  `State` fields, `final` locals in `build()`, or conditions over them. A `Text`, a
+  built-in widget's `String` property and the `String` property of a custom widget
+  your app renders can join text and values (`label: 'Only $price a year'`). In a
+  value object such as a `TextStyle`, pass the finished string. Format prices, dates
+  and counts in app code before passing them in.
 
 Keep numeric values finite. Use `CrossAxisAlignment.stretch` or `Expanded` for
 available width instead of `double.infinity`. The compiler lists supported

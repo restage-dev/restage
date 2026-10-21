@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Register `AbsorbPointer`, `IgnorePointer` and `GestureDetector.behavior` at
+  catalog capability 16. Build surfaces with the `restage_codegen` release
+  that matches this one: an older `restage_codegen` does not raise the
+  capability floor of a surface that sets `behavior`.
+- Add `RestageDecoders.string`, which reads a string or joins a list of parts,
+  and `RestageDecoders.integerList` and `RestageDecoders.realList`.
 - Add `RestageDecoders.widgetList` for conditional widget groups in runtime loops.
   Core catalog capability 10 includes the updated Column and Row factories.
 - Shapes accept a radius per corner as well as one radius for all corners.

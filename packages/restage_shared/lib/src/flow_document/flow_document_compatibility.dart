@@ -1005,6 +1005,12 @@ String _actionResultPredicateFingerprint(FlowActionResultPredicate predicate) {
     BoolEqualsActionResultPredicate(:final value) => 'boolEquals:$value',
     ObjectBoolFieldEqualsActionResultPredicate(:final field, :final value) =>
       'objectBoolFieldEquals:$field:$value',
+    AlwaysActionResultPredicate() => 'always',
+    MatchesActionResultPredicate(:final result, :final fields) => [
+        'matches',
+        if (result != null) _predicateConditionFingerprint(result) else '',
+        _branchPredicateFingerprint(FlowBranchPredicate(fields: fields)),
+      ].join(':'),
   };
 }
 

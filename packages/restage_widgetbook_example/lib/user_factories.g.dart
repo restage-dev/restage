@@ -147,7 +147,10 @@ Widget _buildBareCatalogCard(BuildContext context, DataSource source) {
 
   return Function.apply(s0.BareCatalogCard.new, <Object?>[], <Symbol, Object?>{
         if (restagePresenceLabel.supplied)
-          #label: source.v<String>(restagePresenceLabel.valuePath),
+          #label: RestageDecoders.string(
+            source,
+            restagePresenceLabel.valuePath,
+          ),
       })
       as Widget;
 }
@@ -160,7 +163,7 @@ Widget _buildCatalogShowcase(BuildContext context, DataSource source) {
 
   return Function.apply(s7.CatalogShowcase.new, <Object?>[], <Symbol, Object?>{
         #title:
-            source.v<String>(const <Object>['title']) ??
+            RestageDecoders.string(source, <Object>['title']) ??
             (throw ArgumentError('CatalogShowcase.title is required.')),
         if (restagePresenceEnabled.supplied)
           #enabled: source.v<bool>(restagePresenceEnabled.valuePath),
@@ -182,7 +185,7 @@ Widget _buildCatalogShowcase(BuildContext context, DataSource source) {
         #data: source.isMap(<Object>['data'])
             ? s7.CatalogShowcaseData(
                 note:
-                    source.v<String>(<Object>['data', 'note']) ??
+                    RestageDecoders.string(source, <Object>['data', 'note']) ??
                     (throw ArgumentError(
                       'CatalogShowcaseData.note is required.',
                     )),
@@ -239,26 +242,28 @@ Widget _buildConstructorFidelityCorpus(
         Object?
       >{
         #value:
-            source.v<String>(const <Object>['value']) ??
+            RestageDecoders.string(source, <Object>['value']) ??
             (throw ArgumentError(
               'ConstructorFidelityCorpus.value is required.',
             )),
         #ordinaryLabel:
-            source.v<String>(const <Object>['ordinaryLabel']) ??
+            RestageDecoders.string(source, <Object>['ordinaryLabel']) ??
             (throw ArgumentError(
               'ConstructorFidelityCorpus.ordinaryLabel is required.',
             )),
         #requiredNamed:
-            source.v<String>(const <Object>['requiredNamed']) ??
+            RestageDecoders.string(source, <Object>['requiredNamed']) ??
             (throw ArgumentError(
               'ConstructorFidelityCorpus.requiredNamed is required.',
             )),
         if (restagePresenceNullableText.supplied)
-          #nullableText: source.v<String>(
+          #nullableText: RestageDecoders.string(
+            source,
             restagePresenceNullableText.valuePath,
           ),
         if (restagePresenceNullableSeed.supplied)
-          #nullableSeed: source.v<String>(
+          #nullableSeed: RestageDecoders.string(
+            source,
             restagePresenceNullableSeed.valuePath,
           ),
         if (restagePresenceEnabled.supplied)
@@ -292,7 +297,7 @@ Widget _buildConstructorFidelityCorpus(
                             ])
                             ? s1.ConstructorCorpusNestedData(
                                 label:
-                                    source.v<String>(<Object>[
+                                    RestageDecoders.string(source, <Object>[
                                       ...restagePresenceData.valuePath,
                                       'nested',
                                       'label',
@@ -347,7 +352,7 @@ Widget _buildConstructorFidelityProof(BuildContext context, DataSource source) {
   return Function.apply(
         s2.ConstructorFidelityProof.new,
         <Object?>[
-          source.v<String>(const <Object>['label']) ??
+          RestageDecoders.string(source, <Object>['label']) ??
               (throw ArgumentError(
                 'ConstructorFidelityProof.label is required.',
               )),
@@ -356,7 +361,8 @@ Widget _buildConstructorFidelityProof(BuildContext context, DataSource source) {
           if (restagePresenceEnabled.supplied)
             #enabled: source.v<bool>(restagePresenceEnabled.valuePath),
           if (restagePresenceOptionalText.supplied)
-            #optionalText: source.v<String>(
+            #optionalText: RestageDecoders.string(
+              source,
               restagePresenceOptionalText.valuePath,
             ),
           #onChanged:
@@ -383,16 +389,19 @@ Widget _buildConstructorPositionalCorpus(
   );
 
   return Function.apply(s1.ConstructorPositionalCorpus.new, <Object?>[
-        source.v<String>(const <Object>['requiredLabel']) ??
+        RestageDecoders.string(source, <Object>['requiredLabel']) ??
             (throw ArgumentError(
               'ConstructorPositionalCorpus.requiredLabel is required.',
             )),
         if (restagePresenceLeading.supplied || restagePresenceTrailing.supplied)
           restagePresenceLeading.supplied
-              ? (source.v<String>(restagePresenceLeading.valuePath))
+              ? (RestageDecoders.string(
+                  source,
+                  restagePresenceLeading.valuePath,
+                ))
               : 'leading-default',
         if (restagePresenceTrailing.supplied)
-          source.v<String>(restagePresenceTrailing.valuePath),
+          RestageDecoders.string(source, restagePresenceTrailing.valuePath),
       ], <Symbol, Object?>{})
       as Widget;
 }
@@ -406,17 +415,19 @@ Widget _buildFeaturePanel(BuildContext context, DataSource source) {
 
 Widget _buildFeatureRow(BuildContext context, DataSource source) {
   return s4.FeatureRow(
-    title: source.v<String>(const <Object>['title']) ?? 'Unlimited projects',
+    title:
+        RestageDecoders.string(source, <Object>['title']) ??
+        'Unlimited projects',
     subtitle:
-        source.v<String>(const <Object>['subtitle']) ??
+        RestageDecoders.string(source, <Object>['subtitle']) ??
         'No caps on what you ship.',
   );
 }
 
 Widget _buildPriceBadge(BuildContext context, DataSource source) {
   return s5.PriceBadge(
-    price: source.v<String>(const <Object>['price']) ?? '\$9.99',
-    period: source.v<String>(const <Object>['period']) ?? 'mo',
+    price: RestageDecoders.string(source, <Object>['price']) ?? '\$9.99',
+    period: RestageDecoders.string(source, <Object>['period']) ?? 'mo',
   );
 }
 
@@ -434,7 +445,7 @@ Widget _buildRequiredNullableWidgetProof(
 
 Widget _buildStatTile(BuildContext context, DataSource source) {
   return s6.StatTile(
-    label: source.v<String>(const <Object>['label']) ?? 'Active users',
-    value: source.v<String>(const <Object>['value']) ?? '1,204',
+    label: RestageDecoders.string(source, <Object>['label']) ?? 'Active users',
+    value: RestageDecoders.string(source, <Object>['value']) ?? '1,204',
   );
 }

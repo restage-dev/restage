@@ -1119,6 +1119,43 @@ abstract final class RestageDecoders {
     return values;
   }
 
+  /// Decodes a `String` slot: a string, or a list of strings joined in order.
+  /// A non-string part reads as empty. Absent → null.
+  static String? string(DataSource source, List<Object> path) {
+    final value = source.v<String>(path);
+    if (value != null || !source.isList(path)) return value;
+    final count = source.length(path);
+    return [
+      for (var index = 0; index < count; index++)
+        source.v<String>([...path, index]) ?? '',
+    ].join();
+  }
+
+  /// Decodes a `List<int>` slot, dropping any entry that is not an int.
+  /// Absent → null; a present list, even an empty one, is a list.
+  static List<int>? integerList(DataSource source, List<Object> path) {
+    if (!source.isList(path)) return null;
+    final count = source.length(path);
+    return [
+      for (var index = 0; index < count; index++)
+        if (source.v<int>([...path, index]) case final value?) value,
+    ];
+  }
+
+  /// Decodes a `List<double>` slot, reading an int entry as a double and
+  /// dropping any other entry. Absent → null.
+  static List<double>? realList(DataSource source, List<Object> path) {
+    if (!source.isList(path)) return null;
+    final count = source.length(path);
+    return [
+      for (var index = 0; index < count; index++)
+        if (source.v<double>([...path, index]) ??
+                source.v<int>([...path, index])?.toDouble()
+            case final value?)
+          value,
+    ];
+  }
+
   /// Adapts a built slot value to a `PreferredSizeWidget` argument at
   /// [height], or the standard toolbar height when none is given. `null`
   /// when the slot is absent.

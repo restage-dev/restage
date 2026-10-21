@@ -176,7 +176,11 @@ void main() {
 
       expect(
         src,
-        contains("source.v<String>(<Object>['glossary', i0, 'value'])"),
+        matches(
+          RegExp(
+            r"RestageDecoders\.string\(\s*source,\s*<Object>\['glossary', i0, 'value'\]\)",
+          ),
+        ),
       );
       expect(src, contains('FieldNotes.glossary entry value is required.'));
     });

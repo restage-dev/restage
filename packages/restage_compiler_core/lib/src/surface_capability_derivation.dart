@@ -6,10 +6,17 @@ import 'package:restage_shared/restage_shared.dart'
         LibraryRequirement,
         WidgetVocabulary,
         kGroupedWidgetListClientFloor,
+        kJoinedStringClientFloor,
         kSurfaceFeatureClientFloor;
 import 'package:restage_shared/rfw_formats.dart' hide WidgetLibrary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
-    show Catalog, WidgetEntry, WidgetLibrary, kBaselineCatalogVersion;
+    show
+        Catalog,
+        PropertyEntry,
+        PropertyType,
+        WidgetEntry,
+        WidgetLibrary,
+        kBaselineCatalogVersion;
 
 /// What a surface library needs from a client, read against a catalog.
 @immutable
@@ -53,8 +60,20 @@ SurfaceCapabilityDerivation deriveSurfaceCapability(
   final referenced = <WidgetEntry>[];
   final ambiguous = <String>{};
   final localNames = {for (final widget in library.widgets) widget.name};
+  var joinsStrings = false;
+  var propertyFloor = kBaselineCatalogVersion;
   for (final widget in library.widgets) {
-    _collectReferences(widget.root, catalog, localNames, referenced, ambiguous);
+    _collectReferences(
+      widget.root,
+      catalog,
+      localNames,
+      referenced,
+      ambiguous,
+      onJoinedString: () => joinsStrings = true,
+      onPropertyVersion: (version) {
+        if (version > propertyFloor) propertyFloor = version;
+      },
+    );
   }
 
   var builtInFloor = kBaselineCatalogVersion;
@@ -68,6 +87,10 @@ SurfaceCapabilityDerivation deriveSurfaceCapability(
   }
   final featureFloor = surfaceFeatureClientFloor(library);
   if (builtInFloor < featureFloor) builtInFloor = featureFloor;
+  if (joinsStrings && builtInFloor < kJoinedStringClientFloor) {
+    builtInFloor = kJoinedStringClientFloor;
+  }
+  if (builtInFloor < propertyFloor) builtInFloor = propertyFloor;
   if (requiresSurfaceFeatureFloor &&
       builtInFloor < kSurfaceFeatureClientFloor) {
     builtInFloor = kSurfaceFeatureClientFloor;
@@ -107,14 +130,27 @@ SurfaceCapabilityDerivation deriveSurfaceCapability(
 }
 
 /// Appends the catalog entry of every non-local constructor under [node] to
-/// [out]; a name found in more than one library goes to [ambiguous].
+/// [out]; a name found in more than one library goes to [ambiguous]. A string
+/// slot given a list of parts calls [onJoinedString], and each property set
+/// reports its [PropertyEntry.sinceVersion] to [onPropertyVersion].
 void _collectReferences(
   Object? node,
   Catalog catalog,
   Set<String> localNames,
   List<WidgetEntry> out,
-  Set<String> ambiguous,
-) {
+  Set<String> ambiguous, {
+  required void Function() onJoinedString,
+  required void Function(int version) onPropertyVersion,
+}) {
+  void visit(Object? child) => _collectReferences(
+        child,
+        catalog,
+        localNames,
+        out,
+        ambiguous,
+        onJoinedString: onJoinedString,
+        onPropertyVersion: onPropertyVersion,
+      );
   switch (node) {
     case ConstructorCall(:final name, :final arguments):
       if (!localNames.contains(name)) {
@@ -125,30 +161,39 @@ void _collectReferences(
         if (candidates.map((c) => c.library).toSet().length > 1) {
           ambiguous.add(name);
         } else if (candidates.isNotEmpty) {
-          out.add(candidates.first);
+          final entry = candidates.first;
+          out.add(entry);
+          final builtIn =
+              WidgetLibrary.builtInByNamespace(entry.library.namespace) != null;
+          for (final property in entry.properties) {
+            if (!arguments.containsKey(property.name)) continue;
+            if (builtIn) onPropertyVersion(property.sinceVersion);
+            if (property.type == PropertyType.string &&
+                _carriesList(arguments[property.name])) {
+              onJoinedString();
+            }
+          }
         }
       }
-      for (final argument in arguments.values) {
-        _collectReferences(argument, catalog, localNames, out, ambiguous);
-      }
+      arguments.values.forEach(visit);
     case List<Object?>():
-      for (final child in node) {
-        _collectReferences(child, catalog, localNames, out, ambiguous);
-      }
+      node.forEach(visit);
     case Switch(:final outputs):
-      for (final output in outputs.values) {
-        _collectReferences(output, catalog, localNames, out, ambiguous);
-      }
+      outputs.values.forEach(visit);
     case Loop(:final output):
-      _collectReferences(output, catalog, localNames, out, ambiguous);
+      visit(output);
     case WidgetBuilderDeclaration(:final widget):
-      _collectReferences(widget, catalog, localNames, out, ambiguous);
+      visit(widget);
     case Map<Object?, Object?>():
-      for (final value in node.values) {
-        _collectReferences(value, catalog, localNames, out, ambiguous);
-      }
+      node.values.forEach(visit);
   }
 }
+
+bool _carriesList(Object? value) => switch (value) {
+      List<Object?>() => true,
+      Switch(:final outputs) => outputs.values.any(_carriesList),
+      _ => false,
+    };
 
 /// The client floor [library]'s surface features need: icon literals,
 /// screen-local value writes and counted tap items need

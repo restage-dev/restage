@@ -827,6 +827,7 @@ PropertyEntry _copyProperty(
 }) {
   return PropertyEntry(
     wireId: wireId,
+    sinceVersion: property.sinceVersion,
     name: property.name,
     type: property.type,
     description: property.description,

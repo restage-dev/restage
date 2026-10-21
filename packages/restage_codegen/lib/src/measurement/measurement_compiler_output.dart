@@ -641,7 +641,14 @@ final class RestageMeasurementCompilerOutputV1 {
         acceptedIntroductions,
     required Iterable<MeasurementCompilerLedgerProposal> proposals,
     required Iterable<MeasurementCompilerPublication> publications,
+    Iterable<MeasurementUnmeasuredPublication> unmeasured = const [],
   })  : errors = List.unmodifiable(errors.toList()..sort()),
+        unmeasured = List.unmodifiable(
+          unmeasured.toList()
+            ..sort(
+              (left, right) => left.selector.key.compareTo(right.selector.key),
+            ),
+        ),
         ledgerNodes = List.unmodifiable(
           ledgerNodes.toList()
             ..sort(
@@ -781,7 +788,7 @@ final class RestageMeasurementCompilerOutputV1 {
     final json = canonical;
     _exactKeys(
       json,
-      const {
+      {
         'acceptedIntroductions',
         'acceptedRelocations',
         'errors',
@@ -792,6 +799,7 @@ final class RestageMeasurementCompilerOutputV1 {
         'proposals',
         'publications',
         'schemaVersion',
+        if (json.containsKey('unmeasured')) 'unmeasured',
         'valid',
       },
       'measurement compiler output',
@@ -861,6 +869,15 @@ final class RestageMeasurementCompilerOutputV1 {
         ))
           MeasurementCompilerPublication.fromJson(publication),
       ],
+      unmeasured: [
+        if (json.containsKey('unmeasured'))
+          for (final entry in _list(
+            json,
+            'unmeasured',
+            'measurement compiler output',
+          ))
+            MeasurementUnmeasuredPublication.fromJson(entry),
+      ],
     );
     if (!_bytesEqual(output.canonicalBytes, bytes)) {
       throw const FormatException(
@@ -880,6 +897,23 @@ final class RestageMeasurementCompilerOutputV1 {
   final List<MeasurementCompilerLedgerProposal> proposals;
   final List<MeasurementCompilerPublication> publications;
 
+  /// Publications that compile without measurement, with the reason.
+  final List<MeasurementUnmeasuredPublication> unmeasured;
+
+  /// This output without [unmeasured], the form kept as durable state.
+  RestageMeasurementCompilerOutputV1 get durableState =>
+      RestageMeasurementCompilerOutputV1(
+        valid: valid,
+        errors: errors,
+        policy: policy,
+        nextIdentitySequence: nextIdentitySequence,
+        ledgerNodes: ledgerNodes,
+        acceptedRelocations: acceptedRelocations,
+        acceptedIntroductions: acceptedIntroductions,
+        proposals: proposals,
+        publications: publications,
+      );
+
   Map<String, Object?> toJson() => {
         'acceptedIntroductions': [
           for (final introduction in acceptedIntroductions)
@@ -898,6 +932,8 @@ final class RestageMeasurementCompilerOutputV1 {
           for (final publication in publications) publication.toJson(),
         ],
         'schemaVersion': 1,
+        if (unmeasured.isNotEmpty)
+          'unmeasured': [for (final entry in unmeasured) entry.toJson()],
         'valid': valid,
       };
 
@@ -921,7 +957,36 @@ final class RestageMeasurementCompilerOutputV1 {
         'kind': 'restageMeasurementPublicationIndex',
         'package': packageName,
         'schemaVersion': 1,
+        if (unmeasured.isNotEmpty)
+          'unmeasured': [for (final entry in unmeasured) entry.toJson()],
       });
+}
+
+/// A publication that compiles without measurement, and why.
+final class MeasurementUnmeasuredPublication {
+  MeasurementUnmeasuredPublication({
+    required this.selector,
+    required this.reason,
+  }) {
+    if (reason.isEmpty) throw ArgumentError.value(reason, 'reason');
+  }
+
+  factory MeasurementUnmeasuredPublication.fromJson(Object? value) {
+    final json = _object(value, 'unmeasured publication');
+    _exactKeys(json, const {'reason', 'selector'}, 'unmeasured publication');
+    return MeasurementUnmeasuredPublication(
+      selector: MeasurementPublicationSelectorV1.fromJson(json['selector']),
+      reason: _string(json, 'reason', 'unmeasured publication'),
+    );
+  }
+
+  final MeasurementPublicationSelectorV1 selector;
+  final String reason;
+
+  Map<String, Object?> toJson() => {
+        'reason': reason,
+        'selector': selector.toJson(),
+      };
 }
 
 String _encodeBase64(List<int> bytes) =>

@@ -1656,14 +1656,17 @@ final class ActionArgs {
       );
     });
 
-    test('unsupported action result predicates fail deterministically',
-        () async {
+    Future<Map<String, Object?>> lowerPredicate(
+      String predicate, {
+      String actionRef = "FlowActionRef<void, bool>('requestNotifications')",
+      String resultClass = '',
+    }) async {
       final sources = _actionTransitionSources(
-        resultPredicate: '(result) => result == true',
+        actionRef: actionRef,
+        resultPredicate: predicate,
+        resultClass: resultClass,
       );
       final logs = <LogRecord>[];
-      final readerWriter = await _readerWriterWith(sources);
-
       final result = await testBuilders(
         [
           onboardingScreenBuilder(BuilderOptions.empty),
@@ -1671,25 +1674,150 @@ final class ActionArgs {
         ],
         sources,
         rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
+        readerWriter: await _readerWriterWith(sources),
+        flattenOutput: true,
         onLog: logs.add,
       );
+      if (!result.succeeded) {
+        return {'log': logs.map((log) => log.message).join('\n')};
+      }
+      final json = jsonDecode(
+        utf8.decode(
+          result.readerWriter.testing.readBytes(
+            AssetId(
+              'apps_examples',
+              'assets/onboarding/flows/first_run.flow.json',
+            ),
+          ),
+        ),
+      ) as Map<String, Object?>;
+      final states = json['states']! as Map<String, Object?>;
+      final on = (states['welcome']! as Map<String, Object?>)['on']!
+          as Map<String, Object?>;
+      return {
+        ...(on['next']! as Map<String, Object?>)['resultPredicate']!
+            as Map<String, Object?>,
+        'minClient': json['minClient'],
+      };
+    }
 
-      expect(result.succeeded, isFalse);
+    test('a matched action result raises the flow minimum client', () async {
       expect(
-        logs.map((log) => log.message).join('\n'),
+        (await lowerPredicate('(result) => true'))['minClient'],
+        kActionResultMatchClientFloor,
+      );
+      expect(
+        (await lowerPredicate('(result) => result'))['minClient'],
+        lessThan(kActionResultMatchClientFloor),
+      );
+    });
+
+    test('a constant true predicate always continues', () async {
+      expect(
+        (await lowerPredicate('(result) => true'))..remove('minClient'),
+        {'kind': 'always'},
+      );
+    });
+
+    test('field comparisons joined with && lower to field conditions',
+        () async {
+      expect(
+        (await lowerPredicate(
+          "(result) => result.status == 'allowed' && "
+          'result.count >= 2',
+          actionRef:
+              "FlowActionRef<void, ReminderResult>('requestNotifications')",
+          resultClass: '''
+final class ReminderResult {
+  const ReminderResult({required this.status, required this.count});
+  final String status;
+  final int count;
+}
+''',
+        ))
+          ..remove('minClient'),
+        {
+          'kind': 'matches',
+          'fields': {
+            'count': {
+              'gte': {'literal': 2, 'type': 'int'},
+            },
+            'status': {
+              'eq': {'literal': 'allowed', 'type': 'string'},
+            },
+          },
+        },
+      );
+    });
+
+    test('an unsupported predicate names the accepted forms', () async {
+      final lowered = await lowerPredicate('(result) => result || true');
+      expect(
+        lowered['log'],
         allOf(
-          contains('unsupported action result predicate'),
-          contains('(result) => result == true'),
+          contains('unsupportedActionResultPredicate'),
+          contains('result || true'),
+          contains('joined with &&'),
         ),
       );
     });
 
+    for (final (name, predicate, resultClass, expected) in [
+      (
+        'an ordered comparison on a double',
+        '(result) => result.ratio > 2',
+        'final class R { const R({required this.ratio}); final double ratio; }',
+        'result field "ratio" is double',
+      ),
+      (
+        'an int compared with a String',
+        "(result) => result.count == 'two'",
+        'final class R { const R({required this.count}); final int count; }',
+        'result field "count" is int',
+      ),
+      (
+        'a getter-backed field',
+        '(result) => result.granted',
+        '''
+final class R {
+  const R({required this.status});
+  final String status;
+  bool get granted => status == 'granted';
+}
+''',
+        '`result.granted` is not a supported check',
+      ),
+      (
+        'a null check',
+        '(result) => result.status != null',
+        'final class R { const R({required this.status}); final String status; }',
+        '`result.status != null` is not a supported check',
+      ),
+    ]) {
+      test('$name is refused at build', () async {
+        final lowered = await lowerPredicate(
+          predicate,
+          actionRef: "FlowActionRef<void, R>('requestNotifications')",
+          resultClass: resultClass,
+        );
+        final log = lowered['log']! as String;
+        expect(log, contains('unsupportedActionResultPredicate'));
+        expect(log, contains(expected));
+        expect(log, isNot(contains('Screen transitions must call')));
+      });
+    }
+
+    test('== true lowers like the bool itself', () async {
+      final lowered = await lowerPredicate('(result) => result == true');
+      expect(lowered['kind'], 'boolEquals');
+      expect(lowered['minClient'], lessThan(kActionResultMatchClientFloor));
+    });
+
     test('mutable object predicate fields fail contract lowering', () async {
-      final sources = _actionTransitionSources(
+      final lowered = await lowerPredicate(
+        '(result) => result.granted',
         actionRef:
             "FlowActionRef<void, NotificationResult>('requestNotifications')",
-        resultPredicate: '(result) => result.granted',
         resultClass: '''
 final class NotificationResult {
   NotificationResult({required this.granted});
@@ -1697,27 +1825,13 @@ final class NotificationResult {
 }
 ''',
       );
-      final logs = <LogRecord>[];
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: logs.add,
-      );
-
-      expect(result.succeeded, isFalse);
       expect(
-        logs.map((log) => log.message).join('\n'),
-        allOf(
-          contains('unsupported action result predicate'),
-          contains('result.granted'),
-        ),
+        lowered['log'],
+        contains("has a field 'granted' that is not final. Declare it final"),
+      );
+      expect(
+        lowered['log'],
+        contains('unsupportedActionContract'),
       );
     });
 

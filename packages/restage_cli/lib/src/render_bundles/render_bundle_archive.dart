@@ -4,6 +4,10 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
+import 'package:restage_shared/restage_shared.dart'
+    show
+        renderBundleMaxCapabilityManifestBytes,
+        renderBundleMaxCapabilityManifestNodes;
 import 'package:restage_shared/rfw_formats.dart'
     show hostInstalledRfwLibrary, kReservedPreviewConstructorName;
 
@@ -27,9 +31,9 @@ final class RenderBundleArchiveLimits {
     this.maxFileBytes = 32 * 1024 * 1024,
     this.maxManifestBytes = 1024 * 1024,
     this.maxTotalBytes = renderBundleMaxArchiveBytes,
-    this.maxCapabilityManifestBytes = 1024 * 1024,
+    this.maxCapabilityManifestBytes = renderBundleMaxCapabilityManifestBytes,
     this.maxCapabilityManifestDepth = 64,
-    this.maxCapabilityManifestNodes = 20000,
+    this.maxCapabilityManifestNodes = renderBundleMaxCapabilityManifestNodes,
   });
 
   final int maxFiles;
@@ -321,6 +325,8 @@ bool _validAppVersion(Object? value) =>
 bool _validAppBuild(Object? value) =>
     value == null || (value is int && value >= 0 && value <= 0x7fffffff);
 
+final _nonLetters = RegExp('[^a-z]');
+
 void _validateCapabilityCatalogGraph(
   Map<String, Object?> catalog,
   RenderBundleArchiveLimits limits,
@@ -343,7 +349,7 @@ void _validateCapabilityCatalogGraph(
           throw const RenderBundleArchiveException('manifest_non_string_key');
         }
         final key = (entry.key! as String).toLowerCase().replaceAll(
-          RegExp('[^a-z]'),
+          _nonLetters,
           '',
         );
         if (_credentialKeys.contains(key)) {

@@ -189,6 +189,7 @@ abstract final class FlowDocumentValidation {
                 );
                 _validateActionResultPredicate(
                   issues,
+                  document,
                   '\$.states.$id.on.${event.key}.resultPredicate',
                   resultPredicate,
                 );
@@ -694,14 +695,35 @@ void _validateJsonValue(
 
 void _validateActionResultPredicate(
   List<FlowDocumentValidationIssue> issues,
+  FlowDocument document,
   String path,
   FlowActionResultPredicate predicate,
 ) {
   switch (predicate) {
     case BoolEqualsActionResultPredicate():
+    case AlwaysActionResultPredicate():
       return;
     case ObjectBoolFieldEqualsActionResultPredicate(:final field):
       _validateIdentifier(issues, '$path.field', field);
+    case MatchesActionResultPredicate(:final result, :final fields):
+      // An action result is compared with literals only.
+      const literal = {_FlowValueSourceKind.literal};
+      if (result != null) {
+        _validatePredicateCondition(
+          issues,
+          document,
+          '$path.result',
+          result,
+          literal,
+        );
+      }
+      _validateBranchPredicate(
+        issues,
+        document,
+        '$path.fields',
+        FlowBranchPredicate(fields: fields),
+        literal,
+      );
   }
 }
 

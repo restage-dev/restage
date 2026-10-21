@@ -47,6 +47,7 @@ const SurfaceVocabulary kRestageAppVocabulary = SurfaceVocabulary(
       'FittedBox': buildFittedBox,
       'Flexible': buildFlexible,
       'GestureDetector': buildGestureDetector,
+      'IgnorePointer': buildIgnorePointer,
       'IntrinsicHeight': buildIntrinsicHeight,
       'ListView': buildListView,
       'Padding': buildPadding,
@@ -309,17 +310,16 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
               }
               m0[k0] = source.isMap(<Object>['plans', i0, 'value'])
                   ? s4.Plan(
-                      name:
-                          source.v<String>(<Object>['plans', i0, 'value', 'name']) ??
-                              (throw ArgumentError('Plan.name is required.')),
+                      name: RestageDecoders.string(source, <Object>['plans', i0, 'value', 'name']) ??
+                          (throw ArgumentError('Plan.name is required.')),
                       price: source.isMap(<Object>['plans', i0, 'value', 'price'])
                           ? s4.Price(source.v<int>(<Object>['plans', i0, 'value', 'price', 'amount']) ?? (throw ArgumentError('Price.amount is required.')),
                               currency:
-                                  source.v<String>(<Object>['plans', i0, 'value', 'price', 'currency']) ??
+                                  RestageDecoders.string(source, <Object>['plans', i0, 'value', 'price', 'currency']) ??
                                       'USD')
                           : (throw ArgumentError('Plan.price is required.')),
-                      badge: source
-                          .v<String>(<Object>['plans', i0, 'value', 'badge']),
+                      badge: RestageDecoders.string(
+                          source, <Object>['plans', i0, 'value', 'badge']),
                       tier: RestageDecoders.enumByName<s4.PlanTier>(
                               s4.PlanTier.values,
                               source,
@@ -351,15 +351,16 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
               }
               m0[k0] = source.isMap(<Object>['highlights', i0, 'value'])
                   ? s4.Plan(
-                      name: source.v<String>(<Object>['highlights', i0, 'value', 'name']) ??
+                      name: RestageDecoders.string(source, <Object>['highlights', i0, 'value', 'name']) ??
                           (throw ArgumentError('Plan.name is required.')),
                       price: source.isMap(<Object>['highlights', i0, 'value', 'price'])
                           ? s4.Price(source.v<int>(<Object>['highlights', i0, 'value', 'price', 'amount']) ?? (throw ArgumentError('Price.amount is required.')),
-                              currency: source.v<String>(<Object>['highlights', i0, 'value', 'price', 'currency']) ??
-                                  'USD')
+                              currency:
+                                  RestageDecoders.string(source, <Object>['highlights', i0, 'value', 'price', 'currency']) ??
+                                      'USD')
                           : (throw ArgumentError('Plan.price is required.')),
-                      badge: source.v<String>(
-                          <Object>['highlights', i0, 'value', 'badge']),
+                      badge: RestageDecoders.string(
+                          source, <Object>['highlights', i0, 'value', 'badge']),
                       tier: RestageDecoders.enumByName<s4.PlanTier>(
                               s4.PlanTier.values,
                               source,
@@ -377,17 +378,17 @@ Widget _buildPricingCard(BuildContext context, DataSource source) {
   return s4.PricingCard(
     plan: source.isMap(<Object>['plan'])
         ? s4.Plan(
-            name: source.v<String>(<Object>['plan', 'name']) ??
+            name: RestageDecoders.string(source, <Object>['plan', 'name']) ??
                 (throw ArgumentError('Plan.name is required.')),
             price: source.isMap(<Object>['plan', 'price'])
                 ? s4.Price(
                     source.v<int>(<Object>['plan', 'price', 'amount']) ??
                         (throw ArgumentError('Price.amount is required.')),
-                    currency: source
-                            .v<String>(<Object>['plan', 'price', 'currency']) ??
+                    currency: RestageDecoders.string(
+                            source, <Object>['plan', 'price', 'currency']) ??
                         'USD')
                 : (throw ArgumentError('Plan.price is required.')),
-            badge: source.v<String>(<Object>['plan', 'badge']),
+            badge: RestageDecoders.string(source, <Object>['plan', 'badge']),
             tier: RestageDecoders.enumByName<s4.PlanTier>(
                     s4.PlanTier.values, source, <Object>['plan', 'tier']) ??
                 s4.PlanTier.starter)
@@ -402,21 +403,18 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
             for (var i0 = 0, n0 = source.length(<Object>['plans']); i0 < n0; i0++)
               source.isMap(<Object>['plans', i0])
                   ? s4.Plan(
-                      name: source.v<String>(<Object>['plans', i0, 'name']) ??
+                      name: RestageDecoders.string(source, <Object>['plans', i0, 'name']) ??
                           (throw ArgumentError('Plan.name is required.')),
                       price: source.isMap(<Object>['plans', i0, 'price'])
-                          ? s4.Price(
-                              source.v<int>(<Object>['plans', i0, 'price', 'amount']) ??
-                                  (throw ArgumentError(
-                                      'Price.amount is required.')),
-                              currency: source.v<String>(<Object>['plans', i0, 'price', 'currency']) ??
+                          ? s4.Price(source.v<int>(<Object>['plans', i0, 'price', 'amount']) ?? (throw ArgumentError('Price.amount is required.')),
+                              currency: RestageDecoders.string(source,
+                                      <Object>['plans', i0, 'price', 'currency']) ??
                                   'USD')
                           : (throw ArgumentError('Plan.price is required.')),
-                      badge: source.v<String>(<Object>['plans', i0, 'badge']),
+                      badge: RestageDecoders.string(
+                          source, <Object>['plans', i0, 'badge']),
                       tier: RestageDecoders.enumByName<s4.PlanTier>(
-                              s4.PlanTier.values,
-                              source,
-                              <Object>['plans', i0, 'tier']) ??
+                              s4.PlanTier.values, source, <Object>['plans', i0, 'tier']) ??
                           s4.PlanTier.starter)
                   : (throw ArgumentError('PricingTable.plans element must be an object.'))
           ]
@@ -426,7 +424,7 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
 
 Widget _buildPromoBadge(BuildContext context, DataSource source) {
   return s6.PromoBadge(
-    label: source.v<String>(const <Object>['label']) ??
+    label: RestageDecoders.string(source, <Object>['label']) ??
         (throw ArgumentError('PromoBadge.label is required.')),
     color: ArgumentDecoders.color(source, <Object>['color']),
   );
@@ -434,7 +432,7 @@ Widget _buildPromoBadge(BuildContext context, DataSource source) {
 
 Widget _buildPulseBadge(BuildContext context, DataSource source) {
   return s7.PulseBadge(
-    label: source.v<String>(const <Object>['label']) ??
+    label: RestageDecoders.string(source, <Object>['label']) ??
         (throw ArgumentError('PulseBadge.label is required.')),
     count: source.v<int>(const <Object>['count']) ??
         (throw ArgumentError('PulseBadge.count is required.')),
@@ -448,9 +446,10 @@ Widget _buildSectionHeader(BuildContext context, DataSource source) {
             step: source.v<int>(<Object>['heading', 'step']) ??
                 (throw ArgumentError(
                     'SectionHeader.heading.step is required.')),
-            title: source.v<String>(<Object>['heading', 'title']) ??
-                (throw ArgumentError(
-                    'SectionHeader.heading.title is required.')),
+            title:
+                RestageDecoders.string(source, <Object>['heading', 'title']) ??
+                    (throw ArgumentError(
+                        'SectionHeader.heading.title is required.')),
             tone: RestageDecoders.enumByName<s8.HeaderTone>(
                     s8.HeaderTone.values,
                     source,
@@ -461,7 +460,7 @@ Widget _buildSectionHeader(BuildContext context, DataSource source) {
         : (throw ArgumentError('SectionHeader.heading is required.')),
     entry: source.isMap(<Object>['entry'])
         ? s8.SectionEntry(
-            label: source.v<String>(<Object>['entry', 'label']) ??
+            label: RestageDecoders.string(source, <Object>['entry', 'label']) ??
                 (throw ArgumentError('SectionEntry.label is required.')),
             meta: source.isMap(<Object>['entry', 'meta'])
                 ? (
@@ -480,16 +479,16 @@ Widget _buildSectionHeader(BuildContext context, DataSource source) {
 
 Widget _buildStatBadge(BuildContext context, DataSource source) {
   return s2.StatBadge(
-    label: source.v<String>(const <Object>['label']) ??
+    label: RestageDecoders.string(source, <Object>['label']) ??
         (throw ArgumentError('StatBadge.label is required.')),
-    value: source.v<String>(const <Object>['value']) ??
+    value: RestageDecoders.string(source, <Object>['value']) ??
         (throw ArgumentError('StatBadge.value is required.')),
   );
 }
 
 Widget _buildStreakBadge(BuildContext context, DataSource source) {
   return s9.StreakBadge(
-    label: source.v<String>(const <Object>['label']) ??
+    label: RestageDecoders.string(source, <Object>['label']) ??
         (throw ArgumentError('StreakBadge.label is required.')),
     count: source.v<int>(const <Object>['count']) ??
         (throw ArgumentError('StreakBadge.count is required.')),
@@ -505,7 +504,8 @@ Widget _buildTierBoard(BuildContext context, DataSource source) {
                 i0++)
               source.isMap(<Object>['tiers', i0])
                   ? s10.Tier(
-                      name: source.v<String>(<Object>['tiers', i0, 'name']) ??
+                      name: RestageDecoders.string(
+                              source, <Object>['tiers', i0, 'name']) ??
                           (throw ArgumentError('Tier.name is required.')),
                       features: source.isList(<Object>['tiers', i0, 'features'])
                           ? [
@@ -517,7 +517,8 @@ Widget _buildTierBoard(BuildContext context, DataSource source) {
                                 source.isMap(
                                         <Object>['tiers', i0, 'features', i1])
                                     ? s10.Feature(
-                                        label: source.v<String>(<Object>[
+                                        label: RestageDecoders.string(
+                                                source, <Object>[
                                               'tiers',
                                               i0,
                                               'features',
@@ -541,8 +542,8 @@ Widget _buildTierBoard(BuildContext context, DataSource source) {
                 i0++)
               source.isMap(<Object>['bonusTiers', i0])
                   ? s10.Tier(
-                      name: source
-                              .v<String>(<Object>['bonusTiers', i0, 'name']) ??
+                      name: RestageDecoders.string(
+                              source, <Object>['bonusTiers', i0, 'name']) ??
                           (throw ArgumentError('Tier.name is required.')),
                       features: source
                               .isList(<Object>['bonusTiers', i0, 'features'])
@@ -562,7 +563,8 @@ Widget _buildTierBoard(BuildContext context, DataSource source) {
                                   i1
                                 ])
                                     ? s10.Feature(
-                                        label: source.v<String>(<Object>[
+                                        label: RestageDecoders.string(
+                                                source, <Object>[
                                               'bonusTiers',
                                               i0,
                                               'features',

@@ -15,8 +15,8 @@ import 'package:restage_material/registry.dart'
 /// surface they cannot faithfully display.
 ///
 /// Each per-library constant is generated from the committed catalog and locked
-/// (by test) against the catalog's max widget `sinceVersion`, so this value
-/// cannot drift from the catalog it summarizes.
+/// (by test) against the catalog's max `sinceVersion` over widgets and their
+/// properties, so this value cannot drift from the catalog it summarizes.
 abstract final class RestageBuiltInCatalogCapabilities {
   RestageBuiltInCatalogCapabilities._();
 

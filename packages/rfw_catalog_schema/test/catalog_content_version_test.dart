@@ -9,6 +9,7 @@ WidgetEntry _widget({
   String wireId = 'w0001',
   String name = 'Foo',
   int? sinceVersion,
+  List<PropertyEntry> properties = const [],
 }) =>
     WidgetEntry(
       wireId: WireId(wireId),
@@ -18,9 +19,22 @@ WidgetEntry _widget({
       description: 'A $name.',
       flutterType: 'package:flutter/widgets.dart#$name',
       childrenSlot: ChildrenSlot.none,
-      properties: const [],
+      properties: properties,
       sinceVersion: sinceVersion ?? kBaselineCatalogVersion,
     );
+
+PropertyEntry _property({int sinceVersion = kBaselineCatalogVersion}) =>
+    PropertyEntry(
+      wireId: WireId('p0001'),
+      name: 'enabled',
+      type: PropertyType.boolean,
+      description: 'Whether it is enabled.',
+      sinceVersion: sinceVersion,
+    );
+
+Map<String, dynamic> _firstPropertyJson(String encoded) =>
+    (_firstWidgetJson(encoded)['properties'] as List<dynamic>).first
+        as Map<String, dynamic>;
 
 Catalog _catalog(List<WidgetEntry> widgets) => Catalog(
       schemaVersion: kSupportedSchemaVersion,
@@ -101,6 +115,25 @@ void main() {
           _widget(),
           _widget(wireId: 'w0002', name: 'Bar', sinceVersion: 3),
           _widget(wireId: 'w0003', name: 'Baz', sinceVersion: 2),
+        ]),
+        3,
+      );
+    });
+
+    test('counts a property added after its widget', () {
+      expect(
+        contentVersionOf([
+          _widget(sinceVersion: 3, properties: [_property(sinceVersion: 6)]),
+          _widget(wireId: 'w0002', name: 'Bar', sinceVersion: 4),
+        ]),
+        6,
+      );
+    });
+
+    test('a baseline property leaves the widget version in charge', () {
+      expect(
+        contentVersionOf([
+          _widget(sinceVersion: 3, properties: [_property()]),
         ]),
         3,
       );
@@ -202,6 +235,89 @@ void main() {
             contains('sinceVersion must be an integer'),
           ),
         ),
+      );
+    });
+  });
+  group('property sinceVersion through the catalog codec', () {
+    test('omits sinceVersion at the baseline', () {
+      final encoded = encodeCatalog(
+        _catalog([
+          _widget(properties: [_property()]),
+        ]),
+      );
+
+      expect(_firstPropertyJson(encoded).containsKey('sinceVersion'), isFalse);
+    });
+
+    test('emits sinceVersion above the baseline', () {
+      final encoded = encodeCatalog(
+        _catalog([
+          _widget(properties: [_property(sinceVersion: 5)]),
+        ]),
+      );
+
+      expect(_firstPropertyJson(encoded)['sinceVersion'], 5);
+    });
+
+    test('round-trips and raises the content version', () {
+      final decoded = decodeCatalog(
+        encodeCatalog(
+          _catalog([
+            _widget(sinceVersion: 2, properties: [_property(sinceVersion: 5)]),
+          ]),
+        ),
+      );
+
+      expect(decoded.widgets.single.properties.single.sinceVersion, 5);
+      expect(decoded.contentVersion, 5);
+    });
+
+    test('decodes an absent sinceVersion as the baseline', () {
+      final decoded = decodeCatalog(
+        encodeCatalog(
+          _catalog([
+            _widget(properties: [_property()]),
+          ]),
+        ),
+      );
+
+      expect(
+        decoded.widgets.single.properties.single.sinceVersion,
+        kBaselineCatalogVersion,
+      );
+    });
+
+    test('rejects a property version below its widget version', () {
+      expect(
+        () => encodeCatalog(
+          _catalog([
+            _widget(sinceVersion: 4, properties: [_property(sinceVersion: 3)]),
+          ]),
+        ),
+        throwsA(
+          isA<CatalogSchemaException>().having(
+            (e) => e.message,
+            'message',
+            contains("below its widget's sinceVersion 4"),
+          ),
+        ),
+      );
+    });
+
+    test('rejects it on decode too', () {
+      final encoded = encodeCatalog(
+        _catalog([
+          _widget(sinceVersion: 4, properties: [_property(sinceVersion: 5)]),
+        ]),
+      );
+      final tampered = encoded.replaceFirst(
+        RegExp('"sinceVersion": 5'),
+        '"sinceVersion": 3',
+      );
+
+      expect(
+        () => decodeCatalog(tampered),
+        throwsA(isA<CatalogSchemaException>()),
       );
     });
   });

@@ -293,6 +293,83 @@ void main() {
       );
     });
 
+    for (final predicate in const <FlowActionResultPredicate>[
+      AlwaysActionResultPredicate(),
+      MatchesActionResultPredicate(
+        result: InFlowPredicateCondition(
+          values: [
+            LiteralFlowValueSource(type: FlowDataType.bool, value: true),
+          ],
+        ),
+      ),
+      MatchesActionResultPredicate(
+        fields: {
+          'count': GreaterThanOrEqualsFlowPredicateCondition(
+            value: LiteralFlowValueSource(type: FlowDataType.int, value: 2),
+          ),
+          'note': ExistsFlowPredicateCondition(exists: true),
+        },
+      ),
+    ]) {
+      test('round-trips a ${predicate.kind} result predicate', () {
+        final document = _firstRunDocument(
+          actions: {
+            'requestNotifications': const FlowActionContract(
+              actionName: 'requestNotifications',
+              contractVersion: 1,
+              argsSchema: _emptyArgsSchema,
+              resultSchema: _boolResultSchema,
+              minClient: 3,
+              idempotent: false,
+            ),
+          },
+          transition: ActionFlowTransition(
+            action: 'requestNotifications',
+            target: 'permissions',
+            resultPredicate: predicate,
+          ),
+        );
+        final bytes = FlowDocumentCodec.encodeCanonicalJson(document);
+        final decoded = FlowDocumentCodec.decodeJson(utf8.decode(bytes));
+
+        expect(FlowDocumentCodec.encodeCanonicalJson(decoded), bytes);
+      });
+    }
+
+    test('refuses a matches predicate with no condition', () {
+      final json = jsonDecode(
+        utf8.decode(
+          FlowDocumentCodec.encodeCanonicalJson(
+            _firstRunDocument(
+              actions: {
+                'requestNotifications': const FlowActionContract(
+                  actionName: 'requestNotifications',
+                  contractVersion: 1,
+                  argsSchema: _emptyArgsSchema,
+                  resultSchema: _boolResultSchema,
+                  minClient: 3,
+                  idempotent: false,
+                ),
+              },
+              transition: const ActionFlowTransition(
+                action: 'requestNotifications',
+                target: 'permissions',
+                resultPredicate: AlwaysActionResultPredicate(),
+              ),
+            ),
+          ),
+        ),
+      ) as Map<String, Object?>;
+      _object(
+        _object(_object(_object(json['states'])['welcome'])['on'])['next'],
+      )['resultPredicate'] = {'kind': 'matches'};
+
+      expect(
+        () => FlowDocumentCodec.decodeJson(jsonEncode(json)),
+        throwsFormatException,
+      );
+    });
+
     test('decodes and encodes documents without actions', () {
       final decoded = FlowDocumentCodec.decodeJson(_phase1CanonicalJson);
       final encoded =

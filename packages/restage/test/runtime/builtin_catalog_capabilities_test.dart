@@ -41,12 +41,14 @@ void main() {
     expect(RestageBuiltInCatalogCapabilities.currentVersion, expected);
   });
 
-  test('native transforms and tab pages raise the global ceiling to 15', () {
-    expect(RestageBuiltInCatalogCapabilities.currentVersion, 15);
+  test('pointer wrappers raise the global ceiling to 16', () {
+    expect(RestageBuiltInCatalogCapabilities.currentVersion, 16);
     final core = committedCatalog('restage_core');
     for (final (name, version) in [
       ('TransformTranslate', 13),
       ('TransformScale', 14),
+      ('AbsorbPointer', 16),
+      ('IgnorePointer', 16),
     ]) {
       expect(
         core.widgets.singleWhere((widget) => widget.name == name).sinceVersion,

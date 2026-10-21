@@ -38,6 +38,12 @@ enum IssueCode {
   /// `build()` body has multiple statements / locals / control flow.
   buildMethodTooComplex,
 
+  /// A host action's `continueWhen` predicate is outside the comparator forms.
+  unsupportedActionResultPredicate,
+
+  /// A host action's argument or result type has no flow schema.
+  unsupportedActionContract,
+
   /// The analyzer couldn't return a resolved library for the input.
   /// Typical causes: missing/unresolved imports, package config gaps,
   /// session disposal mid-build. Distinct from [buildMethodTooComplex]
@@ -594,6 +600,8 @@ enum IssueCode {
         IssueCode.unsupportedBaseClass ||
         IssueCode.buildMethodMissing ||
         IssueCode.buildMethodTooComplex ||
+        IssueCode.unsupportedActionResultPredicate ||
+        IssueCode.unsupportedActionContract ||
         IssueCode.analyzerResolutionFailed ||
         IssueCode.filenameMismatch ||
         IssueCode.unresolvedIdentifier ||

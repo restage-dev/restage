@@ -147,6 +147,8 @@ Type _flutterTypeFor(String entryName) {
       return RestageAlign;
     case 'AnimatedAlign':
       return RestageAnimatedAlign;
+    case 'AbsorbPointer':
+      return AbsorbPointer;
     case 'AnimatedContainer':
       return AnimatedContainer;
     case 'AnimatedDefaultTextStyle':
@@ -203,6 +205,8 @@ Type _flutterTypeFor(String entryName) {
       return Flexible;
     case 'GestureDetector':
       return GestureDetector;
+    case 'IgnorePointer':
+      return IgnorePointer;
     case 'Image':
     case 'ImageAsset':
       return RestageImage;

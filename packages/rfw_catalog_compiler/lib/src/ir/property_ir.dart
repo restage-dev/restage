@@ -28,7 +28,11 @@ final class PropertyIR {
     this.callbackSignature,
     this.constructorNullable = false,
     this.constructorDefault,
+    this.sinceVersion = kBaselineCatalogVersion,
   });
+
+  /// Content version that added this property.
+  final int sinceVersion;
 
   /// Stable property wire identity.
   final WireId wireId;

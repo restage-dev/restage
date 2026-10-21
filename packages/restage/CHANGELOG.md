@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+`surfaceEvent` fires a standalone paywall's custom event, with a value under
+`args['value']`. Flows evaluate `always` and `matches` host-action result
+predicates.
+
 `FlowOutboundPolicy.customEvents` hands named screen events to the app with the
 event arguments each carries. A custom event neither moves nor completes the
 flow.

@@ -68,6 +68,8 @@ WidgetbookFiniteChoiceTransport? widgetbookFiniteChoiceTransport(
       PropertyType.alignmentXY ||
       PropertyType.stringList ||
       PropertyType.booleanList ||
+      PropertyType.integerList ||
+      PropertyType.realList ||
       PropertyType.widget ||
       PropertyType.widgetList ||
       PropertyType.event ||
@@ -126,6 +128,8 @@ WidgetbookPropertyCapability widgetbookPropertyCapability(
           PropertyType.alignmentXY ||
           PropertyType.stringList ||
           PropertyType.booleanList ||
+          PropertyType.integerList ||
+          PropertyType.realList ||
           PropertyType.dataReference ||
           PropertyType.gradient ||
           PropertyType.border ||
@@ -162,6 +166,8 @@ WidgetbookPropertyCapability widgetbookPropertyCapability(
           PropertyType.length ||
           PropertyType.alignmentXY ||
           PropertyType.booleanList ||
+          PropertyType.integerList ||
+          PropertyType.realList ||
           PropertyType.widget ||
           PropertyType.widgetList ||
           PropertyType.event ||

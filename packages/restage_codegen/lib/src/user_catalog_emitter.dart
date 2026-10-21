@@ -315,6 +315,9 @@ void _writePropertyEntry(
     ..writeln('$indent  name: ${_escapeDart(p.name)},')
     ..writeln('$indent  type: PropertyType.${p.type.name},')
     ..writeln('$indent  description: ${_escapeDart(p.description)},');
+  if (p.sinceVersion != kBaselineCatalogVersion) {
+    buf.writeln('$indent  sinceVersion: ${p.sinceVersion},');
+  }
   if (p.displayLabel != null) {
     buf.writeln('$indent  displayLabel: ${_escapeDart(p.displayLabel!)},');
   }

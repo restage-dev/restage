@@ -585,7 +585,7 @@ void main() {
         flat,
         contains(
           RegExp(
-            r"source\.v<String>\(<Object>\['heading', 'title'\]\) \?\? "
+            r"RestageDecoders\.string\(\s*source,\s*<Object>\['heading', 'title'\]\) \?\? "
             r'\(throw ArgumentError\(\s*'
             r"'SectionHeader\.heading\.title is required\.'\)\)",
           ),
@@ -661,7 +661,7 @@ void main() {
         flat,
         contains(
           RegExp(
-            r'source\s*\.v<String>\('
+            r'RestageDecoders\.string\(\s*source,\s*'
             r"<Object>\['entry', 'meta', 'title'\]\) \?\?",
           ),
         ),

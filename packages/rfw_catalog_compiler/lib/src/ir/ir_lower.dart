@@ -78,6 +78,7 @@ WidgetEntry lowerWidget(WidgetIR ir) {
 PropertyEntry lowerProperty(PropertyIR ir) {
   return PropertyEntry(
     wireId: ir.wireId,
+    sinceVersion: ir.sinceVersion,
     name: ir.name,
     type: ir.type.loweredPropertyType,
     description: ir.description,

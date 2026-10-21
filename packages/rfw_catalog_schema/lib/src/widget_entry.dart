@@ -21,9 +21,9 @@ import 'package:rfw_catalog_schema/src/wire_id.dart';
 const int kBaselineCatalogVersion = 1;
 
 /// The content version of a set of widget entries — the maximum
-/// [WidgetEntry.sinceVersion] over [widgets], floored at
-/// [kBaselineCatalogVersion] (so an empty set reports the baseline, never
-/// zero).
+/// [WidgetEntry.sinceVersion] and [PropertyEntry.sinceVersion] over [widgets],
+/// floored at [kBaselineCatalogVersion] (so an empty set reports the baseline,
+/// never zero).
 ///
 /// This is the **single canonical content-version formula**. The catalog's
 /// `contentVersion` delegates to it, the generated per-library
@@ -34,6 +34,9 @@ int contentVersionOf(Iterable<WidgetEntry> widgets) {
   var max = kBaselineCatalogVersion;
   for (final widget in widgets) {
     if (widget.sinceVersion > max) max = widget.sinceVersion;
+    for (final property in widget.properties) {
+      if (property.sinceVersion > max) max = property.sinceVersion;
+    }
   }
   return max;
 }

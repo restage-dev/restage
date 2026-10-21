@@ -732,7 +732,7 @@ final Catalog kUserCatalog = Catalog(
       property: 'focusNode',
       target: 'rfw',
       reason:
-          'Unsupported property type FocusNode? on ConstructorFidelityCorpus.focusNode. Supported types: Widget, List<Widget>, Color, EdgeInsets(Geometry|Directional), Alignment(Geometry|Directional), FontWeight, bool, int, double, String, VoidCallback (and similar function types), and any Dart enum. Target: rfw.',
+          'Unsupported property type FocusNode? on ConstructorFidelityCorpus.focusNode. Supported types: Widget, List<Widget>, Color, EdgeInsets(Geometry|Directional), Alignment(Geometry|Directional), FontWeight, bool, int, double, String, VoidCallback (and similar function types), any Dart enum, and List<scalar> (String, int, double, num, or bool). Target: rfw.',
       location:
           'lib/widgets/constructor_fidelity_corpus.dart#ConstructorFidelityCorpus.focusNode',
     ),

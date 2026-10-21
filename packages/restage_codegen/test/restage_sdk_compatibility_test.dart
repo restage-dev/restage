@@ -35,4 +35,17 @@ void main() {
   test('a package without restage is not checked', () {
     expect(restageVersionIncompatibility(null), isNull);
   });
+
+  test('a hosted restage_core older than its minimum is refused', () {
+    final problem = restageVersionIncompatibility(
+      Package(
+        'restage_core',
+        Uri.parse('file:///cache/hosted/pub.dev/restage_core-2.0.0/'),
+      ),
+      minimum: kMinimumRestageCoreVersion,
+    );
+
+    expect(problem, contains('restage_core 2.1.0 or newer'));
+    expect(problem, contains('dart pub upgrade restage_core'));
+  });
 }

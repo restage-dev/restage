@@ -49,7 +49,11 @@ class StreakBadge extends StatelessWidget {
   have to be called `child` or `children`.
 - Callbacks with no argument or one value argument become events named after the
   field.
-- Data classes, enums, lists, maps and records in the constructor are supported.
+- Data classes, enums, lists, maps and records in the constructor are supported,
+  including `List<String>`, `List<bool>`, `List<int>`, `List<double>` and
+  `List<num>`.
+- Taps on the widget's callbacks, and inside the children passed to its `Widget`
+  and `List<Widget>` inputs, are measured. Named and positional parameters both work.
 - Add `@RestageProperty` only for what Dart can't express, such as value constraints
   or a theme default.
 - Don't annotate `Container`, `Text` or other widgets used inside it.

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+Flow documents gain the `always` and `matches` host-action result predicates,
+and `actionResultPredicateSchemaIssue` checks a predicate against a result
+schema. `kJoinedStringClientFloor` is the client capability for text joined
+from parts.
+
 **Breaking:** the `legacy_analytics.dart` entrypoint is removed. Measure
 through `package:restage_measurement_schema/restage_measurement_schema.dart`.
 
