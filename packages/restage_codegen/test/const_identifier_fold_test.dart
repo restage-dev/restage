@@ -1083,7 +1083,7 @@ void _translatorGroups() {
       _expectDoubleListRefusal(r);
     });
 
-    test('the structured path refuses collection flow', () async {
+    test('the structured path expands collection flow', () async {
       final r = await _result(translator, '''
         $_flutterImport
         Object x() => LinearGradient(
@@ -1091,14 +1091,11 @@ void _translatorGroups() {
           stops: [0, if (true) 1],
         );
       ''');
-      _expectDoubleListRefusal(
-        r,
-        code: IssueCode.unsupportedCollectionFlow,
-      );
-      expect(r.issues.single.message, contains('double-decoded list slot'));
+      expect(r.issues, isEmpty);
+      expect(r.dsl, contains('stops: [0.0, 1.0]'));
     });
 
-    test('the recipe path refuses collection flow', () async {
+    test('the recipe path expands collection flow', () async {
       final r = await _result(translator, '''
         $_flutterImport
         Object x() => RadialGradient(
@@ -1106,11 +1103,8 @@ void _translatorGroups() {
           stops: [0, if (true) 1],
         );
       ''');
-      _expectDoubleListRefusal(
-        r,
-        code: IssueCode.unsupportedCollectionFlow,
-      );
-      expect(r.issues.single.message, contains('double-decoded list slot'));
+      expect(r.issues, isEmpty);
+      expect(r.dsl, contains('stops: [0.0, 1.0]'));
     });
 
     test('the structured path refuses a direct source cycle', () async {

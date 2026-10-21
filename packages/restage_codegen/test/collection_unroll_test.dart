@@ -1443,7 +1443,7 @@ class Probe extends Widget {
     expect((result as CollectionUnrollExpansion).occurrences, hasLength(2));
   });
 
-  test('numeric-list refusal follows a leading local alias', () async {
+  test('numeric-list expansion follows a leading local alias', () async {
     final result = await _translateInlinedProbe('''
   Widget build(BuildContext context) {
     final stops = ([for (final stop in const [0, 1]) stop]);
@@ -1456,20 +1456,14 @@ class Probe extends Widget {
   }
 ''');
 
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-    expect(
-      result.issues.single.message,
-      'Collection elements in a numeric list are unsupported; '
-      'write the values out.',
-    );
+    expect(result.issues, isEmpty);
     expect(
       result.widgetDefinitions['Probe'],
-      isNot(contains('stops: [0, 1]')),
+      contains('stops: [0.0, 1.0]'),
     );
   });
 
-  test('numeric-list refusal follows an inlined helper parameter', () async {
+  test('numeric-list expansion follows an inlined helper parameter', () async {
     final result = await _translateInlinedProbe('''
   Widget gradient(List<double> stops) => GradientBox(
     gradient: LinearGradient(
@@ -1483,15 +1477,14 @@ class Probe extends Widget {
   );
 ''');
 
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
+    expect(result.issues, isEmpty);
     expect(
       result.widgetDefinitions['Probe'],
-      isNot(contains('stops: [0, 1]')),
+      contains('stops: [0.0, 1.0]'),
     );
   });
 
-  test('numeric-list refusal follows an inlined helper result', () async {
+  test('numeric-list expansion follows an inlined helper result', () async {
     final result = await _translateInlinedProbe('''
   List<double> stops() => ([
     for (final stop in const [0, 1]) stop,
@@ -1505,16 +1498,15 @@ class Probe extends Widget {
   );
 ''');
 
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
+    expect(result.issues, isEmpty);
     expect(
       result.widgetDefinitions['Probe'],
-      isNot(contains('stops: [0, 1]')),
+      contains('stops: [0.0, 1.0]'),
     );
   });
 
   for (final gradientName in ['LinearGradient', 'SweepGradient']) {
-    test('$gradientName helper results preserve numeric-list boundaries',
+    test('$gradientName helper results expand numeric collection elements',
         () async {
       final result = await _translateInlinedProbe('''
   static const stopSet = StopSet(<double>[
@@ -1534,15 +1526,9 @@ class Probe extends Widget {
 
       expect(
         result.widgetDefinitions['Probe'],
-        isNot(contains('stops: [0, 1]')),
+        contains('stops: [0.0, 1.0]'),
       );
-      expect(result.issues, hasLength(1));
-      expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-      expect(
-        result.issues.single.message,
-        'Collection elements in a numeric list are unsupported; '
-        'write the values out.',
-      );
+      expect(result.issues, isEmpty);
     });
   }
 
@@ -1553,6 +1539,56 @@ class Probe extends Widget {
   ];
 
   for (final gradient in gradientCases) {
+    test(
+        '${gradient.name} coerces mixed static collections '
+        'with helper bindings', () async {
+      final result = await _translateInlinedProbe('''
+  List<double> stops(double first) => [
+    first,
+    if (true) 1 else 99,
+    if (false) 99,
+    ...const [2, 0.5],
+    for (final outer in [first, 3])
+      for (final inner in [outer, 4]) inner,
+  ];
+
+  Widget build(BuildContext context) => GradientBox(
+    gradient: ${gradient.name}(
+      colors: const [Color(0xFF000000), Color(0xFFFFFFFF)],
+      stops: stops(0),
+    ),
+  );
+''');
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.widgetDefinitions['Probe'],
+        'GradientBox(gradient: {type: "${gradient.type}", '
+        'colors: [0xFF000000, 0xFFFFFFFF], '
+        'stops: [0.0, 1.0, 2.0, 0.5, 0.0, 4.0, 3.0, 4.0]})',
+      );
+    });
+
+    test('${gradient.name} preserves shadowed numeric loop bindings', () async {
+      final result = await _translateInlinedProbe('''
+  Widget build(BuildContext context) => GradientBox(
+    gradient: ${gradient.name}(
+      colors: const [Color(0xFF000000), Color(0xFFFFFFFF)],
+      stops: [
+        for (final stop in const [0, 1])
+          ...[for (final stop in [stop, 0.5]) stop],
+      ],
+    ),
+  );
+''');
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.widgetDefinitions['Probe'],
+        contains('stops: [0.0, 0.5, 1.0, 0.5]'),
+      );
+    });
+
     test('${gradient.name} emits a parameterized stops helper', () async {
       final result = await _translateInlinedProbe('''
   List<double> stops(double first) => [first, 1];

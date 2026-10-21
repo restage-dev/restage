@@ -438,7 +438,7 @@ Object x() => ListSink(values: <String>['ok', $tail]);
       }
     });
 
-    test('strict-double lists suppress every collection-flow form', () async {
+    test('strict-double lists suppress dynamic collection flow', () async {
       final success = translator.translate(
         await parseExpressionForTest(
           'LinearGradient(colors: <Color>[Color(0xFF112233)], '
@@ -460,8 +460,11 @@ Object x() => ListSink(values: <String>['ok', $tail]);
             'colors: <Color>[Color(0xFF112233)], '
             'stops: <double>[0.0, $tail]);';
         final expression = await parseExpressionFromSourceForTest(source);
+        final argument = callArgumentsOf(expression).last as NamedArgument;
+        final list = argument.argumentExpression as ListLiteral;
         final lineInfo = LineInfo.fromContent(source);
-        final expressionLocation = lineInfo.getLocation(expression.offset);
+        final offendingLocation =
+            lineInfo.getLocation(list.elements.last.offset);
         final result = translator.translate(
           expression,
           sourcePath: 'double_list.dart',
@@ -478,8 +481,8 @@ Object x() => ListSink(values: <String>['ok', $tail]);
         expect(result.dsl, isNot(contains('stops: [0.0]')), reason: name);
         expect(
           result.issues.single.location,
-          'double_list.dart:${expressionLocation.lineNumber}:'
-          '${expressionLocation.columnNumber}',
+          'double_list.dart:${offendingLocation.lineNumber}:'
+          '${offendingLocation.columnNumber}',
           reason: name,
         );
       }
@@ -3232,7 +3235,7 @@ SegmentedButton<String>(
       expect(r.dsl, contains('stops: [0.0, 1.0]'));
     });
 
-    test('LinearGradient refuses collection elements in stops', () async {
+    test('LinearGradient expands collection elements in stops', () async {
       const source = '''
 Object x() => LinearGradient(
   colors: [Color(0xFF112233), Color(0xFF445566)],
@@ -3244,19 +3247,38 @@ Object x() => LinearGradient(
         lineInfo: LineInfo.fromContent(source),
       );
 
-      expect(r.dsl, isNot(contains('stops: [0, 1]')));
-      expect(r.issues, hasLength(1));
-      expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
-      expect(
-        r.issues.single.message,
-        'Collection elements in a numeric list are unsupported; '
-        'write the values out.',
-      );
-      expect(
-        r.issues.single.location,
-        startsWith('lib/gradient_collection_stops.dart:3:'),
-      );
+      expect(r.dsl, contains('stops: [0.0, 1.0]'));
+      expect(r.issues, isEmpty);
     });
+
+    for (final stops in [
+      '[0, if (enabled) 1]',
+      '[0, for (final stop in values) stop]',
+      '[0, ...values]',
+    ]) {
+      test('LinearGradient refuses dynamic numeric collection flow: $stops',
+          () async {
+        final source = '''
+Object x(List<double> values, bool enabled) => LinearGradient(
+  colors: [Color(0xFF112233), Color(0xFF445566)],
+  stops: $stops,
+);''';
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest(source),
+          sourcePath: 'lib/dynamic_stops.dart',
+          lineInfo: LineInfo.fromContent(source),
+        );
+
+        expect(r.dsl, isEmpty);
+        expect(r.issues, hasLength(1));
+        expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+        expect(r.issues.single.message, contains('known only at run time'));
+        expect(
+          r.issues.single.location,
+          startsWith('lib/dynamic_stops.dart:3:'),
+        );
+      });
+    }
 
     test('LinearGradient refuses a conditional collection list in stops',
         () async {
@@ -3286,7 +3308,7 @@ Object x() => LinearGradient(
     });
 
     for (final gradientName in ['LinearGradient', 'SweepGradient']) {
-      test('$gradientName refuses collection flow from a const field',
+      test('$gradientName expands collection flow from a const field',
           () async {
         final source = _gradientStopsSource(
           gradientName,
@@ -3299,14 +3321,14 @@ const stopSet = StopSet(<double>[
           stopsExpression: 'stopSet.values',
         );
 
-        await _expectConstStopsRefusal(
+        await _expectStopsExpansion(
           translator,
           source,
           'lib/${gradientName.toLowerCase()}_const_stops.dart',
         );
       });
 
-      test('$gradientName refuses collection flow from a nested const field',
+      test('$gradientName expands collection flow from a nested const field',
           () async {
         final source = _gradientStopsSource(
           gradientName,
@@ -3324,7 +3346,7 @@ const gradientStops = GradientStops(StopSet(<double>[
           stopsExpression: 'gradientStops.primary.values',
         );
 
-        await _expectConstStopsRefusal(
+        await _expectStopsExpansion(
           translator,
           source,
           'lib/${gradientName.toLowerCase()}_nested_stops.dart',
@@ -3349,6 +3371,7 @@ const selectedStops = stopSet.values;
           translator,
           source,
           'lib/${gradientName.toLowerCase()}_aliased_stops.dart',
+          constAlias: true,
         );
       });
 
@@ -9042,7 +9065,7 @@ Object x($parameter) => $gradientName(
   stops: $stopsExpression,
 );''';
 
-Future<void> _expectConstStopsRefusal(
+Future<void> _expectStopsExpansion(
   ExpressionTranslator translator,
   String source,
   String sourcePath,
@@ -9056,13 +9079,37 @@ Future<void> _expectConstStopsRefusal(
     lineInfo: LineInfo.fromContent(source),
   );
 
+  expect(result.issues, isEmpty);
+  expect(result.dsl, contains('stops: [0.0, 1.0]'));
+}
+
+Future<void> _expectConstStopsRefusal(
+  ExpressionTranslator translator,
+  String source,
+  String sourcePath, {
+  bool constAlias = false,
+}) async {
+  final result = translator.translate(
+    await parseExpressionFromSourceForTest(
+      source,
+      rootPackage: 'apps_examples',
+    ),
+    sourcePath: sourcePath,
+    lineInfo: LineInfo.fromContent(source),
+  );
+
   expect(result.dsl, isNot(contains('[0, 1]')));
   expect(result.issues, hasLength(1));
+  if (constAlias) {
+    expect(result.issues.single.code, IssueCode.unrecognizedMethodCall);
+    expect(result.issues.single.message, contains('A const-derived list'));
+    return;
+  }
   expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
   expect(
     result.issues.single.message,
-    'Collection elements in a numeric list are unsupported; '
-    'write the values out.',
+    'Collection elements in a numeric list require one '
+    'statically resolved list. Write the selected list directly.',
   );
   final collectionLine = _sourceLineOf(source, 'if (true) 0');
   expect(

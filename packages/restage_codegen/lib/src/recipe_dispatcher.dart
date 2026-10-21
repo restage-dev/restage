@@ -227,8 +227,8 @@ String emitTypedList(
 /// int element is silently nulled to `0.0` without this per-element coercion —
 /// the list analogue of the scalar `asDoubleLiteral` the sibling slots apply.
 ///
-/// A plain terminal list is coerced element by element. Runtime references use
-/// [translate]; unsupported source categories produce a diagnostic.
+/// Static collections expand with per-element coercion and exact bindings.
+/// Runtime references use [translate]; unsupported sources are diagnosed.
 DslEmission _emitDoubleList(
   Expression expr,
   TranslateCallback translate,
@@ -243,10 +243,6 @@ DslEmission _emitDoubleList(
   String Function(AstNode)? locationOf,
   TranslateTypedListTerminalCallback? translateTerminal,
 }) {
-  DoubleListSourceResolution? cachedResolution;
-  DoubleListSourceResolution resolvedSource() =>
-      cachedResolution ??= resolveSource(expr);
-
   DslEmission refuseResolvedSource(
     DoubleListSourceDisposition disposition,
   ) {
@@ -254,10 +250,6 @@ DslEmission _emitDoubleList(
       DoubleListSourceDisposition.constant =>
         'A const-derived list cannot be lowered at a double-decoded list '
             'slot. Inline the list so each element is coerced to a double.',
-      DoubleListSourceDisposition.collectionFlow =>
-        'A list with collection elements cannot be lowered at a '
-            'double-decoded list slot. Write an explicit list without '
-            'collection if, for, or spread elements.',
       DoubleListSourceDisposition.conditional =>
         'A conditional list cannot be lowered at a double-decoded list slot. '
             'Write the selected list directly so each element is coerced to '
@@ -268,17 +260,17 @@ DslEmission _emitDoubleList(
       DoubleListSourceDisposition.depthLimit =>
         'The list source is too deeply nested to lower at a double-decoded '
             'list slot. Simplify the source bindings.',
-      DoubleListSourceDisposition.ordinary => throw StateError(
-          'ordinary double-list sources are translated below',
+      DoubleListSourceDisposition.ordinary ||
+      DoubleListSourceDisposition.collectionFlow =>
+        throw StateError(
+          'ordinary and collection double-list sources are translated below',
         ),
     };
     issues.add(
       Issue(
-        code: disposition == DoubleListSourceDisposition.collectionFlow
-            ? IssueCode.unsupportedCollectionFlow
-            : expr is PrefixedIdentifier
-                ? IssueCode.unresolvedIdentifier
-                : IssueCode.unrecognizedMethodCall,
+        code: expr is PrefixedIdentifier
+            ? IssueCode.unresolvedIdentifier
+            : IssueCode.unrecognizedMethodCall,
         message: message,
         location: location,
       ),
@@ -292,22 +284,23 @@ DslEmission _emitDoubleList(
     semanticProbe: semanticProbe,
     semanticBudget: semanticBudget,
   );
-  CollectionTypedListPlain? inspectedList;
+  ListLiteral? inspectedList;
+  var bindings = const <Element, Expression>{};
   switch (inspection) {
     case CollectionTypedListElement(
         :final offending,
-        :final reachedThroughTransparentEdge,
+        :final resolution,
       ):
-      final disposition = resolvedSource().disposition;
-      if (!reachedThroughTransparentEdge &&
-          disposition == DoubleListSourceDisposition.collectionFlow) {
-        return refuseResolvedSource(disposition);
+      if (resolution?.expression case final ListLiteral list) {
+        inspectedList = list;
+        bindings = resolution!.bindings;
+        break;
       }
       issues.add(
         Issue(
           code: IssueCode.unsupportedCollectionFlow,
-          message: 'Collection elements in a numeric list are unsupported; '
-              'write the values out.',
+          message: 'Collection elements in a numeric list require one '
+              'statically resolved list. Write the selected list directly.',
           location: locationOf?.call(offending) ?? location,
         ),
       );
@@ -322,18 +315,20 @@ DslEmission _emitDoubleList(
         ),
       );
       return const DslEmission.refusal();
-    case CollectionTypedListPlain():
-      inspectedList = inspection;
+    case CollectionTypedListPlain(:final list, bindings: final listBindings):
+      inspectedList = list;
+      bindings = listBindings;
     case CollectionTypedListTerminal():
       break;
   }
 
-  final resolved = resolvedSource();
+  final resolved = resolveSource(expr);
   final disposition = resolved.disposition;
-  if (disposition != DoubleListSourceDisposition.ordinary) {
+  if (disposition != DoubleListSourceDisposition.ordinary &&
+      disposition != DoubleListSourceDisposition.collectionFlow) {
     return refuseResolvedSource(disposition);
   }
-  final source = inspectedList?.list ?? resolved.source;
+  final source = inspectedList ?? resolved.source;
   if (source is! ListLiteral) {
     return normalizePresentChild(
       issues,
@@ -342,20 +337,32 @@ DslEmission _emitDoubleList(
           : translateTerminal(source, PropertyType.real, issues),
     );
   }
-  // Each element coerces to a double literal through [translateDouble] — which
-  // coerces PER BRANCH when an element is a conditional, so a bare-int branch
-  // does not survive (a plain `asDoubleLiteral` over the assembled
-  // `switch state.X { … }` string would pass the bare ints through unchanged
-  // because the string contains a `.` from `state.X`).
+  final traversal = traverseCollectionList(
+    source,
+    semantics: _typedListProbe(resolveExpression, semanticProbe),
+    bindings: bindings,
+  );
   final parts = <String>[];
-  for (final element in source.elements.cast<Expression>()) {
+  for (final entry in traversal.entries) {
+    if (entry case CollectionListRefusal(:final refusal)) {
+      issues.add(
+        Issue(
+          code: IssueCode.unsupportedCollectionFlow,
+          message: refusal.detail,
+          location: locationOf?.call(refusal.location) ?? location,
+        ),
+      );
+      return const DslEmission.refusal();
+    }
+    final occurrence = (entry as CollectionListElement).occurrence;
+    // Apply bindings before coercing each element and its conditional branches.
     final emitted = normalizePresentChild(
       issues,
       () => translateDoubleElement == null
-          ? translateDouble(element, issues)
+          ? translateDouble(occurrence.terminalExpression, issues)
           : translateDoubleElement(
-              element,
-              inspectedList?.bindings ?? const {},
+              occurrence.terminalExpression,
+              occurrence.bindings,
               issues,
             ),
     );
