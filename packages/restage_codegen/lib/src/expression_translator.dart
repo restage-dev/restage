@@ -20,6 +20,7 @@ import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/device_recognition.dart';
 import 'package:restage_codegen/src/draggable_sheet_recognition.dart';
+import 'package:restage_codegen/src/dsl_parse_diagnostic.dart';
 import 'package:restage_codegen/src/dsl_emission.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
@@ -205,7 +206,9 @@ final class TranslationResult {
     this.usesLocalValues = false,
     this.emitsInteractionItems = false,
     this.completesSurface = false,
+    Iterable<DslEmissionSource> emissionSources = const [],
   })  : issues = List.unmodifiable(issues),
+        emissionSources = List.unmodifiable(emissionSources),
         localSeeds = Map.unmodifiable(localSeeds),
         iconReferences = List.unmodifiable(iconReferences),
         widgetDefinitions = Map.unmodifiable(widgetDefinitions),
@@ -222,6 +225,10 @@ final class TranslationResult {
 
   /// Issues collected during this translation (unmodifiable).
   final List<Issue> issues;
+
+  /// The source expression behind each emitted fragment, for naming the
+  /// construct when the emitted text fails to parse.
+  final List<DslEmissionSource> emissionSources;
 
   /// Synthesised screen-navigation lowering metadata for the build step.
   final NavigationLowering? navigation;
@@ -615,6 +622,9 @@ final class ExpressionTranslator {
   // Root State fields written by value callbacks; read as `data.local.*`.
   Set<String> _currentLocalFields = const {};
 
+  /// Fragments recorded during the current translation.
+  List<DslEmissionSource>? _emissionSources;
+
   // Lowered coalesce fallbacks discovered while translating a definition body,
   // keyed by classKey then property name: the value a call site that omits (or
   // passes explicit null) the property is completed with. Populated once per
@@ -824,6 +834,9 @@ final class ExpressionTranslator {
     _flowScreenContext = flowScreenContext;
     _currentTranslationSuppressed = false;
     final issues = <Issue>[];
+    final emissionSources = <DslEmissionSource>[];
+    final savedEmissionSources = _emissionSources;
+    _emissionSources = emissionSources;
     final widgetDefinitions = <String, String>{};
     final widgetDefinitionStates = <String, Map<String, String>>{};
     final rootWidgetState = <String, String>{};
@@ -962,6 +975,7 @@ final class ExpressionTranslator {
       emitsInteractionItems = _currentEmitsInteractionItems;
       _currentEmitsInteractionItems = savedEmitsInteractionItems;
       _currentLocalFields = savedLocalFields;
+      _emissionSources = savedEmissionSources;
       // Clear the per-call source context so it never lingers past this call —
       // a helper invoked directly (not through `translate`) would otherwise
       // read a stale source path / line info from a previous translation.
@@ -991,6 +1005,7 @@ final class ExpressionTranslator {
         iconReferences: iconReferences.references,
         emitsInteractionItems: emitsInteractionItems,
         completesSurface: _declaresCompletion(expr),
+        emissionSources: emissionSources,
         localSeeds: localSeeds,
         usesLocalValues: localFields.isNotEmpty,
         rfwCatalogConstructorOrigins:
@@ -1154,6 +1169,26 @@ final class ExpressionTranslator {
   }
 
   String _translate(Expression expr, List<Issue> issues) {
+    final dsl = _translateExpression(expr, issues);
+    _recordEmission(expr, dsl);
+    return dsl;
+  }
+
+  void _recordEmission(Expression expr, String dsl) {
+    final sources = _emissionSources;
+    if (sources == null || dsl.isEmpty || expr is ParenthesizedExpression) {
+      return;
+    }
+    sources.add(
+      DslEmissionSource(
+        dsl: dsl,
+        location: _locationOf(expr),
+        construct: quoteConstruct(expr.toSource()),
+      ),
+    );
+  }
+
+  String _translateExpression(Expression expr, List<Issue> issues) {
     // Parenthesis is semantically transparent — unwrap it uniformly so every
     // type-dispatch below (and at the slot/param entry points that pre-resolve
     // before dispatching) sees through it. A PARTIAL unwrap would be a new
@@ -1367,7 +1402,7 @@ final class ExpressionTranslator {
       return expr.value.toString();
     }
     if (expr is NullLiteral) {
-      return 'null';
+      return _kNoValue;
     }
     if (expr is ListLiteral) {
       return _listLiteral(expr, issues);
@@ -1845,40 +1880,113 @@ final class ExpressionTranslator {
     return null;
   }
 
+  /// A string interpolation outside a Text: one value, or refused, since the
+  /// data language cannot join strings.
   String _stringInterpolation(StringInterpolation expr, List<Issue> issues) {
-    final issueStart = issues.length;
-    final segments = <_InterpSegment>[];
+    final parts = _interpolationParts(expr, issues);
+    if (parts == null) return '';
+    if (parts.isEmpty) return '""';
+    if (parts.length == 1) return parts.single;
+    issues.add(
+      Issue(
+        code: IssueCode.unsupportedInterpolation,
+        message: 'A string that joins text and values can only be the text '
+            'of a Text widget, because a delivered surface cannot join '
+            'strings. Show it with Text, or pass the finished string in as '
+            'one value. Found: ${expr.toSource()}.',
+        location: _locationOf(expr),
+      ),
+    );
+    return '';
+  }
 
+  /// The parts of [expr] as DSL values: quoted literals and references in
+  /// order, or `null` after a diagnostic.
+  List<String>? _interpolationParts(
+    StringInterpolation expr,
+    List<Issue> issues,
+  ) {
+    final issueStart = issues.length;
+    final parts = <String>[];
     for (final element in expr.elements) {
       if (element is InterpolationString) {
         if (element.value.isNotEmpty) {
-          segments.add(_InterpSegment.literal(element.value));
+          parts.add('"${_escapeForDsl(element.value)}"');
         }
       } else if (element is InterpolationExpression) {
-        final inner = element.expression;
-        final dsl = _stringInterpolationExpression(inner, issues);
-        if (dsl != null) segments.add(_InterpSegment.dataRef(dsl));
+        final dsl = _stringInterpolationExpression(element.expression, issues);
+        if (dsl != null) parts.add(dsl);
       }
     }
+    final refused =
+        issues.skip(issueStart).any((issue) => !issue.code.isBuildNotice);
+    return refused ? null : parts;
+  }
 
-    // Encode each segment and emit the synthetic sentinel string that the
-    // Text-construction rewrite path recognises. Format:
-    //   __rfw_interp("<literal>", data.ref.path, ...)
-    // Quoted strings are DSL literals; unquoted are DSL state-ref expressions.
-    final encoded = segments.map((s) {
-      if (s.kind == _InterpKind.literal) {
-        return '"${_escapeForDsl(s.text)}"';
-      }
-      return s.text;
-    }).toList();
+  /// Whether Text's [text] needs inline spans: an interpolation of several
+  /// parts, directly or in any arm of a conditional.
+  bool _needsTextSpans(Expression text) {
+    final value = _resolveBoundIdentifier(text);
+    if (value is MethodInvocation) {
+      final helper = _walk.inlined.helpers[value.methodName.element];
+      if (helper == null) return false;
+      return _inHelperBody(
+        helper,
+        value,
+        <Issue>[],
+        _needsTextSpans,
+        refused: false,
+      );
+    }
+    if (value is ConditionalExpression) {
+      return _needsTextSpans(value.thenExpression) ||
+          _needsTextSpans(value.elseExpression);
+    }
+    if (value is! StringInterpolation) return false;
+    return value.elements
+            .where(
+              (e) =>
+                  e is InterpolationExpression ||
+                  (e is InterpolationString && e.value.isNotEmpty),
+            )
+            .length >
+        1;
+  }
 
-    return unwrapDslEmission(
-      normalizePresentValue(
+  /// Lowers Text's [text] to an inline span value; a conditional selects a
+  /// span per arm.
+  String _textSpanValue(Expression text, List<Issue> issues) {
+    final value = _resolveBoundIdentifier(text);
+    final helper = value is MethodInvocation
+        ? _walk.inlined.helpers[value.methodName.element]
+        : null;
+    if (helper != null) {
+      return _inHelperBody(
+        helper,
+        value as MethodInvocation,
         issues,
-        issueStart,
-        '__rfw_interp(${encoded.join(', ')})',
-      ),
-    );
+        (body) => _textSpanValue(body, issues),
+        refused: '',
+      );
+    }
+    if (value is ConditionalExpression) {
+      return _conditionalSwitch(
+        value,
+        issues,
+        (arm) => _textSpanValue(arm, issues),
+      );
+    }
+    if (value is StringInterpolation) {
+      final parts = _interpolationParts(value, issues);
+      if (parts == null) return '';
+      if (parts.length == 1) return '{ text: ${parts.single} }';
+      final spans = parts.map((p) => '{ text: $p }').join(', ');
+      return '{ children: [$spans] }';
+    }
+    final before = issues.length;
+    final plain = _translateSlotValue(text, PropertyType.string, issues);
+    if (_diagnosedEmpty(plain, issues, before)) return '';
+    return '{ text: $plain }';
   }
 
   String _escapeForDsl(String s) =>
@@ -3931,7 +4039,7 @@ final class ExpressionTranslator {
       ),
     );
 
-    return '${entry.name}(${emitted.join(', ')})';
+    return _catalogCall(entry, emitted);
   }
 
   /// Emits a specific deferral [Issue] for a recognised-but-not-substitutable
@@ -4116,7 +4224,7 @@ final class ExpressionTranslator {
       emitted.add('${_rfwMapKey(name)}: $value');
     }
 
-    return '${entry.name}(${emitted.join(', ')})';
+    return _catalogCall(entry, emitted);
   }
 
   WidgetEntry? _textRichEntry(String? flutterType) {
@@ -5359,7 +5467,7 @@ final class ExpressionTranslator {
         emitted.add('${_rfwMapKey(property.name)}: $value');
       }
     }
-    return '${sheetEntry.name}(${emitted.join(', ')})';
+    return _catalogCall(sheetEntry, emitted);
   }
 
   Map<String, String>? _modalSheetSlotValues(
@@ -5660,8 +5768,7 @@ final class ExpressionTranslator {
       emitted.add('${_rfwMapKey(property.name)}: '
           '${RfwConstructorPresenceEncoder.encode(property, value)}');
     }
-    _recordRfwCatalogConstructorOrigin(target);
-    return '${target.name}(${emitted.join(', ')})';
+    return _catalogCall(target, emitted);
   }
 
   /// Lowers a vanilla-Flutter `PageView(...)` to the `RestagePager` catalog
@@ -5814,8 +5921,7 @@ final class ExpressionTranslator {
       return '';
     }
 
-    _recordRfwCatalogConstructorOrigin(pager);
-    return '${pager.name}(${emitted.join(', ')})';
+    return _catalogCall(pager, emitted);
   }
 
   /// Recognises an inline literal `package:flutter` `PageController(...)` for
@@ -6029,8 +6135,7 @@ final class ExpressionTranslator {
       }
     }
 
-    _recordRfwCatalogConstructorOrigin(sheet);
-    return '${sheet.name}(${emitted.join(', ')})';
+    return _catalogCall(sheet, emitted);
   }
 
   /// Lowers a vanilla-Flutter `RadioGroup(...)` / `DropdownButton(...)` to the
@@ -6192,8 +6297,7 @@ final class ExpressionTranslator {
       parts.add('onChanged: $value');
     }
 
-    _recordRfwCatalogConstructorOrigin(target);
-    return '${target.name}(${parts.join(', ')})';
+    return _catalogCall(target, parts);
   }
 
   /// Lowers a vanilla-Flutter `ToggleButtons(...)` to the compiled
@@ -6297,8 +6401,7 @@ final class ExpressionTranslator {
       if (!emit('onPressed', onPressed)) return '';
     }
 
-    _recordRfwCatalogConstructorOrigin(target);
-    return '${target.name}(${emitted.join(', ')})';
+    return _catalogCall(target, emitted);
   }
 
   /// Lowers a vanilla-Flutter `SegmentedButton<String>(...)` to the compiled
@@ -6473,8 +6576,7 @@ final class ExpressionTranslator {
       parts.add('$name: $value');
     }
 
-    _recordRfwCatalogConstructorOrigin(target);
-    return '${target.name}(${parts.join(', ')})';
+    return _catalogCall(target, parts);
   }
 
   /// Whether [expr] is a single-expression closure whose body is a call to a
@@ -6975,6 +7077,7 @@ final class ExpressionTranslator {
     // collide with their own named-arg form (e.g. Icon's `size` would absorb
     // the IconData positional and then duplicate when `size:` is also named).
     final positionals = args.whereType<Expression>().toList();
+    String? textSpan;
     final sourceParameters = _walk.measurementWidget == null
         ? const <Expression, FormalParameterElement>{}
         : _resolvedSourceParameters(anchor, args);
@@ -6994,6 +7097,13 @@ final class ExpressionTranslator {
       final positionalProp = positionalProps[i];
       final propName = positionalProp.name;
       final before = issues.length;
+      if (entry.name == 'Text' &&
+          propName == 'text' &&
+          _needsTextSpans(positionals[i])) {
+        textSpan = _textSpanValue(positionals[i], issues);
+        if (textSpan.isEmpty) return '';
+        continue;
+      }
       final isIconSlot = positionalProp.synthetic == _kIconDataSynthetic;
       if (isIconSlot) _resetResolvedIcon();
       final value = _translateSlotValue(
@@ -7020,6 +7130,13 @@ final class ExpressionTranslator {
     for (final a in args.whereType<NamedArgument>()) {
       final name = a.name.lexeme;
       if (isDiscardedWidgetKeyArgument(a)) continue;
+      if (entry.name == 'Text' &&
+          name == 'text' &&
+          _needsTextSpans(a.argumentExpression)) {
+        textSpan = _textSpanValue(a.argumentExpression, issues);
+        if (textSpan.isEmpty) return '';
+        continue;
+      }
 
       if (name == 'decoration' && _hasSynthetic(entry, _kInputDecorationText)) {
         final lowered = _inputDecoration(entry, a.argumentExpression, issues);
@@ -7113,22 +7230,59 @@ final class ExpressionTranslator {
     final barHeight = _preferredSizeHeightEmission(entry, args, issues);
     if (barHeight != null) emitted.add(barHeight);
 
-    // Detect string interpolation sentinel in Text's text argument. A
-    // multi-segment interpolation is definitionally equivalent to
-    // `Text.rich(TextSpan(children: ...))`: Flutter renders the same text run,
-    // and the TextRich catalog entry is the supported Restage surface for
-    // inline spans. Never emit the old test-only `RichText(spans: ...)` shape.
-    if (entry.name == 'Text') {
-      final interpolation = _rewriteInterpolatedText(
+    if (_baselineWithoutTextBaseline(entry, args)
+        case final Expression alignment) {
+      issues.add(
+        Issue(
+          code: IssueCode.missingRequiredSlot,
+          message: '${entry.name} aligns its children on their baselines but '
+              'sets no textBaseline, which Flutter requires. Add '
+              'textBaseline: TextBaseline.alphabetic.',
+          location: _locationOf(alignment),
+        ),
+      );
+      return '';
+    }
+
+    // Text that joins strings renders the same run as Text.rich with spans.
+    if (textSpan != null) {
+      return _interpolatedTextRich(
+        textSpan,
         emitted,
         anchor,
         issues,
         localIssueStart,
       );
-      if (interpolation != null) return interpolation;
     }
 
-    return '${entry.name}(${emitted.join(', ')})';
+    return _catalogCall(entry, emitted);
+  }
+
+  /// The `crossAxisAlignment: CrossAxisAlignment.baseline` argument of a flex
+  /// [entry] that has no `textBaseline`, or null.
+  Expression? _baselineWithoutTextBaseline(
+    WidgetEntry entry,
+    NodeList<Argument> args,
+  ) {
+    if (!entry.properties.any((p) => p.name == 'textBaseline')) return null;
+    Expression? alignment;
+    for (final argument in args.whereType<NamedArgument>()) {
+      switch (argument.name.lexeme) {
+        case 'textBaseline':
+          return null;
+        case 'crossAxisAlignment':
+          final value = _stripParens(argument.argumentExpression);
+          final name = switch (value) {
+            PrefixedIdentifier(:final identifier) => identifier.name,
+            PropertyAccess(:final propertyName) => propertyName.name,
+            DotShorthandPropertyAccess(:final propertyName) =>
+              propertyName.name,
+            _ => null,
+          };
+          if (name == 'baseline') alignment = value;
+      }
+    }
+    return alignment;
   }
 
   bool _hasSynthetic(WidgetEntry entry, String strategy) =>
@@ -7780,6 +7934,12 @@ final class ExpressionTranslator {
     return result;
   }
 
+  /// A call to catalog widget [entry], recording its catalog origin.
+  String _catalogCall(WidgetEntry entry, List<String> arguments) {
+    _recordRfwCatalogConstructorOrigin(entry);
+    return '${entry.name}(${arguments.join(', ')})';
+  }
+
   void _recordRfwCatalogConstructorOrigin(WidgetEntry entry) {
     final calls = _currentRfwCatalogConstructorOrigins;
     if (calls == null) return;
@@ -7796,118 +7956,93 @@ final class ExpressionTranslator {
     }
   }
 
-  String? _rewriteInterpolatedText(
-    List<String> emitted,
+  String _interpolatedTextRich(
+    String textSpan,
+    List<String> carried,
     Expression anchor,
     List<Issue> issues,
     int localIssueStart,
   ) {
-    for (var i = 0; i < emitted.length; i++) {
-      final emission = emitted[i];
-      if (!emission.startsWith('text: ') ||
-          !emission.contains('__rfw_interp(')) {
-        continue;
-      }
-      final match =
-          RegExp(r'__rfw_interp\((.*)\)$', dotAll: true).firstMatch(emission);
-      if (match == null) continue;
-
-      if (issues
-          .skip(localIssueStart)
-          .any((issue) => !issue.code.isInformational)) {
-        return '';
-      }
-
-      final raw = match.group(1)!;
-      final parts = splitTopLevelCommas(raw);
-      if (parts.length == 1 && !parts.first.trimLeft().startsWith('"')) {
-        final rest = List<String>.from(emitted)..removeAt(i);
-        final allArgs = ['text: ${parts.first}', ...rest];
-        return 'Text(${allArgs.join(', ')})';
-      }
-
-      final textRich = _textRichEntry(null);
-      if (textRich == null) {
-        issues.add(
-          Issue(
-            code: IssueCode.unknownWidget,
-            capabilityGapSubject: 'widget:TextRich',
-            message: "Widget 'TextRich' is not a known catalog widget. Add "
-                'the Text.rich catalog entry before lowering interpolated '
-                'Text spans.',
-            location: _locationOf(anchor),
-          ),
-        );
-        return '';
-      }
-      _recordRfwCatalogConstructorOrigin(textRich);
-      final textSpanProp = textRich.properties.firstWhereOrNull(
-        (p) => p.name == 'textSpan' && p.type == PropertyType.inlineSpan,
+    if (issues
+        .skip(localIssueStart)
+        .any((issue) => !issue.code.isInformational)) {
+      return '';
+    }
+    final textRich = _textRichEntry(null);
+    if (textRich == null) {
+      issues.add(
+        Issue(
+          code: IssueCode.unknownWidget,
+          capabilityGapSubject: 'widget:TextRich',
+          message: "Widget 'TextRich' is not a known catalog widget. Add "
+              'the Text.rich catalog entry before lowering interpolated '
+              'Text spans.',
+          location: _locationOf(anchor),
+        ),
       );
-      if (textSpanProp == null) {
+      return '';
+    }
+    final textSpanProp = textRich.properties.firstWhereOrNull(
+      (p) => p.name == 'textSpan' && p.type == PropertyType.inlineSpan,
+    );
+    if (textSpanProp == null) {
+      issues.add(
+        Issue(
+          code: IssueCode.unknownProperty,
+          message: "Catalog widget '${textRich.name}' must declare a "
+              "'textSpan' PropertyType.inlineSpan slot before lowering "
+              'interpolated Text spans.',
+          location: _locationOf(anchor),
+        ),
+      );
+      return '';
+    }
+    final textRichProps = {for (final p in textRich.properties) p.name};
+    for (final property in carried) {
+      final propName = _emittedPropertyName(property);
+      if (propName == null) {
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
-            message: "Catalog widget '${textRich.name}' must declare a "
-                "'textSpan' PropertyType.inlineSpan slot before lowering "
-                'interpolated Text spans.',
+            message: 'Interpolated Text could not identify emitted '
+                'property fragment `$property`; the whole interpolation is '
+                'deferred.',
             location: _locationOf(anchor),
           ),
         );
         return '';
       }
-
-      final textRichProps = {for (final p in textRich.properties) p.name};
-      final rest = List<String>.from(emitted)..removeAt(i);
-      for (final carried in rest) {
-        final propName = _emittedPropertyName(carried);
-        if (propName == null) {
-          issues.add(
-            Issue(
-              code: IssueCode.unknownProperty,
-              message: 'Interpolated Text could not identify emitted '
-                  'property fragment `$carried`; the whole interpolation is '
-                  'deferred.',
-              location: _locationOf(anchor),
-            ),
-          );
-          return '';
-        }
-        if (!_kTextInterpolationTextRichCarryProps.contains(propName)) {
-          issues.add(
-            Issue(
-              code: IssueCode.unsupportedHelperPosition,
-              message: 'Text with multi-segment string interpolation can '
-                  'lower to ${textRich.name} only when every authored Text '
-                  'property is in the closed carry set. Text.$propName would '
-                  'not be carried, so the whole interpolation is deferred.',
-              location: _locationOf(anchor),
-            ),
-          );
-          return '';
-        }
-        if (!textRichProps.contains(propName)) {
-          issues.add(
-            Issue(
-              code: IssueCode.unknownProperty,
-              message: "Catalog widget '${textRich.name}' does not declare "
-                  "carried Text property '$propName'; the whole interpolation "
-                  'is deferred.',
-              location: _locationOf(anchor),
-            ),
-          );
-          return '';
-        }
+      if (!_kTextInterpolationTextRichCarryProps.contains(propName)) {
+        issues.add(
+          Issue(
+            code: IssueCode.unsupportedHelperPosition,
+            message: 'Text with multi-segment string interpolation can '
+                'lower to ${textRich.name} only when every authored Text '
+                'property is in the closed carry set. Text.$propName would '
+                'not be carried, so the whole interpolation is deferred.',
+            location: _locationOf(anchor),
+          ),
+        );
+        return '';
       }
-
-      final spans = parts.map((p) => '{ text: $p }').join(', ');
-      final outerArgs = [
-        '${_rfwMapKey(textSpanProp.name)}: { children: [$spans] }',
-        ...rest,
-      ];
-      return '${textRich.name}(${outerArgs.join(', ')})';
+      if (!textRichProps.contains(propName)) {
+        issues.add(
+          Issue(
+            code: IssueCode.unknownProperty,
+            message: "Catalog widget '${textRich.name}' does not declare "
+                "carried Text property '$propName'; the whole interpolation "
+                'is deferred.',
+            location: _locationOf(anchor),
+          ),
+        );
+        return '';
+      }
     }
-    return null;
+    final outerArgs = [
+      '${_rfwMapKey(textSpanProp.name)}: $textSpan',
+      ...carried,
+    ];
+    return _catalogCall(textRich, outerArgs);
   }
 
   String? _emittedPropertyName(String emitted) {
@@ -7930,6 +8065,23 @@ final class ExpressionTranslator {
     MethodInvocation call,
     List<Issue> issues, {
     String Function(Expression)? translateBody,
+  }) =>
+      _inHelperBody(
+        helper,
+        call,
+        issues,
+        translateBody ?? (body) => _translate(body, issues),
+        refused: '',
+      );
+
+  /// Runs [visit] on [helper]'s body with the call's arguments bound to its
+  /// parameters; [refused] after a diagnostic when they do not bind 1:1.
+  T _inHelperBody<T>(
+    HelperDef helper,
+    MethodInvocation call,
+    List<Issue> issues,
+    T Function(Expression body) visit, {
+    required T refused,
   }) {
     final binding = bindHelperArguments(
       helper.params,
@@ -7945,7 +8097,7 @@ final class ExpressionTranslator {
           location: _locationOf(call),
         ),
       );
-      return '';
+      return refused;
     }
     final saved = _walk;
     final helperElement = call.methodName.element;
@@ -7963,8 +8115,7 @@ final class ExpressionTranslator {
               : measurementWidgetList,
     );
     try {
-      return translateBody?.call(helper.body) ??
-          _translate(helper.body, issues);
+      return visit(helper.body);
     } finally {
       _walk = saved;
     }
@@ -8897,7 +9048,7 @@ final class ExpressionTranslator {
     String branch(Expression value) => _inConditionalBranch(
           expr,
           value,
-          () => _nullableSwitchValue(translateBranch(value)),
+          () => translateBranch(value),
         );
     final brightnessSwitch = _tryBrightnessSwitch(expr, issues, branch);
     if (brightnessSwitch != null) return brightnessSwitch;
@@ -8924,7 +9075,7 @@ final class ExpressionTranslator {
     final elseDsl = branch(expr.elseExpression);
     refused |= _diagnosedEmpty(elseDsl, issues, beforeElse);
     if (refused) return '';
-    return 'switch $cond { true: $thenDsl, false: $elseDsl }';
+    return _switchDsl(cond, [('true', thenDsl), ('false', elseDsl)]);
   }
 
   /// Translates [branch] with the measurement scope qualified by its path from
@@ -8972,8 +9123,28 @@ final class ExpressionTranslator {
   bool _diagnosedEmpty(String value, List<Issue> issues, int beforeIssues) =>
       value.isEmpty && issues.length > beforeIssues;
 
-  String _nullableSwitchValue(String value) =>
-      value == 'null' ? 'switch 0 {}' : value;
+  /// A `switch` over [input]. An arm that yields no value (a Dart `null`) is
+  /// left out, or spelled as a switch with no case when a default would
+  /// otherwise catch it; a switch with no values at all yields no value.
+  String _switchDsl(
+    String input,
+    List<(String, String)> arms, {
+    String? defaultDsl,
+  }) {
+    final fallback = defaultDsl == _kNoValue ? null : defaultDsl;
+    if (fallback == null && arms.every((arm) => arm.$2 == _kNoValue)) {
+      return _kNoValue;
+    }
+    final cases = [
+      for (final (key, value) in arms)
+        if (value != _kNoValue)
+          '$key: $value'
+        else if (fallback != null)
+          '$key: $_kNoValueSwitch',
+      if (fallback != null) 'default: $fallback',
+    ];
+    return 'switch $input { ${cases.join(', ')} }';
+  }
 
   /// Attempts to lower [expr] — a conditional testing the ambient theme's
   /// brightness — to a `switch` keyed on `data.theme.brightness`. Returns the
@@ -9021,8 +9192,11 @@ final class ExpressionTranslator {
     if (refused) return '';
     final matched = match.equals ? thenDsl : elseDsl;
     final other = match.equals ? elseDsl : thenDsl;
-    return 'switch data.theme.brightness '
-        '{ ${_stringLiteral(match.token)}: $matched, default: $other }';
+    return _switchDsl(
+      'data.theme.brightness',
+      [(_stringLiteral(match.token), matched)],
+      defaultDsl: other,
+    );
   }
 
   /// Attempts to lower [expr] — a conditional whose condition is an
@@ -9080,7 +9254,7 @@ final class ExpressionTranslator {
     // Flatten consecutive same-reference `== <intLiteral>` arms into one
     // switch.
     final ref = head.ref;
-    final arms = <String>[];
+    final arms = <(String, String)>[];
     // Lower every arm before refusing so each diagnosed arm is reported.
     var refused = false;
     Expression? defaultBranch;
@@ -9098,7 +9272,7 @@ final class ExpressionTranslator {
       final beforeArm = issues.length;
       final armDsl = branch(current.thenExpression);
       refused |= _diagnosedEmpty(armDsl, issues, beforeArm);
-      arms.add('${match.key}: $armDsl');
+      arms.add((match.key, armDsl));
       final elseExpr = _stripParens(current.elseExpression);
       if (elseExpr is ConditionalExpression) {
         current = elseExpr;
@@ -9111,8 +9285,7 @@ final class ExpressionTranslator {
     final defaultDsl = branch(defaultBranch!);
     refused |= _diagnosedEmpty(defaultDsl, issues, beforeDefault);
     if (refused) return '';
-    final armsDsl = arms.join(', ');
-    return 'switch $ref { $armsDsl, default: $defaultDsl }';
+    return _switchDsl(ref, arms, defaultDsl: defaultDsl);
   }
 
   /// Lowers a condition bound straight to a boolean slot —
@@ -9121,6 +9294,7 @@ final class ExpressionTranslator {
   /// reference, which keeps the ordinary path.
   String? _booleanSlotCondition(Expression expr, List<Issue> issues) {
     final shaped = _isComposedCondition(expr) ||
+        _distributedEquality(expr) != null ||
         (expr is BinaryExpression &&
             (_intStateComparison(expr) != null ||
                 _stringComparison(expr) != null ||
@@ -9158,7 +9332,7 @@ final class ExpressionTranslator {
     if (refused) return '';
     final onMatch = negated ? elseDsl : thenDsl;
     final otherwise = negated ? thenDsl : elseDsl;
-    return 'switch $ref { $key: $onMatch, default: $otherwise }';
+    return _switchDsl(ref, [(key, onMatch)], defaultDsl: otherwise);
   }
 
   /// Lowers a conditional whose condition compares a String reference to a
@@ -9182,7 +9356,7 @@ final class ExpressionTranslator {
       );
     }
     final ref = head.ref;
-    final arms = <String>[];
+    final arms = <(String, String)>[];
     var refused = false;
     Expression? defaultBranch;
     ConditionalExpression? current = expr;
@@ -9195,7 +9369,7 @@ final class ExpressionTranslator {
       final beforeArm = issues.length;
       final armDsl = branch(current.thenExpression);
       refused |= _diagnosedEmpty(armDsl, issues, beforeArm);
-      arms.add('${match.key}: $armDsl');
+      arms.add((match.key, armDsl));
       final elseExpr = _stripParens(current.elseExpression);
       if (elseExpr is ConditionalExpression) {
         current = elseExpr;
@@ -9208,7 +9382,7 @@ final class ExpressionTranslator {
     final defaultDsl = branch(defaultBranch!);
     refused |= _diagnosedEmpty(defaultDsl, issues, beforeDefault);
     if (refused) return '';
-    return 'switch $ref { ${arms.join(', ')}, default: $defaultDsl }';
+    return _switchDsl(ref, arms, defaultDsl: defaultDsl);
   }
 
   /// Lowers a conditional whose condition negates or composes other
@@ -9220,7 +9394,9 @@ final class ExpressionTranslator {
     String Function(Expression) branch,
   ) {
     final cond = _resolveBoundIdentifier(expr.condition);
-    if (!_isComposedCondition(cond)) return null;
+    if (!_isComposedCondition(cond) && _distributedEquality(cond) == null) {
+      return null;
+    }
     // Collect separately: on a refusal the caller's bool path reports the
     // condition, so these would be a second diagnostic.
     final conditionIssues = <Issue>[];
@@ -9324,6 +9500,15 @@ final class ExpressionTranslator {
           negated: stringMatch.negated,
         );
       }
+      final distributed = _distributedEquality(cond);
+      if (distributed != null) {
+        return _lowerEquality(
+          distributed.operand,
+          distributed.literal,
+          issues,
+          negated: distributed.negated,
+        );
+      }
       return null;
     }
     final before = issues.length;
@@ -9331,8 +9516,90 @@ final class ExpressionTranslator {
     if (dsl.isEmpty || issues.length > before) return null;
     return _ConditionLowering(
       (whenTrue, whenFalse) =>
-          'switch $dsl { true: $whenTrue, false: $whenFalse }',
+          _switchDsl(dsl, [('true', whenTrue), ('false', whenFalse)]),
     );
+  }
+
+  /// An equality against a literal whose other operand resolves to a
+  /// conditional, such as a helper parameter bound to `a ? x : ''`.
+  ({Expression operand, Expression literal, bool negated})?
+      _distributedEquality(Expression cond) {
+    if (cond is! BinaryExpression) return null;
+    final op = cond.operator.lexeme;
+    if (op != '==' && op != '!=') return null;
+    for (final (operand, literal) in [
+      (cond.leftOperand, cond.rightOperand),
+      (cond.rightOperand, cond.leftOperand),
+    ]) {
+      if (_equalityLiteral(literal) == null) continue;
+      if (_resolveBoundIdentifier(operand) is ConditionalExpression) {
+        return (operand: operand, literal: literal, negated: op == '!=');
+      }
+    }
+    return null;
+  }
+
+  /// The value of a string, int, or bool literal, or `null` for any other
+  /// expression.
+  Object? _equalityLiteral(Expression expr) => switch (_stripParens(expr)) {
+        SimpleStringLiteral(:final value) => value,
+        IntegerLiteral(:final value) => value,
+        BooleanLiteral(:final value) => value,
+        _ => null,
+      };
+
+  /// Lowers `operand == literal` (or `!=`), pushing the comparison into each
+  /// arm when [operand] resolves to a conditional.
+  _ConditionLowering? _lowerEquality(
+    Expression operand,
+    Expression literal,
+    List<Issue> issues, {
+    required bool negated,
+  }) {
+    final value = _resolveBoundIdentifier(operand);
+    if (value is ConditionalExpression) {
+      final selector = _lowerCondition(value.condition, issues);
+      if (selector == null) return null;
+      final whenThen = _lowerEquality(
+        value.thenExpression,
+        literal,
+        issues,
+        negated: negated,
+      );
+      if (whenThen == null) return null;
+      final whenElse = _lowerEquality(
+        value.elseExpression,
+        literal,
+        issues,
+        negated: negated,
+      );
+      if (whenElse == null) return null;
+      return _ConditionLowering(
+        (whenTrue, whenFalse) => selector(
+          whenThen(whenTrue, whenFalse),
+          whenElse(whenTrue, whenFalse),
+        ),
+      );
+    }
+    final constant = _equalityLiteral(value);
+    final expected = _equalityLiteral(literal);
+    if (constant != null && expected != null) {
+      final holds = (constant == expected) != negated;
+      return _ConditionLowering(
+        (whenTrue, whenFalse) => holds ? whenTrue : whenFalse,
+      );
+    }
+    final stringRef = _stringConditionRef(value);
+    final stringKey = _stringConditionKey(literal);
+    if (stringRef != null && stringKey != null) {
+      return _keyedLowering(stringRef, stringKey, negated: negated);
+    }
+    final intRef = _intConditionRef(value);
+    final intKey = _intConditionKey(literal);
+    if (intRef != null && intKey != null) {
+      return _keyedLowering(intRef, intKey, negated: negated);
+    }
+    return null;
   }
 
   _ConditionLowering _keyedLowering(
@@ -9342,8 +9609,8 @@ final class ExpressionTranslator {
   }) =>
       _ConditionLowering(
         (whenTrue, whenFalse) => negated
-            ? 'switch $ref { $key: $whenFalse, default: $whenTrue }'
-            : 'switch $ref { $key: $whenTrue, default: $whenFalse }',
+            ? _switchDsl(ref, [(key, whenFalse)], defaultDsl: whenTrue)
+            : _switchDsl(ref, [(key, whenTrue)], defaultDsl: whenFalse),
       );
 
   /// The `(ref, key, negated)` of an `<intRef> == <intLiteral>` or `!=`
@@ -9508,19 +9775,22 @@ final class ExpressionTranslator {
     required String Function(Expression) branch,
   }) {
     var refused = false;
-    final armsDsl = <String>[];
+    final armsDsl = <(String, String)>[];
     for (final (key, value) in arms) {
       final before = issues.length;
       final dsl = branch(value);
       refused |= _diagnosedEmpty(dsl, issues, before);
-      armsDsl.add('${_stringLiteral(key)}: $dsl');
+      armsDsl.add((_stringLiteral(key), dsl));
     }
     final beforeDefault = issues.length;
     final defaultDsl = branch(defaultBranch);
     refused |= _diagnosedEmpty(defaultDsl, issues, beforeDefault);
     if (refused) return '';
-    return 'switch data.device.$path '
-        '{ ${armsDsl.join(', ')}, default: $defaultDsl }';
+    return _switchDsl(
+      'data.device.$path',
+      armsDsl,
+      defaultDsl: defaultDsl,
+    );
   }
 
   /// The device-token equality [cond] expresses, via the canonical
@@ -9800,6 +10070,26 @@ final class ExpressionTranslator {
     FormalParameterElement? sourceParameter,
     bool coerce = true,
   }) {
+    final dsl = _translateSlotValueUnrecorded(
+      expr,
+      type,
+      issues,
+      property: property,
+      sourceParameter: sourceParameter,
+      coerce: coerce,
+    );
+    _recordEmission(expr, dsl);
+    return dsl;
+  }
+
+  String _translateSlotValueUnrecorded(
+    Expression expr,
+    PropertyType type,
+    List<Issue> issues, {
+    PropertyEntry? property,
+    FormalParameterElement? sourceParameter,
+    bool coerce = true,
+  }) {
     final beforeValidation = issues.length;
     _validateDataRefForSlot(expr, type, issues, property: property);
     if (issues.length > beforeValidation) return '';
@@ -9830,6 +10120,35 @@ final class ExpressionTranslator {
           measurementWidgetList: widgetOccurrence.widgetList(sourceParameter),
         );
       }
+    }
+    // Each arm of a conditional measured callback carries its own marker.
+    final conditional = _stripParens(expr);
+    if (marker != null && conditional is ConditionalExpression) {
+      if (_handlerArms(conditional) > 1) {
+        issues.add(
+          Issue(
+            code: IssueCode.invalidEventConfiguration,
+            message: 'A measured callback can run only one handler, but '
+                'this conditional runs a different one in each arm. Keep '
+                'one handler and set the others to null, or give each arm '
+                'its own widget.',
+            location: _locationOf(conditional),
+          ),
+        );
+        return '';
+      }
+      return _conditionalSwitch(
+        conditional,
+        issues,
+        (arm) => _translateSlotValue(
+          arm,
+          type,
+          issues,
+          property: property,
+          sourceParameter: sourceParameter,
+          coerce: coerce,
+        ),
+      );
     }
     final savedEventOccurrence = _measuredEventOccurrence;
     if (eventOccurrence != null) _measuredEventOccurrence = eventOccurrence;
@@ -9871,6 +10190,7 @@ final class ExpressionTranslator {
       }
       return value;
     }
+    if (value == _kNoValue) return value;
     return _measuredEventHandler(
       value,
       marker,
@@ -9878,6 +10198,16 @@ final class ExpressionTranslator {
       expr,
       issues,
     );
+  }
+
+  /// The arms of a conditional, at any depth, that are not `null`.
+  int _handlerArms(Expression expr) {
+    final value = _resolveBoundIdentifier(expr);
+    if (value is ConditionalExpression) {
+      return _handlerArms(value.thenExpression) +
+          _handlerArms(value.elseExpression);
+    }
+    return value is NullLiteral ? 0 : 1;
   }
 
   String _translateSlotValueCore(
@@ -10755,8 +11085,8 @@ final class ExpressionTranslator {
     return _translate(coalesce.read, issues);
   }
 
-  /// Builds the diagnostic for a recognised custom widget referenced in a
-  /// paywall, from its [classification].
+  /// The diagnostic for a recognised custom widget that has no catalog entry
+  /// and does not inline, from its [classification].
   Issue _customWidgetIssue(
     WidgetClassification classification,
     String widgetName,
@@ -10778,6 +11108,13 @@ final class ExpressionTranslator {
     String widgetName,
     Expression anchor,
   ) {
+    String withoutEntry(String why) =>
+        "The custom widget '$widgetName' has no catalog entry, and Restage "
+        'cannot inline it into the delivered surface: $why. Add it to your '
+        "widget catalog and it renders from your app's compiled code: "
+        'export it from a library annotated @RestageLibrary, document the '
+        'widget and each of its properties, and fix any widget catalog error '
+        'this build reports for it.';
     switch (classification) {
       case ComposableWidget():
         final mechanisms = classification.requiredMechanisms;
@@ -10788,17 +11125,16 @@ final class ExpressionTranslator {
           issue: Issue(
             code: IssueCode.customWidgetInliningDeferred,
             capabilityGapSubject: 'customWidget:$widgetName',
-            message: "The custom widget '$widgetName' is pure composition"
-                '$note, but Restage does not yet inline this kind of '
-                'composition.',
+            message: withoutEntry(
+              'it is pure composition$note, which Restage does not yet inline',
+            ),
             location: _locationOf(anchor),
           ),
           reason:
               'Restage does not yet inline its build() into delivered surfaces',
         );
       case ImperativeWidget():
-        // A genuine RFW boundary reads "cannot express"; an all-reducible
-        // widget reads "not supported yet".
+        // A genuine RFW boundary reads "cannot express".
         if (classification.disposition == CustomWidgetDisposition.deadEnd) {
           final blocker = classification.blockers.firstWhere(
             (b) => b.disposition == CustomWidgetDisposition.deadEnd,
@@ -10806,9 +11142,10 @@ final class ExpressionTranslator {
           return (
             issue: Issue(
               code: IssueCode.customWidgetImperative,
-              message: "The custom widget '$widgetName' cannot be "
-                  'delivered: its build() uses ${blocker.detail}, which a '
-                  'delivered surface cannot express (${blocker.kind.name}).',
+              message: withoutEntry(
+                'its build() uses ${blocker.detail}, which a delivered '
+                'surface cannot express (${blocker.kind.name})',
+              ),
               location: blocker.location,
             ),
             reason: 'build() uses ${blocker.detail}',
@@ -10819,10 +11156,10 @@ final class ExpressionTranslator {
           issue: Issue(
             code: IssueCode.customWidgetUnsupportedReducible,
             capabilityGapSubject: 'customWidget:$widgetName',
-            message: "The custom widget '$widgetName' is not supported in "
-                'delivered surfaces yet: its build() uses ${blocker.detail} '
-                '(${blocker.kind.name}). A later Restage release may support '
-                'it.',
+            message: withoutEntry(
+              'its build() uses ${blocker.detail} (${blocker.kind.name}), '
+              'which is not supported in delivered surfaces',
+            ),
             location: blocker.location,
           ),
           reason: 'build() uses ${blocker.detail}',
@@ -10832,8 +11169,9 @@ final class ExpressionTranslator {
           issue: Issue(
             code: classification.diagnosticCode,
             capabilityGapSubject: 'customWidget:$widgetName',
-            message: 'Restage does not yet recognise the custom widget '
-                "'$widgetName': ${classification.reason}.",
+            message: withoutEntry(
+              'Restage does not yet recognise it (${classification.reason})',
+            ),
             location: _locationOf(anchor),
           ),
           reason: classification.reason,
@@ -10883,9 +11221,7 @@ final class ExpressionTranslator {
   }
 
   /// Splits a comma-separated argument list at the top level only, respecting
-  /// nested parentheses, brackets, and quoted strings. Used to decompose the
-  /// `__rfw_interp(...)` sentinel without breaking on commas inside nested
-  /// expressions or quoted strings.
+  /// nested parentheses, brackets, and quoted strings.
   @visibleForTesting
   static List<String> splitTopLevelCommas(String input) {
     final out = <String>[];
@@ -12417,15 +12753,6 @@ final class _RootModalSheetTriggerScanner extends RecursiveAstVisitor<void> {
 // Helpers for string-interpolation decomposition.
 // ---------------------------------------------------------------------------
 
-enum _InterpKind { literal, dataRef }
-
-final class _InterpSegment {
-  _InterpSegment.literal(this.text) : kind = _InterpKind.literal;
-  _InterpSegment.dataRef(this.text) : kind = _InterpKind.dataRef;
-  final _InterpKind kind;
-  final String text;
-}
-
 // ---------------------------------------------------------------------------
 
 /// Subset of Flutter's Colors constants resolved at codegen time. Authors
@@ -12965,6 +13292,12 @@ final class _RuntimeLoopReference {
   String dsl(String Function(String) pathPart) =>
       '${binding.identifier}${parts.map(pathPart).join()}';
 }
+
+/// RFW's spelling of an absent value where an argument or map value is read.
+const String _kNoValue = 'null';
+
+/// A switch that matches nothing, which resolves to no value inside a switch.
+const String _kNoValueSwitch = 'switch false {}';
 
 /// A conditional element loops over one entry when its condition holds and
 /// none when it does not.

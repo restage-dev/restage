@@ -2107,6 +2107,18 @@ final Catalog kRegistry = Catalog(
                   symbolName: 'CrossAxisAlignment')),
         ),
         PropertyEntry(
+          wireId: WireId('p0670'),
+          name: 'textBaseline',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'TextBaseline',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextBaseline')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0531'),
           name: 'spacing',
           type: PropertyType.real,
@@ -5813,6 +5825,18 @@ final Catalog kRegistry = Catalog(
                   symbolName: 'CrossAxisAlignment')),
         ),
         PropertyEntry(
+          wireId: WireId('p0671'),
+          name: 'textBaseline',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'TextBaseline',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextBaseline')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0542'),
           name: 'spacing',
           type: PropertyType.real,
@@ -6070,8 +6094,393 @@ final Catalog kRegistry = Catalog(
           constructorNullable: true,
         ),
         PropertyEntry(
+          wireId: WireId('p0672'),
+          name: 'container',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0673'),
+          name: 'explicitChildNodes',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0674'),
+          name: 'excludeSemantics',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0675'),
+          name: 'blockUserActions',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0676'),
+          name: 'enabled',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0677'),
+          name: 'checked',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0678'),
+          name: 'mixed',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0679'),
+          name: 'selected',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0680'),
+          name: 'toggled',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0681'),
+          name: 'button',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0682'),
+          name: 'slider',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0683'),
+          name: 'keyboardKey',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0684'),
+          name: 'link',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0685'),
+          name: 'header',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0686'),
+          name: 'headingLevel',
+          type: PropertyType.integer,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0687'),
+          name: 'textField',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0688'),
+          name: 'readOnly',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0689'),
+          name: 'focusable',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0690'),
+          name: 'focused',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0691'),
+          name: 'inMutuallyExclusiveGroup',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0692'),
+          name: 'obscured',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0693'),
+          name: 'multiline',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0694'),
+          name: 'scopesRoute',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0695'),
+          name: 'namesRoute',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0696'),
+          name: 'hidden',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0697'),
+          name: 'image',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0698'),
+          name: 'liveRegion',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0699'),
+          name: 'expanded',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0700'),
+          name: 'isRequired',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0701'),
+          name: 'maxValueLength',
+          type: PropertyType.integer,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0702'),
+          name: 'currentValueLength',
+          type: PropertyType.integer,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0703'),
+          name: 'identifier',
+          type: PropertyType.string,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0647'),
           name: 'label',
+          type: PropertyType.string,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0704'),
+          name: 'value',
+          type: PropertyType.string,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0705'),
+          name: 'hint',
+          type: PropertyType.string,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0706'),
+          name: 'tooltip',
           type: PropertyType.string,
           description: '',
           constructorNullable: true,
@@ -8266,6 +8675,17 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
         ),
         StructuredField(
+          wireId: WireId('p0283'),
+          name: 'textBaseline',
+          type: PropertyType.enumValue,
+          description:
+              'The common baseline that should be aligned between this text span and its parent text span, or, for the root text spans, with the line box.',
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextBaseline')),
+        ),
+        StructuredField(
           wireId: WireId('p0195'),
           name: 'height',
           type: PropertyType.real,
@@ -8411,16 +8831,6 @@ final Catalog kRegistry = Catalog(
               enumRef: DartTypeRef(
                   libraryUri: 'package:flutter/src/painting/text_painter.dart',
                   symbolName: 'TextOverflow')),
-        ),
-        StructuredField(
-          wireId: WireId('p0283'),
-          name: 'textBaseline',
-          type: PropertyType.enumValue,
-          description: 'Baseline used to align text.',
-          valueShape: EnumShape(
-              propertyType: PropertyType.enumValue,
-              enumRef: DartTypeRef(
-                  libraryUri: 'dart:ui', symbolName: 'TextBaseline')),
         ),
         StructuredField(
           wireId: WireId('p0285'),

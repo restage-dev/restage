@@ -14,6 +14,11 @@ const _policyOptions = BuilderOptions({
 const _firstAsset = 'apps_examples|lib/features/first.dart';
 const _secondAsset = 'apps_examples|lib/features/second.dart';
 
+const _firstReceipt = 'apps_examples|.restage/receipts/acme/main/app/surface/'
+    'general/first/production/push-r1.json';
+const _secondReceipt = 'apps_examples|.restage/receipts/acme/main/app/'
+    'surface/general/second/production/push-r1.json';
+
 const _text = 'package:flutter/src/widgets/text.dart#Text';
 const _firstScreen = 'package:apps_examples/features/first.dart#FirstScreen';
 const _secondScreen = 'package:apps_examples/features/second.dart#SecondScreen';
@@ -132,7 +137,10 @@ Scaffold(
     expect(first.result.succeeded, isTrue);
 
     final swapped = await _compile(
-      {_firstAsset: _screen(body: 'Row(children: [$_button, $_button])')},
+      {
+        _firstAsset: _screen(body: 'Row(children: [$_button, $_button])'),
+        _firstReceipt: '{}',
+      },
       priorOutput: first.output,
     );
     expect(swapped.result.succeeded, isFalse);
@@ -143,6 +151,33 @@ Scaffold(
             proposal.candidatePriorStructuralOccurrenceKeys.length > 1,
       ),
       isTrue,
+    );
+  });
+
+  test('an ambiguous match on a surface never pushed settles itself', () async {
+    final first = await _compile({
+      _firstAsset: _screen(body: 'Column(children: [$_button, $_button])'),
+    });
+    expect(first.result.succeeded, isTrue);
+
+    final swapped = await _compile(
+      {
+        _firstAsset: _screen(body: 'Row(children: [$_button, $_button])'),
+        _secondReceipt: '{}',
+      },
+      priorOutput: first.output,
+    );
+    expect(
+      swapped.result.succeeded,
+      isTrue,
+      reason: swapped.result.errors.join('\n'),
+    );
+    expect(swapped.output.proposals, isEmpty);
+    final prior = _referenceIds(_screenNodes(first.output, _firstScreen));
+    expect(
+      _referenceIds(_screenNodes(swapped.output, _firstScreen)),
+      prior,
+      reason: 'the settled match keeps the earlier identities',
     );
   });
 

@@ -380,6 +380,7 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
             version: value.getField('version')?.toIntValue() ?? 1,
             minClient: value.getField('minClient')?.toIntValue() ?? 1,
             delivery: _flowDeliveryFromValue(value.getField('delivery')),
+            legacyAnnotation: annotationName,
           ),
         );
       }
@@ -967,6 +968,7 @@ List<RestageSourceDeclaration> _materializeNeutralScreenOutputs(
           minClient: declaration.minClient,
           delivery: declaration.delivery,
           isCanonical: declaration.isCanonical,
+          legacyAnnotation: declaration.legacyAnnotation,
         ),
   ];
 }

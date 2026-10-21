@@ -793,9 +793,11 @@ String _nativeRecipeEmit(
       tolerantNumbers: repair != null,
     ),
   );
-  return repair == null
-      ? '$targetArg: $expression'
-      : '$targetArg: $repair($expression)';
+  final repaired = repair == null ? expression : '$repair($expression)';
+  final normalize = _kStructuredNormalizers[structured.sourceType];
+  return normalize == null
+      ? '$targetArg: $repaired'
+      : '$targetArg: $normalize($repaired)';
 }
 
 String _nativeFactoryInvocationExpression({
@@ -1461,6 +1463,13 @@ const Map<String, String> _kInputBorders = {
 const Map<String, String> _kStructuredRepairs = {
   'package:flutter/src/rendering/box.dart#BoxConstraints':
       'RestageDecoders.safeConstraints',
+};
+
+/// Structured types whose reassembled value is normalized before use. A text
+/// style's `packages/<package>/` family is split into family and package.
+const Map<String, String> _kStructuredNormalizers = {
+  'package:flutter/src/painting/text_style.dart#TextStyle':
+      'RestageDecoders.packagedFont',
 };
 
 /// Strategy identifier for `PropertyEntry.synthetic`: gate the entry's

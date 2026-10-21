@@ -243,6 +243,7 @@ final class RestageSourceDeclaration {
     this.minClient = 1,
     this.delivery,
     this.isCanonical = false,
+    this.legacyAnnotation,
   });
 
   /// Creates an immutable declaration by defensively freezing both lists.
@@ -261,6 +262,7 @@ final class RestageSourceDeclaration {
     this.minClient = 1,
     this.delivery,
     this.isCanonical = false,
+    this.legacyAnnotation,
   })  : identityClaims = List.unmodifiable(identityClaims),
         outputs = List.unmodifiable(outputs);
 
@@ -309,6 +311,10 @@ final class RestageSourceDeclaration {
   /// Whether the declaration came from a canonical annotation rather than a
   /// deprecated compatibility frontend.
   final bool isCanonical;
+
+  /// The deprecated annotation a legacy declaration uses, such as
+  /// `PaywallSource`; null for a canonical one.
+  final String? legacyAnnotation;
 
   /// Whether this declaration uses the future implicit-ID form.
   bool get hasImplicitId => explicitId == null;

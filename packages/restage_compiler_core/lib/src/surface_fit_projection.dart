@@ -132,10 +132,19 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
                 origin.catalogLibraryNamespace,
               ) ==
               null) {
-            throw FormatException(
-              'Unsupported hosting: opaque native factory '
-              '"${origin.catalogLibraryNamespace}:${call.name}".',
+            // The app compiles its own library's factories, so the host fits
+            // when it installs that library at the declared version.
+            final declared =
+                node.sidecarCapabilities[entry.key]!.requiredLibraries.any(
+              (library) => library.namespace == origin.catalogLibraryNamespace,
             );
+            if (!declared) {
+              throw FormatException(
+                'Capability sidecar omits the library '
+                '"${origin.catalogLibraryNamespace}" of "${call.name}".',
+              );
+            }
+            continue;
           }
           // Curated built-in factories render these catalog constructors. All
           // application-defined bodies must be lowered and inspected locally.
@@ -190,7 +199,10 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
         final local = node.localSeeds[
                 node.flowDocument == null ? renderRoot : entry.key] ??
             const <String, Object>{};
-        for (final emitted in body.events) {
+        final sites = _eventSites(library);
+        for (final raw in body.events) {
+          final site = sites[raw];
+          final emitted = _withoutLoopReferences(raw, site?.loops ?? const []);
           if (kScreenEventNamesOutsideContract.contains(emitted.eventName)) {
             continue;
           }
@@ -209,14 +221,53 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
               _fitEventArguments(emitted).isEmpty) {
             continue;
           }
+          // A paywall host takes its events through its generic event
+          // channel, so a paywall asks no typed event of its host.
+          final paywall =
+              node.publication.sourceKind == SurfaceSourceKind.paywall;
+          if (paywall && document == null) continue;
           if (typed == null) {
-            throw FormatException(
-              'Missing typed emitted event "${emitted.eventName}".',
-            );
+            if (document == null) {
+              throw FormatException(
+                'Missing typed emitted event "${emitted.eventName}".',
+              );
+            }
+            // A flow transition consumes the event; with no transition and no
+            // declared egress the runtime drops it. Declared egress is checked
+            // against its own fields below.
+            if (internal ||
+                !document.outbound.customEvents
+                    .containsKey(emitted.eventName)) {
+              continue;
+            }
           }
-          final gaps = _typedEventGaps(emitted, typed, contract.context, local);
-          if (gaps.isNotEmpty) {
-            throw FormatException('Undeclared ${gaps.first}.');
+          if (typed != null) {
+            final call = site?.call;
+            final origin = call == null
+                ? null
+                : contract.catalogResolution.catalogConstructorForName(call);
+            final property = origin == null
+                ? null
+                : contract.catalog
+                    .findByName(
+                      call!,
+                      WidgetLibrary.fromNamespace(
+                        origin.catalogLibraryNamespace,
+                      ),
+                    )
+                    ?.properties
+                    .where((property) => property.name == site?.argument)
+                    .firstOrNull;
+            final gaps = _typedEventGaps(
+              emitted,
+              typed,
+              contract.context,
+              local,
+              widgetValue: _callbackValueShape(property?.callbackSignature),
+            );
+            if (gaps.isNotEmpty) {
+              throw FormatException('Undeclared ${gaps.first}.');
+            }
           }
           if (internal) continue;
           if (document != null) {
@@ -244,6 +295,7 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
             }
             continue;
           }
+          if (typed == null) continue;
           final prior = events[typed.id];
           if (prior != null &&
               !sameCanonicalJson(prior.toJson(), typed.toJson())) {
@@ -278,6 +330,124 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
       flowBoundary: boundary,
     );
   }
+}
+
+/// Where one emitted event sits: the loops around it, outermost first, and
+/// the constructor argument that holds it.
+typedef _EventSite = ({List<Object> loops, String? call, String? argument});
+
+/// The site of every event in [library].
+Map<rfw.EventHandler, _EventSite> _eventSites(rfw.RemoteWidgetLibrary library) {
+  final sites = Map<rfw.EventHandler, _EventSite>.identity();
+  void visit(
+    Object? value,
+    List<Object> loops, {
+    String? call,
+    String? argument,
+  }) {
+    switch (value) {
+      case rfw.Loop(:final input, :final output):
+        visit(input, loops);
+        visit(output, [...loops, input]);
+      case rfw.EventHandler(:final eventArguments):
+        sites[value] = (loops: loops, call: call, argument: argument);
+        visit(eventArguments, loops);
+      case rfw.ConstructorCall(:final name, :final arguments):
+        for (final entry in arguments.entries) {
+          visit(entry.value, loops, call: name, argument: entry.key);
+        }
+      case rfw.Switch(:final input, :final outputs):
+        visit(input, loops);
+        for (final output in outputs.values) {
+          visit(output, loops, call: call, argument: argument);
+        }
+      case rfw.SetStateHandler(:final value):
+        visit(value, loops);
+      case rfw.WidgetBuilderDeclaration(:final widget):
+        visit(widget, loops);
+      case final Map<Object?, Object?> map:
+        for (final item in map.values) {
+          visit(item, loops);
+        }
+      case final List<Object?> list:
+        for (final item in list) {
+          visit(item, loops);
+        }
+    }
+  }
+
+  for (final declaration in library.widgets) {
+    visit(declaration.root, const []);
+  }
+  return sites;
+}
+
+/// The shape of the value a `ValueChanged<T>` [signature] passes, or null
+/// when it has no event shape.
+SurfaceScreenEventShape? _callbackValueShape(String? signature) {
+  final type = signature == null ? null : parseRfwCallbackValueType(signature);
+  if (type == null) return null;
+  SurfaceScreenEventShape? shapeOf(String type) {
+    if (type.endsWith('?')) {
+      final value = shapeOf(type.substring(0, type.length - 1));
+      return value == null ? null : SurfaceScreenEventNullableShapeV1(value);
+    }
+    if (type.startsWith('List<') && type.endsWith('>')) {
+      final items = shapeOf(type.substring(5, type.length - 1));
+      return items == null ? null : SurfaceScreenEventListShapeV1(items);
+    }
+    final kind = switch (type) {
+      'String' => SurfaceScreenEventScalarKind.string,
+      'bool' => SurfaceScreenEventScalarKind.boolean,
+      'int' => SurfaceScreenEventScalarKind.integer,
+      'double' => SurfaceScreenEventScalarKind.doubleValue,
+      _ => null,
+    };
+    return kind == null ? null : SurfaceScreenEventScalarShapeV1(kind);
+  }
+
+  return shapeOf(type);
+}
+
+/// [event] with each loop variable read rewritten as a read of the loop's
+/// data, so its arguments validate against the declared context.
+rfw.EventHandler _withoutLoopReferences(
+  rfw.EventHandler event,
+  List<Object> loops,
+) {
+  if (loops.isEmpty) return event;
+  Object? rewrite(Object? value, List<Object> scope) {
+    switch (value) {
+      case rfw.LoopReference(:final loop, :final parts):
+        final index = scope.length - 1 - loop;
+        if (index < 0) return value;
+        final input = rewrite(scope[index], scope.sublist(0, index));
+        return input is rfw.DataReference
+            ? rfw.DataReference([...input.parts, 0, ...parts])
+            : value;
+      case rfw.Switch(:final input, :final outputs):
+        return rfw.Switch(
+          rewrite(input, scope)!,
+          {
+            for (final entry in outputs.entries)
+              entry.key: rewrite(entry.value, scope)!,
+          },
+        );
+      case final Map<String, Object?> map:
+        return <String, Object?>{
+          for (final entry in map.entries)
+            entry.key: rewrite(entry.value, scope),
+        };
+      case final List<Object?> list:
+        return [for (final item in list) rewrite(item, scope)];
+    }
+    return value;
+  }
+
+  return rfw.EventHandler(
+    event.eventName,
+    rewrite(event.eventArguments, loops)! as rfw.DynamicMap,
+  );
 }
 
 bool _literalFitIcon(Object? value) =>
@@ -326,8 +496,9 @@ List<SurfaceScreenContractGap> _typedEventGaps(
   rfw.EventHandler emitted,
   SurfaceScreenEvent typed,
   SurfaceScreenHostDataSchema context,
-  Map<String, Object> local,
-) {
+  Map<String, Object> local, {
+  SurfaceScreenEventShape? widgetValue,
+}) {
   final arguments = _fitEventArguments(emitted);
   bool fits(Object? value, SurfaceScreenEventShape shape) {
     try {
@@ -345,6 +516,12 @@ List<SurfaceScreenContractGap> _typedEventGaps(
       return [for (final name in arguments.keys) gap(name)];
     case SurfaceScreenEventValueArguments(:final shape):
       if (!arguments.containsKey('value')) {
+        // A value callback's widget passes its own value at run time.
+        if (widgetValue != null &&
+            arguments.isEmpty &&
+            sameCanonicalJson(widgetValue.toJson(), shape.toJson())) {
+          return const [];
+        }
         return [gap('value')];
       }
       return [

@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
+import 'package:glob/glob.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/analytics_id_control.dart';
@@ -60,7 +61,9 @@ import 'package:restage_shared/restage_shared.dart'
         SurfacePublicationArtifactRole,
         SurfacePublicationManifest,
         SurfaceSourceKind,
-        decodeLocalSeedsArtifact;
+        decodeLocalSeedsArtifact,
+        receiptPathSegment,
+        receiptsDirectory;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -712,10 +715,17 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       measurementCompilerOutput: priorMeasurementOutput,
     );
   }
+  final pushed = await _pushedSurfaces(buildStep);
   final measurementAssembly = MeasurementPublicationPlanner.plan(
     publications: publicationInputs,
     priorOutput: priorMeasurementOutput,
     policy: measurementPolicy,
+    wasPushed: (selector) =>
+        pushed == null ||
+        pushed.contains((
+          receiptPathSegment(selector.surface.wireName),
+          receiptPathSegment(selector.slug),
+        )),
   );
   if (!measurementAssembly.isValid) {
     final measurementIssues = [
@@ -2977,4 +2987,35 @@ Surface? _legacySurfaceFor(String path) {
     'survey' => Surface.survey,
     _ => null,
   };
+}
+
+/// The `(surface type, surface id)` of every surface with a push receipt
+/// under `.restage/receipts/`, or null when receipts exist on disk that the
+/// build cannot read, so every surface counts as pushed.
+Future<Set<(String, String)>?> _pushedSurfaces(BuildStep buildStep) async {
+  final pushed = <(String, String)>{};
+  var readable = 0;
+  await for (final asset
+      in buildStep.findAssets(Glob('$receiptsDirectory/**/push-r*.json'))) {
+    readable++;
+    final segments = asset.pathSegments;
+    final at = segments.lastIndexOf('surface');
+    if (at >= 0 && at + 2 < segments.length) {
+      pushed.add((segments[at + 1], segments[at + 2]));
+    }
+  }
+  final root = await restagePackageRoot(buildStep.inputId.package);
+  if (root == null) return pushed;
+  final directory = Directory.fromUri(root.resolve('$receiptsDirectory/'));
+  if (!directory.existsSync()) return pushed;
+  final onDisk = directory
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => RegExp(r'push-r\d+\.json$').hasMatch(file.path))
+      .length;
+  if (onDisk > readable) {
+    log.warning(kUntrackedDurableStateAdvice);
+    return null;
+  }
+  return pushed;
 }

@@ -153,6 +153,9 @@ Future<({TestBuilderResult result, TestReaderWriter readerWriter})> _build(
     ],
     <String, Object>{
       '$_package|$_sourcePath': source,
+      // The surface has been pushed, so ambiguous matches need review.
+      '$_package|.restage/receipts/acme/main/app/surface/general/ledger/'
+          'production/push-r1.json': '{}',
       if (ledger != null)
         '$_package|$kRestageMeasurementCompilerLedgerSourcePath': ledger,
     },

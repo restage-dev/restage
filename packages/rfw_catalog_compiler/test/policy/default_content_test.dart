@@ -45,10 +45,10 @@ void main() {
           'MouseCursor',
           'HitTestBehavior',
           'DragStartBehavior',
-          'TextBaseline',
           'ScrollPhysics',
         }),
       );
+      expect(ledger.denylist.types, isNot(contains('TextBaseline')));
       expect(ledger.denylist.types, isNot(contains('Curve')));
     });
 

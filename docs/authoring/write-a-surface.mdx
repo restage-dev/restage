@@ -339,6 +339,25 @@ The RFW files are data that the SDK renders. The generated A2UI and Widgetbook f
 are Dart code for your app and your workbench, so treat them like any other generated
 source.
 
+## Test a mounted surface
+
+A generated mount resolves its content asynchronously, so its first frame is empty. In
+a widget test, pump once more after `pumpWidget`, or call `pumpAndSettle`:
+
+```dart
+testWidgets('shows the upgrade paywall', (tester) async {
+  await tester.pumpWidget(
+    const MaterialApp(home: ProUpgradePaywallSurface()),
+  );
+  await tester.pump();
+
+  expect(find.text('Go Pro'), findsOneWidget);
+});
+```
+
+Without hosted delivery configured, the mount renders your original widget, so the test
+needs no server.
+
 ## What A2UI and Widgetbook output covers
 
 A2UI and Widgetbook output covers your own screens and widgets only. It doesn't:

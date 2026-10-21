@@ -72,10 +72,9 @@ const Set<String> kBuiltInTypeDenylist = {
   'HitTestBehavior',
   'DragStartBehavior',
 
-  // Scroll / text-layout enums and abstractions the catalog doesn't surface.
+  // Scroll abstractions the catalog doesn't surface.
   // (`ScrollViewKeyboardDismissBehavior` is a clean 2-member enum that DOES
   // round-trip through the wire format, so it is surfaced, not denylisted.)
-  'TextBaseline',
   'ScrollPhysics',
 };
 

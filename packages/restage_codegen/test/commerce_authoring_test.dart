@@ -179,7 +179,7 @@ Object x() => surfaceEvent(Probe.blocked);
       );
       expect(
         issues.map((issue) => issue.message).join('\n'),
-        allOf(contains('data.products'), contains("event 'restore'")),
+        allOf(contains('data.products'), contains("event name 'restore'")),
       );
     });
 

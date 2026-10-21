@@ -718,3 +718,4 @@
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0534","kind":"alloc","name":"viewportFraction","owner":"w0049","source":"package:flutter/src/material/tabs.dart#TabBarView.viewportFraction","type":"property"}
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0535","kind":"alloc","name":"clipBehavior","owner":"w0049","source":"package:flutter/src/material/tabs.dart#TabBarView.clipBehavior","type":"property"}
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0536","kind":"alloc","name":"analyticsId","owner":"w0049","source":"package:flutter/src/material/tabs.dart#TabBarView.analyticsId","type":"property"}
+{"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0537","kind":"alloc","name":"textBaseline","owner":"s0002","source":"package:flutter/src/painting/text_style.dart#TextStyle.textBaseline","type":"property"}

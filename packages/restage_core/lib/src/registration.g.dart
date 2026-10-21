@@ -159,7 +159,7 @@ Widget buildAnimatedContainer(BuildContext context, DataSource source) {
 /// Builds the catalog's `AnimatedDefaultTextStyle` widget from [source].
 Widget buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
   return AnimatedDefaultTextStyle(
-    style: TextStyle(
+    style: RestageDecoders.packagedFont(TextStyle(
         inherit: source.v<bool>(const <Object>['inherit']) ?? true,
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
@@ -176,20 +176,19 @@ Widget buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
-            TextLeadingDistribution.values,
-            source,
-            <Object>['leadingDistribution']),
+        leadingDistribution:
+            RestageDecoders.enumByName<TextLeadingDistribution>(
+                TextLeadingDistribution.values,
+                source,
+                <Object>['leadingDistribution']),
         locale: ArgumentDecoders.locale(source, <Object>['locale']),
         foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
         background: ArgumentDecoders.paint(source, <Object>['background']),
         shadows: RestageDecoders.shadows(source, <Object>['shadows']),
         fontFeatures:
             RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-        fontVariations:
-            RestageDecoders.fontVariations(source, <Object>['fontVariations']),
-        decoration:
-            RestageDecoders.textDecoration(source, <Object>['decoration']),
+        fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+        decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
@@ -197,7 +196,7 @@ Widget buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(const <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip),
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip)),
     textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     softWrap: source.v<bool>(const <Object>['softWrap']) ?? true,
@@ -424,6 +423,8 @@ Widget buildColumn(BuildContext context, DataSource source) {
             source,
             <Object>['crossAxisAlignment']) ??
         CrossAxisAlignment.center,
+    textBaseline: RestageDecoders.enumByName<TextBaseline>(
+        TextBaseline.values, source, <Object>['textBaseline']),
     spacing: RestageDecoders.derivedSpacing(
         source, <Object>['spacing'], children.length),
     children: children,
@@ -506,7 +507,7 @@ Widget buildDecoratedBox(BuildContext context, DataSource source) {
 /// Builds the catalog's `DefaultTextStyle` widget from [source].
 Widget buildDefaultTextStyle(BuildContext context, DataSource source) {
   return DefaultTextStyle(
-    style: TextStyle(
+    style: RestageDecoders.packagedFont(TextStyle(
         inherit: source.v<bool>(const <Object>['inherit']) ?? true,
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
@@ -523,20 +524,19 @@ Widget buildDefaultTextStyle(BuildContext context, DataSource source) {
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
-            TextLeadingDistribution.values,
-            source,
-            <Object>['leadingDistribution']),
+        leadingDistribution:
+            RestageDecoders.enumByName<TextLeadingDistribution>(
+                TextLeadingDistribution.values,
+                source,
+                <Object>['leadingDistribution']),
         locale: ArgumentDecoders.locale(source, <Object>['locale']),
         foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
         background: ArgumentDecoders.paint(source, <Object>['background']),
         shadows: RestageDecoders.shadows(source, <Object>['shadows']),
         fontFeatures:
             RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-        fontVariations:
-            RestageDecoders.fontVariations(source, <Object>['fontVariations']),
-        decoration:
-            RestageDecoders.textDecoration(source, <Object>['decoration']),
+        fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+        decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
@@ -544,7 +544,7 @@ Widget buildDefaultTextStyle(BuildContext context, DataSource source) {
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(const <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip),
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip)),
     textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     softWrap: source.v<bool>(const <Object>['softWrap']) ?? true,
@@ -748,7 +748,7 @@ Widget buildRestageFadeIn(BuildContext context, DataSource source) {
 /// Builds the catalog's `RestageFormattedNumber` widget from [source].
 Widget buildRestageFormattedNumber(BuildContext context, DataSource source) {
   return RestageFormattedNumber(
-    style: TextStyle(
+    style: RestageDecoders.packagedFont(TextStyle(
         inherit: source.v<bool>(const <Object>['inherit']) ?? true,
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
@@ -765,20 +765,19 @@ Widget buildRestageFormattedNumber(BuildContext context, DataSource source) {
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
-            TextLeadingDistribution.values,
-            source,
-            <Object>['leadingDistribution']),
+        leadingDistribution:
+            RestageDecoders.enumByName<TextLeadingDistribution>(
+                TextLeadingDistribution.values,
+                source,
+                <Object>['leadingDistribution']),
         locale: ArgumentDecoders.locale(source, <Object>['locale']),
         foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
         background: ArgumentDecoders.paint(source, <Object>['background']),
         shadows: RestageDecoders.shadows(source, <Object>['shadows']),
         fontFeatures:
             RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-        fontVariations:
-            RestageDecoders.fontVariations(source, <Object>['fontVariations']),
-        decoration:
-            RestageDecoders.textDecoration(source, <Object>['decoration']),
+        fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+        decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
@@ -786,7 +785,7 @@ Widget buildRestageFormattedNumber(BuildContext context, DataSource source) {
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(const <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
     value: source.v<double>(const <Object>['value']),
     numberLocale: source.v<String>(const <Object>['numberLocale']),
     textAlign: RestageDecoders.enumByName<TextAlign>(
@@ -816,7 +815,7 @@ Widget buildRestageMotion(BuildContext context, DataSource source) {
 /// Builds the catalog's `RestagePrice` widget from [source].
 Widget buildRestagePrice(BuildContext context, DataSource source) {
   return RestagePrice(
-    style: TextStyle(
+    style: RestageDecoders.packagedFont(TextStyle(
         inherit: source.v<bool>(const <Object>['inherit']) ?? true,
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
@@ -833,20 +832,19 @@ Widget buildRestagePrice(BuildContext context, DataSource source) {
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
-            TextLeadingDistribution.values,
-            source,
-            <Object>['leadingDistribution']),
+        leadingDistribution:
+            RestageDecoders.enumByName<TextLeadingDistribution>(
+                TextLeadingDistribution.values,
+                source,
+                <Object>['leadingDistribution']),
         locale: ArgumentDecoders.locale(source, <Object>['locale']),
         foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
         background: ArgumentDecoders.paint(source, <Object>['background']),
         shadows: RestageDecoders.shadows(source, <Object>['shadows']),
         fontFeatures:
             RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-        fontVariations:
-            RestageDecoders.fontVariations(source, <Object>['fontVariations']),
-        decoration:
-            RestageDecoders.textDecoration(source, <Object>['decoration']),
+        fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+        decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
@@ -854,7 +852,7 @@ Widget buildRestagePrice(BuildContext context, DataSource source) {
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(const <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
     value: source.v<double>(const <Object>['value']),
     numberLocale: source.v<String>(const <Object>['numberLocale']),
     symbol: source.v<String>(const <Object>['symbol']),
@@ -961,6 +959,8 @@ Widget buildRow(BuildContext context, DataSource source) {
             source,
             <Object>['crossAxisAlignment']) ??
         CrossAxisAlignment.center,
+    textBaseline: RestageDecoders.enumByName<TextBaseline>(
+        TextBaseline.values, source, <Object>['textBaseline']),
     spacing: RestageDecoders.derivedSpacing(
         source, <Object>['spacing'], children.length),
     children: children,
@@ -1012,7 +1012,46 @@ Widget buildSingleChildScrollView(BuildContext context, DataSource source) {
 /// Builds the catalog's `Semantics` widget from [source].
 Widget buildSemantics(BuildContext context, DataSource source) {
   return Semantics(
+    container: source.v<bool>(const <Object>['container']) ?? false,
+    explicitChildNodes:
+        source.v<bool>(const <Object>['explicitChildNodes']) ?? false,
+    excludeSemantics:
+        source.v<bool>(const <Object>['excludeSemantics']) ?? false,
+    blockUserActions:
+        source.v<bool>(const <Object>['blockUserActions']) ?? false,
+    enabled: source.v<bool>(const <Object>['enabled']),
+    checked: source.v<bool>(const <Object>['checked']),
+    mixed: source.v<bool>(const <Object>['mixed']),
+    selected: source.v<bool>(const <Object>['selected']),
+    toggled: source.v<bool>(const <Object>['toggled']),
+    button: source.v<bool>(const <Object>['button']),
+    slider: source.v<bool>(const <Object>['slider']),
+    keyboardKey: source.v<bool>(const <Object>['keyboardKey']),
+    link: source.v<bool>(const <Object>['link']),
+    header: source.v<bool>(const <Object>['header']),
+    headingLevel: source.v<int>(const <Object>['headingLevel']),
+    textField: source.v<bool>(const <Object>['textField']),
+    readOnly: source.v<bool>(const <Object>['readOnly']),
+    focusable: source.v<bool>(const <Object>['focusable']),
+    focused: source.v<bool>(const <Object>['focused']),
+    inMutuallyExclusiveGroup:
+        source.v<bool>(const <Object>['inMutuallyExclusiveGroup']),
+    obscured: source.v<bool>(const <Object>['obscured']),
+    multiline: source.v<bool>(const <Object>['multiline']),
+    scopesRoute: source.v<bool>(const <Object>['scopesRoute']),
+    namesRoute: source.v<bool>(const <Object>['namesRoute']),
+    hidden: source.v<bool>(const <Object>['hidden']),
+    image: source.v<bool>(const <Object>['image']),
+    liveRegion: source.v<bool>(const <Object>['liveRegion']),
+    expanded: source.v<bool>(const <Object>['expanded']),
+    isRequired: source.v<bool>(const <Object>['isRequired']),
+    maxValueLength: source.v<int>(const <Object>['maxValueLength']),
+    currentValueLength: source.v<int>(const <Object>['currentValueLength']),
+    identifier: source.v<String>(const <Object>['identifier']),
     label: source.v<String>(const <Object>['label']),
+    value: source.v<String>(const <Object>['value']),
+    hint: source.v<String>(const <Object>['hint']),
+    tooltip: source.v<String>(const <Object>['tooltip']),
     child: source.optionalChild(const <Object>['child']),
   );
 }
@@ -1053,7 +1092,7 @@ Widget buildText(BuildContext context, DataSource source) {
   return Text(
     source.v<String>(const <Object>['text']) ??
         (throw ArgumentError('Text.text is required.')),
-    style: TextStyle(
+    style: RestageDecoders.packagedFont(TextStyle(
         inherit: source.v<bool>(const <Object>['inherit']) ?? true,
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
@@ -1061,9 +1100,10 @@ Widget buildText(BuildContext context, DataSource source) {
         fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
             resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
                 as double?,
-        fontWeight: ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
-            resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
-                as FontWeight?,
+        fontWeight:
+            ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
+                resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
+                    as FontWeight?,
         fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
         letterSpacing:
@@ -1073,8 +1113,7 @@ Widget buildText(BuildContext context, DataSource source) {
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
-            TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
+        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
         locale: ArgumentDecoders.locale(source, <Object>['locale']),
         foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
         background: ArgumentDecoders.paint(source, <Object>['background']),
@@ -1089,7 +1128,7 @@ Widget buildText(BuildContext context, DataSource source) {
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(const <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
     textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     softWrap: source.v<bool>(const <Object>['softWrap']),
@@ -1105,7 +1144,7 @@ Widget buildTextRich(BuildContext context, DataSource source) {
   return Text.rich(
     RestageDecoders.inlineSpan(source, <Object>['textSpan']) ??
         (throw ArgumentError('TextRich.textSpan is required.')),
-    style: TextStyle(
+    style: RestageDecoders.packagedFont(TextStyle(
         inherit: source.v<bool>(const <Object>['inherit']) ?? true,
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
@@ -1113,9 +1152,10 @@ Widget buildTextRich(BuildContext context, DataSource source) {
         fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
             resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
                 as double?,
-        fontWeight: ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
-            resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
-                as FontWeight?,
+        fontWeight:
+            ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
+                resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
+                    as FontWeight?,
         fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
         letterSpacing:
@@ -1125,8 +1165,7 @@ Widget buildTextRich(BuildContext context, DataSource source) {
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
-            TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
+        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
         locale: ArgumentDecoders.locale(source, <Object>['locale']),
         foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
         background: ArgumentDecoders.paint(source, <Object>['background']),
@@ -1141,7 +1180,7 @@ Widget buildTextRich(BuildContext context, DataSource source) {
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(const <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
     textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     softWrap: source.v<bool>(const <Object>['softWrap']),
