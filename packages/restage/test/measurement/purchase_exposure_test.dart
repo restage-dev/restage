@@ -131,6 +131,20 @@ void main() {
     expect(reports.single['productIdentifier'], 'annual_49');
   });
 
+  test('emitted snapshots share the original purchase report state', () async {
+    final original = event();
+    final streamed = Restage.events.first;
+    Restage.fireEvent(original);
+    final emitted = await streamed;
+    expect(emitted, isNot(same(original)));
+    expect(
+        await Future.wait([report(original), report(emitted)]), [true, true]);
+    expect(reports, hasLength(1));
+    expect(emitted.analyticsProperties.keys,
+        isNot(contains(anyOf('exposure', 'restage_exposure'))));
+    expect(emitted.toMap().keys, isNot(contains('exposure')));
+  });
+
   test('an event keeps its first refused result without another request',
       () async {
     final original = event();
@@ -250,7 +264,10 @@ widget Paywall = TextButton(
     await tester.pumpWidget(const SizedBox.shrink());
     expect(purchaseEvent, isNotNull);
     final reporting = report(purchaseEvent!);
-    await tester.pumpAndSettle();
+    for (var i = 0; i < 10; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
     expect(harness.worker.registrations, hasLength(1));
     expect(await reporting, isTrue);
     final streamEvent = await streamed;

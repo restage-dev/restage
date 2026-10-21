@@ -6,6 +6,7 @@ final class PaywallLoadStarted extends RestageEvent {
   const PaywallLoadStarted({
     required String super.paywallId,
     super.firedAt,
+    super.attribution,
   });
 
   @override
@@ -26,6 +27,7 @@ final class PaywallLoadCompleted extends RestageEvent {
     required this.loadDuration,
     required this.cacheHit,
     super.firedAt,
+    super.attribution,
   });
 
   /// How long the load took (network + decode).
@@ -55,6 +57,7 @@ final class PaywallLoadFailed extends RestageEvent {
     required this.message,
     required this.retryable,
     super.firedAt,
+    super.attribution,
   });
 
   /// Stable machine-readable error code.
@@ -86,6 +89,7 @@ final class PaywallViewed extends RestageEvent {
     required String super.paywallId,
     this.publishedVersion,
     super.firedAt,
+    super.attribution,
   });
 
   /// The server-assigned published version of the rendered paywall content;
@@ -116,6 +120,7 @@ final class PaywallDismissed extends RestageEvent {
     required this.reason,
     required this.timeOnPaywall,
     super.firedAt,
+    super.attribution,
   });
 
   /// Why the paywall was dismissed.

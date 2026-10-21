@@ -534,6 +534,7 @@ ResolvedFlow _resolvedFlowAsCacheHit(ResolvedFlow flow) {
         compiled: flow.compiled,
         contentHash: flow.contentHash,
         cacheHit: true,
+        assignment: flow.assignment,
       ),
     ),
     measurementPublicationBindingReferenceFor(flow),

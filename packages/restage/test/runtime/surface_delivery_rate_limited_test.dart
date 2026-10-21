@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage/restage.dart';
+import 'package:restage/src/analytics/root_analytics_context.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 
 import '../surface_screen/surface_screen_test_support.dart';
@@ -44,7 +45,22 @@ void main() {
       rpcClientProvider: () => client,
     );
 
-    final resolved = await resolver.resolve(fixture.ref);
+    final priorPresentation = RootAnalyticsRuntime.createPresentation(
+      surface: Surface.paywall.wireName,
+      surfaceId: 'previous_paywall',
+    )..stage(
+        surfaceVersion: '42',
+        assignment: const SurfaceAssignment(
+          experimentId: 'experiment.previous',
+          experimentRevisionId: 'revision.previous',
+          experimentEpochId: 'epoch.previous',
+          variantId: 'arm.previous',
+        ),
+      );
+    priorPresentation.activate();
+    addTearDown(priorPresentation.dispose);
+    final resolved = await priorPresentation
+        .runWithEventContext(() => resolver.resolve(fixture.ref));
     await Future<void>.delayed(Duration.zero);
 
     expect(resolved.origin, SurfaceScreenOrigin.bundled);
@@ -55,6 +71,14 @@ void main() {
     expect(throttles, hasLength(1));
     expect(throttles.single.surface, Surface.general);
     expect(throttles.single.surfaceId, 'feature_announcement');
+    expect(throttles.single.surfaceType, Surface.general);
+    expect(throttles.single.surfaceVersion, isNull);
+    expect(throttles.single.assignment, isNull);
+    expect(throttles.single.analyticsProperties, {
+      'restage_surface_id': 'feature_announcement',
+      'restage_surface_type': 'general',
+      'restage_retry_after_ms': 7000,
+    });
     expect(throttles.single.retryAfter, const Duration(seconds: 7));
     expect(throttles.single.firedAt?.isUtc, isTrue);
   });

@@ -28,6 +28,64 @@ void main() {
   });
   tearDown(Restage.debugReset);
 
+  test(
+      'resolved leaves retain both projections and a joint terminal has no variant',
+      () {
+    final fixture = readPlacementDeliveryFixture();
+    PublicExperimentSelectionV1 selection(String suffix) =>
+        PublicExperimentSelectionV1(
+          experimentId: ExperimentPublicIdV1('experiment.$suffix'),
+          experimentRevisionId:
+              ExperimentPublicRevisionIdV1('revision.$suffix'),
+          experimentEpochId: ExperimentPublicEpochIdV1('epoch.$suffix'),
+          armId: ExperimentPublicArmIdV1('arm.$suffix'),
+        );
+    final placement = selection('placement');
+    final surface = selection('surface');
+    final response = placementFixtureResponse(fixture.request,
+        placementExperiment: placement, surfaceExperiment: surface);
+    final delivery =
+        (response.decisions.first as PlacementBatchAvailableV1).publicDelivery;
+    final leaf = attachResolvedPlacementDelivery(
+        ResolvedVariant(
+            bytes: fixture.response.artifacts.single.bytes,
+            paywallId: 'welcome',
+            surfaceVersion: '1'),
+        delivery);
+    expect(delivery.path.steps.first.experimentSelection, placement);
+    expect(delivery.path.steps.last.experimentSelection, surface);
+    expect(leaf.assignment!.variantId, surface.armId.value);
+    final held = leaf.copyWith(cacheHit: true);
+    expect(held.assignment, leaf.assignment);
+    expect(resolvedPlacementDeliveryFor(held), delivery);
+    final path = PublicDeliveryDecisionPathV1(
+      steps: [
+        delivery.path.steps.first,
+        PublicDeliveryDecisionStepV1(
+            scope: delivery.path.steps.last.scope,
+            source: PublicDeliverySelectionSourceV1.experiment)
+      ],
+      actualPublication: delivery.actualPublication,
+    );
+    final jointDelivery = PublicPlacementDeliveryV1(
+      mount: delivery.mount,
+      path: path,
+      selectedSurface: delivery.selectedSurface,
+      actualPublication: delivery.actualPublication,
+      fitRequirement: delivery.fitRequirement,
+      cacheValidity: DeliveryCacheValidityV1.fromJson({
+        ...delivery.cacheValidity.toJson(),
+        'selectionIdentityDigest': path.selectionIdentityDigest.hex
+      }),
+      dependencyClosure: delivery.dependencyClosure,
+    );
+    final joint = attachResolvedPlacementDelivery(
+        ResolvedVariant(
+            bytes: leaf.bytes, paywallId: 'welcome', surfaceVersion: '1'),
+        jointDelivery);
+    expect(joint.assignment, isNull);
+  });
+
   test('shared blob bytes retain separate placement leaves and cache evidence',
       () {
     final fixture = readPlacementDeliveryFixture();

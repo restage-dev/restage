@@ -24,7 +24,8 @@ export 'src/authoring/paywall_source.dart';
 export 'src/authoring/screen.dart';
 export 'src/delivery/surface_ref.dart';
 export 'src/events/event_enums.dart';
-export 'src/events/restage_event.dart';
+export 'src/events/restage_event.dart' hide snapshotRestageEventForEmission;
+export 'src/events/surface_assignment.dart';
 export 'src/flow/compiled_flow.dart';
 export 'src/flow/flow_controller.dart' show RestageFlowController;
 export 'src/flow/flow_descriptors.dart';
@@ -111,7 +112,7 @@ export 'src/resolver/surface_resolution_report.dart'
     show SurfaceResolutionSource, SurfaceResolutionReport;
 export 'src/runtime/error_boundary.dart' show RuntimeErrorBoundary;
 export 'src/commerce/restage_commerce.dart' show RestageCommerce;
-export 'src/runtime/restage.dart';
+export 'src/runtime/restage.dart' hide emitRestageEvent;
 export 'src/runtime/restage_widget_factory.dart';
 export 'src/runtime/restage_widget_libraries.dart';
 export 'src/runtime/restage_widget_registration.dart';

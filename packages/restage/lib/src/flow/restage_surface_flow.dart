@@ -12,6 +12,7 @@ import '../analytics/root_analytics_context.dart';
 import '../authoring/onboarding_event_dispatcher.dart';
 import '../events/restage_event.dart'
     show
+        FlowDismissed,
         FlowStarted,
         FlowUnavailable,
         OnboardingStepViewed,
@@ -234,12 +235,18 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   RestageFlowController<R>? _controller;
   FirstPaintLeaseTransaction? _transaction;
   RootAnalyticsPresentation? _presentation;
+  RootAnalyticsPresentation? _fallbackReadOwner;
+  Object? _fallbackReadError;
+  void Function(RestageEvent)? _placementEventCallback;
+  bool _disposing = false;
   final Set<RestageFlowController<R>> _ownedControllers =
       <RestageFlowController<R>>{};
   final Set<RestageFlowController<R>> _terminalMeasurementControllers = {};
   final Map<RestageFlowController<R>, MeasurementHostSessionController>
       _measurementSessions =
       <RestageFlowController<R>, MeasurementHostSessionController>{};
+  final Map<RestageFlowController<R>, FlowStarted> _rootFlowStarts =
+      <RestageFlowController<R>, FlowStarted>{};
   final Map<RestageFlowController<R>, MountAttributionSnapshotV1>
       _mountAttributions = {};
   final Map<RestageFlowController<R>, SurfaceDeliveryReceiptHandle?>
@@ -292,6 +299,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _placementEventCallback = PlacementEventScope.callbackFor(context, widget);
     final scope = RestageContextSnapshotScope.maybeOf(context);
     // Only a scope that actually carries a snapshot supersedes this widget's
     // own [context]; an enclosing surface with none leaves this widget
@@ -402,6 +410,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     pending = _buildController(
       adoptedRoot: adoptedRoot,
       onEvent: (event) {
+        _rememberRootFlowStart(pending, event);
         if (identical(_pendingController, pending)) {
           // Suppress the pending flow's lifecycle until promotion.
           return;
@@ -435,6 +444,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: widget.flow.surfaceType.wireName,
       surfaceId: widget.flow.id,
+      owner: this,
     );
     late final FirstPaintLeaseTransaction? transaction;
     transaction = _buildFirstPaintTransaction(
@@ -631,6 +641,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   @override
   void didUpdateWidget(RestageFlowGraph<R> oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _placementEventCallback = PlacementEventScope.callbackFor(context, widget);
     _refreshWidgetContext();
     final replaceRefreshHandle =
         oldWidget.flow.surfaceType != widget.flow.surfaceType ||
@@ -699,6 +710,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     late final RestageFlowController<R> controller;
     controller = _buildController(
       onEvent: (event) {
+        _rememberRootFlowStart(controller, event);
         if (!mounted || !identical(_controller, controller)) return;
         if (event is FlowUnavailable &&
             _shouldConvertUnstableInitialHostedFailure(
@@ -732,6 +744,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: widget.flow.surfaceType.wireName,
       surfaceId: widget.flow.id,
+      owner: this,
     );
     late final FirstPaintLeaseTransaction? transaction;
     transaction = _buildFirstPaintTransaction(
@@ -933,6 +946,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         presentation.stage(
           surfaceVersion:
               RootAnalyticsArtifactRegistry.surfaceVersionFor(controller),
+          assignment: RootAnalyticsArtifactRegistry.assignmentFor(controller),
         );
         commitPresentation?.call();
       },
@@ -1011,6 +1025,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     RootAnalyticsPresentation? presentation,
   ) {
     _finalizeMeasurementSessionFor(controller);
+    _rootFlowStarts.remove(controller);
     _ownedControllers.remove(controller);
     _mountAttributions.remove(controller);
     _rootDeliveryReceipts.remove(controller);
@@ -1069,9 +1084,13 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       presentation = null;
     }
     void dispatch() {
-      Restage.fireEvent(event);
+      final emitted = emitRestageEvent(event);
       if (!mounted) return;
-      PlacementEventScope.callbackFor(context, widget)?.call(event);
+      final callback = _disposing
+          ? _placementEventCallback
+          : (_placementEventCallback =
+              PlacementEventScope.callbackFor(context, widget));
+      callback?.call(emitted);
     }
 
     if (presentation == null) {
@@ -1085,6 +1104,15 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       return;
     }
     presentation.runWithEventContext(dispatch);
+  }
+
+  void _rememberRootFlowStart(
+    RestageFlowController<R> controller,
+    RestageEvent event,
+  ) {
+    if (event case FlowStarted(parentFlowSessionId: null)) {
+      _rootFlowStarts[controller] = event;
+    }
   }
 
   bool _isPagerPresentationCurrent(
@@ -1151,6 +1179,15 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       _finalizeMeasurementSessionFor(previous);
     }
     _activeMeasurementController = controller;
+    final presentation = identical(_pendingController, controller)
+        ? _pendingPresentation
+        : _presentation;
+    final session = _measurementSessions[controller];
+    if (presentation != null && session != null) {
+      presentation.captureDeferredContextOnActivation(
+        session.bindPointEventContext,
+      );
+    }
   }
 
   void _finalizeMeasurementSessionFor(RestageFlowController<R> controller) {
@@ -1213,16 +1250,31 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
 
   @override
   void dispose() {
+    _fallbackReadOwner?.dispose();
+    _disposing = true;
     _placementDiscovery.dispose();
     final controller = _controller;
+    final presentation = _presentation;
     if (controller != null &&
+        presentation != null &&
         identical(controller, _activeMeasurementController) &&
         controller.hasRenderedContent &&
         !controller.isUnavailable &&
         !controller.isComplete &&
+        !presentation.isInvalidatedByIdentityReset &&
         !_terminalMeasurementControllers.contains(controller)) {
       _measurementSessions[controller]
           ?.recordLifecycle(MeasurementOccurrenceChannelV1.dismiss);
+      final started = _rootFlowStarts[controller];
+      _fireControllerEvent(
+        controller,
+        FlowDismissed(
+          flowId: controller.flow.id,
+          flowVersion: controller.flow.version,
+          resolvedVersion: started?.resolvedVersion,
+          flowSessionId: started?.flowSessionId,
+        ),
+      );
     }
     _terminalMeasurementControllers.clear();
     _unregisterRefreshHandle();
@@ -1236,6 +1288,19 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   Widget build(BuildContext context) {
     final error = _unavailableError;
     if (error != null) {
+      if (widget.unavailable.isFallback &&
+          (!identical(_fallbackReadError, error) ||
+              _fallbackReadOwner?.surfaceId != widget.flow.id ||
+              _fallbackReadOwner?.surface !=
+                  widget.flow.surfaceType.wireName)) {
+        _fallbackReadError = error;
+        _fallbackReadOwner?.dispose();
+        _fallbackReadOwner = RootAnalyticsRuntime.createPresentation(
+          surface: widget.flow.surfaceType.wireName,
+          surfaceId: widget.flow.id,
+          owner: this,
+        )..markAssignmentUnknown();
+      }
       final fallback = widget.unavailable.isFallback
           ? widget.unavailable.fallbackBuilder!(context, error)
           : const SizedBox.shrink();

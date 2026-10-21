@@ -71,6 +71,14 @@ void main() {
   test('flow lifecycle events are SDK-authored and bounded', () {
     const started = FlowStarted(flowId: 'first_run', flowVersion: 1);
     const completed = FlowCompleted(flowId: 'first_run', flowVersion: 1);
+    final dismissedAt = DateTime.utc(2026, 9, 9, 12);
+    final dismissed = FlowDismissed(
+      flowId: 'first_run',
+      flowVersion: 1,
+      resolvedVersion: 7,
+      flowSessionId: 'flow-sess-dismissed',
+      firedAt: dismissedAt,
+    );
 
     expect(started.name, 'flow_started');
     expect(started.paywallId, isNull);
@@ -86,6 +94,20 @@ void main() {
       'flowId': 'first_run',
       'flowVersion': 1,
     });
+    expect(dismissed.name, 'flow_dismissed');
+    expect(dismissed.paywallId, isNull);
+    expect(dismissed.toMap(), {
+      'name': 'flow_dismissed',
+      'flowId': 'first_run',
+      'flowVersion': 1,
+      'resolvedVersion': 7,
+      'flowSessionId': 'flow-sess-dismissed',
+      'firedAt': dismissedAt.toIso8601String(),
+    });
+    expect(
+      dismissed.analyticsProperties,
+      isNot(contains(anyOf('flow_session_id', 'restage_flow_session_id'))),
+    );
   });
 
   group('OnboardingStepViewed', () {

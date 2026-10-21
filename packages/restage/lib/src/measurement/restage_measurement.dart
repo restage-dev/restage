@@ -157,6 +157,13 @@ void attachPurchaseExposure(RestageEvent event,
       _PurchaseExposure(prepare, client, Restage.captureEventAuthority());
 }
 
+/// Retains the same private exposure and report state on an emitted snapshot.
+@internal
+void retainPurchaseExposure(RestageEvent original, RestageEvent emitted) {
+  final exposure = _purchaseExposures[original];
+  if (exposure != null) _purchaseExposures[emitted] = exposure;
+}
+
 bool _validIdentifier(String identifier) =>
     identifier.isNotEmpty &&
     utf8.encode(identifier).length <= 256 &&

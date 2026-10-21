@@ -49,7 +49,7 @@ void main() {
       orderedCaptureCanonicalBytesV1: MeasurementOrderedCaptureV1(routes: [
         MeasurementOrderedCaptureRouteV1(
           occurrenceId: CanonicalDigest('0' * 63 + '1'),
-          lineageId: PointLineageId('lineage.worker-owned'),
+          lineageId: PointLineageId('lineage.worker-owned.0'),
           channels: const [
             MeasurementOccurrenceChannelV1.presentation,
             MeasurementOccurrenceChannelV1.interaction,
@@ -872,6 +872,135 @@ void main() {
       expect(finalization.isFinal, isTrue);
     });
 
+    test('delivers retained membership when interaction capacity is exhausted',
+        () async {
+      final support = await Directory.systemTemp.createTemp(
+        'restage-worker-owned-interaction-capacity-',
+      );
+      addTearDown(() => support.delete(recursive: true));
+      final frames = <MeasurementFactFrameV1>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      unawaited(
+        server.forEach((request) async {
+          final body = await _readRequest(request);
+          frames.add(_frameFromRequestEnvelope(body));
+          await _respondAccepted(request, body);
+        }),
+      );
+      final runtime = await _start(
+        support: support,
+        endpoint: _endpointFor(server),
+      );
+      addTearDown(runtime.shutdown);
+      final session = await _open(
+        runtime,
+        'session.worker-owned-interaction-capacity',
+        routeCount: 2,
+        limits: const MeasurementWorkerSessionLimits(
+          maximumCounterValue: 8,
+          maximumPresentedPoints: 2,
+          maximumInteractionCounters: 1,
+          maximumMissingnessEntries: 0,
+        ),
+      );
+
+      final firstReceipt = runtime.appendAcknowledgements.first;
+      expect(
+        session.append(
+          MeasurementWorkerAppendRecord(
+            routeIndex: 0,
+            monotonicTimestampMicros: 1,
+            value: MeasurementWorkerAppendValue.interaction,
+          ),
+        ),
+        MeasurementWorkerAppendOutcome.accepted,
+      );
+      expect((await firstReceipt).emitsPresentationEvent, isTrue);
+
+      final truncatedReceipt = runtime.appendAcknowledgements.first;
+      expect(
+        session.append(
+          MeasurementWorkerAppendRecord(
+            routeIndex: 1,
+            monotonicTimestampMicros: 2,
+            value: MeasurementWorkerAppendValue.interaction,
+          ),
+        ),
+        MeasurementWorkerAppendOutcome.accepted,
+      );
+      final truncated = await truncatedReceipt;
+      expect(
+        truncated.outcome,
+        MeasurementWorkerAppendAcknowledgementOutcome.truncated,
+      );
+      expect(truncated.emitsPresentationEvent, isTrue);
+
+      expect(
+        (await session.checkpoint()).outcome,
+        MeasurementWorkerOwnedDeliveryCheckpointOutcome.delivered,
+      );
+      expect(frames.single.facts, hasLength(2));
+      expect(
+        frames.single.facts.last.interactionState.wireName,
+        'transportTruncated',
+      );
+    });
+
+    test('does not report membership dropped at presented capacity', () async {
+      final support = await Directory.systemTemp.createTemp(
+        'restage-worker-owned-presentation-capacity-',
+      );
+      addTearDown(() => support.delete(recursive: true));
+      final runtime = await _start(
+        support: support,
+        endpoint: 'https://example.invalid/sdk/v1/measurement',
+      );
+      addTearDown(runtime.debugKillWorkerForTesting);
+      final session = await _open(
+        runtime,
+        'session.worker-owned-presentation-capacity',
+        routeCount: 2,
+        limits: const MeasurementWorkerSessionLimits(
+          maximumCounterValue: 8,
+          maximumPresentedPoints: 1,
+          maximumInteractionCounters: 1,
+          maximumMissingnessEntries: 0,
+        ),
+      );
+
+      final firstReceipt = runtime.appendAcknowledgements.first;
+      expect(
+        session.append(
+          MeasurementWorkerAppendRecord(
+            routeIndex: 0,
+            monotonicTimestampMicros: 1,
+            value: MeasurementWorkerAppendValue.presentation,
+          ),
+        ),
+        MeasurementWorkerAppendOutcome.accepted,
+      );
+      expect((await firstReceipt).emitsPresentationEvent, isTrue);
+
+      final droppedReceipt = runtime.appendAcknowledgements.first;
+      expect(
+        session.append(
+          MeasurementWorkerAppendRecord(
+            routeIndex: 1,
+            monotonicTimestampMicros: 2,
+            value: MeasurementWorkerAppendValue.presentation,
+          ),
+        ),
+        MeasurementWorkerAppendOutcome.accepted,
+      );
+      final dropped = await droppedReceipt;
+      expect(
+        dropped.outcome,
+        MeasurementWorkerAppendAcknowledgementOutcome.truncated,
+      );
+      expect(dropped.emitsPresentationEvent, isFalse);
+    });
+
     test('discards an uncommitted session without a frame or HTTP request',
         () async {
       final support = await Directory.systemTemp.createTemp(
@@ -1276,9 +1405,18 @@ Future<MeasurementWorkerOwnedDeliveryRuntime> _start({
 
 Future<MeasurementWorkerOwnedDeliverySession> _open(
   MeasurementWorkerOwnedDeliveryRuntime runtime,
-  String sessionId,
-) async {
-  final opened = await runtime.openSession(_registration(sessionId));
+  String sessionId, {
+  int routeCount = 1,
+  MeasurementWorkerSessionLimits limits = const MeasurementWorkerSessionLimits(
+    maximumCounterValue: 8,
+    maximumPresentedPoints: 4,
+    maximumInteractionCounters: 4,
+    maximumMissingnessEntries: 0,
+  ),
+}) async {
+  final opened = await runtime.openSession(
+    _registration(sessionId, routeCount: routeCount, limits: limits),
+  );
   expect(opened.outcome, MeasurementWorkerOpenSessionOutcome.opened);
   return opened.session!;
 }
@@ -1323,6 +1461,13 @@ int _heldClockMicros() => DateTime.now()
 MeasurementWorkerSessionRegistration _registration(
   String sessionId, {
   MeasurementExperimentAssignmentV1? experimentAssignment,
+  int routeCount = 1,
+  MeasurementWorkerSessionLimits limits = const MeasurementWorkerSessionLimits(
+    maximumCounterValue: 8,
+    maximumPresentedPoints: 4,
+    maximumInteractionCounters: 4,
+    maximumMissingnessEntries: 0,
+  ),
   String? registrationFingerprint,
   Uint8List? orderedCaptureCanonicalBytesV1,
   int firstSequence = 1,
@@ -1352,19 +1497,14 @@ MeasurementWorkerSessionRegistration _registration(
     registrationFingerprint: registrationFingerprint,
     orderedCaptureCanonicalBytesV1: orderedCaptureCanonicalBytesV1,
     publicationContextCanonicalBytes: context.canonicalBytes,
-    routes: const [
-      MeasurementWorkerRouteIdentity(
-        occurrenceId:
-            '0000000000000000000000000000000000000000000000000000000000000001',
-        lineageId: 'lineage.worker-owned',
-      ),
+    routes: [
+      for (var index = 0; index < routeCount; index += 1)
+        MeasurementWorkerRouteIdentity(
+          occurrenceId: (index + 1).toRadixString(16).padLeft(64, '0'),
+          lineageId: 'lineage.worker-owned.$index',
+        ),
     ],
-    limits: const MeasurementWorkerSessionLimits(
-      maximumCounterValue: 8,
-      maximumPresentedPoints: 4,
-      maximumInteractionCounters: 4,
-      maximumMissingnessEntries: 0,
-    ),
+    limits: limits,
     firstSequence: firstSequence,
   );
 }
@@ -1404,6 +1544,14 @@ Future<void> _respondAccepted(HttpRequest request, Uint8List exactBody) async {
     ..statusCode = HttpStatus.ok
     ..write('{"receiptCanonicalBase64":"${receipt.canonicalReceiptBase64}"}');
   await request.response.close();
+}
+
+MeasurementFactFrameV1 _frameFromRequestEnvelope(Uint8List body) {
+  final envelope = jsonDecode(utf8.decode(body, allowMalformed: false))
+      as Map<String, Object?>;
+  return MeasurementIngestRequestV1.fromBase64(
+    envelope['canonicalRequestBase64']! as String,
+  ).factFrame;
 }
 
 Future<void> _respondAcceptedDiagnostic(

@@ -511,6 +511,8 @@ final class RestageVariantResolver
             paywallId: id,
             surfaceVersion: document.version.toString(),
             paywallPublishedVersion: document.version,
+            assignment:
+                projectSurfaceAssignment(result.canonicalExperimentAssignment),
             cacheHit: cacheHit,
           ),
           surfaceSectionsOf(payload),

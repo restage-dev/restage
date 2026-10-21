@@ -283,6 +283,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _flowMountAttributions = {};
   Object? _fallbackAttributionIdentity;
   MountAttributionSnapshotV1? _fallbackMountAttribution;
+  RootAnalyticsPresentation? _fallbackAnalyticsPresentation;
   RestageFlowController<void>? _activeFlowMeasurementController;
   final Set<RestageFlowController<void>> _terminalMeasurementControllers = {};
 
@@ -569,7 +570,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   RootAnalyticsPresentation? get _activeAnalyticsPresentation {
     if (_flowIsPresented) return _flowPresentations[_flowController];
-    return _blobPresentation?.analyticsPresentation;
+    return _blobPresentation?.analyticsPresentation ??
+        _fallbackAnalyticsPresentation;
   }
 
   void _fireEvent(
@@ -594,8 +596,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final source =
         attribution ?? _activeAnalyticsPresentation ?? _anonymousAnalyticsOwner;
     void dispatch() {
-      source.runWithEventContext(() => Restage.fireEvent(event));
-      if (mounted) widget.onEvent?.call(event);
+      late final RestageEvent emitted;
+      source.runWithEventContext(() => emitted = emitRestageEvent(event));
+      if (mounted) widget.onEvent?.call(emitted);
     }
 
     final mountContext =
@@ -1174,6 +1177,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final analyticsPresentation = RootAnalyticsRuntime.createPresentation(
       surface: Surface.paywall.wireName,
       surfaceId: widget.id,
+      owner: this,
     );
     _flowPresentations[pending] = analyticsPresentation;
     late final FirstPaintLeaseTransaction transaction;
@@ -1616,6 +1620,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final analyticsPresentation = RootAnalyticsRuntime.createPresentation(
       surface: Surface.paywall.wireName,
       surfaceId: widget.id,
+      owner: this,
     );
     _flowPresentations[controller] = analyticsPresentation;
     transaction = FirstPaintLeaseTransaction(
@@ -1890,7 +1895,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     ResolvedPaywallPayload payload,
   ) {
     final attribution = switch (payload) {
-      BlobPaywallPayload(:final variant) => (version: variant.surfaceVersion),
+      BlobPaywallPayload(:final variant) => (
+          version: variant.surfaceVersion,
+          assignment: variant.assignment,
+        ),
       FlowPaywallPayload(
         :final flow,
         :final paywallPublishedVersion,
@@ -1898,9 +1906,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
         (
           version:
               (paywallPublishedVersion ?? flow.document.version).toString(),
+          assignment: flow.assignment,
         ),
     };
-    presentation.stage(surfaceVersion: attribution.version);
+    presentation.stage(
+      surfaceVersion: attribution.version,
+      assignment: attribution.assignment,
+    );
   }
 
   void _finishInitialFlowPaintCommit(
@@ -2047,6 +2059,23 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _finalizeMeasurementSessionForFlow(previous);
     }
     _activeFlowMeasurementController = controller;
+    final presentation = _flowPresentations[controller];
+    final session = _flowMeasurementSessions[controller];
+    if (presentation != null && session != null) {
+      presentation.captureDeferredContextOnActivation(
+        (attribution) => session.bindPointEventContext(
+          attribution,
+          emitEvent: _emitMeasurementPointEvent,
+        ),
+      );
+    }
+  }
+
+  void _emitMeasurementPointEvent(
+    RestageEvent event,
+    RootAnalyticsDeferredContext attribution,
+  ) {
+    _fireEvent(event, attribution: attribution);
   }
 
   void _finalizeMeasurementSessionForFlow(
@@ -2259,6 +2288,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final analyticsPresentation = RootAnalyticsRuntime.createPresentation(
       surface: Surface.paywall.wireName,
       surfaceId: widget.id,
+      owner: this,
     );
     late final _BlobStage stage;
     final transaction = FirstPaintLeaseTransaction(
@@ -2289,6 +2319,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
           _finalizeMeasurementSessionForFlow(previousFlow);
         }
         analyticsPresentation.activate();
+        measurementSession.bindPointEventContext(
+          analyticsPresentation.captureDeferredContext(),
+          emitEvent: _emitMeasurementPointEvent,
+        );
         _publishRenderedPayload(payload);
       },
       afterCommit: () => _finishCommittedBlobStage(stage),
@@ -2546,6 +2580,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   @override
   void dispose() {
+    _fallbackAnalyticsPresentation?.dispose();
     _placementDiscovery.dispose();
     _renderDeadline.cancel();
     if (_refreshHandle case final handle?) {
@@ -2735,8 +2770,15 @@ class _RestagePaywallState extends State<RestagePaywall> {
     RestagePaywallError error, {
     required bool Function() isCurrent,
   }) {
-    if (!identical(_fallbackAttributionIdentity, error)) {
+    if (!identical(_fallbackAttributionIdentity, error) ||
+        _fallbackAnalyticsPresentation?.surfaceId != widget.id) {
       _fallbackAttributionIdentity = error;
+      _fallbackAnalyticsPresentation?.dispose();
+      _fallbackAnalyticsPresentation = RootAnalyticsRuntime.createPresentation(
+        surface: Surface.paywall.wireName,
+        surfaceId: widget.id,
+        owner: this,
+      )..stage(surfaceVersion: null);
       _fallbackMountAttribution =
           captureMountAttribution(_placementDiscovery.declaration?.mount);
     }
@@ -2765,10 +2807,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
           child: RuntimeErrorBoundary(
             debugLabel: widget.id,
             onFirstPaintSuccess: () {
-              if (isCurrent()) _placementDiscovery.markPainted();
-            },
-            onFirstBuildSuccess: () {
-              if (!isCurrent() || _viewedFired) return;
+              if (!isCurrent()) return;
+              _placementDiscovery.markPainted();
+              _fallbackAnalyticsPresentation?.activate();
+              if (_viewedFired) return;
               _viewedFired = true;
               _fireEvent(PaywallViewed(paywallId: widget.id));
             },

@@ -45,6 +45,72 @@ void main() {
     sharedSurfaceArtifactStore = null;
   });
 
+  for (final surfaceExperiment in [false, true]) {
+    testWidgets(
+        'painted placement exposes its nearest experiment ($surfaceExperiment)',
+        (tester) async {
+      final placementSelection = PublicExperimentSelectionV1(
+        experimentId: ExperimentPublicIdV1('experiment.placement'),
+        experimentRevisionId:
+            ExperimentPublicRevisionIdV1('revision.placement'),
+        experimentEpochId: ExperimentPublicEpochIdV1('epoch.placement'),
+        armId: ExperimentPublicArmIdV1('arm.placement'),
+      );
+      final surfaceSelection = PublicExperimentSelectionV1(
+        experimentId: ExperimentPublicIdV1('experiment.surface'),
+        experimentRevisionId: ExperimentPublicRevisionIdV1('revision.surface'),
+        experimentEpochId: ExperimentPublicEpochIdV1('epoch.surface'),
+        armId: ExperimentPublicArmIdV1('arm.surface'),
+      );
+      final requests = <PlacementBatchRequestV1>[];
+      _configure(requests,
+          respond: (request) => placementFixtureResponse(
+                request,
+                placementExperiment: placementSelection,
+                surfaceExperiment: surfaceExperiment ? surfaceSelection : null,
+              ));
+      final host = readPlacementDeliveryFixture()
+          .request
+          .buildContract
+          .contractsByHash
+          .values
+          .first;
+      final definition = _paywallDefinition('original', host);
+      final events = <RestageEvent>[];
+      expect(Restage.assignmentFor('original', surfaceType: Surface.paywall),
+          isNull);
+      await tester.pumpWidget(MaterialApp(
+          home: RestagePaywall(
+        id: 'original',
+        placementBinding: PlacementMountBinding(
+            definition: () => definition, name: 'home_card'),
+        onEvent: events.add,
+        fallbackBuilder: (_) => const Text('Original'),
+      )));
+      await _finish(tester);
+      expect(find.text('Welcome'), findsOneWidget);
+      final expected =
+          surfaceExperiment ? surfaceSelection : placementSelection;
+      final assignment =
+          Restage.assignmentFor('original', surfaceType: Surface.paywall)!;
+      expect(assignment.experimentId, expected.experimentId.value);
+      expect(
+          assignment.experimentRevisionId, expected.experimentRevisionId.value);
+      expect(assignment.experimentEpochId, expected.experimentEpochId.value);
+      expect(assignment.variantId, expected.armId.value);
+      final viewed = events.whereType<PaywallViewed>().single;
+      expect(viewed.assignment, assignment);
+      expect(
+          viewed.analyticsProperties['restage_variant'], expected.armId.value);
+      await tester.pumpWidget(const SizedBox());
+      expect(Restage.assignmentFor('original', surfaceType: Surface.paywall),
+          assignment);
+      Restage.reset();
+      expect(Restage.assignmentFor('original', surfaceType: Surface.paywall),
+          isNull);
+    });
+  }
+
   testWidgets(
       'configure sends one keyless batch for generated and remembered mounts',
       (tester) async {

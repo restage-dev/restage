@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage/restage.dart';
@@ -15,9 +16,13 @@ import 'package:restage/src/resolver/surface_analytics_identity_provider.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:rfw/rfw.dart' show RemoteWidget;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../measurement/admitted_bundled_publication_fixture.dart';
+import '../measurement/measurement_host_construction_test_support.dart';
 import '../support/canonical_assignment_fixture.dart';
 import 'surface_screen_test_support.dart';
 
@@ -341,7 +346,7 @@ void main() {
     final fixture = stringScreenFixture();
     await _installMeteringKey();
     final bindingReference = _bindingReference('a');
-    final assignment = canonicalAssignmentFixture();
+    final servedAssignment = _servedAssignment();
     String? assignmentKey = 'assignment-a';
     SurfaceAssignmentKeyProvider.current = () => assignmentKey;
     final requests = <http.Request>[];
@@ -353,11 +358,13 @@ void main() {
         requests.add(request);
         return http.Response(
           jsonEncode({
-            ...SurfaceScreenDeliveryDescriptorV1Codec.encode(
-              fixture.delivery(hostedBlob: hostedBlob, publishedRevision: 8),
-            ),
-            if (assignmentKey == 'assignment-a')
-              'assignment': assignment.toJson(),
+            ...fixture
+                .delivery(
+                  hostedBlob: hostedBlob,
+                  publishedRevision: 8,
+                )
+                .toJson(),
+            'assignment': servedAssignment.toJson(),
           }),
           200,
           headers: {
@@ -382,19 +389,22 @@ void main() {
     expect(first.origin, SurfaceScreenOrigin.hosted);
     expect(first.cacheHit, isFalse);
     expect(
+      first.assignment,
+      projectSurfaceAssignment(servedAssignment),
+    );
+    expect(measurementExperimentAssignmentFor(first), servedAssignment);
+    expect(
       measurementPublicationBindingReferenceFor(first),
       bindingReference,
     );
-    expect(measurementExperimentAssignmentFor(first), assignment);
     expect(first.contentHash, isNot(fixture.contentHash));
     expect(second.cacheHit, isFalse);
+    expect(second.assignment, first.assignment);
+    expect(measurementExperimentAssignmentFor(second), servedAssignment);
     expect(
       measurementPublicationBindingReferenceFor(second),
       bindingReference,
     );
-    expect(measurementExperimentAssignmentFor(second), assignment);
-    expect(measurementExperimentAssignmentFor(otherAssignment), isNull);
-    expect(measurementExperimentAssignmentFor(unassigned), isNull);
     expect(otherAssignment.cacheHit, isFalse);
     expect(unassigned.cacheHit, isFalse);
     expect(requests, hasLength(4));
@@ -757,6 +767,299 @@ void main() {
     expect(fallback.calls, 0, reason: 'hosted content never needs a bundle');
   });
 
+  testWidgets(
+      'offstage hosted screen waits for paint before public and Measurement presentation ownership',
+      (tester) async {
+    final fixture = stringScreenFixture(
+      blob: rfwSourceBlob('''
+import restage.core;
+import restage.material;
+
+widget OnboardingScreen = SizedBox(
+  width: 240.0,
+  height: 160.0,
+  child: RestagePager(children: [
+    Text(text: "First"),
+    Text(text: "Second")
+  ])
+);
+'''),
+    );
+    final binding = _fixtureBinding();
+    final readPort = _AcceptedBindingReadPort(binding);
+    final harness = AdmittedConstructionOwnerHostTestHarness.install(
+      publicationContext: _bindingContext(binding),
+      hostedBindingReadPortLookup: () => readPort,
+    );
+    addTearDown(() => unawaited(harness.close()));
+    final servedAssignment = _servedAssignment();
+    final deliveryResponse = Completer<http.Response>();
+    var deliveryRequests = 0;
+    final hostedResolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: fixture.hostedDelivery.client((_) {
+          deliveryRequests += 1;
+          return deliveryResponse.future;
+        }),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+    SharedPreferences.setMockInitialValues(const <String, Object>{});
+    Restage.configure(apiKey: _apiKey, baseUrl: _baseUrl);
+    SurfaceAssignmentKeyProvider.current = () => 'assignment-screen';
+    final events = <RestageEvent>[];
+    final subscription = Restage.events.listen(events.add);
+    addTearDown(subscription.cancel);
+    var selectedIndex = 0;
+    late StateSetter select;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            select = setState;
+            return IndexedStack(
+              index: selectedIndex,
+              children: <Widget>[
+                const SizedBox.expand(),
+                RestageScreen<String>(
+                  screen: fixture.ref,
+                  resolver: hostedResolver,
+                  unavailable: const SurfaceScreenUnavailablePolicy.hide(),
+                  onEvent: (_) {},
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    deliveryResponse.complete(
+      http.Response(
+        jsonEncode({
+          ...fixture.delivery(publishedRevision: 8).toJson(),
+          'assignment': servedAssignment.toJson(),
+        }),
+        200,
+        headers: {
+          'Restage-Measurement-Publication-Binding-V1':
+              _bindingHeader(binding.reference),
+        },
+      ),
+    );
+    await _pumpUntil(
+      tester,
+      () =>
+          find.byType(RemoteWidget, skipOffstage: false).evaluate().isNotEmpty,
+    );
+
+    final assignment = projectSurfaceAssignment(servedAssignment);
+    expect(find.byType(RemoteWidget, skipOffstage: false), findsOneWidget);
+    expect(harness.owner.debugActiveSessionCount, 1);
+    final assignmentWhileOffstage = Restage.assignmentFor(
+      fixture.ref.slug,
+      surfaceType: Surface.general,
+    );
+    expect(harness.worker.activeRegistrations, hasLength(1));
+    final workerAssignment = MeasurementExperimentAssignmentV1.fromJson(
+      CanonicalJsonCodec.decode(
+        harness.worker.activeRegistrations.single
+            .experimentAssignmentCanonicalBytes!,
+      )! as Map<String, Object?>,
+    );
+    expect(
+      workerAssignment.outcomeLinkCarrier,
+      servedAssignment.outcomeLinkCarrier,
+    );
+    expect(harness.worker.finalizationCalls, 0);
+    expect(harness.worker.discardCalls, 0);
+    expect(deliveryRequests, 1);
+
+    select(() => selectedIndex = 1);
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      Restage.assignmentFor(fixture.ref.slug, surfaceType: Surface.general),
+      assignment,
+    );
+    await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
+    for (var frame = 0; frame < 20; frame += 1) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    final event = events.whereType<PagerPageChanged>().single;
+    expect(event.surfaceId, fixture.ref.slug);
+    expect(event.surfaceType, Surface.general);
+    expect(event.surfaceVersion, '8');
+    expect(event.assignment, assignment);
+    expect(event.variantId, servedAssignment.armId.value);
+
+    await tester.pumpWidget(const SizedBox());
+    await _pumpUntil(tester, () => harness.worker.finalizationCalls == 1);
+    expect(assignmentWhileOffstage, isNull);
+    expect(harness.worker.finalizationCalls, 1);
+    expect(harness.worker.discardCalls, 1);
+    expect(
+      Restage.assignmentFor(fixture.ref.slug, surfaceType: Surface.general),
+      assignment,
+    );
+  });
+
+  testWidgets(
+      'reset during standalone screen Measurement opening retires the candidate',
+      (tester) async {
+    final fixture = stringScreenFixture();
+    final binding = _fixtureBinding();
+    final readPort = _ControlledBindingReadPort(binding);
+    final harness = AdmittedConstructionOwnerHostTestHarness.install(
+      publicationContext: _bindingContext(binding),
+      hostedBindingReadPortLookup: () => readPort,
+    );
+    addTearDown(() => unawaited(harness.close()));
+    final servedAssignment = _servedAssignment();
+    final deliveryResponse = Completer<http.Response>();
+    var deliveryRequests = 0;
+    final hostedResolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: fixture.hostedDelivery.client((_) {
+          deliveryRequests += 1;
+          return deliveryResponse.future;
+        }),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+    SharedPreferences.setMockInitialValues(const <String, Object>{});
+    Restage.configure(apiKey: _apiKey, baseUrl: _baseUrl);
+    var identityGeneration = 0;
+    SurfaceAssignmentKeyProvider.install(
+        key: () => 'assignment-$identityGeneration',
+        identityGeneration: () => identityGeneration);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: IndexedStack(index: 0, children: [
+          const SizedBox.expand(),
+          RestageScreen<String>(
+            screen: fixture.ref,
+            resolver: hostedResolver,
+            unavailable: const SurfaceScreenUnavailablePolicy.hide(),
+            onEvent: (_) {},
+            loadingBuilder: (_) => const Text('screen-loading'),
+          )
+        ]),
+      ),
+    );
+    await tester.pump();
+    deliveryResponse.complete(
+      http.Response(
+        jsonEncode({
+          ...fixture.delivery(publishedRevision: 8).toJson(),
+          'assignment': servedAssignment.toJson(),
+        }),
+        200,
+        headers: {
+          'Restage-Measurement-Publication-Binding-V1':
+              _bindingHeader(binding.reference),
+        },
+      ),
+    );
+    await _pumpUntil(tester, () => readPort.references.isNotEmpty);
+    await _pumpUntil(
+        tester,
+        () => find
+            .byType(RemoteWidget, skipOffstage: false)
+            .evaluate()
+            .isNotEmpty);
+    expect(readPort.references, <Object?>[binding.reference]);
+    expect(find.byType(RemoteWidget, skipOffstage: false), findsOneWidget);
+    expect(
+        Restage.assignmentFor(fixture.ref.slug, surfaceType: Surface.general),
+        isNull);
+
+    identityGeneration++;
+    Restage.reset();
+    readPort.completeAccepted();
+    await _pumpFrames(tester);
+    expect(deliveryRequests, 1);
+    expect(find.byType(RemoteWidget, skipOffstage: false), findsOneWidget);
+    expect(
+      Restage.assignmentFor(fixture.ref.slug, surfaceType: Surface.general),
+      isNull,
+    );
+    expect(harness.worker.activeSessionIds, isEmpty);
+    expect(harness.worker.finalizationCalls, 0);
+    expect(harness.worker.discardCalls, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('prepaint identity rejection settles on the unavailable floor',
+      (tester) async {
+    final fixture = stringScreenFixture();
+    final resolver = FixedScreenResolver(fixture.hosted());
+    final unavailable = <SurfaceScreenUnavailableError>[];
+    SharedPreferences.setMockInitialValues(const <String, Object>{});
+    Restage.configure(apiKey: _apiKey, baseUrl: _baseUrl);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: IndexedStack(
+          index: 0,
+          children: <Widget>[
+            const SizedBox.expand(),
+            RestageScreen<String>(
+              screen: fixture.ref,
+              resolver: resolver,
+              unavailable: SurfaceScreenUnavailablePolicy.fallback(
+                builder: (_, error) =>
+                    Text('screen-unavailable:${error.reason.name}'),
+              ),
+              onUnavailable: unavailable.add,
+              onEvent: (_) {},
+              loadingBuilder: (_) => const Text('screen-loading'),
+            ),
+          ],
+        ),
+      ),
+    );
+    await _pumpFrames(tester);
+
+    for (var attempt = 0; attempt < 2; attempt += 1) {
+      Restage.reset();
+      await _pumpFrames(tester);
+    }
+
+    Restage.reset();
+    await _pumpFrames(tester);
+
+    final resolverCalls = resolver.calls;
+    final unavailableSnapshot = List<SurfaceScreenUnavailableError>.of(
+      unavailable,
+    );
+    final unavailableFallbackCount = find
+        .text('screen-unavailable:missing', skipOffstage: false)
+        .evaluate()
+        .length;
+    final loadingCount =
+        find.text('screen-loading', skipOffstage: false).evaluate().length;
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+
+    expect(resolverCalls, 1);
+    expect(unavailableSnapshot, hasLength(1));
+    expect(
+      unavailableSnapshot.single.reason,
+      SurfaceScreenUnavailableReason.missing,
+    );
+    expect(unavailableFallbackCount, 1);
+    expect(loadingCount, 0);
+  });
+
   test('fails closed when absent hosted content has no packaged bundle',
       () async {
     final fixture = stringScreenFixture(packagesBundle: false);
@@ -841,4 +1144,99 @@ MeasurementPublicationBindingReferenceV1 _bindingReference(String seed) {
     ),
     bindingDigest: CanonicalDigest('0' * 64),
   );
+}
+
+CanonicalSurfaceExperimentAssignmentV1 _servedAssignment() =>
+    CanonicalSurfaceExperimentAssignmentV1(
+      experimentId: ExperimentPublicIdV1('experiment.screen'),
+      experimentRevisionId: ExperimentPublicRevisionIdV1('revision.screen.1'),
+      experimentEpochId: ExperimentPublicEpochIdV1('epoch.screen.1'),
+      armId: ExperimentPublicArmIdV1('arm.screen'),
+      outcomeLinkCarrier:
+          base64UrlEncode(utf8.encode('outcome.screen')).replaceAll('=', ''),
+    );
+
+MeasurementPublicationBindingV1 _fixtureBinding() =>
+    AdmittedBundledPublicationFixture.build(includeOrderedCapture: false)
+        .binding;
+
+ExactMeasurementPublicationContextRefV1 _bindingContext(
+  MeasurementPublicationBindingV1 binding,
+) =>
+    ExactMeasurementPublicationContextRefV1(
+      bindingReference: binding.reference,
+      surfaceIdentity: binding.publishedSurfaceRevision.surfaceIdentity,
+      surfaceRevisionId: binding.publishedSurfaceRevision.revisionId,
+      artifactGraphHash: binding.exactArtifactGraph.canonicalDigest,
+      measurementManifestHash:
+          binding.completeMeasurementManifest.canonicalDigest,
+    );
+
+MeasurementPublicationBindingReadAccepted _acceptedBinding(
+  MeasurementPublicationBindingV1 binding,
+) =>
+    MeasurementPublicationBindingReadAccepted(
+      reference: binding.reference,
+      binding: binding,
+      registeredPublicationAttestation: RegisteredPublicationAttestationV1(
+        bindingReference: binding.reference,
+        attestationDigest: CanonicalDigest('9' * 64),
+      ),
+    );
+
+final class _AcceptedBindingReadPort
+    implements MeasurementPublicationBindingReadPort {
+  _AcceptedBindingReadPort(this.binding);
+
+  final MeasurementPublicationBindingV1 binding;
+  final references = <MeasurementPublicationBindingReferenceV1>[];
+
+  @override
+  Future<MeasurementPublicationBindingReadResult> readExact(
+    MeasurementPublicationBindingReferenceV1 bindingReference,
+  ) async {
+    references.add(bindingReference);
+    return _acceptedBinding(binding);
+  }
+}
+
+final class _ControlledBindingReadPort
+    implements MeasurementPublicationBindingReadPort {
+  _ControlledBindingReadPort(this.binding);
+
+  final MeasurementPublicationBindingV1 binding;
+  final references = <MeasurementPublicationBindingReferenceV1>[];
+  final _result = Completer<MeasurementPublicationBindingReadResult>();
+
+  @override
+  Future<MeasurementPublicationBindingReadResult> readExact(
+    MeasurementPublicationBindingReferenceV1 bindingReference,
+  ) {
+    references.add(bindingReference);
+    return _result.future;
+  }
+
+  void completeAccepted() => _result.complete(_acceptedBinding(binding));
+}
+
+Future<void> _pumpUntil(
+  WidgetTester tester,
+  bool Function() predicate,
+) async {
+  for (var attempt = 0; attempt < 20 && !predicate(); attempt += 1) {
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 1)),
+    );
+  }
+  expect(predicate(), isTrue);
+}
+
+Future<void> _pumpFrames(WidgetTester tester, {int count = 20}) async {
+  for (var frame = 0; frame < count; frame += 1) {
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 1)),
+    );
+  }
 }

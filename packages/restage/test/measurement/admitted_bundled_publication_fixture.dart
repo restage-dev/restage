@@ -22,6 +22,7 @@ final class AdmittedBundledPublicationFixture {
   factory AdmittedBundledPublicationFixture.build({
     bool completingTap = false,
     bool lifecycleEnds = false,
+    bool includeOrderedCapture = true,
     List<int> artifact = artifactBytes,
     List<
             ({
@@ -499,7 +500,7 @@ final class AdmittedBundledPublicationFixture {
         ),
     ]);
     final binding = MeasurementPublicationBindingV1(
-      orderedCaptureV1: orderedCapture,
+      orderedCaptureV1: includeOrderedCapture ? orderedCapture : null,
       publicationAuthorityReference: RegisteredPublicationAuthorityReferenceV1(
         authorityId: MeasurementPublicationAuthorityId('authority.fixture.v1'),
         externalPublicationAuthorityRef: 'mpa1.${'A' * 32}',

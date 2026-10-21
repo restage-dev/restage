@@ -6,7 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../support/hosted_artifact_delivery.dart';
@@ -113,11 +115,13 @@ void main() {
 
   test('exact resolve() serves content; a cache hit preserves it', () async {
     final screenBytes = Uint8List.fromList([1, 2, 3]);
+    final assignment = _servedAssignment();
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
       httpClient: _server(
         _envelope(_doc(screenBytes: screenBytes), screenBytes),
+        assignment: assignment,
       ),
     );
 
@@ -127,6 +131,16 @@ void main() {
     expect(second.cacheHit, isTrue);
     expect(first.screenBlobs['welcome'], orderedEquals(screenBytes));
     expect(second.screenBlobs['welcome'], orderedEquals(screenBytes));
+    final publicAssignment = SurfaceAssignment(
+      experimentId: assignment.experimentId.value,
+      experimentRevisionId: assignment.experimentRevisionId.value,
+      experimentEpochId: assignment.experimentEpochId.value,
+      variantId: assignment.armId.value,
+    );
+    expect(first.assignment, publicAssignment);
+    expect(second.assignment, publicAssignment);
+    expect(measurementExperimentAssignmentFor(first), assignment);
+    expect(measurementExperimentAssignmentFor(second), assignment);
   });
 }
 
@@ -186,9 +200,12 @@ AssetBundle _bundleFor(FlowDocument document, Uint8List screenBytes) {
   });
 }
 
-MockClient _server(Uint8List envelope) {
+MockClient _server(
+  Uint8List envelope, {
+  CanonicalSurfaceExperimentAssignmentV1? assignment,
+}) {
   return _delivery.client((request) async {
-    return http.Response(_body(envelope), 200);
+    return http.Response(_body(envelope, assignment: assignment), 200);
   });
 }
 
@@ -202,8 +219,25 @@ MockClient _sequenceServer(
   });
 }
 
-String _body(Uint8List envelope) =>
-    jsonEncode(_delivery.describeEnvelope(envelope));
+String _body(
+  Uint8List envelope, {
+  CanonicalSurfaceExperimentAssignmentV1? assignment,
+}) =>
+    jsonEncode({
+      ..._delivery.describeEnvelope(envelope),
+      if (assignment != null) 'assignment': assignment.toJson(),
+    });
+
+CanonicalSurfaceExperimentAssignmentV1 _servedAssignment() =>
+    CanonicalSurfaceExperimentAssignmentV1(
+      experimentId: ExperimentPublicIdV1('experiment.first-run'),
+      experimentRevisionId:
+          ExperimentPublicRevisionIdV1('revision.first-run.1'),
+      experimentEpochId: ExperimentPublicEpochIdV1('epoch.first-run.1'),
+      armId: ExperimentPublicArmIdV1('arm.treatment'),
+      outcomeLinkCarrier:
+          base64UrlEncode(utf8.encode('outcome.first-run')).replaceAll('=', ''),
+    );
 
 final class _TestBundle extends CachingAssetBundle {
   _TestBundle(this._assets);

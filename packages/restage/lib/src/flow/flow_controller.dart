@@ -420,6 +420,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       RootAnalyticsArtifactRegistry.recordRootArtifact(
         owner: this,
         version: resolved.document.version,
+        assignment: resolved.assignment,
         contentHash: FlowContentHash.compute(
           FlowDocumentCodec.encodeCanonicalJson(resolved.document),
         ).value,

@@ -13,6 +13,7 @@ final class FlowUnavailable extends RestageEvent {
     required this.reason,
     required this.message,
     super.firedAt,
+    super.attribution,
   });
 
   @override
@@ -55,6 +56,7 @@ final class FlowCustomEvent extends RestageEvent {
     required this.fields,
     this.resolvedVersion,
     super.firedAt,
+    super.attribution,
   });
 
   @override
@@ -111,6 +113,7 @@ final class FlowStarted extends RestageEvent {
     this.flowSessionId,
     this.parentFlowSessionId,
     super.firedAt,
+    super.attribution,
   });
 
   @override
@@ -165,6 +168,7 @@ final class FlowCompleted extends RestageEvent {
     this.flowSessionId,
     this.parentFlowSessionId,
     super.firedAt,
+    super.attribution,
   });
 
   @override
@@ -205,6 +209,48 @@ final class FlowCompleted extends RestageEvent {
       };
 }
 
+/// Fired when a rendered, nonterminal flow is removed from its host.
+///
+/// This reports the SDK-observed removal boundary. It does not infer why the
+/// host removed the flow or classify the removal as user intent.
+@immutable
+final class FlowDismissed extends RestageEvent {
+  /// Creates a flow-dismissed lifecycle event.
+  const FlowDismissed({
+    required this.flowId,
+    required this.flowVersion,
+    this.resolvedVersion,
+    this.flowSessionId,
+    super.firedAt,
+    super.attribution,
+  });
+
+  @override
+  String get name => 'flow_dismissed';
+
+  /// Stable flow identifier.
+  final String flowId;
+
+  /// Flow descriptor version — the stable client-contract version.
+  final int flowVersion;
+
+  /// The active server-resolved version at the observed removal boundary.
+  final int? resolvedVersion;
+
+  /// SDK-minted identifier for the removed root flow runtime.
+  final String? flowSessionId;
+
+  @override
+  Map<String, Object?> toMap() => <String, Object?>{
+        'name': name,
+        'flowId': flowId,
+        'flowVersion': flowVersion,
+        if (resolvedVersion != null) 'resolvedVersion': resolvedVersion,
+        if (flowSessionId != null) 'flowSessionId': flowSessionId,
+        if (firedAt != null) 'firedAt': firedAt!.toIso8601String(),
+      };
+}
+
 /// Fired each time an onboarding screen becomes the active screen — a per-screen
 /// funnel impression.
 ///
@@ -224,6 +270,7 @@ final class OnboardingStepViewed extends RestageEvent {
     this.flowSessionId,
     this.stepCount,
     super.firedAt,
+    super.attribution,
   });
 
   @override
@@ -292,6 +339,7 @@ final class OnboardingSkipped extends RestageEvent {
     this.resolvedVersion,
     this.flowSessionId,
     super.firedAt,
+    super.attribution,
   });
 
   @override
@@ -349,6 +397,7 @@ final class OnboardingPermissionResponse extends RestageEvent {
     this.resolvedVersion,
     this.flowSessionId,
     super.firedAt,
+    super.attribution,
   });
 
   @override

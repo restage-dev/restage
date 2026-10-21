@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/flow/flow_resolver.dart' show ActiveArmFlowResolver;
 
 import 'flow_test_support.dart';
 
@@ -48,6 +49,41 @@ final class _RecordingResolver implements FlowResolver {
   Future<ResolvedFlow> resolve<R>(SurfaceFlowRef<R> flow) async {
     requested.add(flow);
     return resolved;
+  }
+}
+
+final class _SequenceResolver implements FlowResolver {
+  _SequenceResolver(this.resolved);
+
+  final List<ResolvedFlow> resolved;
+  var _index = 0;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(SurfaceFlowRef<R> flow) async =>
+      resolved[_index++];
+}
+
+final class _ActiveRootWithChildResolver
+    implements FlowResolver, ActiveArmFlowResolver {
+  const _ActiveRootWithChildResolver({
+    required this.root,
+    required this.child,
+  });
+
+  final ResolvedFlow root;
+  final ResolvedFlow child;
+
+  @override
+  bool get activeArmEnabled => true;
+
+  @override
+  Future<ResolvedFlow> resolveActiveRoot<R>(SurfaceFlowRef<R> flow) async =>
+      root;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(SurfaceFlowRef<R> flow) async {
+    if (flow.id == 'child_flow') return child;
+    throw StateError('Unexpected exact flow resolve for ${flow.id}.');
   }
 }
 
@@ -472,6 +508,260 @@ void main() {
     channel.watches.last.emit();
     await tester.pumpAndSettle();
     expect(resolver.requested, [_messageFlowRef, _messageFlowRef]);
+  });
+
+  testWidgets(
+      'successful live flow refresh atomically replaces the served assignment',
+      (tester) async {
+    const firstAssignment = SurfaceAssignment(
+      experimentId: 'experiment.first-run',
+      experimentRevisionId: 'revision.first-run.1',
+      experimentEpochId: 'epoch.first-run.1',
+      variantId: 'arm.control',
+    );
+    const secondAssignment = SurfaceAssignment(
+      experimentId: 'experiment.first-run',
+      experimentRevisionId: 'revision.first-run.1',
+      experimentEpochId: 'epoch.first-run.1',
+      variantId: 'arm.treatment',
+    );
+    ResolvedFlow assigned(String text, SurfaceAssignment assignment) {
+      final base = resolvedFlow(welcomeText: text);
+      return ResolvedFlow(
+        document: base.document,
+        screenBlobs: base.screenBlobs,
+        cacheHit: false,
+        assignment: assignment,
+      );
+    }
+
+    final channel = _ControlledChannel();
+    addTearDown(channel.completeCancellations);
+    final resolver = _SequenceResolver(<ResolvedFlow>[
+      assigned('Control', firstAssignment),
+      assigned('Treatment', secondAssignment),
+    ]);
+    final events = <RestageEvent>[];
+    final subscription = Restage.events.listen(events.add);
+    addTearDown(subscription.cancel);
+    Restage.configure(
+      apiKey: 'rs_pk_flow_assignment_refresh',
+      updateChannel: channel,
+    );
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: RestageFlowGraph<FirstRunResult>(
+          flow: _messageFlowRef,
+          resolver: resolver,
+          liveRefresh: const {SurfaceRefreshTrigger.updateChannel},
+          unavailable: const FlowUnavailablePolicy.hide(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      Restage.assignmentFor('first_run', surfaceType: Surface.message),
+      firstAssignment,
+    );
+
+    channel.watches.single.emit();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Treatment'), findsOneWidget);
+    expect(
+      Restage.assignmentFor('first_run', surfaceType: Surface.message),
+      secondAssignment,
+    );
+    expect(events.whereType<FlowDismissed>(), isEmpty);
+  });
+
+  testWidgets(
+      'rendered nonterminal flow emits one assignment-owned dismissal on removal',
+      (tester) async {
+    const assignment = SurfaceAssignment(
+      experimentId: 'experiment.first-run',
+      experimentRevisionId: 'revision.first-run.1',
+      experimentEpochId: 'epoch.first-run.1',
+      variantId: 'arm.treatment',
+    );
+    final base = resolvedFlow();
+    final resolver = _RecordingResolver(
+      ResolvedFlow(
+        document: base.document,
+        screenBlobs: base.screenBlobs,
+        cacheHit: false,
+        assignment: assignment,
+      ),
+    );
+    Restage.configure(
+      apiKey: 'rs_pk_flow_dismissed',
+      baseUrl: 'https://surfaces.example.com',
+    );
+    final events = <RestageEvent>[];
+    final subscription = Restage.events.listen(events.add);
+    addTearDown(subscription.cancel);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: RestageFlowGraph<FirstRunResult>(
+          flow: _messageFlowRef,
+          resolver: resolver,
+          unavailable: const FlowUnavailablePolicy.hide(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final started = events.whereType<FlowStarted>().single;
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+
+    final dismissed = events.whereType<FlowDismissed>().single;
+    expect(dismissed.flowId, _messageFlowRef.id);
+    expect(dismissed.flowVersion, _messageFlowRef.version);
+    expect(dismissed.flowSessionId, started.flowSessionId);
+    expect(dismissed.surfaceId, _messageFlowRef.id);
+    expect(dismissed.surfaceType, Surface.message);
+    expect(dismissed.assignment, assignment);
+    await tester.pump();
+    expect(events.whereType<FlowDismissed>(), hasLength(1));
+  });
+
+  testWidgets(
+      'active root dismissal keeps root version assignment and session while child is current',
+      (tester) async {
+    const assignment = SurfaceAssignment(
+      experimentId: 'experiment.first-run',
+      experimentRevisionId: 'revision.first-run.1',
+      experimentEpochId: 'epoch.first-run.1',
+      variantId: 'arm.treatment',
+    );
+    final child = childScreenFlow();
+    final root = initialSubFlowRoot(child: child);
+    final resolver = _ActiveRootWithChildResolver(
+      root: ResolvedFlow(
+        document: root.document.copyWith(version: 9),
+        screenBlobs: root.screenBlobs,
+        assignment: assignment,
+        cacheHit: false,
+      ),
+      child: child,
+    );
+    Restage.configure(
+      apiKey: 'rs_pk_active_root_flow_dismissed',
+      baseUrl: 'https://surfaces.example.com',
+    );
+    final events = <RestageEvent>[];
+    final subscription = Restage.events.listen(events.add);
+    addTearDown(subscription.cancel);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: RestageFlowGraph<FirstRunResult>(
+          flow: _messageFlowRef,
+          resolver: resolver,
+          unavailable: const FlowUnavailablePolicy.hide(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Child'), findsOneWidget);
+    final started = events.whereType<FlowStarted>().singleWhere(
+          (event) => event.parentFlowSessionId == null,
+        );
+    expect(started.resolvedVersion, 9);
+    expect(started.flowSessionId, isNotNull);
+    expect(started.assignment, assignment);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+
+    final dismissed = events.whereType<FlowDismissed>().single;
+    expect(dismissed.flowId, _messageFlowRef.id);
+    expect(dismissed.flowVersion, _messageFlowRef.version);
+    expect(dismissed.resolvedVersion, started.resolvedVersion);
+    expect(dismissed.flowSessionId, started.flowSessionId);
+    expect(dismissed.assignment, assignment);
+  });
+
+  testWidgets('identity-retired flow emits no stale dismissal on removal',
+      (tester) async {
+    const assignment = SurfaceAssignment(
+      experimentId: 'experiment.first-run',
+      experimentRevisionId: 'revision.first-run.1',
+      experimentEpochId: 'epoch.first-run.1',
+      variantId: 'arm.treatment',
+    );
+    final base = resolvedFlow();
+    final resolver = _RecordingResolver(
+      ResolvedFlow(
+        document: base.document,
+        screenBlobs: base.screenBlobs,
+        cacheHit: false,
+        assignment: assignment,
+      ),
+    );
+    Restage.configure(
+      apiKey: 'rs_pk_flow_dismissed_reset',
+      baseUrl: 'https://surfaces.example.com',
+    );
+    final events = <RestageEvent>[];
+    final subscription = Restage.events.listen(events.add);
+    addTearDown(subscription.cancel);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: RestageFlowGraph<FirstRunResult>(
+          flow: _messageFlowRef,
+          resolver: resolver,
+          unavailable: const FlowUnavailablePolicy.hide(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      Restage.assignmentFor(_messageFlowRef.id, surfaceType: Surface.message),
+      assignment,
+    );
+
+    Restage.reset();
+    expect(
+      Restage.assignmentFor(_messageFlowRef.id, surfaceType: Surface.message),
+      isNull,
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+
+    expect(events.whereType<FlowDismissed>(), isEmpty);
+  });
+
+  testWidgets('unpainted flow emits no dismissal when removed', (tester) async {
+    final resolver = ControlledFlowResolver();
+    final events = <RestageEvent>[];
+    final subscription = Restage.events.listen(events.add);
+    addTearDown(subscription.cancel);
+    Restage.configure(apiKey: 'rs_pk_flow_dismissed_unpainted');
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: RestageFlowGraph<FirstRunResult>(
+          flow: _messageFlowRef,
+          resolver: resolver,
+          unavailable: const FlowUnavailablePolicy.hide(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+    resolver.response.complete(resolvedFlow());
+    await tester.pump();
+
+    expect(events.whereType<FlowDismissed>(), isEmpty);
   });
 
   testWidgets('retained host replaces refresh when stampability changes',

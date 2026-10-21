@@ -224,6 +224,8 @@ final class DeterministicMeasurementDeliveryWorker
       _finalizedDiagnosticSessions = <String, _DeterministicDeliverySession>{};
   final registrations = <MeasurementWorkerSessionRegistration>[];
   final appendRecords = <MeasurementWorkerAppendRecord>[];
+  final StreamController<MeasurementWorkerAppendAcknowledgement>
+      _appendAcknowledgements = StreamController.broadcast(sync: true);
   final terminalDiagnostics = <MeasurementPresentationDiagnosticV1>[];
   final _registrationRefusals = StreamController<String>.broadcast(sync: true);
 
@@ -259,7 +261,36 @@ final class DeterministicMeasurementDeliveryWorker
 
   @override
   Stream<MeasurementWorkerAppendAcknowledgement> get appendAcknowledgements =>
-      const Stream<MeasurementWorkerAppendAcknowledgement>.empty();
+      _appendAcknowledgements.stream;
+
+  /// Active deterministic session ids for focused receipt-integrity tests.
+  Iterable<String> get activeSessionIds => _sessions.keys;
+
+  /// Registrations retained by the active deterministic worker sessions.
+  Iterable<MeasurementWorkerSessionRegistration> get activeRegistrations =>
+      _sessions.values.map((session) => session.registration);
+
+  /// Injects an acknowledgement below the production session-id/route fence.
+  void emitForgedAcknowledgement({
+    required String sessionId,
+    required int routeIndex,
+    MeasurementWorkerAppendAcknowledgementOutcome outcome =
+        MeasurementWorkerAppendAcknowledgementOutcome.recorded,
+    MeasurementWorkerAppendValue value =
+        MeasurementWorkerAppendValue.interaction,
+    bool emitsPresentationEvent = true,
+  }) {
+    _appendAcknowledgements.add(
+      MeasurementWorkerAppendAcknowledgement(
+        sessionId: sessionId,
+        outcome: outcome,
+        routeIndex: routeIndex,
+        value: value,
+        emitsPresentationEvent: emitsPresentationEvent,
+        workerOwnedByteCount: workerOwnedByteCount,
+      ),
+    );
+  }
 
   @override
   Stream<MeasurementWorkerOwnedDeliveryDebugEvent> get debugEvents =>
@@ -304,7 +335,7 @@ final class DeterministicMeasurementDeliveryWorker
         ),
       );
     }
-    final state = _DeterministicDeliverySession(this, registration.sessionId);
+    final state = _DeterministicDeliverySession(this, registration);
     _sessions[registration.sessionId] = state;
     lastSession = state;
     return Future<MeasurementWorkerOwnedDeliveryOpenSessionResult>.value(
@@ -352,7 +383,26 @@ final class DeterministicMeasurementDeliveryWorker
     if (!_available || !session._active) {
       return MeasurementWorkerAppendOutcome.unavailable;
     }
+    if (record.routeIndex < 0 ||
+        record.routeIndex >= session.registration.routes.length) {
+      return MeasurementWorkerAppendOutcome.invalid;
+    }
     appendRecords.add(record);
+    final wasPresented = session.presentedRoutes.contains(record.routeIndex);
+    session.presentedRoutes.add(record.routeIndex);
+    scheduleMicrotask(() {
+      if (!_available) return;
+      _appendAcknowledgements.add(
+        MeasurementWorkerAppendAcknowledgement(
+          sessionId: session.sessionId,
+          outcome: MeasurementWorkerAppendAcknowledgementOutcome.recorded,
+          routeIndex: record.routeIndex,
+          value: record.value,
+          emitsPresentationEvent: !wasPresented,
+          workerOwnedByteCount: workerOwnedByteCount,
+        ),
+      );
+    });
     return MeasurementWorkerAppendOutcome.accepted;
   }
 
@@ -442,10 +492,12 @@ enum MeasurementWorkerDeliveryKind { frame, diagnostic }
 
 final class _DeterministicDeliverySession
     implements MeasurementWorkerOwnedDeliverySessionState {
-  _DeterministicDeliverySession(this._worker, this.sessionId);
+  _DeterministicDeliverySession(this._worker, this.registration);
 
   final DeterministicMeasurementDeliveryWorker _worker;
-  final String sessionId;
+  final MeasurementWorkerSessionRegistration registration;
+  String get sessionId => registration.sessionId;
+  final Set<int> presentedRoutes = <int>{};
   var _active = true;
   var _finalizedDiagnosticRetained = false;
   var _postFinalizeDiagnosticReported = false;

@@ -4,7 +4,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 /// Version of the closed primitive/typed-data worker protocol.
-const int kMeasurementWorkerProtocolVersion = 1;
+const int kMeasurementWorkerProtocolVersion = 2;
 
 /// Largest number of sessions one configured worker may own.
 const int kMeasurementWorkerMaximumSessionCount = 64;
@@ -594,6 +594,9 @@ final class MeasurementWorkerAppendAcknowledgement {
   const MeasurementWorkerAppendAcknowledgement({
     required this.sessionId,
     required this.outcome,
+    required this.routeIndex,
+    required this.value,
+    required this.emitsPresentationEvent,
     required this.workerOwnedByteCount,
   });
 
@@ -602,6 +605,15 @@ final class MeasurementWorkerAppendAcknowledgement {
 
   /// Worker-side aggregation result.
   final MeasurementWorkerAppendAcknowledgementOutcome outcome;
+
+  /// Prebound route consumed by the worker.
+  final int routeIndex;
+
+  /// Closed fact kind consumed by the worker.
+  final MeasurementWorkerAppendValue value;
+
+  /// Whether this append established the point's first presented membership.
+  final bool emitsPresentationEvent;
 
   /// Structural worker-owned bytes after this acknowledgement.
   final int workerOwnedByteCount;
@@ -1092,6 +1104,9 @@ abstract final class MeasurementWorkerProtocol {
   static List<Object?> appendAcknowledged({
     required String sessionId,
     required MeasurementWorkerAppendAcknowledgementOutcome outcome,
+    required int routeIndex,
+    required MeasurementWorkerAppendValue value,
+    required bool emitsPresentationEvent,
     required int workerOwnedByteCount,
   }) =>
       [
@@ -1099,6 +1114,9 @@ abstract final class MeasurementWorkerProtocol {
         kMeasurementWorkerProtocolVersion,
         sessionId,
         outcome.wireCode,
+        routeIndex,
+        value.wireCode,
+        emitsPresentationEvent,
         workerOwnedByteCount,
       ];
 
@@ -1209,9 +1227,12 @@ abstract final class MeasurementWorkerProtocol {
           workerOwnedByteCount: _requireNonNegativeInt(values[4]),
         ),
       _appendAcknowledged => MeasurementWorkerAppendAcknowledgedMessage(
-          sessionId: _requireStringAt(values, 2, expectedLength: 5),
+          sessionId: _requireStringAt(values, 2, expectedLength: 8),
           outcome: _requireAppendAcknowledgementOutcome(values[3]),
-          workerOwnedByteCount: _requireNonNegativeInt(values[4]),
+          routeIndex: _requireNonNegativeInt(values[4]),
+          value: _requireAppendValue(values[5]),
+          emitsPresentationEvent: _requireBool(values[6]),
+          workerOwnedByteCount: _requireNonNegativeInt(values[7]),
         ),
       _batchResult => MeasurementWorkerBatchResultMessage(
           requestId: _requirePositiveRequestId(values, expectedLength: 6),
@@ -1432,11 +1453,17 @@ final class MeasurementWorkerAppendAcknowledgedMessage
   const MeasurementWorkerAppendAcknowledgedMessage({
     required this.sessionId,
     required this.outcome,
+    required this.routeIndex,
+    required this.value,
+    required this.emitsPresentationEvent,
     required this.workerOwnedByteCount,
   });
 
   final String sessionId;
   final MeasurementWorkerAppendAcknowledgementOutcome outcome;
+  final int routeIndex;
+  final MeasurementWorkerAppendValue value;
+  final bool emitsPresentationEvent;
   final int workerOwnedByteCount;
 }
 
@@ -1612,6 +1639,14 @@ bool _requireBool(Object? value) {
     throw const MeasurementWorkerProtocolException('expected_bool');
   }
   return value;
+}
+
+MeasurementWorkerAppendValue _requireAppendValue(Object? value) {
+  final result = MeasurementWorkerAppendValue.fromWireCode(_requireInt(value));
+  if (result == null) {
+    throw const MeasurementWorkerProtocolException('invalid_append_value');
+  }
+  return result;
 }
 
 Uint8List _requireBytes(Object? value) {

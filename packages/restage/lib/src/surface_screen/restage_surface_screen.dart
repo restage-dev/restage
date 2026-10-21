@@ -26,6 +26,7 @@ import '../flow/flow_descriptors.dart';
 import '../flow/flow_runtime_support.dart';
 import '../measurement/measurement_event_sanitizer.dart';
 import '../measurement/measurement_host_session.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../measurement/placement_mount_attribution.dart';
 import '../delivery/surface_delivery_receipt_batch.dart';
 import '../resolver/placement_mount_resolver.dart';
@@ -150,6 +151,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   bool _showDeadlineFallback = false;
   var _resolutionEpoch = 0;
   int _fallbackAttributionEpoch = -1;
+  RootAnalyticsPresentation? _fallbackReadOwner;
   MountAttributionSnapshotV1? _fallbackMountAttribution;
   var _dependenciesReady = false;
   ContextSnapshot? _context;
@@ -193,6 +195,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   @override
   void dispose() {
+    _fallbackReadOwner?.dispose();
     _placementDiscovery.dispose();
     _renderDeadline?.cancel();
     _resolutionEpoch += 1;
@@ -210,6 +213,8 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       );
 
   void _restart() {
+    _fallbackReadOwner?.dispose();
+    _fallbackReadOwner = null;
     // Installing here is what makes a screen swapped into this position
     // render with its own vocabulary.
     widget.screen.provenance.vocabulary.addToInstalled();
@@ -318,8 +323,10 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
                 (identical(stage.previousStage, _acceptedStage) &&
                     _canRefreshPlacement())) &&
             (surfaceAssignmentLeaseFor(resolved)?.isCurrent ?? true) &&
-            (placementAdmissionFor(resolved)?.isCurrent ?? true),
+            (placementAdmissionFor(resolved)?.isCurrent ?? true) &&
+            !stage.presentation.isInvalidatedByIdentityReset,
         isInvalidatedByIdentityReset: () =>
+            stage.presentation.isInvalidatedByIdentityReset ||
             !((surfaceAssignmentLeaseFor(resolved)?.isCurrent ?? true) &&
                 (placementAdmissionFor(resolved)?.isCurrent ?? true)),
         commit: () {},
@@ -357,6 +364,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         return;
       }
       if (!_isCurrent(epoch) ||
+          !stage.transaction.isPending ||
           !((surfaceAssignmentLeaseFor(resolved)?.isCurrent ?? true) &&
               (placementAdmissionFor(resolved)?.isCurrent ?? true))) {
         stage.dispose();
@@ -710,6 +718,9 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     );
     presentation.stage(
       surfaceVersion: content.version,
+      assignment: resolved is ResolvedSurfaceScreen
+          ? resolved.assignment
+          : projectResolvedSurfaceAssignment(resolved),
     );
     final data = DynamicContent();
     final sections = surfaceSectionsFor(resolved);
@@ -946,6 +957,12 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       if (widget.unavailable.hide) return const SizedBox.shrink();
       if (_fallbackAttributionEpoch != _resolutionEpoch) {
         _fallbackAttributionEpoch = _resolutionEpoch;
+        _fallbackReadOwner?.dispose();
+        _fallbackReadOwner = RootAnalyticsRuntime.createPresentation(
+          surface: widget.screen.surface.wireName,
+          surfaceId: widget.screen.slug,
+          owner: this,
+        )..markAssignmentUnknown();
         _fallbackMountAttribution =
             captureMountAttribution(_placementDiscovery.declaration?.mount);
       }
@@ -1041,6 +1058,8 @@ final class _ScreenStage {
       return;
     }
     _measurementSession = session;
+    presentation
+        .captureDeferredContextOnActivation(session.bindPointEventContext);
   }
 
   Object? sanitizeAndRecordEvent(Object? rawValue) {

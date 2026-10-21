@@ -17,6 +17,46 @@ final InstalledCapability _capability = _installed();
 final TargetCoordinate _target = _coordinate(1);
 
 void main() {
+  test('experiment steps retain only inert original selection identifiers', () {
+    final selection = PublicExperimentSelectionV1(
+      experimentId: ExperimentPublicIdV1('experiment.original'),
+      experimentRevisionId: ExperimentPublicRevisionIdV1('revision.original'),
+      experimentEpochId: ExperimentPublicEpochIdV1('epoch.original'),
+      armId: ExperimentPublicArmIdV1('arm.original'),
+    );
+    final step = PublicDeliveryDecisionStepV1(
+      scope: _watchSurfaceScope(_target, 'surface.welcome'),
+      source: PublicDeliverySelectionSourceV1.experiment,
+      experimentSelection: selection,
+    );
+    final decoded =
+        PublicDeliveryDecisionStepV1.fromCanonicalBytes(step.canonicalBytes);
+    expect(decoded.experimentSelection, selection);
+    expect(decoded.experimentSelection!.toJson().keys.toSet(), {
+      'experimentId',
+      'experimentRevisionId',
+      'experimentEpochId',
+      'armId',
+    });
+    expect(
+        () => PublicExperimentSelectionV1.fromJson({
+              ...selection.toJson(),
+              'outcomeLinkCarrier': 'private',
+            }),
+        throwsA(_refusal));
+    expect(
+        () => PublicDeliveryDecisionStepV1(
+              scope: step.scope,
+              source: PublicDeliverySelectionSourceV1.ownerDefault,
+              experimentSelection: selection,
+            ),
+        throwsA(_refusal));
+    final ordinary = PublicDeliveryDecisionStepV1(
+      scope: step.scope,
+      source: PublicDeliverySelectionSourceV1.ownerDefault,
+    );
+    expect(ordinary.toJson().containsKey('experimentSelection'), isFalse);
+  });
   _batchContractTests();
   group('mount locators and descriptors', () {
     test('strict round trips retain target-free locators and exact descriptors',

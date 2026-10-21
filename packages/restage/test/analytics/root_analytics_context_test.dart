@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
 import 'package:restage/src/analytics/root_analytics_context.dart';
+import 'package:restage/restage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -19,6 +20,111 @@ void main() {
     expect(
       () => presentation.stage(surfaceVersion: ''),
       throwsArgumentError,
+    );
+  });
+
+  test('assignment lookup commits at activation and retains after unmount', () {
+    const assignment = SurfaceAssignment(
+      experimentId: 'experiment.welcome',
+      experimentRevisionId: 'revision.welcome.1',
+      experimentEpochId: 'epoch.welcome.1',
+      variantId: 'arm.treatment',
+    );
+    final owner = Object();
+    final presentation = RootAnalyticsRuntime.createPresentation(
+      surface: 'onboarding',
+      surfaceId: 'welcome',
+      owner: owner,
+    )..stage(surfaceVersion: '8', assignment: assignment);
+
+    expect(
+      Restage.assignmentFor('welcome', surfaceType: Surface.onboarding),
+      isNull,
+    );
+    presentation.activate();
+    expect(
+      Restage.assignmentFor('welcome', surfaceType: Surface.onboarding),
+      assignment,
+    );
+    presentation.dispose();
+    expect(
+      Restage.assignmentFor('welcome', surfaceType: Surface.onboarding),
+      assignment,
+    );
+  });
+
+  test('overlapping host owners make synchronous lookup ambiguous', () {
+    const firstAssignment = SurfaceAssignment(
+      experimentId: 'experiment.welcome',
+      experimentRevisionId: 'revision.welcome.1',
+      experimentEpochId: 'epoch.welcome.1',
+      variantId: 'arm.first',
+    );
+    const secondAssignment = SurfaceAssignment(
+      experimentId: 'experiment.welcome',
+      experimentRevisionId: 'revision.welcome.1',
+      experimentEpochId: 'epoch.welcome.1',
+      variantId: 'arm.second',
+    );
+    final first = RootAnalyticsRuntime.createPresentation(
+      surface: 'onboarding',
+      surfaceId: 'welcome',
+      owner: Object(),
+    )..stage(surfaceVersion: '8', assignment: firstAssignment);
+    final second = RootAnalyticsRuntime.createPresentation(
+      surface: 'onboarding',
+      surfaceId: 'welcome',
+      owner: Object(),
+    )..stage(surfaceVersion: '9', assignment: secondAssignment);
+    first.activate();
+    second.activate();
+
+    expect(
+      Restage.assignmentFor('welcome', surfaceType: Surface.onboarding),
+      isNull,
+    );
+    second.dispose();
+    expect(
+      Restage.assignmentFor('welcome', surfaceType: Surface.onboarding),
+      firstAssignment,
+    );
+  });
+
+  test('one host owner replaces assignment atomically on refresh', () {
+    const firstAssignment = SurfaceAssignment(
+      experimentId: 'experiment.message',
+      experimentRevisionId: 'revision.message.1',
+      experimentEpochId: 'epoch.message.1',
+      variantId: 'arm.first',
+    );
+    const secondAssignment = SurfaceAssignment(
+      experimentId: 'experiment.message',
+      experimentRevisionId: 'revision.message.1',
+      experimentEpochId: 'epoch.message.1',
+      variantId: 'arm.second',
+    );
+    final owner = Object();
+    final first = RootAnalyticsRuntime.createPresentation(
+      surface: 'message',
+      surfaceId: 'offer',
+      owner: owner,
+    )..stage(surfaceVersion: '1', assignment: firstAssignment);
+    first.activate();
+    final second = RootAnalyticsRuntime.createPresentation(
+      surface: 'message',
+      surfaceId: 'offer',
+      owner: owner,
+    )..stage(surfaceVersion: '2', assignment: secondAssignment);
+    second.activate();
+
+    expect(
+      Restage.assignmentFor('offer', surfaceType: Surface.message),
+      secondAssignment,
+    );
+    first.dispose();
+    expect(
+      Restage.assignmentFor('offer', surfaceType: Surface.message),
+      secondAssignment,
     );
   });
 
@@ -136,7 +242,15 @@ void main() {
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: 'onboarding',
       surfaceId: 'first-run',
-    )..stage(surfaceVersion: '9');
+    )..stage(
+        surfaceVersion: '9',
+        assignment: const SurfaceAssignment(
+          experimentId: 'experiment.welcome',
+          experimentRevisionId: 'revision.welcome.1',
+          experimentEpochId: 'epoch.welcome.1',
+          variantId: 'arm.treatment',
+        ),
+      );
     presentation.activate();
 
     final reset = identity.reset();
@@ -147,6 +261,12 @@ void main() {
     expect(binding.surface, 'onboarding');
     expect(binding.surfaceId, 'first-run');
     expect(binding.context, isNull);
+    expect(binding.attribution.surfaceVersion, isNull);
+    expect(binding.attribution.assignment, isNull);
+    expect(
+      Restage.assignmentFor('first-run', surfaceType: Surface.onboarding),
+      isNull,
+    );
   });
 
   test(

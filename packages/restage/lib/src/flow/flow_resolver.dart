@@ -7,6 +7,7 @@ import '../delivery/raced_surface_resolver.dart';
 import '../resolver/placement_mount_resolver.dart' show copyPlacementAdmission;
 import '../resolver/surface_resolution_report.dart';
 import '../assets/bundled_asset_source.dart';
+import '../events/surface_assignment.dart';
 import '../measurement/bundled_measurement_publication_binding_read_port.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../measurement/placement_mount_attribution.dart';
@@ -60,9 +61,11 @@ final class ResolvedFlow {
     required FlowDocument document,
     required Map<String, Uint8List> screenBlobs,
     this.contentHash,
+    SurfaceAssignment? assignment,
     CompiledFlow? compiled,
     required this.cacheHit,
-  })  : compiled = compiled?.freeze(),
+  })  : _assignment = assignment,
+        compiled = compiled?.freeze(),
         document = _freezeDocument(document),
         screenBlobs = Map.unmodifiable({
           for (final entry in screenBlobs.entries)
@@ -73,9 +76,10 @@ final class ResolvedFlow {
     required this.document,
     required this.screenBlobs,
     required this.contentHash,
+    required SurfaceAssignment? assignment,
     required this.compiled,
     required this.cacheHit,
-  });
+  }) : _assignment = assignment;
 
   /// Native original selected before starting; null for RFW delivery.
   final CompiledFlow? compiled;
@@ -89,6 +93,12 @@ final class ResolvedFlow {
   /// Hash of the exact encoded flow document artifact, when available.
   final FlowContentHash? contentHash;
 
+  /// Experiment assignment that selected this hosted root flow.
+  SurfaceAssignment? get assignment =>
+      _assignment ?? projectResolvedSurfaceAssignment(this);
+
+  final SurfaceAssignment? _assignment;
+
   /// Whether this result came from the in-memory identity cache.
   final bool cacheHit;
 
@@ -101,6 +111,7 @@ final class ResolvedFlow {
             screenBlobs: screenBlobs,
             contentHash: contentHash,
             compiled: compiled,
+            assignment: assignment,
             cacheHit: true,
           )),
       measurementPublicationBindingReferenceFor(this),
