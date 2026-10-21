@@ -915,7 +915,106 @@ void main() {
       expect(issues.single.location, 'lib/recipe_conditional.dart:2:3');
     });
 
-    test('numeric recipe lists refuse wrapped collection elements', () async {
+    for (final source in [
+      '[0, if (enabled) 1]',
+      '[0, for (final value in values) value]',
+      '[0, ...values]',
+      '[0, ...?const [1]]',
+      '[0, for (var value = 0; value < 2; value++) value]',
+      '[0, ...[for (final value in values) value]]',
+    ]) {
+      test('numeric collection refusal suppresses complete owners: $source',
+          () async {
+        final result = await emitDoubleListFixture(
+          source,
+          translate: fakeTranslate,
+          translateDouble: fakeTranslateDouble,
+        );
+
+        expect(result.refused, isTrue);
+        expect(result.value, isEmpty);
+        expect(result.list, isEmpty);
+        expect(result.map, isEmpty);
+        expect(result.directIssueCount, 1);
+        expect(result.listIssueCount, 1);
+        expect(result.mapIssueCount, 1);
+      });
+    }
+
+    for (final count in [1000, 1001]) {
+      test('numeric collection expansion enforces the element ceiling: $count',
+          () async {
+        final values = List.generate(count, (index) => '$index').join(', ');
+        final result = await emitDoubleListFixture(
+          '[...const [$values]]',
+          translate: fakeTranslate,
+          translateDouble: fakeTranslateDouble,
+        );
+
+        if (count == 1000) {
+          expect(result.directIssueCount, 0);
+          expect(result.listIssueCount, 0);
+          expect(result.mapIssueCount, 0);
+          final expected =
+              '[${List.generate(count, (index) => '$index.0').join(', ')}]';
+          expect(result.value, expected);
+          expect(result.list, '["prefix", $expected]');
+          expect(result.map, '{stops: $expected}');
+        } else {
+          expect(result.directIssueCode, IssueCode.unsupportedCollectionFlow);
+          expect(result.listIssueCode, IssueCode.unsupportedCollectionFlow);
+          expect(result.mapIssueCode, IssueCode.unsupportedCollectionFlow);
+          expect(result.value, isEmpty);
+          expect(result.list, isEmpty);
+          expect(result.map, isEmpty);
+        }
+      });
+    }
+
+    test('numeric collections share their element ceiling with plain siblings',
+        () async {
+      final values = List.generate(1000, (index) => '$index').join(', ');
+      final result = await emitDoubleListFixture(
+        '[...const [$values], 1]',
+        translate: fakeTranslate,
+        translateDouble: fakeTranslateDouble,
+      );
+
+      expect(result.directIssueCode, IssueCode.unsupportedCollectionFlow);
+      expect(result.value, isEmpty);
+      expect(result.list, isEmpty);
+      expect(result.map, isEmpty);
+    });
+
+    test('numeric collection expansion preserves the static work limit',
+        () async {
+      final values = List.generate(100, (index) => '$index').join(', ');
+      final expression = await parseExpressionFromSourceForTest(
+        'Object x() => [for (final outer in const [$values]) '
+        'for (final inner in const [$values]) if (false) 0];',
+      );
+      final issues = <Issue>[];
+      final out = emitDoubleList(
+        expression,
+        fakeTranslate,
+        fakeTranslateDouble,
+        (source) => DoubleListSourceResolution(
+          source: source,
+          disposition: DoubleListSourceDisposition.collectionFlow,
+        ),
+        issues,
+        'source.dart:1',
+        locationOf: (node) => node.toSource(),
+      );
+
+      expect(out, isEmpty);
+      expect(issues, hasLength(1));
+      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(issues.single.message, contains('8000 static expansion steps'));
+      expect(issues.single.location, isNot('source.dart:1'));
+    });
+
+    test('numeric recipe lists expand wrapped collection elements', () async {
       final d = dispatcherWith([
         const TranslatorRecipe(
           typeName: 'Grad',
@@ -930,20 +1029,14 @@ void main() {
       final out = d.tryTranslate(
         '#Grad',
         await argsOf(
-          'Grad(stops: ([for (final stop in const [0, 1]) stop]))',
+          'Grad(stops: ([if (true) 0, ...const [1]]))',
         ),
         issues,
         'lib/recipe_numeric.dart:5:3',
       );
 
-      expect(out, isEmpty);
-      expect(issues, hasLength(1));
-      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
-      expect(
-        issues.single.message,
-        'Collection elements in a numeric list are unsupported; '
-        'write the values out.',
-      );
+      expect(out, '[0.0, 1.0]');
+      expect(issues, isEmpty);
     });
 
     test('typed-list inspection follows an injected binding alias', () async {

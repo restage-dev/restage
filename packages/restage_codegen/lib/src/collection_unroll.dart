@@ -178,7 +178,13 @@ final class CollectionSemanticProbe {
           }
           return CollectionTypedListElement(
             element,
-            reachedThroughTransparentEdge: !identical(resolved, expression),
+            resolution: !walk.cycleDetected && walk.terminals.length == 1
+                ? CollectionExpressionResolution(
+                    expression: resolved,
+                    bindings: terminal.bindings,
+                    sourceProvenance: terminal.sourceProvenance,
+                  )
+                : null,
           );
         }
       }
@@ -469,14 +475,14 @@ final class CollectionTypedListElement extends CollectionTypedListProbeResult {
   /// Creates a result for a genuine collection element.
   const CollectionTypedListElement(
     this.offending, {
-    required this.reachedThroughTransparentEdge,
+    this.resolution,
   });
 
-  /// The collection element that cannot enter the typed sink.
+  /// The first collection element found at the typed-list boundary.
   final AstNode offending;
 
-  /// Whether inspection crossed a transparent semantic edge first.
-  final bool reachedThroughTransparentEdge;
+  /// The unique terminal list and its bindings, when resolution is unambiguous.
+  final CollectionExpressionResolution? resolution;
 }
 
 /// A static terminal or cycle that generic translation must classify.

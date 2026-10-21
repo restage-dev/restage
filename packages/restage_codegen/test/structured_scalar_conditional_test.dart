@@ -123,6 +123,28 @@ void main() {
   });
 
   group('the recipe dispatcher coerces conditional scalars', () {
+    for (final gradient in [
+      'LinearGradient',
+      'RadialGradient',
+      'SweepGradient',
+    ]) {
+      test('$gradient coerces conditional elements under loop bindings',
+          () async {
+        final r = await emit(
+          '$gradient(colors: [Color(0xFF000000), Color(0xFFFFFFFF)], '
+          'stops: [for (final stop in const [0, 1]) annual ? stop : 2])',
+        );
+        expect(r.clean, isTrue);
+        expect(
+          r.dsl,
+          contains(
+            'stops: [switch state.annual { true: 0.0, false: 2.0 }, '
+            'switch state.annual { true: 1.0, false: 2.0 }]',
+          ),
+        );
+      });
+    }
+
     test('gradient stops list — a bare-int conditional element', () async {
       final r = await emit(
         'LinearGradient(colors: [Color(0xFF000000), Color(0xFFFFFFFF)], '
