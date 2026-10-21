@@ -976,9 +976,8 @@ void main() {
           return json({
             'experiments': [
               {
-                'ownerAuthorityKind': 'experimentDesign',
-                'ownerAuthorityId': 'x1',
-                'ownerRevisionId': 'xr1',
+                'experimentId': 'x1',
+                'experimentLabel': 'Spring offer',
                 'lifecycle': 'concluded',
               },
             ],
@@ -1014,7 +1013,7 @@ void main() {
 
       expect(code, 0);
       expect(captured!['audienceRevisionId'], 'aud-rev-1');
-      expect(out.toString(), contains('experiment\texperimentDesign'));
+      expect(out.toString(), contains('experiment\tSpring offer\tx1'));
       expect(out.toString(), contains('concluded'));
       expect(out.toString(), contains('routing\tonboarding welcome'));
       expect(out.toString(), contains('r1,r2'));

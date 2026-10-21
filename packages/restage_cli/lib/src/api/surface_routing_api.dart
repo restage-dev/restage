@@ -5,6 +5,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/byte_data_wire.dart';
 import 'package:restage_cli/src/api/delivery_management_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/surface_reach.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 /// Largest retained policy or review the routing client accepts from the wire.
@@ -221,44 +222,39 @@ class RoutingAudienceConsumer {
   };
 }
 
-/// An experiment that references an audience.
+/// An experiment whose authoring names an audience.
 @experimental
 @immutable
 class RoutingExperimentConsumer {
   /// Construct an experiment consumer.
   const RoutingExperimentConsumer({
-    required this.ownerAuthorityKind,
-    required this.ownerAuthorityId,
-    required this.ownerRevisionId,
+    required this.experimentId,
+    required this.experimentLabel,
     required this.lifecycle,
   });
 
-  /// Kind of the referencing authority.
-  final String ownerAuthorityKind;
+  /// The experiment's identity.
+  final String experimentId;
 
-  /// Identity of the referencing authority.
-  final String ownerAuthorityId;
+  /// The experiment's name, when it has one.
+  final String? experimentLabel;
 
-  /// Exact revision of the referencing authority.
-  final String ownerRevisionId;
-
-  /// Whether the reference is current usage. Null for an unknown wire value.
+  /// Whether the experiment is using the audience now. Null for an unknown
+  /// wire value.
   final RoutingConsumerLifecycle? lifecycle;
 
   /// Decode one wire object.
   factory RoutingExperimentConsumer.fromJson(Map<String, dynamic> json) =>
       RoutingExperimentConsumer(
-        ownerAuthorityKind: json['ownerAuthorityKind']! as String,
-        ownerAuthorityId: json['ownerAuthorityId']! as String,
-        ownerRevisionId: json['ownerRevisionId']! as String,
+        experimentId: json['experimentId']! as String,
+        experimentLabel: json['experimentLabel'] as String?,
         lifecycle: RoutingConsumerLifecycle.fromWireName(json['lifecycle']),
       );
 
   /// Encode for `--json` output.
   Map<String, dynamic> toJson() => {
-    'ownerAuthorityKind': ownerAuthorityKind,
-    'ownerAuthorityId': ownerAuthorityId,
-    'ownerRevisionId': ownerRevisionId,
+    'experimentId': experimentId,
+    'experimentLabel': experimentLabel,
     'lifecycle': lifecycle?.name,
   };
 }
@@ -1119,6 +1115,33 @@ class SurfaceRoutingApi {
         maximumBytes: measurementDeliveryDiagnosticsMaximumCanonicalBytes,
         malformed: (detail) =>
             FormatException('The delivery diagnostics response $detail.'),
+      ),
+    );
+  }
+
+  /// Reads how far one surface's live version reached devices on one target.
+  Future<SurfaceReach> readSurfaceReach({
+    required String projectSlug,
+    required String appSlug,
+    required String surfaceType,
+    required String surfaceSlug,
+    required int environmentId,
+    int? organizationId,
+  }) async {
+    final raw = await _call('readSurfaceReach', <String, dynamic>{
+      'projectSlug': projectSlug,
+      'appSlug': appSlug,
+      'surfaceType': surfaceType,
+      'surfaceSlug': surfaceSlug,
+      'environmentId': environmentId,
+      'organizationId': organizationId,
+    });
+    return SurfaceReach.fromBytes(
+      decodeByteDataWire(
+        raw,
+        maximumBytes: surfaceReachMaximumBytes,
+        malformed: (detail) =>
+            FormatException('The surface reach response $detail.'),
       ),
     );
   }

@@ -599,8 +599,8 @@ class _AudienceUsageCommand extends _RoutingSubcommand {
       },
       [
         for (final consumer in experiments)
-          'experiment\t${consumer.ownerAuthorityKind}\t'
-              '${consumer.ownerAuthorityId}\t${consumer.ownerRevisionId}\t'
+          'experiment\t${consumer.experimentLabel ?? consumer.experimentId}\t'
+              '${consumer.experimentId}\t'
               '${consumer.lifecycle?.name ?? "unknown"}',
         for (final consumer in routing)
           'routing\t${consumer.surfaceType} ${consumer.surfaceSlug}\t'

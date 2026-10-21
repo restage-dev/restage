@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/byte_data_wire.dart';
 import 'package:restage_cli/src/commands/surface_status_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -66,7 +67,8 @@ void main() {
       () async {
         Map<String, dynamic>? body;
         final client = mockHttpClient((request) {
-          body = jsonDecode(request.body) as Map<String, dynamic>;
+          final decoded = jsonDecode(request.body) as Map<String, dynamic>;
+          if (decoded['method'] == 'surfaceStatus') body = decoded;
           return http.Response(
             jsonEncode({
               '__className__': 'SurfaceStatusView',
@@ -301,31 +303,36 @@ void main() {
           organization: 'restage',
         );
         Map<String, dynamic>? capturedStatusBody;
-        final client = scriptedHttpClient([
-          scopeTargetStep({
-            'environmentTargetId': 12,
-            'namedEnvironmentId': 22,
-            'environmentSlug': 'staging',
-            'runtimePlane': 'sandbox',
-          }, inspect: (body) => expect(body['method'], 'read')),
-          (req) {
-            capturedStatusBody = jsonDecode(req.body) as Map<String, dynamic>;
-            return http.Response(
-              jsonEncode({
-                '__className__': 'SurfaceStatusResult',
-                'surfaceType': 'paywall',
-                'surfaceSlug': 'pro',
-                'environmentSlug': 'staging',
-                'liveVersion': null,
-                'locked': false,
-                'deliveryShape': 'blob',
-                'draftOrigin': 'code',
-                'versions': <Map<String, dynamic>>[],
-              }),
-              200,
-            );
-          },
-        ], withDefaultTargetDiscovery: false);
+        final client = scriptedHttpClient(
+          [
+            scopeTargetStep({
+              'environmentTargetId': 12,
+              'namedEnvironmentId': 22,
+              'environmentSlug': 'staging',
+              'runtimePlane': 'sandbox',
+            }, inspect: (body) => expect(body['method'], 'read')),
+            (req) {
+              capturedStatusBody = jsonDecode(req.body) as Map<String, dynamic>;
+              return http.Response(
+                jsonEncode({
+                  '__className__': 'SurfaceStatusResult',
+                  'surfaceType': 'paywall',
+                  'surfaceSlug': 'pro',
+                  'environmentSlug': 'staging',
+                  'liveVersion': null,
+                  'locked': false,
+                  'deliveryShape': 'blob',
+                  'draftOrigin': 'code',
+                  'versions': <Map<String, dynamic>>[],
+                }),
+                200,
+              );
+            },
+            (req) => http.Response(jsonEncode(_reachWire()), 200),
+          ],
+          withDefaultTargetDiscovery: false,
+          withDefaultSurfaceReach: false,
+        );
 
         final out = StringBuffer();
         final runner = CommandRunner<int>('restage', '')
@@ -641,4 +648,133 @@ void main() {
       },
     );
   });
+
+  group('surface status reach', () {
+    http.Client client(List<String> methods) =>
+        mockHttpClient(withDefaultSurfaceReach: false, (request) {
+          final method =
+              (jsonDecode(request.body) as Map<String, dynamic>)['method']!
+                  as String;
+          methods.add(method);
+          if (method == 'readSurfaceReach') {
+            return http.Response(jsonEncode(_reachWire()), 200);
+          }
+          return http.Response(
+            jsonEncode({
+              '__className__': 'SurfaceStatusView',
+              'surfaceType': 'survey',
+              'surfaceSlug': 'nps',
+              'environmentSlug': 'production',
+              'liveVersion': 5,
+              'locked': false,
+              'deliveryShape': 'blob',
+              'draftOrigin': 'code',
+              'versions': <Object>[],
+            }),
+            200,
+          );
+        });
+
+    Future<(int, String)> run(
+      http.Client http,
+      List<String> args, {
+      Future<void> Function(Duration)? sleep,
+    }) async {
+      final out = StringBuffer();
+      final runner = CommandRunner<int>('restage', '')
+        ..addCommand(
+          SurfaceStatusCommand(
+            stdout: out,
+            stderr: StringBuffer(),
+            interactive: const NonInteractive(),
+            credentialStore: fakeStore,
+            httpClient: http,
+            sleep: sleep,
+          ),
+        );
+      final code = await runner.run([
+        'status',
+        'nps',
+        '--type',
+        'survey',
+        '-C',
+        tempDir.path,
+        '--project',
+        'p',
+        '--app',
+        'a',
+        '--env',
+        'production',
+        ...args,
+      ]);
+      return (code!, out.toString());
+    }
+
+    test('status states how far the live version reached devices', () async {
+      final methods = <String>[];
+      final (code, out) = await run(client(methods), const []);
+      expect(code, 0);
+      expect(methods.where((m) => m == 'readSurfaceReach'), hasLength(1));
+      expect(
+        out,
+        contains(
+          'reach: v5 reached 1,240 of 1,610 devices (77%) · 2 h after publish',
+        ),
+      );
+      expect(out, contains('  Views since publish: 81% v5'));
+      expect(out, contains("Can't render v5 · ios build 41 · 70 devices"));
+      expect(out, contains('Sent v4 by rule holiday · 120 devices'));
+      expect(
+        out,
+        contains('Not opened since v5 went live · on v4 · 180 devices'),
+      );
+      expect(out, contains('1 smaller group hidden for privacy'));
+    });
+
+    test('--watch reads again on its interval and stops at its span', () async {
+      final methods = <String>[];
+      final waits = <Duration>[];
+      final (code, _) = await run(client(methods), const [
+        '--watch',
+      ], sleep: (d) async => waits.add(d));
+      expect(code, 0);
+      expect(
+        methods.where((m) => m == 'readSurfaceReach'),
+        hasLength(surfaceReachWatchPolls),
+      );
+      expect(waits.toSet(), {surfaceReachWatchInterval});
+      expect(waits, hasLength(surfaceReachWatchPolls - 1));
+    });
+  });
+}
+
+String _reachWire() {
+  final asOf = DateTime.utc(2026, 10, 17, 12);
+  final reach = {
+    'asOfMicros': asOf.microsecondsSinceEpoch,
+    'disclosureFloor': 5,
+    'liveVersion': 5,
+    'liveSinceMicros': asOf
+        .subtract(const Duration(hours: 2))
+        .microsecondsSinceEpoch,
+    'devices': 1610,
+    'reached': 1240,
+    'stragglers': [
+      {
+        'reason': 'cantRender',
+        'version': 5,
+        'devices': 70,
+        'platform': 'ios',
+        'appBuild': 41,
+        'fallback': 'bundled',
+      },
+      {'reason': 'routed', 'version': 4, 'devices': 120, 'routeId': 'holiday'},
+      {'reason': 'notOpened', 'version': 4, 'devices': 180},
+    ],
+    'hiddenStragglerRows': 1,
+    'viewsSinceLive': 1610,
+    'liveViewsSinceLive': 1304,
+    'liveViewShareSinceLive': 8099,
+  };
+  return encodeByteDataWire(utf8.encode(jsonEncode(reach)));
 }

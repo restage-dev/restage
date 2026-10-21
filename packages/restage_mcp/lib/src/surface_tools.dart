@@ -113,7 +113,13 @@ final _surfaceStatusTool = Tool(
       'editedAfterCode, true when the draft was edited after publishing from '
       "code. Each flow version carries its delivery mode ('typed' or "
       "'general'); a general version's flow structure can be "
-      'recomposed over the air within the installed vocabulary.',
+      'recomposed over the air within the installed vocabulary. `reach` '
+      'states how far the live version reached devices: installs that '
+      'fetched the surface in the last 30 days, those holding the live '
+      'version, and the rest by reason (a build that cannot render it, a '
+      'rule sending another version, or not opened since it went live). A '
+      'count from one to four is null and reads "<5"; `headline` is the '
+      'line the CLI prints.',
   inputSchema: Schema.object(
     properties: surfaceTargetProperties(family: true, read: true),
     required: surfaceReadRequired,
@@ -406,7 +412,31 @@ Future<CallToolResult> _surfaceStatus(
     contractVersion: identity.contractVersion,
     sourceKind: identity.sourceKind,
   );
-  return jsonResult(status.toJson());
+  SurfaceReach? reach;
+  if (status.environmentTargetId case final environmentId?) {
+    try {
+      reach = await SurfaceRoutingApi(api).readSurfaceReach(
+        projectSlug: target.project,
+        appSlug: target.app,
+        surfaceType: identity.surface.wireName,
+        surfaceSlug: identity.slug,
+        environmentId: environmentId,
+        organizationId: target.organizationId,
+      );
+    } on RestageApiException {
+      reach = null;
+    } on FormatException {
+      reach = null;
+    }
+  }
+  return jsonResult(<String, Object?>{
+    ...status.toJson(),
+    if (reach != null)
+      'reach': <String, Object?>{
+        ...reach.toJson(),
+        'headline': surfaceReachHeadline(reach),
+      },
+  });
 });
 
 Future<CallToolResult> _surfaceHistory(
