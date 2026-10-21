@@ -6,7 +6,7 @@ const strideGoalsScreenRef = NeutralFlowScreenRef(
   id: 'stride_goals',
   artifactPath: 'stride_goals.rfw',
   version: 1,
-  minClient: 10,
+  minClient: 12,
 );
 
 @Deprecated('Use strideGoalsScreenRef')

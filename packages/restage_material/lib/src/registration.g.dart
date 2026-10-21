@@ -94,9 +94,12 @@ Widget buildAppBar(BuildContext context, DataSource source) {
     actions: source.isList(const <Object>['actions'])
         ? RestageDecoders.widgetList(source, const <Object>['actions'])
         : null,
+    automaticallyImplyActions:
+        source.v<bool>(const <Object>['automaticallyImplyActions']) ?? true,
+    flexibleSpace: source.optionalChild(const <Object>['flexibleSpace']),
     bottom: RestageDecoders.optionalPreferredSize(
         source.optionalChild(const <Object>['bottom']),
-        source.v<double>(const <Object>['bottomHeight'])),
+        RestageDecoders.number(source, const <Object>['bottomHeight'])),
     elevation: source.v<double>(const <Object>['elevation']),
     scrolledUnderElevation:
         source.v<double>(const <Object>['scrolledUnderElevation']),
@@ -109,18 +112,36 @@ Widget buildAppBar(BuildContext context, DataSource source) {
     foregroundColor:
         ArgumentDecoders.color(source, <Object>['foregroundColor']),
     primary: source.v<bool>(const <Object>['primary']) ?? true,
-    centerTitle: source.v<bool>(const <Object>['centerTitle']) ?? true,
+    centerTitle: source.v<bool>(const <Object>['centerTitle']),
+    excludeHeaderSemantics:
+        source.v<bool>(const <Object>['excludeHeaderSemantics']) ?? false,
     titleSpacing: source.v<double>(const <Object>['titleSpacing']),
+    toolbarOpacity: source.v<double>(const <Object>['toolbarOpacity']) ?? 1.0,
+    bottomOpacity: source.v<double>(const <Object>['bottomOpacity']) ?? 1.0,
     toolbarHeight:
         RestageDecoders.layoutFactor(source, <Object>['toolbarHeight']),
     leadingWidth:
         RestageDecoders.layoutFactor(source, <Object>['leadingWidth']),
     forceMaterialTransparency:
         source.v<bool>(const <Object>['forceMaterialTransparency']) ?? false,
+    useDefaultSemanticsOrder:
+        source.v<bool>(const <Object>['useDefaultSemanticsOrder']) ?? true,
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     actionsPadding:
         RestageDecoders.edgeInsets(source, <Object>['actionsPadding']),
+    animateColor: source.v<bool>(const <Object>['animateColor']) ?? false,
+    titleTextStyle:
+        RestageDecoders.textStyle(source, <Object>['titleTextStyle']),
+    toolbarTextStyle:
+        RestageDecoders.textStyle(source, <Object>['toolbarTextStyle']),
+    systemOverlayStyle: RestageDecoders.systemUiOverlayStyle(
+        source, <Object>['systemOverlayStyle']),
+    iconTheme: RestageDecoders.iconThemeData(source, <Object>['iconTheme']),
+    notificationPredicate: RestageDecoders.scrollNotificationPredicate(
+        source, const <Object>['notificationPredicate']),
+    actionsIconTheme:
+        RestageDecoders.iconThemeData(source, <Object>['actionsIconTheme']),
   );
 }
 
@@ -650,9 +671,13 @@ Widget buildOutlinedButtonIcon(BuildContext context, DataSource source) {
 /// Builds the catalog's `Scaffold` widget from [source].
 Widget buildScaffold(BuildContext context, DataSource source) {
   return Scaffold(
-    appBar: RestageDecoders.optionalPreferredSize(
+    appBar: RestageDecoders.appBarPreferredSize(
         source.optionalChild(const <Object>['appBar']),
-        source.v<double>(const <Object>['appBarHeight'])),
+        source.v<double>(const <Object>['appBarHeight']),
+        RestageDecoders.layoutFactor(
+            source, const <Object>['appBarToolbarHeight']),
+        RestageDecoders.appBarBottomHeight(
+            source, const <Object>['appBarBottomHeight'])),
     body: source.optionalChild(const <Object>['body']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),

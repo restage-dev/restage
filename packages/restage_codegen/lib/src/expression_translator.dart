@@ -60,9 +60,13 @@ import 'package:restage_shared/restage_shared.dart'
         kCapturedEventValueKey,
         kDeviceContractPathKinds,
         kDeviceContractPaths,
+        kIconThemeDataFallbackKey,
+        kIconThemeDataLerpKey,
         kMaxInlineSpanDepth,
+        kMaxStructuredCopyWithLayers,
         kReservedCommerceEventNames,
         kRestageFormattedTextProps,
+        kStructuredCopyWithKey,
         kSupportedCurveNames,
         kThemeContractPathKinds,
         kThemeContractPaths,
@@ -150,6 +154,9 @@ const String _kInputDecorationPrefixIconMatchTextDirection =
     'inputDecorationPrefixIconMatchTextDirection';
 const String _kInputBorderSynthetic = 'inputBorder';
 const String _kTextInputTypeSynthetic = 'textInputType';
+const String _kScrollNotificationDepthSynthetic = 'scrollNotificationDepth';
+const String _kScrollNotificationLibrary =
+    'package:flutter/src/widgets/scroll_notification.dart';
 
 /// The `synthetic` strategy of the codepoint property an icon slot carries.
 const String _kIconDataSynthetic = 'iconData';
@@ -1500,6 +1507,10 @@ final class ExpressionTranslator {
       );
     }
     if (expr is PropertyAccess) {
+      final frameworkConst = _frameworkConstValue(expr);
+      if (frameworkConst?.kind == FrameworkConstKind.systemUiOverlayStyle) {
+        return frameworkConst!.dsl;
+      }
       // Theme-as-data: a `Theme.of(<ident>).<x>(.<y>)` chain lowers to a
       // `data.theme.<x>.<y>` reference. Non-matching shapes deliberately
       // fall through to the const-fold + unrecognised-expression chain.
@@ -3528,6 +3539,19 @@ final class ExpressionTranslator {
     InstanceCreationExpression expr,
     List<Issue> issues,
   ) {
+    final constructor = expr.constructorName.element;
+    final styleClass = constructor?.enclosingElement;
+    if (isIconThemeDataClass(styleClass)) return _iconThemeData(expr, issues);
+    if (isSystemUiOverlayStyleClass(styleClass) && constructor?.name == 'new') {
+      return _tryValueOrRecipe(
+        styleClass!.name!,
+        null,
+        expr.argumentList.arguments,
+        issues,
+        _locationOf(expr),
+        fromConstructor: true,
+      )!;
+    }
     final typeName = expr.constructorName.type.name.lexeme;
     final constructorName = expr.constructorName.name?.name;
     // In analyzer 10+, `const SomeClass.namedFactory(...)` shifts the
@@ -4404,6 +4428,13 @@ final class ExpressionTranslator {
     final target = expr.target;
     final method = expr.methodName.name;
     final args = expr.argumentList.arguments;
+
+    if (isSystemUiOverlayStyleCopyWith(expr)) {
+      return _systemUiOverlayStyle(expr, issues);
+    }
+    if (isIconThemeDataCopyWith(expr) || isIconThemeDataLerp(expr)) {
+      return _iconThemeData(expr, issues);
+    }
 
     if (isUnsupportedCommerceHelperCall(expr)) {
       issues.add(unsupportedCommerceHelperIssue(expr, _locationOf(expr)));
@@ -6997,6 +7028,15 @@ final class ExpressionTranslator {
         emitted.add('${_rfwMapKey(name)}: $value');
         continue;
       }
+      if (entry.properties.any(
+        (p) =>
+            p.name == name && p.synthetic == _kScrollNotificationDepthSynthetic,
+      )) {
+        final depth = _scrollNotificationDepth(a.argumentExpression, issues);
+        if (depth == null) return '';
+        if (depth.isNotEmpty) emitted.add('${_rfwMapKey(name)}: $depth');
+        continue;
+      }
 
       // Structured-type decomposition. If this argument matches one of the
       // entry's native recipes, hoist mapped structured fields to flat
@@ -7210,6 +7250,109 @@ final class ExpressionTranslator {
     return emitted;
   }
 
+  /// The depth a `(n) => n.depth == <int>` scroll notification predicate
+  /// accepts, `''` for Flutter's default predicate, or `null` after a
+  /// diagnostic.
+  String? _scrollNotificationDepth(Expression source, List<Issue> issues) {
+    final expr = _resolveBoundIdentifier(source);
+    if (expr is Identifier) {
+      final element = expr.element;
+      if (element is TopLevelFunctionElement &&
+          element.name == 'defaultScrollNotificationPredicate' &&
+          element.library.identifier == _kScrollNotificationLibrary) {
+        return '';
+      }
+    }
+    final depth = _scrollDepthComparison(expr);
+    if (depth != null) {
+      final before = issues.length;
+      final value = _translateSlotValue(depth, PropertyType.integer, issues);
+      if (issues.length == before && value.isNotEmpty) return value;
+      return null;
+    }
+    issues.add(
+      Issue(
+        code: IssueCode.unknownProperty,
+        message: 'notificationPredicate supports '
+            '`(notification) => notification.depth == <int>` and '
+            "Flutter's defaultScrollNotificationPredicate.",
+        location: _locationOf(source),
+      ),
+    );
+    return null;
+  }
+
+  /// The non-null `int` compared with the notification's depth in a
+  /// synchronous one-parameter predicate, or `null` for any other shape.
+  Expression? _scrollDepthComparison(Expression expr) {
+    if (expr is! FunctionExpression) return null;
+    final parameters = expr.parameters?.parameters;
+    final body = expr.body;
+    if (parameters == null ||
+        parameters.length != 1 ||
+        !parameters.single.isRequiredPositional ||
+        body.isAsynchronous ||
+        body.isGenerator) {
+      return null;
+    }
+    final notification = parameters.single.declaredFragment?.element;
+    final result = switch (body) {
+      ExpressionFunctionBody(:final expression) => expression,
+      BlockFunctionBody(:final block)
+          when block.statements.length == 1 &&
+              block.statements.single is ReturnStatement =>
+        (block.statements.single as ReturnStatement).expression,
+      _ => null,
+    };
+    final comparison = result == null ? null : _stripParens(result);
+    if (notification == null ||
+        comparison is! BinaryExpression ||
+        comparison.operator.lexeme != '==') {
+      return null;
+    }
+    bool isDepth(Expression side) {
+      final read = _stripParens(side);
+      final (target, property) = switch (read) {
+        PrefixedIdentifier(:final prefix, :final identifier) => (
+            prefix,
+            identifier
+          ),
+        PropertyAccess(:final target?, :final propertyName) => (
+            _stripParens(target),
+            propertyName
+          ),
+        _ => (null, null),
+      };
+      final getter = property?.element;
+      return target is SimpleIdentifier &&
+          target.element == notification &&
+          getter is PropertyAccessorElement &&
+          getter.name == 'depth' &&
+          getter.library.identifier == _kScrollNotificationLibrary;
+    }
+
+    bool readsNotification(Expression side) {
+      var found = false;
+      side.accept(_ElementReferenceVisitor(notification, () => found = true));
+      return found;
+    }
+
+    for (final (read, value) in [
+      (comparison.leftOperand, comparison.rightOperand),
+      (comparison.rightOperand, comparison.leftOperand),
+    ]) {
+      final type = value.staticType;
+      if (isDepth(read) &&
+          !readsNotification(value) &&
+          type != null &&
+          type.isDartCoreInt &&
+          type.nullabilitySuffix == NullabilitySuffix.none) {
+        return value;
+      }
+    }
+    return null;
+  }
+
   // A named `TextInputType` constant from the property's allowed values.
   String? _textInputType(
     PropertyEntry property,
@@ -7299,6 +7442,24 @@ final class ExpressionTranslator {
         .whereType<NamedArgument>()
         .firstWhereOrNull((a) => a.name.lexeme == slot.name);
     if (slotArg == null) return null;
+    final bottomHeightProp = entry.properties.firstWhereOrNull(
+      (p) => p.synthetic == kAppBarBottomHeightSyntheticStrategy,
+    );
+    if (bottomHeightProp != null) {
+      final heights = _appBarSlotHeights(
+        slotArg.argumentExpression,
+        heightProp,
+        issues,
+      );
+      if (heights != null) {
+        final toolbarHeightProp = entry.properties.firstWhere(
+          (p) => p.synthetic == kAppBarToolbarHeightSyntheticStrategy,
+        );
+        return '${_rfwMapKey(heightProp.name)}: ${heights.height}, '
+            '${_rfwMapKey(toolbarHeightProp.name)}: ${heights.toolbar}, '
+            '${_rfwMapKey(bottomHeightProp.name)}: ${heights.bottom}';
+      }
+    }
     final height =
         _preferredHeightOf(slotArg.argumentExpression, heightProp, issues);
     if (height == null) {
@@ -7317,6 +7478,87 @@ final class ExpressionTranslator {
     return '${_rfwMapKey(heightProp.name)}: ${height.dsl}';
   }
 
+  ({String height, String toolbar, String bottom})? _appBarSlotHeights(
+    Expression source,
+    PropertyEntry heightProp,
+    List<Issue> issues,
+  ) {
+    final expr = _resolveBoundIdentifier(source);
+    if (expr is NullLiteral) {
+      return (height: 'null', toolbar: 'null', bottom: 'null');
+    }
+    final initializer = _constIdentifierInitializer(expr);
+    if (initializer != null) {
+      return _appBarSlotHeights(initializer, heightProp, issues);
+    }
+    if (expr is ConditionalExpression) {
+      final branches =
+          <Expression, ({String height, String toolbar, String bottom})?>{};
+      var refused = false;
+      ({String height, String toolbar, String bottom})? heightsFor(
+        Expression branch,
+      ) =>
+          branches.putIfAbsent(branch, () {
+            final heights = _appBarSlotHeights(branch, heightProp, issues);
+            refused |= heights == null;
+            return heights;
+          });
+
+      final heights = (
+        height: _conditionalSwitch(
+          expr,
+          issues,
+          (branch) => heightsFor(branch)?.height ?? 'null',
+        ),
+        toolbar: _conditionalSwitch(
+          expr,
+          issues,
+          (branch) => heightsFor(branch)?.toolbar ?? 'null',
+        ),
+        bottom: _conditionalSwitch(
+          expr,
+          issues,
+          (branch) => heightsFor(branch)?.bottom ?? 'null',
+        ),
+      );
+      return refused ? null : heights;
+    }
+    final constructor = expr is InstanceCreationExpression
+        ? expr.constructorName.element
+        : null;
+    final owner = constructor?.enclosingElement;
+    if (owner?.name == 'AppBar' &&
+        owner?.library.identifier ==
+            'package:flutter/src/material/app_bar.dart' &&
+        constructor?.name == 'new') {
+      final args = (expr as InstanceCreationExpression).argumentList.arguments;
+      final bottom = _namedArgument(args, 'bottom');
+      final bottomHeight =
+          bottom == null || _resolveBoundIdentifier(bottom) is NullLiteral
+              ? (value: 0.0, dsl: '0.0')
+              : _preferredHeightOf(bottom, heightProp, issues);
+      if (bottomHeight == null) return null;
+      final toolbar = _namedArgument(args, 'toolbarHeight');
+      final toolbarHeight = toolbar == null
+          ? 'null'
+          : _translateSlotValue(
+              toolbar,
+              PropertyType.real,
+              issues,
+              property: heightProp,
+            );
+      // A nullable bottom height is supplied even when it evaluates to null.
+      final bottomDsl = bottom != null && _mayAskNullHeight(bottom)
+          ? RfwConstructorPresenceEncoder.supplied(bottomHeight.dsl)
+          : bottomHeight.dsl;
+      return (height: 'null', toolbar: toolbarHeight, bottom: bottomDsl);
+    }
+    final height = _preferredHeightOf(expr, heightProp, issues);
+    return height == null
+        ? null
+        : (height: height.dsl, toolbar: 'null', bottom: 'null');
+  }
+
   /// The height [widget] asks its parent for, with its folded value when
   /// the fragment is a literal. `null` when the height cannot be read.
   ({double? value, String dsl})? _preferredHeightOf(
@@ -7324,17 +7566,28 @@ final class ExpressionTranslator {
     PropertyEntry heightProp,
     List<Issue> issues,
   ) {
-    final call = _widgetCallOf(widget);
+    final resolved = _resolveBoundIdentifier(widget);
+    if (resolved is NullLiteral) return (value: 0.0, dsl: '0.0');
+    if (resolved is ConditionalExpression) {
+      var refused = false;
+      final dsl = _conditionalSwitch(resolved, issues, (branch) {
+        final height = _preferredHeightOf(branch, heightProp, issues);
+        refused |= height == null;
+        return height?.dsl ?? 'null';
+      });
+      return refused ? null : (value: null, dsl: dsl);
+    }
+    final call = _widgetCallOf(resolved);
     if (call == null) return null;
     switch (call.name) {
       case 'AppBar':
         final toolbar = _namedArgument(call.args, 'toolbarHeight');
-        final bar = toolbar == null
-            ? (value: kRestageToolbarHeight, dsl: '$kRestageToolbarHeight')
-            : _realFragment(toolbar, heightProp, issues);
+        final bar = _appBarToolbarHeight(toolbar, heightProp, issues);
         if (bar == null) return null;
         final bottom = _namedArgument(call.args, 'bottom');
-        if (bottom == null) return bar;
+        if (bottom == null || _resolveBoundIdentifier(bottom) is NullLiteral) {
+          return bar;
+        }
         final under = _preferredHeightOf(bottom, heightProp, issues);
         if (under?.value == null || bar.value == null) return null;
         final total = bar.value! + under!.value!;
@@ -7360,6 +7613,67 @@ final class ExpressionTranslator {
     }
   }
 
+  /// Whether [widget] is a nested AppBar, possibly behind a conditional,
+  /// whose toolbar height is a nullable runtime value.
+  bool _mayAskNullHeight(Expression widget) {
+    final expr = _resolveBoundIdentifier(widget);
+    final initializer = _constIdentifierInitializer(expr);
+    if (initializer != null) return _mayAskNullHeight(initializer);
+    if (expr is ConditionalExpression) {
+      return _mayAskNullHeight(expr.thenExpression) ||
+          _mayAskNullHeight(expr.elseExpression);
+    }
+    final call = _widgetCallOf(expr);
+    if (call?.name != 'AppBar') return false;
+    final toolbar = _namedArgument(call!.args, 'toolbarHeight');
+    return toolbar != null && _isNullableRuntime(toolbar);
+  }
+
+  bool _isNullableRuntime(Expression source) {
+    final expr = _resolveBoundIdentifier(source);
+    if (expr is NullLiteral) return false;
+    final initializer = _constIdentifierInitializer(expr);
+    if (initializer != null) return _isNullableRuntime(initializer);
+    if (expr is ConditionalExpression) {
+      return _isNullableRuntime(expr.thenExpression) ||
+          _isNullableRuntime(expr.elseExpression);
+    }
+    return expr.staticType?.nullabilitySuffix == NullabilitySuffix.question;
+  }
+
+  /// Resolves the toolbar default before an AppBar's parent adds its height.
+  ({double? value, String dsl})? _appBarToolbarHeight(
+    Expression? source,
+    PropertyEntry heightProp,
+    List<Issue> issues,
+  ) {
+    const defaultHeight = (
+      value: kRestageToolbarHeight,
+      dsl: '$kRestageToolbarHeight',
+    );
+    if (source == null) return defaultHeight;
+    final expr = _resolveBoundIdentifier(source);
+    if (expr is NullLiteral) return defaultHeight;
+    final initializer = _constIdentifierInitializer(expr);
+    if (initializer != null) {
+      return _appBarToolbarHeight(initializer, heightProp, issues);
+    }
+    if (expr is ConditionalExpression) {
+      var refused = false;
+      final dsl = _conditionalSwitch(expr, issues, (branch) {
+        final height = _appBarToolbarHeight(branch, heightProp, issues);
+        refused |= height == null;
+        return height?.dsl ?? 'null';
+      });
+      return refused ? null : (value: null, dsl: dsl);
+    }
+    final height = _realFragment(expr, heightProp, issues);
+    if (height == null) return null;
+    if (height.dsl == 'null') return defaultHeight;
+    // A runtime null takes the slot's kToolbarHeight default, as in Flutter.
+    return height;
+  }
+
   /// The height one tab occupies: a stated height, else the taller size
   /// for a tab carrying both an icon and a label.
   double? _tabHeightOf(
@@ -7382,11 +7696,15 @@ final class ExpressionTranslator {
 
   /// The constructor name and argument list of a widget construction, or
   /// `null` when the expression is not one.
-  ({String name, NodeList<Argument> args})? _widgetCallOf(Expression expr) {
+  ({String name, NodeList<Argument> args})? _widgetCallOf(Expression source) {
+    final expr = _resolveBoundIdentifier(source);
+    final initializer = _constIdentifierInitializer(expr);
+    if (initializer != null) return _widgetCallOf(initializer);
     return switch (expr) {
       InstanceCreationExpression(:final constructorName, :final argumentList) =>
         (
-          name: constructorName.type.name.lexeme,
+          name: constructorName.element?.enclosingElement.name ??
+              constructorName.type.name.lexeme,
           args: argumentList.arguments,
         ),
       MethodInvocation(:final methodName, :final argumentList) => (
@@ -7602,8 +7920,9 @@ final class ExpressionTranslator {
   String _inlineHelperBody(
     HelperDef helper,
     MethodInvocation call,
-    List<Issue> issues,
-  ) {
+    List<Issue> issues, {
+    String Function(Expression)? translateBody,
+  }) {
     final binding = bindHelperArguments(
       helper.params,
       call.argumentList.arguments.toList(),
@@ -7636,7 +7955,8 @@ final class ExpressionTranslator {
               : measurementWidgetList,
     );
     try {
-      return _translate(helper.body, issues);
+      return translateBody?.call(helper.body) ??
+          _translate(helper.body, issues);
     } finally {
       _walk = saved;
     }
@@ -8566,8 +8886,11 @@ final class ExpressionTranslator {
     List<Issue> issues,
     String Function(Expression) translateBranch,
   ) {
-    String branch(Expression value) =>
-        _inConditionalBranch(expr, value, () => translateBranch(value));
+    String branch(Expression value) => _inConditionalBranch(
+          expr,
+          value,
+          () => _nullableSwitchValue(translateBranch(value)),
+        );
     final brightnessSwitch = _tryBrightnessSwitch(expr, issues, branch);
     if (brightnessSwitch != null) return brightnessSwitch;
     final intSwitch = _tryIntStateEqualitySwitch(expr, issues, branch);
@@ -8640,6 +8963,9 @@ final class ExpressionTranslator {
 
   bool _diagnosedEmpty(String value, List<Issue> issues, int beforeIssues) =>
       value.isEmpty && issues.length > beforeIssues;
+
+  String _nullableSwitchValue(String value) =>
+      value == 'null' ? 'switch 0 {}' : value;
 
   /// Attempts to lower [expr] — a conditional testing the ambient theme's
   /// brightness — to a `switch` keyed on `data.theme.brightness`. Returns the
@@ -9661,6 +9987,7 @@ final class ExpressionTranslator {
       if (constDsl != null) return constDsl;
     }
     final inspectedItemType = _inspectedListItemPropertyType(type);
+    if (inspectedItemType != null && resolved is NullLiteral) return 'null';
     if (inspectedItemType != null) {
       return emitTypedList(
         expr,
@@ -10022,6 +10349,265 @@ final class ExpressionTranslator {
       break;
     }
     return current;
+  }
+
+  String _systemUiOverlayStyle(
+    Expression source,
+    List<Issue> issues, {
+    List<Map<String, Expression>> overrides = const [],
+  }) {
+    final expr = _resolveBoundIdentifier(source);
+    if (expr is MethodInvocation) {
+      final helper = _walk.inlined.helpers[expr.methodName.element];
+      if (helper != null) {
+        return _inlineHelperBody(
+          helper,
+          expr,
+          issues,
+          translateBody: (body) => _systemUiOverlayStyle(
+            body,
+            issues,
+            overrides: overrides,
+          ),
+        );
+      }
+    }
+    if (expr is ConditionalExpression) {
+      return _conditionalSwitch(
+        expr,
+        issues,
+        (branch) => _systemUiOverlayStyle(branch, issues, overrides: overrides),
+      );
+    }
+    if (expr is MethodInvocation && isSystemUiOverlayStyleCopyWith(expr)) {
+      final target = expr.target;
+      final arguments = expr.argumentList.arguments;
+      final fields = <String, Expression>{
+        for (final argument in arguments)
+          if (argument is NamedArgument)
+            argument.name.lexeme: argument.argumentExpression,
+      };
+      if (target != null &&
+          fields.length == arguments.length &&
+          fields.keys.every(kSystemUiOverlayStyleFields.containsKey)) {
+        if (overrides.length >= kMaxStructuredCopyWithLayers) {
+          issues.add(
+            Issue(
+              code: IssueCode.unrecognizedMethodCall,
+              message: 'SystemUiOverlayStyle.copyWith chains support at most '
+                  '$kMaxStructuredCopyWithLayers calls.',
+              location: _locationOf(expr),
+            ),
+          );
+          return '';
+        }
+        return _systemUiOverlayStyle(
+          target,
+          issues,
+          overrides: [fields, ...overrides],
+        );
+      }
+    }
+
+    final entries = <String>[];
+    final constant = frameworkStaticConst(expr);
+    final constantFields =
+        constant == null ? null : systemUiOverlayStyleFields(constant);
+    if (constantFields != null) {
+      for (final field in constantFields.entries) {
+        if (!field.value.isNull) {
+          entries.add(
+            '${field.key}: '
+            '${encodeSystemUiOverlayStyleField(field.key, field.value)!}',
+          );
+        }
+      }
+    } else if (expr is InstanceCreationExpression &&
+        isSystemUiOverlayStyleClass(
+          expr.constructorName.element?.enclosingElement,
+        ) &&
+        expr.constructorName.element?.name == 'new') {
+      for (final argument in expr.argumentList.arguments) {
+        if (argument is! NamedArgument ||
+            !kSystemUiOverlayStyleFields.containsKey(argument.name.lexeme)) {
+          return _unsupportedOverlayStyle(expr, issues);
+        }
+        final name = argument.name.lexeme;
+        final value = _translateSlotValue(
+          argument.argumentExpression,
+          kSystemUiOverlayStyleFields[name]!,
+          issues,
+        );
+        entries.add('$name: $value');
+      }
+    } else {
+      final translated = _translateConstIdentifier(
+        expr,
+        issues,
+        IssueCode.unrecognizedMethodCall,
+        (initializer) => _systemUiOverlayStyle(
+          initializer,
+          issues,
+          overrides: overrides,
+        ),
+      );
+      return translated ?? _unsupportedOverlayStyle(expr, issues);
+    }
+
+    if (overrides.isNotEmpty) {
+      final layers = <String>[];
+      for (final override in overrides) {
+        final fields = <String>[];
+        for (final field in override.entries) {
+          final value = _translateSlotValue(
+            field.value,
+            kSystemUiOverlayStyleFields[field.key]!,
+            issues,
+          );
+          fields.add('${field.key}: $value');
+        }
+        layers.add('{${fields.join(', ')}}');
+      }
+      entries.add('$kStructuredCopyWithKey: [${layers.join(', ')}]');
+    }
+    return '{${entries.join(', ')}}';
+  }
+
+  /// Lowers an `IconThemeData` constructor, `fallback()`, `copyWith` or `lerp`
+  /// value. [layers] are lowered `copyWith` maps applied after the value.
+  String _iconThemeData(
+    Expression source,
+    List<Issue> issues, {
+    List<String> layers = const [],
+    int depth = 0,
+  }) {
+    String nested(Expression value, {List<String> layers = const []}) =>
+        _iconThemeData(value, issues, layers: layers, depth: depth + 1);
+    final expr = _resolveBoundIdentifier(source);
+    if (depth > kMaxStructuredCopyWithLayers) {
+      issues.add(
+        Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message: 'IconThemeData values support at most '
+              '$kMaxStructuredCopyWithLayers nested operations.',
+          location: _locationOf(expr),
+        ),
+      );
+      return '';
+    }
+    if (expr is NullLiteral && layers.isEmpty) return 'null';
+    if (expr is MethodInvocation) {
+      final helper = _walk.inlined.helpers[expr.methodName.element];
+      if (helper != null) {
+        return _inlineHelperBody(
+          helper,
+          expr,
+          issues,
+          translateBody: (body) => nested(body, layers: layers),
+        );
+      }
+    }
+    if (expr is ConditionalExpression) {
+      return _conditionalSwitch(
+        expr,
+        issues,
+        (branch) => nested(branch, layers: layers),
+      );
+    }
+    final location = _locationOf(expr);
+    String fields(NodeList<Argument> args) =>
+        _tryValueOrRecipe(
+          'IconThemeData',
+          null,
+          args,
+          issues,
+          location,
+          fromConstructor: true,
+        ) ??
+        '';
+    if (expr is MethodInvocation &&
+        expr.target != null &&
+        isIconThemeDataCopyWith(expr)) {
+      return nested(
+        expr.target!,
+        layers: [fields(expr.argumentList.arguments), ...layers],
+      );
+    }
+    final String base;
+    if (expr is MethodInvocation && isIconThemeDataLerp(expr)) {
+      final args = expr.argumentList.arguments;
+      if (args.length != 3 || args.any((arg) => arg is NamedArgument)) {
+        return _unsupportedIconTheme(expr, issues);
+      }
+      final ends = [
+        for (final (name, end) in [
+          ('a', args[0].argumentExpression),
+          ('b', args[1].argumentExpression),
+        ])
+          if (_resolveBoundIdentifier(end) is! NullLiteral)
+            '$name: ${nested(end)}',
+      ];
+      final t = _translateSlotValue(
+        args[2].argumentExpression,
+        PropertyType.real,
+        issues,
+      );
+      base = '$kIconThemeDataLerpKey: {${[...ends, 't: $t'].join(', ')}}';
+    } else if (expr is InstanceCreationExpression &&
+        isIconThemeDataClass(expr.constructorName.element?.enclosingElement)) {
+      switch (expr.constructorName.element?.name) {
+        case 'fallback':
+          base = '$kIconThemeDataFallbackKey: true';
+        case 'new':
+          final before = issues.length;
+          base = _mapBody(fields(expr.argumentList.arguments));
+          if (issues.length > before) return '';
+        default:
+          return _unsupportedIconTheme(expr, issues);
+      }
+    } else {
+      final translated = _translateConstIdentifier(
+        expr,
+        issues,
+        IssueCode.unrecognizedMethodCall,
+        (initializer) => nested(initializer, layers: layers),
+      );
+      return translated ?? _unsupportedIconTheme(expr, issues);
+    }
+    final entries = [
+      if (base.isNotEmpty) base,
+      if (layers.isNotEmpty) '$kStructuredCopyWithKey: [${layers.join(', ')}]',
+    ];
+    return '{${entries.join(', ')}}';
+  }
+
+  /// The entries of a lowered `{...}` map.
+  String _mapBody(String map) => map.length < 2 || !map.startsWith('{')
+      ? map
+      : map.substring(1, map.length - 1).trim();
+
+  String _unsupportedIconTheme(Expression expr, List<Issue> issues) {
+    issues.add(
+      Issue(
+        code: IssueCode.unrecognizedMethodCall,
+        message: 'Unsupported IconThemeData expression: ${expr.toSource()}. '
+            'Use its constructor, fallback, copyWith, or lerp.',
+        location: _locationOf(expr),
+      ),
+    );
+    return '';
+  }
+
+  String _unsupportedOverlayStyle(Expression expr, List<Issue> issues) {
+    issues.add(
+      Issue(
+        code: IssueCode.unrecognizedMethodCall,
+        message: 'Unsupported SystemUiOverlayStyle expression: '
+            '${expr.toSource()}. Use its constructor, constants, or copyWith.',
+        location: _locationOf(expr),
+      ),
+    );
+    return '';
   }
 
   /// Resolves a strict-double list through active bindings and const aliases.
@@ -10612,6 +11198,8 @@ final class ExpressionTranslator {
   /// The resolved [ClassElement] behind an `InstanceCreationExpression`, or
   /// `null` when the analyzer could not resolve it.
   ClassElement? _classOfInstanceCreation(InstanceCreationExpression expr) {
+    final owner = expr.constructorName.element?.enclosingElement;
+    if (owner is ClassElement) return owner;
     final element = expr.constructorName.type.element;
     return element is ClassElement ? element : null;
   }
@@ -12360,3 +12948,16 @@ final class _ConditionLowering {
 /// The public analyzer interface name of [node], for diagnostics.
 String _nodeKind(AstNode node) =>
     '${node.runtimeType}'.replaceFirst(RegExp(r'Impl$'), '');
+
+/// Calls [onFound] for each reference to [element].
+final class _ElementReferenceVisitor extends RecursiveAstVisitor<void> {
+  _ElementReferenceVisitor(this.element, this.onFound);
+
+  final Element element;
+  final void Function() onFound;
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    if (node.element == element) onFound();
+  }
+}

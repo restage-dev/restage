@@ -103,6 +103,142 @@ void main() {
       }
     });
 
+    test('repairs toolbar metadata with the native toolbar decoder', () {
+      const entry = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'Scaffold',
+        library: WidgetLibrary.material,
+        category: WidgetCategory.layout,
+        description: 'App bar preferred-size routing.',
+        flutterType: 'package:flutter/src/material/scaffold.dart#Scaffold',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'appBar',
+            type: PropertyType.widget,
+            widgetType: kPreferredSizeWidgetType,
+            description: 'The app bar.',
+          ),
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'appBarHeight',
+            type: PropertyType.real,
+            synthetic: kPreferredSizeHeightSyntheticStrategy,
+            description: 'Fixed preferred height.',
+          ),
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'appBarBottomHeight',
+            type: PropertyType.real,
+            synthetic: kAppBarBottomHeightSyntheticStrategy,
+            description: 'App bar bottom height.',
+          ),
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'appBarToolbarHeight',
+            type: PropertyType.real,
+            synthetic: kAppBarToolbarHeightSyntheticStrategy,
+            description: 'App bar toolbar height.',
+          ),
+        ],
+      );
+      expect(
+        emitFactoryFunction(entry),
+        contains(
+          'RestageDecoders.appBarPreferredSize('
+          "source.optionalChild(const <Object>['appBar']), "
+          "source.v<double>(const <Object>['appBarHeight']), "
+          'RestageDecoders.layoutFactor('
+          "source, const <Object>['appBarToolbarHeight']), "
+          'RestageDecoders.appBarBottomHeight('
+          "source, const <Object>['appBarBottomHeight']))",
+        ),
+      );
+      expect(
+        scalarDecoderRoutesForTesting[('Scaffold', 'appBarToolbarHeight')],
+        scalarDecoderRoutesForTesting[('AppBar', 'toolbarHeight')],
+      );
+      expect(
+        scalarDecoderDeferredForTesting,
+        contains(('Scaffold', 'appBarBottomHeight')),
+      );
+      expect(
+        scalarDecoderExemptionsForTesting,
+        isNot(contains(('Scaffold', 'appBarBottomHeight'))),
+      );
+    });
+
+    test('normalizes only canonical AppBar bottom height metadata', () {
+      for (final owner in [
+        (
+          library: WidgetLibrary.material,
+          uri: 'package:flutter/src/material/app_bar.dart',
+          normalized: true,
+        ),
+        (
+          library: WidgetLibrary.material,
+          uri: 'package:application/widgets.dart',
+          normalized: false,
+        ),
+        (
+          library: const WidgetLibrary.custom('application.widgets'),
+          uri: 'package:flutter/src/material/app_bar.dart',
+          normalized: false,
+        ),
+      ]) {
+        final entry = WidgetEntry(
+          wireId: WireId.unallocatedWidget,
+          name: 'AppBar',
+          library: owner.library,
+          category: WidgetCategory.layout,
+          description: 'App bar bottom routing.',
+          flutterType: '${owner.uri}#AppBar',
+          childrenSlot: ChildrenSlot.none,
+          properties: const [
+            PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'bottom',
+              type: PropertyType.widget,
+              widgetType: kPreferredSizeWidgetType,
+              description: 'The bottom widget.',
+            ),
+            PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'bottomHeight',
+              type: PropertyType.real,
+              synthetic: kPreferredSizeHeightSyntheticStrategy,
+              description: 'Bottom preferred height.',
+            ),
+          ],
+        );
+        final decoder = owner.normalized
+            ? "RestageDecoders.number(source, const <Object>['bottomHeight'])"
+            : "source.v<double>(const <Object>['bottomHeight'])";
+        expect(
+          emitFactoryFunction(entry, aliases: {owner.uri: 's0'}),
+          contains(
+            'RestageDecoders.optionalPreferredSize('
+            "source.optionalChild(const <Object>['bottom']), $decoder)",
+          ),
+          reason: '${owner.library.namespace}:${owner.uri}',
+        );
+      }
+    });
+
+    test('AppBar opacity is paint-only and retains the native value', () {
+      for (final property in ['toolbarOpacity', 'bottomOpacity']) {
+        expect(
+          scalarDecoderExemptionsForTesting[('AppBar', property)],
+          allOf(isNotNull, isNotEmpty),
+        );
+        expect(
+          _emissionFor('AppBar', property, PropertyType.real),
+          contains("$property: source.v<double>(const <Object>['$property'])"),
+        );
+      }
+    });
+
     test('routes both bounded fractions through one decoder', () {
       const slots = <(String, String)>[
         ('RestageModalSheet', 'scrollControlDisabledMaxHeightRatio'),

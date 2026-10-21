@@ -6,7 +6,7 @@ const valueScreenRef = NeutralFlowScreenRef(
   id: 'value',
   artifactPath: 'value.rfw',
   version: 1,
-  minClient: 10,
+  minClient: 12,
 );
 
 @Deprecated('Use valueScreenRef')

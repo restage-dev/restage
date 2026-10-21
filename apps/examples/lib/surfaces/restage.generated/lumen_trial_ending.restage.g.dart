@@ -29,7 +29,7 @@ final _lumenTrialEndingScreenProvenance =
   slug: 'lumen_trial_ending',
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 10,
+    builtInFloor: 12,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -53,7 +53,7 @@ final _lumenTrialEndingScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 142,
         sha256:
-            'sha256:87ba2d1a12510e7078c7e4a4697e9222bc41573ccf6ea6a7963d9410f883428f',
+            'sha256:6b8fa5d38c3d3e2045abf91331a848833ded89a416c379792dbfedbdcc97936f',
       ),
     ],
   ),
@@ -92,7 +92,7 @@ final lumenTrialEndingScreenRef = SurfaceScreenRef<
   provenance: _lumenTrialEndingScreenProvenance,
   eventContract: _lumenTrialEndingScreenEvents,
   measurementPublicationDraftDigest:
-      '45a9b01d20d3445a3254c20e925a9e5f9c837039c4314b41b2fa8982c4d3901a',
+      '834286d4cae5ffa574ba3a4caeafbd612502ffc22d0094892218b13352c720a0',
 );
 
 LumenTrialEndingScreenEvent _decodeValidatedLumenTrialEndingScreenEvent(

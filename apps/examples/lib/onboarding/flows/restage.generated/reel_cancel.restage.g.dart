@@ -6,13 +6,13 @@ const reelCancelFlowRef = SurfaceFlowRef<
     ReelCancelResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'reel_cancel',
   version: 1,
-  minClient: 10,
+  minClient: 12,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeReelCancelFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"actions":{"redeemOffer":{"actionName":"redeemOffer","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":6,"resultSchema":{"fields":{"redeemed":{"required":true,"schema":{"kind":"bool"}}},"kind":"object"},"resultSchemaHash":"sha256:cdba58b8037dcf2c43d7add16c74558a786b6b1dede9d095ac4c00399ddaaaae"}},"flow":"reel_cancel","flowState":{"retained":{"classification":"exportable","type":"bool"}},"initial":"reel_reason","minClient":10,"outbound":{"customEvents":{"cancel":{"fields":{}}},"terminalResult":{"fields":{"retained":{"ref":{"state":"retained"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"reel_frequency":{"contentHash":"sha256:d4897317201bc8fe5b5349d37663e2782779d1c9a6a0637c2ae429f4c17ac2ef","minClient":10,"path":"reel_frequency.rfw","schemaVersion":1,"version":1},"reel_kept":{"contentHash":"sha256:96aae3a572f37d54b534aaf15b648fd9703dd7531dea760eb7b517b967b1bac5","minClient":10,"path":"reel_kept.rfw","schemaVersion":1,"version":1},"reel_offer":{"contentHash":"sha256:21fc66bb59394478b99e4c7ae1c42bf6eddd0d156d74c9c54541a71c5c4434df","minClient":10,"path":"reel_offer.rfw","schemaVersion":1,"version":1},"reel_reason":{"contentHash":"sha256:c6bd7376befbf6eb8bb057bf409156a11d7f6376630d2f95a3492d947d0d8470","minClient":10,"path":"reel_reason.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{"retained":true}},"reel_frequency":{"kind":"screen","on":{"next":{"target":"reel_offer","type":"goto"}},"screen":"reel_frequency"},"reel_kept":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"reel_kept"},"reel_offer":{"kind":"screen","on":{"keep":{"action":"redeemOffer","resultPredicate":{"field":"redeemed","kind":"objectBoolFieldEquals","value":true},"target":"reel_kept","type":"action"}},"screen":"reel_offer"},"reel_reason":{"kind":"screen","on":{"next":{"target":"reel_frequency","type":"goto"}},"screen":"reel_reason"}},"version":1}',
+        '{"actions":{"redeemOffer":{"actionName":"redeemOffer","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":6,"resultSchema":{"fields":{"redeemed":{"required":true,"schema":{"kind":"bool"}}},"kind":"object"},"resultSchemaHash":"sha256:cdba58b8037dcf2c43d7add16c74558a786b6b1dede9d095ac4c00399ddaaaae"}},"flow":"reel_cancel","flowState":{"retained":{"classification":"exportable","type":"bool"}},"initial":"reel_reason","minClient":12,"outbound":{"customEvents":{"cancel":{"fields":{}}},"terminalResult":{"fields":{"retained":{"ref":{"state":"retained"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"reel_frequency":{"contentHash":"sha256:d6f20beede66026425a2f40d26dcc5a101b99a8c87d1f7a4c5583496c0868925","minClient":12,"path":"reel_frequency.rfw","schemaVersion":1,"version":1},"reel_kept":{"contentHash":"sha256:e63309ed0ed9c1a4fa73db1fadff4b34588bb983846fef94a742974a22545973","minClient":12,"path":"reel_kept.rfw","schemaVersion":1,"version":1},"reel_offer":{"contentHash":"sha256:37cd5914dc13d31c18447bb6bd5d0b16dcdc08493967256d1de61803a6f8331e","minClient":12,"path":"reel_offer.rfw","schemaVersion":1,"version":1},"reel_reason":{"contentHash":"sha256:d9c059e1a13b11a1612355dad958aa4527cd83d42a675f65a6571606ce3f7286","minClient":12,"path":"reel_reason.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{"retained":true}},"reel_frequency":{"kind":"screen","on":{"next":{"target":"reel_offer","type":"goto"}},"screen":"reel_frequency"},"reel_kept":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"reel_kept"},"reel_offer":{"kind":"screen","on":{"keep":{"action":"redeemOffer","resultPredicate":{"field":"redeemed","kind":"objectBoolFieldEquals","value":true},"target":"reel_kept","type":"action"}},"screen":"reel_offer"},"reel_reason":{"kind":"screen","on":{"next":{"target":"reel_frequency","type":"goto"}},"screen":"reel_reason"}},"version":1}',
     screens: {
       'reel_reason': ReelReasonScreen.new,
       'reel_frequency': ReelFrequencyScreen.new,
@@ -22,7 +22,7 @@ const reelCancelFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '348bf7615200ca317577afe679c8ae08b03f26db5ab1267aa08a191450bf564b',
+      '6d9e6e229cae7c76c95776e4bb4cc358d93ccd4eba8dea3cdfedc3c20d180591',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

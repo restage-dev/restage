@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:restage/restage.dart';
 
 part 'restage.generated/crave_location.restage.g.dart';
@@ -27,7 +28,8 @@ class CraveLocationScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         elevation: 0,
         foregroundColor: const Color(0xFFFF5630),
         centerTitle: false,

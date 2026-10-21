@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:restage/restage.dart';
 
 part 'restage.generated/crave_ready.restage.g.dart';
@@ -19,7 +20,8 @@ class CraveReadyScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         elevation: 0,
         foregroundColor: const Color(0xFF1F1B16),
       ),

@@ -310,22 +310,13 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<AppBar>(
     category: WidgetCategory.layout,
+    sinceVersion: 12,
     excludeParams: [
-      'flexibleSpace',
+      // The predicate and structured TextStyle slots are declared below as
+      // synthetics.
       'notificationPredicate',
-      // The two `TextStyle` slots reach the walker as structured types with
-      // no flat property; `IconThemeData` has no catalog value shape at all.
       'titleTextStyle',
       'toolbarTextStyle',
-      'iconTheme',
-      'actionsIconTheme',
-      'excludeHeaderSemantics',
-      'toolbarOpacity',
-      'bottomOpacity',
-      'systemOverlayStyle',
-      'useDefaultSemanticsOrder',
-      'automaticallyImplyActions',
-      'animateColor',
     ],
     brandTokens: {
       'backgroundColor': 'primary',
@@ -337,10 +328,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'toolbarHeight': PropertyOverride(type: PropertyType.length),
       'titleSpacing': PropertyOverride(type: PropertyType.length),
       'leadingWidth': PropertyOverride(type: PropertyType.length),
-      // Flutter's `centerTitle` is `bool?` with no constructor default
-      // (the runtime infers from theme); we surface the paywall-friendly
-      // default so authors don't need to set it explicitly.
-      'centerTitle': PropertyOverride(defaultValue: true),
       // `PreferredSizeWidget` is on the centralized type denylist; the
       // explicit catalog type surfaces the slot, and the runtime adapter
       // named by `widgetType` wraps whatever the slot renders.
@@ -359,6 +346,78 @@ const List<BuiltinWidgetCuration> kCuration = [
         type: PropertyType.real,
         description: 'The height of the widget below the app bar.',
         synthetic: kPreferredSizeHeightSyntheticStrategy,
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'titleTextStyle',
+        type: PropertyType.structured,
+        description: 'The text style for the app bar title.',
+        valueShape: StructuredShape(
+          propertyType: PropertyType.structured,
+          structuredRef: WireIdRef(
+            library: 'restage.material',
+            wireId: WireId.unallocatedStructured,
+          ),
+        ),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'toolbarTextStyle',
+        type: PropertyType.structured,
+        description: 'The text style for the app bar leading and actions.',
+        valueShape: StructuredShape(
+          propertyType: PropertyType.structured,
+          structuredRef: WireIdRef(
+            library: 'restage.material',
+            wireId: WireId.unallocatedStructured,
+          ),
+        ),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'systemOverlayStyle',
+        type: PropertyType.structured,
+        description: 'The style of the system status and navigation bars.',
+        valueShape: StructuredShape(
+          propertyType: PropertyType.structured,
+          structuredRef: WireIdRef(
+            library: 'restage.material',
+            wireId: WireId.unallocatedStructured,
+          ),
+        ),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'iconTheme',
+        type: PropertyType.structured,
+        description: 'The theme for the app bar leading icons.',
+        valueShape: StructuredShape(
+          propertyType: PropertyType.structured,
+          structuredRef: WireIdRef(
+            library: 'restage.material',
+            wireId: WireId.unallocatedStructured,
+          ),
+        ),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'notificationPredicate',
+        type: PropertyType.integer,
+        description: 'The scroll notification depth the app bar responds to.',
+        synthetic: 'scrollNotificationDepth',
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'actionsIconTheme',
+        type: PropertyType.structured,
+        description: 'The theme for the app bar action icons.',
+        valueShape: StructuredShape(
+          propertyType: PropertyType.structured,
+          structuredRef: WireIdRef(
+            library: 'restage.material',
+            wireId: WireId.unallocatedStructured,
+          ),
+        ),
       ),
     ],
   ),
@@ -1269,6 +1328,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<Scaffold>(
     category: WidgetCategory.layout,
+    sinceVersion: 12,
     excludeParams: [
       // `drawerDragStartBehavior: DragStartBehavior` is excluded via the
       // centralized type denylist.
@@ -1315,6 +1375,20 @@ const List<BuiltinWidgetCuration> kCuration = [
         type: PropertyType.real,
         description: 'The height of the app bar.',
         synthetic: kPreferredSizeHeightSyntheticStrategy,
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'appBarBottomHeight',
+        type: PropertyType.real,
+        description: 'The height of the app bar bottom.',
+        synthetic: kAppBarBottomHeightSyntheticStrategy,
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'appBarToolbarHeight',
+        type: PropertyType.real,
+        description: 'The authored toolbar height of the app bar.',
+        synthetic: kAppBarToolbarHeightSyntheticStrategy,
       ),
     ],
   ),

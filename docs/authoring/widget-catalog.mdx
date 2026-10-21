@@ -25,6 +25,39 @@ There are no separate widget classes to learn. You write `Container`, `Text`,
 maps each one to its catalog entry. A surface that uses `CupertinoButton` renders it
 from the Cupertino library.
 
+### AppBar
+
+`AppBar` supports its layout, text and icon styles, system-bar styles, opacity,
+animation, and accessibility options. Use ordinary Flutter values such as
+`TextStyle`, `IconThemeData`, and `SystemUiOverlayStyle`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+AppBar(
+  backgroundColor: Colors.transparent,
+  systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(
+    statusBarColor: Colors.transparent,
+  ),
+  iconTheme: const IconThemeData(size: 24, color: Colors.black),
+  actionsIconTheme: const IconThemeData(color: Colors.blue),
+  title: const Text('Welcome'),
+)
+```
+
+Omitted styles, `centerTitle`, and `toolbarHeight` retain Flutter's theme and
+platform defaults. The `bottom` slot accepts a `TabBar` or `PreferredSize`, and
+`flexibleSpace` places content behind the toolbar.
+
+`IconThemeData` supports its constructor, `IconThemeData.fallback()`,
+`copyWith`, and `IconThemeData.lerp`. An `AppBar` used as another AppBar's
+`bottom` may take a nullable `toolbarHeight`.
+
+`notificationPredicate` accepts a depth check such as
+`(notification) => notification.depth == 1`, where the depth is an `int`.
+Omitting it keeps Flutter's default predicate.
+
 ## Widgets with built-in gestures and animation
 
 `restage_material` includes widgets whose gesture and animation code is compiled into

@@ -6,7 +6,7 @@ const starterQuestionScreenRef = NeutralFlowScreenRef(
   id: 'starter_question',
   artifactPath: 'starter_question.rfw',
   version: 1,
-  minClient: 10,
+  minClient: 12,
 );
 
 @Deprecated('Use starterQuestionScreenRef')

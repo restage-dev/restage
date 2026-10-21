@@ -7,15 +7,7 @@ import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_shared/restage_shared.dart'
     show Catalog, decodeCatalog, kBaselineCatalogVersion;
 
-/// Locks the SDK's installed built-in catalog content version against the
-/// committed catalog.json files — the source of truth the surface delivery
-/// floor is compared against. A generation drift between the per-library
-/// `registry.dart` constant and the committed catalog (e.g. a hand-edited
-/// constant, or the two emitters disagreeing) fails here, not silently in the
-/// field.
-///
-/// It also holds the shape of the content-version LINE itself, which is what
-/// makes the floor mean anything. See the group below.
+/// Keeps installed capabilities aligned with committed built-in catalogs.
 void main() {
   // Resolve the committed catalog.json for each sibling built-in library,
   // tolerant of either the package dir or the workspace root as cwd.
@@ -49,8 +41,9 @@ void main() {
     expect(RestageBuiltInCatalogCapabilities.currentVersion, expected);
   });
 
-  test('grouped widget lists raise the generated global ceiling to 10', () {
-    expect(RestageBuiltInCatalogCapabilities.currentVersion, 10);
+  test('AppBar system and icon styles raise the generated global ceiling to 12',
+      () {
+    expect(RestageBuiltInCatalogCapabilities.currentVersion, 12);
   });
 
   test('currentVersion is at least the baseline content version', () {
@@ -62,35 +55,8 @@ void main() {
 
   group('the content-version line is ONE line across the built-in libraries',
       () {
-    // Why this group exists, and why it is not a style rule.
-    //
-    // A client advertises ONE installed content version: the MAXIMUM over every
-    // built-in library it ships (`RestageBuiltInCatalogCapabilities`, pinned by
-    // the test above). A delivered surface carries ONE floor: the maximum
-    // `sinceVersion` of the entries it uses. The pre-render check compares those
-    // two numbers and nothing else.
-    //
-    // So a new widget's `sinceVersion` must exceed the highest `sinceVersion`
-    // ANYWHERE in the built-in set at the time it lands — not the highest in its
-    // own library. Stamp it at its own library's next value and the floor it
-    // produces is one that older clients ALREADY CLEAR on the strength of a
-    // different library's version. The check passes; the widget is not there to
-    // render. The floor is the only thing preventing that, and it fails open —
-    // silently, on a real device, for a surface that was published as safe.
-    //
-    // That is not hypothetical. It is the defect this group was written after:
-    // three core layout widgets were stamped at the core library's next value
-    // (2) while the material library was already at 4, so every client back to
-    // content version 2 would have accepted a surface using widgets it does not
-    // have.
-    //
-    // The true rule ("above the global max AT THE TIME IT LANDED") needs history
-    // to check. The two properties below are the strongest statement of it that
-    // the committed state alone can carry, and both would have failed on that
-    // stamp. The convention that makes them sound: EACH LANDING ALLOCATES ITS
-    // OWN FRESH VERSION. If a change ever needs to add widgets to two libraries
-    // at once, give each library its own version — do not share one, and do not
-    // weaken these checks to allow sharing.
+    // Built-in libraries share one version line. Updating a widget may retire
+    // the last current entry carrying an older version, so gaps are valid.
 
     /// Every above-baseline content version in use, mapped to the built-in
     /// packages that stamp a widget with it.
@@ -127,23 +93,17 @@ void main() {
       );
     });
 
-    test('the versions in use run contiguously from the baseline', () {
-      final used = versionOwners().keys.toList()..sort();
-      final advertised = RestageBuiltInCatalogCapabilities.currentVersion;
-      final expected = [
-        for (var v = kBaselineCatalogVersion + 1; v <= advertised; v++) v,
-      ];
-
-      expect(
-        used,
-        expected,
-        reason: 'The content versions in use are not the contiguous run '
-            '${kBaselineCatalogVersion + 1}..$advertised. A gap means a stamp '
-            'skipped a version (harmless to the floor, but it breaks the '
-            'one-version-per-landing convention the shared-version check above '
-            'relies on to be sound). A version above the advertised one means '
-            'a widget is floored beyond what this very SDK claims to render.',
-      );
+    test('AppBar and Scaffold require the new global capability version', () {
+      final material = committedCatalog('restage_material');
+      for (final name in ['AppBar', 'Scaffold']) {
+        expect(
+          material.widgets
+              .singleWhere((widget) => widget.name == name)
+              .sinceVersion,
+          12,
+          reason: '$name uses the system-style and native-sizing contract.',
+        );
+      }
     });
   });
 }

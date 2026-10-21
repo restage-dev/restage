@@ -5,6 +5,65 @@ import 'package:test/test.dart';
 
 void main() {
   group('linkCrossReferences', () {
+    test('links a direct structured widget slot without a decomposition', () {
+      final catalog = Catalog(
+        schemaVersion: kSupportedSchemaVersion,
+        generatedAt: '2026-05-23T00:00:00.000Z',
+        libraries: {
+          WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
+        },
+        widgets: [
+          WidgetEntry(
+            wireId: WireId('w0001'),
+            name: 'Heading',
+            library: WidgetLibrary.core,
+            category: WidgetCategory.decoration,
+            description: '',
+            flutterType: 'package:test/heading.dart#Heading',
+            childrenSlot: ChildrenSlot.none,
+            properties: [
+              PropertyEntry(
+                wireId: WireId('p0001'),
+                name: 'titleStyle',
+                type: PropertyType.structured,
+                description: '',
+                valueShape: const StructuredShape(
+                  propertyType: PropertyType.structured,
+                  structuredRef: WireIdRef(
+                    library: 'restage.core',
+                    wireId: WireId.unallocatedStructured,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        structuredTypes: [
+          StructuredEntry(
+            wireId: WireId('s0003'),
+            name: 'LabelStyle',
+            library: WidgetLibrary.core,
+            description: '',
+            sourceType: 'package:test/heading.dart#LabelStyle',
+            fields: const [],
+            variants: const [],
+          ),
+        ],
+      );
+      final linked = linkCrossReferences(
+        catalog,
+        const CrossRefResolutionIndex(
+          structuredRefFqnByField: {
+            ('package:test/heading.dart#Heading', 'titleStyle'):
+                'package:test/heading.dart#LabelStyle',
+          },
+        ),
+      );
+      final shape = linked.widgets.single.properties.single.valueShape!
+          as StructuredShape;
+      expect(shape.structuredRef.wireId, WireId('s0003'));
+    });
+
     test('preserves an above-baseline widget sinceVersion', () {
       final catalog = Catalog(
         schemaVersion: kSupportedSchemaVersion,

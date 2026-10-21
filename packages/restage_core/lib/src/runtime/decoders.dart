@@ -1,4 +1,5 @@
-import 'dart:ui' show Color, FontFeature, FontVariation, Offset, Radius, Size;
+import 'dart:ui'
+    show Brightness, Color, FontFeature, FontVariation, Offset, Radius, Size;
 
 import 'package:flutter/animation.dart' show Curve, Curves;
 import 'package:flutter/painting.dart'
@@ -15,7 +16,6 @@ import 'package:flutter/painting.dart'
         BorderStyle,
         BoxBorder,
         BoxFit,
-        BoxShadow,
         CircleBorder,
         ContinuousRectangleBorder,
         DecorationImage,
@@ -44,11 +44,25 @@ import 'package:flutter/painting.dart'
         TextStyle;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/rendering.dart' show BoxConstraints;
-import 'package:flutter/services.dart' show TextInputType;
-import 'package:flutter/widgets.dart' show PreferredSizeWidget, Widget;
+import 'package:flutter/services.dart' show SystemUiOverlayStyle, TextInputType;
+import 'package:flutter/widgets.dart'
+    show
+        IconThemeData,
+        PreferredSizeWidget,
+        ScrollNotificationPredicate,
+        Widget,
+        defaultScrollNotificationPredicate;
 import 'package:restage_core/src/runtime/preferred_size_slot.dart';
-import 'package:restage_shared/restage_shared.dart' show kMaxInlineSpanDepth;
+import 'package:restage_shared/restage_shared.dart'
+    show
+        kIconThemeDataFallbackKey,
+        kIconThemeDataLerpKey,
+        kMaxInlineSpanDepth,
+        kMaxStructuredCopyWithLayers,
+        kStructuredCopyWithKey;
 import 'package:rfw/rfw.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
+    show RfwConstructorPresenceProtocol;
 
 import '../widgets/restage_padding.dart';
 
@@ -274,6 +288,17 @@ abstract final class RestageDecoders {
     return name == null ? null : _supportedTextInputTypesByName[name];
   }
 
+  /// Accepts scroll notifications at the depth at [path], or applies Flutter's
+  /// default predicate when none is given.
+  static ScrollNotificationPredicate scrollNotificationPredicate(
+    DataSource source,
+    List<Object> path,
+  ) {
+    final depth = source.v<int>(path);
+    if (depth == null) return defaultScrollNotificationPredicate;
+    return (notification) => notification.depth == depth;
+  }
+
   /// The keyboard type wire names [textInputType] decodes.
   static final Set<String> supportedTextInputTypeNames = Set.unmodifiable(
     _supportedTextInputTypesByName.keys,
@@ -430,6 +455,167 @@ abstract final class RestageDecoders {
     return _textStyle(source, path);
   }
 
+  /// Decodes a system overlay style, preserving nullable platform options.
+  static SystemUiOverlayStyle? systemUiOverlayStyle(
+    DataSource source,
+    List<Object> path,
+  ) {
+    if (!source.isMap(path)) return null;
+    final layers = _copyLayers(source, path);
+    if (layers == null) return null;
+    var style = _systemUiOverlayStyleFields(source, path);
+    for (final layer in layers) {
+      final copy = _systemUiOverlayStyleFields(source, layer);
+      style = style.copyWith(
+        statusBarColor: copy.statusBarColor,
+        statusBarBrightness: copy.statusBarBrightness,
+        statusBarIconBrightness: copy.statusBarIconBrightness,
+        systemNavigationBarColor: copy.systemNavigationBarColor,
+        systemNavigationBarDividerColor: copy.systemNavigationBarDividerColor,
+        systemNavigationBarIconBrightness:
+            copy.systemNavigationBarIconBrightness,
+        systemNavigationBarContrastEnforced:
+            copy.systemNavigationBarContrastEnforced,
+        systemStatusBarContrastEnforced: copy.systemStatusBarContrastEnforced,
+      );
+    }
+    return style;
+  }
+
+  /// The paths of a structured value's `copyWith` layers, in order, or `null`
+  /// when the layer list is malformed.
+  static List<List<Object>>? _copyLayers(
+    DataSource source,
+    List<Object> path,
+  ) {
+    final copiesPath = <Object>[...path, kStructuredCopyWithKey];
+    if (!source.isList(copiesPath)) {
+      return _hasValue(source, copiesPath) ? null : const [];
+    }
+    final count = source.length(copiesPath);
+    if (count > kMaxStructuredCopyWithLayers) return null;
+    final layers = <List<Object>>[];
+    for (var index = 0; index < count; index++) {
+      final copyPath = <Object>[...copiesPath, index];
+      if (!source.isMap(copyPath) ||
+          _hasValue(source, [...copyPath, kStructuredCopyWithKey])) {
+        return null;
+      }
+      layers.add(copyPath);
+    }
+    return layers;
+  }
+
+  static bool _hasValue(DataSource source, List<Object> path) =>
+      source.isMap(path) ||
+      source.isList(path) ||
+      source.v<String>(path) != null ||
+      source.v<int>(path) != null ||
+      source.v<double>(path) != null ||
+      source.v<bool>(path) != null;
+
+  static SystemUiOverlayStyle _systemUiOverlayStyleFields(
+    DataSource source,
+    List<Object> path,
+  ) {
+    return SystemUiOverlayStyle(
+      statusBarColor:
+          ArgumentDecoders.color(source, [...path, 'statusBarColor']),
+      statusBarBrightness: enumByName(
+          Brightness.values, source, [...path, 'statusBarBrightness']),
+      statusBarIconBrightness: enumByName(
+        Brightness.values,
+        source,
+        [...path, 'statusBarIconBrightness'],
+      ),
+      systemNavigationBarColor:
+          ArgumentDecoders.color(source, [...path, 'systemNavigationBarColor']),
+      systemNavigationBarDividerColor: ArgumentDecoders.color(
+        source,
+        [...path, 'systemNavigationBarDividerColor'],
+      ),
+      systemNavigationBarIconBrightness: enumByName(
+        Brightness.values,
+        source,
+        [...path, 'systemNavigationBarIconBrightness'],
+      ),
+      systemNavigationBarContrastEnforced:
+          source.v<bool>([...path, 'systemNavigationBarContrastEnforced']),
+      systemStatusBarContrastEnforced:
+          source.v<bool>([...path, 'systemStatusBarContrastEnforced']),
+    );
+  }
+
+  /// Decodes an icon theme, leaving defaults, interpolation and validation to
+  /// Flutter.
+  static IconThemeData? iconThemeData(DataSource source, List<Object> path) =>
+      _iconThemeData(source, path, 0);
+
+  static IconThemeData? _iconThemeData(
+    DataSource source,
+    List<Object> path,
+    int depth,
+  ) {
+    if (!source.isMap(path) || depth > kMaxStructuredCopyWithLayers) {
+      return null;
+    }
+    final layers = _copyLayers(source, path);
+    if (layers == null) return null;
+    final lerpPath = <Object>[...path, kIconThemeDataLerpKey];
+    final fallbackPath = <Object>[...path, kIconThemeDataFallbackKey];
+    IconThemeData theme;
+    if (_hasValue(source, lerpPath)) {
+      final t = number(source, [...lerpPath, 't']);
+      if (!source.isMap(lerpPath) || t == null) return null;
+      final ends = <IconThemeData?>[];
+      for (final end in const ['a', 'b']) {
+        final endPath = <Object>[...lerpPath, end];
+        final value = _iconThemeData(source, endPath, depth + 1);
+        if (value == null && _hasValue(source, endPath)) return null;
+        ends.add(value);
+      }
+      theme = IconThemeData.lerp(ends[0], ends[1], t);
+    } else if (_hasValue(source, fallbackPath)) {
+      if (source.v<bool>(fallbackPath) != true) return null;
+      theme = const IconThemeData.fallback();
+    } else {
+      theme = _iconThemeFields(source, path, IconThemeData.new);
+    }
+    for (final layer in layers) {
+      theme = _iconThemeFields(source, layer, theme.copyWith);
+    }
+    return theme;
+  }
+
+  /// Passes the icon theme fields at [path] to [build], the constructor or a
+  /// `copyWith`.
+  static IconThemeData _iconThemeFields(
+    DataSource source,
+    List<Object> path,
+    IconThemeData Function({
+      Color? color,
+      double? size,
+      double? opacity,
+      double? fill,
+      double? weight,
+      double? grade,
+      double? opticalSize,
+      List<Shadow>? shadows,
+      bool? applyTextScaling,
+    }) build,
+  ) =>
+      build(
+        color: ArgumentDecoders.color(source, [...path, 'color']),
+        size: number(source, [...path, 'size']),
+        opacity: number(source, [...path, 'opacity']),
+        fill: number(source, [...path, 'fill']),
+        weight: number(source, [...path, 'weight']),
+        grade: number(source, [...path, 'grade']),
+        opticalSize: number(source, [...path, 'opticalSize']),
+        shadows: shadows(source, [...path, 'shadows']),
+        applyTextScaling: source.v<bool>([...path, 'applyTextScaling']),
+      );
+
   /// Decodes a nullable `TextDecoration`.
   static TextDecoration? textDecoration(DataSource source, List<Object> path) {
     if (!source.isList(path) && source.v<String>(path) == null) return null;
@@ -438,12 +624,21 @@ abstract final class RestageDecoders {
 
   /// Decodes a list of `Shadow` values using rfw's box-shadow map shape.
   static List<Shadow>? shadows(DataSource source, List<Object> path) {
-    final shadows = ArgumentDecoders.list<BoxShadow>(
-      source,
-      path,
-      ArgumentDecoders.boxShadow,
+    if (!source.isList(path)) return null;
+    return List<Shadow>.unmodifiable(
+      List<Shadow>.generate(source.length(path), (index) {
+        final shadowPath = <Object>[...path, index];
+        return Shadow(
+          color: ArgumentDecoders.color(source, [...shadowPath, 'color']) ??
+              const Color(0xFF000000),
+          offset: Offset(
+            number(source, [...shadowPath, 'offset', 'x']) ?? 0,
+            number(source, [...shadowPath, 'offset', 'y']) ?? 0,
+          ),
+          blurRadius: number(source, [...shadowPath, 'blurRadius']) ?? 0,
+        );
+      }),
     );
-    return shadows == null ? null : List<Shadow>.unmodifiable(shadows);
   }
 
   /// Decodes Restage's recursive `InlineSpan` wire shape.
@@ -908,6 +1103,33 @@ abstract final class RestageDecoders {
     double? height,
   ]) =>
       child == null ? null : preferredSize(child, height);
+
+  /// Adapts an AppBar slot while preserving its native themed toolbar height.
+  static PreferredSizeWidget? appBarPreferredSize(
+    Widget? child,
+    double? height,
+    double? toolbarHeight,
+    double? bottomHeight,
+  ) {
+    if (child == null) return null;
+    if (bottomHeight == null) return preferredSize(child, height);
+    return RestagePreferredSizeSlot.appBar(
+      toolbarHeight: toolbarHeight,
+      bottomHeight: bottomHeight,
+      child: child,
+    );
+  }
+
+  /// Decodes the bottom height of an AppBar slot. A supplied null is a nested
+  /// AppBar's unset toolbar height, which Flutter sizes at `kToolbarHeight`.
+  static double? appBarBottomHeight(DataSource source, List<Object> path) {
+    if (!source.isMap(path)) return number(source, path);
+    final version =
+        source.v<int>([...path, RfwConstructorPresenceProtocol.markerKey]);
+    if (version != RfwConstructorPresenceProtocol.version) return null;
+    return number(source, [...path, RfwConstructorPresenceProtocol.valueKey]) ??
+        kRestagePreferredSlotHeight;
+  }
 
   /// Adapts a built slot value to a required `PreferredSizeWidget`
   /// argument at [height], or the standard toolbar height.

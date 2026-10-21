@@ -6,7 +6,7 @@ const planBoardShowcaseScreenRef = NeutralFlowScreenRef(
   id: 'plan_board_showcase',
   artifactPath: 'plan_board_showcase.rfw',
   version: 1,
-  minClient: 10,
+  minClient: 12,
 );
 
 @Deprecated('Use planBoardShowcaseScreenRef')

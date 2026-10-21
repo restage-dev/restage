@@ -23,9 +23,9 @@ Object? resolveThemeBinding(BuildContext context, {required String path}) {
       return theme.colorScheme.surface;
     // iconTheme family
     case 'iconTheme.color':
-      return theme.iconTheme.color;
+      return IconTheme.of(context).color;
     case 'iconTheme.size':
-      return theme.iconTheme.size;
+      return IconTheme.of(context).size;
     // defaultTextStyle family
     case 'defaultTextStyle.color':
       return textStyle.color;

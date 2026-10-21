@@ -6,7 +6,7 @@ const starterDoneGuidedScreenRef = NeutralFlowScreenRef(
   id: 'starter_done_guided',
   artifactPath: 'starter_done_guided.rfw',
   version: 1,
-  minClient: 10,
+  minClient: 12,
 );
 
 @Deprecated('Use starterDoneGuidedScreenRef')
