@@ -8,15 +8,22 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
         sdkInstalledLibrariesMaximumCarrierCharacters;
 import 'package:restage_shared/restage_shared.dart' show InstalledCapability;
 
+import 'builtin_catalog_capabilities.dart';
 import 'library_runtime_registry.dart';
 
 /// The base64url `sdkInstalledLibraries` report of the registered custom
-/// widget libraries, or null when they do not fit the report's bounds.
+/// widget libraries and build metadata, or null when they exceed its bounds.
 ///
 /// Omitting the report leaves the server enrolling this build as before.
-String? installedLibrariesCarrier({InstalledCapability? snapshot}) {
+String? installedLibrariesCarrier({
+  InstalledCapability? snapshot,
+  String? appVersion,
+}) {
   try {
     final report = SdkInstalledLibrariesV1(
+      builtInCatalogVersion: snapshot?.builtInCatalogVersion ??
+          RestageBuiltInCatalogCapabilities.currentVersion,
+      appVersion: appVersion,
       libraries: [
         for (final library in snapshot?.installedLibraries ??
             LibraryRuntimeRegistry.installedSnapshot())

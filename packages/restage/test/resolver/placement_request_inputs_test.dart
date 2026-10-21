@@ -129,8 +129,10 @@ void main() {
     expect(inputs.installedCapability.libraryOf('later.widgets'), isNull);
     expect(
         inputs.installedCapabilityHash, inputs.installedCapability.contentHash);
-    expect(inputs.sdkInstalledLibraries,
-        installedLibrariesCarrier(snapshot: inputs.installedCapability));
+    expect(
+        inputs.sdkInstalledLibraries,
+        installedLibrariesCarrier(
+            snapshot: inputs.installedCapability, appVersion: '1.0.0'));
     expect(() => inputs.installedCapability.installedLibraries.clear(),
         throwsUnsupportedError);
     late Map<String, Object?> sent;
@@ -142,6 +144,10 @@ void main() {
         surfaceType: 'general', surfaceSlug: 'notice', inputs: inputs);
 
     expect(sent['sdkInstalledLibraries'], inputs.sdkInstalledLibraries);
+    final metadata = _decodeLibraries(sent['sdkInstalledLibraries']);
+    expect(metadata.builtInCatalogVersion,
+        inputs.installedCapability.builtInCatalogVersion);
+    expect(metadata.appVersion, '1.0.0');
     final libraries = _decodeLibraries(sent['sdkInstalledLibraries']).libraries;
     expect(libraries, hasLength(1));
     expect(libraries.single.version, 2);
@@ -174,7 +180,7 @@ void main() {
     await pending;
 
     expect(sent['sdkInstalledLibraries'],
-        installedLibrariesCarrier(snapshot: expected));
+        installedLibrariesCarrier(snapshot: expected, appVersion: '1.0.0'));
     expect(
         _decodeLibraries(sent['sdkInstalledLibraries'])
             .libraries

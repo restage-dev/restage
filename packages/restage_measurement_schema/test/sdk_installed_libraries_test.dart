@@ -43,6 +43,49 @@ void main() {
     );
   });
 
+  test('optional build metadata is bounded and round-trips canonically', () {
+    for (final catalog in [1, kMaximumPortableJsonInteger]) {
+      for (final version in ['2.4.1', 'x' * 64]) {
+        final report = SdkInstalledLibrariesV1(
+          libraries: _report().libraries,
+          builtInCatalogVersion: catalog,
+          appVersion: version,
+        );
+        final decoded =
+            SdkInstalledLibrariesV1.fromCanonicalBytes(report.canonicalBytes);
+        expect(decoded.builtInCatalogVersion, catalog);
+        expect(decoded.appVersion, version);
+        expect(decoded, report);
+      }
+    }
+    final absent =
+        SdkInstalledLibrariesV1.fromCanonicalBytes(_report().canonicalBytes);
+    expect(absent.builtInCatalogVersion, isNull);
+    expect(absent.appVersion, isNull);
+    for (final fields in <Map<String, Object?>>[
+      {'builtInCatalogVersion': 0},
+      {'builtInCatalogVersion': -1},
+      {'builtInCatalogVersion': kMaximumPortableJsonInteger + 1},
+      {'builtInCatalogVersion': 1.5},
+      {'builtInCatalogVersion': '2'},
+      {'builtInCatalogVersion': null},
+      {'appVersion': ''},
+      {'appVersion': 'x' * 65},
+      {'appVersion': '2.4\n'},
+      {'appVersion': '2.4\u007f'},
+      {'appVersion': 24},
+      {'appVersion': null},
+    ]) {
+      expect(
+        () => SdkInstalledLibrariesV1.fromCanonicalBytes(
+          CanonicalJsonCodec.encode({..._report().toJson(), ...fields}),
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+        reason: fields.toString(),
+      );
+    }
+  });
+
   test('decoding refuses noncanonical and out-of-contract documents', () {
     final json = _report().toJson();
     final libraries = json['libraries']! as List<Object?>;
@@ -146,6 +189,8 @@ void main() {
 
   test('the largest report fits the request carrier bound', () {
     final report = SdkInstalledLibrariesV1(
+      builtInCatalogVersion: kMaximumPortableJsonInteger,
+      appVersion: 'x' * 64,
       libraries: [
         for (var i = 0; i < sdkInstalledLibrariesMaximumLibraries; i++)
           SdkInstalledLibraryV1(

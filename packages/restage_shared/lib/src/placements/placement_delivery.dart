@@ -1264,6 +1264,10 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
       );
       final report = SdkInstalledLibrariesV1.fromCanonicalBytes(bytes);
       final expected = SdkInstalledLibrariesV1(
+        builtInCatalogVersion: report.builtInCatalogVersion == null
+            ? null
+            : buildContract.installedCapability.builtInCatalogVersion,
+        appVersion: report.appVersion,
         libraries: [
           for (final library
               in buildContract.installedCapability.installedLibraries)
