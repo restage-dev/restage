@@ -9,6 +9,7 @@ import 'package:restage_codegen/src/durable_state.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         LibraryContractHeader,
+        libraryContractDraftDirectory,
         libraryContractSnapshotDirectory,
         libraryContractSnapshotVersion;
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
@@ -167,19 +168,10 @@ sealed class LibraryContractOutcome {
   const LibraryContractOutcome();
 }
 
-/// The library matches its latest snapshot; nothing is written.
-final class LibraryContractUnchanged extends LibraryContractOutcome {
-  /// Creates an unchanged outcome.
-  const LibraryContractUnchanged();
-}
-
-/// The build passes and records [snapshot] as `v<capabilityVersion>.json`.
-final class LibraryContractRecorded extends LibraryContractOutcome {
-  /// Creates a recorded outcome.
-  const LibraryContractRecorded(this.snapshot);
-
-  /// The snapshot to write.
-  final LibraryContractSnapshot snapshot;
+/// The build passes.
+final class LibraryContractAccepted extends LibraryContractOutcome {
+  /// Creates an accepted outcome.
+  const LibraryContractAccepted();
 }
 
 /// The build fails; each line names one problem.
@@ -195,12 +187,13 @@ final class LibraryContractRefused extends LibraryContractOutcome {
 }
 
 /// Compares [current] with the [recorded] snapshots of the same library,
-/// keyed by capability version.
+/// keyed by capability version. Only a push records a snapshot, so an
+/// unpublished library has none and any change passes.
 LibraryContractOutcome evaluateLibraryContract(
   LibraryContractSnapshot current,
   Map<int, LibraryContractSnapshot> recorded,
 ) {
-  if (recorded.isEmpty) return LibraryContractRecorded(current);
+  if (recorded.isEmpty) return const LibraryContractAccepted();
   final namespace = current.library.namespace;
   final latestVersion = recorded.keys.reduce((a, b) => a > b ? a : b);
   final latest = recorded[latestVersion]!;
@@ -242,7 +235,7 @@ LibraryContractOutcome evaluateLibraryContract(
 
   if (breaking.isNotEmpty) {
     if (version > latestVersion && current.compatibleSince == version) {
-      return LibraryContractRecorded(current);
+      return const LibraryContractAccepted();
     }
     final target = version > latestVersion ? version : latestVersion + 1;
     final labels = _EntryLabels(latest.catalog, current.catalog);
@@ -254,7 +247,7 @@ LibraryContractOutcome evaluateLibraryContract(
       for (final change in breaking) line(change),
     ]);
   }
-  if (version > latestVersion) return LibraryContractRecorded(current);
+  if (version > latestVersion) return const LibraryContractAccepted();
   if (additive) {
     return LibraryContractRefused.of(
       'Library `$namespace` changed since v$latestVersion. Raise '
@@ -268,7 +261,7 @@ LibraryContractOutcome evaluateLibraryContract(
       'compatibleSince: ${latestVersion + 1}.',
     );
   }
-  return const LibraryContractUnchanged();
+  return const LibraryContractAccepted();
 }
 
 // Editor metadata and token resolution do not change what an installed app
@@ -420,31 +413,35 @@ Map<int, LibraryContractSnapshot> _decodeLibraryContractSnapshots(
   return snapshots;
 }
 
-/// Writes [snapshot] to `v<capabilityVersion>.json` under [root].
-void writeLibraryContractSnapshot(
+/// Writes [snapshot] as the library's only draft under [root], where the
+/// next push that depends on it binds it.
+void writeLibraryContractDraft(
   Directory root,
   LibraryContractSnapshot snapshot,
 ) {
-  final file = File.fromUri(
-    _snapshotDirectory(root, snapshot.library)
-        .uri
-        .resolve('v${snapshot.capabilityVersion}.json'),
+  final directory = Directory.fromUri(
+    root.uri.resolve(
+      '$libraryContractDraftDirectory/${snapshot.library.namespace}/',
+    ),
   );
-  file.parent.createSync(recursive: true);
-  file.writeAsStringSync(snapshot.encode());
+  if (directory.existsSync()) directory.deleteSync(recursive: true);
+  directory.createSync(recursive: true);
+  File.fromUri(directory.uri.resolve('v${snapshot.capabilityVersion}.json'))
+      .writeAsStringSync(snapshot.encode());
 }
 
 /// Checks every versioned custom library in [catalog] against the snapshots
-/// under [root], writing new ones when [write] is set.
+/// under [root], writing every library's draft when all pass and [write] is
+/// set. Returns the libraries that have no recorded snapshot.
 ///
 /// Throws [LibraryContractException] naming every problem.
-void enforceLibraryContracts(
+List<LibraryContractSnapshot> enforceLibraryContracts(
   Catalog catalog, {
   required Directory root,
   required bool write,
   Map<String, List<String>> enumMembers = const {},
 }) {
-  _enforceLibraryContracts(
+  return _enforceLibraryContracts(
     catalog,
     contents:
         _readLibraryContractContents(root, _versionedCustomLibraries(catalog)),
@@ -459,7 +456,7 @@ Iterable<WidgetLibrary> _versionedCustomLibraries(Catalog catalog) =>
         WidgetLibrary.builtInByNamespace(library.namespace) == null &&
         catalog.libraries[library]!.capabilityVersion != null);
 
-void _enforceLibraryContracts(
+List<LibraryContractSnapshot> _enforceLibraryContracts(
   Catalog catalog, {
   required Map<String, String> contents,
   required Directory? root,
@@ -467,6 +464,8 @@ void _enforceLibraryContracts(
   required Map<String, List<String>> enumMembers,
 }) {
   final lines = <String>[];
+  final accepted = <LibraryContractSnapshot>[];
+  final unrecorded = <LibraryContractSnapshot>[];
   final libraries = _versionedCustomLibraries(catalog).toList()
     ..sort((a, b) => a.namespace.compareTo(b.namespace));
   for (final library in libraries) {
@@ -476,20 +475,24 @@ void _enforceLibraryContracts(
       enumMembers: enumMembers,
     );
     if (current == null) continue;
-    final outcome = evaluateLibraryContract(
-      current,
-      _decodeLibraryContractSnapshots(library, contents),
-    );
+    final recorded = _decodeLibraryContractSnapshots(library, contents);
+    if (recorded.isEmpty) unrecorded.add(current);
+    final outcome = evaluateLibraryContract(current, recorded);
     switch (outcome) {
-      case LibraryContractUnchanged():
-        break;
-      case LibraryContractRecorded(:final snapshot):
-        if (write && root != null) writeLibraryContractSnapshot(root, snapshot);
+      case LibraryContractAccepted():
+        accepted.add(current);
       case LibraryContractRefused(lines: final refused):
         lines.addAll(refused);
     }
   }
   if (lines.isNotEmpty) throw LibraryContractException(lines);
+  // Drafts change only with a build that passes, so they match its output.
+  if (write && root != null) {
+    for (final snapshot in accepted) {
+      writeLibraryContractDraft(root, snapshot);
+    }
+  }
+  return unrecorded;
 }
 
 /// Checks package library contracts, tracking source snapshots when building.
@@ -509,7 +512,7 @@ Future<void> enforcePackageLibraryContracts(
   )) {
     contents[asset.path] = await buildStep.readAsString(asset);
   }
-  _enforceLibraryContracts(
+  final unrecorded = _enforceLibraryContracts(
     catalog,
     contents: root == null
         ? contents
@@ -523,7 +526,21 @@ Future<void> enforcePackageLibraryContracts(
     write: write,
     enumMembers: enumMembers,
   );
+  // An app records its libraries when it pushes; a package records them itself.
+  if (write &&
+      root != null &&
+      !File.fromUri(root.uri.resolve('restage_config.yaml')).existsSync()) {
+    for (final snapshot in unrecorded) {
+      log.warning(unrecordedLibraryWarning(snapshot));
+    }
+  }
 }
+
+/// The build warning for a package library no contract is recorded for.
+String unrecordedLibraryWarning(LibraryContractSnapshot snapshot) =>
+    'Library `${snapshot.library.namespace}` '
+    'v${snapshot.capabilityVersion} is not recorded yet. Run '
+    '`restage library record` before publishing this package.';
 
 /// A library changed in a way its declared capability line does not allow.
 final class LibraryContractException implements Exception {

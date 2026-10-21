@@ -96,6 +96,7 @@ final class ReleaseRecorder {
 
   final GitHead _head;
   final List<String> _written = <String>[];
+  var _receipts = 0;
 
   /// Prove the source is committed, then produce the output from it.
   ///
@@ -224,7 +225,14 @@ final class ReleaseRecorder {
     );
     if (file == null) return false;
     _written.add(repository.pathspecFor(file.path));
+    _receipts += 1;
     return true;
+  }
+
+  /// Commit [file], which this operation wrote beside its receipts, with them.
+  void track(File file) {
+    if (!p.isWithin(repository.root.path, file.absolute.path)) return;
+    _written.add(repository.pathspecFor(file.absolute.path));
   }
 
   /// Commit what this operation wrote, in one commit.
@@ -246,7 +254,7 @@ final class ReleaseRecorder {
         stdout.writeln('The receipt already matches the last commit.');
         return true;
       }
-      final count = _written.length;
+      final count = _receipts;
       stdout.writeln(
         'Recorded ${count == 1 ? 'the receipt' : '$count receipts'} in '
         '${commit.substring(0, 7)}.',

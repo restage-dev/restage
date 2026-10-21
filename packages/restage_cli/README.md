@@ -296,6 +296,10 @@ reports live versions, delivery rules and experiment arms that would stop
 rendering on that build. It exits non-zero when it finds a break, so it can
 gate an app release.
 
+`restage library record` records a package's widget library versions from its
+last build. Run it in a widget package before publishing the package; an app
+records its own libraries when it pushes a surface that uses them.
+
 ## Documentation
 
 `restage docs search <query>` lists the docs sections that match, with their URLs.

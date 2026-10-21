@@ -34,15 +34,17 @@ void main() {
     String namespace,
     int version, {
     required int compatibleSince,
+    bool draft = false,
   }) async {
     final file = File(
-      p.join(
+      p.joinAll([
         tempDir.path,
         '.restage',
+        if (draft) 'build',
         'library-contracts',
         namespace,
         'v$version.json',
-      ),
+      ]),
     );
     await file.create(recursive: true);
     await file.writeAsString(
@@ -222,6 +224,14 @@ void main() {
       await writeSnapshot('promo', 1, compatibleSince: 1);
 
       expect(localCompatibleSince(tempDir), {'app': 4, 'promo': 1});
+    });
+
+    test('include the draft the last build wrote', () async {
+      await writeSnapshot('app', 3, compatibleSince: 1);
+      await writeSnapshot('app', 4, compatibleSince: 4, draft: true);
+      await writeSnapshot('promo', 2, compatibleSince: 2, draft: true);
+
+      expect(localCompatibleSince(tempDir), {'app': 4, 'promo': 2});
     });
 
     test('refuse a malformed snapshot', () async {

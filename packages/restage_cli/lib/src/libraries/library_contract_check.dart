@@ -7,29 +7,32 @@ import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// The oldest capability version each library in [root] still renders, read
-/// from its highest recorded contract snapshot. Empty when there are none.
+/// from its highest contract snapshot, bound or drafted by the last build.
+/// Empty when there are none.
 @experimental
 Map<String, int> localCompatibleSince(Directory root) {
-  final directory = Directory(
-    p.join(root.path, libraryContractSnapshotDirectory),
-  );
-  if (!directory.existsSync()) return const {};
-  final result = <String, int>{};
-  for (final entry in directory.listSync()) {
-    if (entry is! Directory) continue;
-    File? newest;
-    var newestVersion = 0;
-    for (final file in entry.listSync().whereType<File>()) {
-      final version = libraryContractSnapshotVersion(p.basename(file.path));
-      if (version != null && version > newestVersion) {
-        newest = file;
-        newestVersion = version;
+  final newest = <String, (int, File)>{};
+  for (final relative in [
+    libraryContractSnapshotDirectory,
+    libraryContractDraftDirectory,
+  ]) {
+    final directory = Directory(p.join(root.path, relative));
+    if (!directory.existsSync()) continue;
+    for (final entry in directory.listSync().whereType<Directory>()) {
+      final namespace = p.basename(entry.path);
+      for (final file in entry.listSync().whereType<File>()) {
+        final version = libraryContractSnapshotVersion(p.basename(file.path));
+        if (version != null && version > (newest[namespace]?.$1 ?? 0)) {
+          newest[namespace] = (version, file);
+        }
       }
     }
-    if (newest == null) continue;
+  }
+  final result = <String, int>{};
+  for (final (_, file) in newest.values) {
     final header = LibraryContractHeader.decode(
-      newest.readAsStringSync(),
-      p.relative(newest.path, from: root.path),
+      file.readAsStringSync(),
+      p.relative(file.path, from: root.path),
     );
     result[header.namespace] = header.compatibleSince;
   }

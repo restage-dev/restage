@@ -8,6 +8,7 @@ import 'package:restage_cli/src/api/surface_publication_api.dart';
 import 'package:restage_cli/src/commands/publication_upload.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/libraries/library_contract_binding.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -172,7 +173,8 @@ void reportMeasurementProfileWrite(
 /// Each publication selects its plain or measurement-bound upload operation.
 /// Bound uploads finalize the bundled profile under [packageRoot].
 /// [onPushed] runs after each accepted upload. [noun] labels the output;
-/// [onApiException] renders typed errors.
+/// [onApiException] renders typed errors. Each accepted upload binds the
+/// library contracts it depends on; [onContractBound] gets each file written.
 Future<int> runPush({
   required RestageApi api,
   required List<AssembledSurfacePublication> assembled,
@@ -193,6 +195,7 @@ Future<int> runPush({
   onPushed,
   bool declareAssets = false,
   Uint8List? Function(AssembledSurfacePublication publication)? imageOf,
+  void Function(File file)? onContractBound,
 }) async {
   final uploader = SurfacePublicationApi(api);
   // Pushed surfaces whose stored revision is not the live one.
@@ -222,6 +225,13 @@ Future<int> runPush({
         '${describe(publication)} to $environment; ${result.stateDescription}',
       );
       if (profile != null) reportMeasurementProfileWrite(profile, stdout);
+      _bindLibraryContracts(
+        publication,
+        packageRoot: packageRoot,
+        stdout: stdout,
+        stderr: stderr,
+        onBound: onContractBound,
+      );
       if (result.activeRevision != result.storedRevision) {
         pending.add(publication);
       }
@@ -277,6 +287,41 @@ Future<int> runPush({
     );
   }
   return 0;
+}
+
+/// Binds the contract of each library version [publication] needs, now that
+/// something depending on it has been pushed.
+void _bindLibraryContracts(
+  AssembledSurfacePublication publication, {
+  required Directory packageRoot,
+  required StringSink stdout,
+  required StringSink stderr,
+  void Function(File file)? onBound,
+}) {
+  try {
+    final bound = bindLibraryContracts(
+      projectRoot: packageRoot,
+      required: {
+        for (final requirement in publication.payload.requiredLibraries)
+          requirement.namespace: requirement.minVersion,
+      },
+    );
+    for (final binding in bound) {
+      stdout.writeln(libraryRecordedLine(binding));
+      onBound?.call(binding.file);
+    }
+  } on FormatException catch (error) {
+    stderr.writeln(
+      'The push went through, but its library contract was not recorded: '
+      '${error.message} Run `dart run build_runner build`; the next push '
+      'records it.',
+    );
+  } on IOException catch (error) {
+    stderr.writeln(
+      'The push went through, but its library contract was not recorded: '
+      '$error. Make the folder writable; the next push records it.',
+    );
+  }
 }
 
 /// Report how far a multi-surface push run got before it stopped.

@@ -11,6 +11,7 @@ import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/receipts/git_repository.dart';
 import 'package:restage_cli/src/receipts/release_recorder.dart';
 import 'package:restage_cli/src/receipts/release_receipt.dart';
+import 'package:restage_shared/restage_shared.dart' show LibraryRequirement;
 import 'package:test/test.dart';
 
 import '../_helpers/publication_fixtures.dart';
@@ -308,6 +309,90 @@ void main() {
     expect(
       _out(await _git(root, ['log', '--oneline'])).split('\n'),
       hasLength(1),
+    );
+  });
+
+  group('library contracts', () {
+    const contract = '.restage/library-contracts/app/v2.json';
+
+    Future<void> seedLibraryDependentPush() async {
+      await seedGeneratedPaywall(
+        app,
+        slug: 'pro_upgrade',
+        sources: const ['lib/screen.dart'],
+        requiredLibraries: const [
+          LibraryRequirement(namespace: 'app', minVersion: 2),
+        ],
+      );
+      _write(
+        app,
+        '.restage/build/library-contracts/app/v2.json',
+        jsonEncode({
+          'namespace': 'app',
+          'capabilityVersion': 2,
+          'compatibleSince': 1,
+        }),
+      );
+      await _git(root, ['add', '-A']);
+      await _git(root, ['commit', '-q', '-m', 'depend on app v2']);
+    }
+
+    test('a push binds the version it depends on', () async {
+      await seedLibraryDependentPush();
+
+      final code = await push(['pro_upgrade']);
+
+      expect(code, 0, reason: err.toString());
+      expect(
+        File(p.join(app.path, contract)).readAsStringSync(),
+        File(
+          p.join(app.path, '.restage/build/library-contracts/app/v2.json'),
+        ).readAsStringSync(),
+      );
+      expect(out.toString(), contains('Recorded library app v2'));
+    });
+
+    test('a contract that cannot be written keeps the push', () async {
+      await seedLibraryDependentPush();
+      _write(app, '.restage/library-contracts', 'not a folder');
+
+      final code = await push(['pro_upgrade']);
+
+      expect(code, 0, reason: err.toString());
+      expect(out.toString(), contains('Pushed pro_upgrade'));
+      expect(
+        err.toString(),
+        contains(
+          'The push went through, but its library contract was not '
+          'recorded',
+        ),
+      );
+    });
+
+    test(
+      'a recorded push commits the bound contract with the receipt',
+      () async {
+        await seedLibraryDependentPush();
+
+        final code = await push(['pro_upgrade', '--record-git']);
+
+        expect(code, 0, reason: err.toString());
+        final committed = await _git(root, [
+          'show',
+          '--name-only',
+          '--format=%s',
+          'HEAD',
+        ]);
+        expect(
+          _out(committed).split('\n').where((line) => line.isNotEmpty).toSet(),
+          {
+            'restage: push pro_upgrade r17 to staging',
+            'app/$_receiptPath',
+            'app/$contract',
+          },
+        );
+        expect(_out(await _git(root, ['status', '--porcelain=v1'])), isEmpty);
+      },
     );
   });
 

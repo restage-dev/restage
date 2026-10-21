@@ -131,7 +131,7 @@ Generated mounts include the original Flutter widgets as fallback.
 
 Archiving stops serving the surface across environments. Restoring it returns it to
 the list; publish a version to serve it again. `check-libraries` reads your local
-`.restage/library-contracts/` and exits non-zero when the build would break served
+`.restage/library-contracts/` and the last build's library versions, and exits non-zero when the build would break served
 content. Run it before releasing a changed widget library.
 
 ### Review experiment impact
@@ -382,6 +382,7 @@ against key prefixes on your machine and never sends it.
 
 ```sh
 restage catalog push   # list your own widgets in the dashboard editor's palette
+restage library record   # record a package's widget library versions before publishing it
 restage audit log      # read the audit log
 restage audit export
 restage audit verdict

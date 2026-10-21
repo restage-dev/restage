@@ -17,6 +17,7 @@ import 'package:restage_cli/src/commands/console_command.dart';
 import 'package:restage_cli/src/commands/experiment_activation_command.dart';
 import 'package:restage_cli/src/commands/experiment_command.dart';
 import 'package:restage_cli/src/commands/init_command.dart';
+import 'package:restage_cli/src/commands/library_command.dart';
 import 'package:restage_cli/src/commands/login_command.dart';
 import 'package:restage_cli/src/commands/logout_command.dart';
 import 'package:restage_cli/src/commands/paywall_command.dart';
@@ -270,6 +271,7 @@ class RestageCli {
           httpClient: _httpClient,
         ),
       )
+      ..addCommand(LibraryCommand(stdout: _stdout, stderr: _stderr))
       ..addCommand(
         CatalogCommand(
           stdout: _stdout,
