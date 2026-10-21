@@ -768,18 +768,85 @@ enum PublicDeliverySelectionSourceV1 {
   experiment,
 }
 
+/// Inert experiment identifiers from the original committed selection.
+final class PublicExperimentSelectionV1 extends _DeliveryValue {
+  /// Creates a projection without assignment authority or actor identity.
+  PublicExperimentSelectionV1({
+    required this.experimentId,
+    required this.experimentRevisionId,
+    required this.experimentEpochId,
+    required this.armId,
+  });
+
+  /// Decodes the closed identifier projection.
+  factory PublicExperimentSelectionV1.fromJson(Object? value) {
+    final reader = _deliveryReader(
+        value,
+        const {
+          'experimentId',
+          'experimentRevisionId',
+          'experimentEpochId',
+          'armId',
+        },
+        'experimentSelection');
+    return _construct(() => PublicExperimentSelectionV1(
+          experimentId: ExperimentPublicIdV1(reader.string('experimentId')),
+          experimentRevisionId: ExperimentPublicRevisionIdV1(
+              reader.string('experimentRevisionId')),
+          experimentEpochId:
+              ExperimentPublicEpochIdV1(reader.string('experimentEpochId')),
+          armId: ExperimentPublicArmIdV1(reader.string('armId')),
+        ));
+  }
+
+  /// Stable experiment identifier.
+  final ExperimentPublicIdV1 experimentId;
+
+  /// Original experiment revision.
+  final ExperimentPublicRevisionIdV1 experimentRevisionId;
+
+  /// Original allocation epoch.
+  final ExperimentPublicEpochIdV1 experimentEpochId;
+
+  /// Selected original arm.
+  final ExperimentPublicArmIdV1 armId;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'experimentId': experimentId.value,
+        'experimentRevisionId': experimentRevisionId.value,
+        'experimentEpochId': experimentEpochId.value,
+        'armId': armId.value,
+      };
+}
+
 /// An allowlisted policy owner, exact family, and selection source.
 final class PublicDeliveryDecisionStepV1 extends _DeliveryValue {
   /// Creates a public step without rule, audience, or allocation evidence.
-  PublicDeliveryDecisionStepV1({required this.scope, required this.source});
+  PublicDeliveryDecisionStepV1({
+    required this.scope,
+    required this.source,
+    this.experimentSelection,
+  }) {
+    if (experimentSelection != null &&
+        source != PublicDeliverySelectionSourceV1.experiment) {
+      throw const CanonicalFormatException(
+          'Only an experiment selects an arm.');
+    }
+  }
 
   /// Decodes a closed public step.
   factory PublicDeliveryDecisionStepV1.fromJson(Object? value) {
-    final reader =
-        _deliveryReader(value, const {'scope', 'source'}, 'decisionStep');
+    final reader = _deliveryReader(
+        value, const {'scope', 'source'}, 'decisionStep',
+        optional: const {'experimentSelection'});
     return _construct(
       () => PublicDeliveryDecisionStepV1(
         scope: DeliveryPolicyScopeV1.fromJson(reader.object('scope')),
+        experimentSelection: reader.value('experimentSelection') == null
+            ? null
+            : PublicExperimentSelectionV1.fromJson(
+                reader.value('experimentSelection')),
         source: PublicDeliverySelectionSourceV1.values.byName(
           reader.string('source'),
         ),
@@ -797,10 +864,15 @@ final class PublicDeliveryDecisionStepV1 extends _DeliveryValue {
   /// Bounded selection-source vocabulary.
   final PublicDeliverySelectionSourceV1 source;
 
+  /// Exact independent experiment arm; null for routing and joint selection.
+  final PublicExperimentSelectionV1? experimentSelection;
+
   @override
   Map<String, Object?> toJson() => {
         'scope': scope.toJson(),
         'source': source.name,
+        if (experimentSelection != null)
+          'experimentSelection': experimentSelection!.toJson(),
       };
 }
 

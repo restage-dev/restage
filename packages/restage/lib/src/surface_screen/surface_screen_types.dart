@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../events/surface_assignment.dart';
 import '../delivery/surface_sections_carrier.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../flow/flow_descriptors.dart';
@@ -97,6 +98,7 @@ final class ResolvedSurfaceScreen {
           blob: blob,
           contentHash: contentHash,
           bundledEntryHash: bundledEntryHash,
+          assignment: null,
           cacheHit: false,
         );
 
@@ -114,6 +116,7 @@ final class ResolvedSurfaceScreen {
     required Uint8List blob,
     required String contentHash,
     required bool cacheHit,
+    SurfaceAssignment? assignment,
   }) : this._(
           origin: SurfaceScreenOrigin.hosted,
           surface: surface,
@@ -128,6 +131,7 @@ final class ResolvedSurfaceScreen {
           blob: blob,
           contentHash: contentHash,
           bundledEntryHash: null,
+          assignment: assignment,
           cacheHit: cacheHit,
         );
 
@@ -145,8 +149,10 @@ final class ResolvedSurfaceScreen {
     required Uint8List blob,
     required this.contentHash,
     required this.bundledEntryHash,
+    required SurfaceAssignment? assignment,
     required this.cacheHit,
-  }) : blob = Uint8List.fromList(blob) {
+  })  : _assignment = assignment,
+        blob = Uint8List.fromList(blob) {
     if (contractVersion < 1) {
       throw ArgumentError.value(
         contractVersion,
@@ -216,6 +222,14 @@ final class ResolvedSurfaceScreen {
   /// matching contract, so a repackaged bundle cannot substitute other bytes.
   final String? bundledEntryHash;
 
+  /// Experiment assignment that selected this hosted screen.
+  ///
+  /// Bundled screens carry no assignment.
+  SurfaceAssignment? get assignment =>
+      _assignment ?? projectResolvedSurfaceAssignment(this);
+
+  final SurfaceAssignment? _assignment;
+
   /// Whether this hosted result came from the resolver cache.
   final bool cacheHit;
 
@@ -245,6 +259,7 @@ final class ResolvedSurfaceScreen {
                       blob: blob,
                       contentHash: contentHash,
                       cacheHit: true,
+                      assignment: assignment,
                     )),
               ),
               measurementPublicationBindingReferenceFor(this),

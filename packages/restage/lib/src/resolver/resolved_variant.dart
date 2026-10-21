@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../events/surface_assignment.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../delivery/surface_sections_carrier.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
@@ -44,8 +45,9 @@ class ResolvedVariant {
     required this.surfaceVersion,
     this.paywallVersion,
     this.paywallPublishedVersion,
+    SurfaceAssignment? assignment,
     this.cacheHit = false,
-  }) {
+  }) : _assignment = assignment {
     if (surfaceVersion.isEmpty) {
       throw ArgumentError.value(
         surfaceVersion,
@@ -82,6 +84,14 @@ class ResolvedVariant {
   /// runtime telemetry so interactions attribute to the exact served version.
   final int? paywallPublishedVersion;
 
+  /// Experiment assignment that selected this hosted variant.
+  ///
+  /// Bundled and custom variants carry no assignment.
+  SurfaceAssignment? get assignment =>
+      _assignment ?? projectResolvedSurfaceAssignment(this);
+
+  final SurfaceAssignment? _assignment;
+
   /// Whether the bytes came from a local cache rather than a fresh fetch.
   final bool cacheHit;
 
@@ -99,6 +109,7 @@ class ResolvedVariant {
     String? surfaceVersion,
     String? paywallVersion,
     int? paywallPublishedVersion,
+    SurfaceAssignment? assignment,
     bool? cacheHit,
   }) {
     if (bytes != null &&
@@ -116,6 +127,7 @@ class ResolvedVariant {
       paywallVersion: paywallVersion ?? this.paywallVersion,
       paywallPublishedVersion:
           paywallPublishedVersion ?? this.paywallPublishedVersion,
+      assignment: assignment ?? this.assignment,
       cacheHit: cacheHit ?? this.cacheHit,
     );
     if (copy != this) return copy;
@@ -145,7 +157,8 @@ class ResolvedVariant {
           other.paywallId == paywallId &&
           other.surfaceVersion == surfaceVersion &&
           other.paywallVersion == paywallVersion &&
-          other.paywallPublishedVersion == paywallPublishedVersion;
+          other.paywallPublishedVersion == paywallPublishedVersion &&
+          other.assignment == assignment;
 
   @override
   int get hashCode => Object.hash(
@@ -153,5 +166,6 @@ class ResolvedVariant {
         surfaceVersion,
         paywallVersion,
         paywallPublishedVersion,
+        assignment,
       );
 }

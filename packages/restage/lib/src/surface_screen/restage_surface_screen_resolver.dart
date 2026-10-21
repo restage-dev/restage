@@ -344,6 +344,8 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
           blob: payload.blob,
           contentHash: document.contentHash,
           cacheHit: cacheHit,
+          assignment:
+              projectSurfaceAssignment(result.canonicalExperimentAssignment),
         ),
         payload,
       ),

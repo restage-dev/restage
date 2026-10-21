@@ -291,6 +291,13 @@ void main() {
     test('reads nothing from a cause this build does not know', () {
       expect(surfaceAssignmentDiagnosticFrom({'result': 'invented'}), isNull);
       expect(surfaceAssignmentDiagnosticFrom({'result': 7}), isNull);
+      expect(
+        surfaceAssignmentDiagnosticFrom({
+          'result': 'assignmentNotPresented',
+          'armId': 7,
+        }),
+        isNull,
+      );
       expect(surfaceAssignmentDiagnosticFrom('assignmentDisagrees'), isNull);
       expect(
         surfaceAssignmentDiagnosticFrom(

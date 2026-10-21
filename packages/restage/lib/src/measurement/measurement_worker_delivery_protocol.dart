@@ -791,11 +791,17 @@ final class MeasurementWorkerOwnedDeliveryAppendAcknowledgedMessage
   const MeasurementWorkerOwnedDeliveryAppendAcknowledgedMessage({
     required this.sessionId,
     required this.outcome,
+    required this.routeIndex,
+    required this.value,
+    required this.emitsPresentationEvent,
     required this.workerOwnedByteCount,
   });
 
   final String sessionId;
   final MeasurementWorkerAppendAcknowledgementOutcome outcome;
+  final int routeIndex;
+  final MeasurementWorkerAppendValue value;
+  final bool emitsPresentationEvent;
   final int workerOwnedByteCount;
 }
 
@@ -880,7 +886,7 @@ final class MeasurementWorkerOwnedDeliveryFatalMessage
 
 /// Strict primitive-only protocol dedicated to the worker-owned delivery seam.
 abstract final class MeasurementWorkerOwnedDeliveryProtocol {
-  static const int _version = 1;
+  static const int _version = 2;
   static const int _register = 1;
   static const int _append = 2;
   static const int _checkpoint = 3;
@@ -1009,6 +1015,9 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
   static List<Object?> appendAcknowledged({
     required String sessionId,
     required MeasurementWorkerAppendAcknowledgementOutcome outcome,
+    required int routeIndex,
+    required MeasurementWorkerAppendValue value,
+    required bool emitsPresentationEvent,
     required int workerOwnedByteCount,
   }) =>
       [
@@ -1016,6 +1025,9 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
         _version,
         sessionId,
         outcome.wireCode,
+        routeIndex,
+        value.wireCode,
+        emitsPresentationEvent,
         workerOwnedByteCount,
       ];
 
@@ -1146,9 +1158,12 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
         ),
       _appendAcknowledged =>
         MeasurementWorkerOwnedDeliveryAppendAcknowledgedMessage(
-          sessionId: _requireStringAt(values, 2, expectedLength: 5),
+          sessionId: _requireStringAt(values, 2, expectedLength: 8),
           outcome: _requireAppendOutcome(_requireInt(values[3])),
-          workerOwnedByteCount: _requireNonNegativeIntAt(values, 4),
+          routeIndex: _requireNonNegativeIntAt(values, 4),
+          value: _requireAppendValue(_requireInt(values[5])),
+          emitsPresentationEvent: _requireBool(values[6]),
+          workerOwnedByteCount: _requireNonNegativeIntAt(values, 7),
         ),
       _checkpointResult =>
         MeasurementWorkerOwnedDeliveryCheckpointResultMessage(
@@ -1284,7 +1299,7 @@ void _requireLength(List<Object?> values, int expectedLength) {
 }
 
 void _requireVersion(List<Object?> values) {
-  if (_requireIntAt(values, 1) != 1) {
+  if (_requireIntAt(values, 1) != 2) {
     throw const MeasurementWorkerOwnedDeliveryProtocolException(
       'unsupported_version',
     );

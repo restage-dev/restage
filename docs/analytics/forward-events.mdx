@@ -1,0 +1,296 @@
+---
+title: Send Restage events to your analytics tool
+description: Forward surface events to Firebase Analytics, PostHog, Mixpanel, Amplitude, Segment or OpenTelemetry, and connect them to app activation and retention.
+---
+
+Subscribe to `Restage.events` to send surface activity to the analytics SDK already
+in your app. Each event provides a stable `name` and a flat `analyticsProperties`
+map. The same subscription works across paywalls, onboarding, messages, surveys
+and general surfaces.
+
+The examples below use the upcoming SDK API. Keep your installed Restage version
+aligned with the release that introduces `analyticsProperties`.
+
+## Connect your analytics SDK
+
+Initialize Restage and your chosen analytics SDK before mounting a surface.
+Install one subscription for the lifetime of your analytics integration. Keep the
+returned subscription and call `await subscription.cancel()` when that owner
+shuts down. Subscribe before showing a surface: the stream broadcasts new events
+and does not replay earlier activity.
+
+All examples also import `package:restage/restage.dart`.
+
+These snippets assume the vendor SDK is configured for your project. Your vendor
+SDK controls its identity, consent settings, batching and delivery. Restage event
+properties contain no installation or account identifier; the vendor associates
+the forwarded event with its own current user.
+
+### Firebase Analytics
+
+Add `firebase_analytics` and import
+`package:firebase_analytics/firebase_analytics.dart`. Follow the
+[Firebase setup guide](https://firebase.google.com/docs/analytics/flutter/get-started)
+to initialize Firebase for your app.
+
+```dart
+final subscription = Restage.events.listen((event) {
+  FirebaseAnalytics.instance.logEvent(
+    name: event.name, parameters: event.analyticsProperties,
+  );
+});
+```
+
+Use [DebugView](https://firebase.google.com/docs/analytics/debugview) to inspect
+incoming events and their parameters. Register the event parameters you want to
+use in reports as custom dimensions, including `restage_experiment` and
+`restage_variant`. Firebase's [event guide](https://firebase.google.com/docs/analytics/flutter/events)
+describes that reporting setup.
+
+### PostHog
+
+Add `posthog_flutter` and import `package:posthog_flutter/posthog_flutter.dart`.
+Initialize the SDK using your project's token and region, following the
+[PostHog Flutter guide](https://posthog.com/docs/libraries/flutter).
+
+```dart
+final subscription = Restage.events.listen((event) {
+  Posthog().capture(
+    eventName: event.name, properties: event.analyticsProperties,
+  );
+});
+```
+
+### Mixpanel
+
+Add `mixpanel_flutter` and import `package:mixpanel_flutter/mixpanel_flutter.dart`.
+The `mixpanel` variable below is the initialized instance returned by
+`await Mixpanel.init(...)`; see the [official Flutter library](https://mixpanel.github.io/mixpanel-flutter/packages/mixpanel_flutter/).
+
+```dart
+final subscription = Restage.events.listen((event) {
+  mixpanel.track(
+    event.name, properties: event.analyticsProperties,
+  );
+});
+```
+
+### Amplitude
+
+Add `amplitude_flutter` and import `package:amplitude_flutter/amplitude.dart`
+and `package:amplitude_flutter/events/base_event.dart`. The `amplitude` variable
+below is your initialized SDK 4 instance; see the
+[Amplitude Flutter guide](https://www.amplitude.com/docs/sdks/analytics/flutter/flutter-sdk-4).
+
+```dart
+final subscription = Restage.events.listen((event) {
+  amplitude.track(BaseEvent(
+    event.name, eventProperties: event.analyticsProperties,
+  ));
+});
+```
+
+### Segment
+
+Add `segment_analytics` and import `package:segment_analytics/client.dart`.
+The `analytics` variable below is your configured client, created with
+`createClient(Configuration(writeKey))` (`Configuration` is imported from
+`package:segment_analytics/state.dart`); see the
+[Segment Flutter guide](https://www.twilio.com/docs/segment/connections/sources/catalog/libraries/mobile/flutter).
+
+```dart
+final subscription = Restage.events.listen((event) {
+  analytics.track(
+    event.name, properties: event.analyticsProperties,
+  );
+});
+```
+
+### OpenTelemetry
+
+Add `dartastic_opentelemetry` and import
+`package:dartastic_opentelemetry/dartastic_opentelemetry.dart`. Initialize
+`OTel` with your app's exporter before subscribing; see the
+[Dartastic logs guide](https://pub.dev/packages/dartastic_opentelemetry#logs).
+Obtain a logger with `final logger = OTel.logger('restage');`.
+
+```dart
+final subscription = Restage.events.listen((event) {
+  logger.emit(
+    eventName: event.name,
+    attributes: OTel.attributesFromMap(event.analyticsProperties),
+  );
+});
+```
+
+Each surface event becomes a named log record, with the same properties as the
+other integrations. Your existing exporter sends it to your collector. For a
+local delivery check, initialize with
+`logRecordExporter: ConsoleLogRecordExporter()` and call
+`await OTel.loggerProvider().forceFlush()` after dismissal. The console should
+show `paywall_dismissed` and its `restage_variant` attribute.
+
+## Read the served assignment
+
+After a surface has painted successfully, app code can read the assignment
+synchronously:
+
+```dart
+final assignment = Restage.assignmentFor(
+  'pro_upgrade', surfaceType: Surface.paywall,
+);
+final useTreatment = assignment?.experimentId == 'upgrade_v2' &&
+    assignment?.variantId == 'treatment';
+```
+
+Use your experiment and arm IDs in place of the example values. `variantId` is
+the served arm's canonical ID, which can differ from its display label. The result
+also includes `experimentRevisionId` and `experimentEpochId`, so you can distinguish
+revisions and successive runs. A resolver result exposes its own assignment;
+the global accessor changes only after successful presentation. It performs no
+network request or assignment evaluation.
+
+For a surface delivered through a placement, the accessor and surface events
+use the surface experiment's assignment when one exists. Otherwise they use the
+placement experiment's assignment. When both experiments apply, this singular
+lookup describes the surface experiment; the delivery decision path retains
+both assignments. A joint selection without an individual experiment arm has
+no singular assignment.
+
+The accessor retains the last successfully presented assignment after dismissal.
+A successfully painted hosted replacement updates it; a hosted screen built
+offstage does not. A bundled fallback has no experiment assignment. A paywall
+fallback clears the previous assignment when it paints. Selecting a compiled
+screen or flow fallback makes the lookup return null until a later confirmed
+presentation, even when that fallback is offstage: those native roots cannot
+always report paint, so the SDK stops claiming the previous assignment.
+Failed loads, prefetched candidates and abandoned refreshes do not replace the
+served assignment. `Restage.reset()` clears the lookup for the previous actor.
+The lookup is process-local; it does not persist a cohort across app restarts.
+
+If multiple instances of the same surface are active, the accessor returns null
+to avoid choosing one instance on your behalf. For behavior tied to a particular
+instance, use that instance's event `assignment`. Every emitted event retains its
+own attribution snapshot, even if you read it after another surface has rendered.
+Events fired after an identity reset do not inherit the prior actor's assignment.
+
+## Connect exposure, activation and day-7 retention in PostHog
+
+Suppose `pro_upgrade` has a treatment arm that changes whether an app feature is
+free. Forward the surface stream using the PostHog snippet above. When your app's
+activation milestone occurs, tag that app event with the assignment it actually
+used:
+
+```dart
+final assignment = Restage.assignmentFor(
+  'pro_upgrade', surfaceType: Surface.paywall,
+);
+await Posthog().capture(
+  eventName: 'app_activated',
+  properties: {
+    if (assignment != null) ...{
+      'restage_experiment': assignment.experimentId,
+      'restage_experiment_epoch': assignment.experimentEpochId,
+      'restage_variant': assignment.variantId,
+    },
+  },
+);
+```
+
+Emit `app_active` from your app when the person returns and performs the activity
+that your product treats as a return. Keep your existing PostHog identity
+consistent across these events. The cohort example uses identified PostHog
+events and person profiles; configure those through your app's existing
+PostHog integration. Restage sends no activation or retention event for your app.
+
+In a [PostHog funnel](https://posthog.com/docs/product-analytics/funnels), set the
+steps to `paywall_viewed` then `app_activated`. Filter the first step by
+`restage_surface_id=pro_upgrade` and the experiment ID and epoch. Break down by
+`restage_variant`, attributed to the first step, and choose a conversion window
+that matches your activation definition. This shows how many people who saw each
+arm activated.
+
+For the third part, save the treatment arm's converted people as a
+[cohort](https://posthog.com/docs/data/cohorts). Create a
+[retention insight](https://posthog.com/docs/product-analytics/retention) filtered
+to that cohort: start event `app_activated`, return event `app_active`, daily
+intervals, first-time retention, and returning criteria **On**. Read Day 7 after
+that interval has completed. Repeat for the control cohort. A static cohort
+captures the people in the selected funnel window; refresh it when evaluating a
+new window.
+
+This answers “saw paywall B → activated → returned on day 7 after activation.”
+A seven-day funnel window alone measures conversion within seven days. If you
+prefer a retention breakdown by event properties, stamp the original cohort's
+variant on both the start and return events: PostHog requires matching breakdown
+values. Keep that cohort in your app or analytics tool across restarts; the
+process-local served accessor represents the current run of your app.
+
+## Property format
+
+Alongside lifecycle events, admitted Measurement points produce
+`surface_point_presented` and `surface_point_interacted`. These carry canonical
+`restage_occurrence_id` and `restage_lineage_id` identifiers, with the same
+surface attribution.
+Point events arrive asynchronously after the measurement worker accepts them.
+A presented point means first retained membership in that surface session;
+several points can belong to one screen. Use `paywall_viewed` for the root-view
+funnel above. Point interactions report activity and do not by themselves prove
+a purchase, activation or other realized outcome.
+
+`FlowDismissed` (`flow_dismissed`) reports removal of an active, rendered general
+flow before completion or skip. It describes observed removal, not user intent;
+unpainted candidates and refresh cleanup do not emit it.
+
+If your app exhaustively switches on the sealed `RestageEvent` type, add cases
+for `SurfacePointPresented`, `SurfacePointInteracted`, and `FlowDismissed` when
+upgrading.
+
+`analyticsProperties` contains SDK-defined fields suitable for automatic
+forwarding. Every property name starts with `restage_`, including event details
+such as `restage_reason` and `restage_time_on_surface_ms`. It excludes
+custom-event arguments, survey answers, diagnostic messages, host context and
+opaque measurement capabilities. Your local typed
+event callbacks remain available for app behavior.
+
+The map follows [Firebase's parameter limits](https://firebase.google.com/docs/reference/android/com/google/firebase/analytics/FirebaseAnalytics.Param):
+at most 25 entries, parameter names of at most 40 characters, and string values
+of at most 100 characters. SDK event and parameter names use snake_case, start
+with a letter and avoid reserved prefixes. Values are strings or finite numbers;
+booleans become `1` or `0`, and absent values are omitted. Keep any properties
+you add yourself within your vendor's limits too.
+
+Surface fields use `restage_surface_id`, `restage_surface_type` and
+`restage_surface_version`. Assigned events add `restage_experiment`,
+`restage_experiment_revision`, `restage_experiment_epoch` and `restage_variant`.
+Events fired before a served version exists omit that version and assignment.
+String values are truncated to at most 100 UTF-16 code units at a Unicode
+character boundary; the typed event and assignment accessor preserve the complete
+identifiers.
+Use short, distinct IDs when comparing them in a vendor report. If you add the
+raw assignment fields to app events as above, keep those IDs within your vendor's
+limits too.
+
+## Verify delivery
+
+Show a surface, dismiss it, and inspect `paywall_dismissed` in your vendor's event
+viewer. For an experiment's treatment arm, check `restage_variant=treatment`
+alongside the expected surface, version and experiment fields. Use the actual
+arm ID configured in your experiment if it differs from `treatment`.
+
+On Android, enable Firebase DebugView for your app's package before the run:
+
+```sh
+adb shell setprop debug.firebase.analytics.app com.example.app
+```
+
+Open Firebase Analytics DebugView, choose the device, select the event and inspect
+its parameters. In PostHog, inspect the same event in your project's activity
+view. After testing, disable Firebase debug mode:
+
+```sh
+adb shell setprop debug.firebase.analytics.app .none.
+```
+
+An event in `Restage.events` proves local emission. Confirm arrival in the vendor
+project to verify its configuration and network delivery.

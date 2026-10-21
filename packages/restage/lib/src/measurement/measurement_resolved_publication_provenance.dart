@@ -3,8 +3,10 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         CanonicalSurfaceExperimentAssignmentV1,
+        PublicDeliverySelectionSourceV1,
         SurfaceRoutingSelectionProvenanceV1;
 
+import '../events/surface_assignment.dart';
 import '../resolver/surface_resolution_report.dart';
 import 'placement_mount_attribution.dart' show resolvedPlacementDeliveryFor;
 
@@ -16,7 +18,6 @@ final Expando<MeasurementPublicationBindingReferenceV1>
     Expando<MeasurementPublicationBindingReferenceV1>(
   'restage.measurement.resolvedPublicationBindingReference',
 );
-
 final Expando<CanonicalSurfaceExperimentAssignmentV1>
     _resolvedExperimentAssignments =
     Expando<CanonicalSurfaceExperimentAssignmentV1>(
@@ -144,6 +145,43 @@ CanonicalSurfaceExperimentAssignmentV1? measurementExperimentAssignmentFor(
   Object resolved,
 ) =>
     _resolvedExperimentAssignments[resolved];
+
+/// Projects the public identifiers without exposing the private outcome link.
+@internal
+SurfaceAssignment? projectSurfaceAssignment(
+  CanonicalSurfaceExperimentAssignmentV1? assignment,
+) =>
+    assignment == null
+        ? null
+        : SurfaceAssignment(
+            experimentId: assignment.experimentId.value,
+            experimentRevisionId: assignment.experimentRevisionId.value,
+            experimentEpochId: assignment.experimentEpochId.value,
+            variantId: assignment.armId.value,
+          );
+
+/// Projects the nearest experiment owner of the exact selected surface.
+@internal
+SurfaceAssignment? projectResolvedSurfaceAssignment(Object resolved) {
+  final delivery = resolvedPlacementDeliveryFor(resolved);
+  if (delivery == null) {
+    return projectSurfaceAssignment(
+        measurementExperimentAssignmentFor(resolved));
+  }
+  for (final step in delivery.path.steps.reversed) {
+    if (step.source != PublicDeliverySelectionSourceV1.experiment) continue;
+    final selection = step.experimentSelection;
+    return selection == null
+        ? null
+        : SurfaceAssignment(
+            experimentId: selection.experimentId.value,
+            experimentRevisionId: selection.experimentRevisionId.value,
+            experimentEpochId: selection.experimentEpochId.value,
+            variantId: selection.armId.value,
+          );
+  }
+  return null;
+}
 
 /// Returns the exact local registration identity captured with the assignment.
 @internal

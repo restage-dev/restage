@@ -32,6 +32,18 @@ class _StaticResolver implements VariantResolver {
       );
 }
 
+class _ControlledResolver implements VariantResolver {
+  final result = Completer<ResolvedVariant>();
+
+  @override
+  Future<ResolvedVariant> resolve(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) =>
+      result.future;
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -90,6 +102,124 @@ void main() {
     );
     final viewed = received.whereType<PaywallViewed>().single;
     expect(viewed.publishedVersion, isNull);
+  });
+
+  testWidgets(
+      'commits the served assignment on first paint and snapshots one event '
+      'for both callback paths', (tester) async {
+    const assignment = SurfaceAssignment(
+      experimentId: 'experiment.checkout',
+      experimentRevisionId: 'revision.checkout.1',
+      experimentEpochId: 'epoch.checkout.1',
+      variantId: 'arm.treatment',
+    );
+    final resolver = _ControlledResolver();
+    final local = <RestageEvent>[];
+    final global = <RestageEvent>[];
+    final subscription = Restage.events.listen(global.add);
+    addTearDown(subscription.cancel);
+    final bytes = Uint8List.fromList(
+      encodeLibraryBlob(
+        parseLibraryFile('''
+          import restage.core;
+          widget Paywall = Text(text: "Assigned");
+        '''),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RestagePaywall(
+          id: 'checkout',
+          resolver: resolver,
+          onEvent: local.add,
+        ),
+      ),
+    );
+    expect(
+      Restage.assignmentFor('checkout', surfaceType: Surface.paywall),
+      isNull,
+    );
+
+    resolver.result.complete(
+      ResolvedVariant(
+        bytes: bytes,
+        surfaceVersion: 'served-version-42',
+        paywallId: 'checkout',
+        paywallPublishedVersion: 42,
+        assignment: assignment,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final localViewed = local.whereType<PaywallViewed>().single;
+    final globalViewed = global.whereType<PaywallViewed>().single;
+    expect(identical(localViewed, globalViewed), isTrue);
+    expect(localViewed.surfaceId, 'checkout');
+    expect(localViewed.surfaceType, Surface.paywall);
+    expect(localViewed.surfaceVersion, 'served-version-42');
+    expect(localViewed.assignment, assignment);
+    expect(localViewed.variantId, 'arm.treatment');
+    expect(
+      Restage.assignmentFor('checkout', surfaceType: Surface.paywall),
+      assignment,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(
+      Restage.assignmentFor('checkout', surfaceType: Surface.paywall),
+      assignment,
+    );
+  });
+
+  testWidgets(
+      'painted compiled fallback replaces the previous served assignment',
+      (tester) async {
+    const assignment = SurfaceAssignment(
+        experimentId: 'experiment.checkout',
+        experimentRevisionId: 'revision.checkout',
+        experimentEpochId: 'epoch.checkout',
+        variantId: 'arm.checkout');
+    final first = _ControlledResolver();
+    await tester.pumpWidget(
+        MaterialApp(home: RestagePaywall(id: 'checkout', resolver: first)));
+    first.result.complete(ResolvedVariant(
+        bytes: Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(
+            'import restage.core; widget Paywall = Text(text: "Assigned");'))),
+        paywallId: 'checkout',
+        surfaceVersion: '1',
+        assignment: assignment));
+    await tester.pumpAndSettle();
+    expect(Restage.assignmentFor('checkout', surfaceType: Surface.paywall),
+        assignment);
+    await tester.pumpWidget(const SizedBox());
+    final second = _ControlledResolver();
+    var offstage = true;
+    late StateSetter setHost;
+    final fallbackEvents = <RestageEvent>[];
+    await tester.pumpWidget(
+        MaterialApp(home: StatefulBuilder(builder: (context, setState) {
+      setHost = setState;
+      return Offstage(
+          offstage: offstage,
+          child: RestagePaywall(
+              id: 'checkout',
+              resolver: second,
+              onEvent: fallbackEvents.add,
+              fallbackBuilder: (_) => const Text('Compiled fallback')));
+    })));
+    second.result.completeError(RestagePaywallError(
+        code: RestageErrorCodes.deliveryUnavailable, message: 'Offline'));
+    await tester.pumpAndSettle();
+    expect(Restage.assignmentFor('checkout', surfaceType: Surface.paywall),
+        assignment);
+    expect(fallbackEvents.whereType<PaywallViewed>(), isEmpty);
+    setHost(() => offstage = false);
+    await tester.pumpAndSettle();
+    expect(find.text('Compiled fallback'), findsOneWidget);
+    expect(fallbackEvents.whereType<PaywallViewed>().single.assignment, isNull);
+    expect(Restage.assignmentFor('checkout', surfaceType: Surface.paywall),
+        isNull);
   });
 
   testWidgets('an active paywall reports settled pager changes',

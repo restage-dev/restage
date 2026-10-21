@@ -302,22 +302,37 @@ void main() {
     Restage.debugFire(event);
     await Future<void>.delayed(Duration.zero);
     expect(paused, isEmpty);
-    expect(other, [event]);
+    final firstSnapshot = other.single;
+    expect(firstSnapshot, isNot(same(event)));
+    expect(
+        firstSnapshot,
+        isA<PaywallViewed>()
+            .having((value) => value.paywallId, 'paywallId', 'original'));
+    expect(firstSnapshot.firedAt, isNotNull);
     expect(subscription.isPaused, isTrue);
     subscription.resume();
     await Future<void>.delayed(Duration.zero);
-    expect(paused, [event]);
+    expect(paused.single, same(firstSnapshot));
     subscription.onData((event) => paused.insert(0, event));
     await second.cancel();
     const next = PaywallViewed(paywallId: 'other');
     Restage.debugFire(next);
     await Future<void>.delayed(Duration.zero);
-    expect(paused, [next, event]);
-    expect(other, [event]);
+    expect(paused, hasLength(2));
+    final nextSnapshot = paused.first;
+    expect(nextSnapshot, isNot(same(next)));
+    expect(
+        nextSnapshot,
+        isA<PaywallViewed>()
+            .having((value) => value.paywallId, 'paywallId', 'other'));
+    expect(paused.last, same(firstSnapshot));
+    expect(other.single, same(firstSnapshot));
     final filtered = <RestageEvent>[];
     final failures = <Object>[];
     final filterSubscription = events.where((value) {
-      if (identical(value, next)) throw StateError('filter refused');
+      if (value is PaywallViewed && value.paywallId == next.paywallId) {
+        throw StateError('filter refused');
+      }
       return true;
     }).listen(filtered.add, onError: failures.add);
     final cancellingFailures = <Object>[];
@@ -329,7 +344,13 @@ void main() {
     Restage.debugFire(event);
     await Future<void>.delayed(Duration.zero);
     expect(failures.single, isStateError);
-    expect(filtered, [event]);
+    final filteredSnapshot = filtered.single;
+    expect(filteredSnapshot, isNot(same(event)));
+    expect(
+        filteredSnapshot,
+        isA<PaywallViewed>()
+            .having((value) => value.paywallId, 'paywallId', 'original'));
+    expect(paused.first, same(filteredSnapshot));
     expect(cancellingFailures, hasLength(1));
     await filterSubscription.cancel();
     await cancelledOnError.cancel();
@@ -3279,6 +3300,7 @@ void main() {
     final directory = await Directory.systemTemp.createTemp('restage-engine-');
     addTearDown(() => _deleteAfterCommerceStops(directory));
     final queue = CommerceFileReportQueue(directoryPath: directory.path);
+    final deadline = _ControlledAttemptDeadline();
     final refreshStarted = Completer<void>();
     final refreshResponse = Completer<http.Response>();
     var purchaserStateCalls = 0;
@@ -3318,7 +3340,7 @@ void main() {
       adapter: adapter,
       client: client,
       queueFactory: () async => queue,
-      networkAttemptTimeout: const Duration(milliseconds: 250),
+      attemptDeadline: deadline,
       usesPurchaserStateHandler: true,
     );
     final states = <CommercePurchaserState>[];
@@ -3341,6 +3363,8 @@ void main() {
         CommercePurchaserStateStatusCode.stale);
     expect(Restage.commerce.currentState.entitlements, isEmpty);
 
+    expect(deadline.pending, 1);
+    deadline.expirePending();
     final result = await refresh.timeout(_progressTimeout);
 
     expect(result, same(Restage.commerce.currentState));
@@ -5624,6 +5648,10 @@ void main() {
     final directory = await Directory.systemTemp.createTemp('restage-engine-');
     addTearDown(() => _deleteAfterCommerceStops(directory));
     final heldQuery = Completer<List<CommerceStoreTransaction>>();
+    final deadline = _ControlledAttemptDeadline();
+    addTearDown(() {
+      if (!heldQuery.isCompleted) heldQuery.complete(const []);
+    });
     late final _TestStoreAdapter adapter;
     adapter = _TestStoreAdapter(
       store: CommerceStore.playStore,
@@ -5641,7 +5669,7 @@ void main() {
         (_) async => _jsonResponse(_verifiedState().toJson()),
       ),
       journalPath: directory.path,
-      networkAttemptTimeout: const Duration(milliseconds: 25),
+      attemptDeadline: deadline,
     );
     await _waitFor(
       () =>
@@ -5650,16 +5678,20 @@ void main() {
       label: 'initial complete query',
     );
 
-    final stopwatch = Stopwatch()..start();
-    final result = await Restage.commerce.restore();
-    stopwatch.stop();
+    final restore = Restage.commerce.restore();
+    await _waitFor(
+      () => adapter.ownedQueryCalls == 2 && deadline.pending == 1,
+      label: 'restore waits on the bounded owned query',
+    );
+    deadline.expirePending();
+    final result = await restore.timeout(_progressTimeout);
 
     expect(result.status, CommerceActionStatusCode.failed);
     expect(
       Restage.commerce.currentState.status,
       CommercePurchaserStateStatusCode.stale,
     );
-    expect(stopwatch.elapsed, lessThan(const Duration(seconds: 1)));
+    expect(deadline.pending, 0);
     heldQuery.complete(const <CommerceStoreTransaction>[]);
   });
 

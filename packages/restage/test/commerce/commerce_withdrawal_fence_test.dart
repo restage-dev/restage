@@ -67,9 +67,24 @@ void main() {
   });
 
   test('positive controls prove the source fence reads the intended files', () {
-    expect(barrelSource, contains("export 'src/runtime/restage.dart';"));
+    expect(_exportsRuntimeFacade(barrelSource), isTrue);
+    expect(
+      _exportsRuntimeFacade(
+        "export 'src/runtime/restage.dart' hide emitRestageEvent;",
+      ),
+      isTrue,
+    );
+    expect(
+      _exportsRuntimeFacade("export 'src/runtime/not_restage.dart';"),
+      isFalse,
+    );
     expect(runtimeSource, contains('abstract final class Restage'));
     expect(paywallSource, contains('class RestagePaywall'));
     expect(eventSource, contains('sealed class RestageEvent'));
   });
 }
+
+bool _exportsRuntimeFacade(String source) => RegExp(
+      r"^export 'src/runtime/restage\.dart'(?:\s+hide\s+[^;]+)?;\s*$",
+      multiLine: true,
+    ).hasMatch(source);

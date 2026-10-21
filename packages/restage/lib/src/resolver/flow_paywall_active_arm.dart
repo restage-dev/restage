@@ -102,6 +102,7 @@ FlowPaywallActiveResolution resolveFlowActiveArm({
           FlowDocumentCodec.encodeCanonicalJson(active),
         ),
         cacheHit: cacheHit,
+        assignment: projectSurfaceAssignment(canonicalExperimentAssignment),
       ),
       surfaceSectionsOf(activePayload),
     ),

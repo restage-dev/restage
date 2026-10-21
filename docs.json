@@ -53,6 +53,7 @@
         { "title": "App size", "href": "/delivery/app-size" },
         { "title": "Hosted delivery", "href": "/delivery/hosted-delivery" },
         { "title": "Live refresh", "href": "/delivery/live-refresh" },
+        { "title": "Forward analytics events", "href": "/analytics/forward-events" },
         { "title": "Placements", "href": "/delivery/placements" },
         { "title": "Audience routing", "href": "/delivery/audience-routing" },
         { "title": "Experiments", "href": "/delivery/experiments" },

@@ -9,6 +9,7 @@ final class SurfaceDeliveryRateLimited extends RestageEvent {
     required this.surfaceId,
     required this.retryAfter,
     super.firedAt,
+    super.attribution,
   });
 
   @override
@@ -18,6 +19,7 @@ final class SurfaceDeliveryRateLimited extends RestageEvent {
   final Surface surface;
 
   /// The requested surface identifier.
+  @override
   final String surfaceId;
 
   /// The minimum delay requested by the service.

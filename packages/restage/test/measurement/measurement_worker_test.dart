@@ -530,6 +530,203 @@ void main() {
               'Shutdown has no same-clock elapsed sample for an assigned final frame');
     });
 
+    test(
+        'retains the served assignment and emits one presentation membership receipt',
+        () async {
+      final runtime = await _startRuntime();
+      addTearDown(runtime.shutdown);
+      final receipts = <MeasurementWorkerAppendAcknowledgement>[];
+      final receiptSubscription =
+          runtime.appendAcknowledgements.listen(receipts.add);
+      addTearDown(receiptSubscription.cancel);
+      final session = await _open(
+        runtime,
+        _registration(
+          sessionId: 'session.assignment',
+          experimentAssignmentCanonicalBytes: CanonicalJsonCodec.encode(
+            const MeasurementExperimentAssignmentV1(
+              outcomeLinkCarrier: 'Y2Fub25pY2FsLWFzc2lnbm1lbnQ',
+            ).toJson(),
+          ),
+        ),
+      );
+
+      final firstReceipt = runtime.appendAcknowledgements.first;
+      expect(_append(session, timestamp: 1),
+          MeasurementWorkerAppendOutcome.accepted);
+      final first = await firstReceipt;
+      expect(first.routeIndex, 0);
+      expect(first.value, MeasurementWorkerAppendValue.presentation);
+      expect(first.emitsPresentationEvent, isTrue);
+
+      final duplicateReceipt = runtime.appendAcknowledgements.first;
+      expect(_append(session, timestamp: 2),
+          MeasurementWorkerAppendOutcome.accepted);
+      expect((await duplicateReceipt).emitsPresentationEvent, isFalse);
+
+      final firstInteractionReceipt = runtime.appendAcknowledgements.first;
+      expect(
+        session.append(
+          MeasurementWorkerAppendRecord(
+            routeIndex: 1,
+            monotonicTimestampMicros: 3,
+            value: MeasurementWorkerAppendValue.interaction,
+          ),
+        ),
+        MeasurementWorkerAppendOutcome.accepted,
+      );
+      final interaction = await firstInteractionReceipt;
+      expect(interaction.value, MeasurementWorkerAppendValue.interaction);
+      expect(interaction.emitsPresentationEvent, isTrue);
+
+      final checkpoint = await session.checkpoint(frameElapsedMicros: 4);
+      expect(
+        _frame(checkpoint.batch!).experimentAssignment?.outcomeLinkCarrier,
+        'Y2Fub25pY2FsLWFzc2lnbm1lbnQ',
+      );
+      final retry = await runtime.retryPreparedBatch(checkpoint.batch!.batchId);
+      expect(retry.batch!.canonicalFrameBytes,
+          checkpoint.batch!.canonicalFrameBytes);
+      await Future<void>.delayed(Duration.zero);
+      expect(receipts, hasLength(3));
+      expect(receipts.where((receipt) => receipt.emitsPresentationEvent),
+          hasLength(2));
+    });
+
+    test(
+        'acknowledges retained membership when interaction capacity is exhausted',
+        () async {
+      final runtime = await _startRuntime();
+      addTearDown(runtime.shutdown);
+      final session = await _open(
+        runtime,
+        _registration(
+          sessionId: 'session.interaction-capacity',
+          routeCount: 2,
+          limits: const MeasurementWorkerSessionLimits(
+            maximumCounterValue: 8,
+            maximumPresentedPoints: 2,
+            maximumInteractionCounters: 1,
+            maximumMissingnessEntries: 0,
+          ),
+        ),
+      );
+
+      final firstReceipt = runtime.appendAcknowledgements.first;
+      expect(
+        session.append(
+          MeasurementWorkerAppendRecord(
+            routeIndex: 0,
+            monotonicTimestampMicros: 1,
+            value: MeasurementWorkerAppendValue.interaction,
+          ),
+        ),
+        MeasurementWorkerAppendOutcome.accepted,
+      );
+      expect((await firstReceipt).emitsPresentationEvent, isTrue);
+
+      final truncatedReceipt = runtime.appendAcknowledgements.first;
+      expect(
+        session.append(
+          MeasurementWorkerAppendRecord(
+            routeIndex: 1,
+            monotonicTimestampMicros: 2,
+            value: MeasurementWorkerAppendValue.interaction,
+          ),
+        ),
+        MeasurementWorkerAppendOutcome.accepted,
+      );
+      final truncated = await truncatedReceipt;
+      expect(
+        truncated.outcome,
+        MeasurementWorkerAppendAcknowledgementOutcome.truncated,
+      );
+      expect(truncated.emitsPresentationEvent, isTrue);
+
+      final frame = _frame((await session.checkpoint()).batch!);
+      expect(frame.facts, hasLength(2));
+      expect(
+        frame.facts.last.interactionState.wireName,
+        'transportTruncated',
+      );
+    });
+
+    test('does not acknowledge membership dropped at presented capacity',
+        () async {
+      final runtime = await _startRuntime();
+      addTearDown(runtime.shutdown);
+      final session = await _open(
+        runtime,
+        _registration(
+          sessionId: 'session.presentation-capacity',
+          routeCount: 2,
+          limits: const MeasurementWorkerSessionLimits(
+            maximumCounterValue: 8,
+            maximumPresentedPoints: 1,
+            maximumInteractionCounters: 1,
+            maximumMissingnessEntries: 0,
+          ),
+        ),
+      );
+
+      final firstReceipt = runtime.appendAcknowledgements.first;
+      expect(
+        session.append(
+          MeasurementWorkerAppendRecord(
+            routeIndex: 0,
+            monotonicTimestampMicros: 1,
+            value: MeasurementWorkerAppendValue.presentation,
+          ),
+        ),
+        MeasurementWorkerAppendOutcome.accepted,
+      );
+      expect((await firstReceipt).emitsPresentationEvent, isTrue);
+
+      final droppedReceipt = runtime.appendAcknowledgements.first;
+      expect(
+        session.append(
+          MeasurementWorkerAppendRecord(
+            routeIndex: 1,
+            monotonicTimestampMicros: 2,
+            value: MeasurementWorkerAppendValue.presentation,
+          ),
+        ),
+        MeasurementWorkerAppendOutcome.accepted,
+      );
+      final dropped = await droppedReceipt;
+      expect(
+        dropped.outcome,
+        MeasurementWorkerAppendAcknowledgementOutcome.truncated,
+      );
+      expect(dropped.emitsPresentationEvent, isFalse);
+      expect(_frame((await session.checkpoint()).batch!).facts, hasLength(1));
+    });
+
+    test('rejects an unknown receipt route without a point event', () async {
+      final runtime = await _startRuntime();
+      addTearDown(runtime.shutdown);
+      final session = await _open(
+        runtime,
+        _registration(sessionId: 'session.unknown-route', routeCount: 1),
+      );
+      final receipts = <MeasurementWorkerAppendAcknowledgement>[];
+      final subscription = runtime.appendAcknowledgements.listen(receipts.add);
+      addTearDown(subscription.cancel);
+
+      expect(
+        session.append(
+          MeasurementWorkerAppendRecord(
+            routeIndex: 4,
+            monotonicTimestampMicros: 1,
+            value: MeasurementWorkerAppendValue.presentation,
+          ),
+        ),
+        MeasurementWorkerAppendOutcome.invalid,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(receipts, isEmpty);
+    });
+
     test('uses one long-lived isolate and never spawns for individual appends',
         () async {
       final runtime = await _startRuntime(
@@ -1030,6 +1227,12 @@ MeasurementWorkerSessionRegistration _registration({
   List<int>? orderedCaptureCanonicalBytesV1,
   String? sdkRuntimeSessionNonce,
   String? reportedSdkVersion,
+  MeasurementWorkerSessionLimits limits = const MeasurementWorkerSessionLimits(
+    maximumCounterValue: 8,
+    maximumPresentedPoints: 4,
+    maximumInteractionCounters: 4,
+    maximumMissingnessEntries: 0,
+  ),
   String? registrationFingerprint,
   String? captureSessionNonce,
   List<int>? attributionCanonicalBytes,
@@ -1071,12 +1274,7 @@ MeasurementWorkerSessionRegistration _registration({
           lineageId: 'lineage.$sessionId.$index',
         ),
     ],
-    limits: const MeasurementWorkerSessionLimits(
-      maximumCounterValue: 8,
-      maximumPresentedPoints: 4,
-      maximumInteractionCounters: 4,
-      maximumMissingnessEntries: 0,
-    ),
+    limits: limits,
     firstSequence: 1,
   );
 }

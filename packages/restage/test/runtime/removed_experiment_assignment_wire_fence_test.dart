@@ -29,6 +29,9 @@ void main() {
           _canonicalAssignmentFieldsFence,
           file.path,
         );
+      } else if (file.path == _surfaceAssignmentPath(repository)) {
+        _assertRequiredFence(source, _surfaceAssignmentFence, file.path);
+        _assertPublicAssignmentIsInert(source);
       } else if (file.path == _surfaceResponseParserPath(repository)) {
         _assertRequiredFence(
           source,
@@ -85,6 +88,20 @@ void main() {
         reason: 'response fence mutation for $key was not detected',
       );
     }
+  });
+
+  test('the public assignment fence rejects an injected private carrier', () {
+    final source = File(_surfaceAssignmentPath(repository)).readAsStringSync();
+    final mutated = source.replaceFirst(
+      '  final String variantId;',
+      '  final String variantId;\n\n  final String outcomeLinkCarrier;',
+    );
+
+    expect(mutated, isNot(equals(source)));
+    expect(
+      () => _assertPublicAssignmentIsInert(mutated),
+      throwsA(isA<TestFailure>()),
+    );
   });
 
   test('the identifier boundary does not reject experimentEpochId', () {
@@ -166,8 +183,6 @@ final String experimentId;
 const _retiredPublicIdentifiers = <String>[
   'SurfaceExperimentAssignment',
   'FlowAssignment',
-  'experimentId',
-  'variantId',
   'experimentEpoch',
 ];
 
@@ -205,6 +220,12 @@ final _canonicalAssignmentFieldsFence = RegExp(
   dotAll: true,
 );
 
+final _surfaceAssignmentFence = RegExp(
+  r'''^final class SurfaceAssignment \{.*?^\}\n''',
+  multiLine: true,
+  dotAll: true,
+);
+
 final _managementExperimentReferenceFence = RegExp(
   r'''^final class PlacementExperimentReferenceV1 extends _ManagementResult \{.*?^\}\n''',
   multiLine: true,
@@ -217,6 +238,9 @@ String _surfaceResponseParserPath(Directory root) =>
 String _canonicalAssignmentPath(Directory root) =>
     '${root.path}/packages/restage_shared/lib/src/surface_contract/surface_publication_contract.dart';
 
+String _surfaceAssignmentPath(Directory root) =>
+    '${root.path}/packages/restage/lib/src/events/surface_assignment.dart';
+
 String _placementManagementPath(Directory root) =>
     '${root.path}/packages/restage_shared/lib/src/placements/placement_management.dart';
 
@@ -226,6 +250,22 @@ void _assertRequiredFence(String source, RegExp fence, String path) {
     1,
     reason: 'expected one refusal fence in $path',
   );
+}
+
+void _assertPublicAssignmentIsInert(String source) {
+  final assignment = _surfaceAssignmentFence.firstMatch(source)?.group(0);
+  expect(assignment, isNotNull, reason: 'the public assignment is missing');
+  final fields = RegExp(r'^  final (\S+) (\w+);$', multiLine: true)
+      .allMatches(assignment!)
+      .map((match) => '${match.group(1)} ${match.group(2)}')
+      .toList();
+  expect(fields, <String>[
+    'String experimentId',
+    'String experimentRevisionId',
+    'String experimentEpochId',
+    'String variantId',
+  ]);
+  expect(assignment, isNot(contains('outcomeLinkCarrier')));
 }
 
 bool _isAllowedRefusalFenceOccurrence(

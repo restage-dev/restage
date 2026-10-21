@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../events/surface_assignment.dart';
 import 'analytics_identity.dart';
 
 /// Immutable root-presentation fields attached to one successfully painted
@@ -59,24 +60,30 @@ final class RootAnalyticsEventContext {
 /// presentation fields to null without losing the actual surface type/id.
 @immutable
 final class RootAnalyticsEventBinding {
-  RootAnalyticsEventBinding.active(RootAnalyticsEventContext context)
-      : surface = context.surface,
-        surfaceId = context.surfaceId,
-        sourceKind = context.sourceKind,
-        payloadKind = context.payloadKind,
-        context = context;
+  RootAnalyticsEventBinding.presented({
+    required this.attribution,
+    required this.context,
+    this.sourceKind,
+    this.payloadKind,
+  })  : surface = attribution.surfaceType.wireName,
+        surfaceId = attribution.surfaceId;
 
-  const RootAnalyticsEventBinding.anonymous({
+  RootAnalyticsEventBinding.anonymous({
     required this.surface,
     required this.surfaceId,
     this.sourceKind,
     this.payloadKind,
-  }) : context = null;
+  })  : attribution = SurfaceEventAttribution(
+          surfaceId: surfaceId,
+          surfaceType: Surface.fromWireName(surface),
+        ),
+        context = null;
 
   final String surface;
   final String surfaceId;
   final SurfaceSourceKind? sourceKind;
   final SurfacePayloadKind? payloadKind;
+  final SurfaceEventAttribution attribution;
   final RootAnalyticsEventContext? context;
 }
 
@@ -129,10 +136,12 @@ abstract final class RootAnalyticsArtifactRegistry {
     required Object owner,
     required int version,
     required String contentHash,
+    SurfaceAssignment? assignment,
   }) {
     _artifacts[owner] = _RootAnalyticsArtifact(
       surfaceVersion: version.toString(),
       contentHash: contentHash,
+      assignment: assignment,
     );
   }
 
@@ -143,6 +152,9 @@ abstract final class RootAnalyticsArtifactRegistry {
     }
     return artifact.surfaceVersion;
   }
+
+  static SurfaceAssignment? assignmentFor(Object owner) =>
+      _artifacts[owner]?.assignment;
 
   static bool isSameArtifact(Object firstOwner, Object secondOwner) {
     final first = _artifacts[firstOwner];
@@ -162,10 +174,12 @@ final class _RootAnalyticsArtifact {
   const _RootAnalyticsArtifact({
     required this.surfaceVersion,
     required this.contentHash,
+    required this.assignment,
   });
 
   final String surfaceVersion;
   final String contentHash;
+  final SurfaceAssignment? assignment;
 }
 
 /// Process-local owner of internal root presentation contexts.
@@ -175,10 +189,17 @@ final class _RootAnalyticsArtifact {
 abstract final class RootAnalyticsRuntime {
   static AnalyticsIdentity? _identity;
   static int _authorityEpoch = 0;
+  static int _publicEpoch = 0;
   static final Set<RootAnalyticsPresentation> _presentations =
       HashSet<RootAnalyticsPresentation>.identity();
   static final List<RootAnalyticsEventBinding> _eventBindings =
       <RootAnalyticsEventBinding>[];
+  static final Map<_SurfaceAttributionKey, Map<Object, _ActiveAttribution>>
+      _activeAttributions =
+      <_SurfaceAttributionKey, Map<Object, _ActiveAttribution>>{};
+  static final Map<_SurfaceAttributionKey,
+          ({SurfaceEventAttribution attribution, bool isCertain})>
+      _lastAttributions = {};
 
   /// Test-only factory for exercising cold identity lookup races.
   @visibleForTesting
@@ -206,6 +227,7 @@ abstract final class RootAnalyticsRuntime {
     required String surfaceId,
     SurfaceSourceKind? sourceKind,
     SurfacePayloadKind? payloadKind,
+    Object? owner,
   }) {
     final identity = _identity;
     final presentation = RootAnalyticsPresentation._(
@@ -216,7 +238,9 @@ abstract final class RootAnalyticsRuntime {
       identity: identity,
       identityGeneration: identity?.generation,
       authorityEpoch: _authorityEpoch,
+      publicEpoch: _publicEpoch,
     );
+    presentation._mountOwner = owner ?? presentation;
     _presentations.add(presentation);
     return presentation;
   }
@@ -237,12 +261,16 @@ abstract final class RootAnalyticsRuntime {
   }
 
   /// Retires every installed root synchronously at an actor boundary.
-  static void retireAll() => _retirePresentations();
+  static void retireAll() {
+    _retirePublicAttribution();
+    _retirePresentations();
+  }
 
   /// Permanently retires all contexts minted by the current analytics
   /// authority, even if the same identity object is installed again later.
   static void retireAuthority() {
     _authorityEpoch += 1;
+    _retirePublicAttribution();
     _retirePresentations();
     _identity = null;
   }
@@ -250,6 +278,7 @@ abstract final class RootAnalyticsRuntime {
   /// Clears process-global analytics context state in tests/config teardown.
   static void clear() {
     _authorityEpoch += 1;
+    _retirePublicAttribution();
     for (final presentation
         in List<RootAnalyticsPresentation>.of(_presentations)) {
       presentation._disposeWithoutUnregister();
@@ -274,12 +303,88 @@ abstract final class RootAnalyticsRuntime {
 
   static void _retirePresentations() {
     for (final presentation in _presentations) {
-      presentation._retireForIdentityChange();
+      presentation._retire();
     }
   }
 
   static void _unregister(RootAnalyticsPresentation presentation) {
     _presentations.remove(presentation);
+  }
+
+  static SurfaceAssignment? assignmentFor({
+    required String surface,
+    required String surfaceId,
+  }) {
+    final key = _SurfaceAttributionKey(surface, surfaceId);
+    final active = _activeAttributions[key];
+    if (active != null && active.isNotEmpty) {
+      if (active.length != 1) return null;
+      return active.values.single.attribution.assignment;
+    }
+    final last = _lastAttributions[key];
+    return last != null && last.isCertain ? last.attribution.assignment : null;
+  }
+
+  static void _activateAttribution(
+    RootAnalyticsPresentation presentation,
+    Object owner,
+    SurfaceEventAttribution attribution,
+  ) {
+    final key = _SurfaceAttributionKey(
+      attribution.surfaceType.wireName,
+      attribution.surfaceId,
+    );
+    final owners = _activeAttributions.putIfAbsent(
+      key,
+      () => Map<Object, _ActiveAttribution>.identity(),
+    );
+    owners[owner] = _ActiveAttribution(presentation, attribution);
+    _lastAttributions[key] = (attribution: attribution, isCertain: true);
+  }
+
+  static void _markAssignmentUnknown(
+    RootAnalyticsPresentation presentation,
+    Object owner,
+    SurfaceEventAttribution uncertain,
+  ) {
+    final key = _SurfaceAttributionKey(
+      uncertain.surfaceType.wireName,
+      uncertain.surfaceId,
+    );
+    final last = _lastAttributions[key];
+    if (last != null) {
+      _lastAttributions[key] =
+          (attribution: last.attribution, isCertain: false);
+    }
+    final owners = _activeAttributions.putIfAbsent(
+      key,
+      () => Map<Object, _ActiveAttribution>.identity(),
+    );
+    owners[owner] = _ActiveAttribution(presentation, uncertain);
+  }
+
+  static void _deactivateAttribution(
+    RootAnalyticsPresentation presentation,
+    Object owner,
+    SurfaceEventAttribution? attribution,
+  ) {
+    if (attribution == null) return;
+    final key = _SurfaceAttributionKey(
+      attribution.surfaceType.wireName,
+      attribution.surfaceId,
+    );
+    final owners = _activeAttributions[key];
+    if (owners == null) return;
+    final active = owners[owner];
+    if (active == null || !identical(active.presentation, presentation)) return;
+    owners.remove(owner);
+    if (owners.isEmpty) _activeAttributions.remove(key);
+  }
+
+  static void _retirePublicAttribution() {
+    _publicEpoch += 1;
+    _activeAttributions.clear();
+    _lastAttributions.clear();
   }
 }
 
@@ -296,9 +401,11 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
     required AnalyticsIdentity? identity,
     required int? identityGeneration,
     required int authorityEpoch,
+    required int publicEpoch,
   })  : _identity = identity,
         _identityGeneration = identityGeneration,
-        _authorityEpoch = authorityEpoch;
+        _authorityEpoch = authorityEpoch,
+        _publicEpoch = publicEpoch;
 
   final String surface;
   final String surfaceId;
@@ -307,9 +414,14 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
   final AnalyticsIdentity? _identity;
   final int? _identityGeneration;
   final int _authorityEpoch;
+  final int _publicEpoch;
+  late final Object _mountOwner;
 
   RootAnalyticsEventContext? _staged;
   RootAnalyticsEventContext? _active;
+  SurfaceEventAttribution? _stagedAttribution;
+  SurfaceEventAttribution? _activeAttribution;
+  SurfaceEventAttribution? _uncertainAttribution;
   final List<void Function(RootAnalyticsDeferredContext)> _activationCallbacks =
       <void Function(RootAnalyticsDeferredContext)>[];
   bool _activated = false;
@@ -325,6 +437,7 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
 
   bool get isInvalidatedByIdentityReset =>
       _disposed ||
+      _publicEpoch != RootAnalyticsRuntime._publicEpoch ||
       (_identity != null &&
           !RootAnalyticsRuntime._isCurrentIdentity(
             _identity,
@@ -332,23 +445,47 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
             _authorityEpoch,
           ));
 
-  bool get isActive => _active != null && isIdentityCurrent;
+  bool get isActive =>
+      _activeAttribution != null &&
+      _publicEpoch == RootAnalyticsRuntime._publicEpoch;
+
+  /// Retires accessor certainty without acknowledging a native fallback paint.
+  void markAssignmentUnknown() {
+    if (_disposed ||
+        _activated ||
+        _publicEpoch != RootAnalyticsRuntime._publicEpoch) {
+      return;
+    }
+    final uncertain = SurfaceEventAttribution(
+      surfaceId: surfaceId,
+      surfaceType: Surface.fromWireName(surface),
+    );
+    _uncertainAttribution = uncertain;
+    RootAnalyticsRuntime._markAssignmentUnknown(this, _mountOwner, uncertain);
+  }
 
   void stage({
-    required String surfaceVersion,
+    required String? surfaceVersion,
+    SurfaceAssignment? assignment,
   }) {
-    if (surfaceVersion.isEmpty) {
+    if (surfaceVersion != null && surfaceVersion.isEmpty) {
       throw ArgumentError.value(
         surfaceVersion,
         'surfaceVersion',
         'must not be empty',
       );
     }
-    if (_disposed ||
-        _identity == null ||
-        _staged != null ||
-        _activated ||
-        !isIdentityCurrent) {
+    if (_disposed || _stagedAttribution != null || _activated) {
+      return;
+    }
+    if (_publicEpoch != RootAnalyticsRuntime._publicEpoch) return;
+    _stagedAttribution = SurfaceEventAttribution(
+      surfaceId: surfaceId,
+      surfaceType: Surface.fromWireName(surface),
+      surfaceVersion: surfaceVersion,
+      assignment: assignment,
+    );
+    if (_identity == null || !isIdentityCurrent || surfaceVersion == null) {
       return;
     }
     final identity = _identity;
@@ -367,6 +504,16 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
     if (_disposed || _activated) return;
     _activated = true;
     final staged = _staged;
+    final stagedAttribution = _stagedAttribution;
+    if (stagedAttribution != null &&
+        _publicEpoch == RootAnalyticsRuntime._publicEpoch) {
+      _activeAttribution = stagedAttribution;
+      RootAnalyticsRuntime._activateAttribution(
+        this,
+        _mountOwner,
+        stagedAttribution,
+      );
+    }
     if (staged != null && isIdentityCurrent) {
       final active = staged.withCanonicalSnapshot(
         eventId: _identity!.newEventId(),
@@ -387,6 +534,7 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
   void abandon() {
     if (_activated) return;
     _staged = null;
+    _stagedAttribution = null;
     _activationCallbacks.clear();
   }
 
@@ -413,6 +561,8 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
         identity: _identity,
         identityGeneration: _identityGeneration,
         authorityEpoch: _authorityEpoch,
+        publicEpoch: _publicEpoch,
+        attribution: _activeAttribution,
         context: isIdentityCurrent ? _active : null,
       );
 
@@ -422,19 +572,35 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
 
   RootAnalyticsEventBinding _eventBinding() {
     final context = isIdentityCurrent ? _active : null;
-    return context == null
+    final attribution = _publicEpoch == RootAnalyticsRuntime._publicEpoch
+        ? _activeAttribution
+        : null;
+    return attribution == null
         ? RootAnalyticsEventBinding.anonymous(
             surface: surface,
             surfaceId: surfaceId,
             sourceKind: sourceKind,
             payloadKind: payloadKind,
           )
-        : RootAnalyticsEventBinding.active(context);
+        : RootAnalyticsEventBinding.presented(
+            attribution: attribution,
+            context: context,
+            sourceKind: sourceKind,
+            payloadKind: payloadKind,
+          );
   }
 
-  void _retireForIdentityChange() {
+  void _retire() {
     _staged = null;
     _active = null;
+    RootAnalyticsRuntime._deactivateAttribution(
+      this,
+      _mountOwner,
+      _activeAttribution ?? _uncertainAttribution,
+    );
+    _uncertainAttribution = null;
+    _stagedAttribution = null;
+    _activeAttribution = null;
     _activationCallbacks.clear();
   }
 
@@ -446,9 +612,7 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
 
   void _disposeWithoutUnregister() {
     _disposed = true;
-    _staged = null;
-    _active = null;
-    _activationCallbacks.clear();
+    _retire();
   }
 }
 
@@ -465,10 +629,14 @@ final class RootAnalyticsDeferredContext implements RootAnalyticsContextSource {
     required AnalyticsIdentity? identity,
     required int? identityGeneration,
     required int authorityEpoch,
+    required int publicEpoch,
+    required SurfaceEventAttribution? attribution,
     required RootAnalyticsEventContext? context,
   })  : _identity = identity,
         _identityGeneration = identityGeneration,
         _authorityEpoch = authorityEpoch,
+        _publicEpoch = publicEpoch,
+        _attribution = attribution,
         _context = context;
 
   final String surface;
@@ -478,6 +646,8 @@ final class RootAnalyticsDeferredContext implements RootAnalyticsContextSource {
   final AnalyticsIdentity? _identity;
   final int? _identityGeneration;
   final int _authorityEpoch;
+  final int _publicEpoch;
+  final SurfaceEventAttribution? _attribution;
   final RootAnalyticsEventContext? _context;
 
   @override
@@ -489,14 +659,44 @@ final class RootAnalyticsDeferredContext implements RootAnalyticsContextSource {
     )
         ? _context
         : null;
-    final binding = context == null
+    final attribution =
+        _publicEpoch == RootAnalyticsRuntime._publicEpoch ? _attribution : null;
+    final binding = attribution == null
         ? RootAnalyticsEventBinding.anonymous(
             surface: surface,
             surfaceId: surfaceId,
             sourceKind: sourceKind,
             payloadKind: payloadKind,
           )
-        : RootAnalyticsEventBinding.active(context);
+        : RootAnalyticsEventBinding.presented(
+            attribution: attribution,
+            context: context,
+            sourceKind: sourceKind,
+            payloadKind: payloadKind,
+          );
     return RootAnalyticsRuntime._runWithBinding(binding, action);
   }
+}
+
+final class _SurfaceAttributionKey {
+  const _SurfaceAttributionKey(this.surface, this.surfaceId);
+
+  final String surface;
+  final String surfaceId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _SurfaceAttributionKey &&
+      other.surface == surface &&
+      other.surfaceId == surfaceId;
+
+  @override
+  int get hashCode => Object.hash(surface, surfaceId);
+}
+
+final class _ActiveAttribution {
+  const _ActiveAttribution(this.presentation, this.attribution);
+
+  final RootAnalyticsPresentation presentation;
+  final SurfaceEventAttribution attribution;
 }

@@ -1,5 +1,63 @@
 part of 'restage_event.dart';
 
+/// Fired after Measurement first retains a presented point in the session.
+@immutable
+final class SurfacePointPresented extends RestageEvent {
+  /// Creates a point-presentation event from canonical Measurement identity.
+  const SurfacePointPresented({
+    required this.occurrenceId,
+    required this.lineageId,
+    super.firedAt,
+    super.attribution,
+  });
+
+  /// Exact occurrence in the rendered publication.
+  final String occurrenceId;
+
+  /// Stable lineage identity shared by compatible revisions.
+  final String lineageId;
+
+  @override
+  String get name => 'surface_point_presented';
+
+  @override
+  Map<String, Object?> toMap() => <String, Object?>{
+        'name': name,
+        'occurrenceId': occurrenceId,
+        'lineageId': lineageId,
+        if (firedAt != null) 'firedAt': firedAt!.toIso8601String(),
+      };
+}
+
+/// Fired after Measurement acknowledges a recorded point interaction.
+@immutable
+final class SurfacePointInteracted extends RestageEvent {
+  /// Creates a point-interaction event from canonical Measurement identity.
+  const SurfacePointInteracted({
+    required this.occurrenceId,
+    required this.lineageId,
+    super.firedAt,
+    super.attribution,
+  });
+
+  /// Exact occurrence in the rendered publication.
+  final String occurrenceId;
+
+  /// Stable lineage identity shared by compatible revisions.
+  final String lineageId;
+
+  @override
+  String get name => 'surface_point_interacted';
+
+  @override
+  Map<String, Object?> toMap() => <String, Object?>{
+        'name': name,
+        'occurrenceId': occurrenceId,
+        'lineageId': lineageId,
+        if (firedAt != null) 'firedAt': firedAt!.toIso8601String(),
+      };
+}
+
 /// Fired after a pager settles on a different page.
 @immutable
 final class PagerPageChanged extends RestageEvent {
@@ -8,6 +66,7 @@ final class PagerPageChanged extends RestageEvent {
     required this.pageIndex,
     required this.pageCount,
     super.firedAt,
+    super.attribution,
   }) {
     if (pageCount <= 0) {
       throw ArgumentError.value(
@@ -52,6 +111,7 @@ final class SurveyQuestionResponded extends RestageEvent {
     required this.questionId,
     required this.questionIndex,
     super.firedAt,
+    super.attribution,
   }) {
     if (questionId.isEmpty) {
       throw ArgumentError.value(
@@ -96,6 +156,7 @@ final class PaywallCustomEvent extends RestageEvent {
     required this.eventName,
     required this.args,
     super.firedAt,
+    super.attribution,
   });
 
   /// The author-supplied event name.

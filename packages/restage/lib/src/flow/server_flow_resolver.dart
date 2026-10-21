@@ -1317,6 +1317,7 @@ final class _CachedServerFlow {
           screenBlobs: screenBlobs,
           contentHash: contentHash,
           cacheHit: cacheHit,
+          assignment: projectSurfaceAssignment(canonicalExperimentAssignment),
         ),
         sections,
       ),

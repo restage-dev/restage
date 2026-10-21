@@ -172,62 +172,143 @@ void main() {
       expect(available.publicationBindingReference, bindingReference);
     });
 
-    test('owns assignment responses before strict descriptor decoding',
-        () async {
-      final assignment = <String, Object?>{
-        'schemaVersion': 1,
-        'experimentId': 'experiment.message',
-        'experimentRevisionId': 'revision.message',
-        'experimentEpochId': 'epoch.message',
-        'armId': 'arm.treatment',
-        'outcomeLinkCarrier': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-      };
-      for (final raw in <Object?>[
-        assignment,
-        {'result': 'assignmentNotPresented'},
-        null,
-      ]) {
-        final response = jsonDecode(
+    test('forwards canonical carriers on the strict request', () async {
+      final builtIns =
+          base64UrlEncode(utf8.encode('screen-built-ins')).replaceAll('=', '');
+      final heldAssignment =
+          base64UrlEncode(utf8.encode('screen-assignment')).replaceAll('=', '');
+      late Map<String, Object?> body;
+      final client = _client((request) async {
+        body = jsonDecode(request.body) as Map<String, Object?>;
+        return http.Response(
           SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
-              _response()),
-        ) as Map<String, dynamic>;
-        if (raw != null) response['assignment'] = raw;
-        final client =
-            _client((_) async => http.Response(jsonEncode(response), 200));
-        final available =
-            await _fetch(client, _request()) as SurfaceScreenDeliveryAvailable;
-        expect(available.canonicalExperimentAssignment?.toJson(),
-            identical(raw, assignment) ? assignment : null);
-        expect(
-            available.assignmentDiagnostic,
-            raw is Map && raw['result'] == 'assignmentNotPresented'
-                ? SurfaceAssignmentDiagnostic.assignmentNotPresented
-                : null);
-        if (raw != null) {
-          expect(() => SurfaceScreenDeliveryDescriptorV1Codec.decode(response),
-              throwsFormatException);
-        }
-      }
+            _response(),
+          ),
+          200,
+        );
+      });
+
+      await _fetch(
+          client,
+          _request(
+            sdkBuiltInsCanonicalBase64: builtIns,
+            assignmentCanonicalBase64: heldAssignment,
+          ));
+
+      expect(body['sdkBuiltInsCanonicalBase64'], builtIns);
+      expect(body['assignmentCanonicalBase64'], heldAssignment);
     });
 
-    test('refuses malformed assignment before fetching screen bytes', () async {
-      for (final raw in <Object?>[
-        {},
-        {'schemaVersion': 2},
-        {'result': 'assignmentNotPresented', 'extra': true},
-        'unknownAssignment',
+    test('returns the exact canonical served assignment', () async {
+      final assignment = _assignment();
+      final client = _client(
+        (_) async => http.Response(
+          jsonEncode({
+            ..._response().toJson(),
+            'assignment': assignment.toJson(),
+          }),
+          200,
+        ),
+      );
+
+      final result = await _fetch(client, _request());
+
+      final available = result as SurfaceScreenDeliveryAvailable;
+      expect(available.canonicalExperimentAssignment, assignment);
+      expect(available.assignmentDiagnostic, isNull);
+    });
+
+    test('returns the closed assignment diagnostic without an assignment',
+        () async {
+      final client = _client(
+        (_) async => http.Response(
+          jsonEncode({
+            ..._response().toJson(),
+            'assignment': {'result': 'assignmentNotPresented'},
+          }),
+          200,
+        ),
+      );
+
+      final result = await _fetch(client, _request());
+
+      final available = result as SurfaceScreenDeliveryAvailable;
+      expect(available.canonicalExperimentAssignment, isNull);
+      expect(
+        available.assignmentDiagnostic,
+        SurfaceAssignmentDiagnostic.assignmentNotPresented,
+      );
+    });
+
+    test('rejects a malformed assignment before fetching its artifact',
+        () async {
+      final before = _delivery.artifactRequests.length;
+      final client = _client(
+        (_) async => http.Response(
+          jsonEncode({
+            ..._response().toJson(),
+            'assignment': {
+              ..._assignment().toJson(),
+              'armId': 7,
+            },
+          }),
+          200,
+        ),
+      );
+
+      final result = await _fetch(client, _request());
+
+      expect(
+        result,
+        isA<SurfaceScreenDeliveryInvalidResponse>().having(
+          (response) => response.reason,
+          'reason',
+          SurfaceScreenDeliveryInvalidResponseReason.malformed,
+        ),
+      );
+      expect(_delivery.artifactRequests, hasLength(before));
+    });
+
+    test(
+        'rejects malformed and mixed assignment diagnostics before fetching an artifact',
+        () async {
+      for (final assignment in <Map<String, Object?>>[
+        <String, Object?>{
+          'result': 'assignmentNotPresented',
+          'armId': 7,
+        },
+        <String, Object?>{
+          ..._assignment().toJson(),
+          'result': 'assignmentNotPresented',
+        },
       ]) {
-        final response = jsonDecode(
-          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
-              _response()),
-        ) as Map<String, dynamic>;
-        response['assignment'] = raw;
-        final client =
-            _client((_) async => http.Response(jsonEncode(response), 200));
-        final artifactCount = _delivery.artifactRequests.length;
-        expect(await _fetch(client, _request()),
-            isA<SurfaceScreenDeliveryInvalidResponse>());
-        expect(_delivery.artifactRequests.length, artifactCount);
+        final before = _delivery.artifactRequests.length;
+        final client = _client(
+          (_) async => http.Response(
+            jsonEncode({
+              ..._response().toJson(),
+              'assignment': assignment,
+            }),
+            200,
+          ),
+        );
+
+        final result = await _fetch(client, _request());
+
+        expect(
+          result,
+          isA<SurfaceScreenDeliveryInvalidResponse>().having(
+            (response) => response.reason,
+            'reason',
+            SurfaceScreenDeliveryInvalidResponseReason.malformed,
+          ),
+          reason: '$assignment',
+        );
+        expect(
+          _delivery.artifactRequests,
+          hasLength(before),
+          reason: '$assignment',
+        );
       }
     });
 
@@ -517,10 +598,14 @@ RestageRpcClient _client(
     );
 
 SurfaceScreenDeliveryRequest _request({
+  String? sdkBuiltInsCanonicalBase64,
+  String? assignmentCanonicalBase64,
   String? assignmentKey,
   String? meteringKey,
 }) =>
     SurfaceScreenDeliveryRequest(
+      sdkBuiltInsCanonicalBase64: sdkBuiltInsCanonicalBase64,
+      assignmentCanonicalBase64: assignmentCanonicalBase64,
       surface: Surface.general,
       slug: 'feature_announcement',
       contractVersion: 7,
@@ -566,6 +651,16 @@ SurfaceScreenDeliveryDescriptor _response({
     eventContractHash: eventContractHash,
   );
 }
+
+CanonicalSurfaceExperimentAssignmentV1 _assignment() =>
+    CanonicalSurfaceExperimentAssignmentV1(
+      experimentId: ExperimentPublicIdV1('experiment.screen'),
+      experimentRevisionId: ExperimentPublicRevisionIdV1('revision.screen.1'),
+      experimentEpochId: ExperimentPublicEpochIdV1('epoch.screen.1'),
+      armId: ExperimentPublicArmIdV1('arm.screen'),
+      outcomeLinkCarrier:
+          base64UrlEncode(utf8.encode('outcome.screen')).replaceAll('=', ''),
+    );
 
 String _bindingHeader(MeasurementPublicationBindingReferenceV1 reference) =>
     base64UrlEncode(reference.canonicalBytes).replaceAll('=', '');

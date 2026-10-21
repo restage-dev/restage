@@ -49,6 +49,7 @@ import '../delivery/surface_delivery_receipt.dart';
 import '../delivery/surface_delivery_receipt_batch.dart';
 import '../delivery/surface_delivery_receipt_uploader.dart';
 import '../events/restage_event.dart';
+import '../events/surface_assignment.dart';
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_experiment_mount.dart'
     show FlowExperimentPresentationResolver;
@@ -970,6 +971,27 @@ abstract final class Restage {
     return _eventStream ??= _RestageEventStream(_events!.stream);
   }
 
+  /// Returns the assignment of the last successfully rendered surface.
+  ///
+  /// A result remains available after unmount until another presentation for
+  /// the same surface commits or [reset] retires the actor. The result is null
+  /// before first paint, for unassigned content, and while multiple host
+  /// instances for the same surface are mounted.
+  ///
+  /// Placement delivery uses the terminal surface experiment, otherwise the
+  /// placement experiment. A joint selection has no individual variant.
+  /// Screen and flow compiled-fallback selection conservatively returns null,
+  /// including offstage selection, until a later confirmed render. It does not
+  /// acknowledge fallback paint or experiment exposure.
+  static SurfaceAssignment? assignmentFor(
+    String surfaceId, {
+    required Surface surfaceType,
+  }) =>
+      RootAnalyticsRuntime.assignmentFor(
+        surface: surfaceType.wireName,
+        surfaceId: surfaceId,
+      );
+
   /// Rotates the local pseudonymous actor and session.
   ///
   /// Clears persisted assignment credentials, held assignments and the current
@@ -987,7 +1009,11 @@ abstract final class Restage {
     _measurementHostOwner?.resetSdkRuntimeSession();
     _rpcClient?.forgetPublicationBindings();
     final identity = _analyticsIdentity;
-    if (identity == null) return;
+    if (identity == null) {
+      RootAnalyticsRuntime.retireAll();
+      FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
+      return;
+    }
     // reset() advances the in-memory generation synchronously before its first
     // persistence await. Reject pending hosted paint work against that new
     // generation now; accepted presentations remain pinned.
@@ -1041,15 +1067,7 @@ abstract final class Restage {
   /// Adds [event] to the [events] broadcast stream.
   ///
   /// The broadcast leg short-circuits when nothing is listening to [events].
-  static void fireEvent(RestageEvent event) {
-    final controller = _events;
-    if (controller != null && controller.hasListener) {
-      controller.add(_RestageEventDispatch(
-          event,
-          MountAttributionEventContext.bound
-              ?.capture(authorityCheck: captureEventAuthority())));
-    }
-  }
+  static void fireEvent(RestageEvent event) => emitRestageEvent(event);
 
   /// Retains the current configuration and identity authority across awaits.
   @internal
@@ -1420,6 +1438,32 @@ abstract final class Restage {
         }
     }
   }
+}
+
+/// Emits one immutable event snapshot to the broadcast and owning callback.
+@internal
+RestageEvent emitRestageEvent(RestageEvent event) {
+  final emitted = snapshotRestageEventForEmission(
+    event,
+    firedAt: DateTime.now().toUtc(),
+    attribution: switch (event) {
+      SurfaceDeliveryRateLimited(:final surface, :final surfaceId) =>
+        SurfaceEventAttribution(surfaceId: surfaceId, surfaceType: surface),
+      _ => RootAnalyticsRuntime.currentEventBinding?.attribution ??
+          event.attribution,
+    },
+  );
+  retainPurchaseExposure(event, emitted);
+  final controller = Restage._events;
+  if (controller != null && controller.hasListener) {
+    controller.add(_RestageEventDispatch(
+      emitted,
+      MountAttributionEventContext.bound?.capture(
+        authorityCheck: Restage.captureEventAuthority(),
+      ),
+    ));
+  }
+  return emitted;
 }
 
 final class _RestageEventDispatch {

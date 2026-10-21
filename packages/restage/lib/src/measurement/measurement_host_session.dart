@@ -21,7 +21,10 @@ import 'measurement_publication_binding_runtime.dart';
 import 'measurement_resolved_publication_provenance.dart';
 import 'measurement_rfw_presentation.dart';
 import 'measurement_runtime_capture.dart';
+import 'measurement_worker_protocol.dart';
 import 'presentation_commit.dart';
+import '../analytics/root_analytics_context.dart';
+import '../events/restage_event.dart';
 import 'placement_mount_attribution.dart';
 import '../resolver/resolved_paywall_payload.dart';
 import '../resolver/surface_delivery_observations.dart'
@@ -590,6 +593,7 @@ final class MeasurementHostSessionController
           bindingReadPort: bundledProfile.bindingReadPort,
         ),
         authority,
+        experimentAssignment: experimentAssignment,
         presentationObservations: presentationObservations,
         routingSelectionReceipt: routingSelectionReceipt,
         mountAttribution: mountAttribution,
@@ -751,6 +755,7 @@ final class MeasurementHostSessionController
       MeasurementDeferredPresentationBinder();
   Completer<MeasurementIngestTransportOutcome?>? _pendingTeardown;
   MeasurementHostSessionController? _opened;
+  void Function(MeasurementHostSessionController)? _pendingPointEventBinding;
 
   MeasurementRuntimeCaptureSession? _captureSession;
   MeasurementHostConstructionSession? _constructionSession;
@@ -819,6 +824,8 @@ final class MeasurementHostSessionController
     _pendingBound = null;
     _opened = opened;
     _debugState = MeasurementHostSessionDebugState.active;
+    _pendingPointEventBinding?.call(opened);
+    _pendingPointEventBinding = null;
     _pendingRoute!.bind(handle);
     _pendingBinder.resolve(opened._constructionSession);
     final entries = _pendingEntries!;
@@ -844,6 +851,7 @@ final class MeasurementHostSessionController
     _pendingBound?.cancel();
     _pendingBound = null;
     _pendingEntries = null;
+    _pendingPointEventBinding = null;
     _pendingBinder.resolve(null);
     _pendingTeardown?.complete(null);
     _pendingTeardown = null;
@@ -934,6 +942,49 @@ final class MeasurementHostSessionController
         child: child,
       ),
     );
+  }
+
+  /// Binds worker-acknowledged point events to the immutable presentation
+  /// snapshot owned by the successful root paint.
+  void bindPointEventContext(
+    RootAnalyticsDeferredContext context, {
+    void Function(RestageEvent, RootAnalyticsDeferredContext)? emitEvent,
+  }) {
+    final opened = _opened;
+    if (opened != null) {
+      opened.bindPointEventContext(context, emitEvent: emitEvent);
+      return;
+    }
+    if (_isPending) {
+      _pendingPointEventBinding = (opened) =>
+          opened.bindPointEventContext(context, emitEvent: emitEvent);
+      return;
+    }
+    _constructionSession?.bindPointEventSink((route, value) {
+      final RestageEvent event;
+      switch (value) {
+        case MeasurementWorkerAppendValue.presentation:
+          event = SurfacePointPresented(
+            occurrenceId: route.occurrenceId,
+            lineageId: route.lineageId,
+          );
+        case MeasurementWorkerAppendValue.interaction:
+          event = SurfacePointInteracted(
+            occurrenceId: route.occurrenceId,
+            lineageId: route.lineageId,
+          );
+        case MeasurementWorkerAppendValue.completion:
+        case MeasurementWorkerAppendValue.skip:
+        case MeasurementWorkerAppendValue.dismiss:
+          return;
+      }
+      final ownerEmitter = emitEvent;
+      if (ownerEmitter == null) {
+        context.runWithEventContext(() => Restage.fireEvent(event));
+      } else {
+        ownerEmitter(event, context);
+      }
+    });
   }
 
   /// Sanitizes one event before returning the value for ordinary host logic.

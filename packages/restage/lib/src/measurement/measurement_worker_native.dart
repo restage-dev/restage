@@ -518,6 +518,9 @@ final class _NativeMeasurementWorkerRuntimeState
       case MeasurementWorkerAppendAcknowledgedMessage(
           :final sessionId,
           :final outcome,
+          :final routeIndex,
+          :final value,
+          :final emitsPresentationEvent,
           :final workerOwnedByteCount,
         ):
         _workerOwnedByteCount = workerOwnedByteCount;
@@ -529,6 +532,9 @@ final class _NativeMeasurementWorkerRuntimeState
           MeasurementWorkerAppendAcknowledgement(
             sessionId: sessionId,
             outcome: outcome,
+            routeIndex: routeIndex,
+            value: value,
+            emitsPresentationEvent: emitsPresentationEvent,
             workerOwnedByteCount: _workerOwnedByteCount,
           ),
         );
@@ -978,13 +984,18 @@ final class _MeasurementWorkerKernel {
     final sessionId = message.sessionId;
     final record = message.record;
     final session = _sessions[sessionId];
+    final wasPresented = session?.isPresented(record.routeIndex) ?? false;
     final outcome = session == null
         ? MeasurementWorkerAppendAcknowledgementOutcome.rejected
         : session.append(record);
+    final isPresented = session?.isPresented(record.routeIndex) ?? false;
     events.send(
       MeasurementWorkerProtocol.appendAcknowledged(
         sessionId: sessionId,
         outcome: outcome,
+        routeIndex: record.routeIndex,
+        value: record.value,
+        emitsPresentationEvent: !wasPresented && isPresented,
         workerOwnedByteCount: _ownedByteCount,
       ),
     );
@@ -1493,6 +1504,11 @@ final class _WorkerSession {
     if (isFinal || checkpointBatchId == null) _frameElapsedMicros = elapsed;
     return true;
   }
+
+  bool isPresented(int routeIndex) =>
+      routeIndex >= 0 &&
+      routeIndex < _slots.length &&
+      _slots[routeIndex].presented;
 
   void advanceForFinalization() {
     _beginNewSnapshotAfterCheckpoint();
@@ -2299,6 +2315,9 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
       case MeasurementWorkerOwnedDeliveryAppendAcknowledgedMessage(
           :final sessionId,
           :final outcome,
+          :final routeIndex,
+          :final value,
+          :final emitsPresentationEvent,
           :final workerOwnedByteCount,
         ):
         _workerOwnedByteCount = workerOwnedByteCount;
@@ -2310,6 +2329,9 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
           MeasurementWorkerAppendAcknowledgement(
             sessionId: sessionId,
             outcome: outcome,
+            routeIndex: routeIndex,
+            value: value,
+            emitsPresentationEvent: emitsPresentationEvent,
             workerOwnedByteCount: _workerOwnedByteCount,
           ),
         );
@@ -2913,13 +2935,20 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
 
   void _append(MeasurementWorkerOwnedDeliveryAppendMessage message) {
     final session = _sessions[message.sessionId];
+    final wasPresented =
+        session?.isPresented(message.record.routeIndex) ?? false;
     final outcome = session == null
         ? MeasurementWorkerAppendAcknowledgementOutcome.rejected
         : session.append(message.record);
+    final isPresented =
+        session?.isPresented(message.record.routeIndex) ?? false;
     events.send(
       MeasurementWorkerOwnedDeliveryProtocol.appendAcknowledged(
         sessionId: message.sessionId,
         outcome: outcome,
+        routeIndex: message.record.routeIndex,
+        value: message.record.value,
+        emitsPresentationEvent: !wasPresented && isPresented,
         workerOwnedByteCount: _ownedByteCount,
       ),
     );

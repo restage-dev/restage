@@ -40,6 +40,8 @@ PlacementBatchResolvedV1 placementFixtureResponse(
     SurfaceFitRequirementV1? requirement,
     DeliveryFamilySelectorV1? family,
     DeliveryPublicationReferenceV1? publicationOverride,
+    PublicExperimentSelectionV1? placementExperiment,
+    PublicExperimentSelectionV1? surfaceExperiment,
     PresentationAssignmentCarrierV2? assignment,
     String? routingSelectionReceipt,
     PlacementDeliveryWatchV1? Function(PublicPlacementDeliveryV1)? watch,
@@ -111,6 +113,16 @@ PlacementBatchResolvedV1 placementFixtureResponse(
               'kind': 'surface',
               'surface': selected.surfaceIdentity.toJson()
             };
+            if (placementExperiment != null) {
+              (steps.first as Map)['source'] = 'experiment';
+              (steps.first as Map)['experimentSelection'] =
+                  placementExperiment.toJson();
+            }
+            if (surfaceExperiment != null) {
+              (steps.last as Map)['source'] = 'experiment';
+              (steps.last as Map)['experimentSelection'] =
+                  surfaceExperiment.toJson();
+            }
             json['actualPublication'] = publication.toJson();
             final path = PublicDeliveryDecisionPathV1.fromJson(json);
             final validity = DeliveryCacheValidityV1.fromJson({

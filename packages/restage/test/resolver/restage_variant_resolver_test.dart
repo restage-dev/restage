@@ -131,6 +131,35 @@ void main() {
       expect(variant.cacheHit, isFalse);
     });
 
+    test('projects the exact served assignment and retains its private carrier',
+        () async {
+      final assignment = canonicalAssignmentFixture();
+      final resolver = RestageVariantResolver(
+        apiKey: apiKey,
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _server(
+          _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob),
+          assignment: assignment,
+        ),
+      );
+
+      final variant = await resolver.resolve('pro_upgrade');
+
+      expect(
+        variant.assignment,
+        SurfaceAssignment(
+          experimentId: assignment.experimentId.value,
+          experimentRevisionId: assignment.experimentRevisionId.value,
+          experimentEpochId: assignment.experimentEpochId.value,
+          variantId: assignment.armId.value,
+        ),
+      );
+      expect(measurementExperimentAssignmentFor(variant), assignment);
+      expect(
+          variant.toString(), isNot(contains(assignment.outcomeLinkCarrier)));
+    });
+
     test('threads the internal assignment key into the active hosted request',
         () async {
       addTearDown(SurfaceAssignmentKeyProvider.clear);
@@ -846,6 +875,7 @@ void main() {
         measurementPublicationBindingReferenceFor(held.flow),
         bindingReference,
       );
+      expect(held.flow.assignment?.variantId, assignment.armId.value);
       expect(measurementExperimentAssignmentFor(held.flow), assignment);
     });
 
@@ -874,7 +904,10 @@ void main() {
       final payload = await resolver.resolvePayload('pro_upgrade');
 
       expect(payload, isA<FlowPaywallPayload>());
-      expect((payload as FlowPaywallPayload).flow.document.flow, 'pro_upgrade');
+      final flow = (payload as FlowPaywallPayload).flow;
+      expect(flow.document.flow, 'pro_upgrade');
+      expect(flow.assignment, isNull);
+      expect(measurementExperimentAssignmentFor(flow), isNull);
     });
   });
 
@@ -1029,20 +1062,24 @@ void main() {
 MockClient _server(
   Uint8List envelope, {
   void Function(http.Request request)? onRequest,
+  CanonicalSurfaceExperimentAssignmentV1? assignment,
 }) {
   return _delivery.client((request) async {
     onRequest?.call(request);
     return http.Response(
       _surfaceResponseJson(
         envelope,
+        assignment: assignment,
       ),
       200,
     );
   });
 }
 
-String _surfaceResponseJson(Uint8List envelope,
-    {CanonicalSurfaceExperimentAssignmentV1? assignment}) {
+String _surfaceResponseJson(
+  Uint8List envelope, {
+  CanonicalSurfaceExperimentAssignmentV1? assignment,
+}) {
   return jsonEncode({
     ..._delivery.describeEnvelope(envelope),
     if (assignment != null) 'assignment': assignment.toJson(),

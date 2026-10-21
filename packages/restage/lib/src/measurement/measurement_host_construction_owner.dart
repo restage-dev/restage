@@ -348,53 +348,50 @@ final class MeasurementHostConstructionOwner {
       final nonce = _sdkSession.forTarget(
           resolvedMount.publicationContextRef.surfaceIdentity.target);
       final sessionClock = _SessionMonotonicClock(_monotonicClock);
-      final opened = await runtime.openSession(
-        MeasurementWorkerSessionRegistration(
-          presentationContextCanonicalBytes:
-              profile.presentationMetadataAdmitted &&
-                      presentationContext != null
-                  ? presentationContext.canonicalBytes
-                  : null,
-          routingSelectionReceipt:
-              attribution != null || profile.presentationMetadataAdmitted
-                  ? routingSelectionReceipt
-                  : null,
-          attributionCanonicalBytes: attribution?.canonicalBytes,
-          assignmentCanonicalBytes: assignment?.canonicalBytes,
-          sdkRuntimeSessionNonce:
-              profile.sdkRuntimeSessionAdmitted ? nonce : null,
-          reportedSdkVersion: profile.sdkRuntimeSessionAdmitted
-              ? measurementReportedSdkVersion
-              : null,
-          orderedCaptureCanonicalBytesV1: routeTable.orderedCaptureV1 == null
-              ? null
-              : CanonicalJsonCodec.encode(
-                  routeTable.orderedCaptureV1!.toJson()),
-          sessionId: _nextSessionId(),
-          captureSessionNonce: captureSessionNonceSource(),
-          experimentAssignmentCanonicalBytes: experimentAssignment == null
-              ? null
-              : CanonicalJsonCodec.encode(experimentAssignment.toJson()),
-          registrationFingerprint: registrationFingerprint,
-          publicationContextCanonicalBytes:
-              resolvedMount.publicationContextRef.canonicalBytes,
-          routes: [
-            for (final route in routeTable.routes)
-              MeasurementWorkerRouteIdentity(
-                occurrenceId: route.occurrenceId.hex,
-                lineageId: route.lineageId.value,
-              ),
-          ],
-          limits: const MeasurementWorkerSessionLimits(
-            maximumCounterValue: kMaximumMeasurementCounterValue,
-            maximumPresentedPoints: kMaximumMeasurementPresentedPointCount,
-            maximumInteractionCounters:
-                kMaximumMeasurementInteractionCounterCount,
-            maximumMissingnessEntries: kMaximumMeasurementMissingnessEntryCount,
-          ),
-          firstSequence: 1,
+      final registration = MeasurementWorkerSessionRegistration(
+        presentationContextCanonicalBytes:
+            profile.presentationMetadataAdmitted && presentationContext != null
+                ? presentationContext.canonicalBytes
+                : null,
+        routingSelectionReceipt:
+            attribution != null || profile.presentationMetadataAdmitted
+                ? routingSelectionReceipt
+                : null,
+        attributionCanonicalBytes: attribution?.canonicalBytes,
+        assignmentCanonicalBytes: assignment?.canonicalBytes,
+        sdkRuntimeSessionNonce:
+            profile.sdkRuntimeSessionAdmitted ? nonce : null,
+        reportedSdkVersion: profile.sdkRuntimeSessionAdmitted
+            ? measurementReportedSdkVersion
+            : null,
+        orderedCaptureCanonicalBytesV1: routeTable.orderedCaptureV1 == null
+            ? null
+            : CanonicalJsonCodec.encode(routeTable.orderedCaptureV1!.toJson()),
+        sessionId: _nextSessionId(),
+        captureSessionNonce: captureSessionNonceSource(),
+        experimentAssignmentCanonicalBytes: experimentAssignment == null
+            ? null
+            : CanonicalJsonCodec.encode(experimentAssignment.toJson()),
+        registrationFingerprint: registrationFingerprint,
+        publicationContextCanonicalBytes:
+            resolvedMount.publicationContextRef.canonicalBytes,
+        routes: [
+          for (final route in routeTable.routes)
+            MeasurementWorkerRouteIdentity(
+              occurrenceId: route.occurrenceId.hex,
+              lineageId: route.lineageId.value,
+            ),
+        ],
+        limits: const MeasurementWorkerSessionLimits(
+          maximumCounterValue: kMaximumMeasurementCounterValue,
+          maximumPresentedPoints: kMaximumMeasurementPresentedPointCount,
+          maximumInteractionCounters:
+              kMaximumMeasurementInteractionCounterCount,
+          maximumMissingnessEntries: kMaximumMeasurementMissingnessEntryCount,
         ),
+        firstSequence: 1,
       );
+      final opened = await runtime.openSession(registration);
       final workerSession = opened.session;
       if (workerSession == null) {
         budgetReservation.refund();
@@ -417,6 +414,8 @@ final class MeasurementHostConstructionOwner {
         routeTable: routeTable,
         workerSession: workerSession,
         monotonicClock: sessionClock,
+        routes: registration.routes,
+        appendAcknowledgements: runtime.appendAcknowledgements,
       );
       _sessions.add(session);
       return session;
@@ -691,13 +690,17 @@ final class MeasurementHostConstructionSession
     required MeasurementRuntimeRouteTable routeTable,
     required MeasurementWorkerOwnedDeliverySession workerSession,
     required MeasurementCaptureMonotonicClock monotonicClock,
+    required List<MeasurementWorkerRouteIdentity> routes,
+    required Stream<MeasurementWorkerAppendAcknowledgement>
+        appendAcknowledgements,
   })  : _presentationMetadataAdmitted = presentationMetadataAdmitted,
         _owner = owner,
         _admission = admission,
         _resolvedMount = resolvedMount,
         _routeTable = routeTable,
         _workerSession = workerSession,
-        _monotonicClock = monotonicClock {
+        _monotonicClock = monotonicClock,
+        _routes = routes {
     final carriers = [
       for (final route in routeTable.orderedCaptureV1?.routes ??
           <MeasurementOrderedCaptureRouteV1>[]) ...[
@@ -713,6 +716,10 @@ final class MeasurementHostConstructionSession
       throw StateError(
           'Published callback carriers did not bind to the exact worker');
     }
+    _appendAcknowledgementSubscription = appendAcknowledgements
+        .where((acknowledgement) =>
+            acknowledgement.sessionId == workerSession.sessionId)
+        .listen(_handleAppendAcknowledgement);
   }
 
   final bool _presentationMetadataAdmitted;
@@ -722,9 +729,14 @@ final class MeasurementHostConstructionSession
   final MeasurementRuntimeRouteTable _routeTable;
   final MeasurementWorkerOwnedDeliverySession _workerSession;
   final MeasurementCaptureMonotonicClock _monotonicClock;
+  final List<MeasurementWorkerRouteIdentity> _routes;
   final Map<String, _MeasurementPreboundRoute> _routesByCarrier =
       <String, _MeasurementPreboundRoute>{};
   final Set<MeasurementCaptureEdge> _captureEdges = <MeasurementCaptureEdge>{};
+  late final StreamSubscription<MeasurementWorkerAppendAcknowledgement>
+      _appendAcknowledgementSubscription;
+  void Function(MeasurementWorkerRouteIdentity, MeasurementWorkerAppendValue)?
+      _pointEventSink;
 
   var _active = true;
   final _presentationAttemptObserver = MeasurementPresentationAttemptObserver();
@@ -748,6 +760,32 @@ final class MeasurementHostConstructionSession
   /// The immutable admission shared with restricted credential issuance.
   @visibleForTesting
   MeasurementHostConstructionAdmission get debugAdmission => _admission;
+
+  /// Sets the owner callback for worker-acknowledged point events.
+  void bindPointEventSink(
+    void Function(MeasurementWorkerRouteIdentity, MeasurementWorkerAppendValue)
+        sink,
+  ) {
+    if (_active) _pointEventSink = sink;
+  }
+
+  void _handleAppendAcknowledgement(
+    MeasurementWorkerAppendAcknowledgement acknowledgement,
+  ) {
+    if (acknowledgement.routeIndex < 0 ||
+        acknowledgement.routeIndex >= _routes.length) {
+      return;
+    }
+    final route = _routes[acknowledgement.routeIndex];
+    if (acknowledgement.emitsPresentationEvent) {
+      _pointEventSink?.call(route, MeasurementWorkerAppendValue.presentation);
+    }
+    if (acknowledgement.outcome ==
+            MeasurementWorkerAppendAcknowledgementOutcome.recorded &&
+        acknowledgement.value == MeasurementWorkerAppendValue.interaction) {
+      _pointEventSink?.call(route, MeasurementWorkerAppendValue.interaction);
+    }
+  }
 
   @override
   MeasurementCaptureEdge? bindPresentation({
@@ -954,6 +992,7 @@ final class MeasurementHostConstructionSession
       await _releaseWorkerSession();
       return result;
     } finally {
+      await _appendAcknowledgementSubscription.cancel();
       _owner._release(this);
     }
   }
@@ -962,6 +1001,7 @@ final class MeasurementHostConstructionSession
   void abortBeforeSuccessfulPaint() {
     if (!_active || _successfulFirstPaint) return;
     _active = false;
+    unawaited(_appendAcknowledgementSubscription.cancel());
     _closeCaptureEdge();
     final aborting = _reportTerminalDiagnostic()
         .then((_) => _releaseWorkerSession())
