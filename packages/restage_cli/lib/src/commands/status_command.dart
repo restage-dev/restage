@@ -133,7 +133,7 @@ class StatusCommand extends Command<int> {
       _stderr.writeln('Could not contact the backend: ${e.body}');
       return 2;
     } on SocketException catch (e) {
-      _stderr.writeln('Could not contact the backend: $e');
+      _stderr.writeln(backendUnreachableMessage(api.endpoint, e));
       return 2;
     } finally {
       if (_httpClient == null) api.close();

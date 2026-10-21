@@ -230,6 +230,27 @@ void main() {
       expect(out.trim(), '# Flows overview');
     });
 
+    test('help names the docs origin variable', () async {
+      final (_, out, _) = await run(['docs', 'search', '--help']);
+      expect(out, contains('Set RESTAGE_DOCS_URL'));
+    });
+
+    test('an unreachable docs site names the docs origin variable', () async {
+      final stderr = StringBuffer();
+      final code = await RestageCli(
+        stdout: StringBuffer(),
+        stderr: stderr,
+        hasTerminal: () => false,
+        environment: const {},
+        httpClient: MockClient(
+          (request) async => throw http.ClientException('lookup failed'),
+        ),
+      ).run(['docs', 'read', '/quickstart']);
+      expect(code, 1);
+      expect(stderr.toString(), contains('https://docs.restage.dev'));
+      expect(stderr.toString(), contains('set RESTAGE_DOCS_URL'));
+    });
+
     test('read reports a missing page', () async {
       final (code, _, err) = await run(['docs', 'read', '/nope']);
       expect(code, 1);

@@ -351,7 +351,10 @@ class DocsClient {
         headers: const {'Accept': 'text/markdown, application/json'},
       );
     } on Exception catch (error) {
-      throw DocsException('Could not reach $origin: ${error.runtimeType}');
+      throw DocsException(
+        'Could not reach $origin: ${error.runtimeType}. To read the docs from '
+        'another site, set $docsOriginVariable to its address.',
+      );
     }
     final status = response.statusCode;
     if (status == 404) {

@@ -288,29 +288,28 @@ void main() {
     expect(err.toString(), contains('app/lib/screen.dart'));
   });
 
-  test(
-    'without the flag it pushes exactly as before, touching no Git',
-    () async {
-      final code = await push(
-        ['pro_upgrade'],
-        processRunner: (executable, arguments, {workingDirectory}) async =>
-            fail('Git ran for a push that did not ask to be recorded'),
-        generator: (directory) async =>
-            fail('the generator ran for a push that did not ask for it'),
-      );
+  test('without the flag it writes the receipt and touches no Git', () async {
+    final code = await push(
+      ['pro_upgrade'],
+      processRunner: (executable, arguments, {workingDirectory}) async =>
+          fail('Git ran for a push that did not ask to be recorded'),
+      generator: (directory) async =>
+          fail('the generator ran for a push that did not ask for it'),
+    );
 
-      expect(code, 0, reason: err.toString());
-      expect(out.toString(), contains('Pushed pro_upgrade'));
-      expect(
-        Directory(p.join(app.path, '.restage', 'receipts')).existsSync(),
-        isFalse,
-      );
-      expect(
-        _out(await _git(root, ['log', '--oneline'])).split('\n'),
-        hasLength(1),
-      );
-    },
-  );
+    expect(code, 0, reason: err.toString());
+    expect(out.toString(), contains('Pushed pro_upgrade'));
+    final receipt = ReleaseReceipt.decode(
+      File(p.join(app.path, _receiptPath)).readAsStringSync(),
+    );
+    expect(receipt.operation, ReceiptOperation.surfacePush);
+    expect(receipt.revision?.stored, 17);
+    expect(receipt.source.state, ReceiptSourceState.unknown);
+    expect(
+      _out(await _git(root, ['log', '--oneline'])).split('\n'),
+      hasLength(1),
+    );
+  });
 
   test(
     'reports a pending receipt when the commit does not go through',
@@ -687,6 +686,26 @@ void main() {
     expect(File(p.join(app.path, _receiptPath)).existsSync(), isTrue);
   });
 
+  test('without the flag a receipt it cannot write fails the push', () async {
+    File(p.join(app.path, _receiptPath))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('{}');
+
+    final code = await push(
+      ['pro_upgrade'],
+      processRunner: (executable, arguments, {workingDirectory}) async =>
+          fail('Git ran for a push that did not ask to be recorded'),
+      generator: (directory) async => fail('the generator ran'),
+    );
+
+    expect(code, 2);
+    expect(out.toString(), contains('Pushed pro_upgrade'));
+    expect(
+      err.toString(),
+      contains('A different operation is already recorded'),
+    );
+  });
+
   test('--no-record-git overrides the project setting', () async {
     _write(
       root,
@@ -705,9 +724,10 @@ void main() {
     );
 
     expect(code, 0, reason: err.toString());
+    expect(File(p.join(app.path, _receiptPath)).existsSync(), isTrue);
     expect(
-      Directory(p.join(app.path, '.restage', 'receipts')).existsSync(),
-      isFalse,
+      _out(await _git(root, ['log', '--oneline'])).split('\n'),
+      hasLength(2),
     );
   });
 

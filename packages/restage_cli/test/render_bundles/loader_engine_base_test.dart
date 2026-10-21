@@ -112,7 +112,7 @@ void main() {
 }
 
 final _loaderContract = isA<RenderBundleBuildException>().having(
-  (error) => error.reason,
+  (error) => error.reason.code,
   'reason',
   'loader_contract',
 );

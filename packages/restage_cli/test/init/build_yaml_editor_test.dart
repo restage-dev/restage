@@ -16,7 +16,8 @@ void main() {
         plan.source,
         'additional_public_assets:\n'
         '  - .restage/measurement-state.json\n'
-        '  - .restage/wire-ids.events.jsonl\n',
+        '  - .restage/wire-ids.events.jsonl\n'
+        '  - .restage/receipts/**\n',
       );
     });
 
@@ -39,7 +40,8 @@ targets:
         plan.source.replaceFirst(
           'additional_public_assets:\n'
               '  - .restage/measurement-state.json\n'
-              '  - .restage/wire-ids.events.jsonl\n',
+              '  - .restage/wire-ids.events.jsonl\n'
+              '  - .restage/receipts/**\n',
           '',
         ),
         source,
@@ -60,6 +62,7 @@ additional_public_assets:
         'tool/fixture.json',
         '.restage/measurement-state.json',
         '.restage/wire-ids.events.jsonl',
+        '.restage/receipts/**',
       ]);
     });
 
@@ -68,6 +71,7 @@ additional_public_assets:
 additional_public_assets:
   - .restage/wire-ids.events.jsonl
   - .restage/measurement-state.json
+  - .restage/receipts/**
 ''';
 
       final plan = planStateBuildInputs(source);

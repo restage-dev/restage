@@ -30,19 +30,61 @@ typedef RenderBundleProcessRunner =
 typedef RenderBundleTempDirectoryCreator =
     Future<Directory> Function(String prefix);
 
-/// Generic build failure that deliberately omits process output and paths.
-final class RenderBundleBuildException implements Exception {
-  const RenderBundleBuildException(this.reason, {this.detail});
+/// Why a render bundle build stopped. [code] is the stable name a message prints.
+enum RenderBundleBuildFailure {
+  projectIdentity('project_identity'),
+  factoriesMissing('factories_missing'),
+  outputRoot('output_root'),
+  dependenciesUnresolved('dependencies_unresolved'),
+  renderHostMissing('render_host_missing'),
+  dependenciesFailed('dependencies_failed'),
+  catalogContract('catalog_contract'),
+  flutterNotFound('flutter_not_found'),
+  flutterVersionUnavailable('flutter_version_unavailable'),
+  fontAuthority('font_authority'),
+  fontLicenseAuthority('font_license_authority'),
+  privateTempPermissions('private_temp_permissions'),
+  flutterBuildFailed('flutter_build_failed'),
+  webOutputMissing('web_output_missing'),
+  loaderContract('loader_contract'),
+  serviceWorkerContract('service_worker_contract'),
+  debugSymbolContract('debug_symbol_contract'),
+  buildMetadataContract('build_metadata_contract'),
+  engineMissing('engine_missing'),
+  engineShape('engine_shape'),
+  engineToolchain('engine_toolchain'),
+  engineIncomplete('engine_incomplete'),
+  nonDeterministicOutput('non_deterministic_output'),
+  emptyOutput('empty_output'),
+  fileAccess('file_access'),
+  buildFailed('build_failed'),
+  cleanupFailed('cleanup_failed');
 
-  final String reason;
+  const RenderBundleBuildFailure(this.code);
+
+  final String code;
+}
+
+/// Build failure that omits process output; [detail] names at most a path.
+final class RenderBundleBuildException implements Exception {
+  const RenderBundleBuildException(
+    this.reason, {
+    this.detail,
+    this.buildDirectory,
+  });
+
+  final RenderBundleBuildFailure reason;
 
   /// What the reason is about, such as the engine path that did not match.
   final String? detail;
 
+  /// The generated build project, relative to the app, once it was written.
+  final String? buildDirectory;
+
   @override
   String toString() => detail == null
-      ? 'RenderBundleBuildException($reason)'
-      : 'RenderBundleBuildException($reason, $detail)';
+      ? 'RenderBundleBuildException(${reason.code})'
+      : 'RenderBundleBuildException(${reason.code}, $detail)';
 }
 
 /// Verified SDK-owned font inputs copied into each isolated output.
@@ -150,9 +192,12 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
         appBuild: appVersion.build,
       );
     } on Object {
-      throw const RenderBundleBuildException('catalog_contract');
+      throw const RenderBundleBuildException(
+        RenderBundleBuildFailure.catalogContract,
+      );
     }
     final scratch = await _tempDirectoryCreator('restage_render_bundle_');
+    String? projectPath;
     try {
       await _tightenPermissions(scratch.path, directory: true);
       final flutter =
@@ -167,12 +212,12 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
         fontAuthority.fontFile,
         expectedHash: fontAuthority.fontSha256,
         expectedLength: fontAuthority.fontByteLength,
-        reason: 'font_authority',
+        reason: RenderBundleBuildFailure.fontAuthority,
       );
       final licenseBytes = await _readVerified(
         fontAuthority.licenseFile,
         expectedHash: fontAuthority.licenseSha256,
-        reason: 'font_license_authority',
+        reason: RenderBundleBuildFailure.fontLicenseAuthority,
       );
       final (:flutterVersion, :engineRevision) = await _readFlutterVersion(
         flutter,
@@ -183,16 +228,15 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
         fontBytes: fontBytes,
         licenseBytes: licenseBytes,
       );
-      final projectPath = p.relative(project.path, from: projectRoot.path);
+      projectPath = p.relative(project.path, from: projectRoot.path);
       if (!isRenderBundleProjectResolved(project, flutterRoot: flutterRoot)) {
         final resolved = await _processRunner(flutter, <String>[
           'pub',
           'get',
         ], workingDirectory: project.path);
         if (resolved.exitCode != 0) {
-          throw RenderBundleBuildException(
-            'dependencies_failed',
-            detail: projectPath,
+          throw const RenderBundleBuildException(
+            RenderBundleBuildFailure.dependenciesFailed,
           );
         }
         await markRenderBundleProjectResolved(
@@ -230,9 +274,8 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
           '--dart-define-from-file=${defineFile.path}',
         ], workingDirectory: project.path);
         if (result.exitCode != 0) {
-          throw RenderBundleBuildException(
-            'flutter_build_failed',
-            detail: projectPath,
+          throw const RenderBundleBuildException(
+            RenderBundleBuildFailure.flutterBuildFailed,
           );
         }
         final engineSet = deriveRenderBundleEngineSet(
@@ -258,18 +301,37 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
         );
       }
       if (!_sameArtifact(artifacts.first, artifacts.last)) {
-        throw const RenderBundleBuildException('non_deterministic_output');
+        throw const RenderBundleBuildException(
+          RenderBundleBuildFailure.nonDeterministicOutput,
+        );
       }
       return artifacts.first;
-    } on RenderBundleBuildException {
-      rethrow;
-    } on Object {
-      throw const RenderBundleBuildException('build_failed');
+    } on RenderBundleBuildException catch (error) {
+      throw RenderBundleBuildException(
+        error.reason,
+        detail: error.detail,
+        buildDirectory: projectPath,
+      );
+    } on FileSystemException catch (error) {
+      throw RenderBundleBuildException(
+        RenderBundleBuildFailure.fileAccess,
+        detail: error.path,
+        buildDirectory: projectPath,
+      );
+    } on Object catch (error) {
+      throw RenderBundleBuildException(
+        RenderBundleBuildFailure.buildFailed,
+        detail: error.runtimeType.toString(),
+        buildDirectory: projectPath,
+      );
     } finally {
       try {
         if (scratch.existsSync()) await scratch.delete(recursive: true);
       } on Object {
-        throw const RenderBundleBuildException('cleanup_failed');
+        throw RenderBundleBuildException(
+          RenderBundleBuildFailure.cleanupFailed,
+          detail: scratch.path,
+        );
       }
     }
   }
@@ -292,19 +354,25 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       '--machine',
     ]);
     if (result.exitCode != 0) {
-      throw const RenderBundleBuildException('flutter_version_unavailable');
+      throw const RenderBundleBuildException(
+        RenderBundleBuildFailure.flutterVersionUnavailable,
+      );
     }
     final Object? document;
     try {
       final output = result.stdout as String;
       document = jsonDecode(output.substring(output.indexOf('{')));
     } on Object {
-      throw const RenderBundleBuildException('flutter_version_unavailable');
+      throw const RenderBundleBuildException(
+        RenderBundleBuildFailure.flutterVersionUnavailable,
+      );
     }
     if (document is! Map<String, dynamic> ||
         document['frameworkVersion'] is! String ||
         document['engineRevision'] is! String) {
-      throw const RenderBundleBuildException('flutter_version_unavailable');
+      throw const RenderBundleBuildException(
+        RenderBundleBuildFailure.flutterVersionUnavailable,
+      );
     }
     return (
       flutterVersion: document['frameworkVersion'] as String,
@@ -322,7 +390,9 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     final index = File(p.join(output.path, 'index.html'));
     final loader = File(p.join(output.path, 'flutter_bootstrap.js'));
     if (!index.existsSync() || !loader.existsSync()) {
-      throw const RenderBundleBuildException('web_output_missing');
+      throw const RenderBundleBuildException(
+        RenderBundleBuildFailure.webOutputMissing,
+      );
     }
     final indexSource = await index.readAsString();
     final loaderSource = await loader.readAsString();
@@ -334,7 +404,9 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
         !RegExp(
           r'''fontFallbackBaseUrl\s*:\s*['"]assets/fonts/fallback/['"]''',
         ).hasMatch(loaderSource)) {
-      throw const RenderBundleBuildException('loader_contract');
+      throw const RenderBundleBuildException(
+        RenderBundleBuildFailure.loaderContract,
+      );
     }
     await _omitExpectedCompatibilityServiceWorker(
       output,
@@ -371,11 +443,15 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     final type = await FileSystemEntity.type(worker.path, followLinks: false);
     if (type == FileSystemEntityType.notFound) return;
     if (type != FileSystemEntityType.file) {
-      throw const RenderBundleBuildException('service_worker_contract');
+      throw const RenderBundleBuildException(
+        RenderBundleBuildFailure.serviceWorkerContract,
+      );
     }
     final bytes = await worker.readAsBytes();
     if (bytes.isNotEmpty) {
-      throw const RenderBundleBuildException('service_worker_contract');
+      throw const RenderBundleBuildException(
+        RenderBundleBuildFailure.serviceWorkerContract,
+      );
     }
 
     const buildConfigMarker = '_flutter.buildConfig = ';
@@ -388,7 +464,9 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
           loaderSource.substring(configEnd + 2),
         ) ||
         _activeServiceWorkerPattern.hasMatch(indexSource)) {
-      throw const RenderBundleBuildException('service_worker_contract');
+      throw const RenderBundleBuildException(
+        RenderBundleBuildFailure.serviceWorkerContract,
+      );
     }
     await worker.delete();
   }
@@ -407,7 +485,9 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       );
       if (type == FileSystemEntityType.notFound) continue;
       if (type != FileSystemEntityType.file) {
-        throw const RenderBundleBuildException('debug_symbol_contract');
+        throw const RenderBundleBuildException(
+          RenderBundleBuildFailure.debugSymbolContract,
+        );
       }
       await symbols.delete();
     }
@@ -422,11 +502,15 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       if (p.basename(entity.path).toLowerCase() != '.last_build_id') continue;
       final relative = p.relative(entity.path, from: output.path);
       if (relative != '.last_build_id' || metadata != null) {
-        throw const RenderBundleBuildException('build_metadata_contract');
+        throw const RenderBundleBuildException(
+          RenderBundleBuildFailure.buildMetadataContract,
+        );
       }
       final type = await FileSystemEntity.type(entity.path, followLinks: false);
       if (type != FileSystemEntityType.file) {
-        throw const RenderBundleBuildException('build_metadata_contract');
+        throw const RenderBundleBuildException(
+          RenderBundleBuildFailure.buildMetadataContract,
+        );
       }
       metadata = File(entity.path);
     }
@@ -438,7 +522,9 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
           (byte) =>
               (byte < 0x30 || byte > 0x39) && (byte < 0x61 || byte > 0x66),
         )) {
-      throw const RenderBundleBuildException('build_metadata_contract');
+      throw const RenderBundleBuildException(
+        RenderBundleBuildFailure.buildMetadataContract,
+      );
     }
     await metadata.delete();
   }
@@ -456,7 +542,10 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       path,
     ]);
     if (result.exitCode != 0) {
-      throw const RenderBundleBuildException('private_temp_permissions');
+      throw RenderBundleBuildException(
+        RenderBundleBuildFailure.privateTempPermissions,
+        detail: path,
+      );
     }
   }
 }
@@ -483,20 +572,24 @@ String findFlutterExecutable() {
       if (candidate.existsSync()) return candidate.resolveSymbolicLinksSync();
     }
   }
-  throw const RenderBundleBuildException('flutter_not_found');
+  throw const RenderBundleBuildException(
+    RenderBundleBuildFailure.flutterNotFound,
+  );
 }
 
 Future<Uint8List> _readVerified(
   File file, {
   required String expectedHash,
-  required String reason,
+  required RenderBundleBuildFailure reason,
   int? expectedLength,
 }) async {
-  if (!file.existsSync()) throw RenderBundleBuildException(reason);
+  if (!file.existsSync()) {
+    throw RenderBundleBuildException(reason, detail: file.path);
+  }
   final bytes = await file.readAsBytes();
   if ((expectedLength != null && bytes.length != expectedLength) ||
       crypto.sha256.convert(bytes).toString() != expectedHash) {
-    throw RenderBundleBuildException(reason);
+    throw RenderBundleBuildException(reason, detail: file.path);
   }
   return bytes;
 }
@@ -516,7 +609,9 @@ RenderBundleEngineSet deriveRenderBundleEngineSet(
         entry.key.substring(renderBundleEnginePathPrefix.length): entry.value,
   };
   if (engineFiles.isEmpty) {
-    throw const RenderBundleBuildException('engine_missing');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.engineMissing,
+    );
   }
   try {
     return RenderBundleEngineSet.fromFiles(
@@ -525,7 +620,9 @@ RenderBundleEngineSet deriveRenderBundleEngineSet(
       files: engineFiles,
     );
   } on FormatException {
-    throw const RenderBundleBuildException('engine_shape');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.engineShape,
+    );
   }
 }
 
@@ -549,13 +646,19 @@ RenderBundleArtifact splitRenderBundleEngineFiles(
     if (path.endsWith('.symbols')) continue;
     final hash = 'sha256:${crypto.sha256.convert(entry.value)}';
     if (!engineSet.holds(path: path, contentHash: hash)) {
-      throw RenderBundleBuildException('engine_toolchain', detail: path);
+      throw RenderBundleBuildException(
+        RenderBundleBuildFailure.engineToolchain,
+        detail: path,
+      );
     }
     engineFiles[path] = entry.value;
   }
   for (final file in engineSet.files) {
     if (!engineFiles.containsKey(file.path)) {
-      throw RenderBundleBuildException('engine_incomplete', detail: file.path);
+      throw RenderBundleBuildException(
+        RenderBundleBuildFailure.engineIncomplete,
+        detail: file.path,
+      );
     }
   }
   return RenderBundleArtifact(appFiles: appFiles, engineSet: engineSet);

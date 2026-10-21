@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart_mcp/server.dart';
+import 'package:http/http.dart' as http;
 import 'package:restage_cli/api.dart';
 
 import 'auth.dart';
@@ -112,10 +113,11 @@ Future<CallToolResult> guardErrors(
       // message, and a crafted credentials file could carry secret material in
       // an accepted https host. Fixed message + a runtimeType-only breadcrumb.
       stderr.writeln('restage_mcp $action failed: ${e.runtimeType}');
-      return mcpError(
-        'Could not reach the Restage backend. Check your connection and try '
-        'again.',
-      );
+      return mcpError(kBackendUnreachableMcpMessage);
+    } on http.ClientException catch (e) {
+      // The HTTP client wraps socket failures; same fixed message.
+      stderr.writeln('restage_mcp $action failed: ${e.runtimeType}');
+      return mcpError(kBackendUnreachableMcpMessage);
     } catch (e) {
       stderr.writeln('restage_mcp $action failed: ${e.runtimeType}');
       return mcpError('An unexpected error occurred while $action.');
@@ -248,3 +250,11 @@ extension ToolArgs on CallToolRequest {
   /// An optional boolean argument (null when absent).
   bool? optBool(String key) => _args[key] as bool?;
 }
+
+/// The fixed message for a backend that could not be reached. It never names
+/// the host, which comes from the stored credential.
+const kBackendUnreachableMcpMessage =
+    'Could not reach the Restage backend. Check your connection and try '
+    'again. To use another server, start the MCP server with '
+    'RESTAGE_BACKEND_URL set to its address and sign in again with '
+    'restage_login.';

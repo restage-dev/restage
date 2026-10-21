@@ -483,6 +483,7 @@ final List<PageRead> pageReads = [
             'untilMicros': r.span.end,
             'surfaceIds': <String>[],
             'surfaceRevisionIds': <String>[],
+            'placements': <Object?>[],
             'experimentId': null,
           }),
         ),

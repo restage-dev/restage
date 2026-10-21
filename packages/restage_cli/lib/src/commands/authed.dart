@@ -239,10 +239,10 @@ Future<int> runAuthed(
   } on FitDeclinedException {
     return 1;
   } on SocketException catch (e) {
-    stderr.writeln('Could not contact the backend: $e');
+    stderr.writeln(backendUnreachableMessage(api.endpoint, e));
     return 2;
   } on http.ClientException catch (e) {
-    stderr.writeln('Could not contact the backend: $e');
+    stderr.writeln(backendUnreachableMessage(api.endpoint, e));
     return 2;
   } finally {
     if (io.httpClient == null) api.close();

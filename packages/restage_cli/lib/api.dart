@@ -84,6 +84,7 @@ export 'src/commands/surface_publish_operation.dart'
     show
         FamilyTarget,
         SurfacePublication,
+        alreadyLiveMessage,
         familyHistory,
         familyTargetOf,
         mountGuide,

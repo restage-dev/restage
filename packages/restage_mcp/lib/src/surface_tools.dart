@@ -114,11 +114,12 @@ final _surfaceStatusTool = Tool(
       "code. Each flow version carries its delivery mode ('typed' or "
       "'general'); a general version's flow structure can be "
       'recomposed over the air within the installed vocabulary. `reach` '
-      'states how far the live version reached devices: installs that '
-      'fetched the surface in the last 30 days, those holding the live '
-      'version, and the rest by reason (a build that cannot render it, a '
-      'rule sending another version, or not opened since it went live). A '
-      'count from one to four is null and reads "<5"; `headline` is the '
+      'states how far the live version reached devices: the active '
+      'devices, those holding the live version, and the rest by reason (a '
+      'build that cannot render it, a rule sending another version, or not '
+      'opened since it went live). Active devices are devices seen in the '
+      'last 30 days on an app build that can show this surface. A count '
+      'from one to four is null and reads "<5"; `headline` is the '
       'line the CLI prints.',
   inputSchema: Schema.object(
     properties: surfaceTargetProperties(family: true, read: true),
@@ -536,6 +537,13 @@ Future<CallToolResult> _publishSurface(
     return jsonResult(<String, Object?>{
       'publishedRevision': publication.revision,
       'latestPushed': publication.latest,
+      'alreadyLive': publication.alreadyLive,
+      if (publication.alreadyLive)
+        'note': alreadyLiveMessage(
+          publication.family.slug,
+          publication.revision,
+          impact.at.environment,
+        ),
       'result': publication.result.toJson(),
       'showInApp': mountGuide(
         publication.result.sourceKind == null

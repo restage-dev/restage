@@ -87,7 +87,7 @@ void main() {
       ),
       throwsA(
         isA<RenderBundleBuildException>().having(
-          (error) => error.reason,
+          (error) => error.reason.code,
           'reason',
           'catalog_contract',
         ),

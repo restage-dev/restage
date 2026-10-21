@@ -15,7 +15,7 @@ import 'package:test/test.dart';
 import '../_helpers/test_fixtures.dart';
 
 /// The control response returned by `activateSurface`.
-String _activationResponse({required int revision}) => jsonEncode({
+String _activationResponse({required int revision, int? before}) => jsonEncode({
   '__className__': 'SurfaceContractFamilyOperationResult',
   'family': {
     '__className__': 'SurfaceContractFamilyReference',
@@ -24,6 +24,7 @@ String _activationResponse({required int revision}) => jsonEncode({
     'sourceKind': 'paywall',
   },
   'publishedRevision': revision,
+  'activePublishedRevisionBefore': ?before,
   'activePublishedRevisionAfter': revision,
   'identityFrozenAfter': false,
 });
@@ -210,6 +211,35 @@ void main() {
 
     expect(code, 0, reason: err.toString());
     expect(out.toString(), isNot(contains('Latest pushed revision')));
+  });
+
+  test('publishing the live revision says nothing changed', () async {
+    final client = mockHttpClient(
+      (request) =>
+          http.Response(_activationResponse(revision: 6, before: 6), 200),
+    );
+
+    final code = await runWith(client, ['pro', '--revision', '6']);
+
+    expect(code, 0, reason: err.toString());
+    expect(
+      out.toString(),
+      contains('"pro" r6 is already live in staging. Devices see no change.'),
+    );
+    expect(out.toString(), isNot(contains('Published "pro"')));
+  });
+
+  test('publishing over another live revision reads as a publish', () async {
+    final client = mockHttpClient(
+      (request) =>
+          http.Response(_activationResponse(revision: 6, before: 5), 200),
+    );
+
+    final code = await runWith(client, ['pro', '--revision', '6']);
+
+    expect(code, 0, reason: err.toString());
+    expect(out.toString(), contains('Published "pro" at r6'));
+    expect(out.toString(), isNot(contains('already live')));
   });
 
   test('without --reason it records the default reason', () async {

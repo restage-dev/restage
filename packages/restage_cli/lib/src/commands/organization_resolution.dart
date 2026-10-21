@@ -88,7 +88,7 @@ Future<ConfiguredOrganizationContext?> resolveConfiguredOrganization({
     _writeOrganizationDiscoveryError(stderr, e);
     return null;
   } on SocketException catch (e) {
-    stderr.writeln('Could not contact the backend: $e');
+    stderr.writeln(backendUnreachableMessage(api.endpoint, e));
     return null;
   }
 }
@@ -130,7 +130,7 @@ Future<int?> resolveRequiredOrganizationId({
     _writeOrganizationDiscoveryError(stderr, e);
     return null;
   } on SocketException catch (e) {
-    stderr.writeln('Could not contact the backend: $e');
+    stderr.writeln(backendUnreachableMessage(api.endpoint, e));
     return null;
   }
 }

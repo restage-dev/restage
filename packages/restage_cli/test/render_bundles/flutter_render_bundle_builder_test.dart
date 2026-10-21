@@ -226,7 +226,7 @@ _flutter.loader.load({
       ),
       throwsA(
         isA<RenderBundleBuildException>().having(
-          (e) => e.reason,
+          (e) => e.reason.code,
           'reason',
           'loader_contract',
         ),
@@ -638,15 +638,15 @@ _flutter.loader.load({
         throwsA(
           isA<RenderBundleBuildException>()
               .having(
-                (error) => error.reason,
+                (error) => error.reason.code,
                 'reason',
                 failing == 'pub'
                     ? 'dependencies_failed'
                     : 'flutter_build_failed',
               )
               .having(
-                (error) => error.detail,
-                'detail',
+                (error) => error.buildDirectory,
+                'buildDirectory',
                 p.join('.restage', 'build', 'render_bundle'),
               ),
         ),

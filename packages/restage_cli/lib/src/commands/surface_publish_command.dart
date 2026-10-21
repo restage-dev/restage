@@ -165,7 +165,8 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
         stdout: _io.stdout,
         stderr: _io.stderr,
         onPublished: (published) {
-          final (:family, :revision, :latest, :result) = published;
+          final (:family, :revision, :latest, :alreadyLive, :result) =
+              published;
           if (latest) {
             _io.stdout.writeln(
               'Latest pushed revision for "$slug" in ${target.environment}: '
@@ -180,8 +181,10 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
               : 'r${result.activeRevisionAfter}';
           _io.stdout
             ..writeln(
-              'Published "$slug" at r$revision in ${target.environment} '
-              '(${describeFamily(sourceKind, result.contractVersion ?? family.contractVersion)}).',
+              alreadyLive
+                  ? alreadyLiveMessage(slug, revision, target.environment)
+                  : 'Published "$slug" at r$revision in ${target.environment} '
+                        '(${describeFamily(sourceKind, result.contractVersion ?? family.contractVersion)}).',
             )
             ..writeln('Active revision: $active   frozen: ${result.frozen}')
             ..writeln(

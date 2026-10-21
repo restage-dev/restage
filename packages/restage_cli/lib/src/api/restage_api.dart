@@ -233,3 +233,13 @@ SurfaceFitNeedsConfirmation? decodeFitNeedsConfirmation(String body) {
     return null;
   }
 }
+
+/// What to print when the backend at [endpoint] could not be reached, with
+/// how to point the CLI at another server.
+String backendUnreachableMessage(Uri? endpoint, Object error) {
+  final where = endpoint == null || !endpoint.hasAuthority
+      ? 'the backend'
+      : 'the backend at ${endpoint.origin}';
+  return 'Could not reach $where: $error\n'
+      'To use another server, run `restage login --endpoint <url>`.';
+}

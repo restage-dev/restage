@@ -376,10 +376,19 @@ final class BuildPushCommand extends Command<int> {
       );
     } on RenderBundleBuildException catch (error) {
       return _reportBuildFailure(error);
-    } on FileSystemException {
-      return _reportBuildFailure();
+    } on FileSystemException catch (error) {
+      return _reportBuildFailure(
+        RenderBundleBuildException(
+          RenderBundleBuildFailure.fileAccess,
+          detail: error.path,
+        ),
+      );
     }
-    if (artifact.appFiles.isEmpty) return _reportBuildFailure();
+    if (artifact.appFiles.isEmpty) {
+      return _reportBuildFailure(
+        const RenderBundleBuildException(RenderBundleBuildFailure.emptyOutput),
+      );
+    }
     final builtBytes = artifact.appFiles.values.fold<int>(
       0,
       (total, bytes) => total + bytes.length,
@@ -512,11 +521,8 @@ final class BuildPushCommand extends Command<int> {
     return null;
   }
 
-  int _reportBuildFailure([RenderBundleBuildException? error]) {
-    _stderr.writeln(
-      (error == null ? null : _buildFailureMessage(error)) ??
-          'Could not build the render bundle.',
-    );
+  int _reportBuildFailure(RenderBundleBuildException error) {
+    _stderr.writeln(_buildFailureMessage(error));
     return 2;
   }
 }
@@ -531,53 +537,93 @@ String _letPushGenerate() => currentSelectorSyntax == SelectorSyntax.mcp
     ? 'leave generate unset and let the push run it'
     : 'drop --no-generate and let the push run it';
 
-/// Turns a build failure into the sentence a reader can act on. Its detail
-/// is the generated build project it is about.
-String? _buildFailureMessage(RenderBundleBuildException error) {
-  final project = error.detail;
-  return switch (error.reason) {
-    'project_identity' =>
-      'Could not build the render bundle: pubspec.yaml does not name this '
-          'app. Run the push from the app\'s directory.',
-    'factories_missing' =>
-      'Could not build the render bundle: lib/user_factories.g.dart is '
-          'missing. Run `dart run build_runner build`, or ${_letPushGenerate()}.',
-    'output_root' =>
-      'Could not build the render bundle: the output_root in build.yaml is '
-          'not a package-relative path. Fix it and push again.',
-    'dependencies_unresolved' =>
-      'Could not build the render bundle: this app\'s dependencies are not '
-          'resolved. Run `flutter pub get` and push again.',
-    'render_host_missing' =>
-      'Could not build the render bundle: no restage version could be read '
-          'from this app\'s dependencies. Add restage, run `flutter pub get` '
+/// Turns a build failure into the lines a reader can act on: the sentence,
+/// then the reason code and the build directory when one was written.
+String _buildFailureMessage(RenderBundleBuildException error) {
+  final project = error.buildDirectory ?? 'the build directory';
+  final detail = error.detail;
+  const updateCli = 'Update the restage CLI and push again.';
+  final sentence = switch (error.reason) {
+    RenderBundleBuildFailure.projectIdentity =>
+      'pubspec.yaml does not name this app. Run the push from the app\'s '
+          'directory.',
+    RenderBundleBuildFailure.factoriesMissing =>
+      'lib/user_factories.g.dart is missing. Run '
+          '`dart run build_runner build`, or ${_letPushGenerate()}.',
+    RenderBundleBuildFailure.outputRoot =>
+      'the output_root in build.yaml is not a package-relative path. Fix it '
           'and push again.',
-    'dependencies_failed' =>
-      'Could not build the render bundle: its dependencies did not resolve. '
-          'Run `flutter pub get` in ${project ?? 'the build directory'} to '
-          'see why.',
-    'catalog_contract' =>
-      'Could not build the render bundle: the widget catalog could not be '
-          'read.',
-    'flutter_not_found' => 'Could not find a Flutter SDK. ${flutterRootFix()}',
-    'flutter_version_unavailable' =>
-      'Could not build the render bundle: `flutter --version` did not '
-          'answer.',
-    'flutter_build_failed' =>
-      'Could not build the render bundle: `flutter build web` failed. Run '
-          '`flutter build web --wasm` in '
-          '${project ?? 'the build directory'} to see why.',
-    'loader_contract' =>
-      'Could not build the render bundle: Flutter built a web loader this '
-          'CLI cannot serve. Update the restage CLI and push again.',
-    'non_deterministic_output' =>
-      'Could not build the render bundle: two builds of the same source '
-          'differed.',
-    'engine_missing' =>
-      'Could not build the render bundle: `flutter build web` wrote no '
-          'engine files. ${flutterRootFix()}',
-    _ => null,
+    RenderBundleBuildFailure.dependenciesUnresolved =>
+      'this app\'s dependencies are not resolved. Run `flutter pub get` and '
+          'push again.',
+    RenderBundleBuildFailure.renderHostMissing =>
+      'no restage version could be read from this app\'s dependencies. Add '
+          'restage, run `flutter pub get` and push again.',
+    RenderBundleBuildFailure.dependenciesFailed =>
+      'this app\'s dependencies did not resolve in $project. Run '
+          '`flutter pub get` there to see why.',
+    RenderBundleBuildFailure.catalogContract =>
+      'the widget catalog could not be read. Run '
+          '`dart run build_runner build` and push again.',
+    RenderBundleBuildFailure.flutterNotFound =>
+      'no Flutter SDK was found. ${flutterRootFix()}',
+    RenderBundleBuildFailure.flutterVersionUnavailable =>
+      '`flutter --version` did not answer. Run `flutter --version` to see '
+          'why.',
+    RenderBundleBuildFailure.fontAuthority ||
+    RenderBundleBuildFailure.fontLicenseAuthority =>
+      'the Flutter SDK\'s Roboto font ${detail ?? ''} is missing or changed. '
+          'Run `flutter precache --web` and push again. ${flutterRootFix()}',
+    RenderBundleBuildFailure.privateTempPermissions =>
+      'the temporary directory ${detail ?? ''} could not be made private. '
+          'Set TMPDIR to a directory you own and push again.',
+    RenderBundleBuildFailure.flutterBuildFailed =>
+      '`flutter build web` failed. Run `flutter build web --wasm` in '
+          '$project to see why.',
+    RenderBundleBuildFailure.webOutputMissing =>
+      '`flutter build web` wrote no index.html or flutter_bootstrap.js. Run '
+          '`flutter build web --wasm` in $project to see why.',
+    RenderBundleBuildFailure.emptyOutput =>
+      '`flutter build web` wrote no files. Run `flutter build web --wasm` '
+          'in $project to see why.',
+    RenderBundleBuildFailure.loaderContract =>
+      'Flutter built a web loader this CLI cannot serve. $updateCli',
+    RenderBundleBuildFailure.serviceWorkerContract =>
+      'Flutter built a service worker this CLI cannot serve. $updateCli',
+    RenderBundleBuildFailure.debugSymbolContract =>
+      'Flutter wrote symbol files this CLI does not expect. $updateCli',
+    RenderBundleBuildFailure.buildMetadataContract =>
+      'Flutter wrote build metadata this CLI does not expect. $updateCli',
+    RenderBundleBuildFailure.engineMissing =>
+      '`flutter build web` wrote no engine files. ${flutterRootFix()}',
+    RenderBundleBuildFailure.engineShape =>
+      'the engine files `flutter build web` wrote are not in a shape this '
+          'CLI serves. $updateCli',
+    RenderBundleBuildFailure.engineToolchain =>
+      'the engine file ${detail ?? ''} does not match the engine the build '
+          'reported. Push again. ${flutterRootFix()}',
+    RenderBundleBuildFailure.engineIncomplete =>
+      'the build is missing the engine file ${detail ?? ''}. Push again. '
+          '${flutterRootFix()}',
+    RenderBundleBuildFailure.nonDeterministicOutput =>
+      'two builds of the same source differed. Check that the app reads no '
+          'time, randomness or environment at build time, then push again.',
+    RenderBundleBuildFailure.fileAccess =>
+      'could not read or write ${detail ?? 'a build file'}. Check its '
+          'permissions and free disk space, then push again.',
+    RenderBundleBuildFailure.buildFailed =>
+      'the build stopped on an unexpected ${detail ?? 'error'}. Push again. '
+          'If it happens again, include the reason below when you report it.',
+    RenderBundleBuildFailure.cleanupFailed =>
+      'the temporary directory ${detail ?? ''} could not be deleted. Delete '
+          'it and push again.',
   };
+  return [
+    'Could not build the render bundle: $sentence',
+    'Reason: ${error.reason.code}.',
+    if (error.buildDirectory case final directory?)
+      'Build directory: $directory',
+  ].join('\n');
 }
 
 /// Renders a catalog-step failure as one line a reader can act on.

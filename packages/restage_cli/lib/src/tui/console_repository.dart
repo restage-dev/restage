@@ -195,9 +195,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
     } on RestageApiException catch (e) {
       throw _apiException(e);
     } on SocketException catch (e) {
-      throw ConsoleLoadException('Could not contact the backend: $e');
+      throw ConsoleLoadException(backendUnreachableMessage(api.endpoint, e));
     } on http.ClientException catch (e) {
-      throw ConsoleLoadException('Could not contact the backend: $e');
+      throw ConsoleLoadException(backendUnreachableMessage(api.endpoint, e));
     } on MeasurementPageMismatchException catch (e) {
       throw ConsoleLoadException(e.toString());
     } on FormatException {
@@ -236,7 +236,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
     } on RestageApiException catch (e) {
       throw _apiException(e);
     } on SocketException catch (e) {
-      throw ConsoleLoadException('Could not contact the backend: $e');
+      throw ConsoleLoadException(backendUnreachableMessage(_api?.endpoint, e));
     } on FormatException catch (e) {
       throw ConsoleLoadException(e.message);
     }
@@ -257,7 +257,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
     } on RestageApiException catch (e) {
       throw _apiException(e);
     } on SocketException catch (e) {
-      throw ConsoleLoadException('Could not contact the backend: $e');
+      throw ConsoleLoadException(backendUnreachableMessage(_api?.endpoint, e));
     }
   }
 
@@ -278,7 +278,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
     } on RestageApiException catch (e) {
       throw _apiException(e);
     } on SocketException catch (e) {
-      throw ConsoleLoadException('Could not contact the backend: $e');
+      throw ConsoleLoadException(backendUnreachableMessage(_api?.endpoint, e));
     }
   }
 
