@@ -605,7 +605,7 @@ WidgetConstructorFacts readWidgetConstructorFacts(
         type: valid.type,
         propertyAnnotation: propertyAnnotation,
         dartdocDescription: dartdocDescription,
-        constructorDefault: _constructorDefault(formal),
+        constructorDefault: readWidgetConstructorDefault(formal),
         assertedNonNull: assertedNonNull,
         nullable: cls.library.typeSystem.isNullable(valid.type),
         inherited: valid.inherited,
@@ -918,7 +918,8 @@ Expression _unwrappedExpression(Expression expression) {
   return current;
 }
 
-WidgetConstructorDefaultFact _constructorDefault(
+/// Reads the exact default of a resolved constructor parameter.
+WidgetConstructorDefaultFact readWidgetConstructorDefault(
   FormalParameterElement formal,
 ) {
   if (!formal.hasDefaultValue) return const NoWidgetConstructorDefault();

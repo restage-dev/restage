@@ -298,7 +298,7 @@ void main() {
 
     test('direct list slots suppress every collection-flow form', () async {
       final directTranslator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'ListSink',
             properties: [prop('values', PropertyType.stringList)],
@@ -359,7 +359,7 @@ Object x() => ListSink(values: <String>['ok', $tail]);
     test('direct list slots refuse a present child with no DSL bytes',
         () async {
       final directTranslator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'ListSink',
             properties: [prop('values', PropertyType.stringList)],
@@ -3859,7 +3859,7 @@ Object x() => LinearGradient(
 
   group('catalog widget construction', () {
     // Build a small test catalog with Text + Column entries.
-    final testCatalog = catalogWith([
+    final testCatalog = probeCatalogWith([
       entry(
         name: 'Text',
         category: WidgetCategory.decoration,
@@ -3978,7 +3978,7 @@ Object x() => Column(
       // marked one (e.g. `size` ahead of `iconCodepoint`) must not absorb
       // the positional slot, or the same `size:` named arg would emit a
       // duplicate key and fail rfwtxt parsing.
-      final iconCatalog = catalogWith([
+      final iconCatalog = probeCatalogWith([
         entry(
           name: 'Icon',
           category: WidgetCategory.decoration,
@@ -4015,7 +4015,7 @@ Object x() => Column(
       // A ternary's branches feed the same slot; a bare integer branch at a
       // `real` slot would be silently nulled by the runtime's strict double
       // decode if coercion only saw the assembled `switch` value.
-      final iconCatalog = catalogWith([
+      final iconCatalog = probeCatalogWith([
         entry(
           name: 'Icon',
           category: WidgetCategory.decoration,
@@ -4034,7 +4034,7 @@ Object x() => Column(
     });
 
     test('coerces nested ternary branches at numeric slots', () async {
-      final iconCatalog = catalogWith([
+      final iconCatalog = probeCatalogWith([
         entry(
           name: 'Icon',
           category: WidgetCategory.decoration,
@@ -4092,7 +4092,7 @@ Object x() => Column(
 
   group('root source state translation', () {
     final stateTranslator = ExpressionTranslator.forTesting(
-      catalog: catalogWith([
+      catalog: probeCatalogWith([
         entry(
           name: 'Text',
           properties: [
@@ -4121,7 +4121,7 @@ Object x() => Column(
     // installed so withdrawn commerce authoring takes the normal rejection
     // path.
     final commerceTranslator = ExpressionTranslator(
-      catalog: catalogWith([
+      catalog: probeCatalogWith([
         entry(
           name: 'GestureDetector',
           properties: [
@@ -4517,7 +4517,7 @@ Object x() => Column(
         className: '_PState',
       );
       final numericTranslator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('value', PropertyType.integer)],
@@ -4889,7 +4889,7 @@ Object x() => Column(
 
     test('matches root host data to exact runtime decoder shapes', () async {
       final exactTranslator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Slots',
             properties: [
@@ -5013,7 +5013,7 @@ Object x() => Column(
 
     test('validates host data inside structured double decoders', () async {
       final structuredTranslator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'InsetsSink',
             properties: [prop('value', PropertyType.edgeInsets)],
@@ -5080,7 +5080,7 @@ Object x() => Column(
 
     test('validates conditional, record, and custom-map values', () async {
       final valueTranslator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'ValueSink',
             properties: [prop('value', PropertyType.real)],
@@ -5171,7 +5171,7 @@ Object x() => Column(
 
     test('validates typed recipe fields', () async {
       final recipeTranslator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'GradientSink',
             properties: [prop('value', PropertyType.gradient)],
@@ -5362,7 +5362,7 @@ Object x() => Column(
         className: '_PState',
       );
       final integerTranslator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('value', PropertyType.integer)],
@@ -5494,7 +5494,7 @@ Object x() => Column(
 
   group('context list loops', () {
     final loopTranslator = ExpressionTranslator.forTesting(
-      catalog: catalogWith([
+      catalog: probeCatalogWith([
         entry(
           name: 'Column',
           childrenSlot: ChildrenSlot.list,
@@ -6288,7 +6288,7 @@ Object x() => surfaceEvent(Probe.next);
   // -------------------------------------------------------------------------
 
   group('generic value-callback closure unwrap at any event slot', () {
-    final valueCallbackCatalog = catalogWith([
+    final valueCallbackCatalog = probeCatalogWith([
       entry(
         name: 'Switch',
         properties: [
@@ -8422,7 +8422,7 @@ Object x() => Text(
     // matching, the analyzer's resolved class identifier picks the
     // entry whose flutterType matches; without it (name-only), the
     // priority-ordered first entry would win and fail the test.
-    final shadowingCatalog = catalogWith([
+    final shadowingCatalog = probeCatalogWith([
       entry(
         name: 'FilledButton',
         flutterType: 'package:other_pkg/foo.dart#FilledButton',
@@ -8465,7 +8465,7 @@ Object x() => Text(
     });
 
     test('preserves named-constructor suffix in flutterType lookup', () async {
-      final namedCtorCatalog = catalogWith([
+      final namedCtorCatalog = probeCatalogWith([
         entry(
           name: 'ImageAsset',
           flutterType: 'package:restage_codegen/_expr_probe.dart#Image.asset',
@@ -8558,6 +8558,117 @@ Catalog _textRichCatalog() {
   final decorationShape =
       _scalarShape(PropertyType.textDecoration, symbol: 'TextDecoration');
 
+  final widgets = [
+    WidgetEntry(
+      wireId: textRichRef.wireId,
+      name: 'TextRich',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.decoration,
+      description: '',
+      flutterType: 'package:flutter/src/widgets/text.dart#Text.rich',
+      childrenSlot: ChildrenSlot.none,
+      properties: [
+        _nativeProperty(
+          wireId: textSpanProp,
+          name: 'textSpan',
+          type: PropertyType.inlineSpan,
+        ),
+        _nativeProperty(
+          wireId: WireId('p9107'),
+          name: 'color',
+          type: PropertyType.color,
+        ),
+        _nativeProperty(
+          wireId: WireId('p9108'),
+          name: 'fontSize',
+          type: PropertyType.length,
+        ),
+        _nativeProperty(
+          wireId: WireId('p9109'),
+          name: 'fontWeight',
+          type: PropertyType.fontWeight,
+        ),
+        _nativeProperty(
+          wireId: WireId('p9110'),
+          name: 'fontStyle',
+          type: PropertyType.enumValue,
+          valueShape: fontStyleShape,
+        ),
+        _nativeProperty(
+          wireId: WireId('p9111'),
+          name: 'decoration',
+          type: PropertyType.textDecoration,
+          valueShape: decorationShape,
+        ),
+      ],
+    ),
+    WidgetEntry(
+      wireId: textRef.wireId,
+      name: 'Text',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.decoration,
+      description: '',
+      flutterType: 'package:flutter/src/widgets/text.dart#Text',
+      childrenSlot: ChildrenSlot.none,
+      properties: [
+        _nativeProperty(
+          wireId: textProp,
+          name: 'text',
+          type: PropertyType.string,
+        ),
+        _nativeProperty(
+          wireId: colorProp,
+          name: 'color',
+          type: PropertyType.color,
+        ),
+        _nativeProperty(
+          wireId: fontSizeProp,
+          name: 'fontSize',
+          type: PropertyType.length,
+        ),
+        _nativeProperty(
+          wireId: fontWeightProp,
+          name: 'fontWeight',
+          type: PropertyType.fontWeight,
+        ),
+        _nativeProperty(
+          wireId: fontStyleProp,
+          name: 'fontStyle',
+          type: PropertyType.enumValue,
+          valueShape: fontStyleShape,
+        ),
+        _nativeProperty(
+          wireId: decorationProp,
+          name: 'decoration',
+          type: PropertyType.textDecoration,
+          valueShape: decorationShape,
+        ),
+        _nativeProperty(
+          wireId: WireId('p9112'),
+          name: 'semanticsLabel',
+          type: PropertyType.string,
+        ),
+      ],
+      decomposes: [
+        DecompositionRecipe(
+          structuredRef: textStyleRef,
+          flatProperties: const {},
+          targetArg: 'style',
+          construction: FactoryInvocation(
+            variantRef: textStyleCtorRef,
+            receiver: const ResultStructuredTypeReceiver(),
+          ),
+          fieldMappings: [
+            _nativeFieldMapping(colorField, colorProp),
+            _nativeFieldMapping(fontSizeField, fontSizeProp),
+            _nativeFieldMapping(fontWeightField, fontWeightProp),
+            _nativeFieldMapping(fontStyleField, fontStyleProp),
+            _nativeFieldMapping(decorationField, decorationProp),
+          ],
+        ),
+      ],
+    ),
+  ];
   return Catalog(
     schemaVersion: kSupportedSchemaVersion,
     generatedAt: '1970-01-01T00:00:00Z',
@@ -8565,115 +8676,8 @@ Catalog _textRichCatalog() {
       WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
     },
     widgets: [
-      WidgetEntry(
-        wireId: textRichRef.wireId,
-        name: 'TextRich',
-        library: WidgetLibrary.core,
-        category: WidgetCategory.decoration,
-        description: '',
-        flutterType: 'package:flutter/src/widgets/text.dart#Text.rich',
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          _nativeProperty(
-            wireId: textSpanProp,
-            name: 'textSpan',
-            type: PropertyType.inlineSpan,
-          ),
-          _nativeProperty(
-            wireId: WireId('p9107'),
-            name: 'color',
-            type: PropertyType.color,
-          ),
-          _nativeProperty(
-            wireId: WireId('p9108'),
-            name: 'fontSize',
-            type: PropertyType.length,
-          ),
-          _nativeProperty(
-            wireId: WireId('p9109'),
-            name: 'fontWeight',
-            type: PropertyType.fontWeight,
-          ),
-          _nativeProperty(
-            wireId: WireId('p9110'),
-            name: 'fontStyle',
-            type: PropertyType.enumValue,
-            valueShape: fontStyleShape,
-          ),
-          _nativeProperty(
-            wireId: WireId('p9111'),
-            name: 'decoration',
-            type: PropertyType.textDecoration,
-            valueShape: decorationShape,
-          ),
-        ],
-      ),
-      WidgetEntry(
-        wireId: textRef.wireId,
-        name: 'Text',
-        library: WidgetLibrary.core,
-        category: WidgetCategory.decoration,
-        description: '',
-        flutterType: 'package:flutter/src/widgets/text.dart#Text',
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          _nativeProperty(
-            wireId: textProp,
-            name: 'text',
-            type: PropertyType.string,
-          ),
-          _nativeProperty(
-            wireId: colorProp,
-            name: 'color',
-            type: PropertyType.color,
-          ),
-          _nativeProperty(
-            wireId: fontSizeProp,
-            name: 'fontSize',
-            type: PropertyType.length,
-          ),
-          _nativeProperty(
-            wireId: fontWeightProp,
-            name: 'fontWeight',
-            type: PropertyType.fontWeight,
-          ),
-          _nativeProperty(
-            wireId: fontStyleProp,
-            name: 'fontStyle',
-            type: PropertyType.enumValue,
-            valueShape: fontStyleShape,
-          ),
-          _nativeProperty(
-            wireId: decorationProp,
-            name: 'decoration',
-            type: PropertyType.textDecoration,
-            valueShape: decorationShape,
-          ),
-          _nativeProperty(
-            wireId: WireId('p9112'),
-            name: 'semanticsLabel',
-            type: PropertyType.string,
-          ),
-        ],
-        decomposes: [
-          DecompositionRecipe(
-            structuredRef: textStyleRef,
-            flatProperties: const {},
-            targetArg: 'style',
-            construction: FactoryInvocation(
-              variantRef: textStyleCtorRef,
-              receiver: const ResultStructuredTypeReceiver(),
-            ),
-            fieldMappings: [
-              _nativeFieldMapping(colorField, colorProp),
-              _nativeFieldMapping(fontSizeField, fontSizeProp),
-              _nativeFieldMapping(fontWeightField, fontWeightProp),
-              _nativeFieldMapping(fontStyleField, fontStyleProp),
-              _nativeFieldMapping(decorationField, decorationProp),
-            ],
-          ),
-        ],
-      ),
+      ...widgets,
+      for (final uri in kProbeLibraryUris) ...declaredIn(uri, widgets),
     ],
     structuredTypes: [
       StructuredEntry(
@@ -8757,7 +8761,7 @@ Catalog _textRichCatalog() {
   );
 }
 
-Catalog _textAlignCatalog() => catalogWith([
+Catalog _textAlignCatalog() => probeCatalogWith([
       WidgetEntry(
         wireId: WireId('w9300'),
         name: 'Text',
@@ -8799,7 +8803,7 @@ Catalog _textAlignCatalog() => catalogWith([
 // child list lowers. Mirrors the real catalog's RestagePager surface
 // (children/initialPage/viewportFraction/scrollDirection/pageSnapping/
 // onPageChanged) including the `scrollDirection` enumByName<Axis> slot.
-Catalog _pagerCatalog() => catalogWith([
+Catalog _pagerCatalog() => probeCatalogWith([
       WidgetEntry(
         wireId: WireId('w9400'),
         name: 'RestagePager',
@@ -8843,7 +8847,7 @@ Catalog _draggableSheetCatalog({
   bool includeController = false,
   bool includeInitialChildSize = true,
 }) =>
-    catalogWith([
+    probeCatalogWith([
       WidgetEntry(
         wireId: WireId('w9410'),
         name: 'RestageDraggableSheet',
@@ -8892,7 +8896,7 @@ String _optionListDsl(List<(String value, String label)> options) {
 // `selected` string, and an `onChanged` event. A minimal SizedBox entry rounds
 // out the catalog. The committed catalog stamps these `sinceVersion: 2`; the
 // alias path does not read sinceVersion, so the default baseline is fine here.
-Catalog _singleSelectCatalog() => catalogWith([
+Catalog _singleSelectCatalog() => probeCatalogWith([
       WidgetEntry(
         wireId: WireId('w9420'),
         name: 'RestageRadioGroupString',
@@ -8930,7 +8934,7 @@ Catalog _singleSelectCatalog() => catalogWith([
       ),
     ]);
 
-Catalog _toggleButtonsCatalog() => catalogWith([
+Catalog _toggleButtonsCatalog() => probeCatalogWith([
       WidgetEntry(
         wireId: WireId('w9430'),
         name: 'RestageToggleButtons',
@@ -8960,7 +8964,7 @@ Catalog _toggleButtonsCatalog() => catalogWith([
 // list, an `onChanged` event, and the declarative bools. A minimal SizedBox
 // entry rounds out the catalog. The alias path does not read sinceVersion, so
 // the default baseline is fine here.
-Catalog _segmentedButtonCatalog() => catalogWith([
+Catalog _segmentedButtonCatalog() => probeCatalogWith([
       WidgetEntry(
         wireId: WireId('w9440'),
         name: 'RestageSegmentedButtonString',
@@ -8996,7 +9000,7 @@ Catalog _segmentedButtonCatalog() => catalogWith([
 
 // The event-slot shapes the unwrap serves: a `ValueChanged` callback property
 // and a built-in event slot. `label` is the non-event slot it leaves alone.
-Catalog _eventSlotCatalog() => catalogWith([
+Catalog _eventSlotCatalog() => probeCatalogWith([
       WidgetEntry(
         wireId: WireId('w9450'),
         name: 'CompactList',

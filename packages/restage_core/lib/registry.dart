@@ -7374,6 +7374,190 @@ final Catalog kRegistry = Catalog(
       ],
     ),
     WidgetEntry(
+      wireId: WireId('w0060'),
+      name: 'TransformTranslate',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.decoration,
+      description:
+          'A widget that applies a transformation before painting its child.',
+      displayLabel: 'Translate',
+      flutterType: 'package:flutter/src/widgets/basic.dart#Transform.translate',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0656'),
+          name: 'offset',
+          type: PropertyType.offset,
+          description: '',
+          required: true,
+          priority: PropertyPriority.primary,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.offset,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Offset')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0657'),
+          name: 'transformHitTests',
+          type: PropertyType.boolean,
+          description:
+              'Whether to transform registered hits into the child\'s resulting coordinate system.',
+          displayLabel: 'Transform taps',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0658'),
+          name: 'filterQuality',
+          type: PropertyType.enumValue,
+          description:
+              'The filter quality with which to apply the transform as a bitmap operation.',
+          enumType: 'FilterQuality',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'FilterQuality')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0659'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0660'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 13,
+    ),
+    WidgetEntry(
+      wireId: WireId('w0061'),
+      name: 'TransformScale',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.decoration,
+      description:
+          'A widget that applies a transformation before painting its child.',
+      displayLabel: 'Scale',
+      flutterType: 'package:flutter/src/widgets/basic.dart#Transform.scale',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0661'),
+          name: 'scale',
+          type: PropertyType.real,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0662'),
+          name: 'scaleX',
+          type: PropertyType.real,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0663'),
+          name: 'scaleY',
+          type: PropertyType.real,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0664'),
+          name: 'origin',
+          type: PropertyType.offset,
+          description:
+              'The origin of the coordinate system in which to apply the matrix, described relative to the point given by [alignment].',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.offset,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Offset')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0665'),
+          name: 'alignment',
+          type: PropertyType.alignment,
+          description:
+              'The alignment of the origin, relative to the size of the box.',
+          defaultSource: LiteralDefault('center'),
+          constructorDefault: DartConstReference(
+              libraryUri: 'package:flutter/src/painting/alignment.dart',
+              owner: 'Alignment',
+              member: 'center'),
+          constructorNullable: true,
+          category: PropertyCategory.layout,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.alignment,
+              dartTypeRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/alignment.dart',
+                  symbolName: 'AlignmentGeometry')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0666'),
+          name: 'transformHitTests',
+          type: PropertyType.boolean,
+          description:
+              'Whether to transform registered hits into the child\'s resulting coordinate system.',
+          displayLabel: 'Transform taps',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0667'),
+          name: 'filterQuality',
+          type: PropertyType.enumValue,
+          description:
+              'The filter quality with which to apply the transform as a bitmap operation.',
+          enumType: 'FilterQuality',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'FilterQuality')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0668'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0669'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 14,
+    ),
+    WidgetEntry(
       wireId: WireId('w0034'),
       name: 'Visibility',
       library: WidgetLibrary.core,
@@ -9561,4 +9745,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.core` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kCoreCatalogContentVersion = 10;
+const int kCoreCatalogContentVersion = 14;

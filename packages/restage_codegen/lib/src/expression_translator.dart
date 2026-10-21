@@ -6651,31 +6651,39 @@ final class ExpressionTranslator {
     }
     if (entry == null) {
       final candidates = findWidgetsByName(catalog, widgetName);
-      entry = candidates.isEmpty ? null : candidates.first;
-    }
-    // Silent-regression guard. Reaching the name fallback from a DESIGN-PACKAGE
-    // class means the canonical identity found nothing while the bare name
-    // found something — the mapping and the catalog disagree about where a
-    // framework symbol lives. Binding by name here is precisely the
-    // wrong-runtime-type bind that joining on identity exists to prevent, and
-    // nothing downstream would report it, so fail closed at the seam.
-    if (entry != null && !matchedByFlutterType && widgetClass != null) {
-      final declaringLibrary = widgetClass.library.identifier;
-      if (kDesignPackageLibraryPrefixes.any(declaringLibrary.startsWith)) {
-        issues.add(
-          Issue(
-            code: IssueCode.designPackageIdentityDrift,
-            message: "'$widgetName' is declared in '$declaringLibrary', which "
-                'canonicalises to an identity no catalog entry carries, while '
-                'the name alone matches the catalog entry '
-                "'${entry.library.namespace}.${entry.name}'. Binding by name "
-                'would render a different type. The identity mapping needs to '
-                'be reconciled with the package, most likely because a symbol '
-                'moved between files.',
-            location: _locationOf(anchor),
-          ),
+      final callee = _resolvedCallee(anchor);
+      if (callee == null) {
+        // Unresolved source keeps the name lookup.
+        entry = candidates.firstOrNull;
+      } else if (callee is InterfaceElement) {
+        // A resolved class binds only the entry declaring that same class.
+        final identity = _classIdentity(callee);
+        entry = candidates.firstWhereOrNull(
+          (candidate) => _entryClassIdentity(candidate) == identity,
         );
-        return '';
+        // Silent-regression guard. A DESIGN-PACKAGE class whose canonical
+        // identity matches nothing while its bare name does means the mapping
+        // and the catalog disagree about where a framework symbol lives.
+        final declaringLibrary = callee.library.identifier;
+        if (entry == null &&
+            candidates.isNotEmpty &&
+            kDesignPackageLibraryPrefixes.any(declaringLibrary.startsWith)) {
+          final named = candidates.first;
+          issues.add(
+            Issue(
+              code: IssueCode.designPackageIdentityDrift,
+              message: "'$widgetName' is declared in '$declaringLibrary', "
+                  'which canonicalises to an identity no catalog entry '
+                  'carries, while the name alone matches the catalog entry '
+                  "'${named.library.namespace}.${named.name}'. Binding by name "
+                  'would render a different type. The identity mapping needs '
+                  'to be reconciled with the package, most likely because a '
+                  'symbol moved between files.',
+              location: _locationOf(anchor),
+            ),
+          );
+          return '';
+        }
       }
     }
     if (entry != null) _recordRfwCatalogConstructorOrigin(entry);
@@ -11202,6 +11210,38 @@ final class ExpressionTranslator {
     if (owner is ClassElement) return owner;
     final element = expr.constructorName.type.element;
     return element is ClassElement ? element : null;
+  }
+
+  /// The class a resolved construction names, the element a resolved call
+  /// targets otherwise, or `null` when the source did not resolve.
+  Element? _resolvedCallee(Expression anchor) => switch (anchor) {
+        InstanceCreationExpression(:final constructorName) =>
+          constructorName.element?.enclosingElement ??
+              switch (constructorName.type.element) {
+                final InterfaceElement type => type,
+                _ => null,
+              },
+        MethodInvocation(:final methodName, :final target) => switch (
+              methodName.element) {
+            ConstructorElement(:final enclosingElement) => enclosingElement,
+            final Element element => element,
+            null => target is SimpleIdentifier ? target.element : null,
+          },
+        _ => null,
+      };
+
+  /// The canonical `'<library URI>#<class name>'` of [cls].
+  String _classIdentity(InterfaceElement cls) =>
+      '${canonicalFrameworkLibraryUri(cls.library.identifier)}#${cls.name}';
+
+  /// The class part of [entry]'s Flutter type, without constructor or type
+  /// arguments.
+  String _entryClassIdentity(WidgetEntry entry) {
+    final type = entry.flutterType;
+    final hash = type.indexOf('#');
+    if (hash < 0) return type;
+    final end = type.indexOf(RegExp('[.<]'), hash);
+    return end < 0 ? type : type.substring(0, end);
   }
 
   /// The resolved [ClassElement] behind a bare `Foo(...)` call, or `null`

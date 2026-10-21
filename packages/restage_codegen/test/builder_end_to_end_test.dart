@@ -156,11 +156,6 @@ void main() {
       const usedParamSource = '''
         $kStubAnnotationsAndBases
 
-        class Text extends Widget {
-          const Text(this.text);
-          final String text;
-        }
-
         @PaywallSource(id: 'used_param_title')
         class P extends StatelessWidget {
           const P({required this.title});
@@ -1731,17 +1726,10 @@ widget Paywall = AcmeBanner();
       // End-to-end: `Icon(iconCodepoint: Icons.favorite)` emits a bare integer
       // codepoint, not `"favorite"` (string). `Icons` is gated to the real
       // package:flutter namespace (no name-only path), so the fixture imports
-      // the real `Icons`/`IconData` (showing only those to avoid colliding
-      // with the local `Icon` catalog-widget stub).
+      // the real `Icons`/`IconData` only; the unresolved `Icon` binds by name.
       const source = '''
         import 'package:flutter/material.dart' show Icons, IconData;
         $kStubAnnotationsAndBases
-
-        class Icon extends StatelessWidget {
-          const Icon({this.iconCodepoint});
-          final IconData? iconCodepoint;
-          Widget build(BuildContext context) => Widget();
-        }
 
         @PaywallSource(id: 'icon_canary')
         class IconCanary extends StatelessWidget {
@@ -1797,7 +1785,7 @@ widget Paywall = AcmeBanner();
         // The value types (Color / EdgeInsets / Alignment / LinearGradient)
         // resolve to REAL Flutter so the value-substitution gate recognises
         // them — a custom-stub look-alike would (correctly) defer. Container /
-        // Icon stay catalog-widget stubs (matched by name against the catalog).
+        // Icon stay unresolved, so they bind the catalog by name.
         import 'package:flutter/material.dart'
             show
                 Icons,
@@ -1807,20 +1795,6 @@ widget Paywall = AcmeBanner();
                 Alignment,
                 LinearGradient;
         $kStubAnnotationsAndBases
-
-        class Container extends StatelessWidget {
-          const Container({this.padding, this.color, this.gradient, this.child});
-          final EdgeInsets? padding;
-          final Color? color;
-          final LinearGradient? gradient;
-          final Widget? child;
-          Widget build(BuildContext context) => Widget();
-        }
-        class Icon extends StatelessWidget {
-          const Icon({this.iconCodepoint});
-          final IconData? iconCodepoint;
-          Widget build(BuildContext context) => Widget();
-        }
 
         @PaywallSource(id: 'mixed_shapes')
         class MixedShapes extends StatelessWidget {
@@ -1888,12 +1862,6 @@ widget Paywall = AcmeBanner();
       const source = '''
         $kStubAnnotationsAndBases
 
-        class SizedBox extends StatelessWidget {
-          const SizedBox({this.width});
-          final double? width;
-          Widget build(BuildContext context) => Widget();
-        }
-
         @PaywallSource(id: 'const_local')
         class ConstLocal extends StatelessWidget {
           const ConstLocal();
@@ -1947,19 +1915,6 @@ widget Paywall = AcmeBanner();
           late T widget;
           Widget build(BuildContext context);
           void setState(void Function() fn) {}
-        }
-
-        class Text extends StatelessWidget {
-          const Text(this.text);
-          final String text;
-          Widget build(BuildContext context) => Widget();
-        }
-
-        class GestureDetector extends StatelessWidget {
-          const GestureDetector({this.onTap, this.child});
-          final void Function()? onTap;
-          final Widget? child;
-          Widget build(BuildContext context) => Widget();
         }
 
         @PaywallSource(id: 'stateful_toggle')
@@ -2039,12 +1994,6 @@ widget Paywall = AcmeBanner();
         abstract class State<T extends StatefulWidget> {
           late T widget;
           Widget build(BuildContext context);
-        }
-
-        class Text extends StatelessWidget {
-          const Text(this.text);
-          final String text;
-          Widget build(BuildContext context) => Widget();
         }
 
         @PaywallSource(id: 'state_price_string')

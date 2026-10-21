@@ -108,6 +108,8 @@ const Map<String, String> _curatedMinimalRfwSource = <String, String>{
   // supply a minimal one-node inline-span tree.
   'TextRich': 'TextRich(textSpan: { text: "smoke" })',
   'TransformRotate': 'TransformRotate(angle: 0.0)',
+  'TransformScale': 'TransformScale(scale: 1.0)',
+  'TransformTranslate': 'TransformTranslate(offset: {x: 0.0, y: 0.0})',
   'Visibility': 'Visibility(child: SizedBox())',
 };
 
@@ -255,6 +257,8 @@ Type _flutterTypeFor(String entryName) {
       // `Text.rich` constructs a `Text` widget (Flutter has no distinct Type
       // per named constructor), same as the plain `Text` entry.
       return Text;
+    case 'TransformScale':
+    case 'TransformTranslate':
     case 'TransformRotate':
       return Transform;
     case 'Visibility':

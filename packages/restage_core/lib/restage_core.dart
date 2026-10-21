@@ -9,6 +9,7 @@ export 'library_registration.dart';
 export 'registry.dart';
 export 'src/runtime/decoders.dart';
 export 'src/runtime/icon_table.dart';
+export 'src/runtime/rfw_constructor_presence.dart';
 export 'src/runtime/theme_binding_resolver.dart';
 export 'src/widgets/delivered_icon_fonts.dart';
 export 'src/widgets/restage_align.dart' show RestageAlign, RestageCenter;

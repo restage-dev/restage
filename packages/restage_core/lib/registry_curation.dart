@@ -786,7 +786,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     // `Matrix4` the catalog doesn't decompose. Ship the rotation
     // variant — single `angle: double` scalar plus `child` — under
     // the auto-derived `TransformRotate` catalog name so the limited
-    // scope is explicit. Other constructor variants are not registered here.
+    // scope is explicit.
     constructorName: 'rotate',
     // `origin: Offset?` surfaces as an optional `offset` slot (the rotation
     // pivot). It is nullable with a null Flutter default — left optional with
@@ -794,6 +794,25 @@ const List<BuiltinWidgetCuration> kCuration = [
     // to `Transform.rotate`. The concrete-`Offset` source lowering routes it
     // through the shared `offset` decoder.
     propertyOverrides: {'alignment': kAlignmentCenterOverride},
+  ),
+  BuiltinWidgetCuration<Transform>(
+    displayLabel: 'Translate',
+    category: WidgetCategory.decoration,
+    constructorName: 'translate',
+    sinceVersion: 13,
+  ),
+  BuiltinWidgetCuration<Transform>(
+    displayLabel: 'Scale',
+    category: WidgetCategory.decoration,
+    constructorName: 'scale',
+    sinceVersion: 14,
+    propertyOverrides: {
+      'alignment': PropertyOverride(
+        type: PropertyType.alignment,
+        defaultValue: 'center',
+        preserveConstructorDefault: true,
+      ),
+    },
   ),
   // `UnconstrainedBox` is deliberately not curated, for the same reason as
   // `OverflowBox` above. Its `alignment` slot decodes through the raw alignment

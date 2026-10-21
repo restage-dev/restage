@@ -151,6 +151,7 @@ String _emitRegistrationFile({
   final referencesCoreRuntime = factoryDefinitions.any(
     (d) =>
         d.contains('RestageDecoders.') ||
+        d.contains('RestageRfwConstructorPresence.') ||
         d.contains('resolveThemeBinding(') ||
         d.contains('restageIcon('),
   );

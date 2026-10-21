@@ -1,4 +1,4 @@
-import 'package:meta/meta.dart';
+import 'package:flutter/foundation.dart' show immutable;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart';
 

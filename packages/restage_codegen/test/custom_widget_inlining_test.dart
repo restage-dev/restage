@@ -110,7 +110,7 @@ void main() {
       final body =
           await parseExpressionForTest('Container(child: Text("Pro"))');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Container',
             properties: [prop('child', PropertyType.widget)],
@@ -176,7 +176,7 @@ void main() {
         params: const [],
       );
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('text', PropertyType.string, positional: true)],
@@ -204,7 +204,7 @@ void main() {
         () async {
       final body = await parseExpressionForTest('Text(label)');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('text', PropertyType.string, positional: true)],
@@ -267,7 +267,7 @@ void main() {
       );
       final rootLabel = _rootParamFrom(probe);
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('text', PropertyType.string, positional: true)],
@@ -324,7 +324,7 @@ void main() {
       final body = bodyProbe.expression;
       final rootLabel = _rootParamFrom(bodyProbe, className: 'AcmeCard');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('text', PropertyType.string, positional: true)],
@@ -372,7 +372,7 @@ void main() {
       // definition body's strict double decode would silently null it.
       final body = await parseExpressionForTest('Text(size)');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('size', PropertyType.real, positional: true)],
@@ -433,7 +433,7 @@ void main() {
         ],
       );
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('size', PropertyType.real, positional: true)],
@@ -582,7 +582,7 @@ void main() {
         ],
       );
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('text', PropertyType.string, positional: true)],
@@ -633,7 +633,7 @@ void main() {
       ''');
       final pillBody = await parseExpressionForTest('Text("pill")');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Container',
             properties: [prop('child', PropertyType.widget)],
@@ -693,7 +693,7 @@ void main() {
       final bodyA = await parseExpressionForTest('Text("a")');
       final bodyB = await parseExpressionForTest('Text("b")');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Column',
             childrenSlot: ChildrenSlot.list,
@@ -751,7 +751,7 @@ void main() {
         () async {
       final body = await parseExpressionForTest('Container()');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('text', PropertyType.string, positional: true)],
@@ -792,7 +792,7 @@ void main() {
         () async {
       final body = await parseExpressionForTest('Text("hi")');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('text', PropertyType.string, positional: true)],
@@ -832,7 +832,7 @@ void main() {
         () async {
       final body = await parseExpressionForTest('Text("hi")');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('text', PropertyType.string, positional: true)],
@@ -873,7 +873,7 @@ void main() {
     test('inlines a custom widget whose name is not a surface root', () async {
       final body = await parseExpressionForTest('Text("hi")');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Text',
             properties: [prop('text', PropertyType.string, positional: true)],
@@ -917,7 +917,7 @@ void main() {
         Object x() => Container(width: kGap, height: kGap * 2);
       ''');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Container',
             properties: [
@@ -985,7 +985,7 @@ Object x() => Box(color: Theme.of(context).colorScheme.primary);
         rootPackage: 'apps_examples',
       );
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Box',
             properties: [prop('color', PropertyType.color)],
@@ -1035,7 +1035,7 @@ Object x() => AcmeCard();
         Object x() => Container(width: Tokens.gap);
       ''');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Container',
             properties: [prop('width', PropertyType.real)],
@@ -1075,7 +1075,7 @@ Object x() => AcmeCard();
         className: 'P',
       );
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Tappable',
             properties: [prop('onTap', PropertyType.event, positional: true)],
@@ -1143,7 +1143,7 @@ Object x() => AcmeCard();
         params: const [],
       );
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Container',
             properties: [prop('child', PropertyType.widget)],
@@ -1186,7 +1186,7 @@ Object x() => AcmeCard();
       );
       final translator = ExpressionTranslator(
         // Container declares no `child` property — the body cannot emit.
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(name: 'Container', properties: const []),
           entry(name: 'Text', properties: const []),
         ]),
@@ -1204,7 +1204,7 @@ Object x() => AcmeCard();
     Future<TranslationResult> lowerCall(String argument) async {
       final body = await parseExpressionForTest('GestureDetector(onTap: tap)');
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'GestureDetector',
             properties: [prop('onTap', PropertyType.event)],
@@ -1258,7 +1258,7 @@ Object x(BuildContext context) => AcmeCard(tap: $argument);
       required String destinationType,
       String argument = "(v) => paywallEvent('x')",
     }) async {
-      final catalog = catalogWith([
+      final catalog = probeCatalogWith([
         entry(
           name: 'SizedBox',
           flutterType: 'package:apps_examples/_expr_probe.dart#SizedBox',

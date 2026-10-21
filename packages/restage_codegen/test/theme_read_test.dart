@@ -504,7 +504,7 @@ void main() {
 
     setUp(() {
       translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Icon',
             flutterType: 'package:flutter/material.dart#Icon',
@@ -753,7 +753,7 @@ void main() {
     test('a resolved theme read against a divergent slot type is caught',
         () async {
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Chip2',
             properties: [prop('tint', PropertyType.length)],
@@ -777,7 +777,7 @@ void main() {
     test('a resolved theme read against a matching slot type passes clean',
         () async {
       final translator = ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Chip2',
             properties: [prop('tint', PropertyType.color)],

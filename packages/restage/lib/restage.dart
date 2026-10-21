@@ -134,19 +134,18 @@ export 'package:restage_material/library_registration.dart'
     hide buildMaterialWidgetLibrary, kMaterialLibraryFactories;
 export 'package:restage_cupertino/library_registration.dart'
     hide buildCupertinoWidgetLibrary, kCupertinoLibraryFactories;
-// The icon table lives beside the catalog runtime the generated
-// factories call; re-exported so an app installs it from one import.
+// Shared catalog runtime helpers are available from the SDK import.
 export 'package:restage_core/restage_core.dart'
     show
         InstalledIconTable,
         RestageIconTable,
         RestageIconUnavailableError,
+        RestageRfwConstructorPresence,
         resolveInstalledIcon;
 // The whole-catalog icon table, for a surface that renders content whose
 // icons the app cannot know ahead of time.
 export 'src/runtime/builtin_icon_table.dart' show builtInIconTable;
 export 'src/runtime/restage_widget_library_registration.dart';
-export 'src/runtime/rfw_constructor_presence.dart';
 export 'src/measurement/bundled_measurement_publication_binding_read_port.dart'
     show BundledMeasurementPublicationBindingReadPort;
 export 'src/measurement/bundled_measurement_target_profile_loader.dart'

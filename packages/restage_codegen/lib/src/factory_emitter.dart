@@ -3629,6 +3629,17 @@ ScalarRoute? _scalarDecoderRouteFor(
       !_builtInScalarDecoderNamespaces.contains(widgetLibrary?.namespace)) {
     return null;
   }
+  if (widgetName == 'TransformScale' &&
+      widgetLibrary?.namespace == 'restage.core' &&
+      widgetFlutterType ==
+          'package:flutter/src/widgets/basic.dart#Transform.scale' &&
+      const {'scale', 'scaleX', 'scaleY'}.contains(propertyName)) {
+    return (
+      call: 'RestageDecoders.number',
+      returnsNonNull: false,
+      mustBePositive: false,
+    );
+  }
   if (widgetName == 'Wrap' &&
       (propertyName == 'spacing' || propertyName == 'runSpacing') &&
       (widgetLibrary?.namespace != 'restage.core' ||
@@ -3728,6 +3739,8 @@ const Map<(String, String), String> _scalarDecoderExemptions = {
   ('RestageMotion', 'fromOffset'): _typeLevelOffsetRepairReason,
   ('RestageStagger', 'fromOffset'): _typeLevelOffsetRepairReason,
   ('TransformRotate', 'origin'): _typeLevelOffsetRepairReason,
+  ('TransformScale', 'origin'): _typeLevelOffsetRepairReason,
+  ('TransformTranslate', 'offset'): _typeLevelOffsetRepairReason,
   ('Badge', 'offset'): _typeLevelOffsetRepairReason,
   ('RestageModalSheet', 'anchorPoint'): _typeLevelOffsetRepairReason,
   ('Align', 'alignment'): _typeLevelAlignmentRepairReason,
@@ -3741,6 +3754,7 @@ const Map<(String, String), String> _scalarDecoderExemptions = {
   ('FractionallySizedBox', 'alignment'): _typeLevelAlignmentRepairReason,
   ('Stack', 'alignment'): _typeLevelAlignmentRepairReason,
   ('TransformRotate', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('TransformScale', 'alignment'): _typeLevelAlignmentRepairReason,
   ('AnimatedRotation', 'alignment'): _typeLevelAlignmentXyRepairReason,
   ('AnimatedScale', 'alignment'): _typeLevelAlignmentXyRepairReason,
   ('Image', 'alignment'): _typeLevelAlignmentXyRepairReason,
@@ -3817,6 +3831,9 @@ const Map<(String, String), String> _scalarDecoderExemptions = {
   ('AnimatedRotation', 'turns'): _transformPaintReason,
   ('AnimatedScale', 'scale'): _transformPaintReason,
   ('TransformRotate', 'angle'): _transformPaintReason,
+  ('TransformScale', 'scale'): _transformPaintReason,
+  ('TransformScale', 'scaleX'): _transformPaintReason,
+  ('TransformScale', 'scaleY'): _transformPaintReason,
   ('RestageShaderMask', 'rotation'):
       'gradient rotation reaches shader creation during paint; child layout '
           'does not depend on the angle',

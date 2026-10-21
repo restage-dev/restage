@@ -28,7 +28,7 @@ Catalog _a2Catalog({
   required String file,
   List<String> structured = const [],
 }) =>
-    catalogWith(
+    probeCatalogWith(
       [
         entry(
           name: 'Container',
@@ -290,7 +290,7 @@ class CtaButton extends StatelessWidget {
         },
         inputPath: 'lib/styled_button.dart',
         widgetName: 'CtaButton',
-        catalog: catalogWith(
+        catalog: probeCatalogWith(
           [
             entry(
               name: 'FilledButton',
@@ -352,7 +352,7 @@ class FrameworkConsts extends StatelessWidget {
         },
         inputPath: 'lib/framework_consts.dart',
         widgetName: 'FrameworkConsts',
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Box',
             properties: [
@@ -410,7 +410,7 @@ class BrandBox extends StatelessWidget {
         },
         inputPath: 'lib/lookalike.dart',
         widgetName: 'BrandBox',
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(
             name: 'Box',
             properties: [prop('color', PropertyType.color)],
@@ -513,7 +513,7 @@ class MysteryBox extends StatelessWidget {
     test(
         'Colors.transparent lowers to the identical value as the '
         'Color(0x00000000) workaround', () async {
-      final catalog = catalogWith([
+      final catalog = probeCatalogWith([
         entry(
           name: 'Container',
           properties: [prop('color', PropertyType.color)],
