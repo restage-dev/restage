@@ -29,6 +29,7 @@ class RestageConfig {
     this.recordGit,
     this.flutterRoot,
     this.declareAssets,
+    this.previewWrapper,
     this.organizationId,
     this.appId,
     this.environmentTargetId,
@@ -69,6 +70,11 @@ class RestageConfig {
   /// `flutter.assets` in pubspec.yaml.
   final bool? declareAssets;
 
+  /// The function surface images are drawn inside, as
+  /// `lib/<file>.dart#<name>`: a top-level `Widget name(Widget child)` that
+  /// supplies what the app provides above its screens.
+  final String? previewWrapper;
+
   /// Last resolved ids for the selectors above. Each use rechecks a fresh
   /// admitted scope before treating these as current authority.
   final int? organizationId;
@@ -87,6 +93,7 @@ class RestageConfig {
     recordGit: recordGit,
     flutterRoot: flutterRoot,
     declareAssets: declareAssets,
+    previewWrapper: previewWrapper,
     organizationId: id,
     appId: organizationId == id ? appId : null,
     environmentTargetId: organizationId == id ? environmentTargetId : null,
@@ -108,6 +115,7 @@ class RestageConfig {
       recordGit: scoped.recordGit,
       flutterRoot: scoped.flutterRoot,
       declareAssets: scoped.declareAssets,
+      previewWrapper: scoped.previewWrapper,
       organizationId: organizationId,
       appId: appId,
       environmentTargetId: sameApp ? environmentTargetId : null,
@@ -131,6 +139,7 @@ class RestageConfig {
     recordGit: recordGit,
     flutterRoot: flutterRoot,
     declareAssets: declareAssets,
+    previewWrapper: previewWrapper,
     organizationId: organizationId,
     appId: appId,
     environmentTargetId: environmentTargetId,
@@ -161,6 +170,7 @@ class RestageConfig {
     final recordGit = _optionalBool(map, 'recordGit');
     final flutterRoot = _optionalString(map, 'flutterRoot');
     final declareAssets = _optionalBool(map, 'declareAssets');
+    final previewWrapper = _optionalString(map, 'previewWrapper');
     return RestageConfig(
       project: project,
       app: app,
@@ -171,6 +181,7 @@ class RestageConfig {
       recordGit: recordGit,
       flutterRoot: flutterRoot,
       declareAssets: declareAssets,
+      previewWrapper: previewWrapper,
       organizationId: _optionalInt(map, 'organizationId'),
       appId: _optionalInt(map, 'appId'),
       environmentTargetId: _optionalInt(map, 'environmentTargetId'),
@@ -218,6 +229,12 @@ class RestageConfig {
     }
     if (declareAssets != null) {
       buffer.writeln('declareAssets: $declareAssets');
+    }
+    if (flutterRoot != null) {
+      buffer.writeln('flutterRoot: $flutterRoot');
+    }
+    if (previewWrapper != null) {
+      buffer.writeln('previewWrapper: $previewWrapper');
     }
     return buffer.toString();
   }

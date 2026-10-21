@@ -201,6 +201,25 @@ failure and reports what was pushed and what was not attempted.
 A push also captures an image of each surface that uses your app's own
 widgets, which the dashboard shows until a build can render the surface.
 
+The image comes from a widget test that builds the surface with sample values; a
+flow is drawn at its first screen. If the surface reads something your app provides
+above it, such as a theme, a provider or a bloc, name a function in `lib/` that
+supplies it, in `restage_config.yaml`:
+
+```yaml
+previewWrapper: lib/restage_preview.dart#wrapPreview
+```
+
+```dart
+import 'package:flutter/widgets.dart';
+import 'package:my_app/app_scope.dart';
+
+Widget wrapPreview(Widget child) => AppScope.preview(child: child);
+```
+
+When a surface doesn't render, the push says what stopped it and goes ahead without
+its image.
+
 Surface types are `onboarding`, `message`, `survey`, `paywall`, and `general`.
 
 `restage surface publish <id>` makes a pushed revision live. Without

@@ -41,23 +41,32 @@ app: my-app
       expect(config.recordGit, isNull);
     });
 
-    test('declareAssets round-trips; flutterRoot is read, never written', () {
+    test('declareAssets, flutterRoot and previewWrapper round-trip', () {
       const config = RestageConfig(
         project: 'p',
         app: 'a',
         declareAssets: true,
-        flutterRoot: '/opt/flutter',
+        flutterRoot: '../sdk',
+        previewWrapper: 'lib/preview.dart#wrapPreview',
       );
 
-      final yaml = config.toYaml();
-      expect(RestageConfig.fromYaml(yaml).declareAssets, isTrue);
-      expect(yaml, isNot(contains('flutterRoot')));
-      expect(
-        RestageConfig.fromYaml(
-          'project: p\napp: a\nflutterRoot: ../sdk\n',
-        ).flutterRoot,
-        '../sdk',
+      final read = RestageConfig.fromYaml(config.toYaml());
+      expect(read.declareAssets, isTrue);
+      expect(read.flutterRoot, '../sdk');
+      expect(read.previewWrapper, 'lib/preview.dart#wrapPreview');
+      // Rewriting the ids keeps the settings a user wrote.
+      final confirmed = RestageConfig.fromYaml(
+        read
+            .withResolvedIds(
+              organizationId: 1,
+              appId: 2,
+              environmentTargetId: 3,
+              namedEnvironmentId: 4,
+            )
+            .toYaml(),
       );
+      expect(confirmed.flutterRoot, '../sdk');
+      expect(confirmed.previewWrapper, 'lib/preview.dart#wrapPreview');
     });
 
     test('recordGit round-trips and refuses a value that is not a flag', () {

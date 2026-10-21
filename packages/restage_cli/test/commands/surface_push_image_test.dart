@@ -57,6 +57,7 @@ void main() {
             required entries,
             flagRoot,
             configRoot,
+            wrapper,
             timeout = surfaceCaptureTimeout,
             cancel,
           }) async {

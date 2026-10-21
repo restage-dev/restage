@@ -199,6 +199,9 @@ class PaywallPushCommand extends Command<int> {
       if (publication.unhandledEventsWarning != null) {
         _stderr.writeln(publication.unhandledEventsWarning);
       }
+      if (publication.unmeasuredWarning != null) {
+        _stderr.writeln(publication.unmeasuredWarning);
+      }
     }
     // The closure guard is per entry, so it has to hold across a multi-entry
     // set and not only the single-entry one.

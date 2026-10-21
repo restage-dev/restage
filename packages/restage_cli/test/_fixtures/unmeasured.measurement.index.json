@@ -1,0 +1,1 @@
+{"entries":[],"kind":"restageMeasurementPublicationIndex","package":"fixture_package","schemaVersion":1,"unmeasured":[{"reason":"A callback under a conditional combined with && or || is emitted more than once, so it cannot carry one route","selector":{"slug":"plus_paywall","sourceKind":"paywall","surface":"paywall"}}]}

@@ -9,6 +9,7 @@ import 'package:restage_shared/flow_experiment.dart' as flow;
 import '../api/surface_publication_api.dart';
 import '../commands/surface_payload.dart';
 import '../measurement/measurement_publication_candidate_assembler.dart';
+import '../measurement/unmeasured_publications.dart';
 import 'publication_errors.dart';
 import 'publication_bundle_reader.dart';
 import 'publication_manifest.dart';
@@ -27,6 +28,7 @@ final class AssembledSurfacePublication {
     this.measurementUpload,
     this.capabilityWarning,
     this.unhandledEventsWarning,
+    this.unmeasuredWarning,
   }) : artifactBytes = Map.unmodifiable({
          for (final item in artifactBytes.entries)
            item.key: Uint8List.fromList(item.value),
@@ -89,6 +91,9 @@ final class AssembledSurfacePublication {
   /// Events the selected flows' screens emit that their states drop, as a
   /// note for command output.
   final String? unhandledEventsWarning;
+
+  /// Why the publication compiles unmeasured, as a note for command output.
+  final String? unmeasuredWarning;
 }
 
 /// Reads and assembles the exact artifact closure declared by a generated
@@ -221,6 +226,7 @@ final class SurfacePublicationAssembler {
       unhandledEventsWarning: _joinedWarnings([
         for (final assembled in selected) assembled.unhandledEventsWarning,
       ]),
+      unmeasuredWarning: unmeasuredPublicationWarning(loaded, entry),
     );
   }
 

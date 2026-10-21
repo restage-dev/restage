@@ -352,12 +352,10 @@ class InitCommand extends Command<int> {
       namedEnvironmentId: config.namedEnvironmentId,
       recordGit: existing.recordGit,
       declareAssets: existing.declareAssets,
+      flutterRoot: existing.flutterRoot,
+      previewWrapper: existing.previewWrapper,
     );
-    final flutterRoot = existing.flutterRoot;
-    await file.writeAsString(
-      '${merged.toYaml()}'
-      '${flutterRoot == null ? '' : 'flutterRoot: $flutterRoot\n'}',
-    );
+    await writeRestageConfig(file, merged);
   }
 
   Future<_InitContext?> _resolveInitContext(ArgResults results) async {

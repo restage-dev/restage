@@ -205,10 +205,12 @@ dependencies:
     SurfaceCaptureProcessStarter starter, {
     Duration timeout = surfaceCaptureTimeout,
     Future<void>? cancel,
+    String? wrapper,
   }) => captureSurfaceImages(
     projectRoot: app,
     entries: [entry],
     flagRoot: p.join(root.path, 'flutter'),
+    wrapper: wrapper,
     processRunner: versionRunner,
     processStarter: starter,
     timeout: timeout,
@@ -247,6 +249,117 @@ dependencies:
       'test/paywall.pro_upgrade_test.dart` in '
       '${p.join('.restage', 'build', 'surface_capture')} to see why',
     );
+  });
+
+  test('says what stopped a surface from rendering', () async {
+    final result = await capture(
+      renderer(
+        onTest: (process) {
+          File(
+            p.join(imagesDirectory(), 'paywall.pro_upgrade.error.txt'),
+          ).writeAsStringSync(
+            'Error: Could not find the correct Provider<CartBloc> above '
+            'this ProUpgrade Widget.\n\nThis happens because...',
+          );
+          process.finish(1);
+        },
+      ),
+    );
+
+    expect(
+      result.skipped['paywall.pro_upgrade'],
+      'it did not render: Could not find the correct Provider<CartBloc> '
+      'above this ProUpgrade Widget. If it reads something your app provides '
+      'above it, name a function that provides it as previewWrapper in '
+      'restage_config.yaml. `flutter test test/paywall.pro_upgrade_test.dart` '
+      'in ${p.join('.restage', 'build', 'surface_capture')} shows the whole '
+      'error',
+    );
+  });
+
+  test('draws every surface inside the configured wrapper', () async {
+    write('app/lib/preview.dart', '''
+import 'package:flutter/widgets.dart';
+
+Widget wrapPreview(Widget child) => child;
+''');
+    final result = await capture(
+      renderer(image: _png),
+      wrapper: 'lib/preview.dart#wrapPreview',
+    );
+
+    expect(result.images['paywall.pro_upgrade'], _png);
+    final source = File(
+      p.join(
+        p.dirname(imagesDirectory()),
+        'test',
+        'paywall.pro_upgrade_test.dart',
+      ),
+    ).readAsStringSync();
+    expect(
+      source,
+      contains(
+        "import 'package:$fixturePackageName/preview.dart' "
+        'as restage_capture_wrap;',
+      ),
+    );
+    expect(source, contains('wrap: restage_capture_wrap.wrapPreview'));
+  });
+
+  test('an edit to the wrapper draws the surfaces again', () async {
+    write(
+      'app/lib/preview.dart',
+      'Widget wrapPreview(Widget child) => child;\n',
+    );
+    await capture(
+      renderer(image: _png),
+      wrapper: 'lib/preview.dart#wrapPreview',
+    );
+    started.clear();
+    write(
+      'app/lib/preview.dart',
+      'Widget wrapPreview(Widget child) => Center(child: child);\n',
+    );
+    final again = await capture(
+      renderer(image: _png),
+      wrapper: 'lib/preview.dart#wrapPreview',
+    );
+
+    expect(again.images['paywall.pro_upgrade'], _png);
+    expect(started.map((arguments) => arguments.first), ['test']);
+  });
+
+  test('refuses a wrapper the app does not declare', () async {
+    write(
+      'app/lib/preview.dart',
+      'Widget other(Widget child) => child;\nWidget wrapPreview() => x;\n',
+    );
+    for (final (spec, reason) in [
+      (
+        'preview.dart#wrapPreview',
+        'previewWrapper in restage_config.yaml must look like '
+            '`lib/preview.dart#wrapPreview`, not `preview.dart#wrapPreview`',
+      ),
+      (
+        'lib/../tool/preview.dart#wrapPreview',
+        'previewWrapper in restage_config.yaml must look like '
+            '`lib/preview.dart#wrapPreview`, not '
+            '`lib/../tool/preview.dart#wrapPreview`',
+      ),
+      (
+        'lib/missing.dart#wrapPreview',
+        'previewWrapper names lib/missing.dart, which does not exist',
+      ),
+      (
+        'lib/preview.dart#wrapPreview',
+        'previewWrapper names `wrapPreview`, which lib/preview.dart does not '
+            'declare as `Widget wrapPreview(Widget child)`',
+      ),
+    ]) {
+      final result = await capture(renderer(image: _png), wrapper: spec);
+      expect(result.failure, reason);
+    }
+    expect(started, isEmpty);
   });
 
   test('kills a render that outlives its deadline', () async {

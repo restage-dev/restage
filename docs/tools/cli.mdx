@@ -295,6 +295,25 @@ that includes them, the CLI tells you which command to run.
 A push also captures an image of each surface that uses your app's own widgets, which
 the dashboard shows until the environment has a build that can render it.
 
+The image comes from a widget test that builds the surface with sample values; a
+flow is drawn at its first screen. If the surface reads something your app provides
+above it, such as a theme, a provider or a bloc, name a function in `lib/` that
+supplies it, in `restage_config.yaml`:
+
+```yaml
+previewWrapper: lib/restage_preview.dart#wrapPreview
+```
+
+```dart
+import 'package:flutter/widgets.dart';
+import 'package:my_app/app_scope.dart';
+
+Widget wrapPreview(Widget child) => AppScope.preview(child: child);
+```
+
+When a surface doesn't render, the push says what stopped it and goes ahead without
+its image.
+
 For CI, set `RESTAGE_API_KEY` to a secret key with the bundle-push scope, and
 `RESTAGE_BACKEND_URL` to your Restage server. A key is only ever sent to that server or
 to the CLI's built-in default, never to an endpoint named in `restage_config.yaml`. A key belongs

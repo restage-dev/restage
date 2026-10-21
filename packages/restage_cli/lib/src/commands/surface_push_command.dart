@@ -20,6 +20,7 @@ import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/delivery/fit_report.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_bundle_reader.dart';
@@ -264,6 +265,9 @@ class SurfacePushCommand extends Command<int> {
       if (publication.unhandledEventsWarning != null) {
         _stderr.writeln(publication.unhandledEventsWarning);
       }
+      if (publication.unmeasuredWarning != null) {
+        _stderr.writeln(publication.unmeasuredWarning);
+      }
     }
     // The closure guard is per entry, so it has to hold across a multi-entry
     // set and not only the single-entry one.
@@ -317,6 +321,7 @@ class SurfacePushCommand extends Command<int> {
           ],
           flagRoot: argResults?['flutter-root'] as String?,
           configRoot: loadedConfig?.config.flutterRoot,
+          wrapper: loadedConfig?.config.previewWrapper,
           // The render waits on the Flutter lock while the build holds it.
           timeout: building
               ? surfaceCaptureTimeout + _buildAllowance
@@ -713,21 +718,28 @@ class SurfacePushCommand extends Command<int> {
         cursor = report.nextCursor;
       } while (cursor != null);
       _stdout.writeln(
-        'Placement fit for stored revision ${result.storedRevision}; '
-        'authority ${authorityDigest.hex}:',
+        'Placement fit for stored revision ${result.storedRevision}:',
       );
-      for (final entry in entries) {
+      final shown = [
+        for (final entry in entries)
+          if (fitConcernsPushedSurface(entry.verdictCanonicalBytes)) entry,
+      ];
+      for (final entry in shown) {
         final root = entry.scope.root;
         final label =
             root.placement?.key.value ??
             'surface:${root.surface!.surfaceId.value} '
                 '${jsonEncode(entry.scope.family.toJson())}';
-        _stdout.writeln(
-          '  $label: ${utf8.decode(entry.verdictCanonicalBytes)}',
+        final [verdict, ...reasons] = describeFitVerdict(
+          entry.verdictCanonicalBytes,
         );
+        _stdout.writeln('  $label: $verdict.');
+        for (final reason in reasons) {
+          _stdout.writeln('    $reason.');
+        }
       }
-      if (entries.isEmpty) {
-        _stdout.writeln('  No qualified placement fit entries.');
+      if (shown.isEmpty) {
+        _stdout.writeln('  No placement shows this surface yet.');
       }
     } on Exception {
       unavailable();
