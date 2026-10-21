@@ -6,7 +6,7 @@ const readyScreenRef = NeutralFlowScreenRef(
   id: 'ready',
   artifactPath: 'ready.rfw',
   version: 1,
-  minClient: 10,
+  minClient: 12,
 );
 
 @Deprecated('Use readyScreenRef')

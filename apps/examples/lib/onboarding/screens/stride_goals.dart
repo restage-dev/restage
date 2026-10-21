@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:restage/restage.dart';
 
 part 'restage.generated/stride_goals.restage.g.dart';
@@ -23,7 +24,8 @@ class StrideGoalsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF241024),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF241024),
+        backgroundColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         elevation: 0,
         foregroundColor: Colors.white,
       ),

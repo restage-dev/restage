@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:restage/restage.dart';
 
 import '../../widgets/minimal_custom_widget.dart';
@@ -21,7 +22,11 @@ class StarterStatsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          backgroundColor: Theme.of(context).colorScheme.surface, elevation: 0),
+          backgroundColor: Colors.transparent,
+          systemOverlayStyle: Theme.of(context).brightness == Brightness.dark
+              ? SystemUiOverlayStyle.light
+              : SystemUiOverlayStyle.dark,
+          elevation: 0),
       body: SafeArea(
         top: false,
         child: Padding(

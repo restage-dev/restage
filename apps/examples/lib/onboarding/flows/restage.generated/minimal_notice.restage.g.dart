@@ -6,20 +6,20 @@ const minimalNoticeFlowRef = SurfaceFlowRef<
     MinimalNoticeResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_notice',
   version: 1,
-  minClient: 10,
+  minClient: 12,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMinimalNoticeFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"minimal_notice","initial":"starter_notice","minClient":10,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"starter_notice":{"contentHash":"sha256:9cb6afed4b42315bb5f3ae895ff49e2158ed474d2213ef7258a52566a926360e","minClient":10,"path":"starter_notice.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_notice":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"starter_notice"}},"version":1}',
+        '{"flow":"minimal_notice","initial":"starter_notice","minClient":12,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"starter_notice":{"contentHash":"sha256:2dba949c19b3b5bb48e7a9aa894083125ac852ef6fe17763cfb3150e2a76a4d6","minClient":12,"path":"starter_notice.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_notice":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"starter_notice"}},"version":1}',
     screens: {
       'starter_notice': StarterNoticeScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'dfe4c59d64aef02b4058b3ff0a1302e0d93689b775b5babb8f19e710dc7a1a5b',
+      '983f51ae4387c69a75f8e8e688af07af42c087ac68d3e1b44a802d883ff737f3',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

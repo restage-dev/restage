@@ -142,6 +142,26 @@ final Catalog kRegistry = Catalog(
           constructorNullable: true,
         ),
         PropertyEntry(
+          wireId: WireId('p0502'),
+          name: 'automaticallyImplyActions',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.material.appbar.automaticallyImplyActions} Controls whether we should try to imply the actions widget if null.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0503'),
+          name: 'flexibleSpace',
+          type: PropertyType.widget,
+          description:
+              '{@template flutter.material.appbar.flexibleSpace} This widget is stacked behind the toolbar and the tab bar. Its height will be the same as the app bar\'s overall height.',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
           wireId: WireId('p0473'),
           name: 'bottom',
           type: PropertyType.widget,
@@ -251,8 +271,19 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               '{@template flutter.material.appbar.centerTitle} Whether the title should be centered.',
-          defaultSource: LiteralDefault(true),
           constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0504'),
+          name: 'excludeHeaderSemantics',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.material.appbar.excludeHeaderSemantics} Whether the title should be wrapped with header [Semantics].',
+          defaultSource: LiteralDefault(false),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
               dartTypeRef:
@@ -265,6 +296,30 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.appbar.titleSpacing} The spacing around [title] content on the horizontal axis. This spacing is applied even if there is no [leading] content or [actions]. If you want [title] to take all the space available, set this value to 0.0.',
           constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0505'),
+          name: 'toolbarOpacity',
+          type: PropertyType.real,
+          description:
+              '{@template flutter.material.appbar.toolbarOpacity} How opaque the toolbar part of the app bar is.',
+          defaultSource: LiteralDefault(1.0),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0506'),
+          name: 'bottomOpacity',
+          type: PropertyType.real,
+          description:
+              '{@template flutter.material.appbar.bottomOpacity} How opaque the bottom part of the app bar is.',
+          defaultSource: LiteralDefault(1.0),
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -307,6 +362,18 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
         ),
         PropertyEntry(
+          wireId: WireId('p0507'),
+          name: 'useDefaultSemanticsOrder',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.material.appbar.useDefaultSemanticsOrder} Whether to use the default semantic ordering for the app bar\'s children for accessibility traversal order.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0350'),
           name: 'clipBehavior',
           type: PropertyType.enumValue,
@@ -331,11 +398,79 @@ final Catalog kRegistry = Catalog(
                   symbolName: 'EdgeInsetsGeometry')),
         ),
         PropertyEntry(
+          wireId: WireId('p0508'),
+          name: 'animateColor',
+          type: PropertyType.boolean,
+          description: 'Whether the color should be animated.',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0474'),
           name: 'bottomHeight',
           type: PropertyType.real,
           description: 'The height of the widget below the app bar.',
           synthetic: 'preferredSizeHeight',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0500'),
+          name: 'titleTextStyle',
+          type: PropertyType.structured,
+          description: 'The text style for the app bar title.',
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0002'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0501'),
+          name: 'toolbarTextStyle',
+          type: PropertyType.structured,
+          description: 'The text style for the app bar leading and actions.',
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0002'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0509'),
+          name: 'systemOverlayStyle',
+          type: PropertyType.structured,
+          description: 'The style of the system status and navigation bars.',
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0027'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0510'),
+          name: 'iconTheme',
+          type: PropertyType.structured,
+          description: 'The theme for the app bar leading icons.',
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0026'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0531'),
+          name: 'notificationPredicate',
+          type: PropertyType.integer,
+          description: 'The scroll notification depth the app bar responds to.',
+          synthetic: 'scrollNotificationDepth',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0511'),
+          name: 'actionsIconTheme',
+          type: PropertyType.structured,
+          description: 'The theme for the app bar action icons.',
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0026'))),
         ),
         PropertyEntry(
           wireId: WireId('p0415'),
@@ -345,6 +480,7 @@ final Catalog kRegistry = Catalog(
           synthetic: 'analyticsId',
         ),
       ],
+      sinceVersion: 12,
     ),
     WidgetEntry(
       wireId: WireId('w0003'),
@@ -3613,6 +3749,20 @@ final Catalog kRegistry = Catalog(
           synthetic: 'preferredSizeHeight',
         ),
         PropertyEntry(
+          wireId: WireId('p0529'),
+          name: 'appBarBottomHeight',
+          type: PropertyType.real,
+          description: 'The height of the app bar bottom.',
+          synthetic: 'appBarBottomHeight',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0530'),
+          name: 'appBarToolbarHeight',
+          type: PropertyType.real,
+          description: 'The authored toolbar height of the app bar.',
+          synthetic: 'appBarToolbarHeight',
+        ),
+        PropertyEntry(
           wireId: WireId('p0449'),
           name: 'analyticsId',
           type: PropertyType.string,
@@ -3620,6 +3770,7 @@ final Catalog kRegistry = Catalog(
           synthetic: 'analyticsId',
         ),
       ],
+      sinceVersion: 12,
     ),
     WidgetEntry(
       wireId: WireId('w0031'),
@@ -5138,6 +5289,266 @@ final Catalog kRegistry = Catalog(
       ],
     ),
     StructuredEntry(
+      wireId: WireId('s0026'),
+      name: 'IconThemeData',
+      library: WidgetLibrary.material,
+      description:
+          'Defines the size, font variations, color, opacity, and shadows of icons.',
+      sourceType:
+          'package:flutter/src/widgets/icon_theme_data.dart#IconThemeData',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0512'),
+          name: 'size',
+          type: PropertyType.real,
+          description: 'The default for [Icon.size].',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0513'),
+          name: 'fill',
+          type: PropertyType.real,
+          description: 'The default for [Icon.fill].',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0514'),
+          name: 'weight',
+          type: PropertyType.real,
+          description: 'The default for [Icon.weight].',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0515'),
+          name: 'grade',
+          type: PropertyType.real,
+          description: 'The default for [Icon.grade].',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0516'),
+          name: 'opticalSize',
+          type: PropertyType.real,
+          description: 'The default for [Icon.opticalSize].',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0517'),
+          name: 'color',
+          type: PropertyType.color,
+          description: 'The default for [Icon.color].',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        StructuredField(
+          wireId: WireId('p0518'),
+          name: 'opacity',
+          type: PropertyType.real,
+          description: '',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0519'),
+          name: 'shadows',
+          type: PropertyType.shadowList,
+          description: 'The default for [Icon.shadows].',
+          valueShape: ListShape(
+              propertyType: PropertyType.shadowList,
+              itemShape: ScalarShape(
+                  propertyType: PropertyType.shadowList,
+                  dartTypeRef: DartTypeRef(
+                      libraryUri: 'dart:ui', symbolName: 'Shadow'))),
+        ),
+        StructuredField(
+          wireId: WireId('p0520'),
+          name: 'applyTextScaling',
+          type: PropertyType.boolean,
+          description: 'The default for [Icon.applyTextScaling].',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0055'),
+          argMappings: {
+            'applyTextScaling': ArgMapping(targetFields: [WireId('p0520')]),
+            'color': ArgMapping(targetFields: [WireId('p0517')]),
+            'fill': ArgMapping(targetFields: [WireId('p0513')]),
+            'grade': ArgMapping(targetFields: [WireId('p0515')]),
+            'opacity': ArgMapping(targetFields: [WireId('p0518')]),
+            'opticalSize': ArgMapping(targetFields: [WireId('p0516')]),
+            'shadows': ArgMapping(targetFields: [WireId('p0519')]),
+            'size': ArgMapping(targetFields: [WireId('p0512')]),
+            'weight': ArgMapping(targetFields: [WireId('p0514')]),
+          },
+          description: 'Creates an icon theme data.',
+        ),
+        ConstructorVariant(
+          wireId: WireId('v0056'),
+          namedConstructor: 'fallback',
+          description:
+              'Creates an icon theme with some reasonable default values.',
+        ),
+        StaticMethodVariant(
+          wireId: WireId('v0057'),
+          staticAccessor: 'lerp',
+          description:
+              'Linearly interpolate between two icon theme data objects.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0027'),
+      name: 'SystemUiOverlayStyle',
+      library: WidgetLibrary.material,
+      description:
+          'Specifies a preference for the style of the system overlays.',
+      sourceType:
+          'package:flutter/src/services/system_chrome.dart#SystemUiOverlayStyle',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0521'),
+          name: 'systemNavigationBarColor',
+          type: PropertyType.color,
+          description: 'The color of the system bottom navigation bar.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        StructuredField(
+          wireId: WireId('p0522'),
+          name: 'systemNavigationBarDividerColor',
+          type: PropertyType.color,
+          description:
+              'The color of the divider between the system\'s bottom navigation bar and the app\'s content.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        StructuredField(
+          wireId: WireId('p0523'),
+          name: 'systemNavigationBarIconBrightness',
+          type: PropertyType.enumValue,
+          description: 'The brightness of the system navigation bar icons.',
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Brightness')),
+        ),
+        StructuredField(
+          wireId: WireId('p0524'),
+          name: 'systemNavigationBarContrastEnforced',
+          type: PropertyType.boolean,
+          description:
+              'Overrides the contrast enforcement when setting a transparent navigation bar.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        StructuredField(
+          wireId: WireId('p0525'),
+          name: 'statusBarColor',
+          type: PropertyType.color,
+          description: 'The color of top status bar.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        StructuredField(
+          wireId: WireId('p0526'),
+          name: 'statusBarBrightness',
+          type: PropertyType.enumValue,
+          description: 'The brightness of top status bar.',
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Brightness')),
+        ),
+        StructuredField(
+          wireId: WireId('p0527'),
+          name: 'statusBarIconBrightness',
+          type: PropertyType.enumValue,
+          description: 'The brightness of the top status bar icons.',
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Brightness')),
+        ),
+        StructuredField(
+          wireId: WireId('p0528'),
+          name: 'systemStatusBarContrastEnforced',
+          type: PropertyType.boolean,
+          description:
+              'Overrides the contrast enforcement when setting a transparent status bar.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0058'),
+          argMappings: {
+            'statusBarBrightness': ArgMapping(targetFields: [WireId('p0526')]),
+            'statusBarColor': ArgMapping(targetFields: [WireId('p0525')]),
+            'statusBarIconBrightness':
+                ArgMapping(targetFields: [WireId('p0527')]),
+            'systemNavigationBarColor':
+                ArgMapping(targetFields: [WireId('p0521')]),
+            'systemNavigationBarContrastEnforced':
+                ArgMapping(targetFields: [WireId('p0524')]),
+            'systemNavigationBarDividerColor':
+                ArgMapping(targetFields: [WireId('p0522')]),
+            'systemNavigationBarIconBrightness':
+                ArgMapping(targetFields: [WireId('p0523')]),
+            'systemStatusBarContrastEnforced':
+                ArgMapping(targetFields: [WireId('p0528')]),
+          },
+          description: 'Creates a new [SystemUiOverlayStyle].',
+        ),
+        ConstValueVariant(
+          wireId: WireId('v0059'),
+          staticAccessor: 'dark',
+          description:
+              'System overlays should be drawn with a dark color. Intended for applications with a light background.',
+        ),
+        ConstValueVariant(
+          wireId: WireId('v0060'),
+          staticAccessor: 'light',
+          description:
+              'System overlays should be drawn with a light color. Intended for applications with a dark background.',
+        ),
+      ],
+    ),
+    StructuredEntry(
       wireId: WireId('s0001'),
       name: 'ButtonStyle',
       library: WidgetLibrary.material,
@@ -6480,4 +6891,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.material` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kMaterialCatalogContentVersion = 8;
+const int kMaterialCatalogContentVersion = 12;

@@ -9,6 +9,8 @@ const Set<String> kBuiltInStructuredConcrete = {
   'package:flutter/src/painting/box_decoration.dart#BoxDecoration',
   'package:flutter/src/rendering/box.dart#BoxConstraints',
   'package:flutter/src/painting/text_style.dart#TextStyle',
+  'package:flutter/src/services/system_chrome.dart#SystemUiOverlayStyle',
+  'package:flutter/src/widgets/icon_theme_data.dart#IconThemeData',
   'package:flutter/src/painting/border_radius.dart#BorderRadius',
   'package:flutter/src/painting/edge_insets.dart#EdgeInsets',
   'dart:ui#Color',

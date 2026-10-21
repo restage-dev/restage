@@ -6,7 +6,7 @@ const lumenExperienceScreenRef = NeutralFlowScreenRef(
   id: 'lumen_experience',
   artifactPath: 'lumen_experience.rfw',
   version: 1,
-  minClient: 10,
+  minClient: 12,
 );
 
 @Deprecated('Use lumenExperienceScreenRef')

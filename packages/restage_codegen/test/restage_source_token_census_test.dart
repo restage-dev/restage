@@ -456,6 +456,10 @@ const Set<String> _nonAnnotationClassNameGuards = {
   'Restage',
   // A resolved Flutter superclass identity, not an annotation name.
   'StatelessWidget',
+  // The resolved Flutter widget identity used for native preferred sizing.
+  'AppBar',
+  // Analyzer's unnamed-constructor name in native Flutter constructor guards.
+  'new',
 };
 
 /// Whether a file spelling [name] as an annotation is selected by either

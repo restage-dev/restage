@@ -1,10 +1,585 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_core/restage_core.dart';
-import 'package:restage_shared/restage_shared.dart' show kSupportedCurveNames;
+import 'package:restage_shared/restage_shared.dart'
+    show
+        kIconThemeDataFallbackKey,
+        kIconThemeDataLerpKey,
+        kMaxStructuredCopyWithLayers,
+        kSupportedCurveNames,
+        kStructuredCopyWithKey;
 import 'package:rfw/rfw.dart';
 
+const _overlayBase = SystemUiOverlayStyle(
+  statusBarColor: Color(0xFF112233),
+  systemNavigationBarColor: Color(0xFF445566),
+  systemNavigationBarDividerColor: Color(0xFF778899),
+  statusBarBrightness: Brightness.dark,
+  statusBarIconBrightness: Brightness.light,
+  systemNavigationBarIconBrightness: Brightness.dark,
+  systemNavigationBarContrastEnforced: true,
+  systemStatusBarContrastEnforced: false,
+);
+const _overlayBaseWire = <String, Object?>{
+  'statusBarColor': 0xFF112233,
+  'systemNavigationBarColor': 0xFF445566,
+  'systemNavigationBarDividerColor': 0xFF778899,
+  'statusBarBrightness': 'dark',
+  'statusBarIconBrightness': 'light',
+  'systemNavigationBarIconBrightness': 'dark',
+  'systemNavigationBarContrastEnforced': true,
+  'systemStatusBarContrastEnforced': false,
+};
+
 void main() {
+  group('RestageDecoders.systemUiOverlayStyle', () {
+    test(
+        'applies ordered copy layers with native null retention for all fields',
+        () {
+      final source = _MapDataSource({
+        'overlay': {
+          ..._overlayBaseWire,
+          kStructuredCopyWithKey: [
+            {
+              'statusBarColor': 0x00000000,
+              'systemNavigationBarColor': 0xFFABCDEF,
+              'systemNavigationBarDividerColor': 0xFFFEDCBA,
+              'statusBarBrightness': 'light',
+              'statusBarIconBrightness': 'dark',
+              'systemNavigationBarIconBrightness': 'light',
+              'systemNavigationBarContrastEnforced': false,
+              'systemStatusBarContrastEnforced': true,
+            },
+            {for (final field in _overlayBaseWire.keys) field: null},
+            {
+              'statusBarColor': 0xFF123456,
+              'systemStatusBarContrastEnforced': false
+            },
+            <String, Object?>{},
+          ],
+        },
+      });
+      expect(
+        RestageDecoders.systemUiOverlayStyle(source, const ['overlay']),
+        _overlayBase
+            .copyWith(
+              statusBarColor: const Color(0x00000000),
+              systemNavigationBarColor: const Color(0xFFABCDEF),
+              systemNavigationBarDividerColor: const Color(0xFFFEDCBA),
+              statusBarBrightness: Brightness.light,
+              statusBarIconBrightness: Brightness.dark,
+              systemNavigationBarIconBrightness: Brightness.light,
+              systemNavigationBarContrastEnforced: false,
+              systemStatusBarContrastEnforced: true,
+            )
+            .copyWith(
+              statusBarColor: null,
+              systemNavigationBarColor: null,
+              systemNavigationBarDividerColor: null,
+              statusBarBrightness: null,
+              statusBarIconBrightness: null,
+              systemNavigationBarIconBrightness: null,
+              systemNavigationBarContrastEnforced: null,
+              systemStatusBarContrastEnforced: null,
+            )
+            .copyWith(
+              statusBarColor: const Color(0xFF123456),
+              systemStatusBarContrastEnforced: false,
+            )
+            .copyWith(),
+      );
+    });
+
+    test('nullable copy colors return to the base when data becomes missing',
+        () {
+      final overrides = <String, Object?>{};
+      final source = _MapDataSource({
+        'overlay': {
+          ..._overlayBaseWire,
+          kStructuredCopyWithKey: [overrides],
+        },
+      });
+      for (final color in [null, 0xFFABCDEF, null]) {
+        overrides
+          ..clear()
+          ..addAll({
+            if (color != null) 'statusBarColor': color,
+            if (color != null) 'systemNavigationBarColor': color,
+            if (color != null) 'systemNavigationBarDividerColor': color,
+          });
+        final nativeColor = color == null ? null : Color(color);
+        expect(
+          RestageDecoders.systemUiOverlayStyle(source, const ['overlay']),
+          _overlayBase.copyWith(
+            statusBarColor: nativeColor,
+            systemNavigationBarColor: nativeColor,
+            systemNavigationBarDividerColor: nativeColor,
+          ),
+        );
+      }
+    });
+
+    test('null and empty copy lists preserve the native base', () {
+      for (final copies in [null, <Object?>[]]) {
+        expect(
+          RestageDecoders.systemUiOverlayStyle(
+            _MapDataSource({
+              'overlay': {..._overlayBaseWire, kStructuredCopyWithKey: copies},
+            }),
+            const ['overlay'],
+          ),
+          _overlayBase,
+        );
+      }
+    });
+
+    test('malformed copy layers reject the complete style', () {
+      for (final copies in [
+        false,
+        0,
+        1.5,
+        'invalid',
+        <String, Object?>{},
+        [null],
+        [false],
+        [42],
+        ['invalid'],
+        [<Object?>[]],
+        [
+          {'statusBarColor': 0xFFABCDEF},
+          {kStructuredCopyWithKey: <Object?>[]},
+        ],
+      ]) {
+        expect(
+          RestageDecoders.systemUiOverlayStyle(
+            _MapDataSource({
+              'overlay': {..._overlayBaseWire, kStructuredCopyWithKey: copies},
+            }),
+            const ['overlay'],
+          ),
+          isNull,
+          reason: 'copyWith: $copies',
+        );
+      }
+    });
+
+    test(
+        'copy layer bound accepts the limit and rejects excess without a partial style',
+        () {
+      final copies = <Object?>[
+        for (var index = 0; index < kMaxStructuredCopyWithLayers; index++)
+          {'statusBarColor': 0xFFABCDEF},
+      ];
+      final source = _MapDataSource({
+        'overlay': {..._overlayBaseWire, kStructuredCopyWithKey: copies},
+      });
+      expect(
+        RestageDecoders.systemUiOverlayStyle(source, const ['overlay']),
+        _overlayBase.copyWith(statusBarColor: const Color(0xFFABCDEF)),
+      );
+      copies.add(<String, Object?>{});
+      expect(
+        RestageDecoders.systemUiOverlayStyle(source, const ['overlay']),
+        isNull,
+      );
+    });
+
+    test('matches every native overlay field', () {
+      final source = _MapDataSource({
+        'overlay': {
+          'statusBarColor': 0x00000000,
+          'statusBarBrightness': 'dark',
+          'statusBarIconBrightness': 'light',
+          'systemNavigationBarColor': 0xFF123456,
+          'systemNavigationBarDividerColor': 0xFF654321,
+          'systemNavigationBarIconBrightness': 'dark',
+          'systemNavigationBarContrastEnforced': false,
+          'systemStatusBarContrastEnforced': true,
+        },
+      });
+      expect(
+        RestageDecoders.systemUiOverlayStyle(source, const ['overlay']),
+        const SystemUiOverlayStyle(
+          statusBarColor: Color(0x00000000),
+          statusBarBrightness: Brightness.dark,
+          statusBarIconBrightness: Brightness.light,
+          systemNavigationBarColor: Color(0xFF123456),
+          systemNavigationBarDividerColor: Color(0xFF654321),
+          systemNavigationBarIconBrightness: Brightness.dark,
+          systemNavigationBarContrastEnforced: false,
+          systemStatusBarContrastEnforced: true,
+        ),
+      );
+    });
+
+    test('preserves partial styles and both contrast boolean values', () {
+      final source = _MapDataSource({
+        'overlay': {
+          'statusBarIconBrightness': 'dark',
+          'systemNavigationBarContrastEnforced': true,
+          'systemStatusBarContrastEnforced': false,
+        },
+      });
+      expect(
+        RestageDecoders.systemUiOverlayStyle(source, const ['overlay']),
+        const SystemUiOverlayStyle(
+          statusBarIconBrightness: Brightness.dark,
+          systemNavigationBarContrastEnforced: true,
+          systemStatusBarContrastEnforced: false,
+        ),
+      );
+    });
+
+    test('distinguishes missing, null, empty and nullable-field styles', () {
+      final source = _MapDataSource({
+        'null': null,
+        'invalid': 'style',
+        'empty': <String, Object?>{},
+        'nullable': {
+          'statusBarColor': null,
+          'statusBarBrightness': null,
+          'statusBarIconBrightness': null,
+          'systemNavigationBarColor': null,
+          'systemNavigationBarDividerColor': null,
+          'systemNavigationBarIconBrightness': null,
+          'systemNavigationBarContrastEnforced': null,
+          'systemStatusBarContrastEnforced': null,
+        },
+      });
+      for (final key in ['missing', 'null', 'invalid']) {
+        expect(RestageDecoders.systemUiOverlayStyle(source, [key]), isNull);
+      }
+      for (final key in ['empty', 'nullable']) {
+        expect(
+          RestageDecoders.systemUiOverlayStyle(source, [key]),
+          const SystemUiOverlayStyle(),
+        );
+      }
+    });
+  });
+
+  group('RestageDecoders.iconThemeData', () {
+    test('matches every native icon field', () {
+      final source = _MapDataSource({
+        'icons': {
+          'color': 0x80112233,
+          'size': 31.5,
+          'opacity': 0.75,
+          'fill': 0.5,
+          'weight': 550.5,
+          'grade': -25.5,
+          'opticalSize': 42.5,
+          'shadows': [
+            {
+              'color': 0xFF445566,
+              'offset': {'x': 2, 'y': -3},
+              'blurRadius': 4,
+            },
+          ],
+          'applyTextScaling': true,
+        },
+      });
+      expect(
+        RestageDecoders.iconThemeData(source, const ['icons']),
+        const IconThemeData(
+          color: Color(0x80112233),
+          size: 31.5,
+          opacity: 0.75,
+          fill: 0.5,
+          weight: 550.5,
+          grade: -25.5,
+          opticalSize: 42.5,
+          shadows: [
+            Shadow(
+              color: Color(0xFF445566),
+              offset: Offset(2, -3),
+              blurRadius: 4,
+            ),
+          ],
+          applyTextScaling: true,
+        ),
+      );
+    });
+
+    test('preserves false, zero, empty shadows and integer numeric inputs', () {
+      final source = _MapDataSource({
+        'icons': {
+          'color': 0,
+          'size': 0,
+          'opacity': 0,
+          'fill': 0,
+          'weight': 400,
+          'grade': 0,
+          'opticalSize': 48,
+          'shadows': <Object?>[],
+          'applyTextScaling': false,
+        },
+      });
+      expect(
+        RestageDecoders.iconThemeData(source, const ['icons']),
+        const IconThemeData(
+          color: Color(0x00000000),
+          size: 0,
+          opacity: 0,
+          fill: 0,
+          weight: 400,
+          grade: 0,
+          opticalSize: 48,
+          shadows: [],
+          applyTextScaling: false,
+        ),
+      );
+    });
+
+    test('distinguishes missing, null, empty and nullable-field styles', () {
+      final source = _MapDataSource({
+        'null': null,
+        'invalid': 'style',
+        'empty': <String, Object?>{},
+        'nullable': {
+          'color': null,
+          'size': null,
+          'opacity': null,
+          'fill': null,
+          'weight': null,
+          'grade': null,
+          'opticalSize': null,
+          'shadows': null,
+          'applyTextScaling': null,
+        },
+      });
+      for (final key in ['missing', 'null', 'invalid']) {
+        expect(RestageDecoders.iconThemeData(source, [key]), isNull);
+      }
+      for (final key in ['empty', 'nullable']) {
+        expect(
+          RestageDecoders.iconThemeData(source, [key]),
+          const IconThemeData(),
+        );
+      }
+    });
+
+    test('leaves native scalar behavior to IconThemeData', () {
+      for (final opacity in [-1.0, 2.0, double.infinity, double.nan]) {
+        final source = _MapDataSource({
+          'icons': {'size': -4, 'grade': double.infinity, 'opacity': opacity},
+        });
+        expect(
+          RestageDecoders.iconThemeData(source, const ['icons']),
+          IconThemeData(size: -4, grade: double.infinity, opacity: opacity),
+        );
+      }
+      for (final fields in [
+        {'fill': -1},
+        {'weight': 0},
+        {'opticalSize': 0},
+      ]) {
+        expect(
+          () => RestageDecoders.iconThemeData(
+            _MapDataSource({'icons': fields}),
+            const ['icons'],
+          ),
+          throwsAssertionError,
+        );
+      }
+    });
+  });
+
+  group('RestageDecoders.iconThemeData operations', () {
+    IconThemeData? decode(Object? wire) =>
+        RestageDecoders.iconThemeData(_MapDataSource({'icons': wire}), const [
+          'icons',
+        ]);
+
+    const start = IconThemeData(
+      size: 18,
+      weight: 400,
+      opticalSize: 24,
+      opacity: 0.25,
+      color: Color(0xFF102030),
+      shadows: [Shadow(blurRadius: 2)],
+      applyTextScaling: false,
+    );
+    const startWire = <String, Object?>{
+      'size': 18,
+      'weight': 400,
+      'opticalSize': 24,
+      'opacity': 0.25,
+      'color': 0xFF102030,
+      'shadows': [
+        {'blurRadius': 2},
+      ],
+      'applyTextScaling': false,
+    };
+    const end = IconThemeData(
+      size: 30,
+      fill: 1,
+      weight: 700,
+      grade: 25,
+      opticalSize: 40,
+      opacity: 1,
+      applyTextScaling: true,
+    );
+    const endWire = <String, Object?>{
+      'size': 30,
+      'fill': 1,
+      'weight': 700,
+      'grade': 25,
+      'opticalSize': 40,
+      'opacity': 1,
+      'applyTextScaling': true,
+    };
+
+    test('fallback is the native fallback theme', () {
+      expect(
+        decode({kIconThemeDataFallbackKey: true}),
+        same(const IconThemeData.fallback()),
+      );
+      expect(decode({kIconThemeDataFallbackKey: false}), isNull);
+    });
+
+    test('copyWith layers apply native null retention in order', () {
+      expect(
+        decode({
+          kIconThemeDataFallbackKey: true,
+          kStructuredCopyWithKey: [
+            {'size': 0, 'color': null, 'shadows': <Object?>[]},
+            {'opacity': 2, 'applyTextScaling': null},
+            <String, Object?>{},
+          ],
+        }),
+        const IconThemeData.fallback()
+            .copyWith(size: 0, shadows: []).copyWith(opacity: 2),
+      );
+    });
+
+    void expectNative(Object? wire, IconThemeData Function() native) {
+      final IconThemeData expected;
+      try {
+        expected = native();
+      } on AssertionError {
+        expect(() => decode(wire), throwsAssertionError);
+        return;
+      }
+      expect(decode(wire), expected);
+    }
+
+    for (final t in [0.0, 0.25, 0.49, 0.5, 0.75, 1.0, -0.5, 1.5]) {
+      test('lerp matches native interpolation and validation at $t', () {
+        expectNative(
+          {
+            kIconThemeDataLerpKey: {'a': startWire, 'b': endWire, 't': t},
+          },
+          () => IconThemeData.lerp(start, end, t),
+        );
+        expectNative(
+          {
+            kIconThemeDataLerpKey: {'a': startWire, 't': t},
+          },
+          () => IconThemeData.lerp(start, null, t),
+        );
+        expectNative(
+          {
+            kIconThemeDataLerpKey: {'b': endWire, 't': t},
+          },
+          () => IconThemeData.lerp(null, end, t),
+        );
+      });
+    }
+
+    test('lerp of two null endpoints is an empty theme', () {
+      expect(
+        decode({
+          kIconThemeDataLerpKey: {'t': 0.5},
+        }),
+        IconThemeData.lerp(null, null, 0.5),
+      );
+      expect(IconThemeData.lerp(null, null, 0.5), const IconThemeData());
+    });
+
+    test('nested lerp and copyWith compose like native calls', () {
+      expect(
+        decode({
+          kIconThemeDataLerpKey: {
+            'a': {kIconThemeDataFallbackKey: true},
+            'b': {
+              kIconThemeDataLerpKey: {'b': endWire, 't': 0.8},
+              kStructuredCopyWithKey: [
+                {'size': 12},
+              ],
+            },
+            't': 0.5,
+          },
+          kStructuredCopyWithKey: [
+            {'grade': 5},
+          ],
+        }),
+        IconThemeData.lerp(
+          const IconThemeData.fallback(),
+          IconThemeData.lerp(null, end, 0.8).copyWith(size: 12),
+          0.5,
+        ).copyWith(grade: 5),
+      );
+    });
+
+    test('malformed operations invalidate the whole theme', () {
+      for (final wire in <Object?>[
+        {kIconThemeDataFallbackKey: 'yes'},
+        {kIconThemeDataLerpKey: 'lerp'},
+        {
+          kIconThemeDataLerpKey: <String, Object?>{'a': startWire},
+        },
+        {
+          kIconThemeDataLerpKey: {'a': 'start', 't': 0.5},
+        },
+        {
+          kIconThemeDataLerpKey: {
+            'a': {kIconThemeDataFallbackKey: 1},
+            't': 0.5,
+          },
+        },
+        {
+          kStructuredCopyWithKey: [
+            {
+              kStructuredCopyWithKey: <Object?>[],
+            },
+          ],
+        },
+        {
+          kStructuredCopyWithKey: List<Object?>.filled(
+            kMaxStructuredCopyWithLayers + 1,
+            const <String, Object?>{},
+          ),
+        },
+      ]) {
+        expect(decode(wire), isNull, reason: '$wire');
+      }
+    });
+  });
+
+  group('RestageDecoders.appBarBottomHeight', () {
+    const marker = r'$restage.constructor.presence';
+    const value = r'$restage.constructor.value';
+    double? decode(Object? wire) => RestageDecoders.appBarBottomHeight(
+          _MapDataSource({'bottom': wire}),
+          const ['bottom'],
+        );
+
+    test('reads plain heights and treats absence as no AppBar bottom', () {
+      expect(decode(31.5), 31.5);
+      expect(decode(0), 0.0);
+      expect(decode(null), isNull);
+    });
+
+    test('a supplied null takes the standard toolbar height', () {
+      expect(decode({marker: 1, value: 40}), 40.0);
+      expect(decode({marker: 1}), 56.0);
+      expect(decode({marker: 2, value: 40}), isNull);
+      expect(decode(<String, Object?>{value: 40}), isNull);
+    });
+  });
+
   group('RestageDecoders.alignmentXY', () {
     test('decodes a {x, y} map to the concrete Alignment (value-asserted)', () {
       final source = _MapDataSource({
@@ -540,6 +1115,16 @@ void main() {
   });
 
   group('RestageDecoders.shadows', () {
+    test('preserves an explicitly empty list', () {
+      expect(
+        RestageDecoders.shadows(
+          _MapDataSource({'shadows': <Object?>[]}),
+          const ['shadows'],
+        ),
+        isEmpty,
+      );
+    });
+
     test('decodes a list of shadows', () {
       final source = _MapDataSource({
         'shadows': [

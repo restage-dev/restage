@@ -6,13 +6,13 @@ const lumenCancelRef = SurfaceFlowRef<
     LumenCancelResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'lumen_cancel',
   version: 1,
-  minClient: 10,
+  minClient: 12,
   surface: Surface.survey,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeLumenCancelResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"lumen_cancel","flowState":{"note":{"classification":"exportable","default":"","type":"string"},"reason":{"classification":"exportable","default":"","type":"string"}},"initial":"lumen_cancel_reason","minClient":10,"outbound":{"surveyAnswers":{"fields":{"reason":{"ref":{"state":"reason"},"type":"string"}}},"terminalResult":{"fields":{"note":{"ref":{"state":"note"},"type":"string"},"reason":{"ref":{"state":"reason"},"type":"string"}}}},"schemaVersion":2,"screenArtifacts":{"lumen_cancel_note":{"contentHash":"sha256:9537cbb41a42ae02ad3451bdba4f943346cd8576497195207ad6fee04de72a45","minClient":10,"path":"measurement/102ed2ac499caf5b/lumen_cancel_note.rfw","schemaVersion":1,"version":1},"lumen_cancel_reason":{"contentHash":"sha256:f8622447a65e4aa9ba477e28e1938d9e08db9b9671ecc3d6ea3dd9474f0e532a","minClient":10,"path":"measurement/102ed2ac499caf5b/lumen_cancel_reason.rfw","schemaVersion":1,"version":1},"lumen_cancel_thanks":{"contentHash":"sha256:7671bfcbe7ba0d9b8e9e679e29507ea69fc18b5ea0d4e945df9abeb4fd8c3666","minClient":10,"path":"measurement/102ed2ac499caf5b/lumen_cancel_thanks.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_cancel_note":{"kind":"screen","on":{"send":{"set":{"note":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_thanks","type":"goto"},"skip":{"target":"lumen_cancel_thanks","type":"goto"}},"screen":"lumen_cancel_note"},"lumen_cancel_reason":{"kind":"screen","on":{"reason":{"set":{"reason":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_note","type":"goto"},"skip":{"target":"done","type":"goto"}},"screen":"lumen_cancel_reason"},"lumen_cancel_thanks":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"lumen_cancel_thanks"}},"surveyQuestionOrder":["reason"],"version":1}',
+        '{"flow":"lumen_cancel","flowState":{"note":{"classification":"exportable","default":"","type":"string"},"reason":{"classification":"exportable","default":"","type":"string"}},"initial":"lumen_cancel_reason","minClient":12,"outbound":{"surveyAnswers":{"fields":{"reason":{"ref":{"state":"reason"},"type":"string"}}},"terminalResult":{"fields":{"note":{"ref":{"state":"note"},"type":"string"},"reason":{"ref":{"state":"reason"},"type":"string"}}}},"schemaVersion":2,"screenArtifacts":{"lumen_cancel_note":{"contentHash":"sha256:9537cbb41a42ae02ad3451bdba4f943346cd8576497195207ad6fee04de72a45","minClient":12,"path":"measurement/102ed2ac499caf5b/lumen_cancel_note.rfw","schemaVersion":1,"version":1},"lumen_cancel_reason":{"contentHash":"sha256:f8622447a65e4aa9ba477e28e1938d9e08db9b9671ecc3d6ea3dd9474f0e532a","minClient":12,"path":"measurement/102ed2ac499caf5b/lumen_cancel_reason.rfw","schemaVersion":1,"version":1},"lumen_cancel_thanks":{"contentHash":"sha256:7671bfcbe7ba0d9b8e9e679e29507ea69fc18b5ea0d4e945df9abeb4fd8c3666","minClient":12,"path":"measurement/102ed2ac499caf5b/lumen_cancel_thanks.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_cancel_note":{"kind":"screen","on":{"send":{"set":{"note":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_thanks","type":"goto"},"skip":{"target":"lumen_cancel_thanks","type":"goto"}},"screen":"lumen_cancel_note"},"lumen_cancel_reason":{"kind":"screen","on":{"reason":{"set":{"reason":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_note","type":"goto"},"skip":{"target":"done","type":"goto"}},"screen":"lumen_cancel_reason"},"lumen_cancel_thanks":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"lumen_cancel_thanks"}},"surveyQuestionOrder":["reason"],"version":1}',
     screens: {
       'lumen_cancel_note': LumenCancelNoteScreen.new,
       'lumen_cancel_reason': LumenCancelReasonScreen.new,
@@ -21,7 +21,7 @@ const lumenCancelRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '6636bd349de1f1314727bce240687742d59ac59006352148bfe6a8dc7eee4c24',
+      '29088be0de597b477bfcb8b4751a0b04d915e43cd086d98e37cfcea83ed30f95',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

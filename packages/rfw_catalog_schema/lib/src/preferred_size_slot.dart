@@ -6,6 +6,12 @@ const String kPreferredSizeWidgetType = 'PreferredSizeWidget';
 /// [kPreferredSizeWidgetType] slot beside the slot itself.
 const String kPreferredSizeHeightSyntheticStrategy = 'preferredSizeHeight';
 
+/// Carries an AppBar bottom's height for native preferred-size calculation.
+const String kAppBarBottomHeightSyntheticStrategy = 'appBarBottomHeight';
+
+/// Carries an AppBar's nullable toolbar height for native preferred sizing.
+const String kAppBarToolbarHeightSyntheticStrategy = 'appBarToolbarHeight';
+
 /// The synthetic strategy that surfaces a `Size` argument as its height
 /// alone, rebuilt as `Size.fromHeight(...)` at construction.
 const String kSizeFromHeightSyntheticStrategy = 'sizeFromHeight';

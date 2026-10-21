@@ -6,20 +6,20 @@ const apexDropFlowRef = SurfaceFlowRef<
     ApexDropResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'apex_drop',
   version: 1,
-  minClient: 10,
+  minClient: 12,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeApexDropFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"apex_drop","initial":"apex_drop","minClient":10,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"apex_drop":{"contentHash":"sha256:acae95667cd778d1a309d005da9661a035ff8d817505e11a667143ba519806fe","minClient":10,"path":"apex_drop.rfw","schemaVersion":1,"version":1}},"states":{"apex_drop":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"apex_drop"},"done":{"kind":"end","result":{}}},"version":1}',
+        '{"flow":"apex_drop","initial":"apex_drop","minClient":12,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"apex_drop":{"contentHash":"sha256:acae95667cd778d1a309d005da9661a035ff8d817505e11a667143ba519806fe","minClient":12,"path":"apex_drop.rfw","schemaVersion":1,"version":1}},"states":{"apex_drop":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"apex_drop"},"done":{"kind":"end","result":{}}},"version":1}',
     screens: {
       'apex_drop': ApexDropScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '79245df1129df406ea6ff12bcc82b63bd093fd58dc97289170d317667c596d36',
+      '27e0d4c4c1e158cb4d8e25b69dccedbfdfca9de47b881f22c4f2b7a71e604caa',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

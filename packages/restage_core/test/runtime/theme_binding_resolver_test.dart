@@ -62,6 +62,31 @@ void main() {
   });
 
   // iconTheme family
+  testWidgets('resolves icon defaults from the nearest IconTheme',
+      (tester) async {
+    Object? color;
+    Object? size;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(
+          iconTheme: const IconThemeData(color: Color(0xFF112233), size: 18),
+        ),
+        home: IconTheme(
+          data: const IconThemeData(color: Color(0xFF445566), size: 32),
+          child: Builder(
+            builder: (context) {
+              color = resolveThemeBinding(context, path: 'iconTheme.color');
+              size = resolveThemeBinding(context, path: 'iconTheme.size');
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+    expect(color, const Color(0xFF445566));
+    expect(size, 32);
+  });
+
   testWidgets('resolves iconTheme.color against the active theme',
       (tester) async {
     const seed = Color(0xFF99AABB);

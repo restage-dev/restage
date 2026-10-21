@@ -24,7 +24,7 @@ final class CrossRefResolutionIndex {
     this.decompositionTransformParameterLabelsByPath = const {},
   });
 
-  /// `(ownerStructuredSourceType, fieldName) -> target structured FQN`.
+  /// `(ownerSourceType, fieldOrPropertyName) -> target structured FQN`.
   final Map<(String, String), String> structuredRefFqnByField;
 
   /// `(ownerStructuredSourceType, fieldName) -> target union source key`.

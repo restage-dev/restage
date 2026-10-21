@@ -152,8 +152,10 @@ const Set<String> knownRecipeStructuredTypes = {
   'BoxDecoration',
   'BoxShadow',
   'ButtonStyle',
+  'IconThemeData',
   'RoundedRectangleBorder',
   'Size',
+  'SystemUiOverlayStyle',
   'TextStyle',
 };
 

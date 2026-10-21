@@ -214,8 +214,8 @@ void main() {
   });
 
   group('default_structured_walk', () {
-    test('concrete whitelist has 24 entries', () {
-      expect(kBuiltInStructuredConcrete, hasLength(24));
+    test('concrete whitelist has 26 entries', () {
+      expect(kBuiltInStructuredConcrete, hasLength(26));
     });
 
     test('abstract list has 6 entries', () {
@@ -239,6 +239,16 @@ void main() {
       expect(
         kBuiltInStructuredConcrete,
         contains('package:flutter/src/rendering/box.dart#BoxConstraints'),
+      );
+    });
+
+    test('concrete whitelist includes AppBar style canonical FQNs', () {
+      expect(
+        kBuiltInStructuredConcrete,
+        containsAll([
+          'package:flutter/src/services/system_chrome.dart#SystemUiOverlayStyle',
+          'package:flutter/src/widgets/icon_theme_data.dart#IconThemeData',
+        ]),
       );
     });
 

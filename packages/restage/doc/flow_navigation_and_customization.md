@@ -52,6 +52,14 @@ The screen is ordinary Flutter and compiles like any other. `AppBar` and
 `CupertinoNavigationBar` are catalog widgets, so the bar is delivered with the
 rest of the screen and shows the same control as the compiled screen.
 
+App-bar styling uses the normal Flutter properties: `titleTextStyle`,
+`toolbarTextStyle`, `iconTheme`, `actionsIconTheme`, and `systemOverlayStyle`.
+For a transparent bar, set a `SystemUiOverlayStyle` appropriate for the content
+behind it. Import it from `package:flutter/services.dart`; its `.light`, `.dark`,
+constructor, and `.copyWith(...)` forms are supported. Omitted styles and toolbar
+height retain Flutter's theme defaults. `notificationPredicate` accepts a depth
+check such as `(notification) => notification.depth == 1`.
+
 ### The mechanism: the screens are routes
 
 The flow hosts its screens on a `Navigator` of its own: one route for each screen

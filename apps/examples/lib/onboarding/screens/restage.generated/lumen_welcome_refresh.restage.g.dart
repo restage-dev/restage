@@ -6,7 +6,7 @@ const lumenWelcomeScreenRef = NeutralFlowScreenRef(
   id: 'lumen_welcome_refresh',
   artifactPath: 'lumen_welcome_refresh.rfw',
   version: 1,
-  minClient: 10,
+  minClient: 12,
 );
 
 @Deprecated('Use lumenWelcomeScreenRef')

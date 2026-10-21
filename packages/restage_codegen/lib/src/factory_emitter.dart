@@ -294,6 +294,13 @@ String? emitFactoryFunction(
       );
       continue;
     }
+    if (p.synthetic == _scrollNotificationDepthSynthetic) {
+      argLines.add(
+        '    ${p.name}: RestageDecoders.scrollNotificationPredicate(source, '
+        'const ${_sourcePath(p.name)}),',
+      );
+      continue;
+    }
     if (p.synthetic != null) continue; // consumed elsewhere
     if (identical(p, canonicalChild)) continue;
     if (consumedByRecipes.contains(p.name)) continue;
@@ -371,6 +378,16 @@ String? emitFactoryFunction(
       applyDefault: presence == null,
       customChildProperties: customChildProperties,
       preferredSizeHeightPath: _preferredSizeHeightPathFor(p, entry),
+      appBarBottomHeightPath: _appBarHeightPathFor(
+        p,
+        entry,
+        kAppBarBottomHeightSyntheticStrategy,
+      ),
+      appBarToolbarHeightPath: _appBarHeightPathFor(
+        p,
+        entry,
+        kAppBarToolbarHeightSyntheticStrategy,
+      ),
     );
     argLines.add('    ${p.name}: $decoded,');
   }
@@ -1422,6 +1439,10 @@ const String _inputDecorationPrefixIconMatchTextDirectionSynthetic =
 /// on the wire, decoded to the `TextInputType` argument of the same name.
 const String _textInputTypeSynthetic = 'textInputType';
 
+/// Strategy identifier for `PropertyEntry.synthetic`: a scroll notification
+/// predicate that accepts one notification depth.
+const String _scrollNotificationDepthSynthetic = 'scrollNotificationDepth';
+
 /// The border names an [_inputBorderSynthetic] property can carry.
 const Map<String, String> _kInputBorders = {
   'none': 'InputBorder.none',
@@ -1517,6 +1538,8 @@ const Set<String> kSupportedSyntheticStrategies = {
   _borderRadiusCornerSynthetic,
   _analyticsIdSynthetic,
   _preferredSizeHeightSynthetic,
+  kAppBarBottomHeightSyntheticStrategy,
+  kAppBarToolbarHeightSyntheticStrategy,
   _sizeFromHeightSynthetic,
   _inputDecorationTextSynthetic,
   _inputBorderSynthetic,
@@ -1524,6 +1547,7 @@ const Set<String> kSupportedSyntheticStrategies = {
   _inputDecorationPrefixIconFontFamilySynthetic,
   _inputDecorationPrefixIconMatchTextDirectionSynthetic,
   _textInputTypeSynthetic,
+  _scrollNotificationDepthSynthetic,
 };
 
 bool _declaresPrefixIcon(WidgetEntry entry) => entry.properties.any(
@@ -1910,6 +1934,27 @@ String? _preferredSizeHeightPathFor(PropertyEntry prop, WidgetEntry entry) {
   return height == null ? null : 'const ${_sourcePath(height.name)}';
 }
 
+String? _appBarHeightPathFor(
+  PropertyEntry prop,
+  WidgetEntry entry,
+  String strategy,
+) {
+  if (!_isScaffoldAppBar(prop, entry)) return null;
+  final height = entry.properties.firstWhereOrNull(
+    (p) => p.synthetic == strategy,
+  );
+  return height == null ? null : 'const ${_sourcePath(height.name)}';
+}
+
+bool _isScaffoldAppBar(PropertyEntry prop, WidgetEntry entry) =>
+    entry.name == 'Scaffold' &&
+    entry.library == WidgetLibrary.material &&
+    entry.flutterType ==
+        'package:flutter/src/material/scaffold.dart#Scaffold' &&
+    prop.name == 'appBar' &&
+    prop.type == PropertyType.widget &&
+    prop.widgetType == kPreferredSizeWidgetType;
+
 /// True when [prop]'s `synthetic` strategy is one the mechanical
 /// emitter knows how to consume on [entry]. `null`-synthetic properties
 /// don't reach this check; the caller filters them.
@@ -2000,6 +2045,8 @@ bool _isSupportedSynthetic(PropertyEntry prop, WidgetEntry entry) {
     case _inputDecorationTextSynthetic:
     case _textInputTypeSynthetic:
       return prop.type == PropertyType.string && !prop.positional;
+    case _scrollNotificationDepthSynthetic:
+      return prop.type == PropertyType.integer && !prop.positional;
     case _inputBorderSynthetic:
       // Every name the catalog admits must map to a Flutter border.
       return prop.type == PropertyType.string &&
@@ -2015,6 +2062,13 @@ bool _isSupportedSynthetic(PropertyEntry prop, WidgetEntry entry) {
       return prop.type == PropertyType.boolean &&
           !prop.positional &&
           _declaresPrefixIcon(entry);
+    case kAppBarBottomHeightSyntheticStrategy:
+    case kAppBarToolbarHeightSyntheticStrategy:
+      return prop.type == PropertyType.real &&
+          !prop.required &&
+          !prop.positional &&
+          entry.properties
+              .any((property) => _isScaffoldAppBar(property, entry));
     case _preferredSizeHeightSynthetic:
       // The synthetic supplies the height of the entry's
       // `PreferredSizeWidget` slot, so the entry must declare one.
@@ -2194,6 +2248,8 @@ String _decodeExpression(
   bool applyDefault = true,
   bool customChildProperties = false,
   String? preferredSizeHeightPath,
+  String? appBarBottomHeightPath,
+  String? appBarToolbarHeightPath,
 }) {
   final path = pathExpression ?? _sourcePath(prop.name);
   final directPath = _directSourcePath(prop.name, path);
@@ -2209,6 +2265,8 @@ String _decodeExpression(
     hoistedChildListSlots: hoistedChildListSlots,
     customChildProperties: customChildProperties,
     preferredSizeHeightPath: preferredSizeHeightPath,
+    appBarBottomHeightPath: appBarBottomHeightPath,
+    appBarToolbarHeightPath: appBarToolbarHeightPath,
   );
   // A derived preflight owns the absent-value fallback because it returns a
   // repaired, non-null value. Re-applying the catalog default here would add a
@@ -2399,6 +2457,8 @@ const Map<String, String> _kStructuredRefDecoders = {
   'Size': 'RestageDecoders.size',
   'BorderSide': 'RestageDecoders.borderSide',
   'TextStyle': 'RestageDecoders.textStyle',
+  'SystemUiOverlayStyle': 'RestageDecoders.systemUiOverlayStyle',
+  'IconThemeData': 'RestageDecoders.iconThemeData',
 };
 
 /// Resolves the runtime decoder expression registered for [prop]'s structured
@@ -3547,6 +3607,7 @@ const Map<(String, String), ScalarRoute> _scalarDecoderByWidgetProperty = {
   ('CupertinoTimerPicker', 'itemExtent'): _positiveLayoutScalarRoute,
   ('AppBar', 'toolbarHeight'): _layoutFactorRoute,
   ('AppBar', 'leadingWidth'): _layoutFactorRoute,
+  ('Scaffold', 'appBarToolbarHeight'): _layoutFactorRoute,
   ('Divider', 'height'): _layoutFactorRoute,
   ('Divider', 'thickness'): _layoutFactorRoute,
   ('RestageModalSheet', 'scrollControlDisabledMaxHeightRatio'):
@@ -3625,6 +3686,9 @@ const String _elevationPaintReason =
 const String _opacityPaintReason =
     'the opacity render object is a proxy box that overrides neither layout '
     'method, so layout does not depend on the value and it reaches paint';
+const String _toolbarOpacityPaintReason =
+    'AppBar transforms the value into text color alpha and icon opacity; '
+    'toolbar layout does not depend on it';
 const String _transformPaintReason =
     'the transform render object is a proxy box that overrides neither layout '
     'method, so layout does not depend on the value and it reaches paint';
@@ -3748,6 +3812,8 @@ const Map<(String, String), String> _scalarDecoderExemptions = {
   ('RestageModalSheet', 'elevation'): _elevationPaintReason,
   ('Opacity', 'opacity'): _opacityPaintReason,
   ('AnimatedOpacity', 'opacity'): _opacityPaintReason,
+  ('AppBar', 'toolbarOpacity'): _toolbarOpacityPaintReason,
+  ('AppBar', 'bottomOpacity'): _opacityPaintReason,
   ('AnimatedRotation', 'turns'): _transformPaintReason,
   ('AnimatedScale', 'scale'): _transformPaintReason,
   ('TransformRotate', 'angle'): _transformPaintReason,
@@ -3785,6 +3851,7 @@ const Map<(String, String), String> _scalarDecoderDeferred = {
   ('AppBar', 'titleSpacing'): _rosterTailDeferredReason,
   ('AppBar', 'bottomHeight'): _rosterTailDeferredReason,
   ('Scaffold', 'appBarHeight'): _rosterTailDeferredReason,
+  ('Scaffold', 'appBarBottomHeight'): _rosterTailDeferredReason,
   ('PreferredSize', 'preferredSize'): _rosterTailDeferredReason,
   ('RestageDraggableSheet', 'initialChildSize'): _rosterTailDeferredReason,
   ('RestageDraggableSheet', 'minChildSize'): _rosterTailDeferredReason,
@@ -3849,14 +3916,22 @@ String _decoderCallFor(
   Set<String> hoistedChildListSlots = const {},
   bool customChildProperties = false,
   String? preferredSizeHeightPath,
+  String? appBarBottomHeightPath,
+  String? appBarToolbarHeightPath,
 }) {
   // Only the flat property path is known to be a literal here. Structured
   // paths can contain runtime indices or spreads and must remain mutable.
   // Extensible ArgumentDecoders also retain their existing mutable inputs.
   final directPath = _directSourcePath(prop.name, path);
+  final isAppBarBottom = widgetName == 'AppBar' &&
+      widgetLibrary == WidgetLibrary.material &&
+      widgetFlutterType == 'package:flutter/src/material/app_bar.dart#AppBar' &&
+      prop.name == 'bottom';
   final preferredSizeHeightHint = preferredSizeHeightPath == null
       ? null
-      : 'source.v<double>($preferredSizeHeightPath)';
+      : isAppBarBottom
+          ? 'RestageDecoders.number(source, $preferredSizeHeightPath)'
+          : 'source.v<double>($preferredSizeHeightPath)';
   switch (prop.type) {
     case PropertyType.boolean:
       return 'source.v<bool>($directPath)';
@@ -3994,6 +4069,16 @@ String _decoderCallFor(
           : 'source.child($directPath)';
       if (prop.widgetType == null) return base;
       if (prop.widgetType == kPreferredSizeWidgetType) {
+        if (appBarBottomHeightPath != null) {
+          final toolbar = appBarToolbarHeightPath == null
+              ? 'null'
+              : '${_layoutFactorRoute.call}(source, $appBarToolbarHeightPath)';
+          return 'RestageDecoders.appBarPreferredSize($base, '
+              '${preferredSizeHeightHint ?? 'null'}, '
+              '$toolbar, '
+              'RestageDecoders.appBarBottomHeight('
+              'source, $appBarBottomHeightPath))';
+        }
         // A built slot value never implements the interface, so the
         // adapter wraps it at the height carried beside the slot.
         final height =

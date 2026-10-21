@@ -585,6 +585,30 @@ List<PropertyEntry> _linkWidgetPropertyValueShapes({
   required Map<(String, WireId, String), WireId> parameterByVariantAndLabel,
 }) {
   final properties = List<PropertyEntry>.of(widget.properties);
+  for (var i = 0; i < properties.length; i++) {
+    final property = properties[i];
+    final shape = property.valueShape;
+    if (shape is! StructuredShape ||
+        !shape.structuredRef.wireId.isUnallocated ||
+        !index.structuredRefFqnByField
+            .containsKey((widget.flutterType, property.name))) {
+      continue;
+    }
+    properties[i] = _copyPropertyWithValueShape(
+      property,
+      StructuredShape(
+        propertyType: shape.propertyType,
+        structuredRef: _linkStructuredRef(
+          ownerSourceType: widget.flutterType,
+          fieldName: property.name,
+          ref: shape.structuredRef,
+          index: index,
+          structuredIdBySourceType: structuredIdBySourceType,
+        ),
+        wireCodec: shape.wireCodec,
+      ),
+    );
+  }
   for (var recipeIndex = 0;
       recipeIndex < widget.decomposes.length;
       recipeIndex++) {

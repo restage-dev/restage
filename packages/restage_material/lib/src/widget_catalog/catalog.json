@@ -148,6 +148,31 @@
           "constructorNullable": true
         },
         {
+          "wireId": "p0502",
+          "name": "automaticallyImplyActions",
+          "type": "boolean",
+          "description": "{@template flutter.material.appbar.automaticallyImplyActions} Controls whether we should try to imply the actions widget if null.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0503",
+          "name": "flexibleSpace",
+          "type": "widget",
+          "description": "{@template flutter.material.appbar.flexibleSpace} This widget is stacked behind the toolbar and the tab bar. Its height will be the same as the app bar's overall height.",
+          "constructorNullable": true
+        },
+        {
           "wireId": "p0473",
           "name": "bottom",
           "type": "widget",
@@ -277,11 +302,25 @@
           "name": "centerTitle",
           "type": "boolean",
           "description": "{@template flutter.material.appbar.centerTitle} Whether the title should be centered.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0504",
+          "name": "excludeHeaderSemantics",
+          "type": "boolean",
+          "description": "{@template flutter.material.appbar.excludeHeaderSemantics} Whether the title should be wrapped with header [Semantics].",
           "defaultSource": {
             "kind": "literal",
-            "value": true
+            "value": false
           },
-          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "boolean",
@@ -297,6 +336,42 @@
           "type": "length",
           "description": "{@template flutter.material.appbar.titleSpacing} The spacing around [title] content on the horizontal axis. This spacing is applied even if there is no [leading] content or [actions]. If you want [title] to take all the space available, set this value to 0.0.",
           "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0505",
+          "name": "toolbarOpacity",
+          "type": "real",
+          "description": "{@template flutter.material.appbar.toolbarOpacity} How opaque the toolbar part of the app bar is.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": 1.0
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0506",
+          "name": "bottomOpacity",
+          "type": "real",
+          "description": "{@template flutter.material.appbar.bottomOpacity} How opaque the bottom part of the app bar is.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": 1.0
+          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -355,6 +430,24 @@
           }
         },
         {
+          "wireId": "p0507",
+          "name": "useDefaultSemanticsOrder",
+          "type": "boolean",
+          "description": "{@template flutter.material.appbar.useDefaultSemanticsOrder} Whether to use the default semantic ordering for the app bar's children for accessibility traversal order.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
           "wireId": "p0350",
           "name": "clipBehavior",
           "type": "enumValue",
@@ -386,11 +479,106 @@
           }
         },
         {
+          "wireId": "p0508",
+          "name": "animateColor",
+          "type": "boolean",
+          "description": "Whether the color should be animated.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
           "wireId": "p0474",
           "name": "bottomHeight",
           "type": "real",
           "description": "The height of the widget below the app bar.",
           "synthetic": "preferredSizeHeight"
+        },
+        {
+          "wireId": "p0500",
+          "name": "titleTextStyle",
+          "type": "structured",
+          "description": "The text style for the app bar title.",
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0002"
+            }
+          }
+        },
+        {
+          "wireId": "p0501",
+          "name": "toolbarTextStyle",
+          "type": "structured",
+          "description": "The text style for the app bar leading and actions.",
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0002"
+            }
+          }
+        },
+        {
+          "wireId": "p0509",
+          "name": "systemOverlayStyle",
+          "type": "structured",
+          "description": "The style of the system status and navigation bars.",
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0027"
+            }
+          }
+        },
+        {
+          "wireId": "p0510",
+          "name": "iconTheme",
+          "type": "structured",
+          "description": "The theme for the app bar leading icons.",
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0026"
+            }
+          }
+        },
+        {
+          "wireId": "p0531",
+          "name": "notificationPredicate",
+          "type": "integer",
+          "description": "The scroll notification depth the app bar responds to.",
+          "synthetic": "scrollNotificationDepth"
+        },
+        {
+          "wireId": "p0511",
+          "name": "actionsIconTheme",
+          "type": "structured",
+          "description": "The theme for the app bar action icons.",
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0026"
+            }
+          }
         },
         {
           "wireId": "p0415",
@@ -399,7 +587,8 @@
           "description": "Optional identifier for this widget occurrence.",
           "synthetic": "analyticsId"
         }
-      ]
+      ],
+      "sinceVersion": 12
     },
     {
       "wireId": "w0003",
@@ -4407,13 +4596,28 @@
           "synthetic": "preferredSizeHeight"
         },
         {
+          "wireId": "p0529",
+          "name": "appBarBottomHeight",
+          "type": "real",
+          "description": "The height of the app bar bottom.",
+          "synthetic": "appBarBottomHeight"
+        },
+        {
+          "wireId": "p0530",
+          "name": "appBarToolbarHeight",
+          "type": "real",
+          "description": "The authored toolbar height of the app bar.",
+          "synthetic": "appBarToolbarHeight"
+        },
+        {
           "wireId": "p0449",
           "name": "analyticsId",
           "type": "string",
           "description": "Optional identifier for this widget occurrence.",
           "synthetic": "analyticsId"
         }
-      ]
+      ],
+      "sinceVersion": 12
     },
     {
       "wireId": "w0031",
@@ -6293,6 +6497,361 @@
           "sourceKind": "constValue",
           "staticAccessor": "none",
           "description": "A hairline black border that is not rendered."
+        }
+      ],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0026",
+      "name": "IconThemeData",
+      "library": "restage.material",
+      "description": "Defines the size, font variations, color, opacity, and shadows of icons.",
+      "sourceType": "package:flutter/src/widgets/icon_theme_data.dart#IconThemeData",
+      "fields": [
+        {
+          "wireId": "p0512",
+          "name": "size",
+          "type": "real",
+          "description": "The default for [Icon.size].",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0513",
+          "name": "fill",
+          "type": "real",
+          "description": "The default for [Icon.fill].",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0514",
+          "name": "weight",
+          "type": "real",
+          "description": "The default for [Icon.weight].",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0515",
+          "name": "grade",
+          "type": "real",
+          "description": "The default for [Icon.grade].",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0516",
+          "name": "opticalSize",
+          "type": "real",
+          "description": "The default for [Icon.opticalSize].",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0517",
+          "name": "color",
+          "type": "color",
+          "description": "The default for [Icon.color].",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0518",
+          "name": "opacity",
+          "type": "real",
+          "description": "",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0519",
+          "name": "shadows",
+          "type": "shadowList",
+          "description": "The default for [Icon.shadows].",
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "shadowList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "shadowList",
+              "dartTypeRef": {
+                "libraryUri": "dart:ui",
+                "symbolName": "Shadow"
+              }
+            }
+          }
+        },
+        {
+          "wireId": "p0520",
+          "name": "applyTextScaling",
+          "type": "boolean",
+          "description": "The default for [Icon.applyTextScaling].",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        }
+      ],
+      "variants": [
+        {
+          "wireId": "v0055",
+          "sourceKind": "constructor",
+          "argMappings": {
+            "size": [
+              "p0512"
+            ],
+            "fill": [
+              "p0513"
+            ],
+            "weight": [
+              "p0514"
+            ],
+            "grade": [
+              "p0515"
+            ],
+            "opticalSize": [
+              "p0516"
+            ],
+            "color": [
+              "p0517"
+            ],
+            "opacity": [
+              "p0518"
+            ],
+            "shadows": [
+              "p0519"
+            ],
+            "applyTextScaling": [
+              "p0520"
+            ]
+          },
+          "description": "Creates an icon theme data."
+        },
+        {
+          "wireId": "v0056",
+          "sourceKind": "constructor",
+          "namedConstructor": "fallback",
+          "description": "Creates an icon theme with some reasonable default values."
+        },
+        {
+          "wireId": "v0057",
+          "sourceKind": "staticMethod",
+          "staticAccessor": "lerp",
+          "description": "Linearly interpolate between two icon theme data objects."
+        }
+      ],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0027",
+      "name": "SystemUiOverlayStyle",
+      "library": "restage.material",
+      "description": "Specifies a preference for the style of the system overlays.",
+      "sourceType": "package:flutter/src/services/system_chrome.dart#SystemUiOverlayStyle",
+      "fields": [
+        {
+          "wireId": "p0521",
+          "name": "systemNavigationBarColor",
+          "type": "color",
+          "description": "The color of the system bottom navigation bar.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0522",
+          "name": "systemNavigationBarDividerColor",
+          "type": "color",
+          "description": "The color of the divider between the system's bottom navigation bar and the app's content.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0523",
+          "name": "systemNavigationBarIconBrightness",
+          "type": "enumValue",
+          "description": "The brightness of the system navigation bar icons.",
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Brightness"
+            }
+          }
+        },
+        {
+          "wireId": "p0524",
+          "name": "systemNavigationBarContrastEnforced",
+          "type": "boolean",
+          "description": "Overrides the contrast enforcement when setting a transparent navigation bar.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0525",
+          "name": "statusBarColor",
+          "type": "color",
+          "description": "The color of top status bar.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0526",
+          "name": "statusBarBrightness",
+          "type": "enumValue",
+          "description": "The brightness of top status bar.",
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Brightness"
+            }
+          }
+        },
+        {
+          "wireId": "p0527",
+          "name": "statusBarIconBrightness",
+          "type": "enumValue",
+          "description": "The brightness of the top status bar icons.",
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Brightness"
+            }
+          }
+        },
+        {
+          "wireId": "p0528",
+          "name": "systemStatusBarContrastEnforced",
+          "type": "boolean",
+          "description": "Overrides the contrast enforcement when setting a transparent status bar.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        }
+      ],
+      "variants": [
+        {
+          "wireId": "v0058",
+          "sourceKind": "constructor",
+          "argMappings": {
+            "systemNavigationBarColor": [
+              "p0521"
+            ],
+            "systemNavigationBarDividerColor": [
+              "p0522"
+            ],
+            "systemNavigationBarIconBrightness": [
+              "p0523"
+            ],
+            "systemNavigationBarContrastEnforced": [
+              "p0524"
+            ],
+            "statusBarColor": [
+              "p0525"
+            ],
+            "statusBarBrightness": [
+              "p0526"
+            ],
+            "statusBarIconBrightness": [
+              "p0527"
+            ],
+            "systemStatusBarContrastEnforced": [
+              "p0528"
+            ]
+          },
+          "description": "Creates a new [SystemUiOverlayStyle]."
+        },
+        {
+          "wireId": "v0059",
+          "sourceKind": "constValue",
+          "staticAccessor": "dark",
+          "description": "System overlays should be drawn with a dark color. Intended for applications with a light background."
+        },
+        {
+          "wireId": "v0060",
+          "sourceKind": "constValue",
+          "staticAccessor": "light",
+          "description": "System overlays should be drawn with a light color. Intended for applications with a dark background."
         }
       ],
       "stability": "volatile"

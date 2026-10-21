@@ -15,6 +15,137 @@ const List<TranslatorRecipe> kHandAuthoredRecipes = [
 
 /// The property-type-backed value-type recipes (`Color`, `Offset`).
 const List<TranslatorRecipe> _kValueTypeRecipes = [
+  TranslatorRecipe(
+    typeName: 'SystemUiOverlayStyle',
+    failureDsl: '{}',
+    emit: EmitFragmentMap([
+      EmitMapEntry(
+        'systemNavigationBarColor',
+        EmitFragmentArg(
+          ArgRef.named('systemNavigationBarColor'),
+          propertyType: PropertyType.color,
+        ),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'systemNavigationBarDividerColor',
+        EmitFragmentArg(
+          ArgRef.named('systemNavigationBarDividerColor'),
+          propertyType: PropertyType.color,
+        ),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'systemNavigationBarIconBrightness',
+        EmitFragmentArg(
+          ArgRef.named('systemNavigationBarIconBrightness'),
+          propertyType: PropertyType.enumValue,
+        ),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'systemNavigationBarContrastEnforced',
+        EmitFragmentArg(
+          ArgRef.named('systemNavigationBarContrastEnforced'),
+          propertyType: PropertyType.boolean,
+        ),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'statusBarColor',
+        EmitFragmentArg(
+          ArgRef.named('statusBarColor'),
+          propertyType: PropertyType.color,
+        ),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'statusBarBrightness',
+        EmitFragmentArg(
+          ArgRef.named('statusBarBrightness'),
+          propertyType: PropertyType.enumValue,
+        ),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'statusBarIconBrightness',
+        EmitFragmentArg(
+          ArgRef.named('statusBarIconBrightness'),
+          propertyType: PropertyType.enumValue,
+        ),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'systemStatusBarContrastEnforced',
+        EmitFragmentArg(
+          ArgRef.named('systemStatusBarContrastEnforced'),
+          propertyType: PropertyType.boolean,
+        ),
+        omitWhenArgUnset: true,
+      ),
+    ]),
+  ),
+  TranslatorRecipe(
+    typeName: 'IconThemeData',
+    failureDsl: '{}',
+    emit: EmitFragmentMap([
+      EmitMapEntry(
+        'color',
+        EmitFragmentArg(
+          ArgRef.named('color'),
+          propertyType: PropertyType.color,
+        ),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'size',
+        EmitFragmentArg(ArgRef.named('size'), asLength: true),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'opacity',
+        EmitFragmentArg(ArgRef.named('opacity'), asLength: true),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'fill',
+        EmitFragmentArg(ArgRef.named('fill'), asLength: true),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'weight',
+        EmitFragmentArg(ArgRef.named('weight'), asLength: true),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'grade',
+        EmitFragmentArg(ArgRef.named('grade'), asLength: true),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'opticalSize',
+        EmitFragmentArg(ArgRef.named('opticalSize'), asLength: true),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'shadows',
+        EmitFragmentArg(
+          ArgRef.named('shadows'),
+          propertyType: PropertyType.shadowList,
+        ),
+        omitWhenArgUnset: true,
+      ),
+      EmitMapEntry(
+        'applyTextScaling',
+        EmitFragmentArg(
+          ArgRef.named('applyTextScaling'),
+          propertyType: PropertyType.boolean,
+        ),
+        omitWhenArgUnset: true,
+      ),
+    ]),
+  ),
+
   // Offset(x, y) -> {x: <x>, y: <y>}. `asLength` on both slots coerces
   // bare int literals (`Offset(0, 8)` — valid Dart via implicit
   // int→double parameter conversion) to double on the wire so rfw's

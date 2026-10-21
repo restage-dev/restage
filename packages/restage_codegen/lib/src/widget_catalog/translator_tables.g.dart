@@ -6,6 +6,89 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Translator recipes keyed by their (library, type, variant) triple.
 const Map<String, TranslatorRecipe> kTranslatorRecipes = {
+  '#SystemUiOverlayStyle': TranslatorRecipe(
+      typeName: 'SystemUiOverlayStyle',
+      emit: EmitFragmentMap([
+        EmitMapEntry(
+            'systemNavigationBarColor',
+            EmitFragmentArg(ArgRef.named('systemNavigationBarColor'),
+                propertyType: PropertyType.color),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'systemNavigationBarDividerColor',
+            EmitFragmentArg(ArgRef.named('systemNavigationBarDividerColor'),
+                propertyType: PropertyType.color),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'systemNavigationBarIconBrightness',
+            EmitFragmentArg(ArgRef.named('systemNavigationBarIconBrightness'),
+                propertyType: PropertyType.enumValue),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'systemNavigationBarContrastEnforced',
+            EmitFragmentArg(ArgRef.named('systemNavigationBarContrastEnforced'),
+                propertyType: PropertyType.boolean),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'statusBarColor',
+            EmitFragmentArg(ArgRef.named('statusBarColor'),
+                propertyType: PropertyType.color),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'statusBarBrightness',
+            EmitFragmentArg(ArgRef.named('statusBarBrightness'),
+                propertyType: PropertyType.enumValue),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'statusBarIconBrightness',
+            EmitFragmentArg(ArgRef.named('statusBarIconBrightness'),
+                propertyType: PropertyType.enumValue),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'systemStatusBarContrastEnforced',
+            EmitFragmentArg(ArgRef.named('systemStatusBarContrastEnforced'),
+                propertyType: PropertyType.boolean),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#IconThemeData': TranslatorRecipe(
+      typeName: 'IconThemeData',
+      emit: EmitFragmentMap([
+        EmitMapEntry(
+            'color',
+            EmitFragmentArg(ArgRef.named('color'),
+                propertyType: PropertyType.color),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'size', EmitFragmentArg(ArgRef.named('size'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'opacity', EmitFragmentArg(ArgRef.named('opacity'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'fill', EmitFragmentArg(ArgRef.named('fill'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'weight', EmitFragmentArg(ArgRef.named('weight'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'grade', EmitFragmentArg(ArgRef.named('grade'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry('opticalSize',
+            EmitFragmentArg(ArgRef.named('opticalSize'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'shadows',
+            EmitFragmentArg(ArgRef.named('shadows'),
+                propertyType: PropertyType.shadowList),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'applyTextScaling',
+            EmitFragmentArg(ArgRef.named('applyTextScaling'),
+                propertyType: PropertyType.boolean),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
   '#Offset': TranslatorRecipe(
       typeName: 'Offset',
       validations: [

@@ -6,7 +6,7 @@ const starterBareSurfaceScreenRef = NeutralFlowScreenRef(
   id: 'starter_bare_surface',
   artifactPath: 'starter_bare_surface.rfw',
   version: 1,
-  minClient: 10,
+  minClient: 12,
 );
 
 @Deprecated('Use starterBareSurfaceScreenRef')

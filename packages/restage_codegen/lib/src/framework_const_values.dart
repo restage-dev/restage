@@ -44,6 +44,8 @@ final class FrameworkConstValue {
         FrameworkConstKind.color => type == PropertyType.color,
         FrameworkConstKind.duration => type == PropertyType.duration,
         FrameworkConstKind.offset => type == PropertyType.offset,
+        FrameworkConstKind.systemUiOverlayStyle =>
+          type == PropertyType.structured,
         // The catalog carries a radius as a number.
         FrameworkConstKind.borderRadius ||
         FrameworkConstKind.radius =>
@@ -68,6 +70,9 @@ enum FrameworkConstKind {
   /// `{x, y}`.
   offset,
 
+  /// A system overlay style field map.
+  systemUiOverlayStyle,
+
   /// A uniform radius scalar, or the per-corner sentinel.
   borderRadius,
 
@@ -81,6 +86,7 @@ enum FrameworkConstKind {
         color => 'a color',
         duration => 'a duration',
         offset => 'an offset',
+        systemUiOverlayStyle => 'a system overlay style',
         borderRadius => 'a border radius',
         radius => 'a radius',
       };
@@ -107,6 +113,20 @@ DartObject? frameworkStaticConst(Expression expr) {
 /// Encodes an evaluated framework constant by its runtime class, or null when
 /// the class has no wire encoding.
 FrameworkConstValue? encodeFrameworkConst(DartObject value) {
+  final overlayFields = systemUiOverlayStyleFields(value);
+  if (overlayFields != null) {
+    final entries = <String>[];
+    for (final field in overlayFields.entries) {
+      if (field.value.isNull) continue;
+      final encoded = encodeSystemUiOverlayStyleField(field.key, field.value);
+      if (encoded == null) return null;
+      entries.add('${field.key}: $encoded');
+    }
+    return FrameworkConstValue(
+      FrameworkConstKind.systemUiOverlayStyle,
+      '{${entries.join(', ')}}',
+    );
+  }
   final classes = _classNames(value);
   if (classes.contains('AlignmentDirectional')) {
     final start = _double(value, 'start');
@@ -182,6 +202,84 @@ FrameworkConstValue? encodeFrameworkConst(DartObject value) {
     );
   }
   return null;
+}
+
+/// Nullable fields shared by the overlay constructor and `copyWith`.
+const Map<String, PropertyType> kSystemUiOverlayStyleFields = {
+  'systemNavigationBarColor': PropertyType.color,
+  'systemNavigationBarDividerColor': PropertyType.color,
+  'systemNavigationBarIconBrightness': PropertyType.enumValue,
+  'systemNavigationBarContrastEnforced': PropertyType.boolean,
+  'statusBarColor': PropertyType.color,
+  'statusBarBrightness': PropertyType.enumValue,
+  'statusBarIconBrightness': PropertyType.enumValue,
+  'systemStatusBarContrastEnforced': PropertyType.boolean,
+};
+
+/// Recognizes the canonical Flutter overlay style class.
+bool isSystemUiOverlayStyleClass(Element? element) =>
+    element is ClassElement &&
+    element.name == 'SystemUiOverlayStyle' &&
+    element.library.identifier ==
+        'package:flutter/src/services/system_chrome.dart';
+
+/// Recognizes the canonical Flutter icon theme class.
+bool isIconThemeDataClass(Element? element) =>
+    element is ClassElement &&
+    element.name == 'IconThemeData' &&
+    element.library.identifier ==
+        'package:flutter/src/widgets/icon_theme_data.dart';
+
+/// Recognizes Flutter's instance method, including calls through aliases.
+bool isSystemUiOverlayStyleCopyWith(MethodInvocation expression) =>
+    _isMethodOf(expression, 'copyWith', isSystemUiOverlayStyleClass);
+
+/// Recognizes Flutter's `IconThemeData.copyWith`.
+bool isIconThemeDataCopyWith(MethodInvocation expression) =>
+    _isMethodOf(expression, 'copyWith', isIconThemeDataClass);
+
+/// Recognizes Flutter's static `IconThemeData.lerp`.
+bool isIconThemeDataLerp(MethodInvocation expression) =>
+    _isMethodOf(expression, 'lerp', isIconThemeDataClass, isStatic: true);
+
+bool _isMethodOf(
+  MethodInvocation expression,
+  String name,
+  bool Function(Element?) isClass, {
+  bool isStatic = false,
+}) {
+  final method = expression.methodName.element;
+  return method is MethodElement &&
+      method.name == name &&
+      method.isStatic == isStatic &&
+      isClass(method.enclosingElement);
+}
+
+/// Reads evaluated fields without duplicating Flutter's static constants.
+Map<String, DartObject>? systemUiOverlayStyleFields(DartObject value) {
+  if (!isSystemUiOverlayStyleClass(value.type?.element)) return null;
+  final fields = <String, DartObject>{};
+  for (final name in kSystemUiOverlayStyleFields.keys) {
+    final field = value.getField(name);
+    if (field == null) return null;
+    fields[name] = field;
+  }
+  return fields;
+}
+
+/// Encodes one evaluated nullable overlay field.
+String? encodeSystemUiOverlayStyleField(String name, DartObject value) {
+  if (value.isNull) return 'null';
+  return switch (kSystemUiOverlayStyleFields[name]) {
+    PropertyType.color => encodeFrameworkConst(value)?.dsl,
+    PropertyType.boolean => value.toBoolValue()?.toString(),
+    PropertyType.enumValue => switch (
+          value.getField('_name')?.toStringValue()) {
+        final String name => '"$name"',
+        _ => null,
+      },
+    _ => null,
+  };
 }
 
 /// The value's class and every supertype declared by a framework library.

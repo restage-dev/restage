@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:restage/restage.dart';
 
 part 'restage.generated/starter_done_explore.restage.g.dart';
@@ -19,7 +20,11 @@ class StarterDoneExploreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          backgroundColor: Theme.of(context).colorScheme.surface, elevation: 0),
+          backgroundColor: Colors.transparent,
+          systemOverlayStyle: Theme.of(context).brightness == Brightness.dark
+              ? SystemUiOverlayStyle.light
+              : SystemUiOverlayStyle.dark,
+          elevation: 0),
       body: SafeArea(
         top: false,
         child: Padding(

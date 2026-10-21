@@ -130,6 +130,7 @@ const Set<String> kStructuredValueTypeNames = {
   'EdgeInsets',
   'EdgeInsetsDirectional',
   'LinearGradient',
+  'IconThemeData',
   'Locale',
   'NetworkImage',
   'Offset',
@@ -138,6 +139,7 @@ const Set<String> kStructuredValueTypeNames = {
   'Radius',
   'Size',
   'SweepGradient',
+  'SystemUiOverlayStyle',
   'TextStyle',
 };
 
@@ -912,7 +914,8 @@ class _Walk {
   }
 
   Future<void> _construction(InstanceCreationExpression expr) async {
-    final type = expr.constructorName.type.element;
+    final type = expr.constructorName.element?.enclosingElement ??
+        expr.constructorName.type.element;
     if (type is! ClassElement) {
       _unclassifiable('a widget construction whose type did not resolve');
       return;
@@ -1084,6 +1087,18 @@ class _Walk {
   }
 
   Future<void> _methodInvocation(MethodInvocation expr) async {
+    final copyWith = (isSystemUiOverlayStyleCopyWith(expr) ||
+            isIconThemeDataCopyWith(expr)) &&
+        expr.target != null;
+    if (copyWith || isIconThemeDataLerp(expr)) {
+      if (copyWith) await classify(expr.target);
+      for (final argument in expr.argumentList.arguments) {
+        await classify(
+          argument is NamedArgument ? argument.argumentExpression : argument,
+        );
+      }
+      return;
+    }
     // A bare `Theme.of(c)` or `DefaultTextStyle.of(c)` call without a
     // trailing property chain produces an object (ThemeData / TextStyle)
     // that cannot be emitted as a blob primitive — the chained form is
@@ -1417,6 +1432,12 @@ class _Walk {
   }
 
   void _propertyAccess(PropertyAccess expr) {
+    final constant = frameworkStaticConst(expr);
+    if (constant != null &&
+        encodeFrameworkConst(constant)?.kind ==
+            FrameworkConstKind.systemUiOverlayStyle) {
+      return;
+    }
     // Binding-aware: `scheme.x.y` where `final scheme = Theme.of(c)...;` is in
     // scope resolves through the captured local bindings to a theme read.
     if (isThemeReadChain(expr, bindings: _activeBindings)) {

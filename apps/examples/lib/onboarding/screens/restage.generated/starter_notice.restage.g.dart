@@ -6,7 +6,7 @@ const starterNoticeScreenRef = NeutralFlowScreenRef(
   id: 'starter_notice',
   artifactPath: 'starter_notice.rfw',
   version: 1,
-  minClient: 10,
+  minClient: 12,
 );
 
 @Deprecated('Use starterNoticeScreenRef')

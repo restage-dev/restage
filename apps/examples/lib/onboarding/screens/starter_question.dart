@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:restage/restage.dart';
 
 part 'restage.generated/starter_question.restage.g.dart';
@@ -29,7 +30,11 @@ class StarterQuestionScreen extends StatelessWidget {
           // The flow's history lives on the host route, so this bar shows a
           // back button from page 2 on with no wiring of its own.
           AppBar(
-              backgroundColor: Theme.of(context).colorScheme.surface,
+              backgroundColor: Colors.transparent,
+              systemOverlayStyle:
+                  Theme.of(context).brightness == Brightness.dark
+                      ? SystemUiOverlayStyle.light
+                      : SystemUiOverlayStyle.dark,
               elevation: 0),
           Expanded(
             child: SafeArea(

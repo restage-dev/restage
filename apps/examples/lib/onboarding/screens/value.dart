@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:restage/restage.dart';
 
 part 'restage.generated/value.restage.g.dart';
@@ -22,7 +23,8 @@ class ValueScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0E1B33),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0E1B33),
+        backgroundColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         elevation: 0,
         foregroundColor: Colors.white,
       ),
