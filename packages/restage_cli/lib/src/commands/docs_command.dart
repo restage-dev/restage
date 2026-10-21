@@ -3,6 +3,9 @@ import 'dart:io' as io;
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/backend_sites.dart';
+import 'package:restage_cli/src/config/restage_config.dart';
+import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/docs/docs_search.dart';
 
 /// `restage docs`: search and read the published documentation.
@@ -12,6 +15,7 @@ class DocsCommand extends Command<int> {
     required StringSink stdout,
     required StringSink stderr,
     http.Client? httpClient,
+    FileCredentialStore? credentialStore,
     Map<String, String>? environment,
   }) {
     addSubcommand(
@@ -19,6 +23,7 @@ class DocsCommand extends Command<int> {
         stdout: stdout,
         stderr: stderr,
         httpClient: httpClient,
+        credentialStore: credentialStore,
         environment: environment,
       ),
     );
@@ -27,6 +32,7 @@ class DocsCommand extends Command<int> {
         stdout: stdout,
         stderr: stderr,
         httpClient: httpClient,
+        credentialStore: credentialStore,
         environment: environment,
       ),
     );
@@ -42,30 +48,46 @@ class DocsCommand extends Command<int> {
   String get usageFooter => docsOriginFooter;
 }
 
-/// Where the docs commands read from, and how to change it.
+/// Where the docs commands read from.
 const docsOriginFooter =
-    'Reads $defaultDocsOrigin. Set $docsOriginVariable to read the docs from '
-    'another site.';
+    'Reads the docs of the backend in restage_config.yaml or your sign-in: '
+    '$defaultDocsOrigin for Restage Cloud.';
 
 abstract class _DocsLeaf extends Command<int> {
   _DocsLeaf({
     required this.stdout,
     required this.stderr,
     required this.httpClient,
+    required this.credentialStore,
     required this.environment,
-  });
+  }) {
+    argParser.addOption(
+      'directory',
+      abbr: 'C',
+      help: 'Directory to start the restage_config.yaml search from.',
+    );
+  }
 
   final StringSink stdout;
   final StringSink stderr;
   final http.Client? httpClient;
+  final FileCredentialStore? credentialStore;
   final Map<String, String>? environment;
 
   @override
   String get usageFooter => docsOriginFooter;
 
   Future<int> withClient(Future<int> Function(DocsClient docs) body) async {
-    final docs = DocsClient.fromEnvironment(
-      environment ?? io.Platform.environment,
+    final directory = argResults!['directory'] as String?;
+    final loaded = await loadRestageConfig(
+      from: directory == null ? null : io.Directory(directory),
+    );
+    final docs = DocsClient.forBackend(
+      await configuredBackend(
+        config: loaded?.config,
+        credentialStore: credentialStore,
+        environment: environment,
+      ),
       httpClient: httpClient,
     );
     try {
@@ -86,6 +108,7 @@ class DocsSearchCommand extends _DocsLeaf {
     required super.stdout,
     required super.stderr,
     super.httpClient,
+    super.credentialStore,
     super.environment,
   }) {
     argParser
@@ -150,6 +173,7 @@ class DocsReadCommand extends _DocsLeaf {
     required super.stdout,
     required super.stderr,
     super.httpClient,
+    super.credentialStore,
     super.environment,
   });
 

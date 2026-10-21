@@ -52,9 +52,9 @@ Show a published surface in an app (restage_publish_surface returns this as show
 - Screens and flows (onboarding, messages, surveys, general): there is no mount by slug. The app must compile the generated mount, such as `WelcomeFlowSurface(onComplete: ...)`, and a published version must match the contract that app build carries. Add `part 'restage.generated/<file>.restage.g.dart';` to the declaring library.
 - A generated mount fetches the live version and falls back to the compiled widget.
 - Example: in the Restage examples app, `lib/main_hosted_surface_demo.dart` renders a published surface given `--dart-define`s for RESTAGE_BASE_URL, RESTAGE_API_KEY, RESTAGE_SURFACE=<slug> and RESTAGE_SURFACE_TYPE=<type>.
-- Docs: https://docs.restage.dev/delivery/hosted-delivery and https://docs.restage.dev/authoring/custom-widgets
+- Docs: read /delivery/hosted-delivery and /authoring/custom-widgets with restage_docs_read.
 
-Docs: restage_docs_search finds sections of the Restage documentation; restage_docs_read returns a page or section as Markdown. https://docs.restage.dev/llms.txt lists every page.
+Docs: restage_docs_search finds sections of the Restage documentation; restage_docs_read returns a page or section as Markdown. Both read the docs of the backend named in projectDirectory's restage_config.yaml, else of the backend you are signed in to.
 ''';
 
 /// The Restage MCP server.
@@ -158,6 +158,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
       (recordLibrariesTool, handleRecordLibraries),
       ...docsTools(
         _httpClient,
+        credentialStore: credentialStore,
         environment: environment ?? Platform.environment,
       ),
       ...experimentTools(tools),
@@ -424,7 +425,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
                 'email': email,
                 'message': dashboard == null
                     ? signedIn
-                    : '$signedIn $noOrganizationSentence'
+                    : '$signedIn ${noOrganizationSentence()}'
                           '${dashboard.isEmpty ? '' : '\n$dashboard'}',
                 'createOrganizationAt': ?dashboard,
               });

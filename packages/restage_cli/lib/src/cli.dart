@@ -372,6 +372,7 @@ class RestageCli {
           stdout: _stdout,
           stderr: _stderr,
           httpClient: _httpClient,
+          credentialStore: _credentialStore,
           environment: _environment,
         ),
       );

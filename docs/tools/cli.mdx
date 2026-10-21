@@ -30,14 +30,21 @@ restage --help
 
 ## Set up a project
 
+Set up in this order:
+
+1. Sign up at https://app.restage.dev and create your organization and first app.
+2. Sign in from the terminal with `restage login` (see [Sign in](#sign-in)).
+3. Run `restage init` in your Flutter project. It finds your organization, project,
+   app and environments in your account and asks when there is more than one.
+
 ```sh
 restage init
 restage doctor
 ```
 
-`doctor` works offline, with no account. So does `init` when you pass
-`--organization`, `--project`, `--app` and `--env`. Without them, `init` looks them up
-in your account, so sign in first.
+If your account has no organization yet, `init` stops and names the dashboard to
+create one in. `doctor` works offline, with no account. So does `init` when you pass
+`--organization`, `--project`, `--app` and `--env`.
 
 `init` writes `restage_config.yaml`, adds `restage` to your dependencies and
 `restage_codegen` and `build_runner` to your dev dependencies, adds `.restage/build/`
@@ -79,8 +86,20 @@ restage status
 restage logout
 ```
 
-`login` opens a browser to approve the sign-in. Pass `--endpoint` to sign in to a
-different Restage backend URL.
+`login` opens a browser to approve the sign-in.
+
+### Use another backend
+
+A new sign-in uses Restage Cloud. To sign in to another backend, pass its API URL. The
+backend these docs describe is at `https://api.restage.dev`.
+
+```sh
+restage login --endpoint <url>
+```
+
+Or set `RESTAGE_BACKEND_URL` to that URL before `restage login`. `restage init` then
+writes the URL as `endpoint:` in `restage_config.yaml`, and later commands use that
+backend. `restage docs`, and the docs links the CLI prints, follow the same backend.
 
 To see what your account can reach:
 

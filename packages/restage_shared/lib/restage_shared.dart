@@ -15,6 +15,7 @@ library;
 
 export 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
+export 'src/backend_sites.dart';
 export 'src/bundled_measurement_target_profile.dart';
 export 'src/capability/blob_render_capability_gate.dart';
 export 'src/capability/capability_manifest.dart';

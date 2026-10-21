@@ -9,6 +9,8 @@ import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
+import 'package:restage_cli/src/config/config_target_check.dart'
+    show noOrganizationSentence;
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -389,6 +391,11 @@ class InitCommand extends Command<int> {
       return null;
     }
 
+    _stderr.writeln(
+      'Not signed in. To pick your organization, project and app instead of '
+      'typing their slugs: create them in the dashboard, run `restage login`, '
+      'then run `restage init` again.',
+    );
     try {
       return _InitContext(
         organization: organizationFlag,
@@ -400,10 +407,7 @@ class InitCommand extends Command<int> {
             await _resolveManualSlug('env', 'Default environment slug?'),
       );
     } on NonInteractiveDefaultMissing catch (e) {
-      _stderr.writeln(
-        'Required: --${e.flagName ?? "value"} <slug>. Pass the value on '
-        'the command line or run `restage login` to use discovery.',
-      );
+      _stderr.writeln('Required: --${e.flagName ?? "value"} <slug>.');
       return null;
     }
   }
@@ -435,6 +439,9 @@ class InitCommand extends Command<int> {
         options: scope.organizations,
         prompt: 'Which organization?',
         missingFlag: '--organization <slug>',
+        emptyMessage:
+            '${noOrganizationSentence(api.endpoint)}\nThen run '
+            '`restage init` again.',
         slugOf: (organization) => organization.slug,
         labelOf: (organization) =>
             '${organization.name} (${organization.slug})',
@@ -521,6 +528,7 @@ class InitCommand extends Command<int> {
     required String missingFlag,
     required String Function(T value) slugOf,
     required String Function(T value) labelOf,
+    String? emptyMessage,
     bool allowEmpty = false,
   }) async {
     if (preferredSlug != null && preferredSlug.isNotEmpty) {
@@ -538,6 +546,7 @@ class InitCommand extends Command<int> {
         for (final option in options) (label: labelOf(option), value: option),
       ],
       missingFlag: missingFlag,
+      emptyMessage: emptyMessage,
       allowEmpty: allowEmpty,
     );
   }

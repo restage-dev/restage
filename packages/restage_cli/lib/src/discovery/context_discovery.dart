@@ -16,7 +16,7 @@ Future<OrganizationSummary?> resolveActiveOrganization({
 }) async {
   final organizations = await api.listOrganizations();
   if (organizations.isEmpty) {
-    stderr.writeln(noOrganizationSentence);
+    stderr.writeln(noOrganizationSentence(api.endpoint));
     return null;
   }
   if (preferredSlug != null && preferredSlug.isNotEmpty) {

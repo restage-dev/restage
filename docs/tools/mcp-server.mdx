@@ -45,9 +45,10 @@ For a host that reads an `mcpServers` object, such as Claude Desktop or Cursor:
 }
 ```
 
-A new sign-in uses Restage Cloud (`https://api.restage.dev/`). Set
+A new sign-in uses Restage Cloud. Set
 `RESTAGE_BACKEND_URL` in `env` to sign in to another backend. After sign-in, each tool
-uses the backend your session was created against.
+uses the backend your session was created against. The docs tools read the docs of that
+backend.
 
 ## Sign in
 

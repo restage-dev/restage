@@ -91,6 +91,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
         organizationId: match.organizationId,
       );
     }
+    if (scope.organizations.isEmpty) {
+      throw ConsoleLoadException(noOrganizationSentence(api.endpoint));
+    }
     final organization = _resolveOrganization(scope, config);
 
     final projects = _loadProjects(scope, config);
@@ -357,9 +360,6 @@ class DefaultConsoleRepository implements ConsoleRepository {
     ProgrammaticScopeSnapshot scope,
     RestageConfig config,
   ) {
-    if (scope.organizations.isEmpty) {
-      throw const ConsoleLoadException(noOrganizationSentence);
-    }
     final candidates = scope.organizations
         .where(
           (organization) =>

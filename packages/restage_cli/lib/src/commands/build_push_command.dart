@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/api/backend_sites.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/render_bundle_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
@@ -28,10 +29,6 @@ import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 /// Environment variable carrying a secret key for an unattended push. It is
 /// read here only; a flag or the configuration file cannot supply it.
 const _apiKeyVariable = 'RESTAGE_API_KEY';
-
-/// Environment variable naming the only server other than the built-in one a
-/// key may be sent to.
-const _endpointVariable = 'RESTAGE_BACKEND_URL';
 
 /// Opens the repository a receipt is written into.
 typedef ReleaseRecorderOpener =
@@ -177,7 +174,7 @@ final class BuildPushCommand extends Command<int> {
     if (withKey) {
       // A key goes only to the built-in server or one the environment names;
       // a checked-in configuration file must never redirect it.
-      final named = environment[_endpointVariable]?.trim();
+      final named = environment[backendUrlVariable]?.trim();
       credential = Credential(
         endpoint: named != null && named.isNotEmpty
             ? named
@@ -204,7 +201,7 @@ final class BuildPushCommand extends Command<int> {
         withKey
             ? 'restage_config.yaml names ${error.configEndpoint}, but a key is '
                   'sent only to ${error.credentialEndpoint}. Set '
-                  '$_endpointVariable to push to that server with a key.'
+                  '$backendUrlVariable to push to that server with a key.'
             : error.toString(),
       );
       return 1;

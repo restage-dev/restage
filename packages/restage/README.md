@@ -94,6 +94,37 @@ The [Quickstart](https://github.com/restage-dev/restage/blob/main/QUICKSTART.md)
 walks through a full example using the compiled-widget fallback, with no
 generated surface assets. Leave `bundled_runtime` at its default, `false`.
 
+### Use the latest source
+
+To try unreleased changes, keep the usual `^2.0.0` dependencies on `restage`,
+`restage_material` and `restage_codegen`, and add these overrides to take them from the
+repository's `main` branch. `rfw_catalog_schema` needs one too, because the code
+generator also asks for it from pub.dev:
+
+```yaml
+dependency_overrides:
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
+  restage_codegen:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_codegen
+  rfw_catalog_schema:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/rfw_catalog_schema
+```
+
 ### Start with existing Flutter UI
 
 Keep your layout, theme, supported local state and helper widgets. Add the import,

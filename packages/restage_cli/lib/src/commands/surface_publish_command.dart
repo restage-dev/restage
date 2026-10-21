@@ -188,7 +188,12 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
             )
             ..writeln('Active revision: $active   frozen: ${result.frozen}')
             ..writeln(
-              mountGuide(sourceKind, slug, mountName: result.mountName),
+              mountGuide(
+                sourceKind,
+                slug,
+                backend: ctx.apiEndpoint,
+                mountName: result.mountName,
+              ),
             );
         },
       );

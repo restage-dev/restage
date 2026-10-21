@@ -31,14 +31,17 @@ final _index = jsonEncode({
 
 void main() {
   late ServerConnection connection;
+  late Directory directory;
+  late FileCredentialStore store;
   final requested = <String>[];
 
   setUp(() async {
     requested.clear();
-    final directory = await Directory.systemTemp.createTemp('docs-tools-');
+    directory = await Directory.systemTemp.createTemp('docs-tools-');
     addTearDown(() => directory.delete(recursive: true));
+    store = FileCredentialStore('${directory.path}/credentials');
     connection = await connectServer(
-      store: FileCredentialStore('${directory.path}/credentials'),
+      store: store,
       httpClient: MockClient((request) async {
         requested.add(request.url.toString());
         return switch (request.url.path) {
@@ -77,6 +80,41 @@ void main() {
       ),
     );
     expect(text(result), '# Live refresh\n');
+  });
+
+  test('the docs follow the stored sign-in', () async {
+    await store.write(
+      const Credential(
+        endpoint: 'https://api-preview.restage.dev/',
+        kind: CredentialKind.authKey,
+        authToken: 'k:v',
+      ),
+    );
+    await connection.callTool(
+      CallToolRequest(
+        name: 'restage_docs_read',
+        arguments: {'path': '/delivery/live-refresh'},
+      ),
+    );
+    expect(requested, [
+      'https://docs-preview.restage.dev/delivery/live-refresh.md',
+    ]);
+  });
+
+  test("the docs follow projectDirectory's configured backend", () async {
+    File(
+      '${directory.path}/restage_config.yaml',
+    ).writeAsStringSync('endpoint: https://api-preview.restage.dev\n');
+    await connection.callTool(
+      CallToolRequest(
+        name: 'restage_docs_search',
+        arguments: {
+          'query': 'update channel',
+          'projectDirectory': directory.path,
+        },
+      ),
+    );
+    expect(requested, ['https://docs-preview.restage.dev/docs-index.json']);
   });
 
   test('restage_docs_read names a missing page', () async {

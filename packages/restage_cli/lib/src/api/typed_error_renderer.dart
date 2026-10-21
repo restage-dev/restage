@@ -228,7 +228,7 @@ String targetSelectionSentence(
           'Pass ${syntax.plane}.',
     TargetSelectionRefusal.noTargetOnPlane =>
       'No target found for $named on that runtime plane.',
-    TargetSelectionRefusal.noOrganization => noOrganizationSentence,
+    TargetSelectionRefusal.noOrganization => noOrganizationSentence(),
     TargetSelectionRefusal.multipleOrganizations =>
       'This project is in more than one of your organizations'
           '${refused.organizationSlugs.isEmpty ? '' : ' (${refused.organizationSlugs.join(', ')})'}. '

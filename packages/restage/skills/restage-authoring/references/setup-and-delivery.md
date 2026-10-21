@@ -112,7 +112,10 @@ to manage that setup yourself.
 
 <!-- skill-check: declarations -->
 ```dart
-const baseUrl = 'https://api.restage.dev';
+const baseUrl = String.fromEnvironment(
+  'RESTAGE_BASE_URL',
+  defaultValue: 'https://api.restage.dev',
+);
 const apiKey = String.fromEnvironment('RESTAGE_API_KEY'); // rs_pk_...
 
 void main() {
@@ -132,7 +135,8 @@ void main() {
 - The key is the public SDK key (`rs_pk_...`) for one environment. The prefix names its
   side and environment, such as `rs_pk_sandbox_dev_` or `rs_pk_live_prod_`. Never put a
   secret key (`rs_sk_...`) in app code.
-- `baseUrl` must be HTTPS, except `localhost`, `127.0.0.1` and `::1`.
+- `baseUrl` is the API of the backend the project uses: the `endpoint` in
+  `restage_config.yaml`. It must be HTTPS, except `localhost`, `127.0.0.1` and `::1`.
 - With the key and base URL configured, default hosted resolution covers screens,
   paywalls and flows. Do not add an explicit `flowResolver` for ordinary setup: a
   custom resolver overrides normal placement-aware flow resolution.

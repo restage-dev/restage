@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/auth_api.dart';
 import 'package:restage_cli/src/api/auth_models.dart';
+import 'package:restage_cli/src/api/backend_sites.dart';
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/config/config_target_check.dart'
@@ -68,7 +69,7 @@ class LoginCommand extends Command<int> {
       ..addOption(
         'endpoint',
         help:
-            'Backend origin to sign in to. Defaults to $_backendUrlVariable '
+            'Backend origin to sign in to. Defaults to $backendUrlVariable '
             'when set, else ${defaultEndpoint.origin}.',
       )
       ..addFlag(
@@ -237,7 +238,7 @@ class LoginCommand extends Command<int> {
   String _unreachable(Uri endpoint, Object error) =>
       'Could not reach ${endpoint.origin}: $error\n'
       'To sign in to another server, run `restage login --endpoint <url>`, or '
-      'set $_backendUrlVariable.';
+      'set $backendUrlVariable.';
 
   /// Whether [verificationUri] is safe to hand to the system browser opener.
   ///
@@ -263,7 +264,7 @@ class LoginCommand extends Command<int> {
   Uri _resolveEndpoint() {
     final fromFlag = argResults?['endpoint'] as String?;
     if (fromFlag != null && fromFlag.isNotEmpty) return Uri.parse(fromFlag);
-    final fromEnv = Platform.environment[_backendUrlVariable];
+    final fromEnv = Platform.environment[backendUrlVariable];
     if (fromEnv != null && fromEnv.isNotEmpty) return Uri.parse(fromEnv);
     return _defaultEndpoint;
   }
@@ -282,7 +283,7 @@ class LoginCommand extends Command<int> {
     try {
       final organizations = await DiscoveryApi(api).listOrganizations();
       if (organizations.isNotEmpty) return;
-      _stdout.writeln(noOrganizationSentence);
+      _stdout.writeln(noOrganizationSentence());
       final dashboard = Uri.tryParse(verificationUri);
       if (dashboard != null && dashboard.hasAuthority) {
         _stdout.writeln(dashboard.origin);
@@ -314,5 +315,3 @@ class LoginCommand extends Command<int> {
     return credential;
   }
 }
-
-const _backendUrlVariable = 'RESTAGE_BACKEND_URL';

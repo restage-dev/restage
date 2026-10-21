@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage_cli/api.dart';
 import 'package:restage_cli/restage_cli.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 Map<String, Object?> _section(
@@ -64,15 +66,18 @@ final _index = jsonEncode({
   ],
 });
 
-http.Client _client({Map<String, String> pages = const {}}) =>
-    MockClient((request) async {
-      final path = request.url.path;
-      if (path == '/docs-index.json') return http.Response(_index, 200);
-      final page = pages[path];
-      return page == null
-          ? http.Response('not found', 404)
-          : http.Response(page, 200);
-    });
+http.Client _client({
+  Map<String, String> pages = const {},
+  List<Uri>? requested,
+}) => MockClient((request) async {
+  requested?.add(request.url);
+  final path = request.url.path;
+  if (path == '/docs-index.json') return http.Response(_index, 200);
+  final page = pages[path];
+  return page == null
+      ? http.Response('not found', 404)
+      : http.Response(page, 200);
+});
 
 void main() {
   group('searchDocs', () {
@@ -166,36 +171,52 @@ void main() {
       );
     });
 
-    test('honors the docs origin variable', () async {
+    test('reads the docs of the backend it is built for', () async {
       final requested = <Uri>[];
-      final docs = DocsClient.fromEnvironment(
-        {docsOriginVariable: 'https://preview.example.dev/'},
+      final docs = DocsClient.forBackend(
+        Uri.parse('https://api-preview.restage.dev/'),
         httpClient: MockClient((request) async {
           requested.add(request.url);
           return http.Response('# Page', 200);
         }),
       );
-      await docs.read('/quickstart');
+      await docs.read('https://docs.restage.dev/quickstart');
       expect(
         requested.single.toString(),
-        'https://preview.example.dev/quickstart.md',
+        'https://docs-preview.restage.dev/quickstart.md',
       );
     });
   });
 
   group('restage docs', () {
-    Future<(int, String, String)> run(List<String> args) async {
+    late Directory temp;
+    late FileCredentialStore store;
+
+    setUp(() async {
+      temp = await Directory.systemTemp.createTemp('restage_docs_');
+      store = FileCredentialStore(p.join(temp.path, 'credentials'));
+    });
+
+    tearDown(() => temp.delete(recursive: true));
+
+    Future<(int, String, String)> run(
+      List<String> args, {
+      Map<String, String> environment = const {},
+      List<Uri>? requested,
+    }) async {
       final stdout = StringBuffer();
       final stderr = StringBuffer();
       final code = await RestageCli(
         stdout: stdout,
         stderr: stderr,
         hasTerminal: () => false,
-        environment: const {},
+        credentialStore: store,
+        environment: environment,
         httpClient: _client(
           pages: {'/flows/overview.md': '# Flows overview\n'},
+          requested: requested,
         ),
-      ).run(args);
+      ).run(['-C', temp.path, ...args]);
       return (code, stdout.toString(), stderr.toString());
     }
 
@@ -230,25 +251,70 @@ void main() {
       expect(out.trim(), '# Flows overview');
     });
 
-    test('help names the docs origin variable', () async {
-      final (_, out, _) = await run(['docs', 'search', '--help']);
-      expect(out, contains('Set RESTAGE_DOCS_URL'));
+    test('reads the published docs with no configured backend', () async {
+      final requested = <Uri>[];
+      await run(['docs', 'read', 'flows/overview'], requested: requested);
+      expect(requested.single.origin, 'https://docs.restage.dev');
     });
 
-    test('an unreachable docs site names the docs origin variable', () async {
+    test('follows the backend of the stored sign-in', () async {
+      await store.write(
+        const Credential(
+          endpoint: 'https://api-preview.restage.dev/',
+          kind: CredentialKind.authKey,
+          authToken: 'k:v',
+        ),
+      );
+      final requested = <Uri>[];
+      final (_, out, _) = await run([
+        'docs',
+        'search',
+        'mount',
+      ], requested: requested);
+      expect(requested.single.origin, 'https://docs-preview.restage.dev');
+      expect(out, contains('restage docs read'));
+    });
+
+    test('follows the backend variable before sign-in', () async {
+      final requested = <Uri>[];
+      await run(
+        ['docs', 'read', 'flows/overview'],
+        environment: {backendUrlVariable: 'https://api-preview.restage.dev'},
+        requested: requested,
+      );
+      expect(requested.single.origin, 'https://docs-preview.restage.dev');
+    });
+
+    test('the project endpoint wins over the sign-in', () async {
+      await store.write(
+        const Credential(
+          endpoint: 'https://api.restage.dev/',
+          kind: CredentialKind.authKey,
+          authToken: 'k:v',
+        ),
+      );
+      File(
+        p.join(temp.path, 'restage_config.yaml'),
+      ).writeAsStringSync('endpoint: https://api-preview.restage.dev\n');
+      final requested = <Uri>[];
+      await run(['docs', 'read', 'flows/overview'], requested: requested);
+      expect(requested.single.origin, 'https://docs-preview.restage.dev');
+    });
+
+    test('an unreachable docs site names its address', () async {
       final stderr = StringBuffer();
       final code = await RestageCli(
         stdout: StringBuffer(),
         stderr: stderr,
         hasTerminal: () => false,
+        credentialStore: store,
         environment: const {},
         httpClient: MockClient(
           (request) async => throw http.ClientException('lookup failed'),
         ),
-      ).run(['docs', 'read', '/quickstart']);
+      ).run(['-C', temp.path, 'docs', 'read', '/quickstart']);
       expect(code, 1);
       expect(stderr.toString(), contains('https://docs.restage.dev'));
-      expect(stderr.toString(), contains('set RESTAGE_DOCS_URL'));
     });
 
     test('read reports a missing page', () async {

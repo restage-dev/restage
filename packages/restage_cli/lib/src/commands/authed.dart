@@ -340,7 +340,7 @@ Future<AuthedContext?> _resolveScope({
   } else if (snapshot.organizations.length == 1) {
     organization = snapshot.organizations.single;
   } else if (snapshot.organizations.isEmpty) {
-    io.stderr.writeln(noOrganizationSentence);
+    io.stderr.writeln(noOrganizationSentence(api.endpoint));
     return null;
   } else if (io.interactive.isInteractive) {
     organization = await io.interactive

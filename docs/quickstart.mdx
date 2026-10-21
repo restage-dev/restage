@@ -39,6 +39,35 @@ Then fetch the packages:
 flutter pub get
 ```
 
+To try unreleased changes, keep the usual `^2.0.0` dependencies on `restage`,
+`restage_material` and `restage_codegen`, and add these overrides to take them from the
+repository's `main` branch. `rfw_catalog_schema` needs one too, because the code
+generator also asks for it from pub.dev:
+
+```yaml
+dependency_overrides:
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
+  restage_codegen:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_codegen
+  rfw_catalog_schema:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/rfw_catalog_schema
+```
+
 If you use a coding agent, install the Restage skill too, so it writes surfaces the way
 the build expects. See [Coding agents](/tools/coding-agents).
 

@@ -83,11 +83,11 @@ The references hold the full workflows.
 
 ## Documentation
 
-The full docs are at https://docs.restage.dev. For an agent:
+Read the docs with `restage docs search <query>` and `restage docs read <path>`,
+or the MCP tools `restage_docs_search` and `restage_docs_read`. They read the
+docs that match the backend in `restage_config.yaml` or the stored sign-in, so
+prefer them over fixed URLs.
 
-- https://docs.restage.dev/llms.txt lists every page with a one-line summary
-  and its Markdown URL.
-- Every page is also served as Markdown at its URL plus `.md`, such as
-  https://docs.restage.dev/delivery/hosted-delivery.md.
-- `restage docs search <query>` and `restage docs read <path>`, or the MCP tools
-  `restage_docs_search` and `restage_docs_read`, search and read the same pages.
+The docs for Restage Cloud are at https://docs.restage.dev. Each docs site lists
+every page at `/llms.txt` and serves each page as Markdown at its URL plus
+`.md`, such as `/delivery/hosted-delivery.md`.

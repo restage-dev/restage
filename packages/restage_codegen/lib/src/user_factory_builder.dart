@@ -15,6 +15,7 @@ import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/installed_catalog_scope.dart';
+import 'package:restage_codegen/src/project_backend.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -123,6 +124,7 @@ final class UserFactoryBuilder implements Builder {
         appVocabulary,
         position: position,
         builtInWidgetCount: derivation.builtInWidgetCount,
+        docsOrigin: await projectDocsOrigin(buildStep),
       ),
     );
     final groups = describeMissingWidgetGroups(

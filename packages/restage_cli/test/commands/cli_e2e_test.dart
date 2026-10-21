@@ -129,7 +129,7 @@ void main() {
       expect(expires, inInclusiveRange(before + 600, before + 610));
       expect(stdout.toString(), contains(opened));
       expect(stdout.toString(), contains('Signed in as jane@example.com'));
-      expect(stdout.toString(), isNot(contains(noOrganizationSentence)));
+      expect(stdout.toString(), isNot(contains(noOrganizationSentence())));
 
       final stored = await store.read();
       expect(stored, isNotNull);
@@ -204,7 +204,7 @@ void main() {
       expect(
         stdout.toString(),
         endsWith(
-          'Signed in.\n$noOrganizationSentence\nhttps://dash.example.com\n',
+          'Signed in.\n${noOrganizationSentence()}\nhttps://dash.example.com\n',
         ),
       );
       expect(await store.read(), isNotNull);

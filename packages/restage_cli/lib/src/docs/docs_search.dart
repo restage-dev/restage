@@ -1,12 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-
-/// The published Restage documentation.
-const defaultDocsOrigin = 'https://docs.restage.dev';
-
-/// Environment variable that points docs commands at another docs origin.
-const docsOriginVariable = 'RESTAGE_DOCS_URL';
+import 'package:restage_cli/src/api/backend_sites.dart';
 
 /// One page of the documentation.
 class DocsPage {
@@ -306,14 +301,9 @@ class DocsClient {
       _ownsClient = httpClient == null,
       origin = (origin ?? defaultDocsOrigin).replaceFirst(RegExp(r'/+$'), '');
 
-  /// Builds a client whose origin comes from [environment], when set.
-  factory DocsClient.fromEnvironment(
-    Map<String, String> environment, {
-    http.Client? httpClient,
-  }) => DocsClient(
-    httpClient: httpClient,
-    origin: environment[docsOriginVariable],
-  );
+  /// Builds a client for the docs of the backend at [endpoint].
+  factory DocsClient.forBackend(Uri endpoint, {http.Client? httpClient}) =>
+      DocsClient(httpClient: httpClient, origin: backendSites(endpoint).docs);
 
   /// The docs origin, without a trailing slash.
   final String origin;
@@ -351,10 +341,7 @@ class DocsClient {
         headers: const {'Accept': 'text/markdown, application/json'},
       );
     } on Exception catch (error) {
-      throw DocsException(
-        'Could not reach $origin: ${error.runtimeType}. To read the docs from '
-        'another site, set $docsOriginVariable to its address.',
-      );
+      throw DocsException('Could not reach $origin: ${error.runtimeType}.');
     }
     final status = response.statusCode;
     if (status == 404) {
