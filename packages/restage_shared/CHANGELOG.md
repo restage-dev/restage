@@ -23,6 +23,10 @@ selected it. `fallbackReceiptReason` gives the reason a fallback receipt
 states. `receiptsDirectory` and `receiptPathSegment` name where release
 receipts are written.
 
+`PlacementBatchRefusalReasonV1.decodeFailed` reports a placement response the
+client could not read. Only the client produces it: the codecs refuse it in a
+response body.
+
 `SurfacePublicationArtifactClosure` exposes its verified `screenBlobs` and
 `sidecarCapabilities`. `capabilityManifestUnion` combines capability
 manifests. `rfw_formats.dart` exports `literalIconCodePoints` and

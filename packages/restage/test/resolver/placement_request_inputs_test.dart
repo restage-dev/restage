@@ -476,8 +476,8 @@ void main() {
   });
 
   testWidgets(
-      'after-frame prefetch installs every listed flow and screen vocabulary',
-      (tester) async {
+      'configure installs every listed flow and screen vocabulary before the '
+      'first frame', (tester) async {
     SurfaceVocabulary vocabulary(String namespace) =>
         SurfaceVocabulary(libraries: [
           RestageWidgetLibraryRegistration(
@@ -529,7 +529,8 @@ void main() {
         currentInstalledCapability()
             .installedLibraries
             .map((library) => library.namespace),
-        ['outer.widgets']);
+        ['child.widgets', 'flow.widgets', 'outer.widgets', 'screen.widgets']);
+    expect(sent, isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
     await tester.runAsync(() => pumpEventQueue());

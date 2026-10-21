@@ -325,6 +325,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         widgetOverride: widget.liveRefresh,
       ),
       canSwap: () => _isCurrentRefreshHandle(handle) && _canSwap(),
+      firstLoadInFlight: () => _firstLoadInFlight,
       refresh: () async {
         if (!_isCurrentRefreshHandle(handle)) return;
         await _refresh();
@@ -406,8 +407,14 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   Future<void> _refresh({
     ResolvedFlow? adoptedRoot,
     LateRenderReport? report,
+    bool firstLoadSettled = false,
   }) async {
     if (!mounted || _controller == null) return;
+    // A refresh would race the first load; it runs once that load settles.
+    if (adoptedRoot == null && !firstLoadSettled && _firstLoadInFlight) {
+      _refreshAfterFirstLoad = true;
+      return;
+    }
     _disposePending(); // supersede any in-flight pending (the loser)
     late final RestageFlowController<R> pending;
     pending = _buildController(
@@ -696,6 +703,8 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   }
 
   void _start({bool identityRetry = false}) {
+    // A new first load is fresh, so a refresh it superseded is answered.
+    _refreshAfterFirstLoad = false;
     // An identity retry is the same presentation, so it keeps its device reading.
     if (!identityRetry) {
       _observationCell = null;
@@ -742,6 +751,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         _finalizeMeasurementSessionFor(controller);
         setState(() => _unavailableError = error);
         widget.onFlowUnavailable?.call(error);
+        _runDeferredRefresh();
       },
     );
     final presentation = RootAnalyticsRuntime.createPresentation(
@@ -759,7 +769,10 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           identical(_presentation, presentation),
       canCommitPresentation: () => true,
       afterRejection: () => _restartRejectedInitial(controller, transaction),
-      onPainted: () => _activateMeasurementOwner(controller),
+      onPainted: () {
+        _activateMeasurementOwner(controller);
+        _runDeferredRefresh();
+      },
     );
     controller.onLateRoot = (root, report) {
       final handle = _refreshHandle;
@@ -780,6 +793,23 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     _transaction = transaction;
     _presentation = presentation;
     unawaited(_loadInScope(controller));
+  }
+
+  bool _refreshAfterFirstLoad = false;
+
+  bool get _firstLoadInFlight {
+    final current = _controller;
+    return current != null &&
+        !current.hasRenderedContent &&
+        _unavailableError == null;
+  }
+
+  void _runDeferredRefresh() {
+    if (!_refreshAfterFirstLoad) return;
+    _refreshAfterFirstLoad = false;
+    final handle = _refreshHandle;
+    if (handle == null || !_canSwap()) return;
+    unawaited(_refresh(firstLoadSettled: true));
   }
 
   bool _shouldConvertUnstableInitialHostedFailure(

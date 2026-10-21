@@ -405,7 +405,9 @@ void main() {
     for (final testCase in cases) {
       final support = await _temporarySupportDirectory();
       addTearDown(() => support.delete(recursive: true));
-      final store = _store(support);
+      // Time stands still, so a scheduled retry is never due when checked.
+      final clock = _MutableClock(DateTime.utc(2026, 8, 16, 12));
+      final store = _store(support, clock: clock.call);
       await store.open();
       await store
           .commit(_batch(sessionId: 'session.${testCase.name.hashCode}'));

@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -253,10 +255,38 @@ void main() {
     expect(response, isA<PlacementBatchRefusedV1>());
     expect(
       (response! as PlacementBatchRefusedV1).reason,
-      PlacementBatchRefusalReasonV1.invalidRequest,
+      PlacementBatchRefusalReasonV1.decodeFailed,
     );
     expect(requests, hasLength(1));
     expect(client.heldPlacementArtifacts, isEmpty);
+  });
+
+  test('a non-canonical response is malformed and logged in debug builds',
+      () async {
+    final fixture = readPlacementDeliveryFixture();
+    final lines = <String>[];
+    final previous = debugPrint;
+    debugPrint = (message, {wrapWidth}) => lines.add(message!);
+    addTearDown(() => debugPrint = previous);
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((_) async =>
+          http.Response(jsonEncode(fixture.response.toJson()), 200)),
+    );
+    addTearDown(client.close);
+
+    final response = await client.fetchPlacements(
+      fixture.request,
+      publicationGuard: () => true,
+    );
+
+    expect(
+      (response! as PlacementBatchRefusedV1).reason,
+      PlacementBatchRefusalReasonV1.decodeFailed,
+    );
+    expect(lines.single,
+        startsWith('[restage] placement response was malformed: '));
   });
 
   test('an independently known target fences a foreign batch', () async {

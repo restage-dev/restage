@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data' show BytesBuilder;
+import 'dart:typed_data' show BytesBuilder, Uint8List;
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +9,8 @@ import 'package:restage_shared/commerce.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../delivery/surface_artifact_store.dart' show StoredSurface;
+import '../delivery/surface_delivery_receipt.dart'
+    show SurfaceDeliveryReceiptReason;
 import '../measurement/measurement_refusal_reason.dart';
 import '../measurement/measurement_sdk_runtime_session.dart'
     show measurementReportedSdkVersion;
@@ -715,6 +717,56 @@ class RestageRpcClient {
     }
   }
 
+  /// The refusal a 4xx placement reply carries: the service's own, or a
+  /// refused key; null for any other reply.
+  Future<PlacementBatchRefusedV1?> _readPlacementRefusal(
+      http.StreamedResponse response,
+      PlacementBatchRequestV1 request,
+      TargetCoordinate? expectedTarget) async {
+    final Uint8List bytes;
+    try {
+      if ((response.contentLength ?? 0) > kMaximumPlacementResponseBytes) {
+        await response.stream.listen(null).cancel();
+        return null;
+      }
+      final body = BytesBuilder(copy: false);
+      await for (final chunk in response.stream) {
+        if (chunk.length > kMaximumPlacementResponseBytes - body.length) {
+          return null;
+        }
+        body.add(chunk);
+      }
+      bytes = body.takeBytes();
+    } on Object {
+      return null;
+    }
+    try {
+      final decoded = PlacementBatchResponseV1.fromCanonicalBytes(bytes,
+          request: request, expectedTarget: expectedTarget);
+      // Only the reason is kept; a registration it carries is not confirmed.
+      if (decoded is PlacementBatchRefusedV1) {
+        return PlacementBatchRefusedV1(
+            reason: decoded.reason, diagnostics: decoded.diagnostics);
+      }
+      return null;
+    } on Object {
+      // Not a placement refusal; the edge may have refused the key.
+    }
+    final String? error;
+    try {
+      final json = jsonDecode(utf8.decode(bytes));
+      error = json is Map ? json['error'] as String? : null;
+    } on Object {
+      return response.statusCode == 401 ? _refusedKey : null;
+    }
+    return response.statusCode == 401 || error == 'hosted_access_denied'
+        ? _refusedKey
+        : null;
+  }
+
+  static final PlacementBatchRefusedV1 _refusedKey = PlacementBatchRefusedV1(
+      reason: PlacementBatchRefusalReasonV1.invalidAuthority);
+
   /// Verified content this session can advertise as held.
   @internal
   Map<ArtifactIdentityV1, List<int>> get heldPlacementArtifacts =>
@@ -735,6 +787,7 @@ class RestageRpcClient {
     Map<ArtifactIdentityV1, List<int>> heldArtifactBytes = const {},
     SurfaceAssignmentResolutionLease? registrationLease,
     void Function(Duration retryAfter)? onRateLimited,
+    void Function(SurfaceDeliveryReceiptReason reason)? onNoAnswer,
   }) async {
     void checkPublication() {
       try {
@@ -769,16 +822,29 @@ class RestageRpcClient {
           debugPrint('[restage] placement resolve failed with HTTP '
               '${response.statusCode}; mounts show their fallbacks.');
         }
-        if (response.statusCode == 429) {
+        final status = response.statusCode;
+        if (status == 429) {
           onRateLimited?.call(retryAfterDelay(response.headers['retry-after']));
         }
-        await response.stream.listen(null).cancel();
+        // A 4xx may carry a definitive refusal; a 5xx is always transient.
+        PlacementBatchRefusedV1? refusal;
+        if (status >= 400 && status < 500 && status != 429) {
+          refusal = await _readPlacementRefusal(
+              response, request, expectedTarget ?? _placementTarget);
+        } else {
+          await response.stream.listen(null).cancel();
+        }
+        checkPublication();
+        if (refusal != null) return refusal;
+        onNoAnswer?.call(status == 429
+            ? SurfaceDeliveryReceiptReason.throttled
+            : SurfaceDeliveryReceiptReason.serverError);
         return null;
       }
       if ((response.contentLength ?? 0) > kMaximumPlacementResponseBytes) {
         await response.stream.listen(null).cancel();
         return PlacementBatchResponseV1.refused(
-          reason: PlacementBatchRefusalReasonV1.invalidRequest,
+          reason: PlacementBatchRefusalReasonV1.decodeFailed,
         );
       }
       final body = BytesBuilder(copy: false);
@@ -786,7 +852,7 @@ class RestageRpcClient {
         checkPublication();
         if (chunk.length > kMaximumPlacementResponseBytes - body.length) {
           return PlacementBatchResponseV1.refused(
-            reason: PlacementBatchRefusalReasonV1.invalidRequest,
+            reason: PlacementBatchRefusalReasonV1.decodeFailed,
           );
         }
         body.add(chunk);
@@ -794,7 +860,9 @@ class RestageRpcClient {
       bytes = body.takeBytes();
     } on SurfaceRequestPublicationRejected {
       rethrow;
-    } on Object {
+    } on Object catch (error) {
+      if (kDebugMode) debugPrint('[restage] placement resolve failed: $error');
+      onNoAnswer?.call(SurfaceDeliveryReceiptReason.offline);
       return null;
     }
     checkPublication();
@@ -806,9 +874,12 @@ class RestageRpcClient {
         expectedTarget: expectedTarget ?? _placementTarget,
         heldArtifactBytes: held,
       );
-    } on CanonicalFormatException {
+    } on CanonicalFormatException catch (error) {
+      if (kDebugMode) {
+        debugPrint('[restage] placement response was malformed: $error');
+      }
       return PlacementBatchResponseV1.refused(
-        reason: PlacementBatchRefusalReasonV1.invalidRequest,
+        reason: PlacementBatchRefusalReasonV1.decodeFailed,
       );
     }
     final confirmation = switch (response) {
@@ -835,7 +906,7 @@ class RestageRpcClient {
       checkPublication();
       if (artifacts == null) {
         return PlacementBatchResponseV1.refused(
-          reason: PlacementBatchRefusalReasonV1.invalidRequest,
+          reason: PlacementBatchRefusalReasonV1.decodeFailed,
         );
       }
       attachPlacementArtifacts(response, artifacts);

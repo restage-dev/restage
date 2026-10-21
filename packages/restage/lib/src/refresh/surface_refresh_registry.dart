@@ -31,7 +31,12 @@ final class SurfaceRefreshHandle {
     this.invalidatePlacement,
     this.renderedSurface,
     this.placementWatch,
+    this.firstLoadInFlight,
   });
+
+  /// Whether the surface's first load is still resolving. That load already
+  /// asks for the latest content, so an app resume skips the surface.
+  final bool Function()? firstLoadInFlight;
 
   /// Wire identity of the mounted surface.
   final SurfaceRef surface;
@@ -260,8 +265,9 @@ final class SurfaceRefreshRegistry {
     }
     await _sweep(_handles.where(
       (h) =>
-          h.triggers.contains(SurfaceRefreshTrigger.appResume) ||
-          h.triggers.contains(SurfaceRefreshTrigger.updateChannel),
+          (h.triggers.contains(SurfaceRefreshTrigger.appResume) ||
+              h.triggers.contains(SurfaceRefreshTrigger.updateChannel)) &&
+          !(h.firstLoadInFlight?.call() ?? false),
     ));
   }
 

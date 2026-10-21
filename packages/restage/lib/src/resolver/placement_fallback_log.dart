@@ -17,6 +17,19 @@ void debugLogPlacementFallback(
       '(${placementFallbackReason(reason, detail)}): ${_hint(reason)}');
 }
 
+final Set<(String, String)> _loggedNoAnswers = {};
+
+/// Prints one debug-build line the first time [placement] gets no answer for
+/// [reason]; release builds print nothing.
+@internal
+void debugLogPlacementNoAnswer(PlacementKeyV1 placement, String reason,
+    [Object? error]) {
+  if (!kDebugMode || !_loggedNoAnswers.add((placement.value, reason))) return;
+  debugPrint('[restage] placement ${placement.value} shows its fallback '
+      '($reason): no answer from the service'
+      '${error == null ? '' : ' ($error)'}.');
+}
+
 /// The reported reason: the server's code, then its detail when it sent one.
 @internal
 String placementFallbackReason(
@@ -25,7 +38,10 @@ String placementFallbackReason(
 
 /// Forgets which fallbacks were logged.
 @internal
-void resetPlacementFallbackLog() => _logged.clear();
+void resetPlacementFallbackLog() {
+  _logged.clear();
+  _loggedNoAnswers.clear();
+}
 
 String _hint(PlacementBatchRefusalReasonV1 reason) => switch (reason) {
       PlacementBatchRefusalReasonV1.unavailable =>
@@ -49,4 +65,7 @@ String _hint(PlacementBatchRefusalReasonV1 reason) => switch (reason) {
         'an experiment needs an assignment key. Check identity setup.',
       PlacementBatchRefusalReasonV1.assignmentUnavailable =>
         'its experiment assignment expired. The next mount enrolls again.',
+      PlacementBatchRefusalReasonV1.decodeFailed =>
+        'the server response could not be read. Check that the SDK and the '
+            'server are current.',
     };

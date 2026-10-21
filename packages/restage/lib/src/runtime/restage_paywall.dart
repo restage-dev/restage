@@ -364,6 +364,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         widget.id,
         widgetOverride: widget.liveRefresh,
       ),
+      firstLoadInFlight: () => _firstLoadInFlight,
       canSwap: _canSwap,
       refresh: _refresh,
       renderedVersion: () => _resolvedPaywallPublishedVersion,
@@ -464,16 +465,37 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// Re-resolve this surface in place. Never throws into the widget — a failed
   /// refresh keeps the current render (staleness is never an error state).
   Future<void> _refresh() async {
-    // Nothing has rendered yet: the in-flight mount fetch is already
-    // fresh-first, so a refresh would be redundant (and could race it).
-    // A settled load error has no fetch in flight and may refresh.
-    if (_blobPresentation == null &&
-        !(_flowTransaction?.isCommitted ?? false) &&
-        !_showDeadlineFallback &&
-        _error == null) {
+    // A refresh would race the first load; it runs once that load settles.
+    if (_firstLoadInFlight) {
+      _deferRefreshUntilSettled();
       return;
     }
     await _load(isRefresh: true);
+  }
+
+  bool get _firstLoadInFlight =>
+      _blobPresentation == null &&
+      !(_flowTransaction?.isCommitted ?? false) &&
+      !_showDeadlineFallback &&
+      _error == null;
+
+  bool _refreshAfterFirstLoad = false;
+
+  void _deferRefreshUntilSettled() {
+    if (_refreshAfterFirstLoad) return;
+    _refreshAfterFirstLoad = true;
+    // Settling sets state, so the frame after it runs the check.
+    void check(Duration _) {
+      if (!mounted || !_refreshAfterFirstLoad) return;
+      if (_firstLoadInFlight) {
+        WidgetsBinding.instance.addPostFrameCallback(check);
+        return;
+      }
+      _refreshAfterFirstLoad = false;
+      if (_canSwap()) unawaited(_refresh());
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback(check);
   }
 
   @override
@@ -1110,7 +1132,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
   ) =>
       RestagePaywallError(
         code: RestageErrorCodes.unknown,
-        message: 'Unexpected: $error',
+        // A programming error keeps its guidance; other failures stay generic.
+        message: error is Error
+            ? 'The surface could not be loaded: $error'
+            : 'The surface could not be loaded.',
         cause: error,
         stackTrace: stackTrace,
       );

@@ -18,6 +18,8 @@ import '../resolver/placement_mount_resolver.dart'
 import '../refresh/surface_update_channel.dart';
 import 'installed_widget_vocabulary.dart';
 import '../restage_rpc_client/placement_delivery_adapter.dart';
+import '../delivery/surface_delivery_receipt.dart'
+    show SurfaceDeliveryReceiptReason;
 import '../restage_rpc_client/restage_rpc_client.dart';
 import 'placement_mount.dart';
 
@@ -97,10 +99,12 @@ final class PlacementRegistry {
       Future<void>? keyDeadline,
       bool Function()? publicationGuard,
       SurfaceAssignmentResolutionLease? retainedLease,
-      PlacementBatchModeV1 mode = PlacementBatchModeV1.mount}) async {
+      PlacementBatchModeV1 mode = PlacementBatchModeV1.mount,
+      void Function(String reason)? onDeclined}) async {
     final declarations =
         Map<PlacementMountRequestV1, SurfaceHostContractV1>.of(_mounts);
     if (mounts.isEmpty || !isCurrent() || !(publicationGuard?.call() ?? true)) {
+      onDeclined?.call(placementSupersededReason);
       return null;
     }
     return DeliveryInputBudget.run((budget) async {
@@ -111,10 +115,16 @@ final class PlacementRegistry {
           slug: mounts.first.defaultSurface?.slug ?? 'placement',
           sendAssignmentKey: sendAssignmentKey,
           keyDeadline: keyDeadline);
-      if (!isCurrent() ||
-          !(publicationGuard?.call() ?? true) ||
-          !inputs.lease.isCurrent ||
-          !inputs.lease.canSend) {
+      if (!isCurrent() || !(publicationGuard?.call() ?? true)) {
+        onDeclined?.call(placementSupersededReason);
+        return null;
+      }
+      if (!inputs.lease.isCurrent) {
+        onDeclined?.call(placementStaleReason);
+        return null;
+      }
+      if (!inputs.lease.canSend) {
+        onDeclined?.call(PlacementBatchRefusalReasonV1.enrollmentRequired.name);
         return null;
       }
       final observations = inputs.builtIns == null
@@ -124,7 +134,10 @@ final class PlacementRegistry {
       final platform = observations['platform'] as String? ??
           normalizeDeliveryPlatform(
               isWeb: kIsWeb, targetPlatform: defaultTargetPlatform);
-      if (platform == null) return null;
+      if (platform == null) {
+        onDeclined?.call(SurfaceDeliveryReceiptReason.unsupported.name);
+        return null;
+      }
       onBuildInputs?.call(platform, observations['appBuildOrdinal'] as int?);
       final build = PlacementBuildContractV1(
           platform: platform,
@@ -202,7 +215,12 @@ final class PlacementRegistry {
                   inputs.installedCapabilityHash &&
               (cell == null ||
                   placementInputStamp(cell.currentBuiltInsBase64, now()) ==
-                      stamp));
+                      stamp),
+          capabilityChanged: () =>
+              currentInstalledCapability().contentHash !=
+              inputs.installedCapabilityHash,
+          superseded: () =>
+              !isCurrent() || !(publicationGuard?.call() ?? true));
     });
   }
 
@@ -241,9 +259,8 @@ final class PlacementRegistry {
         publicationGuard: accepted.context.isCurrent);
     if (context == null) return const PlacementRefreshProbeV1.unavailable();
     Duration? retryAfter;
-    final response = await client().fetchPlacements(context.request,
-        publicationGuard: context.isCurrent,
-        registrationLease: context.lease,
+    // A request whose inputs changed in flight needs a fresh decision.
+    final response = await fetchBatch(context,
         expectedTarget: accepted.delivery.mount.placement.target,
         onRateLimited: (delay) => retryAfter = delay);
     if (retryAfter != null) {
@@ -265,27 +282,63 @@ final class PlacementRegistry {
             watch: watch);
   }
 
+  /// Posts [context]'s batch. With no answer, [onNoAnswer] says why: a
+  /// [SurfaceDeliveryReceiptReason] name, or [placementStaleReason].
+  Future<PlacementBatchResponseV1?> fetchBatch(PlacementRequestContext context,
+      {TargetCoordinate? expectedTarget,
+      void Function(Duration retryAfter)? onRateLimited,
+      void Function(String reason)? onNoAnswer,
+      void Function()? onStaleBeforeSend}) async {
+    if (!context.isCurrent()) {
+      if (context.superseded()) {
+        onNoAnswer?.call(placementSupersededReason);
+        return null;
+      }
+      // Nothing left the device; a request gathered before new widgets
+      // were installed may be gathered again.
+      if (context.capabilityChanged()) onStaleBeforeSend?.call();
+      onNoAnswer?.call(placementStaleReason);
+      return null;
+    }
+    try {
+      return await client().fetchPlacements(context.request,
+          publicationGuard: context.isCurrent,
+          registrationLease: context.lease,
+          expectedTarget: expectedTarget,
+          onRateLimited: onRateLimited,
+          onNoAnswer: (reason) => onNoAnswer?.call(reason.name));
+    } on SurfaceRequestPublicationRejected {
+      onNoAnswer?.call(placementStaleReason);
+      return null;
+    }
+  }
+
   Future<
           ({
             PlacementBatchResolvedV1 response,
             PlacementDeliveryArtifacts artifacts
           })?>
       fetch(PlacementRequestContext context,
-          {void Function(PlacementBatchRefusalReasonV1 reason)?
-              onRefused}) async {
-    final response = await client().fetchPlacements(context.request,
-        publicationGuard: context.isCurrent,
-        registrationLease: context.lease,
-        expectedTarget: target);
-    if (response is PlacementBatchRefusedV1 && context.isCurrent()) {
-      onRefused?.call(response.reason);
-    }
-    if (response is! PlacementBatchResolvedV1 || !context.isCurrent()) {
+          {void Function(PlacementBatchRefusalReasonV1 reason)? onRefused,
+          void Function(String reason)? onNoAnswer,
+          void Function()? onStaleBeforeSend}) async {
+    final response = await fetchBatch(context,
+        expectedTarget: target,
+        onNoAnswer: onNoAnswer,
+        onStaleBeforeSend: onStaleBeforeSend);
+    if (response == null) return null;
+    if (!context.isCurrent()) {
+      onNoAnswer?.call(placementStaleReason);
       return null;
     }
+    if (response is PlacementBatchRefusedV1) onRefused?.call(response.reason);
+    if (response is! PlacementBatchResolvedV1) return null;
     await _forgetUnprovenCarriers(context, response);
     final artifacts = placementArtifactsFor(response);
-    if (artifacts == null) return null;
+    if (artifacts == null) {
+      onNoAnswer?.call(PlacementBatchRefusalReasonV1.decodeFailed.name);
+      return null;
+    }
     for (var index = 0; index < response.decisions.length; index++) {
       final entry = response.decisions[index];
       if (entry is! PlacementBatchAvailableV1) continue;
@@ -418,6 +471,16 @@ final class PlacementRegistry {
   }
 }
 
+/// Why a placement request brought no answer when its inputs changed in
+/// flight.
+@internal
+const String placementStaleReason = 'stale';
+
+/// The mount or configuration a placement request was for is gone; nothing
+/// reports it.
+@internal
+const String placementSupersededReason = 'superseded';
+
 @internal
 final class PlacementRequestContext {
   PlacementRequestContext(
@@ -425,12 +488,24 @@ final class PlacementRequestContext {
       required this.lease,
       required this.inputStamp,
       required this.capturedAt,
-      required this.isCurrent});
+      required this.isCurrent,
+      bool Function()? capabilityChanged,
+      bool Function()? superseded})
+      : capabilityChanged = capabilityChanged ?? _unchanged,
+        superseded = superseded ?? _unchanged;
   final PlacementBatchRequestV1 request;
   final SurfaceAssignmentResolutionLease lease;
   final String inputStamp;
   final DateTime capturedAt;
   final bool Function() isCurrent;
+
+  /// Whether the installed widgets changed since the request was gathered.
+  final bool Function() capabilityChanged;
+
+  /// Whether the mount or configuration the request was for is gone.
+  final bool Function() superseded;
+
+  static bool _unchanged() => false;
 }
 
 @internal
