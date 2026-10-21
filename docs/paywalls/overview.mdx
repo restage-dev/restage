@@ -68,6 +68,25 @@ The two prices are constructor parameters, so your app passes them in at render 
 as [host data](/authoring/host-data). Each button sends an event with a name you choose
 and, optionally, a map of values.
 
+Event names are yours to choose, except `purchase`, `restore`, the SDK's own
+`restage.purchase…` and `restage.restore…` names, and `__restage_measurement_tap_v1`.
+Use a name such as `restore_purchases` instead. A paywall can also declare its events as
+`SurfaceEvent` constants and fire them with `surfaceEvent`, as a flow screen does; your
+app receives the same `PaywallCustomEvent`, with a value under `args['value']`.
+
+## Complete a paywall
+
+`@Paywall(completesOn: [...])` names the events that count as a completed paywall in
+analytics, such as starting a trial. A tap fires one with `paywallEvent('start_trial')`
+or `surfaceEvent(ProUpgradePaywall.startTrial)`, on a built-in widget's callback or on
+your own widget's callback, including inside a wrapper widget. The build stops if no
+tap fires a named event.
+
+To let a parent `GestureDetector` own the tap over a widget that has its own, wrap the
+child in `IgnorePointer` and set `behavior: HitTestBehavior.opaque` on the detector, as
+in Flutter. Without `opaque`, the detector only receives taps its child receives, so an
+ignored child loses them.
+
 Run the build to compile it:
 
 ```sh
@@ -124,11 +143,8 @@ ones you care about and ignore the rest.
   wrote. Your app decides what each one does: start a purchase, open the terms, push a
   screen.
 
-The build stops with an error if a surface uses the event names `purchase` or
-`restore`, one of the SDK's own `restage.purchase…` or `restage.restore…` names,
-or the measurement name `__restage_measurement_tap_v1`. It also stops if a surface
-calls the older `paywallPurchase` and `paywallPriceFor` helpers. Use your own event
-names.
+The build stops with an error if a surface uses one of the reserved event names
+above, or calls the older `paywallPurchase` and `paywallPriceFor` helpers.
 
 ## Multi-screen paywalls
 

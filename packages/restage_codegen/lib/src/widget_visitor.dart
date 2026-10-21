@@ -1260,46 +1260,27 @@ PropertyType? _inferPropertyType(
 }) {
   final inferred = type_inference.inferPropertyType(t);
   if (inferred != null) return inferred;
+  if (target == WidgetVisitorTarget.rfw && _isA2uiScalarList(t)) {
+    final item = (t as InterfaceType).typeArguments.single;
+    if (item.isDartCoreString) return PropertyType.stringList;
+    if (item.isDartCoreBool) return PropertyType.booleanList;
+    if (item.isDartCoreInt) return PropertyType.integerList;
+    return PropertyType.realList;
+  }
   final fieldName = input.name;
   final ownerName = field.enclosingElement.name ?? '<unnamed>';
   final location = '${assetId.path}#$ownerName.$fieldName';
-  // A direct scalar-list property is supported on the A2UI target (it rides a
-  // DynamicList) but the RFW custom catalog has no vocabulary for it. Fail
-  // loud with a boundary-aware, custom-actionable diagnostic rather than the
-  // generic "unsupported type" message: name the widget + property, state the
-  // A2UI-supported / RFW-unsupported boundary, and name the remedies. The
-  // message keeps the "Unsupported property type <T> on <owner>.<field>" prefix
-  // the existing loud-failure assertions match.
-  if (target != WidgetVisitorTarget.a2ui && _isA2uiScalarList(t)) {
-    final boundary = switch (target) {
-      WidgetVisitorTarget.rfw =>
-        'are supported on the A2UI target but are not carried by the RFW '
-            'custom catalog',
-      WidgetVisitorTarget.widgetbook =>
-        'are supported on the A2UI target but are not admitted by automatic '
-            'Widgetbook stories; use a custom structured data class when '
-            'the list is part of a richer value',
-      WidgetVisitorTarget.a2ui => throw StateError(
-          'A2UI scalar-list boundary reached from the A2UI target.',
-        ),
-    };
-    final remedies = switch (target) {
-      WidgetVisitorTarget.rfw =>
-        'restrict the field to a supported RFW type (for example, a single '
-            'scalar or List<Widget>), or scope this package to A2UI by '
-            'disabling the RFW custom-catalog builders in build.yaml',
-      WidgetVisitorTarget.widgetbook =>
-        'use a currently admitted automatic-story type; support for this '
-            'direct shape is a Restage compiler capability gap',
-      WidgetVisitorTarget.a2ui => throw StateError(
-          'A2UI scalar-list remedies reached from the A2UI target.',
-        ),
-    };
+  // Automatic Widgetbook stories have no control for a direct scalar list.
+  if (target == WidgetVisitorTarget.widgetbook && _isA2uiScalarList(t)) {
     return _undecodable(
       reason: 'Unsupported property type ${t.getDisplayString()} '
           'on $ownerName.$fieldName. Scalar-list properties (a List of '
-          'String, int, double, num, or bool) $boundary. '
-          'Remedies: $remedies.',
+          'String, int, double, num, or bool) are supported on the RFW and '
+          'A2UI targets but are not admitted by automatic Widgetbook stories; '
+          'use a custom structured data class when the list is part of a '
+          'richer value. Remedies: use a currently admitted automatic-story '
+          'type; support for this direct shape is a Restage compiler '
+          'capability gap.',
       input: input,
       target: target,
       widgetName: widgetName,
@@ -1334,18 +1315,18 @@ PropertyType? _inferPropertyType(
     );
     return null;
   }
-  final a2uiListHint = switch (target) {
-    WidgetVisitorTarget.a2ui =>
-      ', and List<scalar> (String, int, double, num, or bool)',
-    WidgetVisitorTarget.rfw || WidgetVisitorTarget.widgetbook => '',
+  final scalarTypes = switch (target) {
+    WidgetVisitorTarget.a2ui ||
+    WidgetVisitorTarget.rfw =>
+      'any Dart enum, and List<scalar> (String, int, double, num, or bool)',
+    WidgetVisitorTarget.widgetbook => 'and any Dart enum',
   };
   return _undecodable(
     reason: 'Unsupported property type ${t.getDisplayString()} '
         'on $ownerName.$fieldName. Supported types: Widget, List<Widget>, '
         'Color, EdgeInsets(Geometry|Directional), '
         'Alignment(Geometry|Directional), FontWeight, bool, int, double, '
-        'String, VoidCallback (and similar function types), and any Dart '
-        'enum$a2uiListHint.',
+        'String, VoidCallback (and similar function types), $scalarTypes.',
     input: input,
     target: target,
     widgetName: widgetName,

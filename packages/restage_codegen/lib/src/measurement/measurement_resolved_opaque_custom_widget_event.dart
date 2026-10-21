@@ -100,23 +100,34 @@ final class MeasurementResolvedOpaqueCustomWidgetEvent
 
     final slots = <MeasurementResolvedOpaqueCustomWidgetEvent>[];
     final seenArgumentNames = <String>{};
+    final positionalParameters = constructor.formalParameters
+        .where((parameter) => !parameter.isNamed)
+        .toList(growable: false);
+    var positionalIndex = 0;
     for (final argument in occurrence.argumentList.arguments) {
-      if (argument is! NamedArgument) {
-        throw ArgumentError(
-          'An opaque measurement occurrence accepts only static named slots',
-        );
+      final FormalParameterElement? parameter;
+      if (argument is NamedArgument) {
+        parameter = argument.correspondingParameter;
+      } else {
+        if (positionalIndex >= positionalParameters.length) {
+          throw ArgumentError(
+            'An opaque measurement occurrence has more positional arguments '
+            'than $widgetClassName declares',
+          );
+        }
+        parameter = positionalParameters[positionalIndex++];
       }
-      final argumentName = argument.name.lexeme;
-      if (!seenArgumentNames.add(argumentName)) {
+      final argumentName = parameter?.name;
+      if (argumentName == null || !seenArgumentNames.add(argumentName)) {
         throw ArgumentError(
-          'An opaque measurement occurrence cannot repeat one named slot',
+          'An opaque measurement occurrence of $widgetClassName must bind '
+          'each parameter once',
         );
       }
       // Flutter keys identify widget instances at runtime only. They never
       // authorize an event slot or contribute to compiler measurement identity.
       if (argumentName == 'key') continue;
 
-      final parameter = argument.correspondingParameter;
       if (parameter is! FormalParameterElement ||
           parameter.enclosingElement is! ConstructorElement ||
           parameter.enclosingElement != constructor ||

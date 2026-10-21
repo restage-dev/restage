@@ -62,7 +62,7 @@ void main() {
         libraries.core.length +
             libraries.material.length +
             libraries.cupertino.length,
-        124);
+        126);
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
             body: RestagePaywall(

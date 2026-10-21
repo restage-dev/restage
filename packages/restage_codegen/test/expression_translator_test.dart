@@ -6619,8 +6619,7 @@ Object x() => Switch(
     final unwrapTranslator = ExpressionTranslator(
       catalog: _eventSlotCatalog(),
       helpers: HelperRegistry()
-        ..registerAll(paywallHelpers)
-        ..registerAll(onboardingHelpers)
+        ..registerAll({...paywallHelpers, ...onboardingHelpers})
         ..registerAll([_hostTextHelper('package:apps_examples')]),
     );
 
@@ -6746,6 +6745,38 @@ Object x(BuildContext context) => $body;
       expect(direct.dsl, isNotEmpty);
       expect(direct.dsl, closured.dsl);
     });
+
+    test('a String-keyed map value is the event arguments', () async {
+      final r = await lower(
+        "GestureDetector(onTap: surfaceEvent(Probe.reorderRows, {'a': 1}), "
+        "child: const Text('a'))",
+      );
+      expect(r.issues, isEmpty);
+      expect(
+        r.dsl,
+        'GestureDetector(onTap: event "reorderRows" { a: 1 }, '
+        'child: Text(text: "a"))',
+      );
+    });
+
+    for (final value in [
+      "{1: 'a'}",
+      "<Object, int>{'a': 1}",
+      "<String?, int>{'a': 1}",
+    ]) {
+      test('a map value without String keys is refused: $value', () async {
+        final r = await lower(
+          'GestureDetector(onTap: surfaceEvent(Probe.reorderRows, $value), '
+          "child: const Text('a'))",
+        );
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          [IssueCode.invalidEventConfiguration],
+        );
+        expect(r.issues.single.message, contains('keys must be Strings'));
+      });
+    }
 
     test('a failed translation reports no closure notice', () async {
       final r = await lower(

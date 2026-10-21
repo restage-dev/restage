@@ -18,4 +18,12 @@ void main() {
       lessThanOrEqualTo(RestageBuiltInCatalogCapabilities.currentVersion),
     );
   });
+
+  test('the installed catalog joins string parts', () {
+    expect(kJoinedStringClientFloor, 16);
+    expect(
+      kJoinedStringClientFloor,
+      lessThanOrEqualTo(RestageBuiltInCatalogCapabilities.currentVersion),
+    );
+  });
 }

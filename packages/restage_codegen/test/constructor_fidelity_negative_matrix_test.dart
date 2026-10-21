@@ -363,7 +363,7 @@ $_annotation
 class Probe {
   const Probe({required this.items, required this.timestamp});
 
-  /// A direct scalar list admitted only by A2UI.
+  /// A direct scalar list admitted by RFW and A2UI.
   final List<int> items;
 
   /// A host type admitted by no generated target.
@@ -393,7 +393,7 @@ class Probe {
           everyElement(contains('Target: ${target.name}')),
           reason: target.name,
         );
-        if (target == WidgetVisitorTarget.a2ui) {
+        if (target != WidgetVisitorTarget.widgetbook) {
           expect(
             result.widgets.single.properties.map((property) => property.name),
             contains('items'),

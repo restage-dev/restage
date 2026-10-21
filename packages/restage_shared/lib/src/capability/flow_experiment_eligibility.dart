@@ -703,13 +703,11 @@ void _checkActionResultPredicates(FlowDocument document) {
       if (transition is! ActionFlowTransition) continue;
       final action = document.actions[transition.action];
       if (action == null) continue;
-      final compatible = switch (transition.resultPredicate) {
-        BoolEqualsActionResultPredicate() =>
-          action.resultSchema is FlowBoolActionSchema,
-        ObjectBoolFieldEqualsActionResultPredicate(:final field) =>
-          _isRequiredBoolField(action.resultSchema, field),
-      };
-      if (!compatible) {
+      if (actionResultPredicateSchemaIssue(
+            transition.resultPredicate,
+            action.resultSchema,
+          ) !=
+          null) {
         throw _EligibilityFailure(
           FlowExperimentRejectionReason.actionBindingUnsatisfied,
           'Action "${transition.action}" has an incompatible result '
@@ -718,14 +716,6 @@ void _checkActionResultPredicates(FlowDocument document) {
       }
     }
   }
-}
-
-bool _isRequiredBoolField(FlowActionSchema schema, String field) {
-  if (schema is! FlowObjectActionSchema) return false;
-  final declared = schema.fields[field];
-  return declared != null &&
-      declared.required &&
-      declared.schema is FlowBoolActionSchema;
 }
 
 void _checkHostStatePreservation(

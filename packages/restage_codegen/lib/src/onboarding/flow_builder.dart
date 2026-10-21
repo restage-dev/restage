@@ -21,6 +21,7 @@ import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
+import 'package:restage_codegen/src/onboarding/action_result_predicate_lowering.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/onboarding/general_discipline_validators.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
@@ -1199,6 +1200,7 @@ Future<_LoweredFlow?> _lowerFlow(
     surface: descriptors.flowSurface,
     delivery: flow.delivery,
     measuresAnswers: measurementAnswers.isNotEmpty,
+    states: states,
   );
   for (final artifact in screenArtifacts.values) {
     if (artifact.minClient > minClient) minClient = artifact.minClient;
@@ -1428,6 +1430,7 @@ _ScreenNode? _parseScreenNode(
   }
   final orderedWriteCalls = writeCalls.reversed.toList();
 
+  final issuesBeforeAction = issues.length;
   final actionTransition = _parseActionTransition(
     cursor,
     target,
@@ -1437,6 +1440,8 @@ _ScreenNode? _parseScreenNode(
     issues,
     assetId,
   );
+  // A refused action already says what to change.
+  if (issues.length > issuesBeforeAction) return null;
   final onCall =
       actionTransition?.onCall ?? (cursor is MethodInvocation ? cursor : null);
   if (onCall is! MethodInvocation || onCall.methodName.name != 'on') {
@@ -2032,6 +2037,19 @@ _ParsedActionTransition? _parseActionTransition(
   final contract = actionContracts[action.actionName] ??
       _actionContract(action, minClient, issues, assetId);
   if (predicate == null || contract == null) return null;
+  final schemaIssue =
+      actionResultPredicateSchemaIssue(predicate, contract.resultSchema);
+  if (schemaIssue != null) {
+    issues.add(
+      Issue(
+        code: IssueCode.unsupportedActionResultPredicate,
+        message: 'The host action result check cannot run on '
+            '${action.outputType}: $schemaIssue',
+        location: assetId.path,
+      ),
+    );
+    return null;
+  }
   return _ParsedActionTransition(
     onCall: onCall,
     transition: ActionFlowTransition(
@@ -2538,124 +2556,18 @@ FlowActionResultPredicate? _actionResultPredicate(
   List<Issue> issues,
   AssetId assetId,
 ) {
-  if (expression is! FunctionExpression) {
-    _unsupportedActionResultPredicate(expression, issues, assetId);
-    return null;
-  }
-  final parameter = _singleFunctionParameterName(expression);
-  final body = _functionExpressionBody(expression);
-  if (parameter == null || body == null) {
-    _unsupportedActionResultPredicate(expression, issues, assetId);
-    return null;
-  }
-
-  final boolValue = _boolResultPredicateValue(body, parameter);
-  if (boolValue != null && action.outputType == 'bool') {
-    return BoolEqualsActionResultPredicate(value: boolValue);
-  }
-
-  final fieldPredicate = _objectBoolFieldPredicate(body, parameter);
-  final outputType = action.outputDartType;
-  if (fieldPredicate != null &&
-      outputType != null &&
-      _objectBoolFieldIsBool(outputType, fieldPredicate.field)) {
-    return ObjectBoolFieldEqualsActionResultPredicate(
-      field: fieldPredicate.field,
-      value: fieldPredicate.value,
+  final lowered = lowerActionResultPredicate(expression, action.outputDartType);
+  final refusal = lowered.refusal;
+  if (refusal != null) {
+    issues.add(
+      Issue(
+        code: IssueCode.unsupportedActionResultPredicate,
+        message: refusal,
+        location: assetId.path,
+      ),
     );
   }
-
-  _unsupportedActionResultPredicate(expression, issues, assetId);
-  return null;
-}
-
-String? _singleFunctionParameterName(FunctionExpression expression) {
-  final parameters = expression.parameters?.parameters;
-  if (parameters == null || parameters.length != 1) return null;
-  return parameters.single.name?.lexeme;
-}
-
-Expression? _functionExpressionBody(FunctionExpression expression) {
-  final body = expression.body;
-  if (body is ExpressionFunctionBody) return body.expression;
-  return null;
-}
-
-bool? _boolResultPredicateValue(Expression expression, String parameter) {
-  if (expression is SimpleIdentifier && expression.name == parameter) {
-    return true;
-  }
-  if (expression is PrefixExpression && expression.operator.lexeme == '!') {
-    final operand = expression.operand;
-    if (operand is SimpleIdentifier && operand.name == parameter) {
-      return false;
-    }
-  }
-  return null;
-}
-
-_ObjectBoolFieldPredicate? _objectBoolFieldPredicate(
-  Expression expression,
-  String parameter,
-) {
-  final positive = _objectBoolFieldName(expression, parameter);
-  if (positive != null) {
-    return _ObjectBoolFieldPredicate(field: positive, value: true);
-  }
-  if (expression is PrefixExpression && expression.operator.lexeme == '!') {
-    final negative = _objectBoolFieldName(expression.operand, parameter);
-    if (negative != null) {
-      return _ObjectBoolFieldPredicate(field: negative, value: false);
-    }
-  }
-  return null;
-}
-
-String? _objectBoolFieldName(Expression expression, String parameter) {
-  if (expression is PrefixedIdentifier && expression.prefix.name == parameter) {
-    return expression.identifier.name;
-  }
-  if (expression is PropertyAccess &&
-      expression.target is SimpleIdentifier &&
-      (expression.target! as SimpleIdentifier).name == parameter) {
-    return expression.propertyName.name;
-  }
-  return null;
-}
-
-bool _objectBoolFieldIsBool(DartType type, String fieldName) {
-  if (type is! InterfaceType || _isDartCoreType(type)) return false;
-  for (final field in type.element.fields) {
-    // `isOriginDeclaration` is the modern replacement for the deprecated
-    // `!isSynthetic` — it selects source-declared instance fields and excludes
-    // the synthetic getter/setter-induced fields. (The two diverge only for
-    // Dart-3 primary-constructor fields, which `isOriginDeclaration` excludes;
-    // that language feature is off-by-default here, so the behavior is
-    // unchanged today — revisit if primary constructors stabilize.)
-    if (field.name == fieldName &&
-        !field.isStatic &&
-        field.isOriginDeclaration &&
-        field.isFinal &&
-        field.type.getDisplayString() == 'bool') {
-      return true;
-    }
-  }
-  return false;
-}
-
-void _unsupportedActionResultPredicate(
-  Expression? expression,
-  List<Issue> issues,
-  AssetId assetId,
-) {
-  issues.add(
-    Issue(
-      code: IssueCode.buildMethodTooComplex,
-      message: 'unsupported action result predicate: '
-          '${expression?.toSource() ?? '<missing>'}.',
-      location: assetId.path,
-    ),
-  );
+  return lowered.predicate;
 }
 
 FlowActionContract? _actionContract(
@@ -2720,7 +2632,7 @@ void _unsupportedActionSchemaEnumType(
   final display = type.getDisplayString();
   issues.add(
     Issue(
-      code: IssueCode.buildMethodTooComplex,
+      code: IssueCode.unsupportedActionContract,
       message: 'unsupported action schema enum type: $display. '
           'Dart enum action argument/result types are not supported yet; '
           'use String with explicit wire values.',
@@ -2774,9 +2686,10 @@ FlowActionSchema? _schemaForActionType(
         final fieldName = name ?? '<unnamed>';
         issues.add(
           Issue(
-            code: IssueCode.buildMethodTooComplex,
-            message: 'unsupported action schema field: $display.$fieldName '
-                'must be a final instance field.',
+            code: IssueCode.unsupportedActionContract,
+            message: 'The host action type $display has a field '
+                "'$fieldName' that is not final. Declare it final so the "
+                'flow can read and check it.',
             location: assetId.path,
           ),
         );
@@ -2795,7 +2708,7 @@ FlowActionSchema? _schemaForActionType(
 
   issues.add(
     Issue(
-      code: IssueCode.buildMethodTooComplex,
+      code: IssueCode.unsupportedActionContract,
       message: 'unsupported action schema type: $display.',
       location: assetId.path,
     ),
@@ -4597,7 +4510,7 @@ void _unsupportedActionSchemaString(
 ) {
   issues.add(
     Issue(
-      code: IssueCode.buildMethodTooComplex,
+      code: IssueCode.unsupportedActionContract,
       message: 'unsupported action schema string: generated schema strings '
           'must be ASCII and cannot contain dollar signs in this generator '
           'version; '
@@ -5378,16 +5291,6 @@ final class _ParsedActionTransition {
   final MethodInvocation onCall;
   final ActionFlowTransition transition;
   final FlowActionContract contract;
-}
-
-final class _ObjectBoolFieldPredicate {
-  const _ObjectBoolFieldPredicate({
-    required this.field,
-    required this.value,
-  });
-
-  final String field;
-  final bool value;
 }
 
 final class _RefValueSource {

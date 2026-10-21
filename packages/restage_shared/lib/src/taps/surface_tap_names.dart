@@ -82,11 +82,16 @@ String? _first(Object? node, Object? Function(ConstructorCall call) pick) {
   return null;
 }
 
-/// [value] as a single-line name within the bound, or null when it is not a
-/// literal string with visible text.
+/// [value] as a single-line name within the bound, or null when it has no
+/// literal text. A string joined from parts is named by its literal parts.
 String? _bounded(Object? value) {
-  if (value is! String) return null;
-  final name = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+  final text = switch (value) {
+    final String text => text,
+    final List<Object?> parts => parts.whereType<String>().join(),
+    _ => null,
+  };
+  if (text == null) return null;
+  final name = text.trim().replaceAll(RegExp(r'\s+'), ' ');
   if (name.isEmpty) return null;
   return name.length <= kSurfaceTapNameLimit
       ? name

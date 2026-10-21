@@ -243,6 +243,8 @@ final class ListShape extends CatalogValueShape {
           propertyType == PropertyType.widgetList ||
               propertyType == PropertyType.stringList ||
               propertyType == PropertyType.booleanList ||
+              propertyType == PropertyType.integerList ||
+              propertyType == PropertyType.realList ||
               propertyType == PropertyType.boxShadowList ||
               propertyType == PropertyType.shadowList ||
               propertyType == PropertyType.fontFeatureList ||

@@ -190,10 +190,9 @@ void main() {
           'constructor default',
     );
     expect(
-      dart,
-      isNot(contains('#labels:')),
-      reason: 'RFW has no direct scalar-list wire shape, so Dart must apply '
-          'the constructor default instead of leaking A2UI vocabulary',
+      flat,
+      contains('#labels: RestageDecoders.stringList(source,'),
+      reason: 'a scalar-list property decodes through its list decoder',
     );
     for (final property in [
       'tone',

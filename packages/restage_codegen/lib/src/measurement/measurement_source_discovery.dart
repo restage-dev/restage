@@ -293,7 +293,7 @@ abstract final class MeasurementSourceDiscovery {
       return _MeasurementSourceDiscovery(input).discover();
     } on Object catch (error) {
       return MeasurementSourceDiscoveryResult._rejected(
-        reason: error.toString(),
+        reason: error is ArgumentError ? '${error.message}' : '$error',
       );
     }
   }
@@ -366,7 +366,7 @@ abstract final class MeasurementSourceDiscovery {
       );
     } on Object catch (error) {
       return MeasurementFlowSourceClosureResult._rejected(
-        reason: error.toString(),
+        reason: error is ArgumentError ? '${error.message}' : '$error',
       );
     }
   }
@@ -483,6 +483,7 @@ final class _MeasurementSourceDiscovery {
     Expression source,
     _WidgetVisitContext context,
   ) {
+    if (_walkedAtCallSite(source, context)) return;
     final resolved = _resolvedWidgetSource(source, context);
     final expression = resolved.expression;
     if (expression is ConditionalExpression) {
@@ -618,6 +619,7 @@ final class _MeasurementSourceDiscovery {
     required MeasurementWidgetOccurrence parent,
     required FormalParameterElement slot,
   }) {
+    if (_walkedAtCallSite(source, context)) return;
     final resolved = _resolvedWidgetSource(source, context);
     final semantics = _collectionSemanticProbe(resolved.context);
     final budget = CollectionUnrollBudget();
@@ -702,9 +704,12 @@ final class _MeasurementSourceDiscovery {
       CollectionSemanticProbe(
         bindingFor: (identifier) {
           final element = _referencedElement(identifier);
-          return element == null
+          final binding =
+              element == null ? null : context.expressionBindings[element];
+          // A widget argument walked where it was passed stays a reference.
+          return binding == null || binding.walkedAtCallSite
               ? null
-              : context.expressionBindings[element]?.expression;
+              : binding.expression;
         },
         helperFor: (invocation) {
           if (!isArtifactHelperInvocation(
@@ -813,8 +818,14 @@ final class _MeasurementSourceDiscovery {
           emissionOccurrence: resolvedSource.emissionOccurrence,
         );
       }
-      // The occurrence and its declared slots are in the emitted graph. Its
-      // private Flutter implementation remains a terminal compiler boundary.
+      // Widget slots travel in the blob, so their children are walked; the
+      // widget's own build() stays a terminal compiler boundary.
+      _visitOpaqueSlotChildren(
+        arguments,
+        customClass: customClass,
+        node: node,
+        context: context,
+      );
       return;
     }
     final node = _recordNode(
@@ -825,6 +836,14 @@ final class _MeasurementSourceDiscovery {
       expression,
       customClass,
       node.occurrence,
+    );
+    // Widget arguments are walked where they are passed, as the translator
+    // emits them; the body's reads of those fields are not walked again.
+    _visitOpaqueSlotChildren(
+      _resolvedArguments(expression, customClass),
+      customClass: customClass,
+      node: node,
+      context: context,
     );
     final inlineContext = context.enterInline(
       parent: node.occurrence,
@@ -837,6 +856,47 @@ final class _MeasurementSourceDiscovery {
       convergentSources: bindings.values.map((binding) => binding.expression),
     );
     _visitWidgetExpression(blueprint.buildExpression, inlineContext);
+  }
+
+  void _visitOpaqueSlotChildren(
+    List<_ResolvedArgument> arguments, {
+    required InterfaceElement customClass,
+    required MeasurementDiscoveredNode node,
+    required _WidgetVisitContext context,
+  }) {
+    final childOrdinals = <String, int>{};
+    for (final argument in arguments) {
+      final parameter = argument.parameter;
+      final parameterName = parameter.name ?? '';
+      if (_isWidgetType(parameter.type)) {
+        final ordinal = childOrdinals.update(
+          parameterName,
+          (value) => value + 1,
+          ifAbsent: () => 0,
+        );
+        _visitWidgetExpression(
+          argument.value,
+          context.child(
+            parent: node.occurrence,
+            slot: parameter,
+            ordinal: ordinal,
+          ),
+        );
+      } else if (_isWidgetListType(parameter.type)) {
+        _visitWidgetList(
+          argument.value,
+          context: context,
+          parent: node.occurrence,
+          slot: parameter,
+        );
+      } else if (_returnsWidget(parameter.type)) {
+        throw ArgumentError(
+          "The widget builder '$parameterName' of ${customClass.name} is "
+          'built by app code, so taps inside it cannot be measured; pass the '
+          'child as a Widget instead',
+        );
+      }
+    }
   }
 
   MeasurementDiscoveredNode _recordNode({
@@ -1158,6 +1218,8 @@ final class _MeasurementSourceDiscovery {
         final binding = _MeasurementExpressionBinding(
           expression: value,
           eventOccurrence: occurrence.event(parameter),
+          walkedAtCallSite: _isWidgetType(parameter.type) ||
+              _isWidgetListType(parameter.type),
         );
         final previous = bindings[field];
         if (previous != null && !identical(previous.expression, value)) {
@@ -1169,6 +1231,12 @@ final class _MeasurementSourceDiscovery {
       }
     }
     return UnmodifiableMapView(bindings);
+  }
+
+  bool _walkedAtCallSite(Expression source, _WidgetVisitContext context) {
+    final element = _referencedElement(_withoutParentheses(source));
+    return element != null &&
+        (context.expressionBindings[element]?.walkedAtCallSite ?? false);
   }
 
   Expression? _boundWidgetExpression(
@@ -1380,10 +1448,14 @@ final class _MeasurementExpressionBinding {
   const _MeasurementExpressionBinding({
     required this.expression,
     this.eventOccurrence,
+    this.walkedAtCallSite = false,
   });
 
   final Expression expression;
   final MeasurementEventOccurrence? eventOccurrence;
+
+  /// A widget argument of an inlined custom widget, walked where it is passed.
+  final bool walkedAtCallSite;
 }
 
 Map<Element, _MeasurementExpressionBinding> _plainExpressionBindings(

@@ -407,7 +407,7 @@ Widget buildFilterChip(BuildContext context, DataSource source) {
 /// Builds the catalog's `FloatingActionButton` widget from [source].
 Widget buildFloatingActionButton(BuildContext context, DataSource source) {
   return FloatingActionButton(
-    tooltip: source.v<String>(const <Object>['tooltip']),
+    tooltip: RestageDecoders.string(source, <Object>['tooltip']),
     foregroundColor:
         ArgumentDecoders.color(source, <Object>['foregroundColor']),
     backgroundColor:
@@ -447,7 +447,7 @@ Widget buildIconButton(BuildContext context, DataSource source) {
         RestageDecoders.constraintScalar(source, <Object>['iconSize']) ?? 24.0,
     color: ArgumentDecoders.color(source, <Object>['color']),
     onPressed: source.voidHandler(const <Object>['onPressed']),
-    tooltip: source.v<String>(const <Object>['tooltip']),
+    tooltip: RestageDecoders.string(source, <Object>['tooltip']),
     icon: source.child(const <Object>['icon']),
   );
 }
@@ -489,7 +489,7 @@ Widget buildListTile(BuildContext context, DataSource source) {
 Widget buildMaterialApp(BuildContext context, DataSource source) {
   return MaterialApp(
     home: source.optionalChild(const <Object>['home']),
-    title: source.v<String>(const <Object>['title']) ?? '',
+    title: RestageDecoders.string(source, <Object>['title']) ?? '',
   );
 }
 
@@ -516,7 +516,7 @@ Widget buildRestageModalSheet(BuildContext context, DataSource source) {
         Clip.values, source, <Object>['clipBehavior']),
     useSafeArea: source.v<bool>(const <Object>['useSafeArea']) ?? false,
     barrierColor: ArgumentDecoders.color(source, <Object>['barrierColor']),
-    barrierLabel: source.v<String>(const <Object>['barrierLabel']),
+    barrierLabel: RestageDecoders.string(source, <Object>['barrierLabel']),
     anchorPoint: RestageDecoders.offset(source, <Object>['anchorPoint']),
     enterDuration: RestageDecoders.duration(source, <Object>['enterDuration']),
     exitDuration: RestageDecoders.duration(source, <Object>['exitDuration']),
@@ -555,7 +555,7 @@ Widget buildRestageRadioGroupString(BuildContext context, DataSource source) {
   return RestageRadioGroup<String>(
     items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
         (throw ArgumentError('RestageRadioGroupString.items is required.')),
-    selected: source.v<String>(const <Object>['selected']),
+    selected: RestageDecoders.string(source, <Object>['selected']),
     onChanged: RestageDecoders.valueChanged<String?>(
         source, const <Object>['onChanged']),
   );
@@ -566,7 +566,7 @@ Widget buildRestageDropdownString(BuildContext context, DataSource source) {
   return RestageDropdown<String>(
     items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
         (throw ArgumentError('RestageDropdownString.items is required.')),
-    selected: source.v<String>(const <Object>['selected']),
+    selected: RestageDecoders.string(source, <Object>['selected']),
     onChanged: RestageDecoders.valueChanged<String?>(
         source, const <Object>['onChanged']),
   );
@@ -709,7 +709,7 @@ Widget buildSlider(BuildContext context, DataSource source) {
     min: source.v<double>(const <Object>['min']) ?? 0.0,
     max: source.v<double>(const <Object>['max']) ?? 1.0,
     divisions: source.v<int>(const <Object>['divisions']),
-    label: source.v<String>(const <Object>['label']),
+    label: RestageDecoders.string(source, <Object>['label']),
   );
 }
 
@@ -843,7 +843,7 @@ Widget buildTabBar(BuildContext context, DataSource source) {
 /// Builds the catalog's `Tab` widget from [source].
 Widget buildTab(BuildContext context, DataSource source) {
   return Tab(
-    text: source.v<String>(const <Object>['text']),
+    text: RestageDecoders.string(source, <Object>['text']),
     icon: source.optionalChild(const <Object>['icon']),
     iconMargin: RestageDecoders.edgeInsets(source, <Object>['iconMargin']),
     height: RestageDecoders.layoutFactor(source, <Object>['height']),
@@ -895,7 +895,7 @@ Widget buildTextField(BuildContext context, DataSource source) {
 /// Builds the catalog's `Tooltip` widget from [source].
 Widget buildTooltip(BuildContext context, DataSource source) {
   return Tooltip(
-    message: source.v<String>(const <Object>['message']) ??
+    message: RestageDecoders.string(source, <Object>['message']) ??
         (throw ArgumentError('Tooltip.message is required.')),
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),

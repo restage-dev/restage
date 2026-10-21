@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+Custom widgets accept `List<String>`, `List<bool>`, `List<int>`,
+`List<double>` and `List<num>` properties. Taps inside the widget slots of a
+custom widget, and on its positional arguments, are measured. A `String`
+property of a built-in widget or of a custom widget the app renders can join
+text and values, and an interpolation can read a `build()` local or a
+condition. `continueWhen` accepts `true` and comparisons joined with `&&`,
+checked against the result type at build. A paywall can fire `surfaceEvent`.
+The Measurement index records why a surface compiles unmeasured. Generated
+factories need `restage_core` 2.1.0 or newer, and the build says so; release
+`restage_core`, `restage_cli` and this package together.
+
 A new `render_catalog` builder writes the merged catalog a render bundle is
 built against: the built-in catalogs and every custom catalog in the app's
 dependency graph. `restage build push` reads it, so widgets from a dependency

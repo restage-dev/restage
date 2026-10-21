@@ -368,6 +368,11 @@ supported lists, maps, records, enums, and defaults. Every `Widget` and `List<Wi
 constructor input becomes a child property under its own name. Callbacks with no
 argument or one value argument keep their Dart names.
 
+Taps on your widget's callbacks are measured, and so are taps inside the children you
+pass to its `Widget` and `List<Widget>` inputs, so a wrapper such as a background or a
+card doesn't hide them. When the build can't measure a surface, it says why in a
+warning, and `restage surface push` repeats it.
+
 The [target matrix](/authoring/custom-widget-target-matrix) lists what RFW, A2UI, and
 Widgetbook each accept. Anything a target can't handle is a build error. The build
 doesn't drop data or ask you to write glue code to cover the gap.

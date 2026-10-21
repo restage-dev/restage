@@ -223,7 +223,9 @@ class Probe {
       );
       expect(
         flat,
-        contains('source.v<String>(restagePresenceLabel.valuePath)'),
+        contains(
+          'RestageDecoders.string(source, restagePresenceLabel.valuePath)',
+        ),
       );
       expect(
         flat,

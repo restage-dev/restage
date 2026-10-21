@@ -23,6 +23,16 @@ ElevatedButton(onPressed: event "buy" {}, tooltip: "Purchase",
       );
     });
 
+    test('names an element by the literal parts of a joined label', () {
+      expect(
+        surfaceTapSemanticsLabel(
+          _root('Semantics(label: ["Choose ", data.plan, " plan"], '
+              'child: Text(text: "x"))'),
+        ),
+        'Choose plan',
+      );
+    });
+
     test('falls back to a semantics label, then a tooltip, then an icon', () {
       expect(
         surfaceTapElementName(

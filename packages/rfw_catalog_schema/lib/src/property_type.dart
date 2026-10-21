@@ -77,6 +77,12 @@ enum PropertyType {
   /// selection flag list).
   booleanList,
 
+  /// A list of integer literals.
+  integerList,
+
+  /// A list of floating-point literals.
+  realList,
+
   /// A callback handler whose event identity is the Dart property name.
   event,
 

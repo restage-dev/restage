@@ -74,9 +74,7 @@ void main() {
       () {
     expect(
       compiled.log,
-      contains('Measurement is unavailable for '
-          'package:apps_examples/paywalls/combined_condition.dart'
-          '#CombinedCondition'),
+      contains('Measurement is unavailable for paywall/combined_condition: '),
     );
     expect(compiled.log, contains('combined with && or ||'));
   });

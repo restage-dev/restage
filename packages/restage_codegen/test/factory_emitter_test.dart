@@ -172,7 +172,10 @@ void main() {
       expect(source, contains("source.v<int>(const <Object>['count'])"));
       expect(source, contains("source.v<double>(const <Object>['ratio'])"));
       expect(source, contains("source.v<double>(const <Object>['size'])"));
-      expect(source, contains("source.v<String>(const <Object>['label'])"));
+      expect(
+        source,
+        contains("RestageDecoders.string(source, <Object>['label'])"),
+      );
       expect(
         source,
         contains("ArgumentDecoders.color(source, <Object>['tint'])"),
@@ -275,7 +278,10 @@ void main() {
       final source = emitFactoryFunction(entry);
 
       expect(source, isNotNull);
-      expect(source, contains("source.v<String>(const <Object>['label'])"));
+      expect(
+        source,
+        contains("RestageDecoders.string(source, <Object>['label'])"),
+      );
       expect(source, isNot(contains('analyticsId:')));
       expect(source, isNot(contains("['analyticsId']")));
     });
@@ -1616,7 +1622,7 @@ void main() {
         expect(
           source,
           contains(
-            "source.v<String>(const <Object>['url']) ?? "
+            "RestageDecoders.string(source, <Object>['url']) ?? "
             '(throw ArgumentError(',
           ),
         );
@@ -1659,8 +1665,8 @@ void main() {
         );
         final source = emitFactoryFunction(entry);
         expect(source, isNotNull);
-        final positionalIndex =
-            source!.indexOf("source.v<String>(const <Object>['src']) ??");
+        final positionalIndex = source!
+            .indexOf("RestageDecoders.string(source, <Object>['src']) ??");
         final namedIndex = source
             .indexOf("extent: source.v<double>(const <Object>['extent'])");
         expect(positionalIndex, greaterThanOrEqualTo(0));
@@ -2466,7 +2472,10 @@ void main() {
         ),
       );
       expect(source, contains('return Image.network('));
-      expect(source, contains("source.v<String>(const <Object>['url'])"));
+      expect(
+        source,
+        contains("RestageDecoders.string(source, <Object>['url'])"),
+      );
     });
 
     test('emits EdgeInsets.fromLTRB literal for 4-element list defaults', () {
@@ -2552,7 +2561,10 @@ void main() {
       );
       final source = emitFactoryFunction(entry);
       expect(source, isNotNull);
-      expect(source, contains("source.v<String>(const <Object>['label'])"));
+      expect(
+        source,
+        contains("RestageDecoders.string(source, <Object>['label'])"),
+      );
       expect(source, isNot(contains('?? ')));
     });
 
@@ -4055,7 +4067,8 @@ void main() {
           expect(
             source,
             contains(
-              "package: source.v<String>(const <Object>['fontPackage'])",
+              'package: RestageDecoders.string(source, '
+              "<Object>['fontPackage'])",
             ),
           );
           expect(source, isNot(contains('color:')));

@@ -12,7 +12,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_shared/src/capability/capability_manifest.dart';
 import 'package:restage_shared/src/capability/installed_capability.dart';
 import 'package:restage_shared/src/capability/library_compatibility.dart';
-import 'package:restage_shared/src/flow_document/flow_action_schema.dart';
+import 'package:restage_shared/src/flow_document/action_result_predicate_schema.dart';
 import 'package:restage_shared/src/flow_document/flow_active_render_gate.dart';
 import 'package:restage_shared/src/flow_document/flow_document.dart';
 import 'package:restage_shared/src/flow_document/flow_document_codec.dart';

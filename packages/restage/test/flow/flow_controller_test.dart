@@ -652,6 +652,109 @@ void main() {
       expect(seenContext?.attemptNumber, 1);
     });
 
+    for (final (name, predicate, result, advances) in [
+      ('always continues', const AlwaysActionResultPredicate(), false, true),
+      (
+        'matches a result comparison',
+        const MatchesActionResultPredicate(
+          result: NotEqualsFlowPredicateCondition(
+            value: LiteralFlowValueSource(type: FlowDataType.bool, value: true),
+          ),
+        ),
+        false,
+        true,
+      ),
+      (
+        'stays when a comparison fails',
+        const MatchesActionResultPredicate(
+          result: EqualsFlowPredicateCondition(
+            value: LiteralFlowValueSource(type: FlowDataType.bool, value: true),
+          ),
+        ),
+        false,
+        false,
+      ),
+    ]) {
+      test('a result predicate that $name', () async {
+        _FirstRunResult? completed;
+        FlowUnavailableError? unavailable;
+        final controller = RestageFlowController<_FirstRunResult>(
+          flow: _flowRef,
+          resolver: _StaticFlowResolver(
+            _resolvedFlow(
+              actions: {'requestNotifications': _actionContract()},
+              states: {
+                'welcome': ScreenFlowState(
+                  screen: 'welcome',
+                  on: {
+                    'request': ActionFlowTransition(
+                      action: 'requestNotifications',
+                      resultPredicate: predicate,
+                      target: 'done',
+                    ),
+                  },
+                ),
+                'done': const EndFlowState(result: {'completed': true}),
+              },
+            ),
+          ),
+          actions: _MatchingActionRegistry(handler: (_, __) => result),
+          onEvent: (_) {},
+          onComplete: (value) => completed = value,
+          onUnavailable: (error) => unavailable = error,
+        );
+
+        await controller.load();
+        controller.handleEvent('request', const <String, Object?>{});
+        await _drainFlowTasks();
+
+        expect(unavailable, isNull);
+        expect(completed?.completed, advances ? isTrue : isNull);
+      });
+    }
+
+    test('a comparison the result schema cannot satisfy fails closed',
+        () async {
+      FlowUnavailableError? unavailable;
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(
+            actions: {'requestNotifications': _actionContract()},
+            states: const {
+              'welcome': ScreenFlowState(
+                screen: 'welcome',
+                on: {
+                  'request': ActionFlowTransition(
+                    action: 'requestNotifications',
+                    resultPredicate: MatchesActionResultPredicate(
+                      result: GreaterThanFlowPredicateCondition(
+                        value: LiteralFlowValueSource(
+                          type: FlowDataType.int,
+                          value: 2,
+                        ),
+                      ),
+                    ),
+                    target: 'done',
+                  ),
+                },
+              ),
+              'done': EndFlowState(result: {'completed': true}),
+            },
+          ),
+        ),
+        actions: _MatchingActionRegistry(),
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+
+      await controller.load();
+
+      expect(unavailable?.reason, 'action_contract_mismatch');
+      expect(unavailable?.message, contains('cannot be compared'));
+    });
+
     test('action handler receives context with null args', () async {
       var handlerCalled = false;
       FlowActionContext? seenContext;

@@ -10,6 +10,7 @@ import 'package:restage_shared/restage_shared.dart'
         LibraryRequirement,
         WidgetVocabulary,
         kGroupedWidgetListClientFloor,
+        kJoinedStringClientFloor,
         kSurfaceFeatureClientFloor;
 import 'package:restage_shared/rfw_formats.dart' show parseLibraryFile;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -154,6 +155,18 @@ void main() {
       );
     });
 
+    test('a String slot joined from parts raises the floor', () {
+      expect(
+        floorOf('''
+          import restage.core;
+          widget Paywall = Text(
+            text: switch data.yearly {true: [data.price, " a year"], false: "Monthly"},
+          );
+        '''),
+        kJoinedStringClientFloor,
+      );
+    });
+
     test('an ordinary conditional element keeps its original floor', () {
       expect(
         floorOf('''
@@ -281,6 +294,43 @@ widget Paywall = ColoredBox(color: 0xFF000000);
       });
     }
 
+    for (final (name, root) in [
+      (
+        'GestureDetector.behavior',
+        'GestureDetector(behavior: "opaque", onTap: event "go" {}, '
+            'child: SizedBox(width: 1.0))',
+      ),
+      ('AbsorbPointer', 'AbsorbPointer(child: SizedBox(width: 1.0))'),
+      ('IgnorePointer', 'IgnorePointer(child: SizedBox(width: 1.0))'),
+      (
+        'a joined Semantics label',
+        'Semantics(label: ["Only ", data.price], child: SizedBox(width: 1.0))',
+      ),
+    ]) {
+      test('a surface using $name requires content version 16', () {
+        final result = deriveCapabilityManifest(
+          parseLibraryFile('''
+            import restage.core;
+            widget Paywall = $root;
+          '''),
+          _committedCatalog('restage_core'),
+        );
+        expect(result.issues, isEmpty);
+        expect(result.manifest!.builtInFloor, 16);
+      });
+    }
+
+    test('a GestureDetector without behavior keeps its floor', () {
+      final result = deriveCapabilityManifest(
+        parseLibraryFile('''
+          import restage.core;
+          widget Paywall = GestureDetector(onTap: event "go" {});
+        '''),
+        _committedCatalog('restage_core'),
+      );
+      expect(result.manifest!.builtInFloor, lessThan(16));
+    });
+
     test('a surface referencing no catalog widgets floors at the baseline', () {
       // A library-local `widget` definition referenced by name is not a catalog
       // lookup; with no catalog references at all the floor is the baseline.
@@ -381,6 +431,40 @@ widget Paywall = ColoredBox(color: 0xFF000000);
       expect(result.manifest!.requiredLibraries, [
         const LibraryRequirement(namespace: 'acme.widgets', minVersion: 5),
       ]);
+    });
+
+    test('a versioned custom property leaves the built-in floor', () {
+      final result = deriveCapabilityManifest(
+        parseLibraryFile('''
+          import acme.widgets;
+          widget Paywall = AcmeSwitch(on: true);
+        '''),
+        Catalog(
+          schemaVersion: kSupportedSchemaVersion,
+          generatedAt: '1970-01-01T00:00:00Z',
+          libraries: {
+            customLib:
+                const LibraryInfo(version: '1.0.0', capabilityVersion: 3),
+          },
+          widgets: [
+            entry(
+              name: 'AcmeSwitch',
+              library: customLib,
+              properties: [
+                PropertyEntry(
+                  wireId: WireId.unallocatedProperty,
+                  name: 'on',
+                  type: PropertyType.boolean,
+                  description: '',
+                  sinceVersion: 9,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      expect(result.issues, isEmpty);
+      expect(result.manifest!.builtInFloor, kBaselineCatalogVersion);
     });
 
     test('a referenced custom library contributes its capabilityVersion', () {

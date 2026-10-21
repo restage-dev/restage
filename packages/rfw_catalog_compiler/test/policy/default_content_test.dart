@@ -43,12 +43,12 @@ void main() {
           'Route',
           'PageRoute',
           'MouseCursor',
-          'HitTestBehavior',
           'DragStartBehavior',
           'ScrollPhysics',
         }),
       );
       expect(ledger.denylist.types, isNot(contains('TextBaseline')));
+      expect(ledger.denylist.types, isNot(contains('HitTestBehavior')));
       expect(ledger.denylist.types, isNot(contains('Curve')));
     });
 
@@ -79,20 +79,22 @@ void main() {
         DenylistFilter.match(fakes.fakeInterfaceType('ClipBehavior'), ledger),
         isNull,
       );
+      expect(
+        DenylistFilter.match(
+          fakes.fakeInterfaceType('HitTestBehavior'),
+          ledger,
+        ),
+        isNull,
+      );
     });
 
     test('exact-denylisted Behavior types still match', () {
-      for (final typeName in <String>[
-        'HitTestBehavior',
-        'DragStartBehavior',
-      ]) {
-        final match = DenylistFilter.match(
-          fakes.fakeInterfaceType(typeName),
-          ledger,
-        );
-        expect(match, isNotNull, reason: typeName);
-        expect(match!.policy, equals('denylist.types'), reason: typeName);
-      }
+      final match = DenylistFilter.match(
+        fakes.fakeInterfaceType('DragStartBehavior'),
+        ledger,
+      );
+      expect(match, isNotNull);
+      expect(match!.policy, equals('denylist.types'));
     });
 
     test(

@@ -1292,7 +1292,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
         if (transition is! ActionFlowTransition) continue;
         final contract = document.actions[transition.action];
         if (contract == null) continue;
-        final issue = _resultPredicateCompatibilityIssue(
+        final issue = actionResultPredicateSchemaIssue(
           transition.resultPredicate,
           contract.resultSchema,
         );
@@ -1303,33 +1303,6 @@ final class RestageFlowController<R> extends ChangeNotifier {
           'with result schema: $issue.',
         );
       }
-    }
-  }
-
-  String? _resultPredicateCompatibilityIssue(
-    FlowActionResultPredicate predicate,
-    FlowActionSchema resultSchema,
-  ) {
-    switch (predicate) {
-      case BoolEqualsActionResultPredicate():
-        if (resultSchema is FlowBoolActionSchema) return null;
-        return 'boolEquals requires a bool result, found '
-            '${resultSchema.kind}.';
-      case ObjectBoolFieldEqualsActionResultPredicate(:final field):
-        if (resultSchema is! FlowObjectActionSchema) {
-          return 'objectBoolFieldEquals.$field requires an object result, '
-              'found ${resultSchema.kind}.';
-        }
-        final fieldSchema = resultSchema.fields[field];
-        if (fieldSchema == null) {
-          return 'objectBoolFieldEquals field "$field" is missing.';
-        }
-        if (!fieldSchema.required) {
-          return 'objectBoolFieldEquals field "$field" must be required.';
-        }
-        if (fieldSchema.schema is FlowBoolActionSchema) return null;
-        return 'objectBoolFieldEquals field "$field" must be bool, found '
-            '${fieldSchema.schema.kind}.';
     }
   }
 
@@ -2290,6 +2263,37 @@ final class RestageFlowController<R> extends ChangeNotifier {
     Object? result,
   ) {
     switch (predicate) {
+      case AlwaysActionResultPredicate():
+        return true;
+      case MatchesActionResultPredicate(
+          result: final whole,
+          :final fields,
+        ):
+        // A null result or field reads as absent.
+        if (whole != null &&
+            !_matchesPredicateCondition(
+              frame,
+              result ?? _missingOutboundValue,
+              whole,
+            )) {
+          return false;
+        }
+        if (fields.isEmpty) return true;
+        if (result is! Map) {
+          throw _errorForFrame(
+            frame,
+            'action_result_mismatch',
+            'Action result predicate expected an object result, found '
+                '${result.runtimeType}.',
+          );
+        }
+        return fields.entries.every(
+          (entry) => _matchesPredicateCondition(
+            frame,
+            result[entry.key] ?? _missingOutboundValue,
+            entry.value,
+          ),
+        );
       case BoolEqualsActionResultPredicate(:final value):
         if (result is bool) return result == value;
         throw _errorForFrame(

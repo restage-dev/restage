@@ -1596,6 +1596,53 @@ final permissionFlow = FlowDefinition(
       );
     });
 
+    test('refuses a result check the action result cannot satisfy', () async {
+      final result = await _inspect({
+        'lib/onboarding/screens/permission.dart': _screenSource(
+          'PermissionScreen',
+          "static const enable = SurfaceEvent<void>('enable');",
+        ),
+        'lib/onboarding/screens/ready.dart': _screenSource(
+          'ReadyScreen',
+          "static const finish = SurfaceEvent<void>('finish');",
+        ),
+        'lib/onboarding/flows/permission_flow.dart': '''
+import 'package:restage/restage.dart';
+import '../screens/permission.dart';
+import '../screens/ready.dart';
+
+final class Reach {
+  const Reach({required this.ratio});
+  final double ratio;
+}
+
+const measureReach = FlowActionRef<void, Reach>('measureReach');
+
+@FlowGraph(surface: Surface.onboarding)
+final permissionFlow = FlowDefinition(
+  start: PermissionScreen,
+  transitions: [
+    Transition(
+      PermissionScreen.enable,
+      action: measureReach.continueWhen((reach) => reach.ratio > 2),
+      to: ReadyScreen,
+    ),
+    Transition.complete(ReadyScreen.finish),
+  ],
+);
+''',
+      });
+
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.unsupportedActionResultPredicate),
+      );
+      expect(
+        result.issues.map((issue) => issue.message).join('\n'),
+        contains('result field "ratio" is double'),
+      );
+    });
+
     test('rejects conflicting duplicate host-action ids before overwrite',
         () async {
       final result = await _inspect({

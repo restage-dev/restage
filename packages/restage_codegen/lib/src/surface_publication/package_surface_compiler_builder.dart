@@ -685,13 +685,16 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   );
   if (untrackedState.isNotEmpty) log.warning(kUntrackedDurableStateAdvice);
   final catalog = await mergedCatalog();
+  final measurementRejections = <String, String>{};
   final discoveries = await _discoverMeasurementSources(
     buildStep,
     screens: measurementScreenInputs,
     paywallJobs: paywallJobs,
     catalog: catalog,
+    rejections: measurementRejections,
     issues: issues,
   );
+  final unmeasured = <MeasurementUnmeasuredPublication>[];
   final publicationInputs = _measurementPlanningInputs(
     provisionalBundle.manifest,
     artifactBytes: provisionalBundle.manifestFiles,
@@ -699,6 +702,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     precompiledFlows: precompiledFlows,
     roster: roster,
     discoveriesByDeclarationIdentity: discoveries,
+    rejectionsByDeclarationIdentity: measurementRejections,
+    unmeasured: unmeasured,
     rfwCatalogOccurrenceSetsByArtifactPath:
         frozenRfwCatalogOccurrenceSetsByArtifactPath,
     issues: issues,
@@ -969,6 +974,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     acceptedIntroductions: measurementAssembly.pendingIntroductions,
     proposals: const [],
     publications: bundle.measurementPublications,
+    unmeasured: unmeasured,
   );
   if (!_sameAnalyticsIdControlCaptures(
     provisionalAnalyticsIdControlCaptures,
@@ -1395,7 +1401,7 @@ Future<void> _persistMeasurementCompilerLedgerSource({
   if (output.publications.isEmpty && output.ledgerNodes.isEmpty) return;
   writeMeasurementCompilerLedgerSource(
     file: file,
-    bytes: output.canonicalBytes,
+    bytes: output.durableState.canonicalBytes,
   );
 }
 
@@ -1429,6 +1435,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
   required List<ResolvedScreenCompilationInput> screens,
   required List<_PaywallCompilationJob> paywallJobs,
   required Catalog catalog,
+  required Map<String, String> rejections,
   required List<Issue> issues,
 }) async {
   final discoveries = <String, MeasurementSourceDiscoveryResult>{};
@@ -1440,11 +1447,9 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
     final discovery = MeasurementSourceDiscovery.discover(input);
     if (discovery.disposition !=
         MeasurementSourceDiscoveryDisposition.accepted) {
-      // Omitting the whole surface preserves its unmeasured output.
-      log.warning(
-        'Measurement is unavailable for $declarationIdentity: '
-        '${discovery.rejectionReason}. The surface compiles unmeasured.',
-      );
+      // Omitting the whole surface preserves its unmeasured output; the
+      // publication records why.
+      rejections[declarationIdentity] = discovery.rejectionReason ?? '';
       return;
     }
     if (discoveries.putIfAbsent(declarationIdentity, () => discovery) !=
@@ -1680,6 +1685,8 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
   required RestageSourceRoster roster,
   required Map<String, MeasurementSourceDiscoveryResult>
       discoveriesByDeclarationIdentity,
+  required Map<String, String> rejectionsByDeclarationIdentity,
+  required List<MeasurementUnmeasuredPublication> unmeasured,
   required Map<String, ResolvedRfwCatalogOccurrenceSet>
       rfwCatalogOccurrenceSetsByArtifactPath,
   required List<Issue> issues,
@@ -1714,6 +1721,7 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
   for (final entry in manifest.publications) {
     final sourceArtifacts = <MeasurementPublicationSourceArtifact>[];
     var unresolved = '';
+    String? rejection;
     for (final artifact in entry.artifacts.where(
       (artifact) => artifact.role == SurfacePublicationArtifactRole.screenBlob,
     )) {
@@ -1725,6 +1733,9 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
           rfwCatalogOccurrenceSetsByArtifactPath[artifact.path];
       if (source == null || discovery == null || occurrenceSet == null) {
         unresolved = artifact.path;
+        rejection = source == null
+            ? null
+            : rejectionsByDeclarationIdentity[source.declarationIdentity];
         break;
       }
       sourceArtifacts.add(
@@ -1742,11 +1753,22 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
     if (unresolved.isNotEmpty) {
       // Whole surface or none: partial carriers would misreport the analytics
       // Measurement exists to feed.
+      final reason = rejection == null || rejection.isEmpty
+          ? 'no resolved source for $unresolved'
+          : rejection;
+      unmeasured.add(
+        MeasurementUnmeasuredPublication(
+          selector: MeasurementPublicationSelectorV1.fromPublication(
+            entry.publication,
+          ),
+          reason: reason,
+        ),
+      );
       log.warning(
         'Measurement is unavailable for '
         '${entry.publication.surface.wireName}/${entry.publication.slug}: '
-        'no resolved source for $unresolved. '
-        'The surface compiles unmeasured.',
+        '$reason. The surface compiles unmeasured, so its taps and views are '
+        'not counted.',
       );
       continue;
     }

@@ -124,7 +124,7 @@ void main() {
     expect(source, contains('#label:'));
     expect(
       source,
-      isNot(contains("source.v<String>(const <Object>['label']) ??")),
+      isNot(contains("RestageDecoders.string(source, <Object>['label']) ??")),
     );
   });
 

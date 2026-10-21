@@ -5,6 +5,7 @@ import '../flow/flow_descriptors.dart';
 import 'authoring_dispatch_access.dart';
 import 'authoring_refusal_diagnostic.dart';
 import 'onboarding_event_dispatcher.dart';
+import 'paywall_event_dispatch.dart';
 
 /// Returns a callback that fires a flow event.
 ///
@@ -30,13 +31,26 @@ void Function([Object?]) onboardingEvent<T, V extends T>(
 
 /// Returns a screen-event callback; widget callback values replace [value].
 /// Codegen replaces this call with a descriptor event reference.
+///
+/// Outside a flow, a paywall receives it as `PaywallCustomEvent` named
+/// `event.id`, with a map value as its args or any other value as
+/// `args['value']`.
 void Function([Object?]) surfaceEvent<T, V extends T>(
   SurfaceEvent<T> event, [
   V? value,
 ]) {
+  // A standalone paywall owns the events it builds.
+  if (RestagePaywallEventDispatchAuthority.isBuildingStandalone) {
+    return _paywallEvent(event, value);
+  }
   final access = captureAuthoringDispatcherAccess(
     () => surfaceEventDispatcherFor(event.id),
   );
+  if (access.dispatcher == null &&
+      access.refusal == AuthoringRefusalKind.missingDispatcher &&
+      RestagePaywallEventDispatchAuthority.hasDispatcher) {
+    return _paywallEvent(event, value);
+  }
   return _flowEvent(
     AuthoringHelperKind.surfaceEvent,
     event,
@@ -45,6 +59,34 @@ void Function([Object?]) surfaceEvent<T, V extends T>(
     captureRefusal: access.refusal,
     refusalDetail: access.detail,
   );
+}
+
+void Function([Object?]) _paywallEvent<T, V extends T>(
+  SurfaceEvent<T> event,
+  V? value,
+) {
+  void onRefused(AuthoringRefusalKind refusal) => reportAuthoringRefusal(
+        helper: AuthoringHelperKind.surfaceEvent,
+        refusal: refusal,
+      );
+  final paywall = RestagePaywallEventDispatchAuthority.capture(
+    onRefused: onRefused,
+  );
+  return ([Object? widgetValue = _noWidgetValue]) {
+    if (paywall == null) {
+      onRefused(AuthoringRefusalKind.missingDispatcher);
+      return;
+    }
+    final dispatched =
+        identical(widgetValue, _noWidgetValue) ? value : widgetValue;
+    paywall(
+        event.id,
+        switch (dispatched) {
+          null => const <String, Object?>{},
+          final Map<String, Object?> args => args,
+          _ => <String, Object?>{'value': dispatched},
+        });
+  };
 }
 
 /// Returns a flow event callback bound to the nearest mounted dispatcher.

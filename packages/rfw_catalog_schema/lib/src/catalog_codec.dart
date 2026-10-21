@@ -138,6 +138,7 @@ void _validateWidget(WidgetEntry widget, String path) {
     '$widgetPath.wireId',
   );
   _validateSinceVersion(widget.sinceVersion, '$widgetPath.sinceVersion');
+  _validatePropertySinceVersions(widget, widgetPath);
   final propertyNames = <String>{};
   for (var i = 0; i < widget.properties.length; i++) {
     final property = widget.properties[i];
@@ -208,6 +209,7 @@ void _validateProperty(PropertyEntry property, String path) {
   }
   _validateValueShape(property.valueShape, '$path.valueShape');
   _validateDeprecation(property.deprecated, '$path.deprecated');
+  _validateSinceVersion(property.sinceVersion, '$path.sinceVersion');
 }
 
 void _validateDartConstValue(DartConstValue value, String path) {
@@ -663,6 +665,8 @@ const Set<PropertyType> _stringConstraintTypes = {
 const Set<PropertyType> _dataListConstraintTypes = {
   PropertyType.stringList,
   PropertyType.booleanList,
+  PropertyType.integerList,
+  PropertyType.realList,
   PropertyType.boxShadowList,
   PropertyType.shadowList,
   PropertyType.fontFeatureList,
@@ -1053,6 +1057,8 @@ bool _literalDefaultMatchesShape(Object? value, CatalogValueShape shape) {
     case PropertyType.offset:
     case PropertyType.stringList:
     case PropertyType.booleanList:
+    case PropertyType.integerList:
+    case PropertyType.realList:
     case PropertyType.event:
     case PropertyType.dataReference:
     case PropertyType.gradient:
@@ -1098,6 +1104,8 @@ const Set<PropertyType> _listShapePropertyTypes = {
   PropertyType.widgetList,
   PropertyType.stringList,
   PropertyType.booleanList,
+  PropertyType.integerList,
+  PropertyType.realList,
   PropertyType.boxShadowList,
   PropertyType.shadowList,
   PropertyType.fontFeatureList,
@@ -1421,6 +1429,20 @@ void _validateSinceVersion(int sinceVersion, String path) {
   }
 }
 
+/// A baseline property ships with its widget; a later one cannot predate it.
+void _validatePropertySinceVersions(WidgetEntry widget, String widgetPath) {
+  for (var i = 0; i < widget.properties.length; i++) {
+    final sinceVersion = widget.properties[i].sinceVersion;
+    if (sinceVersion != kBaselineCatalogVersion &&
+        sinceVersion < widget.sinceVersion) {
+      throw CatalogSchemaException(
+        '$widgetPath.properties[$i].sinceVersion: $sinceVersion is below '
+        "its widget's sinceVersion ${widget.sinceVersion}",
+      );
+    }
+  }
+}
+
 /// A library's declared capability version is a positive monotonic integer
 /// when present (an omitted version is `null`). Enforced at BOTH decode
 /// ([_libraryInfo]) and the encode / `requireNativeCatalog` validation
@@ -1506,6 +1528,8 @@ Map<String, dynamic> _propertyToJson(PropertyEntry p) {
     if (p.structuredRef != null)
       'structuredRef': wireIdRefToJson(p.structuredRef!),
     if (p.valueShape != null) 'valueShape': _valueShapeToJson(p.valueShape!),
+    if (p.sinceVersion != kBaselineCatalogVersion)
+      'sinceVersion': p.sinceVersion,
   };
 }
 
@@ -2677,7 +2701,7 @@ WidgetEntry _widgetFromJson(
       ? null
       : _requiredList(j, 'decomposes', widgetPath);
   final propertiesRaw = _requiredList(j, 'properties', widgetPath);
-  return WidgetEntry(
+  final widget = WidgetEntry(
     wireId: wireId,
     name: name,
     library: WidgetLibrary.fromNamespace(
@@ -2725,6 +2749,8 @@ WidgetEntry _widgetFromJson(
       '$widgetPath.deprecated',
     ),
   );
+  _validatePropertySinceVersions(widget, widgetPath);
+  return widget;
 }
 
 RestageConstraints _constraintsFromJson(Object? raw, String path) {
@@ -3080,6 +3106,8 @@ PropertyEntry _propertyFromJson(
   }
   final property = PropertyEntry(
     wireId: wireId,
+    sinceVersion:
+        _sinceVersionFromJson(j, 'sinceVersion', '$path.sinceVersion'),
     name: _requiredString(j, 'name', path),
     // Forward-compat: unknown PropertyType names fall back to the
     // `unknown` sentinel rather than throwing. New enum members can

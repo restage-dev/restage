@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add `PropertyType.integerList` and `PropertyType.realList`.
+- Add `PropertyEntry.sinceVersion` and `PropertyOverride.sinceVersion`: a
+  property added to an existing widget carries the content version that
+  added it, and the catalog's content version counts it. An older reader
+  decodes it as the baseline.
+
 - **Breaking:** remove the unused `RestagePropertyPreview` annotation.
 
 ## 2.0.0

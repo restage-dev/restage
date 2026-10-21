@@ -642,14 +642,15 @@ const List<String> kContainerCoreExcludes = [
 /// availability varies by scroll-view constructor.
 ///
 /// `controller` (`ScrollController`), `dragStartBehavior`
-/// (`DragStartBehavior`), `hitTestBehavior` (`HitTestBehavior`), and
-/// `physics` (`ScrollPhysics`) are excluded via the centralized type
-/// denylist. `keyboardDismissBehavior`
+/// (`DragStartBehavior`), and `physics` (`ScrollPhysics`) are excluded via
+/// the centralized type denylist; a scroll view's `hitTestBehavior` keeps its
+/// default. `keyboardDismissBehavior`
 /// (`ScrollViewKeyboardDismissBehavior`) is a clean 2-member enum, so it
 /// is surfaced, not excluded. `clipBehavior` (the `Clip` enum) is likewise
-/// surfaced, consistent with the other clip-capable widgets. The two
+/// surfaced, consistent with the other clip-capable widgets. The other
 /// remaining entries are widget-specific design exclusions.
 const List<String> kScrollableImperativeExcludes = [
+  'hitTestBehavior',
   'primary',
   'restorationId',
 ];

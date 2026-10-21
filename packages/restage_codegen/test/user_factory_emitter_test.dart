@@ -64,7 +64,10 @@ void main() {
       expect(source, isNotNull);
       expect(source, isNot(contains('analyticsId:')));
       expect(source, isNot(contains("['analyticsId']")));
-      expect(source, contains("source.v<String>(const <Object>['label'])"));
+      expect(
+        source,
+        contains("RestageDecoders.string(source, <Object>['label'])"),
+      );
     });
 
     test('fails closed for malformed custom analyticsId metadata', () {
@@ -224,7 +227,7 @@ void main() {
       expect(
         src,
         contains(
-          "source.v<String>(const <Object>['label']) ??",
+          "RestageDecoders.string(source, <Object>['label']) ??",
         ),
       );
       expect(

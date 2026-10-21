@@ -15,9 +15,13 @@ final class RestagePaywallEventTargetScope extends InheritedWidget {
     required this.content,
     required this.isCurrent,
     required super.child,
+    this.flowStep = false,
   });
 
   final Object owner;
+
+  /// Whether the paywall is a step of a flow, which owns its events.
+  final bool flowStep;
   final Object content;
   final bool Function() isCurrent;
 
@@ -111,6 +115,15 @@ final class RestagePaywallEventDispatchAuthority {
       <RestagePaywallEventDispatchRegistration>[];
   static final List<RestagePaywallEventDispatchRegistration> _buildScopes =
       <RestagePaywallEventDispatchRegistration>[];
+
+  /// Whether a paywall that is not a flow step is building now.
+  static bool get isBuildingStandalone => switch (_buildScopes) {
+        [..., final registration] => registration._target?.flowStep != true,
+        _ => false,
+      };
+
+  /// Whether any paywall dispatcher is mounted.
+  static bool get hasDispatcher => _registrations.isNotEmpty;
 
   static RestagePaywallDispatchHandler? capture({
     void Function(AuthoringRefusalKind refusal)? onRefused,

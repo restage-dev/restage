@@ -180,8 +180,7 @@ void main() {
 
     setUpAll(() async {
       result = await _build({
-        'label':
-            r"Semantics(label: 'Hi ${days} there', child: const Text('x'))",
+        'label': r"Text('x', style: TextStyle(fontFamily: 'Brand ${days}'))",
         'recursive_text': 'Text(_loop(days))',
       });
     });
@@ -190,10 +189,10 @@ void main() {
           (e) => e.contains('[${code.name}] lib/paywalls/$id.dart'),
         );
 
-    test('an interpolation outside Text is refused at its source', () {
+    test('an interpolation inside a structured value is refused', () {
       expect(
         errorFor('label', IssueCode.unsupportedInterpolation),
-        contains('only be the text of a Text widget'),
+        contains('Here, pass the finished string in as one value'),
       );
     });
 

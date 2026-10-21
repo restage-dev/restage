@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show renderBundleMaxCapabilityManifestNodes;
 import 'package:test/test.dart';
 
 void main() {
@@ -111,6 +113,32 @@ void main() {
         limits: const RenderBundleArchiveLimits(maxFileBytes: 8),
       ),
       throwsA(isA<RenderBundleArchiveException>()),
+    );
+  });
+
+  test('refuses a capability manifest past the node limit', () {
+    final manifest = jsonEncode(<String, Object?>{
+      'formatVersion': 1,
+      'catalog': <String, Object?>{
+        'libraries': <String, Object?>{},
+        'widgets': <Object?>[],
+        'padding': List<int>.filled(renderBundleMaxCapabilityManifestNodes, 0),
+      },
+    });
+    expect(
+      () => encodeRenderBundleArchive(
+        validFiles()
+          ..['restage_bundle_manifest.json'] = Uint8List.fromList(
+            utf8.encode(manifest),
+          ),
+      ),
+      throwsA(
+        isA<RenderBundleArchiveException>().having(
+          (error) => error.reason,
+          'reason',
+          'capability_manifest_too_complex',
+        ),
+      ),
     );
   });
 

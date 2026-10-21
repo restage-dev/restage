@@ -220,6 +220,7 @@ final class RestageCatalogGenAdapter {
     final resolvedId =
         wireIds.property?.call(widget, property) ?? property.wireId;
     return PropertyIR(
+      sinceVersion: property.sinceVersion,
       wireId: resolvedId,
       source: _adapterElement,
       name: property.name,
@@ -420,6 +421,8 @@ ResolvedTypeKind _typeKindFor(PropertyType type) {
     PropertyType.string => ResolvedTypeKind.string,
     PropertyType.stringList => ResolvedTypeKind.stringList,
     PropertyType.booleanList => ResolvedTypeKind.booleanList,
+    PropertyType.integerList => ResolvedTypeKind.integerList,
+    PropertyType.realList => ResolvedTypeKind.realList,
     PropertyType.event => ResolvedTypeKind.event,
     PropertyType.dataReference => ResolvedTypeKind.dataReference,
     PropertyType.enumValue => ResolvedTypeKind.enumValue,

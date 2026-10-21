@@ -18,6 +18,7 @@ import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/onboarding/action_result_predicate_lowering.dart';
 import 'package:restage_codegen/src/onboarding/flow_builder.dart'
     show parseOutboundPayloadMap;
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
@@ -746,6 +747,7 @@ final class _FlowDefinitionGraphParser {
         surface: surface,
         delivery: delivery,
         measuresAnswers: _measurementAnswers.isNotEmpty,
+        states: _states,
       ),
       delivery: delivery,
       initial: _screenStateId(initial),
@@ -1213,6 +1215,18 @@ final class _FlowDefinitionGraphParser {
       type.typeArguments[1],
     );
     if (predicate == null) return null;
+    final schemaIssue = actionResultPredicateSchemaIssue(
+      predicate,
+      contract.resultSchema,
+    );
+    if (schemaIssue != null) {
+      _issue(
+        IssueCode.unsupportedActionResultPredicate,
+        'The host action result check cannot run on '
+        '${type.typeArguments[1].getDisplayString()}: $schemaIssue',
+      );
+      return null;
+    }
     return _ActionTransition(action: actionId, predicate: predicate);
   }
 
@@ -1220,46 +1234,12 @@ final class _FlowDefinitionGraphParser {
     Expression? expression,
     DartType resultType,
   ) {
-    if (expression is! FunctionExpression ||
-        expression.parameters?.parameters.length != 1 ||
-        expression.body is! ExpressionFunctionBody) {
-      _issue(
-          IssueCode.buildMethodTooComplex,
-          'Host action predicates must be '
-          'a single-parameter expression function.');
-      return null;
+    final lowered = lowerActionResultPredicate(expression, resultType);
+    final refusal = lowered.refusal;
+    if (refusal != null) {
+      _issue(IssueCode.unsupportedActionResultPredicate, refusal);
     }
-    final parameter = expression.parameters!.parameters.single.name?.lexeme;
-    final body = (expression.body as ExpressionFunctionBody).expression;
-    if (parameter == null) return null;
-    if (resultType.isDartCoreBool) {
-      if (body is SimpleIdentifier && body.name == parameter) {
-        return const BoolEqualsActionResultPredicate(value: true);
-      }
-      if (body is PrefixExpression &&
-          body.operator.lexeme == '!' &&
-          body.operand is SimpleIdentifier &&
-          (body.operand as SimpleIdentifier).name == parameter) {
-        return const BoolEqualsActionResultPredicate(value: false);
-      }
-    }
-    if (resultType is InterfaceType &&
-        body is PropertyAccess &&
-        body.target is SimpleIdentifier &&
-        (body.target! as SimpleIdentifier).name == parameter) {
-      final field = resultType.element.getField(body.propertyName.name);
-      if (field != null && field.type.isDartCoreBool) {
-        return ObjectBoolFieldEqualsActionResultPredicate(
-          field: body.propertyName.name,
-          value: true,
-        );
-      }
-    }
-    _issue(
-        IssueCode.buildMethodTooComplex,
-        'Unsupported host action result '
-        'predicate; only boolean or boolean-field checks are supported.');
-    return null;
+    return lowered.predicate;
   }
 
   Future<String?> _target(Expression? expression) async {
@@ -2371,20 +2351,37 @@ final class _ChildFlow {
 }
 
 /// The minimum client a flow document declares: [declared], raised to the
-/// feature floor when a typed flow outside the survey surface measures answers.
+/// feature floor when a typed flow outside the survey surface measures
+/// answers, and to [kActionResultMatchClientFloor] when one of [states]
+/// matches a host-action result with `always` or `matches`.
 int flowDocumentMinClient({
   required int declared,
   required Surface surface,
   required FlowDeliveryMode delivery,
   required bool measuresAnswers,
+  Map<String, FlowState> states = const {},
 }) {
-  if (!measuresAnswers ||
-      delivery != FlowDeliveryMode.typed ||
-      surface == Surface.survey ||
-      declared >= kSurfaceFeatureClientFloor) {
-    return declared;
+  var floor = declared;
+  if (measuresAnswers &&
+      delivery == FlowDeliveryMode.typed &&
+      surface != Surface.survey &&
+      floor < kSurfaceFeatureClientFloor) {
+    floor = kSurfaceFeatureClientFloor;
   }
-  return kSurfaceFeatureClientFloor;
+  final matchesResults = states.values.any(
+    (state) =>
+        state is ScreenFlowState &&
+        state.on.values.any(
+          (transition) =>
+              transition is ActionFlowTransition &&
+              (transition.resultPredicate is AlwaysActionResultPredicate ||
+                  transition.resultPredicate is MatchesActionResultPredicate),
+        ),
+  );
+  if (matchesResults && floor < kActionResultMatchClientFloor) {
+    floor = kActionResultMatchClientFloor;
+  }
+  return floor;
 }
 
 /// The refusal for a general flow that declares measured answers.

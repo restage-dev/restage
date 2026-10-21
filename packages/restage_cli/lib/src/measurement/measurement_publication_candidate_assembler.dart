@@ -220,11 +220,12 @@ Future<List<_IndexedMeasurementPublication>> _readIndex(
     );
   }
   final root = _object(CanonicalJsonCodec.decode(bytes), 'Measurement index');
-  _exactKeys(root, const {
+  _exactKeys(root, {
     'entries',
     'kind',
     'package',
     'schemaVersion',
+    if (root.containsKey('unmeasured')) 'unmeasured',
   }, 'Measurement index');
   if (_string(root, 'kind', 'Measurement index') !=
           'restageMeasurementPublicationIndex' ||

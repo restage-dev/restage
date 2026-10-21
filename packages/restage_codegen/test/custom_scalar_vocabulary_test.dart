@@ -1,6 +1,5 @@
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/a2ui/user_a2ui_catalog_builder.dart';
-import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/user_catalog_json_builder.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -8,11 +7,8 @@ import 'package:test/test.dart';
 
 import 'helpers.dart';
 
-/// A custom `@RestageWidget` with an enum property must
-/// build the RFW custom catalog + factories AND the A2UI catalog from one
-/// source (dual-target parity); an A2UI-admissible scalar-list property that the
-/// RFW path cannot carry must fail LOUD with a target-boundary diagnostic that
-/// names the widget + property and the remedies.
+/// A custom `@RestageWidget` with enum and scalar-list properties builds the
+/// RFW custom catalog and factories and the A2UI catalog from one source.
 void main() {
   // A custom widget whose only property is a CUSTOM enum — the class where
   // the A2UI path accepts it (EnumNode); the RFW path historically
@@ -40,9 +36,8 @@ void main() {
     }
   ''';
 
-  // A custom widget with a direct List<int> property — supported on the A2UI
-  // target but not carried by the RFW custom catalog vocabulary.
-  const intListSource = '''
+  // A custom widget with one property per scalar-list kind.
+  const scalarListSource = '''
     import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
     @RestageLibrary(
       library: WidgetLibrary.custom('acme.widgets'),
@@ -57,9 +52,23 @@ void main() {
       description: 'A bar chart.',
     )
     class Bars {
-      const Bars({required this.values});
+      const Bars({
+        required this.labels,
+        required this.flags,
+        required this.values,
+        required this.weights,
+        required this.ratios,
+      });
+      @RestageProperty(description: 'The bar labels.')
+      final List<String> labels;
+      @RestageProperty(description: 'Which bars are highlighted.')
+      final List<bool> flags;
       @RestageProperty(description: 'The bar values.')
       final List<int> values;
+      @RestageProperty(description: 'The bar weights.')
+      final List<double> weights;
+      @RestageProperty(description: 'The bar ratios.')
+      final List<num> ratios;
     }
   ''';
 
@@ -128,35 +137,52 @@ void main() {
     });
   });
 
-  group('RFW scalar-list rejection — target-boundary diagnostic', () {
-    test(
-        'the RFW rejection of an A2UI-admissible scalar list names the widget, '
-        'property, target boundary, and remedies', () async {
-      final visited =
-          await runWidgetVisitorOn({'lib/widgets.dart': intListSource});
-      final rejection = visited.issues.firstWhere(
-        (i) => i.code == IssueCode.unsupportedPropertyType,
-        orElse: () =>
-            fail('expected an unsupportedPropertyType issue for List<int>'),
-      );
-      final message = rejection.message;
-      // Names the widget + property.
-      expect(message, contains('Bars.values'));
-      // States the target boundary: supported on A2UI, not carried by RFW.
-      expect(message, contains('A2UI'));
-      expect(message, contains('RFW'));
-      // Names a remedy the developer can act on.
-      expect(message.toLowerCase(), contains('restrict'));
-    });
-
-    test('the RFW build still fails loud on the scalar-list property',
-        () async {
+  group('custom scalar-list properties on the RFW target', () {
+    test('the catalog carries each scalar-list type', () async {
       final result = await runBuilder(
         const UserCatalogJsonBuilder(BuilderOptions.empty),
-        intListSource,
+        scalarListSource,
       );
-      expect(result.succeeded, isFalse,
-          reason: 'fail-loud semantics on the RFW path are unchanged');
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final catalog = decodeCatalog(
+        result.readerWriter.testing.readString(
+          AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
+        ),
+      );
+      final bars = catalog.widgets.singleWhere((w) => w.name == 'Bars');
+      expect(
+        {
+          for (final property in bars.properties)
+            if (property.name != 'analyticsId') property.name: property.type,
+        },
+        {
+          'labels': PropertyType.stringList,
+          'flags': PropertyType.booleanList,
+          'values': PropertyType.integerList,
+          'weights': PropertyType.realList,
+          'ratios': PropertyType.realList,
+        },
+      );
+    });
+
+    test('the factories decode each scalar list', () async {
+      final result = await runBuilder(
+        const UserFactoryBuilder(BuilderOptions.empty),
+        scalarListSource,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final dart = result.readerWriter.testing.readString(
+        AssetId('apps_examples', 'lib/user_factories.g.dart'),
+      );
+      expect(
+        dart,
+        allOf(
+          contains('RestageDecoders.stringList('),
+          contains('RestageDecoders.booleanList('),
+          contains('RestageDecoders.integerList('),
+          contains('RestageDecoders.realList('),
+        ),
+      );
     });
   });
 }

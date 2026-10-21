@@ -1480,7 +1480,7 @@ const List<Map<String, String>> $RestageExclusions = [
     'property': 'focusNode',
     'target': 'a2ui',
     'reason':
-        'Unsupported property type FocusNode? on ConstructorFidelityCorpus.focusNode. Supported types: Widget, List<Widget>, Color, EdgeInsets(Geometry|Directional), Alignment(Geometry|Directional), FontWeight, bool, int, double, String, VoidCallback (and similar function types), and any Dart enum, and List<scalar> (String, int, double, num, or bool). Target: a2ui.',
+        'Unsupported property type FocusNode? on ConstructorFidelityCorpus.focusNode. Supported types: Widget, List<Widget>, Color, EdgeInsets(Geometry|Directional), Alignment(Geometry|Directional), FontWeight, bool, int, double, String, VoidCallback (and similar function types), any Dart enum, and List<scalar> (String, int, double, num, or bool). Target: a2ui.',
     'location':
         'lib/widgets/constructor_fidelity_corpus.dart#ConstructorFidelityCorpus.focusNode',
   },

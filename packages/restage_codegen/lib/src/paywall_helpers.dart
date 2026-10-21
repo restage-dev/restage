@@ -1,4 +1,5 @@
 import 'package:restage_codegen/src/helper_registry.dart';
+import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
 
 const String _kSdkLibraryOrigin = 'package:restage';
 
@@ -12,6 +13,8 @@ const List<HelperDefinition> paywallHelpers = [
     returnCategory: HelperReturnCategory.voidCallback,
     translate: _translatePaywallEvent,
   ),
+  // The same event a flow screen fires; a value travels as `args['value']`.
+  surfaceEventHelper,
 ];
 
 String _translatePaywallEvent(HelperCallArgs args) {

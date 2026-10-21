@@ -1543,6 +1543,8 @@ void _validateSynthesizedConstraints(PropertyEntry property) {
   final isCollection = property.type == PropertyType.widgetList ||
       property.type == PropertyType.stringList ||
       property.type == PropertyType.booleanList ||
+      property.type == PropertyType.integerList ||
+      property.type == PropertyType.realList ||
       isCustomStructuredListShape(property.valueShape);
   final collectionOnly = isCollection &&
       constraints.minimum == null &&
@@ -1971,6 +1973,8 @@ WidgetbookStoryEditableControl? _editableControlFor(PropertyEntry property) {
     PropertyType.alignmentXY ||
     PropertyType.stringList ||
     PropertyType.booleanList ||
+    PropertyType.integerList ||
+    PropertyType.realList ||
     PropertyType.dataReference ||
     PropertyType.gradient ||
     PropertyType.border ||
@@ -2026,6 +2030,8 @@ Object? _scalarPreview(DartType type, PropertyEntry property) {
           PropertyType.curve ||
           PropertyType.stringList ||
           PropertyType.booleanList ||
+          PropertyType.integerList ||
+          PropertyType.realList ||
           PropertyType.event ||
           PropertyType.dataReference ||
           PropertyType.enumValue ||
@@ -2200,6 +2206,8 @@ void validateWidgetbookConstraintApplicability(
   final collectionProperty = property.type == PropertyType.widgetList ||
       property.type == PropertyType.stringList ||
       property.type == PropertyType.booleanList ||
+      property.type == PropertyType.integerList ||
+      property.type == PropertyType.realList ||
       isCustomStructuredListShape(property.valueShape);
   if (hasItems && !collectionProperty) {
     throw StateError(

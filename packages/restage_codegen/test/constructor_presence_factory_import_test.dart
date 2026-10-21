@@ -46,7 +46,7 @@ void main() {
           allOf(
             contains('RestageRfwConstructorPresence.read('),
             contains("import 'package:restage_core/restage_core.dart';"),
-            isNot(contains('RestageDecoders.')),
+            contains('RestageDecoders.string(source, '),
             isNot(contains("import 'package:restage/restage.dart';")),
           ),
         ),

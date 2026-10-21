@@ -140,6 +140,25 @@ value is the event's value. Don't wrap the call in a closure: `() => surfaceEven
 returns the callback without calling it, so the event never fires when your own widget
 shows as the fallback. The build compiles it with a warning.
 
+## Build text from parts
+
+An interpolated value can be any non-null `String` the surface can read: host data, a
+`State` field, a `final` local in `build()`, or a condition over them. A `Text`, a
+built-in widget's `String` property, and the `String` property of a custom widget your app
+renders can join text and values:
+
+```dart
+final price = yearly ? widget.yearlyPrice : widget.monthlyPrice;
+return Column(children: [
+  Text('$price billed'),
+  PlanBadge(label: 'Only $price a year'),
+]);
+```
+
+In a value object such as a `TextStyle`, or in a custom widget the surface inlines, pass
+the finished string in as one value. Format numbers and other non-`String` values in the
+app and pass the text.
+
 ## Keep an interpolated string in one literal
 
 Adjacent plain strings are joined as in Dart. A group of adjacent strings that mixes

@@ -129,12 +129,20 @@ Use a list of plain values, or host data with a plain data class.
 ## unsupportedInterpolation
 
 ```text
-[unsupportedInterpolation] lib/messages/weekly_recap.dart:23:16: Only recognized String helpers or String State fields may appear inside string interpolation. Found: SimpleIdentifierImpl streakDays.
+[unsupportedInterpolation] lib/messages/weekly_recap.dart:23:16: An interpolated value must be a non-null String the surface can read: host data, a State field, a build() local, a condition over them, or a String helper. Found: SimpleIdentifier streakDays.
 ```
 
 Only `String` values can be interpolated. Pass the number to a property that takes it
 (for example a `@RestageWidget` with an `int` field), or declare the parameter as a
 `String` and format it in the app.
+
+```text
+[unsupportedInterpolation] lib/paywalls/plans.dart:14:40: A string that joins text and values works as the text of a Text and as a String property of a built-in widget or of a custom widget your app renders. Here, pass the finished string in as one value. ...
+```
+
+A joined string works as a `Text` and as a `String` property of a built-in widget or of
+a custom widget your app renders. In a value object such as a `TextStyle`, or a custom
+widget the surface inlines, pass the finished string in as one value.
 
 ## unrecognizedMethodCall on a host-data parameter
 
@@ -164,8 +172,9 @@ method stops the build. Keep controllers and subscriptions in app code.
 [annotationEvaluationFailed] lib/src/measurement/restage.measurement.compiler.json: Could not construct Measurement route plan for paywall/stray_complete: Invalid argument(s): completesOn names the event 'buy', which no tap on this paywall fires. A tap names it with paywallEvent('buy') or surfaceEvent(<the declared event constant>).
 ```
 
-Fire the event from the tap that completes the paywall with `paywallEvent('buy')`, or remove it from
-`completesOn`.
+Fire the event from the tap that completes the paywall with `paywallEvent('buy')` or
+`surfaceEvent(Paywall.buy)`, or remove it from `completesOn`. Taps on your own widgets'
+callbacks count, including inside a wrapper widget's child.
 
 ## A widget the build can't match to an earlier one
 
@@ -189,6 +198,31 @@ form.
 Write `onChanged: surfaceEvent(pick)`. The widget's value becomes the event's value.
 A closure around `surfaceEvent(...)` builds with a warning, but the event never fires
 when your own widget shows, so remove it.
+
+A map passed as the event value becomes the event's arguments, so its keys must be
+`String`s: declare it as a `Map<String, ...>`.
+
+## unsupportedActionResultPredicate
+
+```text
+[unsupportedActionResultPredicate] lib/onboarding/flow.dart: `result || true` is not a supported check. Write `(result) => true`, `(result) => result`, `!result`, `result.field`, or comparisons of the result or its final fields with literals (== and != for a bool, int or String; <, <=, > and >= for an int) joined with &&.
+[unsupportedActionResultPredicate] lib/onboarding/flow.dart: The host action result check cannot run on Reach: result field "ratio" is double and cannot be compared with int 2 by order.
+```
+
+`continueWhen` takes one of those forms, over final fields of the result, and each
+comparison must suit the field's type. A flow that uses `true` or a comparison needs a
+current SDK.
+
+## unsupportedActionContract
+
+```text
+[unsupportedActionContract] lib/onboarding/flow.dart: The host action type ReachResult has a field 'ratio' that is not final. Declare it final so the flow can read and check it.
+[unsupportedActionContract] lib/onboarding/flow.dart: unsupported action schema enum type: Plan. Dart enum action argument/result types are not supported yet; use String with explicit wire values.
+```
+
+A host action's arguments and result are built from `bool`, `int`, `double`, `String`,
+`List` and classes whose fields are all `final`. Declare each field `final`, and pass an
+enum as a `String` that carries its wire value.
 
 ## buildMethodTooComplex
 

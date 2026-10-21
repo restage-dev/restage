@@ -409,10 +409,15 @@ final class PropertyOverride {
     this.enumType,
     this.widgetType,
     this.callbackSignature,
+    this.sinceVersion,
   }) : assert(
           defaultValue == null || defaultBrandToken == null,
           'Use either defaultValue or defaultBrandToken, not both',
         );
+
+  /// Replacement [PropertyEntry.sinceVersion]: the next global content
+  /// version when a property is added to an existing widget.
+  final int? sinceVersion;
 
   /// Replacement [PropertyEntry.name] — exposes the property under a
   /// different catalog name than the underlying constructor parameter.

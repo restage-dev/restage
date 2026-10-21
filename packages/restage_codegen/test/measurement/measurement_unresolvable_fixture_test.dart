@@ -1,6 +1,7 @@
 // A surface Measurement cannot fully resolve compiles unmeasured, with a
 // diagnostic naming it — never a build break, and never a partial plan.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:build/build.dart';
@@ -50,6 +51,24 @@ void main() {
       reason: 'the boundary must name the surface, not skip silently',
     );
     expect(compiled.log, contains('compiles unmeasured'));
+    final unmeasured = compiled.output.unmeasured.single;
+    expect(unmeasured.selector.slug, _branchingSlug);
+    expect(unmeasured.reason, contains('&& or ||'));
+    expect(
+      RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        compiled.output.canonicalBytes,
+      ).unmeasured.single.reason,
+      unmeasured.reason,
+    );
+    expect(
+      utf8.decode(compiled.output.outputIndexBytes(_package)),
+      contains('"unmeasured"'),
+      reason: 'push reads the reason from the Measurement index',
+    );
+    expect(
+      utf8.decode(compiled.output.durableState.canonicalBytes),
+      isNot(contains('unmeasured')),
+    );
     expectUnmeasuredScreenPublication(
       readerWriter: compiled.readerWriter,
       packageName: _package,
