@@ -53,11 +53,13 @@ Future<SurfaceContractFamilyHistoryResult> familyHistory({
   organizationId: at.organizationId,
 );
 
-/// One publication [publishSurface] made.
+/// One publication [publishSurface] made. [alreadyLive] is true when
+/// [revision] was the active revision before the publish too.
 typedef SurfacePublication = ({
   SurfaceLifecycleIdentity family,
   int revision,
   bool latest,
+  bool alreadyLive,
   SurfaceFamilyMutationResult result,
 });
 
@@ -109,6 +111,9 @@ Future<({SurfacePublication publication, bool? recorded})> publishSurface({
     family: family,
     revision: chosen,
     latest: revision == null,
+    alreadyLive:
+        result.activeRevisionBefore == chosen &&
+        result.activeRevisionAfter == chosen,
     result: result,
   );
   onPublished?.call(publication);
@@ -131,6 +136,11 @@ Future<({SurfacePublication publication, bool? recorded})> publishSurface({
   );
   return (publication: publication, recorded: recorded);
 }
+
+/// The line a publish prints when [revision] is already live.
+@experimental
+String alreadyLiveMessage(String slug, int revision, String environment) =>
+    '"$slug" r$revision is already live in $environment. Devices see no change.';
 
 /// How to show a published [kind] of surface in an app. [mountName] is the
 /// generated widget the published version names, when it names one.

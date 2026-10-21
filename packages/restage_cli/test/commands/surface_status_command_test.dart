@@ -718,7 +718,7 @@ void main() {
       expect(
         out,
         contains(
-          'reach: v5 reached 1,240 of 1,610 devices (77%) · 2 h after publish',
+          'reach: v5 reached 1,240 of 1,610 active devices (77%) · 2 h after publish',
         ),
       );
       expect(out, contains('  Views since publish: 81% v5'));
@@ -726,8 +726,9 @@ void main() {
       expect(out, contains('Sent v4 by rule holiday · 120 devices'));
       expect(
         out,
-        contains('Not opened since v5 went live · on v4 · 180 devices'),
+        contains('Not opened since v5 went live · on v4 · 150 devices'),
       );
+      expect(out, contains('Not fetched yet · 30 devices'));
       expect(out, contains('1 smaller group hidden for privacy'));
     });
 
@@ -769,7 +770,8 @@ String _reachWire() {
         'fallback': 'bundled',
       },
       {'reason': 'routed', 'version': 4, 'devices': 120, 'routeId': 'holiday'},
-      {'reason': 'notOpened', 'version': 4, 'devices': 180},
+      {'reason': 'notOpened', 'version': 4, 'devices': 150},
+      {'reason': 'notFetched', 'version': 5, 'devices': 30},
     ],
     'hiddenStragglerRows': 1,
     'viewsSinceLive': 1610,

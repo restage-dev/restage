@@ -16,6 +16,10 @@ enum SurfaceReachReason {
 
   /// They have not fetched the surface since the live version went live.
   notOpened,
+
+  /// They are active on a build that can show the surface and never fetched
+  /// it.
+  notFetched,
 }
 
 /// Devices not on the live version for one reason.
@@ -78,9 +82,8 @@ class SurfaceReachStraggler {
 
 /// How far a surface's live version reached devices.
 ///
-/// [devices] counts installs that fetched the surface in the last 30 days;
-/// [reached], those holding the live version. A count from one to four is
-/// null and reads "<5".
+/// [devices] counts the active devices; [reached], those holding the live
+/// version. A count from one to four is null and reads "<5".
 class SurfaceReach {
   /// Construct a reach.
   const SurfaceReach({
@@ -132,7 +135,8 @@ class SurfaceReach {
   /// When the live version went live.
   final DateTime? liveSince;
 
-  /// Installs that fetched the surface in the last 30 days.
+  /// Devices seen in the last 30 days on an app build that can show this
+  /// surface.
   final int? devices;
 
   /// Of them, those holding the live version.
@@ -189,7 +193,7 @@ String surfaceReachHeadline(SurfaceReach reach) {
       ? ' · just published'
       : ' · ${_elapsed(elapsed)} after publish';
   return 'v$live reached ${countText(reached)} of ${countText(devices)} '
-      'devices$share$since';
+      'active devices$share$since';
 }
 
 /// The headline, the live version's share of views, then one line per
@@ -217,6 +221,7 @@ String _straggler(SurfaceReach reach, SurfaceReachStraggler s) {
     SurfaceReachReason.notOpened =>
       'Not opened since v${reach.liveVersion} went live · on v${s.version} · '
           '$devices',
+    SurfaceReachReason.notFetched => 'Not fetched yet · $devices',
   };
 }
 

@@ -72,7 +72,7 @@ void main() {
       }, engineSet),
       throwsA(
         isA<RenderBundleBuildException>()
-            .having((error) => error.reason, 'reason', 'engine_incomplete')
+            .having((error) => error.reason.code, 'reason', 'engine_incomplete')
             .having(
               (error) => error.detail,
               'detail',
@@ -90,7 +90,7 @@ void main() {
       }, engineSet),
       throwsA(
         isA<RenderBundleBuildException>().having(
-          (error) => error.reason,
+          (error) => error.reason.code,
           'reason',
           'engine_toolchain',
         ),
@@ -106,7 +106,7 @@ void main() {
       }, engineSet),
       throwsA(
         isA<RenderBundleBuildException>().having(
-          (error) => error.reason,
+          (error) => error.reason.code,
           'reason',
           'engine_toolchain',
         ),
@@ -156,7 +156,7 @@ void main() {
       ),
       throwsA(
         isA<RenderBundleBuildException>().having(
-          (error) => error.reason,
+          (error) => error.reason.code,
           'reason',
           'engine_missing',
         ),

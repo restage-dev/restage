@@ -1,8 +1,9 @@
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/receipts/release_receipt.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show receiptPathSegment, receiptsDirectory;
 
-/// Directory, relative to the app package, that holds release receipts.
-const String receiptsDirectory = '.restage/receipts';
+export 'package:restage_shared/restage_shared.dart' show receiptsDirectory;
 
 /// The directory holding every receipt for one app.
 ///
@@ -15,9 +16,9 @@ String appReceiptDirectory({
   required String app,
 }) => p.posix.join(
   receiptsDirectory,
-  _segment(organization),
-  _segment(project),
-  _segment(app),
+  receiptPathSegment(organization),
+  receiptPathSegment(project),
+  receiptPathSegment(app),
 );
 
 /// The directory holding every receipt for one surface in one environment.
@@ -35,9 +36,9 @@ String surfaceReceiptDirectory({
 }) => p.posix.join(
   appReceiptDirectory(organization: organization, project: project, app: app),
   'surface',
-  _segment(surfaceType),
-  _segment(surfaceId),
-  _segment(environment),
+  receiptPathSegment(surfaceType),
+  receiptPathSegment(surfaceId),
+  receiptPathSegment(environment),
 );
 
 /// Where the receipt for one pushed revision belongs.
@@ -98,26 +99,9 @@ String renderBundleReceiptPath({
 }) => p.posix.join(
   appReceiptDirectory(organization: organization, project: project, app: app),
   'bundle',
-  _segment(head),
+  receiptPathSegment(head),
   'v$version.json',
 );
-
-/// [value] reduced to one path segment.
-String _segment(String value) {
-  final buffer = StringBuffer();
-  for (final rune in value.toLowerCase().runes) {
-    final character = String.fromCharCode(rune);
-    final isDigit = rune >= 0x30 && rune <= 0x39;
-    final isLetter = rune >= 0x61 && rune <= 0x7a;
-    buffer.write(
-      isDigit || isLetter || character == '.' || character == '_'
-          ? character
-          : '-',
-    );
-  }
-  final segment = buffer.toString();
-  return segment.isEmpty ? 'unnamed' : segment;
-}
 
 /// The timestamp as it appears in a receipt file name, to the millisecond.
 String _stamp(DateTime at) {

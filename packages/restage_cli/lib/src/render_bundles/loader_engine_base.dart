@@ -12,23 +12,31 @@ const _loadCall = '_flutter.loader.load';
 String withLoaderEngineBase(String loaderSource, {required Uri engineBase}) {
   final configStart = loaderSource.lastIndexOf(_buildConfigMarker);
   if (configStart < 0) {
-    throw const RenderBundleBuildException('loader_contract');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.loaderContract,
+    );
   }
   final configEnd = loaderSource.indexOf(
     ';\n',
     configStart + _buildConfigMarker.length,
   );
   if (configEnd < 0) {
-    throw const RenderBundleBuildException('loader_contract');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.loaderContract,
+    );
   }
   final insertAt = configEnd + 2;
 
   final loaderAt = loaderSource.indexOf(_loaderObject);
   if (loaderAt < 0 || loaderAt >= insertAt) {
-    throw const RenderBundleBuildException('loader_contract');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.loaderContract,
+    );
   }
   if (!loaderSource.contains(_loadCall, insertAt)) {
-    throw const RenderBundleBuildException('loader_contract');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.loaderContract,
+    );
   }
 
   final base = jsonEncode(engineBase.toString());

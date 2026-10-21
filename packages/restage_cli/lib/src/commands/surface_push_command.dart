@@ -484,7 +484,7 @@ class SurfacePushCommand extends Command<int> {
       } on RestageApiException catch (error) {
         return _handleApiException(error);
       } on SocketException catch (error) {
-        _stderr.writeln('Could not contact the backend: $error');
+        _stderr.writeln(backendUnreachableMessage(api.endpoint, error));
         return 2;
       }
 
@@ -539,34 +539,49 @@ class SurfacePushCommand extends Command<int> {
               contractVersion: result.family.contractVersion,
             );
           }
-          if (recorder == null) return;
-          recordedPushes.add(
-            '${result.family.surfaceSlug} r${result.storedRevision}',
+          final receipt = _pushReceipt(
+            publication: publication,
+            result: result,
+            target: target,
+            source: recordedSource ?? const ReceiptSource.unknown(),
+            project: project,
+            app: app,
+            environment: environment,
+            organization: preferredOrganizationSlug,
+            generationFingerprint: generationFingerprint,
           );
-          final written = await recorder.write(
-            receipt: _pushReceipt(
-              publication: publication,
-              result: result,
-              target: target,
-              source: recordedSource!,
-              project: project,
-              app: app,
-              environment: environment,
-              organization: preferredOrganizationSlug,
-              generationFingerprint: generationFingerprint,
-            ),
-            relativePath: surfacePushReceiptPath(
-              organization: target.organizationSlug,
-              project: project,
-              app: app,
-              surfaceType: result.family.surfaceType,
-              surfaceId: result.family.surfaceSlug,
-              environment: environment,
-              revision: result.storedRevision,
-            ),
-            stdout: _stdout,
-            stderr: _stderr,
+          final relativePath = surfacePushReceiptPath(
+            organization: target.organizationSlug,
+            project: project,
+            app: app,
+            surfaceType: result.family.surfaceType,
+            surfaceId: result.family.surfaceSlug,
+            environment: environment,
+            revision: result.storedRevision,
           );
+          // Every push leaves its receipt; --record-git also commits it.
+          final bool written;
+          if (recorder == null) {
+            written =
+                await writeReceiptFile(
+                  projectRoot: packageRoot,
+                  receipt: receipt,
+                  relativePath: relativePath,
+                  stdout: _stdout,
+                  stderr: _stderr,
+                ) !=
+                null;
+          } else {
+            recordedPushes.add(
+              '${result.family.surfaceSlug} r${result.storedRevision}',
+            );
+            written = await recorder.write(
+              receipt: receipt,
+              relativePath: relativePath,
+              stdout: _stdout,
+              stderr: _stderr,
+            );
+          }
           if (!written) recordFailed = true;
         },
       );
@@ -583,7 +598,9 @@ class SurfacePushCommand extends Command<int> {
           stderr: _stderr,
         );
       }
-      if (recorder == null) return pushCode;
+      if (recorder == null) {
+        return pushCode != 0 || !recordFailed ? pushCode : 2;
+      }
 
       // The receipts are already on disk, so the commit happens whether or
       // not the run reached every surface it was given.

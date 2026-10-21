@@ -507,7 +507,7 @@ class InitCommand extends Command<int> {
       _stderr.writeln('Could not discover your Restage context: ${e.body}');
       return null;
     } on SocketException catch (e) {
-      _stderr.writeln('Could not contact the backend: $e');
+      _stderr.writeln(backendUnreachableMessage(api.endpoint, e));
       return null;
     } finally {
       if (_httpClient == null) api.close();

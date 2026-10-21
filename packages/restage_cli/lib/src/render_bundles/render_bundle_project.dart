@@ -44,7 +44,9 @@ Future<Directory> writeRenderBundleProject({
 }) async {
   final root = Directory(p.normalize(projectRoot.absolute.path));
   if (!File(p.join(root.path, 'lib', 'user_factories.g.dart')).existsSync()) {
-    throw const RenderBundleBuildException('factories_missing');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.factoriesMissing,
+    );
   }
   final standIn = await _standInProject(
     root,
@@ -170,7 +172,7 @@ Future<_StandIn> _standInProject(
         await readConfiguredRestageOutputRoot(root) ??
         defaultRestagePortableOutputRoot;
   } on PublicationException {
-    throw const RenderBundleBuildException('output_root');
+    throw const RenderBundleBuildException(RenderBundleBuildFailure.outputRoot);
   }
   final PackageResolution resolution;
   final Set<String> closure;
@@ -180,14 +182,18 @@ Future<_StandIn> _standInProject(
     closure = resolution.closure(app.name, includeDev: includeDev);
     direct = resolution.dependenciesOf(app.name);
   } on PackageResolutionException {
-    throw const RenderBundleBuildException('dependencies_unresolved');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.dependenciesUnresolved,
+    );
   }
   final pins = <String, String>{};
   for (final name in closure.toList()..sort()) {
     if (name == app.name || resolution.isSdkPackage(name)) continue;
     pins[name] =
         resolution.rootOf(name) ??
-        (throw const RenderBundleBuildException('dependencies_unresolved'));
+        (throw const RenderBundleBuildException(
+          RenderBundleBuildFailure.dependenciesUnresolved,
+        ));
   }
   Object? renderHost;
   if (requireRenderHost) {
@@ -236,7 +242,9 @@ Object _renderHostDependency({
   required Map<String, String> pins,
 }) {
   if (restageRoot == null) {
-    throw const RenderBundleBuildException('render_host_missing');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.renderHostMissing,
+    );
   }
   if (pins.containsKey(renderHostPackage)) return 'any';
   final sibling = p.join(p.dirname(restageRoot), renderHostPackage);
@@ -246,7 +254,9 @@ Object _renderHostDependency({
   }
   final version = _packageVersion(restageRoot);
   if (version == null) {
-    throw const RenderBundleBuildException('render_host_missing');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.renderHostMissing,
+    );
   }
   final (major, minor) = version;
   return '>=$major.$minor.0 <$major.${minor + 1}.0';
@@ -353,11 +363,15 @@ _App _readApp(Directory projectRoot) {
       File(p.join(projectRoot.path, 'pubspec.yaml')).readAsStringSync(),
     );
   } on Object {
-    throw const RenderBundleBuildException('project_identity');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.projectIdentity,
+    );
   }
   final name = document is YamlMap ? document['name'] : null;
   if (name is! String || !RegExp(r'^[a-z_][a-z0-9_]*$').hasMatch(name)) {
-    throw const RenderBundleBuildException('project_identity');
+    throw const RenderBundleBuildException(
+      RenderBundleBuildFailure.projectIdentity,
+    );
   }
   final flutter = (document as YamlMap)['flutter'];
   List<Object?> listOf(String key) =>

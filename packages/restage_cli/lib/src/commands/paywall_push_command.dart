@@ -351,7 +351,7 @@ class PaywallPushCommand extends Command<int> {
       } on RestageApiException catch (error) {
         return _handleApiException(error);
       } on SocketException catch (error) {
-        _stderr.writeln('Could not contact the backend: $error');
+        _stderr.writeln(backendUnreachableMessage(api.endpoint, error));
         return 2;
       }
 

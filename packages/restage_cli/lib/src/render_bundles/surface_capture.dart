@@ -398,11 +398,12 @@ String _testFailure(String name, Directory root, Directory project) =>
     'it did not render; run `flutter test ${_testPath(name)}` in '
     '${p.relative(project.path, from: root.path)} to see why';
 
-String _buildFailure(String reason) => switch (reason) {
-  'project_identity' => 'pubspec.yaml does not name the app',
-  'output_root' =>
+String _buildFailure(RenderBundleBuildFailure reason) => switch (reason) {
+  RenderBundleBuildFailure.projectIdentity =>
+    'pubspec.yaml does not name the app',
+  RenderBundleBuildFailure.outputRoot =>
     'restage_config.yaml names an output root that is not usable',
-  'dependencies_unresolved' =>
+  RenderBundleBuildFailure.dependenciesUnresolved =>
     "the app's dependencies are not resolved; run `flutter pub get`",
-  _ => 'the image project could not be written',
+  _ => 'the image project could not be written (${reason.code})',
 };

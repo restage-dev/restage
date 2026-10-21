@@ -68,8 +68,8 @@ class LoginCommand extends Command<int> {
       ..addOption(
         'endpoint',
         help:
-            'Backend origin to authenticate against. Defaults to the '
-            'production deployment.',
+            'Backend origin to sign in to. Defaults to $_backendUrlVariable '
+            'when set, else ${defaultEndpoint.origin}.',
       )
       ..addFlag(
         'open',
@@ -223,10 +223,21 @@ class LoginCommand extends Command<int> {
       } finally {
         spinner.stop();
       }
+    } on SocketException catch (e) {
+      _stderr.writeln(_unreachable(endpoint, e));
+      return 2;
+    } on http.ClientException catch (e) {
+      _stderr.writeln(_unreachable(endpoint, e));
+      return 2;
     } finally {
       if (_httpClient == null) api.close();
     }
   }
+
+  String _unreachable(Uri endpoint, Object error) =>
+      'Could not reach ${endpoint.origin}: $error\n'
+      'To sign in to another server, run `restage login --endpoint <url>`, or '
+      'set $_backendUrlVariable.';
 
   /// Whether [verificationUri] is safe to hand to the system browser opener.
   ///
@@ -252,7 +263,7 @@ class LoginCommand extends Command<int> {
   Uri _resolveEndpoint() {
     final fromFlag = argResults?['endpoint'] as String?;
     if (fromFlag != null && fromFlag.isNotEmpty) return Uri.parse(fromFlag);
-    final fromEnv = Platform.environment['RESTAGE_BACKEND_URL'];
+    final fromEnv = Platform.environment[_backendUrlVariable];
     if (fromEnv != null && fromEnv.isNotEmpty) return Uri.parse(fromEnv);
     return _defaultEndpoint;
   }
@@ -303,3 +314,5 @@ class LoginCommand extends Command<int> {
     return credential;
   }
 }
+
+const _backendUrlVariable = 'RESTAGE_BACKEND_URL';

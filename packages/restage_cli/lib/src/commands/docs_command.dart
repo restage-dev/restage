@@ -37,7 +37,15 @@ class DocsCommand extends Command<int> {
 
   @override
   String get description => 'Search and read the Restage documentation.';
+
+  @override
+  String get usageFooter => docsOriginFooter;
 }
+
+/// Where the docs commands read from, and how to change it.
+const docsOriginFooter =
+    'Reads $defaultDocsOrigin. Set $docsOriginVariable to read the docs from '
+    'another site.';
 
 abstract class _DocsLeaf extends Command<int> {
   _DocsLeaf({
@@ -51,6 +59,9 @@ abstract class _DocsLeaf extends Command<int> {
   final StringSink stderr;
   final http.Client? httpClient;
   final Map<String, String>? environment;
+
+  @override
+  String get usageFooter => docsOriginFooter;
 
   Future<int> withClient(Future<int> Function(DocsClient docs) body) async {
     final docs = DocsClient.fromEnvironment(

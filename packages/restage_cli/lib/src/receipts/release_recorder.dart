@@ -215,57 +215,16 @@ final class ReleaseRecorder {
     required StringSink stdout,
     required StringSink stderr,
   }) async {
-    final file = File(p.join(projectRoot.path, relativePath));
-    if (file.existsSync()) {
-      if (_recordsTheSameOperation(file, receipt)) {
-        _written.add(repository.pathspecFor(file.path));
-        return true;
-      }
-      stderr.writeln(
-        'A different operation is already recorded at $relativePath, so this '
-        'one was not written over it. It reads:',
-      );
-      stdout.write(receipt.encode());
-      return false;
-    }
-    try {
-      await file.parent.create(recursive: true);
-      await file.writeAsString(receipt.encode());
-    } on FileSystemException catch (error) {
-      stderr.writeln(
-        'The receipt for $relativePath could not be written '
-        '(${error.message}). It belongs at ${file.path} and reads:',
-      );
-      stdout.write(receipt.encode());
-      return false;
-    }
+    final file = await writeReceiptFile(
+      projectRoot: projectRoot,
+      receipt: receipt,
+      relativePath: relativePath,
+      stdout: stdout,
+      stderr: stderr,
+    );
+    if (file == null) return false;
     _written.add(repository.pathspecFor(file.path));
     return true;
-  }
-
-  /// Whether the receipt already at [file] records what [receipt] records.
-  bool _recordsTheSameOperation(File file, ReleaseReceipt receipt) {
-    final ReleaseReceipt existing;
-    try {
-      existing = ReleaseReceipt.decode(file.readAsStringSync());
-    } on FormatException {
-      return false;
-    } on FileSystemException {
-      return false;
-    }
-    return existing.operation == receipt.operation &&
-        existing.target.organizationId == receipt.target.organizationId &&
-        existing.target.project == receipt.target.project &&
-        existing.target.app == receipt.target.app &&
-        existing.target.environment == receipt.target.environment &&
-        existing.target.environmentTargetId ==
-            receipt.target.environmentTargetId &&
-        existing.surface?.type == receipt.surface?.type &&
-        existing.surface?.id == receipt.surface?.id &&
-        existing.bundle?.head == receipt.bundle?.head &&
-        existing.bundle?.version == receipt.bundle?.version &&
-        existing.revision?.stored == receipt.revision?.stored &&
-        existing.revision?.activeBefore == receipt.revision?.activeBefore;
   }
 
   /// Commit what this operation wrote, in one commit.
@@ -359,3 +318,61 @@ String _text(Object? stream) => switch (stream) {
   List<int> bytes => String.fromCharCodes(bytes),
   _ => '',
 };
+
+/// Writes [receipt] at [relativePath] under [projectRoot], whether or not
+/// the push records it in Git. Returns the file, or null after saying why.
+Future<File?> writeReceiptFile({
+  required Directory projectRoot,
+  required ReleaseReceipt receipt,
+  required String relativePath,
+  required StringSink stdout,
+  required StringSink stderr,
+}) async {
+  final file = File(p.join(projectRoot.path, relativePath));
+  if (file.existsSync()) {
+    if (_recordsTheSameOperation(file, receipt)) return file;
+    stderr.writeln(
+      'A different operation is already recorded at $relativePath, so this '
+      'one was not written over it. It reads:',
+    );
+    stdout.write(receipt.encode());
+    return null;
+  }
+  try {
+    await file.parent.create(recursive: true);
+    await file.writeAsString(receipt.encode());
+  } on FileSystemException catch (error) {
+    stderr.writeln(
+      'The receipt for $relativePath could not be written '
+      '(${error.message}). It belongs at ${file.path} and reads:',
+    );
+    stdout.write(receipt.encode());
+    return null;
+  }
+  return file;
+}
+
+/// Whether the receipt already at [file] records what [receipt] records.
+bool _recordsTheSameOperation(File file, ReleaseReceipt receipt) {
+  final ReleaseReceipt existing;
+  try {
+    existing = ReleaseReceipt.decode(file.readAsStringSync());
+  } on FormatException {
+    return false;
+  } on FileSystemException {
+    return false;
+  }
+  return existing.operation == receipt.operation &&
+      existing.target.organizationId == receipt.target.organizationId &&
+      existing.target.project == receipt.target.project &&
+      existing.target.app == receipt.target.app &&
+      existing.target.environment == receipt.target.environment &&
+      existing.target.environmentTargetId ==
+          receipt.target.environmentTargetId &&
+      existing.surface?.type == receipt.surface?.type &&
+      existing.surface?.id == receipt.surface?.id &&
+      existing.bundle?.head == receipt.bundle?.head &&
+      existing.bundle?.version == receipt.bundle?.version &&
+      existing.revision?.stored == receipt.revision?.stored &&
+      existing.revision?.activeBefore == receipt.revision?.activeBefore;
+}

@@ -546,7 +546,7 @@ global_options:
 
 Matcher _refusedWith(String reason) => throwsA(
   isA<RenderBundleBuildException>().having(
-    (error) => error.reason,
+    (error) => error.reason.code,
     'reason',
     reason,
   ),

@@ -308,7 +308,13 @@ void main() {
     ).run(<String>['build', 'push', '-C', root.path]);
 
     expect(exit, 2);
-    expect(stderr.toString(), 'Could not build the render bundle.\n');
+    expect(
+      stderr.toString(),
+      'Could not build the render bundle: `flutter build web` wrote no '
+      'files. Run `flutter build web --wasm` in the build directory to see '
+      'why.\n'
+      'Reason: empty_output.\n',
+    );
   });
 
   test('a server origin that is not a bare origin is refused', () async {
@@ -554,47 +560,84 @@ void main() {
 
     expect(exit, 2);
     expect(networkCalls, 0);
-    expect(stderr.toString(), contains('Could not build the render bundle.'));
-    expect(stderr.toString(), isNot(contains('sensitive process output')));
+    expect(
+      stderr.toString(),
+      'Could not build the render bundle: the build stopped on an unexpected '
+      'error. Push again. If it happens again, include the reason below when '
+      'you report it.\n'
+      'Reason: build_failed.\n',
+    );
   });
 
   for (final (error, message) in <(RenderBundleBuildException, String)>[
     (
-      const RenderBundleBuildException('factories_missing'),
+      const RenderBundleBuildException(
+        RenderBundleBuildFailure.factoriesMissing,
+      ),
       'Could not build the render bundle: lib/user_factories.g.dart is '
           'missing. Run `dart run build_runner build`, or drop --no-generate '
-          'and let the push run it.',
+          'and let the push run it.\n'
+          'Reason: factories_missing.',
     ),
     (
-      const RenderBundleBuildException('render_host_missing'),
+      const RenderBundleBuildException(
+        RenderBundleBuildFailure.renderHostMissing,
+      ),
       'Could not build the render bundle: no restage version could be read '
           "from this app's dependencies. Add restage, run `flutter pub get` "
-          'and push again.',
-    ),
-    (
-      const RenderBundleBuildException('dependencies_unresolved'),
-      "Could not build the render bundle: this app's dependencies are not "
-          'resolved. Run `flutter pub get` and push again.',
+          'and push again.\n'
+          'Reason: render_host_missing.',
     ),
     (
       const RenderBundleBuildException(
-        'dependencies_failed',
-        detail: '.restage/build/render_bundle',
+        RenderBundleBuildFailure.dependenciesUnresolved,
       ),
-      'Could not build the render bundle: its dependencies did not resolve. '
-          'Run `flutter pub get` in .restage/build/render_bundle to see why.',
+      "Could not build the render bundle: this app's dependencies are not "
+          'resolved. Run `flutter pub get` and push again.\n'
+          'Reason: dependencies_unresolved.',
     ),
     (
       const RenderBundleBuildException(
-        'flutter_build_failed',
-        detail: '.restage/build/render_bundle',
+        RenderBundleBuildFailure.dependenciesFailed,
+        buildDirectory: '.restage/build/render_bundle',
+      ),
+      "Could not build the render bundle: this app's dependencies did not "
+          'resolve in .restage/build/render_bundle. Run `flutter pub get` '
+          'there to see why.\n'
+          'Reason: dependencies_failed.\n'
+          'Build directory: .restage/build/render_bundle',
+    ),
+    (
+      const RenderBundleBuildException(
+        RenderBundleBuildFailure.flutterBuildFailed,
+        buildDirectory: '.restage/build/render_bundle',
       ),
       'Could not build the render bundle: `flutter build web` failed. Run '
           '`flutter build web --wasm` in .restage/build/render_bundle to see '
-          'why.',
+          'why.\n'
+          'Reason: flutter_build_failed.\n'
+          'Build directory: .restage/build/render_bundle',
+    ),
+    (
+      const RenderBundleBuildException(
+        RenderBundleBuildFailure.privateTempPermissions,
+        detail: '/tmp/restage_render_bundle_x',
+      ),
+      'Could not build the render bundle: the temporary directory '
+          '/tmp/restage_render_bundle_x could not be made private. Set '
+          'TMPDIR to a directory you own and push again.\n'
+          'Reason: private_temp_permissions.',
+    ),
+    (
+      const RenderBundleBuildException(RenderBundleBuildFailure.engineMissing),
+      'Could not build the render bundle: `flutter build web` wrote no '
+          'engine files. To build with a different Flutter, run `restage build '
+          'push --flutter-root <sdk directory>`, set `flutterRoot` in '
+          'restage_config.yaml, or set FLUTTER_ROOT.\n'
+          'Reason: engine_missing.',
     ),
   ]) {
-    test('${error.reason} is named', () async {
+    test('${error.reason.code} is named', () async {
       final exit = await RestageCli(
         stdout: stdout,
         stderr: stderr,
@@ -611,14 +654,57 @@ void main() {
     });
   }
 
-  test('a build that wrote no engine names how to change Flutter', () async {
+  test(
+    'every build failure names its cause, a next step and its code',
+    () async {
+      for (final reason in RenderBundleBuildFailure.values) {
+        final err = StringBuffer();
+        final exit = await RestageCli(
+          stdout: StringBuffer(),
+          stderr: err,
+          credentialStore: store,
+          httpClient: _withOrigins((_) async => http.Response('', 500)),
+          renderBundleBuilder: _FailingBuilder(
+            RenderBundleBuildException(
+              reason,
+              detail: 'detail-path',
+              buildDirectory: 'build-dir',
+            ),
+          ),
+          renderBundleFlutterToolchain: _fakeFlutter,
+          renderBundleCatalog: catalogStep.call,
+          renderBundleSource: sourceStep.call,
+        ).run(<String>['build', 'push', '-C', root.path]);
+
+        expect(exit, 2, reason: reason.code);
+        final lines = err.toString().split('\n');
+        final sentence = lines.firstWhere(
+          (line) => line.startsWith('Could not build the render bundle'),
+        );
+        // A cause, then at least one more sentence that says what to do.
+        expect(
+          sentence,
+          matches(RegExp(r'^Could not build the render bundle: .+\. .+\.$')),
+          reason: reason.code,
+        );
+        expect(lines, contains('Reason: ${reason.code}.'), reason: reason.code);
+        expect(
+          lines,
+          contains('Build directory: build-dir'),
+          reason: reason.code,
+        );
+      }
+    },
+  );
+
+  test('a filesystem failure names the path', () async {
     final exit = await RestageCli(
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
       httpClient: _withOrigins((_) async => http.Response('', 500)),
-      renderBundleBuilder: _FailingBuilder(
-        const RenderBundleBuildException('engine_missing'),
+      renderBundleBuilder: _ThrowingBuilder(
+        const FileSystemException('denied', '/work/app/.restage'),
       ),
       renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
@@ -628,10 +714,10 @@ void main() {
     expect(exit, 2);
     expect(
       stderr.toString(),
-      'Could not build the render bundle: `flutter build web` wrote no '
-      'engine files. To build with a different Flutter, run `restage build '
-      'push --flutter-root <sdk directory>`, set `flutterRoot` in '
-      'restage_config.yaml, or set FLUTTER_ROOT.\n',
+      'Could not build the render bundle: could not read or write '
+      '/work/app/.restage. Check its permissions and free disk space, then '
+      'push again.\n'
+      'Reason: file_access.\n',
     );
   });
 
@@ -2056,7 +2142,9 @@ final class _FakeBuilder implements RenderBundleArtifactBuilder {
 
 final class _FailingBuilder implements RenderBundleArtifactBuilder {
   _FailingBuilder([
-    this.failure = const RenderBundleBuildException('sensitive process output'),
+    this.failure = const RenderBundleBuildException(
+      RenderBundleBuildFailure.buildFailed,
+    ),
   ]);
 
   final RenderBundleBuildException failure;
@@ -2069,4 +2157,19 @@ final class _FailingBuilder implements RenderBundleArtifactBuilder {
     required Uri controlOrigin,
     String? flutterExecutable,
   }) => throw failure;
+}
+
+final class _ThrowingBuilder implements RenderBundleArtifactBuilder {
+  _ThrowingBuilder(this.error);
+
+  final Object error;
+
+  @override
+  Future<RenderBundleArtifact> build({
+    required Directory projectRoot,
+    required String catalogJson,
+    required Uri parentOrigin,
+    required Uri controlOrigin,
+    String? flutterExecutable,
+  }) => throw error;
 }

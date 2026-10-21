@@ -187,7 +187,7 @@ class DoctorCommand extends Command<int> {
     } on RestageApiException catch (error) {
       line('SKIP', renderApiError(error).message);
     } on SocketException catch (error) {
-      line('SKIP', 'Could not contact the backend: $error');
+      line('SKIP', backendUnreachableMessage(api?.endpoint, error));
     } finally {
       if (_httpClient == null) api?.close();
     }
@@ -259,7 +259,7 @@ class DoctorCommand extends Command<int> {
     } on RestageApiException catch (error) {
       line('SKIP', renderApiError(error).message);
     } on SocketException catch (error) {
-      line('SKIP', 'Could not contact the backend: $error');
+      line('SKIP', backendUnreachableMessage(api?.endpoint, error));
     } finally {
       if (_httpClient == null) api?.close();
     }

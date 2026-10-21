@@ -276,6 +276,43 @@ void main() {
     });
   });
 
+  group('a usage error', () {
+    test('names the commands that take an unknown option', () async {
+      final stderr = StringBuffer();
+      final exit = await RestageCli(
+        stdout: StringBuffer(),
+        stderr: stderr,
+        hasTerminal: () => false,
+      ).run(const ['surface', 'push', '--reason', 'x']);
+
+      expect(exit, 1);
+      final lines = stderr.toString().trim().split('\n');
+      expect(lines.first, 'Could not find an option named "--reason".');
+      expect(lines[1], startsWith('--reason is an option of '));
+      expect(lines[1], contains('restage surface publish'));
+      expect(
+        lines.last,
+        'Run `restage surface push --help` to see its options.',
+      );
+    });
+
+    test('ends on where to read the options', () async {
+      final stderr = StringBuffer();
+      final exit = await RestageCli(
+        stdout: StringBuffer(),
+        stderr: stderr,
+        hasTerminal: () => false,
+      ).run(const ['surface', 'push', '--no-such-option']);
+
+      expect(exit, 1);
+      expect(
+        stderr.toString(),
+        'Could not find an option named "--no-such-option".\n'
+        'Run `restage surface push --help` to see its options.\n',
+      );
+    });
+  });
+
   group('-C before the command', () {
     test('reaches a command that reads restage_config.yaml', () async {
       final directory = await Directory.systemTemp.createTemp('cli_dir_');

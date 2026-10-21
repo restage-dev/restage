@@ -172,10 +172,7 @@ class RestageCli {
       );
       return result ?? 0;
     } on UsageException catch (e) {
-      _stderr
-        ..writeln(e.message)
-        ..writeln()
-        ..writeln(e.usage);
+      _stderr.writeln(usageFailureMessage(runner, args, e.message));
       return 1;
     } on RestageConfigFormatException catch (e) {
       _stderr.writeln('Could not read restage_config.yaml: ${e.message}');
@@ -206,10 +203,11 @@ class RestageCli {
   CommandRunner<int> commandRunner({
     Interactive interactive = const NonInteractive(),
   }) {
-    final runner = CommandRunner<int>(
+    final runner = _RestageRunner(
       'restage',
       'Restage — tools for building, previewing, and publishing Flutter '
           'surfaces.',
+      defaultEndpoint: _defaultEndpoint,
     );
     _addGlobalOptions(runner.argParser);
     // The credential-store path resolution can fail with [StateError]
@@ -518,4 +516,57 @@ Interactive _defaultInteractiveFactory(ArgResults globalResults) {
     readLine: () async => io.stdin.readLineSync(),
     stdout: io.stdout,
   );
+}
+
+/// The lines a usage error prints: the error, the commands beside this one
+/// that take an unknown option, and where to read this command's options.
+String usageFailureMessage(
+  CommandRunner<int> runner,
+  List<String> args,
+  String message,
+) {
+  final path = <String>[];
+  Map<String, Command<int>> siblings = runner.commands;
+  Map<String, Command<int>> commands = runner.commands;
+  for (final arg in args) {
+    if (arg.startsWith('-')) continue;
+    final command = commands[arg];
+    if (command == null) break;
+    path.add(command.name);
+    siblings = commands;
+    commands = command.subcommands;
+  }
+  final lines = [message];
+  final option = RegExp(r'option named "--?([^"]+)"').firstMatch(message);
+  if (option != null && path.isNotEmpty) {
+    final name = option.group(1)!;
+    final parent = path.sublist(0, path.length - 1).join(' ');
+    final takers = [
+      for (final command in siblings.values)
+        if (!command.hidden &&
+            command.name != path.last &&
+            command.argParser.options.containsKey(name))
+          'restage ${parent.isEmpty ? '' : '$parent '}${command.name}',
+    ];
+    if (takers.isNotEmpty)
+      lines.add('--$name is an option of ${takers.join(', ')}.');
+  }
+  final helpPath = ['restage', ...path].join(' ');
+  lines.add('Run `$helpPath --help` to see its options.');
+  return lines.join('\n');
+}
+
+final class _RestageRunner extends CommandRunner<int> {
+  _RestageRunner(
+    super.executableName,
+    super.description, {
+    required this.defaultEndpoint,
+  });
+
+  final Uri defaultEndpoint;
+
+  @override
+  String get usageFooter =>
+      'Commands use the server you signed in to, ${defaultEndpoint.origin} '
+      'by default. Run `restage login --endpoint <url>` to use another.';
 }

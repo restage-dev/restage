@@ -5,13 +5,17 @@ import 'package:restage_cli/api.dart';
 import 'api_runner.dart';
 import 'tool_support.dart';
 
+const _docsOrigin =
+    'Reads $defaultDocsOrigin unless the MCP server was started with '
+    '$docsOriginVariable set to another docs site.';
+
 /// Searches the published docs, the same as `restage docs search`.
 final docsSearchTool = Tool(
   name: 'restage_docs_search',
   description:
       'Search the Restage documentation. Returns ranked sections with their '
       'page title, heading, URL, Markdown URL and a snippet. Read a result '
-      'with restage_docs_read.',
+      'with restage_docs_read. $_docsOrigin',
   annotations: ToolAnnotations(readOnlyHint: true, openWorldHint: true),
   inputSchema: Schema.object(
     properties: {
@@ -31,7 +35,7 @@ final docsReadTool = Tool(
       'Read a Restage documentation page as Markdown. Takes a site path '
       '(/delivery/hosted-delivery), a .md path or a docs URL. Add #anchor to '
       'read one section. The index of every page is at '
-      'https://docs.restage.dev/llms.txt.',
+      'https://docs.restage.dev/llms.txt. $_docsOrigin',
   annotations: ToolAnnotations(readOnlyHint: true, openWorldHint: true),
   inputSchema: Schema.object(
     properties: {

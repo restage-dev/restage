@@ -6,6 +6,7 @@ import 'package:yaml_edit/yaml_edit.dart';
 const List<String> restageStateBuildInputs = <String>[
   '.restage/measurement-state.json',
   '.restage/wire-ids.events.jsonl',
+  '.restage/receipts/**',
 ];
 
 /// What [planStateBuildInputs] would do to `build.yaml`.

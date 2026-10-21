@@ -297,7 +297,7 @@ void main() {
     final stated = result.structuredContent!['reach']! as Map<String, Object?>;
     expect(
       stated['headline'],
-      'v2 reached 30 of 40 devices (75%) · 2 h after publish',
+      'v2 reached 30 of 40 active devices (75%) · 2 h after publish',
     );
     expect(stated['devices'], 40);
   });
@@ -412,6 +412,21 @@ void main() {
     expect(result.structuredContent!['events'], isEmpty);
   });
 
+  test('an unreachable backend names how to use another server', () async {
+    final connection = await connect(
+      (_) async => throw http.ClientException('lookup failed'),
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(name: 'restage_publish_surface', arguments: _surface),
+    );
+
+    expect(result.isError, isTrue);
+    expect(_text(result), contains('Could not reach the Restage backend.'));
+    expect(_text(result), contains('RESTAGE_BACKEND_URL'));
+    expect(_text(result), isNot(contains('api.test')));
+  });
+
   group('publish', () {
     test(
       'asks the server for the newest pushed revision with the default reason',
@@ -519,6 +534,42 @@ void main() {
           calls.where((call) => call.method == 'activateSurface'),
           hasLength(1),
         );
+      },
+    );
+
+    test('says when the published revision was already live', () async {
+      final connection = await connect(
+        (_) async => http.Response(
+          jsonEncode({..._activation(5), 'activePublishedRevisionBefore': 5}),
+          200,
+        ),
+      );
+
+      final result = await connection.callTool(
+        CallToolRequest(name: 'restage_publish_surface', arguments: _surface),
+      );
+
+      expect(result.isError, isNot(true), reason: _text(result));
+      expect(result.structuredContent!['alreadyLive'], isTrue);
+      expect(
+        result.structuredContent!['note'],
+        '"first-run" r5 is already live in staging. Devices see no change.',
+      );
+    });
+
+    test(
+      'a publish that moves the live revision is not already live',
+      () async {
+        final connection = await connect(
+          (_) async => http.Response(jsonEncode(_activation(5)), 200),
+        );
+
+        final result = await connection.callTool(
+          CallToolRequest(name: 'restage_publish_surface', arguments: _surface),
+        );
+
+        expect(result.structuredContent!['alreadyLive'], isFalse);
+        expect(result.structuredContent, isNot(contains('note')));
       },
     );
 
