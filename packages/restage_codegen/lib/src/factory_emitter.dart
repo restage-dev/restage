@@ -3613,6 +3613,7 @@ const Map<(String, String), ScalarRoute> _scalarDecoderByWidgetProperty = {
   ('RestageModalSheet', 'scrollControlDisabledMaxHeightRatio'):
       _unitIntervalFactorRoute,
   ('RestagePager', 'viewportFraction'): _unitIntervalFactorRoute,
+  ('TabBarView', 'viewportFraction'): _positiveLayoutScalarRoute,
   ('Tab', 'height'): _layoutFactorRoute,
   ('CupertinoActivityIndicator', 'radius'): _positiveLayoutScalarRoute,
   ('CupertinoPicker', 'magnification'): _positiveLayoutScalarRoute,

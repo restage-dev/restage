@@ -498,4 +498,34 @@ void main() {
       expect(_severeText(logs), isEmpty);
     });
   });
+
+  group('FactoryFunctionBuilder enum imports', () {
+    for (final package in [
+      'restage_core',
+      'restage_material',
+      'restage_cupertino',
+    ]) {
+      test('$package names every enum through the imports it emits', () async {
+        final catalogJson = File(
+          '../$package/lib/src/widget_catalog/catalog.json',
+        ).readAsStringSync();
+        final committed = File(
+          '../$package/lib/src/registration.g.dart',
+        ).readAsStringSync();
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: package,
+          includeFlutter: true,
+        );
+        await testBuilder(
+          factoryFunctionBuilder(BuilderOptions.empty),
+          {'$package|lib/src/widget_catalog/catalog.json': catalogJson},
+          rootPackage: package,
+          readerWriter: readerWriter,
+          outputs: {
+            '$package|lib/src/registration.g.dart': decodedMatches(committed),
+          },
+        );
+      });
+    }
+  });
 }

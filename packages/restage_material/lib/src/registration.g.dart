@@ -7,6 +7,7 @@
 // catalog, and this file).
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:restage_material/src/widgets/restage_draggable_sheet.dart';
 import 'package:restage_material/src/widgets/restage_dropdown.dart';
 import 'package:restage_material/src/widgets/restage_modal_sheet.dart';
@@ -63,6 +64,7 @@ const Map<String, LocalWidgetBuilder> kMaterialLibraryFactories =
   'TextButtonIcon': buildTextButtonIcon,
   'PreferredSize': buildPreferredSize,
   'DefaultTabController': buildDefaultTabController,
+  'TabBarView': buildTabBarView,
   'TabBar': buildTabBar,
   'Tab': buildTab,
   'TextField': buildTextField,
@@ -806,6 +808,22 @@ Widget buildDefaultTabController(BuildContext context, DataSource source) {
         (throw ArgumentError('DefaultTabController.length is required.')),
     initialIndex: source.v<int>(const <Object>['initialIndex']) ?? 0,
     child: source.child(const <Object>['child']),
+  );
+}
+
+/// Builds the catalog's `TabBarView` widget from [source].
+Widget buildTabBarView(BuildContext context, DataSource source) {
+  return TabBarView(
+    dragStartBehavior: RestageDecoders.enumByName<DragStartBehavior>(
+            DragStartBehavior.values, source, <Object>['dragStartBehavior']) ??
+        DragStartBehavior.start,
+    viewportFraction: RestageDecoders.positiveLayoutScalar(
+            source, <Object>['viewportFraction']) ??
+        1.0,
+    clipBehavior: RestageDecoders.enumByName<Clip>(
+            Clip.values, source, <Object>['clipBehavior']) ??
+        Clip.hardEdge,
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }
 

@@ -41,8 +41,8 @@ void main() {
     expect(RestageBuiltInCatalogCapabilities.currentVersion, expected);
   });
 
-  test('native transforms raise the generated global ceiling to 14', () {
-    expect(RestageBuiltInCatalogCapabilities.currentVersion, 14);
+  test('native transforms and tab pages raise the global ceiling to 15', () {
+    expect(RestageBuiltInCatalogCapabilities.currentVersion, 15);
     final core = committedCatalog('restage_core');
     for (final (name, version) in [
       ('TransformTranslate', 13),
@@ -54,6 +54,13 @@ void main() {
         reason: name,
       );
     }
+    expect(
+      committedCatalog('restage_material')
+          .widgets
+          .singleWhere((widget) => widget.name == 'TabBarView')
+          .sinceVersion,
+      15,
+    );
   });
 
   test('currentVersion is at least the baseline content version', () {

@@ -4539,6 +4539,69 @@ final Catalog kRegistry = Catalog(
       ],
     ),
     WidgetEntry(
+      wireId: WireId('w0049'),
+      name: 'TabBarView',
+      library: WidgetLibrary.material,
+      category: WidgetCategory.layout,
+      description:
+          'A page view that displays the widget which corresponds to the currently selected tab.',
+      flutterType: 'package:flutter/src/material/tabs.dart#TabBarView',
+      childrenSlot: ChildrenSlot.list,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0532'),
+          name: 'children',
+          type: PropertyType.widgetList,
+          description: 'One widget per tab.',
+          required: true,
+          priority: PropertyPriority.primary,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0533'),
+          name: 'dragStartBehavior',
+          type: PropertyType.enumValue,
+          description: '{@macro flutter.widgets.scrollable.dragStartBehavior}',
+          enumType: 'DragStartBehavior',
+          defaultSource: LiteralDefault('start'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/gestures/recognizer.dart',
+                  symbolName: 'DragStartBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0534'),
+          name: 'viewportFraction',
+          type: PropertyType.real,
+          description: '{@macro flutter.widgets.pageview.viewportFraction}',
+          defaultSource: LiteralDefault(1.0),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0535'),
+          name: 'clipBehavior',
+          type: PropertyType.enumValue,
+          description: '{@macro flutter.material.Material.clipBehavior}',
+          enumType: 'Clip',
+          defaultSource: LiteralDefault('hardEdge'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0536'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 15,
+    ),
+    WidgetEntry(
       wireId: WireId('w0048'),
       name: 'TabBar',
       library: WidgetLibrary.material,
@@ -6891,4 +6954,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.material` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kMaterialCatalogContentVersion = 12;
+const int kMaterialCatalogContentVersion = 15;

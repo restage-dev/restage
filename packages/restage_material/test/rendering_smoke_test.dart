@@ -124,6 +124,10 @@ const Map<String, String> _curatedMinimalRfwSource = <String, String>{
   'TabBar': 'SizedBox(width: 200.0, height: 48.0, '
       'child: DefaultTabController(length: 1, '
       'child: TabBar(tabs: [Tab(text: "smoke")])))',
+  // TabBarView needs bounded layout and an inherited tab controller.
+  'TabBarView': 'SizedBox(width: 200.0, height: 100.0, '
+      'child: DefaultTabController(length: 1, '
+      'child: TabBarView(children: [Text(text: "smoke")])))',
   'RestageRadioGroupString':
       'RestageRadioGroupString(items: [{value: "a", label: "A"}], '
           'selected: "a")',
@@ -266,6 +270,8 @@ Type _flutterTypeFor(String entryName) {
       return Tab;
     case 'TabBar':
       return TabBar;
+    case 'TabBarView':
+      return TabBarView;
     case 'DefaultTabController':
       return DefaultTabController;
     case 'PreferredSize':
