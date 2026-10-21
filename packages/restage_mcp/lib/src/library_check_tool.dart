@@ -14,8 +14,9 @@ final checkLibrariesTool = Tool(
       "List every version of the app in use, in every environment, that this "
       "build's custom widget library contracts would stop rendering: what a "
       'surface serves, what a delivery rule routes to, and what a running '
-      'experiment arm serves. Reads the contract snapshots in '
-      '.restage/library-contracts of the project directory. An empty list '
+      'experiment arm serves. Reads the contract snapshots pushes recorded in '
+      '.restage/library-contracts and the last build\'s drafts in '
+      '.restage/build/library-contracts of the project directory. An empty list '
       'means all versions in use render on this build.',
   inputSchema: Schema.object(
     properties: localProjectProperties(),
@@ -60,4 +61,40 @@ Future<CallToolResult> handleCheckLibraries(
       ),
     });
   });
+}
+
+/// Records a package's drafted library contracts, the same as
+/// `restage library record`.
+final recordLibrariesTool = Tool(
+  name: 'restage_record_libraries',
+  description:
+      "Record the custom widget library contracts the package's last build "
+      'drafted, so the package can be published with them. An app records '
+      'its own when a surface that uses them is pushed. A version recorded '
+      'before stays as it is. Fails when the build drafted nothing; run '
+      '`dart run build_runner build` in the package first.',
+  inputSchema: Schema.object(
+    properties: {'projectDirectory': projectDirectoryProperty},
+    required: ['projectDirectory'],
+  ),
+);
+
+/// Records the drafts under the package that holds the project directory.
+Future<CallToolResult> handleRecordLibraries(CallToolRequest request) async {
+  final root = libraryPackageRoot(Directory(request.str('projectDirectory')));
+  final LibraryRecordResult result;
+  try {
+    result = recordLibraryDrafts(root);
+  } on FormatException catch (error) {
+    return mcpError(error.message);
+  } on IOException catch (error) {
+    return mcpError('The library contracts could not be recorded: $error');
+  }
+  if (result.isEmpty) {
+    return mcpError(
+      'No library contracts in .restage/build/library-contracts. Run '
+      '`dart run build_runner build` in the package first.',
+    );
+  }
+  return jsonResult(libraryRecordJson(result));
 }

@@ -516,6 +516,7 @@ class SurfacePushCommand extends Command<int> {
         stderr: _stderr,
         declareAssets: declareAssets,
         imageOf: imageOf,
+        onContractBound: recorder?.track,
         onPushed: (publication, result) async {
           await _reportPublicationFit(
             api: api,

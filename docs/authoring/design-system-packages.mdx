@@ -53,9 +53,16 @@ if two dependencies declare the same namespace.
 
 Add `restage` to the package's `dependencies`, and `restage_codegen` and
 `build_runner` to its `dev_dependencies`. Run `dart run build_runner build` in the
-package before publishing it. This creates `.restage/wire-ids.events.jsonl` and
-`.restage/library-contracts/`, which preserve widget IDs and record library versions.
-Commit these files and include them in the published package.
+package before publishing it. This creates `.restage/wire-ids.events.jsonl`, which
+preserves widget IDs.
+
+Until you record its libraries, the package changes freely. Before publishing, run
+`restage library record` in the package. It records the library versions the last
+build drafted in `.restage/library-contracts/`, and a version recorded before stays as
+it is. Commit these files and include them in the published package. The package's
+build warns about any library that isn't recorded yet. An app that uses the package
+through a path or workspace dependency also records it when it pushes a surface that
+depends on it.
 
 The consumer's build must be able to track these files. Add this to the package's
 `build.yaml` and include it when publishing:

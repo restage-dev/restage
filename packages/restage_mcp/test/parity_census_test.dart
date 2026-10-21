@@ -41,6 +41,7 @@ final _cliToMcp = <String, Set<String>>{
   'where': {'restage_where'},
   'surface results': {'restage_read_surface_funnel'},
   'surface check-libraries': {'restage_check_libraries'},
+  'library record': {'restage_record_libraries'},
   'docs search': {'restage_docs_search'},
   'docs read': {'restage_docs_read'},
   'surface rollback': {

@@ -49,7 +49,7 @@ The build writes:
 - `lib/user_catalog.g.dart` when the package declares custom widgets.
 
 Commit the generated Dart files, `.restage/measurement-state.json` and
-`.restage/wire-ids.events.jsonl` and `.restage/library-contracts/` when generated;
+`.restage/wire-ids.events.jsonl` and `.restage/library-contracts/` (written by a push);
 these keep analytics and catalog identities/contracts stable
 across clean builds. `.restage/build/` is build output; `restage init` adds it to
 `.gitignore`.

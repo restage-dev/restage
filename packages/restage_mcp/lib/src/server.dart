@@ -155,6 +155,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         (request) => handleReadSurfaceFunnel(tools, request),
       ),
       (checkLibrariesTool, (request) => handleCheckLibraries(tools, request)),
+      (recordLibrariesTool, handleRecordLibraries),
       ...docsTools(
         _httpClient,
         environment: environment ?? Platform.environment,

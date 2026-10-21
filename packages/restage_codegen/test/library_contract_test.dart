@@ -66,11 +66,13 @@ final class _App {
     List<WidgetEntry> widgets, {
     int? capabilityVersion,
     int compatibleSince = 1,
+    Map<String, int> otherVersions = const {},
   }) {
     final allocation = allocateUserCatalogFromWidgets(
       package: 'app',
       widgets: widgets,
       stampedCapabilityVersions: {
+        ...otherVersions,
         if (capabilityVersion != null) 'app': capabilityVersion,
       },
       compatibleSinceVersions: {
@@ -96,6 +98,15 @@ void main() {
 
   File snapshot(int version) =>
       File('${root.path}/.restage/library-contracts/app/v$version.json');
+
+  File draft(int version) =>
+      File('${root.path}/.restage/build/library-contracts/app/v$version.json');
+
+  // What a push does with the draft of a version it depends on.
+  void bind(int version) {
+    snapshot(version).parent.createSync(recursive: true);
+    draft(version).copySync(snapshot(version).path);
+  }
 
   void enforce(
     Catalog catalog, {
@@ -164,10 +175,11 @@ void main() {
     }
   });
 
-  test('the first build writes the baseline', () {
+  test('a build writes the draft and binds nothing', () {
     enforce(app.build(planCard, capabilityVersion: 3));
 
-    final contents = snapshot(3).readAsStringSync();
+    expect(snapshot(3).existsSync(), isFalse);
+    final contents = draft(3).readAsStringSync();
     expect(contents, contains('"namespace": "app"'));
     expect(contents, contains('"capabilityVersion": 3'));
     expect(contents, contains('"compatibleSince": 1'));
@@ -176,8 +188,55 @@ void main() {
     expect(decoded.catalog.widgets.single.name, 'PlanCard');
   });
 
+  test('before a push, any change passes and the draft follows it', () {
+    enforce(app.build(planCard, capabilityVersion: 3));
+    final renamed = [
+      _widget('PlanCard', [_property('title'), _property('label')]),
+      _widget('Banner', []),
+    ];
+    enforce(app.build(renamed, capabilityVersion: 3));
+
+    final contents = draft(3).readAsStringSync();
+    expect(contents, contains('"name": "label"'));
+    expect(contents, contains('"name": "Banner"'));
+    expect(contents, isNot(contains('"name": "badge"')));
+    expect(snapshot(3).existsSync(), isFalse);
+  });
+
+  test('names the libraries that have no recorded contract', () {
+    final first = enforceLibraryContracts(
+      app.build(planCard, capabilityVersion: 3),
+      root: root,
+      write: true,
+    );
+    expect(first.map((snapshot) => snapshot.library), [_library]);
+    expect(
+      unrecordedLibraryWarning(first.single),
+      'Library `app` v3 is not recorded yet. Run `restage library record` '
+      'before publishing this package.',
+    );
+
+    bind(3);
+    expect(
+      enforceLibraryContracts(
+        app.build(planCard, capabilityVersion: 3),
+        root: root,
+        write: true,
+      ),
+      isEmpty,
+    );
+  });
+
+  test('raising the version before a push leaves one draft', () {
+    enforce(app.build(planCard, capabilityVersion: 1));
+    enforce(app.build(planCard, capabilityVersion: 2));
+    expect(draft(1).existsSync(), isFalse);
+    expect(draft(2).existsSync(), isTrue);
+  });
+
   test('an unchanged catalog passes without rewriting the snapshot', () {
     enforce(app.build(planCard, capabilityVersion: 3));
+    bind(3);
     snapshot(3).writeAsStringSync('${snapshot(3).readAsStringSync()}\n');
     final before = snapshot(3).readAsStringSync();
 
@@ -195,6 +254,49 @@ void main() {
     expect(snapshot(3).readAsStringSync(), before);
   });
 
+  test('a refused library leaves every draft as it was', () {
+    WidgetEntry promo(List<PropertyEntry> properties) => WidgetEntry(
+          wireId: WireId.unallocatedWidget,
+          name: 'Promo',
+          library: const WidgetLibrary.custom('promo'),
+          category: WidgetCategory.layout,
+          description: 'A widget.',
+          flutterType: 'package:app/promo.dart#Promo',
+          childrenSlot: ChildrenSlot.none,
+          properties: properties,
+        );
+    enforce(
+      app.build(
+        [
+          ...planCard,
+          promo([_property('title')]),
+        ],
+        capabilityVersion: 3,
+        otherVersions: {'promo': 1},
+      ),
+    );
+    bind(3);
+    final promoDraft = File(
+      '${root.path}/.restage/build/library-contracts/promo/v1.json',
+    );
+    final before = promoDraft.readAsStringSync();
+
+    expect(
+      () => enforce(
+        app.build(
+          [
+            _widget('PlanCard', [_property('title')]),
+            promo([_property('title'), _property('body')]),
+          ],
+          capabilityVersion: 3,
+          otherVersions: {'promo': 1},
+        ),
+      ),
+      throwsA(isA<LibraryContractException>()),
+    );
+    expect(promoDraft.readAsStringSync(), before);
+  });
+
   test('a library without a capability version records nothing', () {
     enforce(app.build(planCard));
     expect(Directory('${root.path}/.restage').existsSync(), isFalse);
@@ -202,6 +304,7 @@ void main() {
 
   test('a renamed parameter fails until the break is declared', () {
     enforce(app.build(planCard, capabilityVersion: 3));
+    bind(3);
     final renamed = [
       _widget('PlanCard', [_property('title'), _property('label')]),
     ];
@@ -220,14 +323,16 @@ void main() {
         'break, set capabilityVersion: 4 and compatibleSince: 4.',
       ),
     );
-    expect(snapshot(4).existsSync(), isFalse);
+    expect(draft(4).existsSync(), isFalse);
 
     enforce(app.build(renamed, capabilityVersion: 4, compatibleSince: 4));
-    expect(snapshot(4).readAsStringSync(), contains('"compatibleSince": 4'));
+    expect(draft(4).readAsStringSync(), contains('"compatibleSince": 4'));
+    expect(snapshot(4).existsSync(), isFalse);
   });
 
   test('a retyped parameter names the type change', () {
     enforce(app.build(planCard, capabilityVersion: 3));
+    bind(3);
     expect(
       () => enforce(
         app.build(
@@ -250,6 +355,7 @@ void main() {
 
   test('an addition without a version bump fails', () {
     enforce(app.build(planCard, capabilityVersion: 3));
+    bind(3);
     expect(
       () => enforce(
         app.build(
@@ -263,17 +369,20 @@ void main() {
     );
   });
 
-  test('an addition with a version bump writes the next snapshot', () {
+  test('an addition with a version bump drafts the next version', () {
     enforce(app.build(planCard, capabilityVersion: 3));
+    bind(3);
     enforce(
       app.build([...planCard, _widget('Banner', [])], capabilityVersion: 4),
     );
-    expect(snapshot(4).readAsStringSync(), contains('"name": "Banner"'));
+    expect(draft(4).readAsStringSync(), contains('"name": "Banner"'));
+    expect(snapshot(4).existsSync(), isFalse);
     expect(snapshot(3).readAsStringSync(), isNot(contains('Banner')));
   });
 
   test('compatibleSince never moves back', () {
     enforce(app.build(planCard, capabilityVersion: 4, compatibleSince: 4));
+    bind(4);
     expect(
       () => enforce(app.build(planCard, capabilityVersion: 5)),
       refusedWith(
@@ -285,6 +394,7 @@ void main() {
 
   test('capabilityVersion never moves back', () {
     enforce(app.build(planCard, capabilityVersion: 4));
+    bind(4);
     expect(
       () => enforce(app.build(planCard, capabilityVersion: 3)),
       refusedWith(
@@ -296,11 +406,12 @@ void main() {
 
   test('a check without write rights records nothing', () {
     enforce(app.build(planCard, capabilityVersion: 3), write: false);
-    expect(snapshot(3).existsSync(), isFalse);
+    expect(draft(3).existsSync(), isFalse);
   });
 
   test('a snapshot that names another version is rejected', () {
     enforce(app.build(planCard, capabilityVersion: 3));
+    bind(3);
     snapshot(3).renameSync(snapshot(5).path);
     expect(
       () => enforce(app.build(planCard, capabilityVersion: 5)),
@@ -313,7 +424,7 @@ void main() {
       _widget('ToneCard', [_toneProperty()]),
     ];
 
-    test('are recorded in the snapshot', () {
+    test('are recorded in the draft', () {
       enforce(
         app.build(toneCard, capabilityVersion: 3),
         enumMembers: {
@@ -321,7 +432,7 @@ void main() {
         },
       );
       expect(
-        LibraryContractSnapshot.decode(snapshot(3).readAsStringSync(), 'v3')
+        LibraryContractSnapshot.decode(draft(3).readAsStringSync(), 'v3')
             .enumMembers,
         {
           _tone: ['calm', 'bold'],
@@ -336,6 +447,7 @@ void main() {
           _tone: ['calm', 'bold'],
         },
       );
+      bind(3);
       expect(
         () => enforce(
           app.build(toneCard, capabilityVersion: 3),
@@ -358,6 +470,7 @@ void main() {
           _tone: ['calm'],
         },
       );
+      bind(3);
       expect(
         () => enforce(
           app.build(toneCard, capabilityVersion: 3),
@@ -375,12 +488,13 @@ void main() {
           _tone: ['calm', 'bold'],
         },
       );
-      expect(snapshot(4).existsSync(), isTrue);
+      expect(draft(4).existsSync(), isTrue);
     });
   });
 
   test('editor metadata changes pass without rewriting the snapshot', () {
     enforce(app.build(planCard, capabilityVersion: 3));
+    bind(3);
     final before = snapshot(3).readAsStringSync();
     enforce(
       app.build(

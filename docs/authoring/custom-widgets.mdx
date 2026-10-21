@@ -99,15 +99,18 @@ don't decide it. A widget with no library, or with more than one, stops the buil
 the error names the files involved. Increase `capabilityVersion` when a catalog change
 needs a newer version of your app.
 
+Until you push a surface that uses the library, change it freely: no version bump, and
+nothing to reset. The first push that depends on a library version records that version
+in `.restage/library-contracts/`, which you commit. From then on the build checks the
+library against it and stops with a message naming the widget or parameter when a
+change needs a new version or a declared break.
+
 Adding a widget or a parameter is safe: raise `capabilityVersion`, and every version you
 published before keeps rendering. Renaming, removing, or retyping a widget or a
 parameter is a break. Declare it by raising `capabilityVersion` and setting
-`compatibleSince` to the same number. The build records each version of the library in
-`.restage/library-contracts/`, which you commit, and stops with a message naming the
-widget or parameter when a change needs a new version or a declared break. The first
-build records the library as it is. On the new build, published versions that need the
-older library use the mount's fallback, such as a bundled surface or the original
-compiled widget.
+`compatibleSince` to the same number. A new version is free to change again until a
+push depends on it. On the new build, published versions that need the older library
+use the mount's fallback, such as a bundled surface or the original compiled widget.
 `restage surface check-libraries` lists those versions before you ship.
 
 ## 4. Add useful target-specific configuration
@@ -285,10 +288,11 @@ Then run the normal build. There is no separate step per target:
 dart run build_runner build
 ```
 
-The first build also creates `.restage/wire-ids.events.jsonl` and
-`.restage/library-contracts/`. Commit both: they preserve widget IDs and record the
-library versions you have shipped. For a reusable package, run this build in the
-package before publishing, include those files, and expose them to consumer builds
+The first build also creates `.restage/wire-ids.events.jsonl`, and your first push
+creates `.restage/library-contracts/`. Commit both: they preserve widget IDs and record
+the library versions you have shipped. For a reusable package, run this build and
+`restage library record` in the package before publishing, include those files, and
+expose them to consumer builds
 with `additional_public_assets: [.restage/**]` in its `build.yaml`. If you restrict
 a target's `sources`, include `.restage/**` there too. Every Dart workspace member
 must expose this state, including for `build_runner build --workspace`. See

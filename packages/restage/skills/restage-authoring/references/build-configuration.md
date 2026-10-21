@@ -76,7 +76,9 @@ annotations; see [emitters.md](emitters.md) for their options and generation ste
 
 For a package that exports custom widgets, add `restage` to `dependencies` and
 `restage_codegen` and `build_runner` to `dev_dependencies`. Build the package
-before publishing. Commit and publish `.restage/wire-ids.events.jsonl` and
+before publishing, then run `restage library record` (MCP:
+`restage_record_libraries`) to record its library versions in
+`.restage/library-contracts/`. Commit and publish `.restage/wire-ids.events.jsonl` and
 `.restage/library-contracts/` so consuming apps use the same identities and
 library contracts.
 

@@ -69,7 +69,7 @@ final class UserCatalogJsonBuilder implements Builder {
       existingEvents: existingEvents,
     );
 
-    // The runtime-catalog builder records new contract snapshots.
+    // The runtime-catalog builder writes the contract drafts.
     await enforcePackageLibraryContracts(
       allocation.catalog,
       package: buildStep.inputId.package,

@@ -97,7 +97,8 @@ restage build push --personal
 restage build list
 ```
 
-The library check compares local `.restage/library-contracts` snapshots with
+The library check compares the local library contracts (the recorded snapshots and
+the last build's versions) with
 versions, routing destinations and experiment arms in use across the app's
 environments. It detects older requirements the newest local library no longer
 supports. It does not detect missing local libraries or requirements newer than

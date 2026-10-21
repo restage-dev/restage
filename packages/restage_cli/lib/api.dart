@@ -122,6 +122,13 @@ export 'src/config/restage_config.dart'
         EndpointFormatException,
         EndpointMismatchException;
 export 'src/credentials/credential.dart';
+export 'src/libraries/library_contract_binding.dart'
+    show
+        BoundLibraryContract,
+        LibraryRecordResult,
+        libraryPackageRoot,
+        libraryRecordJson,
+        recordLibraryDrafts;
 export 'src/libraries/library_contract_check.dart';
 export 'src/receipts/release_recorder.dart'
     show ReleaseRecorder, ReleaseRecorderException;

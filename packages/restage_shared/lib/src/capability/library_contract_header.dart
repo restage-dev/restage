@@ -3,8 +3,12 @@ import 'dart:convert';
 import 'package:meta/meta.dart';
 
 /// Directory, relative to the app's root, that holds library contract
-/// snapshots: one `<namespace>/v<N>.json` per recorded capability version.
+/// snapshots: one `<namespace>/v<N>.json` per capability version a push bound.
 const String libraryContractSnapshotDirectory = '.restage/library-contracts';
+
+/// Directory, relative to a package's root, where each build leaves the
+/// current contract of its libraries for the next push to bind.
+const String libraryContractDraftDirectory = '.restage/build/library-contracts';
 
 /// File name of one snapshot: `v<N>.json` with a positive `N`.
 final RegExp libraryContractSnapshotFileName =

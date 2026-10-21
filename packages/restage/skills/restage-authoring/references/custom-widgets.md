@@ -110,8 +110,11 @@ needs an app release. Raise `capabilityVersion` when a surface depends on a chan
 library capability so incompatible builds refuse it. Check the generated output
 and build diagnostics rather than inferring the rendering path from the annotation.
 
-Commit `.restage/library-contracts/` with the catalog identity files. The compiler
-compares the declared library contract against these snapshots. Additive capability
+A push records each library version the surface depends on in
+`.restage/library-contracts/`; commit it with the catalog identity files. Before
+that push the library changes freely, with no version bump and nothing to delete.
+A widget package has no push: run `restage library record` in it before publishing.
+After that, the compiler compares the library against these snapshots. Additive capability
 changes increase `capabilityVersion`; a breaking contract change also advances
 `compatibleSince` to the new capability version. Follow the compiler's exact
 version diagnostic and never lower the compatibility floor. These library

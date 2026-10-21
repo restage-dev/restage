@@ -220,6 +220,7 @@ Routing decides which published version each request receives.
 | `restage_rename_surface_version` | Set or clear a version label. |
 | `restage_archive_surface` / `restage_restore_surface` | Archive a surface across environments, or restore it to the list for publication. |
 | `restage_check_libraries` | List live versions, delivery rules and experiment arms that the local build would stop rendering, based on its recorded library versions. |
+| `restage_record_libraries` | Record a package's widget library versions from its last build, before the package is published. |
 
 **Documentation**
 
