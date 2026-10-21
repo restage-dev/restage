@@ -3,9 +3,23 @@ import 'package:restage_cli/src/commands/surface_publish_operation.dart';
 import 'package:restage_shared/restage_shared.dart' show SurfaceSourceKind;
 import 'package:test/test.dart';
 
+final _cloud = Uri.parse('https://api.restage.dev/');
+
 void main() {
+  test('the guide links the docs of the backend', () {
+    final guide = mountGuide(
+      SurfaceSourceKind.paywall,
+      'pro',
+      backend: Uri.parse('https://api-preview.restage.dev/'),
+    );
+    expect(
+      guide,
+      contains('https://docs-preview.restage.dev/delivery/hosted-delivery'),
+    );
+  });
+
   test('a paywall can be mounted by its slug', () {
-    final guide = mountGuide(SurfaceSourceKind.paywall, 'pro');
+    final guide = mountGuide(SurfaceSourceKind.paywall, 'pro', backend: _cloud);
     expect(guide, contains("RestagePaywall(id: 'pro')"));
     expect(guide, contains('<Name>Surface()'));
   });
@@ -15,7 +29,7 @@ void main() {
       SurfaceSourceKind.screen,
       SurfaceSourceKind.flowGraph,
     ]) {
-      final guide = mountGuide(kind, 'welcome');
+      final guide = mountGuide(kind, 'welcome', backend: _cloud);
       expect(guide, contains('no mount by id'));
       expect(guide, isNot(contains('RestagePaywall')));
     }
@@ -29,6 +43,7 @@ void main() {
       final guide = mountGuide(
         kind,
         'lumen_onboarding',
+        backend: _cloud,
         mountName: 'LumenOnboardingFlowSurface',
       );
       expect(

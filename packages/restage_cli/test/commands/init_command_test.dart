@@ -501,6 +501,52 @@ void main() {
       );
     }
 
+    test('an account with no organization is sent to the dashboard', () async {
+      await _writePubspec(tempDir);
+      await seedCredential(store, endpoint: 'https://api-preview.restage.dev/');
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: mockHttpClient(
+          (_) => http.Response(
+            jsonEncode({
+              'session': {
+                'memberships': <Object>[],
+                'workspaceExperiences': <Object>[],
+              },
+            }),
+            200,
+          ),
+          withDefaultTargetDiscovery: false,
+        ),
+      ).run(['--non-interactive', 'init', '--directory', tempDir.path]);
+
+      expect(exitCode, 1);
+      expect(
+        stderr.toString(),
+        'No organization yet. Create one in the dashboard: '
+        'https://app-preview.restage.dev\n'
+        'Then run `restage init` again.\n',
+      );
+    });
+
+    test('without a sign-in, init says how discovery works', () async {
+      await _writePubspec(tempDir);
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+      ).run(['--non-interactive', 'init', '--directory', tempDir.path]);
+
+      expect(exitCode, 1);
+      expect(stderr.toString(), contains('Not signed in.'));
+      expect(stderr.toString(), contains('run `restage login`'));
+      expect(stderr.toString(), contains('Required: --project <slug>.'));
+    });
+
     test('re-run is idempotent: existing config + deps kept; exit 0', () async {
       await _writePubspec(tempDir);
 

@@ -1,9 +1,12 @@
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
+import 'package:restage_shared/restage_shared.dart' show defaultDocsOrigin;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Where a developer reads the catalog positions and how to measure app size.
-const String kAppSizeDocsUrl = 'https://docs.restage.dev/delivery/app-size';
+const String kAppSizeDocsUrl = '$defaultDocsOrigin$_appSizePage';
+
+const _appSizePage = '/delivery/app-size';
 
 /// A widget group measured together in a historical reference build.
 ///
@@ -180,12 +183,14 @@ enum CatalogPosition {
 /// [builtInWidgetCount] is how many widgets the whole built-in catalog holds,
 /// which is what [CatalogPosition.wholeCatalog] reports. The other two
 /// positions report the derived count instead, because that is what the build
-/// installs.
+/// installs. The links point at [docsOrigin].
 String summariseAppVocabulary(
   SurfaceVocabularyReferences vocabulary, {
   required CatalogPosition position,
   required int builtInWidgetCount,
+  String docsOrigin = defaultDocsOrigin,
 }) {
+  final docs = '$docsOrigin$_appSizePage';
   if (position == CatalogPosition.wholeCatalog) {
     return [
       'Restage: generated registration includes the whole built-in catalog '
@@ -197,7 +202,7 @@ String summariseAppVocabulary(
           'Restage.configureWithInstalledCatalog() after registration. The '
           'build then installs what this package draws in its own Dart plus '
           "what its compiled surfaces render. Measure this app's release "
-          'builds to compare sizes. $kAppSizeDocsUrl',
+          'builds to compare sizes. $docs',
     ].join('\n');
   }
   final widgets = vocabulary.widgetNames.where(_isBuiltIn).length;
@@ -212,7 +217,7 @@ String summariseAppVocabulary(
     lines.add(
       'This app also calls RestageWidgetLibraries.builtIn(); the families '
       'included depend on its includeMaterial/includeCupertino arguments. '
-      '$kAppSizeDocsUrl',
+      '$docs',
     );
   } else {
     lines.add(
@@ -222,7 +227,7 @@ String summariseAppVocabulary(
       'the widget once in a @Screen the app never mounts, or drop the '
       "option and go back to the whole catalog. Measure this app's release "
       'builds to compare sizes. Run the build with --verbose for historical '
-      'widget-group reference estimates. $kAppSizeDocsUrl',
+      'widget-group reference estimates. $docs',
     );
   }
   return lines.join('\n');

@@ -550,6 +550,7 @@ Future<CallToolResult> _publishSurface(
             ? publication.family.sourceKind
             : SurfaceSourceKind.fromWireName(publication.result.sourceKind!),
         publication.family.slug,
+        backend: api.endpoint,
         mountName: publication.result.mountName,
       ),
       if (recorded != null)

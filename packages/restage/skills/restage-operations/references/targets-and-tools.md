@@ -15,7 +15,12 @@ restage targets --json
 
 If sign-in is needed, `restage login` opens a browser approval flow. Let the
 user complete it; do not request their credentials. For automation, supply a
-secret key through `RESTAGE_API_KEY`.
+secret key through `RESTAGE_API_KEY`. For a backend other than Restage Cloud,
+sign in with `restage login --endpoint <url>` or set `RESTAGE_BACKEND_URL`;
+`restage init` then records it as `endpoint` in `restage_config.yaml`.
+
+`restage init` needs an organization and app. When the account has none, the
+user creates them in the dashboard first.
 
 The config selects organization, project, app, default environment and runtime
 plane. The plane is `sandbox` or `live`.

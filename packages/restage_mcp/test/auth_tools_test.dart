@@ -217,7 +217,7 @@ void main() {
           result.structuredContent!['createOrganizationAt'],
           'https://verify.test',
         );
-        expect(_text(result), contains(noOrganizationSentence));
+        expect(_text(result), contains(noOrganizationSentence()));
         _assertNoSecrets(result);
       },
     );

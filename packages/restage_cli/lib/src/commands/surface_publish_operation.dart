@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/backend_sites.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
@@ -143,13 +144,19 @@ String alreadyLiveMessage(String slug, int revision, String environment) =>
     '"$slug" r$revision is already live in $environment. Devices see no change.';
 
 /// How to show a published [kind] of surface in an app. [mountName] is the
-/// generated widget the published version names, when it names one.
+/// generated widget the published version names, when it names one; the
+/// guide links the docs of [backend].
 @experimental
-String mountGuide(SurfaceSourceKind? kind, String slug, {String? mountName}) {
+String mountGuide(
+  SurfaceSourceKind? kind,
+  String slug, {
+  required Uri backend,
+  String? mountName,
+}) {
   const configure =
       "In the app, call Restage.configure(apiKey: 'rs_pk_...', baseUrl: ...) "
       'once with the key of this environment';
-  const docs = 'https://docs.restage.dev/delivery/hosted-delivery';
+  final docs = '${backendSites(backend).docs}/delivery/hosted-delivery';
   return switch (kind) {
     SurfaceSourceKind.paywall =>
       '$configure, then mount the generated <Name>Surface() of the paywall '

@@ -34,7 +34,7 @@ void _requireSelectedOrganization(
   if (target.organizationId == null && snapshot.organizations.length != 1) {
     throw TargetSelectionException(
       snapshot.organizations.isEmpty
-          ? noOrganizationSentence
+          ? noOrganizationSentence(target.api.endpoint)
           : 'You belong to multiple organizations. Pass '
                 '${target.syntax.organization}.',
     );
@@ -62,7 +62,7 @@ final List<Operation> sharedOperations = [
       (header: 'NAME', key: 'name'),
       (header: 'ROLE', key: 'role'),
     ],
-    emptyNote: noOrganizationSentence,
+    emptyNote: noOrganizationSentence(),
     call: (target, _) async => [
       for (final organization in (await readProgrammaticScope(
         target.api,

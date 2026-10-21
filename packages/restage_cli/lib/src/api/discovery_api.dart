@@ -10,6 +10,9 @@ class DiscoveryApi {
 
   final RestageApi _api;
 
+  /// The backend this reads.
+  Uri get endpoint => _api.endpoint;
+
   /// The organizations the signed-in user belongs to.
   Future<List<OrganizationSummary>> listOrganizations() async {
     final raw = await _api.call('organization', 'listMine', const {});

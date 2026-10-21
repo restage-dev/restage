@@ -118,7 +118,7 @@ Future<int?> resolveRequiredOrganizationId({
   try {
     final organizations = await DiscoveryApi(api).listOrganizations();
     if (organizations.isEmpty) {
-      stderr.writeln(noOrganizationSentence);
+      stderr.writeln(noOrganizationSentence(api.endpoint));
       return null;
     }
     if (organizations.length != 1) {

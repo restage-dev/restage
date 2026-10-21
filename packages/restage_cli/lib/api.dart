@@ -42,6 +42,7 @@ export 'package:restage_shared/restage_shared.dart'
 export 'src/api/app_admin_api.dart';
 export 'src/api/auth_api.dart';
 export 'src/api/auth_models.dart';
+export 'src/api/backend_sites.dart';
 export 'src/api/byte_data_wire.dart';
 export 'src/api/catalog_api.dart';
 export 'src/api/default_endpoint.dart';

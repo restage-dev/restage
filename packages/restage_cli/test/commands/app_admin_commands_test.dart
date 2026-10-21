@@ -96,7 +96,7 @@ void main() {
     ).run(['orgs', '-C', tempDir.path]);
 
     expect(code, 0, reason: err.toString());
-    expect(out.toString(), '$noOrganizationSentence\n');
+    expect(out.toString(), '${noOrganizationSentence()}\n');
   });
 
   test('app-config show and set read and change the app', () async {

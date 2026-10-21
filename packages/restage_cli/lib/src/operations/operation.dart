@@ -192,7 +192,7 @@ class OperationTarget {
     if (organizations.length == 1) return organizations.single.organizationId;
     throw TargetSelectionException(
       organizations.isEmpty
-          ? noOrganizationSentence
+          ? noOrganizationSentence(api.endpoint)
           : 'You belong to multiple organizations. Pass '
                 '${syntax.organization}.',
     );

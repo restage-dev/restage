@@ -1,3 +1,4 @@
+import 'package:restage_cli/src/api/backend_sites.dart';
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
@@ -31,7 +32,10 @@ Future<ConfigTargetCheck> checkConfigTarget(
   }
   final organizations = await discovery.listOrganizations();
   if (organizations.isEmpty) {
-    return (problems: const [noOrganizationSentence], organization: null);
+    return (
+      problems: [noOrganizationSentence(discovery.endpoint)],
+      organization: null,
+    );
   }
   final problems = <String>[];
   final configured = config.organization;
@@ -120,9 +124,13 @@ String configTargetConfirmed(RestageConfig config) {
 }
 
 /// The sentence for an account in no organization yet, and where to create
-/// one.
-const noOrganizationSentence =
-    'No organization yet. Create one in the dashboard.';
+/// one: the dashboard of [backend] when it is known.
+String noOrganizationSentence([Uri? backend]) {
+  final dashboard = backend == null ? null : backendSites(backend).dashboard;
+  return dashboard == null
+      ? 'No organization yet. Create one in the dashboard.'
+      : 'No organization yet. Create one in the dashboard: $dashboard';
+}
 
 /// The sentence for an account in several organizations when nothing names
 /// one: which exist, and how to choose.
