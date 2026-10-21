@@ -49,6 +49,7 @@ import '../runtime/local_values.dart';
 import '../runtime/placement_mount.dart';
 import '../runtime/surface_vocabulary.dart';
 import '../runtime/restage.dart';
+import '../runtime/source_badge.dart';
 import '../runtime/state_variables.dart'
     show currentDevicePlatform, populateDeviceData, populateThemeData;
 import 'surface_screen_runtime_provenance.dart';
@@ -268,11 +269,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
           declaration: declaration!,
           screen: widget.screen as SurfaceScreenRef<Object?>,
           originalResolver: original.assetFallback)
-        ..onFallbackChanged = () {
-          if (_acceptedStage case final stage?) {
-            _registerPlacementValidity(stage);
-          }
-        };
+        ..onFallbackChanged = _registerPlacementValidity;
     }
     return _placementResolver!;
   }
@@ -333,7 +330,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         onPainted: () {
           _placementDiscovery.markPainted();
           _acceptedStage = stage;
-          _registerPlacementValidity(stage);
+          _registerPlacementValidity();
         },
         afterCommit: () {
           if (identical(_stage, stage)) {
@@ -376,6 +373,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       final previous = _stage;
       setState(() {
         _stage = stage;
+        _unavailableError = null;
         _showDeadlineFallback = false;
       });
       if (previous != null && !isRefresh) {
@@ -398,21 +396,24 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     }
   }
 
-  void _registerPlacementValidity(_ScreenStage stage) {
+  /// Watches the accepted delivery, or the fallback's watch while it shows.
+  void _registerPlacementValidity() {
+    if (!mounted) return;
     final previous = _placementValidityHandle;
     if (previous != null) {
       SurfaceRefreshRegistry.instance.acceptedPlacementChanged(previous);
       SurfaceRefreshRegistry.instance.localValidityChanged(previous);
       return;
     }
-    final admission = placementAdmissionFor(stage.resolved);
-    if (admission == null && placementFallbackFor(_placementResolver) == null) {
+    if (_acceptedAdmission == null &&
+        placementFallbackFor(_placementResolver) == null) {
       return;
     }
+    final content = _acceptedStage?.content;
     final handle = SurfaceRefreshHandle(
         surface: SurfaceRef(
-            surfaceType: stage.content.surface.wireName,
-            slug: stage.content.slug),
+            surfaceType: (content?.surface ?? widget.screen.surface).wireName,
+            slug: content?.slug ?? widget.screen.slug),
         triggers: Restage.effectiveLiveRefreshTriggers(widget.screen.slug),
         canSwap: _canRefreshPlacement,
         refresh: _refreshPlacement,
@@ -460,20 +461,23 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       ? null
       : placementAdmissionFor(_acceptedStage!.resolved);
 
+  bool get _showsFallback =>
+      _stage == null && (_unavailableError != null || _showDeadlineFallback);
+
   bool _canRefreshPlacement() =>
       mounted &&
-      _acceptedStage != null &&
       !_placementInteracted &&
-      !(_acceptedAdmission?.isAssigned ?? false);
+      (_acceptedStage == null
+          ? _showsFallback
+          : !(_acceptedAdmission?.isAssigned ?? false));
 
   Future<void> _refreshPlacement() async {
     final previous = _acceptedStage;
     final resolver = _placementResolver;
-    if (previous == null ||
-        resolver is! PlacementScreenResolver ||
-        !_canRefreshPlacement()) {
+    if (resolver is! PlacementScreenResolver || !_canRefreshPlacement()) {
       return;
     }
+    if (previous == null) return _refreshFromFallback(resolver);
     final epoch = ++_resolutionEpoch;
     try {
       final fresh =
@@ -492,6 +496,21 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       await _stageResolved(epoch, fresh, isRefresh: true);
     } on Object {
       // A failed refresh keeps the accepted presentation.
+    }
+  }
+
+  // A delivery replaces the shown fallback as a new presentation.
+  Future<void> _refreshFromFallback(PlacementScreenResolver resolver) async {
+    final epoch = _resolutionEpoch;
+    try {
+      final fresh =
+          await resolver.fresh(resolver.storeKey, sendAssignmentKey: true);
+      if (fresh == null || !_isCurrent(epoch) || !_canRefreshPlacement()) {
+        return;
+      }
+      await _stageResolved(++_resolutionEpoch, fresh);
+    } on Object {
+      // A failed refresh keeps the fallback.
     }
   }
 
@@ -579,6 +598,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         if (!widget.unavailable.hide) {
           report(null);
           setState(() => _showDeadlineFallback = true);
+          _registerPlacementValidity();
         } else {
           // Nothing to show yet: the mount settles on fresh's outcome.
           unawaited(freshFuture.then(
@@ -829,6 +849,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     if (!mounted || (_unavailableError == null && !_showDeadlineFallback)) {
       return;
     }
+    _placementInteracted = true;
     final callback = widget.onEvent;
     if (callback == null) return;
     final ({E event})? decoded;
@@ -924,6 +945,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     }
     _disposeStage();
     setState(() => _unavailableError = error);
+    _registerPlacementValidity();
     widget.onUnavailable?.call(error);
   }
 
@@ -965,22 +987,41 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         )..markAssignmentUnknown();
         _fallbackMountAttribution =
             captureMountAttribution(_placementDiscovery.declaration?.mount);
+        final epoch = _resolutionEpoch;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_isCurrent(epoch) && _showsFallback) {
+            _placementDiscovery.markPainted();
+          }
+        });
       }
       final screen = widget.screen;
       return DeclaredEventDispatcher(
         surfaceName: screen.slug,
         declares: _declares,
         onEvent: _fallbackEventHandler,
-        child: Builder(
-          builder: (context) =>
-              widget.unavailable.fallbackBuilder!(context, error),
-        ),
+        child: Builder(builder: (context) {
+          final fallback = widget.unavailable.fallbackBuilder!(context, error);
+          // A parent-data fallback stays the direct child of its parent.
+          if (fallback is ParentDataWidget) return fallback;
+          return withSourceBadge(
+              () => sourceBadgeLabel(null, null),
+              Listener(
+                  onPointerDown: (_) => _placementInteracted = true,
+                  child: fallback));
+        }),
       );
     }
     final stage = _stage;
     if (stage == null) {
       return widget.loadingBuilder?.call(context) ?? const SizedBox.shrink();
     }
+    return withSourceBadge(
+        () => sourceBadgeLabel(
+            surfaceResolutionSourceFor(stage.resolved), stage.content.version),
+        _buildStage(stage));
+  }
+
+  Widget _buildStage(_ScreenStage stage) {
     return FirstPaintLeaseScope(
       transaction: stage.transaction,
       child: FirstPaintLeaseGuard(

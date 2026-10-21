@@ -20,7 +20,14 @@ enum SurfaceDeliveryReceiptReason {
 }
 
 /// What became of the content once it was resolved.
-enum SurfaceDeliveryReceiptOutcome { painted, notPainted, renderFailed }
+enum SurfaceDeliveryReceiptOutcome {
+  painted,
+  notPainted,
+  renderFailed,
+
+  /// The mount showed the host's own fallback because the service said so.
+  fallback,
+}
 
 /// Mount-to-paint latency, bucketed.
 enum SurfaceDeliveryLatencyBucket {
@@ -62,7 +69,8 @@ final class SurfaceDeliveryReceipt {
     this.assignment,
   });
 
-  final Surface surfaceType;
+  /// Null, with an empty slug, for a fallback filed under its placement.
+  final Surface? surfaceType;
   final String surfaceSlug;
   final int publishedVersion;
   final SurfaceResolutionSource source;
@@ -81,7 +89,7 @@ final class SurfaceDeliveryReceipt {
 
   /// The wire form, with [count] presentations coalesced into it.
   Map<String, Object> toJson(int count) => <String, Object>{
-        'surfaceType': surfaceType.wireName,
+        'surfaceType': surfaceType?.wireName ?? '',
         'surfaceSlug': surfaceSlug,
         'publishedVersion': publishedVersion,
         'source': source.name,

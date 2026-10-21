@@ -87,7 +87,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  pin('reports require committed paint and registration disposal clears bounds',
+  pin('an unpainted mount reports its declaration and bounds follow paint',
       (tester) async {
     final key = GlobalKey<_MountState>();
     await tester.pumpWidget(Directionality(
@@ -102,18 +102,24 @@ void main() {
     ));
     await tester.pump();
     expect(reports, isEmpty);
+    await tester.pump(const Duration(milliseconds: 251));
+    expect(reports, hasLength(1));
+    expect(reports.single.mounts.single.key.slug, 'home_card');
+    expect(reports.single.bounds, isEmpty);
 
     key.currentState!.registration.markPainted();
     await tester.pump();
-    expect(reports, hasLength(1));
+    expect(reports, hasLength(2));
+    expect(reports.last.bounds, hasLength(1));
     key.currentState!.registration.markPainted();
     await tester.pump();
-    expect(reports, hasLength(1));
+    expect(reports, hasLength(2));
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 251));
-    expect(reports, hasLength(2));
+    expect(reports, hasLength(3));
+    expect(reports.last.mounts, isEmpty);
     expect(reports.last.bounds, isEmpty);
   });
 

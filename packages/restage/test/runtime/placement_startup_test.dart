@@ -220,6 +220,365 @@ void main() {
     }
   });
 
+  SurfaceFitRequirementV1 screenRequirement() =>
+      SurfaceFitRequirementV1.fromJson({
+        ...readPlacementDeliveryFixture()
+            .response
+            .decisions
+            .whereType<PlacementBatchAvailableV1>()
+            .first
+            .publicDelivery
+            .fitRequirement
+            .toJson(),
+        'hosting': {
+          'contentKind': 'single',
+          'allowedPresentations': ['inline', 'presented']
+        }
+      });
+
+  testWidgets('a screen adopts a pushed publication from its compiled fallback',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final channel = _PlacementPushChannel();
+    final resolutions = <SurfaceResolutionReport>[];
+    var hosted = false;
+    _configure(requests,
+        liveRefresh: {SurfaceRefreshTrigger.updateChannel},
+        updateChannel: channel,
+        onSurfaceResolution: resolutions.add,
+        respond: (request) => hosted
+            ? placementFixtureResponse(request,
+                requirement: screenRequirement(),
+                family:
+                    DeliveryFamilySelectorV1.screenContract(contractVersion: 1))
+            : _watchedFallback(request));
+    try {
+      await tester.pumpWidget(const MaterialApp(
+          home: native.NativeNoticeSurface.atPlacement(
+              'notice_slot', 'Notice original', 3)));
+      await _finish(tester);
+      expect(find.text('Notice original'), findsOneWidget);
+      expect(requests, hasLength(1));
+      expect(resolutions.single.source, SurfaceResolutionSource.bundled);
+      expect(resolutions.single.reason, 'unavailable');
+      final scope = channel.controllers.keys.single;
+      expect(scope.root.placement!.key.slug, 'notice_slot');
+      hosted = true;
+      channel.controllers[scope]!.add(scope);
+      await _finish(tester);
+      await tester.pumpAndSettle();
+      expect(requests, hasLength(2));
+      expect(find.text('Welcome'), findsOneWidget);
+      expect(find.text('Notice original'), findsNothing);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets('a hidden screen fallback still reports its placement',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    _configure(requests, respond: _watchedFallback);
+    final reports = <PlacementDiscoveryReportV1>[];
+    PlacementDiscovery.instance.configure(
+        installedCapability: currentInstalledCapability,
+        platform: 'android',
+        report: (report) async {
+          reports.add(report);
+          return true;
+        });
+    try {
+      await tester.pumpWidget(MaterialApp(
+          home: native.NativeNoticeSurface.atPlacement(
+              'notice_slot',
+              'Notice original',
+              3,
+              null,
+              null,
+              null,
+              null,
+              null,
+              const SurfaceScreenUnavailablePolicy.hide())));
+      await _finish(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Notice original'), findsNothing);
+      expect(reports.last.mounts.single.key.slug, 'notice_slot');
+      expect(reports.last.bounds, isEmpty);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+  });
+
+  testWidgets('a late server fallback reason still reaches the host',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final resolutions = <SurfaceResolutionReport>[];
+    final response = Completer<void>();
+    _configure(requests,
+        delay: response.future,
+        onSurfaceResolution: resolutions.add,
+        respond: _watchedFallback);
+    try {
+      await tester.pumpWidget(const MaterialApp(
+          home: native.NativeNoticeSurface.atPlacement(
+              'notice_slot', 'Notice original', 3)));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Notice original'), findsOneWidget);
+      expect(resolutions, isEmpty);
+      response.complete();
+      await _finish(tester);
+      expect(resolutions.single.source, SurfaceResolutionSource.bundled);
+      expect(resolutions.single.surface, 'native_notice');
+      expect(resolutions.single.reason, 'unavailable');
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets('a late server fallback after held content reports it as held',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final resolutions = <SurfaceResolutionReport>[];
+    var hosted = true;
+    Completer<void>? response;
+    _configure(requests,
+        delayEach: () => response?.future ?? Future<void>.value(),
+        onSurfaceResolution: resolutions.add,
+        respond: (request) => hosted
+            ? placementFixtureResponse(request,
+                requirement: screenRequirement(),
+                family:
+                    DeliveryFamilySelectorV1.screenContract(contractVersion: 1))
+            : _watchedFallback(request));
+    try {
+      await tester.pumpWidget(const MaterialApp(
+          home: native.NativeNoticeSurface.atPlacement(
+              'notice_slot', 'Notice original', 3)));
+      await _finish(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('Welcome'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      resolutions.clear();
+
+      hosted = false;
+      response = Completer<void>();
+      await tester.pumpWidget(const MaterialApp(
+          home: native.NativeNoticeSurface.atPlacement(
+              'notice_slot', 'Notice original', 3)));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      expect(find.text('Welcome'), findsOneWidget);
+      expect(resolutions.single.source, SurfaceResolutionSource.holdLastGood);
+      expect(resolutions.single.reason, isNull);
+      response.complete();
+      await _finish(tester);
+      expect(resolutions, hasLength(2));
+      expect(resolutions.last.source, SurfaceResolutionSource.holdLastGood);
+      expect(resolutions.last.reason, 'unavailable');
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  group('a fallback the service decided', () {
+    Future<List<SurfaceDeliveryReceipt>> fallbacks() async => [
+          for (final entry
+              in (await SurfaceDeliveryReceiptBatch.instance.drain())
+                  .counts
+                  .keys)
+            if (entry.outcome == SurfaceDeliveryReceiptOutcome.fallback) entry,
+        ];
+
+    void enableReceipts() => SurfaceDeliveryReceiptBatch.instance
+      ..enabled = true
+      ..deviceSource = () async => (platform: 'android', appBuild: 42);
+
+    Widget slot() => MaterialApp(
+        home: RestagePlacement(
+            id: 'slow_card', fallback: (_) => const Text('Original')));
+
+    testWidgets('counts one view with the signed decision', (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      _configure(requests,
+          respond: (request) => _watchedFallback(request,
+              fallbackReceipt: 'rpf1.k.claims.mac',
+              selectedSurface: DeliverySurfaceLocatorV1(
+                  surfaceType: DeliverySurfaceTypeId('paywall'),
+                  slug: 'promo',
+                  family: const DeliveryFamilySelectorV1.general())));
+      enableReceipts();
+      try {
+        await tester.pumpWidget(MaterialApp(
+            home: RestagePlacement.forSurface(
+                surfaceType: Surface.paywall,
+                surfaceId: 'promo',
+                fallback: (_) => const Text('Original'))));
+        await _finish(tester);
+        expect(find.text('Original'), findsOneWidget);
+        final receipts = await fallbacks();
+        expect(receipts, hasLength(1));
+        expect(receipts.single.routingSelectionReceipt, 'rpf1.k.claims.mac');
+        expect(receipts.single.publishedVersion, 0);
+        expect(receipts.single.surfaceType, Surface.paywall);
+        expect(receipts.single.surfaceSlug, 'promo');
+        expect(receipts.single.source, SurfaceResolutionSource.bundled);
+        expect(receipts.single.routeId, '');
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('a spot names the surface its build cannot show',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      _configure(requests,
+          respond: (request) => _watchedFallback(request,
+              fallbackReceipt: 'rpf1.k.claims.mac',
+              selectedSurface: DeliverySurfaceLocatorV1(
+                  surfaceType: DeliverySurfaceTypeId('paywall'),
+                  slug: 'annual-upgrade',
+                  family: const DeliveryFamilySelectorV1.general()),
+              routeId: 'annual-push',
+              reason: PlacementBatchRefusalReasonV1.incompatible));
+      enableReceipts();
+      try {
+        await tester.pumpWidget(slot());
+        await _finish(tester);
+        final receipt = (await fallbacks()).single;
+        expect((receipt.surfaceType, receipt.surfaceSlug, receipt.routeId),
+            (Surface.paywall, 'annual-upgrade', 'annual-push'));
+        expect(receipt.reason, SurfaceDeliveryReceiptReason.unsupported);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('a spot with no surface files under the placement alone',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      _configure(requests,
+          respond: (request) =>
+              _watchedFallback(request, fallbackReceipt: 'rpf1.k.claims.mac'));
+      enableReceipts();
+      try {
+        await tester.pumpWidget(slot());
+        await _finish(tester);
+        final receipt = (await fallbacks()).single;
+        expect(receipt.surfaceType, isNull);
+        expect(receipt.toJson(1), containsPair('surfaceType', ''));
+        expect(receipt.toJson(1), containsPair('surfaceSlug', ''));
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('counts a decision that arrives after the deadline',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final response = Completer<void>();
+      _configure(requests,
+          delay: response.future,
+          respond: (request) =>
+              _watchedFallback(request, fallbackReceipt: 'rpf1.k.claims.mac'));
+      enableReceipts();
+      try {
+        await tester.pumpWidget(slot());
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Original'), findsOneWidget);
+        response.complete();
+        await _finish(tester);
+        expect(await fallbacks(), hasLength(1));
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('a fallback with no decision counts nowhere', (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final response = Completer<void>();
+      _configure(requests, delay: response.future, respond: _watchedFallback);
+      enableReceipts();
+      try {
+        await tester.pumpWidget(slot());
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Original'), findsOneWidget);
+        expect(await fallbacks(), isEmpty);
+        // An unsigned answer counts nothing either.
+        response.complete();
+        await _finish(tester);
+        expect(await fallbacks(), isEmpty);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+  });
+
+  testWidgets('a screen keeps its fallback after the user touches it',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final channel = _PlacementPushChannel();
+    var hosted = false;
+    _configure(requests,
+        liveRefresh: {SurfaceRefreshTrigger.updateChannel},
+        updateChannel: channel,
+        respond: (request) => hosted
+            ? placementFixtureResponse(request,
+                requirement: screenRequirement(),
+                family:
+                    DeliveryFamilySelectorV1.screenContract(contractVersion: 1))
+            : _watchedFallback(request));
+    try {
+      await tester.pumpWidget(const MaterialApp(
+          home: native.NativeNoticeSurface.atPlacement(
+              'notice_slot', 'Notice original', 3)));
+      await _finish(tester);
+      await tester.tap(find.text('Notice original'));
+      final scope = channel.controllers.keys.single;
+      hosted = true;
+      channel.controllers[scope]!.add(scope);
+      await _finish(tester);
+      expect(find.text('Notice original'), findsOneWidget);
+      expect(find.text('Welcome'), findsNothing);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets('source badges label compiled and delivered content',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final channel = _PlacementPushChannel();
+    var hosted = false;
+    _configure(requests,
+        liveRefresh: {SurfaceRefreshTrigger.updateChannel},
+        updateChannel: channel,
+        showSourceBadges: true,
+        respond: (request) => hosted
+            ? placementFixtureResponse(request,
+                requirement: screenRequirement(),
+                family:
+                    DeliveryFamilySelectorV1.screenContract(contractVersion: 1))
+            : _watchedFallback(request));
+    try {
+      await tester.pumpWidget(const MaterialApp(
+          home: native.NativeNoticeSurface.atPlacement(
+              'notice_slot', 'Notice original', 3)));
+      await _finish(tester);
+      expect(find.text('compiled'), findsOneWidget);
+      final scope = channel.controllers.keys.single;
+      hosted = true;
+      channel.controllers[scope]!.add(scope);
+      await _finish(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('Welcome'), findsOneWidget);
+      expect(find.textContaining(RegExp(r'^delivered r\d+$')), findsOneWidget);
+      expect(find.text('compiled'), findsNothing);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
   testWidgets('a paywall adopts a pushed flow from its settled fallback',
       (tester) async {
     final requests = <PlacementBatchRequestV1>[];
@@ -659,7 +1018,7 @@ void main() {
     expect(requests.single.mounts.single.surfaceType, isNull);
   });
 
-  testWidgets('renderless fallbacks remain capturable without painted claims',
+  testWidgets('screen and flow fallbacks report their painted placements',
       (tester) async {
     Restage.configure(analyticsEnabled: false, measurementEnabled: false);
     final reports = <PlacementDiscoveryReportV1>[];
@@ -740,12 +1099,15 @@ void main() {
     final screenFallback = find.text('Screen fallback').evaluate().length;
     final flowFallback = find.text('Flow fallback').evaluate().length;
     final captured = frame.mounts.length;
-    final claimedPaint = reports.any((report) => report.bounds.isNotEmpty);
+    final painted = reports.isEmpty ? null : reports.last;
     await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 300));
     expect(screenFallback, 1);
     expect(flowFallback, 1);
     expect(captured, 2);
-    expect(claimedPaint, isFalse);
+    expect(painted?.mounts.map((mount) => mount.key.slug).toSet(),
+        {'fallback_notice', 'fallback_journey'});
+    expect(painted?.bounds, hasLength(2));
   });
 
   for (final milliseconds in [300, 550]) {
@@ -1144,11 +1506,14 @@ void _configure(List<PlacementBatchRequestV1> requests,
     {List<RestageSurfaceRef> surfaces = const [],
     Duration deadline = const Duration(milliseconds: 300),
     Future<void>? delay,
+    Future<void> Function()? delayEach,
     SurfacePayload? payload,
     SurfaceFitRequirementV1? requirement,
     DeliveryFamilySelectorV1? family,
     Set<SurfaceRefreshTrigger> liveRefresh = const {},
     SurfaceUpdateChannel? updateChannel,
+    void Function(SurfaceResolutionReport)? onSurfaceResolution,
+    bool showSourceBadges = false,
     PlacementBatchResolvedV1 Function(PlacementBatchRequestV1)? respond,
     DateTime Function()? now,
     Map<String, Object?> cacheValidityOverrides = const {},
@@ -1162,6 +1527,8 @@ void _configure(List<PlacementBatchRequestV1> requests,
       surfaces: surfaces,
       liveRefresh: liveRefresh,
       updateChannel: updateChannel,
+      onSurfaceResolution: onSurfaceResolution,
+      showSourceBadges: showSourceBadges,
       renderDeadline: deadline);
   debugResetInstallObservations();
   debugSetOsVersion(19);
@@ -1180,6 +1547,7 @@ void _configure(List<PlacementBatchRequestV1> requests,
             PlacementBatchRequestV1.fromCanonicalBytes(request.bodyBytes);
         requests.add(batch);
         if (delay != null) await delay;
+        if (delayEach != null) await delayEach();
         if (respond != null) {
           return http.Response.bytes(respond(batch).canonicalBytes, 200);
         }
@@ -1241,7 +1609,12 @@ final class _UnavailableFlow implements FlowResolver {
 }
 
 PlacementBatchResolvedV1 _watchedFallback(PlacementBatchRequestV1 request,
-    {String token = _watchToken}) {
+    {String token = _watchToken,
+    String? fallbackReceipt,
+    DeliverySurfaceLocatorV1? selectedSurface,
+    String? routeId,
+    PlacementBatchRefusalReasonV1 reason =
+        PlacementBatchRefusalReasonV1.unavailable}) {
   final target = readPlacementDeliveryFixture().target;
   final mount = request.mounts.single;
   final descriptor = PlacementMountDescriptorV1(
@@ -1251,8 +1624,7 @@ PlacementBatchResolvedV1 _watchedFallback(PlacementBatchRequestV1 request,
       request: request,
       expectedTarget: target,
       decisions: [
-        PlacementBatchEntryV1.useFallback(
-            descriptor, PlacementBatchRefusalReasonV1.unavailable, const [],
+        PlacementBatchEntryV1.useFallback(descriptor, reason, const [],
             watch: PlacementDeliveryWatchV1(
                 decisionIdentityDigest: CanonicalDigest('f' * 64),
                 channels: [
@@ -1262,7 +1634,10 @@ PlacementBatchResolvedV1 _watchedFallback(PlacementBatchRequestV1 request,
                               descriptor.placement),
                           family: const DeliveryFamilySelectorV1.none()),
                       token: token)
-                ]))
+                ]),
+            fallbackReceipt: fallbackReceipt,
+            selectedSurface: selectedSurface,
+            routeId: routeId)
       ],
       artifacts: const []);
 }

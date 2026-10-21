@@ -266,14 +266,20 @@ final class PlacementRegistry {
   }
 
   Future<
-      ({
-        PlacementBatchResolvedV1 response,
-        PlacementDeliveryArtifacts artifacts
-      })?> fetch(PlacementRequestContext context) async {
+          ({
+            PlacementBatchResolvedV1 response,
+            PlacementDeliveryArtifacts artifacts
+          })?>
+      fetch(PlacementRequestContext context,
+          {void Function(PlacementBatchRefusalReasonV1 reason)?
+              onRefused}) async {
     final response = await client().fetchPlacements(context.request,
         publicationGuard: context.isCurrent,
         registrationLease: context.lease,
         expectedTarget: target);
+    if (response is PlacementBatchRefusedV1 && context.isCurrent()) {
+      onRefused?.call(response.reason);
+    }
     if (response is! PlacementBatchResolvedV1 || !context.isCurrent()) {
       return null;
     }

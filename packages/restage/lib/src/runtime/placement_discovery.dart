@@ -264,8 +264,13 @@ final class PlacementDiscovery {
       _previousGeometry = geometry;
       _epoch++;
     }
+    // Every mounted declaration reports; only painted ones carry bounds.
+    final mounts = {
+      for (final registration in _registrations)
+        if (registration._current) registration.mount,
+    };
     if (_report == null ||
-        (painted.isEmpty &&
+        (mounts.isEmpty &&
             _lastReportBytes == null &&
             _pendingReport == null)) {
       return;
@@ -274,8 +279,6 @@ final class PlacementDiscovery {
     try {
       final build = buildContract;
       final occurrences = <(PlacementKeyV1, String), int>{};
-      final mounts =
-          painted.map((observation) => observation.registration.mount).toSet();
       report = PlacementDiscoveryReportV1(
         mounts: mounts.toList(),
         buildContract: build,

@@ -271,6 +271,39 @@ final class SurfaceDeliveryReceiptBatch {
     return handle;
   }
 
+  /// Records one presentation of the host's own fallback, signed by
+  /// [fallbackReceipt] from the service's decision. A null surface files it
+  /// under its placement alone.
+  void recordFallback({
+    required Surface? surfaceType,
+    required String? surfaceSlug,
+    required String fallbackReceipt,
+    String routeId = '',
+    SurfaceDeliveryReceiptReason reason = SurfaceDeliveryReceiptReason.none,
+  }) {
+    if (!enabled) return;
+    if (_open.length + _closed.length >= kSurfaceDeliveryReceiptCapacity) {
+      _dropped += 1;
+      return;
+    }
+    final now = clock();
+    _device ??= _readDevice();
+    final key = _Key(
+      surfaceType: surfaceType,
+      surfaceSlug: surfaceSlug ?? '',
+      publishedVersion: 0,
+      source: SurfaceResolutionSource.bundled,
+      reason: reason,
+      outcome: SurfaceDeliveryReceiptOutcome.fallback,
+      routeId: routeId,
+      routingSelectionReceipt: fallbackReceipt,
+      latencyBucket: SurfaceDeliveryLatencyBucket.unknown,
+      minute: DateTime.utc(now.year, now.month, now.day, now.hour, now.minute),
+    );
+    _closed[key] = (_closed[key] ?? 0) + 1;
+    onAppended?.call();
+  }
+
   /// The most recent open handle for [surfaceSlug], for mounts that hold no
   /// reference to the resolved object.
   SurfaceDeliveryReceiptHandle? latestFor(Surface surfaceType, String slug) =>
@@ -393,7 +426,7 @@ final class _Key {
     this.assignment,
   });
 
-  final Surface surfaceType;
+  final Surface? surfaceType;
   final String surfaceSlug;
   final int publishedVersion;
   final SurfaceResolutionSource source;

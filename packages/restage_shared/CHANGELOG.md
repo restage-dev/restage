@@ -17,6 +17,12 @@ The resolution input (`RfwCatalogOccurrenceResolutionInput`,
 `RfwCatalogConstructorProvenance`, `RfwCatalogLocalSymbol`) stays here, with
 its JSON unchanged.
 
+`PlacementBatchUseFallbackV1` carries the service's signed `fallbackReceipt`,
+the `selectedSurface` the build cannot show, and the `routeId` of the rule that
+selected it. `fallbackReceiptReason` gives the reason a fallback receipt
+states. `receiptsDirectory` and `receiptPathSegment` name where release
+receipts are written.
+
 `SurfacePublicationArtifactClosure` exposes its verified `screenBlobs` and
 `sidecarCapabilities`. `capabilityManifestUnion` combines capability
 manifests. `rfw_formats.dart` exports `literalIconCodePoints` and

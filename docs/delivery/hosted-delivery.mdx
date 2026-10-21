@@ -247,3 +247,16 @@ Before publishing, inspect the [measurement-impact review](/tools/cli#review-exp
 with `--review-measurement`. Warnings about experiments and metrics need their own
 acknowledgment; confirming a live publish doesn't approve them. Pass `--revision`
 to publish the exact version you reviewed.
+
+## See a new version on a device
+
+A published version appears the next time the surface mounts. If that mount's fetch
+misses the [render deadline](#render-deadline), the mount shows saved or compiled
+content and keeps the new version for the next mount. To see it, leave the screen and
+come back, or relaunch the app. To update a surface that's already on screen, turn on
+[live refresh](/delivery/live-refresh), which is off by default.
+
+To check which content is on screen, change the copy only in the version you publish,
+so it looks different from your compiled widget. In debug builds,
+`Restage.configure(showSourceBadges: true)` labels each mount with what it's drawing:
+the compiled widget or a delivered version.
