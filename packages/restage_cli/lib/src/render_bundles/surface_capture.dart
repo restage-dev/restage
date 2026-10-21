@@ -49,6 +49,7 @@ typedef SurfaceImageCapturer =
       required List<SurfacePublicationManifestEntry> entries,
       String? flagRoot,
       String? configRoot,
+      String? wrapper,
       Duration timeout,
       Future<void>? cancel,
     });
@@ -70,12 +71,14 @@ const surfaceCaptureTimeout = Duration(minutes: 4);
 /// image. An entry the run cannot draw is reported in
 /// [SurfaceCaptureResult.skipped]. The whole run shares one [timeout]; a
 /// process still running when it passes, or when [cancel] completes, is
-/// killed.
+/// killed. [wrapper], as `lib/<file>.dart#<name>`, names the function every
+/// surface is drawn inside.
 Future<SurfaceCaptureResult> captureSurfaceImages({
   required Directory projectRoot,
   required List<SurfacePublicationManifestEntry> entries,
   String? flagRoot,
   String? configRoot,
+  String? wrapper,
   Duration timeout = surfaceCaptureTimeout,
   Future<void>? cancel,
   RenderBundleProcessRunner? processRunner,
@@ -88,6 +91,14 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
   final start = processStarter ?? _startProcess;
   try {
     final appName = renderBundleAppName(root);
+    final SurfaceCaptureWrapper? wrap;
+    try {
+      wrap = wrapper == null
+          ? null
+          : SurfaceCaptureWrapper.parse(wrapper, projectRoot: root);
+    } on SurfaceCaptureSourceException catch (error) {
+      return SurfaceCaptureResult(failure: error.reason);
+    }
 
     // Sources come first: a project with nothing to draw starts no process.
     final skipped = <String, String>{};
@@ -111,6 +122,7 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
           appName: appName,
           entry: entry,
           name: name,
+          wrapper: wrap,
           sample: schema == null
               ? const <String, Object?>{}
               : sampleHostContext(schema),
@@ -177,6 +189,8 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
         stale[name] = fingerprint;
         record.fingerprints.remove(name);
         if (image.existsSync()) image.deleteSync();
+        final error = File(p.join(images.path, _errorFile(name)));
+        if (error.existsSync()) error.deleteSync();
       }
     }
     if (stale.isEmpty) {
@@ -219,7 +233,13 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
     for (final MapEntry(key: name, value: fingerprint) in stale.entries) {
       final file = File(p.join(images.path, '$name.png'));
       if (!file.existsSync()) {
-        skipped[name] = _testFailure(name, root, project);
+        skipped[name] = _testFailure(
+          name,
+          root,
+          project,
+          error: _renderError(File(p.join(images.path, _errorFile(name)))),
+          wrapped: wrap != null,
+        );
         continue;
       }
       final bytes = file.readAsBytesSync();
@@ -393,10 +413,40 @@ Map<String, List<String>>? _fontFiles(FlutterToolchain toolchain) {
   };
 }
 
+/// The file a capture test writes its error to, beside the image.
+String _errorFile(String name) => '$name.error.txt';
+
+/// The first line of the error a capture test wrote, or null.
+String? _renderError(File file) {
+  if (!file.existsSync()) return null;
+  final line = file
+      .readAsLinesSync()
+      .map((line) => line.trim())
+      .firstWhere((line) => line.isNotEmpty, orElse: () => '');
+  if (line.isEmpty) return null;
+  var message = line.startsWith('Error: ') ? line.substring(7) : line;
+  message = message.replaceFirst(RegExp(r'[.:]+$'), '');
+  return message.length > 300 ? '${message.substring(0, 297)}...' : message;
+}
+
 /// Why a surface whose test wrote no image has none.
-String _testFailure(String name, Directory root, Directory project) =>
-    'it did not render; run `flutter test ${_testPath(name)}` in '
-    '${p.relative(project.path, from: root.path)} to see why';
+String _testFailure(
+  String name,
+  Directory root,
+  Directory project, {
+  String? error,
+  bool wrapped = false,
+}) {
+  final command =
+      '`flutter test ${_testPath(name)}` in '
+      '${p.relative(project.path, from: root.path)}';
+  if (error == null) return 'it did not render; run $command to see why';
+  return 'it did not render: $error. '
+      '${wrapped ? '' : 'If it reads something your app provides above it, '
+                'name a function that provides it as previewWrapper in '
+                'restage_config.yaml. '}'
+      '$command shows the whole error';
+}
 
 String _buildFailure(RenderBundleBuildFailure reason) => switch (reason) {
   RenderBundleBuildFailure.projectIdentity =>

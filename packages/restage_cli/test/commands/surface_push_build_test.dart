@@ -162,7 +162,12 @@ void main() {
           request: fit,
           authorityDigest: m.CanonicalDigest('b' * 64),
           entries: [
-            for (final key in ['named:welcome', 'default:paywall:welcome'])
+            for (final (key, accepted, shows) in [
+              ('named:welcome', true, false),
+              ('default:paywall:welcome', true, true),
+              ('named:promo', false, true),
+              ('default:onboarding:intro', false, false),
+            ])
               m.DeliveryPolicyFitEntryV1(
                 scope: m.DeliveryPolicyScopeV1(
                   root: m.DeliveryRootIdentityV1.placement(
@@ -175,8 +180,17 @@ void main() {
                 ),
                 publication: reference,
                 verdictCanonicalBytes: m.CanonicalJsonCodec.encode({
-                  'accepted': true,
-                  'failures': <Object>[],
+                  'accepted': accepted,
+                  'failures': [
+                    if (!accepted)
+                      {
+                        'code': 'missingHostField',
+                        'path': r'$.requiredContext.plan',
+                        'required': {'kind': 'string'},
+                        'available': null,
+                      },
+                  ],
+                  'showsPublication': shows,
                   'appBuildContractHash': 'sha256:${'c' * 64}',
                 }),
               ),
@@ -197,7 +211,18 @@ void main() {
       expect(out.toString(), contains('Placement fit for stored revision 3'));
       expect(out.toString(), contains('named:welcome'));
       expect(out.toString(), contains('default:paywall:welcome'));
-      expect(out.toString(), contains('appBuildContractHash'));
+      expect(out.toString(), contains('named:welcome: fits.'));
+      // A placement that shows the surface is reported even when it does not
+      // fit; one that neither fits nor shows it is left out.
+      expect(
+        out.toString(),
+        contains(
+          '  named:promo: does not fit.\n'
+          '    the app does not pass `plan` to this placement.',
+        ),
+      );
+      expect(out.toString(), isNot(contains('default:onboarding:intro')));
+      expect(out.toString(), isNot(contains('appBuildContractHash')));
     },
   );
 
