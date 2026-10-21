@@ -2716,43 +2716,44 @@ ExpressionTranslator _scalarTranslator() => ExpressionTranslator(
     );
 
 ExpressionTranslator _widgetTranslator(HelperRegistry helpers) {
+  final widgets = [
+    entry(
+      name: 'Text',
+      category: WidgetCategory.decoration,
+      properties: [
+        prop('text', PropertyType.string, required: true),
+      ],
+    ),
+    entry(
+      name: 'Column',
+      childrenSlot: ChildrenSlot.list,
+      properties: [
+        prop('children', PropertyType.widgetList),
+        prop('mainAxisAlignment', PropertyType.enumValue),
+      ],
+    ),
+    entry(
+      name: 'Row',
+      childrenSlot: ChildrenSlot.list,
+      properties: [
+        prop('children', PropertyType.widgetList),
+      ],
+    ),
+    entry(
+      name: 'SizedBox',
+      category: WidgetCategory.decoration,
+      properties: const [],
+    ),
+    entry(
+      name: 'GestureDetector',
+      properties: [
+        prop('child', PropertyType.widget),
+        prop('onTap', PropertyType.event),
+      ],
+    ),
+  ];
   return ExpressionTranslator(
-    catalog: catalogWith([
-      entry(
-        name: 'Text',
-        category: WidgetCategory.decoration,
-        properties: [
-          prop('text', PropertyType.string, required: true),
-        ],
-      ),
-      entry(
-        name: 'Column',
-        childrenSlot: ChildrenSlot.list,
-        properties: [
-          prop('children', PropertyType.widgetList),
-          prop('mainAxisAlignment', PropertyType.enumValue),
-        ],
-      ),
-      entry(
-        name: 'Row',
-        childrenSlot: ChildrenSlot.list,
-        properties: [
-          prop('children', PropertyType.widgetList),
-        ],
-      ),
-      entry(
-        name: 'SizedBox',
-        category: WidgetCategory.decoration,
-        properties: const [],
-      ),
-      entry(
-        name: 'GestureDetector',
-        properties: [
-          prop('child', PropertyType.widget),
-          prop('onTap', PropertyType.event),
-        ],
-      ),
-    ]),
+    catalog: probeCatalogWith(widgets),
     helpers: helpers,
   );
 }
@@ -2902,7 +2903,7 @@ $members
   );
   final helpers = HelperRegistry()..registerAll([_eventHelper]);
   final translator = ExpressionTranslator.forTesting(
-    catalog: catalogWith([
+    catalog: probeCatalogWith([
       entry(
         name: 'Text',
         category: WidgetCategory.decoration,

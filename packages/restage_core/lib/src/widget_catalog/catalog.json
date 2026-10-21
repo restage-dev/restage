@@ -9551,6 +9551,232 @@
       ]
     },
     {
+      "wireId": "w0060",
+      "name": "TransformTranslate",
+      "library": "restage.core",
+      "category": "decoration",
+      "description": "A widget that applies a transformation before painting its child.",
+      "displayLabel": "Translate",
+      "flutterType": "package:flutter/src/widgets/basic.dart#Transform.translate",
+      "childrenSlot": "single",
+      "properties": [
+        {
+          "wireId": "p0656",
+          "name": "offset",
+          "type": "offset",
+          "description": "",
+          "required": true,
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "offset",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Offset"
+            }
+          }
+        },
+        {
+          "wireId": "p0657",
+          "name": "transformHitTests",
+          "type": "boolean",
+          "description": "Whether to transform registered hits into the child's resulting coordinate system.",
+          "displayLabel": "Transform taps",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0658",
+          "name": "filterQuality",
+          "type": "enumValue",
+          "description": "The filter quality with which to apply the transform as a bitmap operation.",
+          "enumType": "FilterQuality",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "FilterQuality"
+            }
+          }
+        },
+        {
+          "wireId": "p0659",
+          "name": "child",
+          "type": "widget",
+          "description": "",
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0660",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ],
+      "sinceVersion": 13
+    },
+    {
+      "wireId": "w0061",
+      "name": "TransformScale",
+      "library": "restage.core",
+      "category": "decoration",
+      "description": "A widget that applies a transformation before painting its child.",
+      "displayLabel": "Scale",
+      "flutterType": "package:flutter/src/widgets/basic.dart#Transform.scale",
+      "childrenSlot": "single",
+      "properties": [
+        {
+          "wireId": "p0661",
+          "name": "scale",
+          "type": "real",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0662",
+          "name": "scaleX",
+          "type": "real",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0663",
+          "name": "scaleY",
+          "type": "real",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0664",
+          "name": "origin",
+          "type": "offset",
+          "description": "The origin of the coordinate system in which to apply the matrix, described relative to the point given by [alignment].",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "offset",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Offset"
+            }
+          }
+        },
+        {
+          "wireId": "p0665",
+          "name": "alignment",
+          "type": "alignment",
+          "description": "The alignment of the origin, relative to the size of the box.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": "center"
+          },
+          "constructorNullable": true,
+          "constructorDefault": {
+            "kind": "reference",
+            "libraryUri": "package:flutter/src/painting/alignment.dart",
+            "owner": "Alignment",
+            "member": "center"
+          },
+          "category": "layout",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "alignment",
+            "dartTypeRef": {
+              "libraryUri": "package:flutter/src/painting/alignment.dart",
+              "symbolName": "AlignmentGeometry"
+            }
+          }
+        },
+        {
+          "wireId": "p0666",
+          "name": "transformHitTests",
+          "type": "boolean",
+          "description": "Whether to transform registered hits into the child's resulting coordinate system.",
+          "displayLabel": "Transform taps",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0667",
+          "name": "filterQuality",
+          "type": "enumValue",
+          "description": "The filter quality with which to apply the transform as a bitmap operation.",
+          "enumType": "FilterQuality",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "FilterQuality"
+            }
+          }
+        },
+        {
+          "wireId": "p0668",
+          "name": "child",
+          "type": "widget",
+          "description": "",
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0669",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ],
+      "sinceVersion": 14
+    },
+    {
       "wireId": "w0034",
       "name": "Visibility",
       "library": "restage.core",

@@ -51,7 +51,7 @@ RootContextParam _rootParam(
 
 void main() {
   final translator = ExpressionTranslator.forTesting(
-    catalog: catalogWith([
+    catalog: probeCatalogWith([
       entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
       entry(name: 'SizedBox', properties: []),
       entry(

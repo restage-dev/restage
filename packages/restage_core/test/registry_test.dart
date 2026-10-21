@@ -356,6 +356,71 @@ void main() {
       });
     });
 
+    test('TransformTranslate retains the native constructor contract', () {
+      final transform = kRegistry.findByName(
+        'TransformTranslate',
+        WidgetLibrary.core,
+      )!;
+      expect(transform.flutterType,
+          'package:flutter/src/widgets/basic.dart#Transform.translate');
+      expect(transform.sinceVersion, 13);
+      expect(transform.childrenSlot, ChildrenSlot.single);
+      expect(
+          transform.properties.map((p) => p.name),
+          containsAll(
+              ['offset', 'transformHitTests', 'filterQuality', 'child']));
+      final offset =
+          transform.properties.singleWhere((p) => p.name == 'offset');
+      expect(offset.type, PropertyType.offset);
+      expect(offset.required, isTrue);
+      expect(
+          transform.properties
+              .singleWhere((p) => p.name == 'transformHitTests')
+              .defaultValue,
+          true);
+    });
+
+    test(
+        'TransformScale preserves its native nullable factor and pivot contract',
+        () {
+      final transform = kRegistry.findByName(
+        'TransformScale',
+        WidgetLibrary.core,
+      )!;
+      expect(transform.flutterType,
+          'package:flutter/src/widgets/basic.dart#Transform.scale');
+      expect(transform.sinceVersion, 14);
+      expect(transform.childrenSlot, ChildrenSlot.single);
+      for (final factor in ['scale', 'scaleX', 'scaleY']) {
+        final slot = transform.properties.singleWhere((p) => p.name == factor);
+        expect(slot.type, PropertyType.real);
+        expect(slot.required, isFalse);
+        expect(slot.constructorNullable, isTrue);
+        expect(slot.defaultSource, isNull);
+        expect(slot.constructorDefault, isNull);
+      }
+      final alignment = transform.properties.singleWhere(
+        (p) => p.name == 'alignment',
+      );
+      expect(alignment.type, PropertyType.alignment);
+      expect(alignment.constructorNullable, isTrue);
+      expect(alignment.defaultValue, 'center');
+      expect(
+          alignment.constructorDefault,
+          const DartConstReference(
+            libraryUri: 'package:flutter/src/painting/alignment.dart',
+            owner: 'Alignment',
+            member: 'center',
+          ));
+      final rotation =
+          kRegistry.findByName('TransformRotate', WidgetLibrary.core)!;
+      expect(
+          rotation.properties
+              .singleWhere((p) => p.name == 'alignment')
+              .constructorDefault,
+          isNull);
+    });
+
     test('TransformRotate surfaces origin as an optional offset slot', () {
       final transform = kRegistry.findByName(
         'TransformRotate',

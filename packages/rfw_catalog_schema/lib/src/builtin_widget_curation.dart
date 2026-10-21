@@ -404,6 +404,7 @@ final class PropertyOverride {
     this.required,
     this.defaultValue,
     this.defaultBrandToken,
+    this.preserveConstructorDefault = false,
     this.positional,
     this.enumType,
     this.widgetType,
@@ -461,6 +462,9 @@ final class PropertyOverride {
   /// Replacement [PropertyEntry.defaultBrandToken]. Mutually exclusive
   /// with [defaultValue].
   final String? defaultBrandToken;
+
+  /// Retains the exact source default for omission-aware native invocation.
+  final bool preserveConstructorDefault;
 
   /// Replacement [PropertyEntry.positional] flag. `null` keeps `false`
   /// (the default for named parameters).

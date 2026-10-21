@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
@@ -80,10 +81,24 @@ const Catalog kEmptyCatalog = Catalog(
   widgets: <WidgetEntry>[],
 );
 
+/// The Flutter type of each committed built-in catalog widget, by name.
+final Map<String, String> _builtInFlutterTypes = {
+  for (final package in [
+    'restage_core',
+    'restage_material',
+    'restage_cupertino',
+  ])
+    for (final widget in decodeCatalog(
+      File('../$package/lib/src/widget_catalog/catalog.json')
+          .readAsStringSync(),
+    ).widgets)
+      widget.name: widget.flutterType,
+};
+
 /// Builds a [WidgetEntry] with sensible defaults — most tests only
-/// vary `name` and `properties`. The default `flutterType` synthesises
-/// from the entry name so tests that exercise `flutterType` matching
-/// can override explicitly.
+/// vary `name` and `properties`. The default `flutterType` is the
+/// built-in widget's real type when [name] names one, so resolved
+/// framework source binds it; otherwise it synthesises from the name.
 WidgetEntry entry({
   required String name,
   required List<PropertyEntry> properties,
@@ -102,13 +117,59 @@ WidgetEntry entry({
       library: library,
       category: category,
       description: description,
-      flutterType: flutterType ?? 'package:test_fixture/$name.dart#$name',
+      flutterType: flutterType ??
+          _builtInFlutterTypes[name] ??
+          'package:test_fixture/$name.dart#$name',
       childrenSlot: childrenSlot,
       properties: properties,
       decomposes: decomposes,
       sinceVersion: sinceVersion,
       deprecatedSince: deprecatedSince,
     );
+
+/// The libraries the probe helpers write stub framework classes into.
+const List<String> kProbeLibraryUris = [
+  'package:restage_codegen/_expr_probe.dart',
+  'package:restage_codegen/_collection_probe.dart',
+  'package:apps_examples/_expr_probe.dart',
+  'package:apps_examples/_collection_probe.dart',
+];
+
+/// [catalogWith] whose [widgets] may also be declared by the probe stubs.
+Catalog probeCatalogWith(
+  List<WidgetEntry> widgets, {
+  WidgetLibrary library = WidgetLibrary.core,
+  List<StructuredEntry> structuredTypes = const [],
+}) =>
+    catalogWith(
+      [
+        ...widgets,
+        for (final uri in kProbeLibraryUris) ...declaredIn(uri, widgets),
+      ],
+      library: library,
+      structuredTypes: structuredTypes,
+    );
+
+/// [entries] again, as declared by same-named stub classes in [libraryUri].
+List<WidgetEntry> declaredIn(String libraryUri, List<WidgetEntry> entries) => [
+      for (final entry in entries)
+        WidgetEntry(
+          wireId: entry.wireId,
+          name: entry.name,
+          library: entry.library,
+          category: entry.category,
+          description: entry.description,
+          flutterType: '$libraryUri#${entry.name}',
+          childrenSlot: entry.childrenSlot,
+          properties: entry.properties,
+          displayLabel: entry.displayLabel,
+          decomposes: entry.decomposes,
+          sinceVersion: entry.sinceVersion,
+          deprecatedSince: entry.deprecatedSince,
+          stability: entry.stability,
+          deprecated: entry.deprecated,
+        ),
+    ];
 
 /// Builds a [PropertyEntry] with the always-required `description`
 /// stubbed empty by default (pass [description] to exercise a described

@@ -41,9 +41,19 @@ void main() {
     expect(RestageBuiltInCatalogCapabilities.currentVersion, expected);
   });
 
-  test('AppBar system and icon styles raise the generated global ceiling to 12',
-      () {
-    expect(RestageBuiltInCatalogCapabilities.currentVersion, 12);
+  test('native transforms raise the generated global ceiling to 14', () {
+    expect(RestageBuiltInCatalogCapabilities.currentVersion, 14);
+    final core = committedCatalog('restage_core');
+    for (final (name, version) in [
+      ('TransformTranslate', 13),
+      ('TransformScale', 14),
+    ]) {
+      expect(
+        core.widgets.singleWhere((widget) => widget.name == name).sinceVersion,
+        version,
+        reason: name,
+      );
+    }
   });
 
   test('currentVersion is at least the baseline content version', () {

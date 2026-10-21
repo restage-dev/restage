@@ -350,7 +350,7 @@ void _writePropertyEntry(
   if (p.constructorDefault != null) {
     buf.writeln(
       '$indent  constructorDefault: '
-      '${_dartConstValueLiteral(p.constructorDefault!)},',
+      '${emitDartConstValue(p.constructorDefault!)},',
     );
   }
   if (p.mutuallyExclusiveWith != null) {
@@ -919,7 +919,8 @@ String _dartRecordTypeNamedFieldLiteral(DartRecordTypeNamedField field) =>
     'DartRecordTypeNamedField(${_escapeDart(field.name)}, '
     '${_dartConstTypeLiteral(field.type)})';
 
-String _dartConstValueLiteral(DartConstValue value) => switch (value) {
+/// Emits a catalog constant value as a Dart schema constructor expression.
+String emitDartConstValue(DartConstValue value) => switch (value) {
       DartConstNull() => 'DartConstNull()',
       DartConstScalar(:final value) =>
         'DartConstScalar(${_dartLiteral(value)})',
@@ -930,16 +931,16 @@ String _dartConstValueLiteral(DartConstValue value) => switch (value) {
             'member: ${_escapeDart(member)})',
       DartConstInvocation() => _dartConstInvocationLiteral(value),
       DartConstList(:final values, :final type) =>
-        'DartConstList([${values.map(_dartConstValueLiteral).join(', ')}]'
+        'DartConstList([${values.map(emitDartConstValue).join(', ')}]'
             '${_dartConstCollectionTypeLiteral(type)})',
       DartConstSet(:final values, :final type) =>
-        'DartConstSet([${values.map(_dartConstValueLiteral).join(', ')}]'
+        'DartConstSet([${values.map(emitDartConstValue).join(', ')}]'
             '${_dartConstCollectionTypeLiteral(type)})',
       DartConstMap(:final entries, :final type) =>
         'DartConstMap([${entries.map(_dartConstMapEntryLiteral).join(', ')}]'
             '${_dartConstCollectionTypeLiteral(type)})',
       DartConstRecord(:final positional, :final named) => 'DartConstRecord('
-          'positional: [${positional.map(_dartConstValueLiteral).join(', ')}], '
+          'positional: [${positional.map(emitDartConstValue).join(', ')}], '
           'named: [${named.map(_dartConstNamedLiteral).join(', ')}])',
     };
 
@@ -950,7 +951,7 @@ String _dartConstInvocationLiteral(DartConstInvocation value) {
   final constructorName = value.constructorName == null
       ? ''
       : 'constructorName: ${_escapeDart(value.constructorName!)}, ';
-  final positional = value.positional.map(_dartConstValueLiteral).join(', ');
+  final positional = value.positional.map(emitDartConstValue).join(', ');
   final named = value.named.map(_dartConstNamedLiteral).join(', ');
   return 'DartConstInvocation('
       'type: ${_dartConstTypeLiteral(value.type)}, '
@@ -960,11 +961,11 @@ String _dartConstInvocationLiteral(DartConstInvocation value) {
 
 String _dartConstNamedLiteral(DartConstNamedValue value) =>
     'DartConstNamedValue(${_escapeDart(value.name)}, '
-    '${_dartConstValueLiteral(value.value)})';
+    '${emitDartConstValue(value.value)})';
 
 String _dartConstMapEntryLiteral(DartConstMapEntry entry) =>
-    'DartConstMapEntry(${_dartConstValueLiteral(entry.key)}, '
-    '${_dartConstValueLiteral(entry.value)})';
+    'DartConstMapEntry(${emitDartConstValue(entry.key)}, '
+    '${emitDartConstValue(entry.value)})';
 
 String _parameterDefaultValueLiteral(FactoryParameterDefaultValue value) {
   switch (value) {

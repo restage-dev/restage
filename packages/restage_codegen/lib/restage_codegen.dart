@@ -90,6 +90,8 @@ export 'src/measurement/measurement_source_discovery.dart'
         MeasurementSourceDiscoveryResult,
         MeasurementSourceProvenance;
 export 'src/type_inference.dart' show inferPropertyType;
-export 'src/user_catalog_emitter.dart' show emitUserCatalogDart;
+export 'src/user_catalog_emitter.dart'
+    show emitDartConstValue, emitUserCatalogDart;
+export 'src/widget_constructor_facts.dart' show readWidgetConstructorDefault;
 export 'src/widget_visitor.dart'
     show WidgetVisitorResult, WidgetVisitorTarget, visitRestageWidgets;

@@ -72,6 +72,8 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
   'Text': buildText,
   'TextRich': buildTextRich,
   'TransformRotate': buildTransformRotate,
+  'TransformTranslate': buildTransformTranslate,
+  'TransformScale': buildTransformScale,
   'Visibility': buildVisibility,
   'Wrap': buildWrap,
 };
@@ -1164,6 +1166,46 @@ Widget buildTransformRotate(BuildContext context, DataSource source) {
         FilterQuality.values, source, <Object>['filterQuality']),
     child: source.optionalChild(const <Object>['child']),
   );
+}
+
+/// Builds the catalog's `TransformTranslate` widget from [source].
+Widget buildTransformTranslate(BuildContext context, DataSource source) {
+  return Transform.translate(
+    offset: RestageDecoders.offset(source, <Object>['offset']) ??
+        (throw ArgumentError('TransformTranslate.offset is required.')),
+    transformHitTests:
+        source.v<bool>(const <Object>['transformHitTests']) ?? true,
+    filterQuality: RestageDecoders.enumByName<FilterQuality>(
+        FilterQuality.values, source, <Object>['filterQuality']),
+    child: source.optionalChild(const <Object>['child']),
+  );
+}
+
+/// Builds the catalog's `TransformScale` widget from [source].
+Widget buildTransformScale(BuildContext context, DataSource source) {
+  final restagePresenceAlignment = RestageRfwConstructorPresence.read(
+    source,
+    <Object>['alignment'],
+  );
+
+  return Function.apply(
+    Transform.scale,
+    <Object?>[],
+    <Symbol, Object?>{
+      #scale: RestageDecoders.number(source, <Object>['scale']),
+      #scaleX: RestageDecoders.number(source, <Object>['scaleX']),
+      #scaleY: RestageDecoders.number(source, <Object>['scaleY']),
+      #origin: RestageDecoders.offset(source, <Object>['origin']),
+      if (restagePresenceAlignment.supplied)
+        #alignment: RestageDecoders.alignment(
+            source, restagePresenceAlignment.valuePath),
+      #transformHitTests:
+          source.v<bool>(const <Object>['transformHitTests']) ?? true,
+      #filterQuality: RestageDecoders.enumByName<FilterQuality>(
+          FilterQuality.values, source, <Object>['filterQuality']),
+      #child: source.optionalChild(const <Object>['child']),
+    },
+  ) as Widget;
 }
 
 /// Builds the catalog's `Visibility` widget from [source].

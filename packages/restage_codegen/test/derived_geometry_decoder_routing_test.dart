@@ -359,6 +359,26 @@ void main() {
       expect(picker, isNot(contains('safePickerMagnification')));
     });
 
+    test('translation offset uses the shared Offset decoder', () {
+      final source = _emissionFor(
+        'TransformTranslate',
+        'offset',
+        PropertyType.offset,
+      );
+      expect(
+        source,
+        contains("RestageDecoders.offset(source, <Object>['offset'])"),
+      );
+      expect(
+        scalarDecoderExemptionsForTesting[('TransformTranslate', 'offset')],
+        isNotEmpty,
+      );
+      expect(
+        scalarDecoderDeferredForTesting,
+        isNot(contains(('TransformTranslate', 'offset'))),
+      );
+    });
+
     test('classifies the seven layout exemptions with bounded reasons', () {
       const slots = <(String, String)>[
         ('BackdropFilter', 'blurSigmaX'),

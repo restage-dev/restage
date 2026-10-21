@@ -15,16 +15,6 @@ void main() {
     const source = '''
 $kStubAnnotationsAndBases
 
-class Column extends Widget {
-  const Column({required this.children});
-  final List<Widget> children;
-}
-
-class Text extends Widget {
-  const Text(this.text);
-  final String text;
-}
-
 @PaywallSource(id: 'context_list_loop')
 class ContextListLoop extends StatelessWidget {
   const ContextListLoop({required this.values});

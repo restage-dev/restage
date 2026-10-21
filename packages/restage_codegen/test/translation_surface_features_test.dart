@@ -16,7 +16,7 @@ import 'helpers.dart';
 
 void main() {
   ExpressionTranslator translator() => ExpressionTranslator(
-        catalog: catalogWith([
+        catalog: probeCatalogWith([
           entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
         ]),
         helpers: HelperRegistry()..registerAll(paywallHelpers),
@@ -86,7 +86,7 @@ void main() {
               .correspondingParameter!,
         );
     final translator = ExpressionTranslator(
-      catalog: catalogWith([
+      catalog: probeCatalogWith([
         entry(
           name: 'Column',
           flutterType: '$kSyntheticProbeLibraryUri#Column',
@@ -131,7 +131,7 @@ void main() {
 
   group('value callbacks write screen-local values', () {
     ExpressionTranslator localTranslator() => ExpressionTranslator(
-          catalog: catalogWith([
+          catalog: probeCatalogWith([
             entry(
               name: 'Text',
               properties: [prop('text', PropertyType.string)],
