@@ -246,6 +246,62 @@ void main() {
     expect(status, isNot(contains('organizationId')));
   });
 
+  test('the status states how far the live version reached devices', () async {
+    final calls = <BackendCall>[];
+    final reach = {
+      'asOfMicros': DateTime.utc(2026, 10, 17, 12).microsecondsSinceEpoch,
+      'disclosureFloor': 5,
+      'liveVersion': 2,
+      'liveSinceMicros': DateTime.utc(2026, 10, 17, 10).microsecondsSinceEpoch,
+      'devices': 40,
+      'reached': 30,
+      'stragglers': [
+        {'reason': 'notOpened', 'version': 1, 'devices': 10},
+      ],
+    };
+    final connection = await connect((call) async {
+      if (call.method == 'readSurfaceReach') {
+        return http.Response(
+          jsonEncode(encodeByteDataWire(utf8.encode(jsonEncode(reach)))),
+          200,
+        );
+      }
+      return http.Response(
+        jsonEncode(
+          _statusView(
+            extra: {
+              'target': {
+                '__className__': 'EnvironmentTargetRef',
+                'environmentTargetId': 42,
+                'namedEnvironmentId': 7,
+                'environmentSlug': 'staging',
+                'runtimePlane': 'sandbox',
+              },
+            },
+          ),
+        ),
+        200,
+      );
+    }, calls: calls);
+
+    final result = await connection.callTool(
+      CallToolRequest(name: 'restage_surface_status', arguments: _surface),
+    );
+
+    expect(result.isError, isNot(true), reason: _text(result));
+    expect(calls.map((call) => call.method), [
+      'surfaceStatus',
+      'readSurfaceReach',
+    ]);
+    expect(calls.last.body['environmentId'], 42);
+    final stated = result.structuredContent!['reach']! as Map<String, Object?>;
+    expect(
+      stated['headline'],
+      'v2 reached 30 of 40 devices (75%) · 2 h after publish',
+    );
+    expect(stated['devices'], 40);
+  });
+
   test('the status reports the draft origin and the edit after code', () async {
     final connection = await connect(
       (_) async => http.Response(

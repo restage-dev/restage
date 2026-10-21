@@ -2,8 +2,11 @@ import 'dart:async';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
+import 'package:restage_cli/src/api/surface_reach.dart';
+import 'package:restage_cli/src/api/surface_routing_api.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
@@ -13,8 +16,19 @@ import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+/// How often `--watch` reads the reach again.
+const Duration surfaceReachWatchInterval = Duration(seconds: 30);
+
+/// How long `--watch` keeps reading.
+const Duration surfaceReachWatchSpan = Duration(minutes: 60);
+
+/// The reads one `--watch` makes, the first included.
+final int surfaceReachWatchPolls =
+    surfaceReachWatchSpan.inSeconds ~/ surfaceReachWatchInterval.inSeconds + 1;
+
 /// Show the live version, lock state, delivery shape, and version history of
-/// a surface in one environment.
+/// a surface in one environment, and how far the live version reached
+/// devices.
 ///
 /// Usable two ways via [fixedSurfaceType]:
 ///   - null → generic `surface status` group, normally resolved from the
@@ -34,7 +48,9 @@ class SurfaceStatusCommand extends Command<int> {
     SurfaceType? fixedSurfaceType,
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
-  }) : _io = CommandIo(
+    Future<void> Function(Duration)? sleep,
+  }) : _sleep = sleep ?? Future<void>.delayed,
+       _io = CommandIo(
          stdout: stdout,
          stderr: stderr,
          interactive: interactive,
@@ -49,10 +65,19 @@ class SurfaceStatusCommand extends Command<int> {
       withContractVersion: true,
       withSourceKind: true,
     );
+    argParser.addFlag(
+      'watch',
+      negatable: false,
+      help:
+          'Read how far the live version reached devices again every '
+          '${surfaceReachWatchInterval.inSeconds} seconds, for up to '
+          '${surfaceReachWatchSpan.inMinutes} minutes.',
+    );
   }
 
   final CommandIo _io;
   final SurfaceType? _fixedType;
+  final Future<void> Function(Duration) _sleep;
 
   @override
   String get name => 'status';
@@ -97,6 +122,38 @@ class SurfaceStatusCommand extends Command<int> {
         sourceKind: identity.sourceKind,
       );
       _printStatus(status);
+      final routing = SurfaceRoutingApi(ctx.api);
+      Future<SurfaceReach> read() => routing.readSurfaceReach(
+        projectSlug: target.project,
+        appSlug: target.app,
+        surfaceType: identity.surface.wireName,
+        surfaceSlug: slug,
+        environmentId: target.environmentTargetId,
+        organizationId: target.organizationId,
+      );
+      final watch = argResults?['watch'] == true;
+      for (var poll = 0; ; poll++) {
+        final SurfaceReach reach;
+        try {
+          reach = await read();
+        } on RestageApiException {
+          _io.stdout.writeln('  reach: unavailable');
+          return 0;
+        } on FormatException {
+          _io.stdout.writeln('  reach: unavailable');
+          return 0;
+        }
+        final lines = renderSurfaceReach(reach);
+        final at = reach.asOf.toIso8601String().substring(11, 19);
+        _io.stdout.writeln(
+          poll == 0 ? '  reach: ${lines.first}' : '$at UTC  ${lines.first}',
+        );
+        for (final line in lines.skip(1)) {
+          _io.stdout.writeln('  $line');
+        }
+        if (!watch || poll + 1 >= surfaceReachWatchPolls) break;
+        await _sleep(surfaceReachWatchInterval);
+      }
       return 0;
     });
   }

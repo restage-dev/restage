@@ -171,6 +171,13 @@ void main() {
     expect(publishBody!.containsKey('contractVersion'), isFalse);
     expect(publishBody!['reason'], 'restore known good revision');
     expect(out.toString(), contains('Published "pro" at r3'));
+    expect(out.toString(), contains('Reach: No version is live.'));
+    expect(
+      out.toString(),
+      contains(
+        'Watch it climb: restage surface status pro --type paywall --watch',
+      ),
+    );
     expect(err.toString(), isEmpty);
   });
 

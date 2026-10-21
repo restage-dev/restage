@@ -960,9 +960,8 @@ void main() {
         httpClient: routingClient({
           'experiments': [
             {
-              'ownerAuthorityKind': 'experimentDesign',
-              'ownerAuthorityId': 'x1',
-              'ownerRevisionId': 'xr1',
+              'experimentId': 'x1',
+              'experimentLabel': 'Spring offer',
               'lifecycle': 'concluded',
             },
           ],

@@ -339,6 +339,7 @@ http.Client mockHttpClient(
   http.Response Function(http.Request request) handler, {
   bool withDefaultTargetDiscovery = true,
   bool withDefaultSurfaceReview = true,
+  bool withDefaultSurfaceReach = true,
 }) => MockClient((request) async {
   if (withDefaultTargetDiscovery) {
     final discovery = _defaultTargetDiscoveryResponse(request);
@@ -347,6 +348,10 @@ http.Client mockHttpClient(
   if (withDefaultSurfaceReview) {
     final review = _defaultSurfaceReviewResponse(request);
     if (review != null) return review;
+  }
+  if (withDefaultSurfaceReach) {
+    final reach = _defaultSurfaceReachResponse(request);
+    if (reach != null) return reach;
   }
   return handler(request);
 });
@@ -381,6 +386,7 @@ http.Client scriptedHttpClient(
   List<ScriptStep> steps, {
   bool withDefaultTargetDiscovery = true,
   bool withDefaultSurfaceReview = true,
+  bool withDefaultSurfaceReach = true,
 }) {
   var index = 0;
   return MockClient((request) async {
@@ -391,6 +397,10 @@ http.Client scriptedHttpClient(
     if (withDefaultSurfaceReview) {
       final review = _defaultSurfaceReviewResponse(request);
       if (review != null) return review;
+    }
+    if (withDefaultSurfaceReach) {
+      final reach = _defaultSurfaceReachResponse(request);
+      if (reach != null) return reach;
     }
     if (index >= steps.length) {
       fail('Unexpected backend call ${index + 1}: ${request.url}');
@@ -415,6 +425,23 @@ http.Response? _defaultSurfaceReviewResponse(http.Request request) {
   );
   return http.Response(
     jsonEncode(encodeByteDataWire(review.canonicalBytes)),
+    200,
+  );
+}
+
+/// The default fake backend's reach: nothing live has reached a device yet.
+http.Response? _defaultSurfaceReachResponse(http.Request request) {
+  if (request.url.pathSegments.last != 'surfaceRouting') return null;
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  if (body['method'] != 'readSurfaceReach') return null;
+  final reach = {
+    'asOfMicros': DateTime.utc(2026, 10, 17).microsecondsSinceEpoch,
+    'disclosureFloor': 5,
+    'devices': 0,
+    'reached': 0,
+  };
+  return http.Response(
+    jsonEncode(encodeByteDataWire(utf8.encode(jsonEncode(reach)))),
     200,
   );
 }

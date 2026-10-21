@@ -4,12 +4,14 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/surface_api.dart';
+import 'package:restage_cli/src/api/surface_routing_api.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/commands/surface_measurement_review.dart';
 import 'package:restage_cli/src/commands/surface_publish_operation.dart';
+import 'package:restage_cli/src/commands/surface_reach_output.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -186,6 +188,16 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
               mountGuide(sourceKind, slug, mountName: result.mountName),
             );
         },
+      );
+      await printPublishedReach(
+        api: SurfaceRoutingApi(ctx.api),
+        stdout: _io.stdout,
+        projectSlug: target.project,
+        appSlug: target.app,
+        surfaceType: identity.surface.wireName,
+        surfaceSlug: slug,
+        environmentId: target.environmentTargetId,
+        organizationId: target.organizationId,
       );
       return recorded == false ? 2 : 0;
     }, command: this);

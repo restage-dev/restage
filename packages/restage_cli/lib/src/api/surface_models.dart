@@ -438,6 +438,7 @@ class SurfaceStatusResult {
     this.families = const <SurfaceFamilyStatus>[],
     this.affectedFamilies = const <SurfaceAffectedFamily>[],
     this.editedAfterCode = false,
+    this.environmentTargetId,
   });
 
   /// Surface type wire name (`paywall` / `onboarding` / `message` / `survey` /
@@ -490,6 +491,10 @@ class SurfaceStatusResult {
 
   /// The draft was edited in the editor after the latest publish from code.
   final bool editedAfterCode;
+
+  /// The exact environment target the snapshot is scoped to, when the
+  /// service names it.
+  final int? environmentTargetId;
 
   /// Current identity-wide freeze state.
   bool get isFrozen => frozen ?? locked;
@@ -565,6 +570,10 @@ class SurfaceStatusResult {
       affectedFamilies: _decodeAffectedFamilies(json['affectedFamilies']),
       draftOrigin: json['draftOrigin']! as String,
       editedAfterCode: json['editedAfterCode'] == true,
+      environmentTargetId: switch (json['target']) {
+        {'environmentTargetId': final int id} => id,
+        _ => null,
+      },
     );
   }
 
@@ -589,6 +598,7 @@ class SurfaceStatusResult {
       ],
     'draftOrigin': draftOrigin,
     'editedAfterCode': editedAfterCode,
+    if (environmentTargetId != null) 'environmentTargetId': environmentTargetId,
   };
 }
 
