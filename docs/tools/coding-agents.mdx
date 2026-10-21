@@ -71,3 +71,12 @@ target serves, within the limits of compatibility and experiment assignment.
 You still supply app-specific credentials and purchase verification, and approve
 browser sign-in when required. The skills do not substitute example callbacks for
 real entitlement or platform behavior.
+
+## Use the dashboard from a browser agent
+
+The dashboard draws to a canvas, so an agent reads it through the page's
+accessibility tree. When an automation tool drives the browser, the dashboard
+turns that tree on as it loads. In a browser where `navigator.webdriver` is
+false, such as your own browser driven through an extension, run
+`document.querySelector('flt-semantics-placeholder').click()` once after the page
+loads, then take a new snapshot.
