@@ -17,6 +17,46 @@ void main() {
         ),
       ),
       SurfaceScreenEvent(
+        id: 'toggle',
+        arguments: SurfaceScreenEventObjectArguments(
+          const SurfaceScreenEventMapShapeV1(
+            SurfaceScreenEventScalarShapeV1(
+              SurfaceScreenEventScalarKind.jsonValue,
+            ),
+          ),
+        ),
+      ),
+      SurfaceScreenEvent(
+        id: 'note',
+        arguments: SurfaceScreenEventObjectArguments(
+          const SurfaceScreenEventMapShapeV1(
+            SurfaceScreenEventNullableShapeV1(
+              SurfaceScreenEventScalarShapeV1(
+                SurfaceScreenEventScalarKind.string,
+              ),
+            ),
+          ),
+        ),
+      ),
+      SurfaceScreenEvent(
+        id: 'pick',
+        arguments: const SurfaceScreenEventValueArguments(
+          SurfaceScreenEventListShapeV1(
+            SurfaceScreenEventScalarShapeV1(
+              SurfaceScreenEventScalarKind.integer,
+            ),
+          ),
+        ),
+      ),
+      SurfaceScreenEvent(
+        id: 'rate',
+        arguments: const SurfaceScreenEventValueArguments(
+          SurfaceScreenEventScalarShapeV1(
+            SurfaceScreenEventScalarKind.doubleValue,
+          ),
+        ),
+      ),
+      SurfaceScreenEvent(
         id: 'select',
         arguments: SurfaceScreenEventObjectArguments(
           const SurfaceScreenEventMapShapeV1(
@@ -28,12 +68,25 @@ void main() {
       ),
     ],
   );
+  const string = SurfaceScreenHostDataScalarShapeV1(
+    SurfaceScreenHostDataScalarKind.string,
+  );
   final context = SurfaceScreenHostDataSchema({
-    'plan': SurfaceScreenHostDataObjectShapeV1(const {
-      'name': SurfaceScreenHostDataScalarShapeV1(
-        SurfaceScreenHostDataScalarKind.string,
+    'plan': SurfaceScreenHostDataObjectShapeV1(const {'name': string}),
+    'account': SurfaceScreenHostDataNullableShapeV1(
+      SurfaceScreenHostDataObjectShapeV1(const {'name': string}),
+    ),
+    'nickname': const SurfaceScreenHostDataNullableShapeV1(string),
+    'labels': const SurfaceScreenHostDataMapShapeV1(string),
+    'names': const SurfaceScreenHostDataListShapeV1(string),
+    'scores': const SurfaceScreenHostDataListShapeV1(
+      SurfaceScreenHostDataScalarShapeV1(
+        SurfaceScreenHostDataScalarKind.integer,
       ),
-    }),
+    ),
+    'ratio': const SurfaceScreenHostDataScalarShapeV1(
+      SurfaceScreenHostDataScalarKind.number,
+    ),
   });
 
   List<String> gaps(String body, {Map<String, Object> local = const {}}) =>
@@ -60,6 +113,96 @@ widget Root = Column(children: [
         local: {'count': 1},
       ),
       isEmpty,
+    );
+  });
+
+  test('a context value fits a wider declared argument type', () {
+    expect(
+      gaps('''
+widget Root = Column(children: [
+  Button(onPressed: event "toggle" { plan: data.context.plan.name, day: 0 }),
+  Button(onPressed: event "toggle" { plan: data.context.plan }),
+]);
+'''),
+      isEmpty,
+    );
+  });
+
+  test('a context value of another type is an argument gap', () {
+    expect(
+      gaps('''
+widget Root = Column(children: [
+  Button(onPressed: event "choose" { value: data.context.plan.name }),
+  Button(onPressed: event "pick" { value: data.context.names }),
+  Button(onPressed: event "rate" { value: data.context.ratio }),
+]);
+'''),
+      [
+        'argument "value" of event "choose"',
+        'argument "value" of event "pick"',
+        'argument "value" of event "rate"',
+      ],
+    );
+  });
+
+  test('a list context value fits a list argument of its item type', () {
+    expect(
+      gaps('''
+widget Root = Button(onPressed: event "pick" { value: data.context.scores });
+'''),
+      isEmpty,
+    );
+  });
+
+  test('a loop variable reads as an item of the list it loops over', () {
+    expect(
+      gaps('''
+widget Root = Column(children: [
+  ...for name in data.context.names:
+    Button(onPressed: event "select" { id: name }),
+]);
+'''),
+      isEmpty,
+    );
+    expect(
+      gaps('''
+widget Root = Column(children: [
+  ...for name in data.context.names:
+    Button(onPressed: event "choose" { value: name }),
+]);
+'''),
+      ['argument "value" of event "choose"'],
+    );
+  });
+
+  test('a context value that can be absent fits only a nullable argument', () {
+    expect(
+      gaps('''
+widget Root = Column(children: [
+  Button(onPressed: event "note" { a: data.context.account.name }),
+  Button(onPressed: event "note" { b: data.context.labels.title }),
+  Button(onPressed: event "note" { c: data.context.nickname }),
+  Button(onPressed: event "toggle" { d: data.context.account.name }),
+  Button(onPressed: event "note" { e: data.context.names.0 }),
+]);
+'''),
+      isEmpty,
+    );
+    expect(
+      gaps('''
+widget Root = Column(children: [
+  Button(onPressed: event "select" { a: data.context.account.name }),
+  Button(onPressed: event "select" { b: data.context.labels.title }),
+  Button(onPressed: event "select" { c: data.context.nickname }),
+  Button(onPressed: event "select" { e: data.context.names.0 }),
+]);
+'''),
+      [
+        'argument "a" of event "select"',
+        'argument "b" of event "select"',
+        'argument "c" of event "select"',
+        'argument "e" of event "select"',
+      ],
     );
   });
 
