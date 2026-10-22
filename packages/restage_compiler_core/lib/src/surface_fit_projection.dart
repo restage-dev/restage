@@ -423,7 +423,7 @@ rfw.EventHandler _withoutLoopReferences(
         if (index < 0) return value;
         final input = rewrite(scope[index], scope.sublist(0, index));
         return input is rfw.DataReference
-            ? rfw.DataReference([...input.parts, 0, ...parts])
+            ? rfw.DataReference([...input.parts, _loopItem, ...parts])
             : value;
       case rfw.Switch(:final input, :final outputs):
         return rfw.Switch(
@@ -450,19 +450,37 @@ rfw.EventHandler _withoutLoopReferences(
   );
 }
 
+// The path step a loop variable read takes into its list: an item that exists.
+const Object _loopItem = _LoopItem();
+
+final class _LoopItem {
+  const _LoopItem();
+
+  @override
+  String toString() => '0';
+}
+
 bool _literalFitIcon(Object? value) =>
     value == null ||
     value is int ||
     value is rfw.Switch && value.outputs.values.every(_literalFitIcon);
 
+// The shape read at [parts], nullable when a nullable parent, a map key or a
+// literal list index on the way can leave it absent, as Dart types `a?.b`.
 SurfaceScreenHostDataShape _fitContextShape(
   Iterable<Object> parts,
   SurfaceScreenHostDataShape shape,
 ) {
   var current = shape;
+  var absent = false;
   for (final part in parts) {
     while (current is SurfaceScreenHostDataNullableShapeV1) {
+      absent = true;
       current = current.value;
+    }
+    if (current is SurfaceScreenHostDataMapShapeV1 && part is String ||
+        current is SurfaceScreenHostDataListShapeV1 && part is int) {
+      absent = true;
     }
     current = switch (current) {
       SurfaceScreenHostDataObjectShapeV1(:final fields)
@@ -471,13 +489,15 @@ SurfaceScreenHostDataShape _fitContextShape(
       SurfaceScreenHostDataMapShapeV1(:final values) when part is String =>
         values,
       SurfaceScreenHostDataListShapeV1(:final items)
-          when part is int && part >= 0 =>
+          when identical(part, _loopItem) || part is int && part >= 0 =>
         items,
       _ =>
         throw FormatException('Unknown typed context path component "$part".'),
     };
   }
-  return current;
+  return absent && current is! SurfaceScreenHostDataNullableShapeV1
+      ? SurfaceScreenHostDataNullableShapeV1(current)
+      : current;
 }
 
 // The data root screen-local values are published under.
@@ -584,7 +604,7 @@ void _validateFitEventValue(
       throw const FormatException('Missing emitted event context type.');
     }
     final actual = _fitContextShape(value.parts.skip(2), source);
-    if (!sameCanonicalJson(actual.toJson(), shape.toJson())) {
+    if (!_contextValueFits(shape, actual)) {
       throw const FormatException(
         'Emitted event context type differs from its schema.',
       );
@@ -620,6 +640,44 @@ void _validateFitEventValue(
       shape.validate(value);
   }
 }
+
+// Whether a host value of [actual] shape is assignable to [declared].
+bool _contextValueFits(
+  SurfaceScreenEventShape declared,
+  SurfaceScreenHostDataShape actual,
+) =>
+    switch ((declared, actual)) {
+      (
+        SurfaceScreenEventScalarShapeV1(
+          kind: SurfaceScreenEventScalarKind.jsonValue
+        ),
+        _
+      ) =>
+        true,
+      (
+        SurfaceScreenEventNullableShapeV1(:final value),
+        SurfaceScreenHostDataNullableShapeV1(value: final inner),
+      ) =>
+        _contextValueFits(value, inner),
+      (SurfaceScreenEventNullableShapeV1(:final value), _) =>
+        _contextValueFits(value, actual),
+      (
+        SurfaceScreenEventScalarShapeV1(:final kind),
+        SurfaceScreenHostDataScalarShapeV1(kind: final provided),
+      ) =>
+        kind.wireName == provided.wireName,
+      (
+        SurfaceScreenEventListShapeV1(:final items),
+        SurfaceScreenHostDataListShapeV1(items: final provided),
+      ) =>
+        _contextValueFits(items, provided),
+      (
+        SurfaceScreenEventMapShapeV1(:final values),
+        SurfaceScreenHostDataMapShapeV1(values: final provided),
+      ) =>
+        _contextValueFits(values, provided),
+      _ => false,
+    };
 
 void _validateFitOutboundEventValue(
   Object? value,
@@ -667,6 +725,7 @@ List<SurfaceScreenContractGap> surfaceScreenContractGaps(
 }) {
   final typedEvents = {for (final event in events.events) event.id: event};
   final gaps = <SurfaceScreenContractGap>{};
+  final sites = _eventSites(library);
   void visit(Object? value) {
     switch (value) {
       case rfw.DataReference()
@@ -679,7 +738,11 @@ List<SurfaceScreenContractGap> surfaceScreenContractGaps(
           if (typed == null) {
             gaps.add(SurfaceScreenContractGap.event(eventName));
           } else {
-            gaps.addAll(_typedEventGaps(value, typed, context, localValues));
+            final emitted =
+                _withoutLoopReferences(value, sites[value]?.loops ?? const []);
+            gaps.addAll(
+              _typedEventGaps(emitted, typed, context, localValues),
+            );
           }
         }
         eventArguments.values.forEach(visit);
