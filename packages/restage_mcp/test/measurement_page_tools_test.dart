@@ -194,6 +194,7 @@ http.Response? _directory(String method) => switch (method) {
 
 String _reply(TargetCoordinate target) => jsonEncode({
   'kind': 'served',
+  'disclosureFloor': 5,
   'projections': [
     {
       'document': {'kind': 'page', 'figure': 12},
@@ -514,6 +515,7 @@ void main() {
           entry.key,
           reply: jsonEncode({
             'kind': 'served',
+            'disclosureFloor': 5,
             'projections': [
               {
                 'document': {

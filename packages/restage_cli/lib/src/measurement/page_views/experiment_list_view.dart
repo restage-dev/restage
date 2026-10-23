@@ -1,7 +1,11 @@
 import 'page_view_support.dart';
 
 /// Writes the experiments and their status.
-void renderExperimentListPage(StringSink out, Map<String, Object?> document) {
+void renderExperimentListPage(
+  StringSink out,
+  Map<String, Object?> document,
+  int floor,
+) {
   out
     ..writeln(
       'Experiments: ${plainFigure(document, ['roster', 'totalMatches'])}',

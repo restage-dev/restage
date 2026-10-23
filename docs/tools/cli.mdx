@@ -379,7 +379,9 @@ Use your own surface, version and experiment identifiers. Most analytics default
 to the last 30 days; `--from` and `--until` select a window. Experiment results
 default to the whole current run. Dates filter only the traffic breakdowns; the
 statistical result always covers the whole run as designed. `--json` returns the
-service's response. A withheld count is unknown and is never shown as zero.
+service's response. Very small production counts are withheld to protect small
+groups of users, and a withheld count is never shown as zero. Sandbox counts are exact, so you can check your own test
+devices.
 
 Experiment drafting and lifecycle commands are available by default. Discover the
 target's surfaces and metrics, create and edit a draft, then validate and review
@@ -452,7 +454,7 @@ Live surface kill and rollback need a terminal when using the command prompt.
 
 Switching targets clears the previous overview figures while the new ones load.
 Unavailable figures show `Not available`; counts too small to show safely appear as
-`<5`. Neither is shown as zero.
+an upper bound. Neither is shown as zero.
 
 In the `/` field, include the `restage` prefix to run a command. Text without the
 prefix searches surfaces. For example:

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The disclosure floor is not a constant in this package. The service states the
+  floor it applied in each response (`disclosureFloor`), and a client shows a
+  held count as less than that number.
+- `MeasurementDeliveryDiagnosticsV1` and `SurfaceFunnelViewV1` accept any
+  positive floor. A stated reason count must clear the floor its reading
+  carries.
 - `publicationLineDigestV1`, `artifactDefinitionDigestV1` and
   `declaredArtifactBytesDigestV1` compute the publication identity digests the
   compiler, the CLI and the server share. `kMintedArtifactIdPrefix` is the

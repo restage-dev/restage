@@ -1008,9 +1008,9 @@ final class SurfaceFunnelViewV1 extends CanonicalValue
         asOfMicros <= 0) {
       throw const CanonicalFormatException('$path.window is not a window');
     }
-    if (disclosureFloor < 0) {
+    if (disclosureFloor < 1) {
       throw const CanonicalFormatException(
-        '$path.disclosureFloor must not be negative',
+        '$path.disclosureFloor must be positive',
       );
     }
     if (versions.length > kSurfaceFunnelMaximumVersions ||

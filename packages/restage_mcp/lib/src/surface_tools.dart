@@ -119,7 +119,7 @@ final _surfaceStatusTool = Tool(
       'build that cannot render it, a rule sending another version, or not '
       'opened since it went live). Active devices are devices seen in the '
       'last 30 days on an app build that can show this surface. A count '
-      'from one to four is null and reads "<5"; `headline` is the '
+      'under the disclosureFloor is null and reads as less than it; `headline` is the '
       'line the CLI prints.',
   inputSchema: Schema.object(
     properties: surfaceTargetProperties(family: true, read: true),

@@ -146,7 +146,8 @@ class MeasurementPageCommand extends Command<int> {
             reply,
             chosen.renderFor == null
                 ? chosen.render
-                : (out, document) => chosen.renderFor!(out, document, values),
+                : (out, document, floor) =>
+                      chosen.renderFor!(out, document, floor, values),
           );
         }
         return 0;

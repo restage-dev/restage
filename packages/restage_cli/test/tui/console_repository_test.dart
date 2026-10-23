@@ -720,6 +720,7 @@ http.Response _overviewResponse({
   jsonEncode(
     jsonEncode({
       'kind': 'served',
+      'disclosureFloor': 5,
       'target': TargetCoordinate(
         organizationId: OrganizationId(organizationId),
         appId: ApplicationId(5),

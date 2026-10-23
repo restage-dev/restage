@@ -178,8 +178,8 @@ String renderSurfaceFunnel(SurfaceFunnelViewV1 view) {
   final lines = <String>[
     'Funnel for ${view.surfaceId}'
         '${view.surfaceType == null ? '' : ' (${view.surfaceType})'}, '
-        '${view.versions.length} version(s), '
-        'floor ${view.disclosureFloor}:',
+        '${view.versions.length} version(s)'
+        '${view.disclosureFloor > 1 ? ', floor ${view.disclosureFloor}' : ''}:',
     '  read ${_utcDay(view.windowStartMicros)} through '
         '${_utcDay(view.windowEndExclusiveMicros - 1)} UTC',
   ];
@@ -193,35 +193,39 @@ String renderSurfaceFunnel(SurfaceFunnelViewV1 view) {
     );
     final counts = version.counts;
     if (counts == null) {
-      lines.add('    views $heldCountText');
+      lines.add('    views ${heldCountText(view.disclosureFloor)}');
       continue;
     }
-    lines.add(_countsLine(counts));
+    lines.add(_countsLine(counts, view.disclosureFloor));
     for (final step in version.steps) {
       final stepCounts = step.counts;
       final onward = step.transitionTargets.isEmpty
           ? ''
           : ' -> ${step.transitionTargets.join(', ')}';
       if (stepCounts == null) {
-        lines.add('    step ${step.stateId}: views $heldCountText$onward');
+        lines.add(
+          '    step ${step.stateId}: views ${heldCountText(view.disclosureFloor)}$onward',
+        );
         continue;
       }
       lines.add(
-        '    step ${step.stateId}: views ${countText(stepCounts.views)} of '
-        '${countText(stepCounts.eligibleRoots)}, onward '
-        '${countText(stepCounts.reachedAnotherStep)}$onward',
+        '    step ${step.stateId}: views ${countText(stepCounts.views, floor: view.disclosureFloor)} of '
+        '${countText(stepCounts.eligibleRoots, floor: view.disclosureFloor)}, onward '
+        '${countText(stepCounts.reachedAnotherStep, floor: view.disclosureFloor)}$onward',
       );
     }
     for (final band in version.bands) {
       final bandCounts = band.counts;
       if (bandCounts == null) {
-        lines.add('    ${band.point.label}: reach $heldCountText');
+        lines.add(
+          '    ${band.point.label}: reach ${heldCountText(view.disclosureFloor)}',
+        );
         continue;
       }
       final dropOff = bandCounts.dropOffRate;
       lines.add(
-        '    ${band.point.label}: reach ${countText(bandCounts.reach)} of '
-        '${countText(bandCounts.eligibleRoots)}'
+        '    ${band.point.label}: reach ${countText(bandCounts.reach, floor: view.disclosureFloor)} of '
+        '${countText(bandCounts.eligibleRoots, floor: view.disclosureFloor)}'
         '${dropOff == null ? '' : ', drop-off ${dropOff.decimal} '
                   '(${dropOff.numerator}/${dropOff.denominator})'}',
       );
@@ -230,13 +234,13 @@ String renderSurfaceFunnel(SurfaceFunnelViewV1 view) {
   return lines.join('\n');
 }
 
-String _countsLine(SurfaceFunnelCountsV1 counts) {
+String _countsLine(SurfaceFunnelCountsV1 counts, int floor) {
   final conversion = counts.conversionRate;
-  return '    views ${countText(counts.views)} of '
-      '${countText(counts.eligibleRoots)}, '
-      'completions ${countText(counts.completions)}, '
-      'skips ${countText(counts.skips)}, '
-      'dismissals ${countText(counts.dismissals)}'
+  return '    views ${countText(counts.views, floor: floor)} of '
+      '${countText(counts.eligibleRoots, floor: floor)}, '
+      'completions ${countText(counts.completions, floor: floor)}, '
+      'skips ${countText(counts.skips, floor: floor)}, '
+      'dismissals ${countText(counts.dismissals, floor: floor)}'
       '${conversion == null ? '' : ', conversion ${conversion.decimal} '
                 '(${conversion.numerator}/${conversion.denominator})'}';
 }

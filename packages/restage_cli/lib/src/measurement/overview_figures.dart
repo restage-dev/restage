@@ -44,25 +44,28 @@ OverviewFigures overviewFiguresOf(String reply) {
     return OverviewFigures.unavailable;
   }
   final document = figureAt(envelope, ['projections', 0, 'document']);
-  if (document is! Map<String, Object?>) return OverviewFigures.unavailable;
+  final floor = figureAt(envelope, ['disclosureFloor']);
+  if (document is! Map<String, Object?> || floor is! int || floor < 1) {
+    return OverviewFigures.unavailable;
+  }
   return OverviewFigures(
-    sessions: _sessions(document),
-    finished: _finished(document),
+    sessions: _sessions(document, floor),
+    finished: _finished(document, floor),
     revenue: _revenue(document),
   );
 }
 
-String _sessions(Map<String, Object?> document) {
+String _sessions(Map<String, Object?> document, int floor) {
   final counts = figureAt(document, ['sessions', 'counts']);
   if (counts is! Map<String, Object?>) return kFigureUnavailable;
-  if (counts['distinctKnownSessions'] is! int) return heldCountText;
+  if (counts['distinctKnownSessions'] is! int) return heldCountText(floor);
   return switch (counts['distinctSessions']) {
     final int exact => groupedCount(exact),
     _ => 'At least ${groupedCount(counts['distinctKnownSessions']! as int)}',
   };
 }
 
-String _finished(Map<String, Object?> document) {
+String _finished(Map<String, Object?> document, int floor) {
   final series = figureAt(document, ['typedLifecycle']);
   final counts = figureAt(series, ['windowCounts']);
   if (counts is! Map<String, Object?>) return kFigureUnavailable;
@@ -70,7 +73,7 @@ String _finished(Map<String, Object?> document) {
     return kFigureUnavailable;
   }
   final completed = counts['completed'];
-  if (completed is! int) return heldCountText;
+  if (completed is! int) return heldCountText(floor);
   if ((figureAt(series, ['unsupportedPublicationCount']) ?? 0) != 0) {
     return kFigureUnavailable;
   }

@@ -3,19 +3,25 @@ import 'package:restage_cli/src/output/held_count.dart';
 import 'page_view_support.dart';
 
 /// Writes one surface's analytics figures.
-void renderSurfaceAnalyticsPage(StringSink out, Map<String, Object?> document) {
+void renderSurfaceAnalyticsPage(
+  StringSink out,
+  Map<String, Object?> document,
+  int floor,
+) {
   final summary = figureAt(document, ['summary', 'value']);
   out
-    ..writeln('Views: ${countFigure(summary, ['counts', 'rootPresentations'])}')
     ..writeln(
-      'App sessions: ${countFigure(summary, ['counts', 'distinctSessions'])}',
+      'Views: ${countFigure(summary, ['counts', 'rootPresentations'], floor)}',
+    )
+    ..writeln(
+      'App sessions: ${countFigure(summary, ['counts', 'distinctSessions'], floor)}',
     );
   for (final metric in figureList(document, ['metrics'])) {
     final label = figureAt(metric, ['displayLabel']) ?? kFigureUnavailable;
     final funnel = figureAt(metric, ['summary', 'current', 'result']);
     if (funnel is Map<String, Object?> && funnel['steps'] is List<Object?>) {
       out.writeln(label);
-      _writeSteps(out, funnel, figureList(metric, ['stepLabels']));
+      _writeSteps(out, funnel, figureList(metric, ['stepLabels']), floor);
       continue;
     }
     out.writeln(
@@ -24,7 +30,7 @@ void renderSurfaceAnalyticsPage(StringSink out, Map<String, Object?> document) {
     );
   }
   if (figureAt(document, ['metadata', 'surfaceTypeWireName']) == 'paywall') {
-    _writePurchaseRate(out, figureAt(document, ['purchaseRate']));
+    _writePurchaseRate(out, figureAt(document, ['purchaseRate']), floor);
   }
   out
     ..writeln(
@@ -96,6 +102,7 @@ void _writeSteps(
   StringSink out,
   Map<String, Object?> funnel,
   List<Object?> names,
+  int floor,
 ) {
   final steps = figureList(funnel, ['steps']);
   final entrants = int.tryParse('${funnel['entrantCount']}');
@@ -108,7 +115,7 @@ void _writeSteps(
             _ => 'Step ${index + 1}',
           };
     final reach = int.tryParse('${figureAt(step, ['reachCount'])}');
-    final reached = reach == null ? heldCountText : groupedCount(reach);
+    final reached = reach == null ? heldCountText(floor) : groupedCount(reach);
     final rate = reach == null || entrants == null || entrants <= 0
         ? kFigureUnavailable
         : _percent(reach, entrants);
@@ -123,7 +130,7 @@ String _stepName(String id) {
 }
 
 /// The purchase rate per version, or why it has none.
-void _writePurchaseRate(StringSink out, Object? rate) {
+void _writePurchaseRate(StringSink out, Object? rate, int floor) {
   if (rate is! Map<String, Object?>) {
     out.writeln('Purchase rate: $kFigureUnavailable');
     return;
@@ -141,9 +148,9 @@ void _writePurchaseRate(StringSink out, Object? rate) {
         : kFigureUnavailable;
     out.writeln(
       '  v${figureAt(version, ['publishedVersion'])}  '
-      '${purchases is int ? groupedCount(purchases) : heldCountText} '
+      '${purchases is int ? groupedCount(purchases) : heldCountText(floor)} '
       'first purchases  '
-      '${views is int ? groupedCount(views) : heldCountText} views  $share',
+      '${views is int ? groupedCount(views) : heldCountText(floor)} views  $share',
     );
   }
 }
