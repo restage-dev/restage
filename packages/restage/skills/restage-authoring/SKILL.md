@@ -83,11 +83,16 @@ WeeklyRecapSurface(
    [adopting-existing-widgets.md](references/adopting-existing-widgets.md) to
    choose a screen, paywall, flow or reusable component and preserve supported
    composition. Choose the smallest useful delivery boundary.
-3. Write or update the authored source and run `dart run build_runner build`.
-   Use [diagnostics.md](references/diagnostics.md) to fix errors. When OTA
-   flexibility matters, review `customWidgetAppFactoryUsed` notices: each names
-   a component that only an app release can change.
-4. Mount the generated widget and wire real app handlers. Exercise fallback,
+3. Adopt by building. Annotate the existing widget as it is and run
+   `dart run build_runner build`. Fix only what each diagnostic names, with the
+   smallest change that clears it, and build again. Treat warnings as work: each
+   names a value or widget that will be dropped or will need an app release to
+   change. Rewrite a part only when the compiler still refuses it after a
+   minimal change, and never write a parallel copy of a screen to make it
+   compile. Use [diagnostics.md](references/diagnostics.md) for each message.
+   When OTA flexibility matters, review `customWidgetAppFactoryUsed` notices:
+   each names a component that only an app release can change.
+4. Once the build is clean, mount the generated widget and wire real app handlers. Exercise fallback,
    events and any state or flow behavior touched by the change. Also exercise
    RFW rendering when the change depends on delivered composition; a passing
    fallback test does not prove that path.

@@ -81,8 +81,9 @@ const kPagePadding = EdgeInsets.all(20);
 Container(padding: kPagePadding, color: kBrand)
 ```
 
-A constant declared in another file isn't followed, and the error says so. Enum values
-work.
+A constant declared in another file or package works the same way. Its value goes into
+the delivered surface, so editing the constant and pushing updates the surface on
+installed apps. Enum values work.
 
 ### Reserved class names
 
