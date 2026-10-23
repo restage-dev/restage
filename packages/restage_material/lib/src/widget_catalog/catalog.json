@@ -3740,7 +3740,19 @@
           "type": "booleanList",
           "description": "Each button's pressed state, by index, parallel to [children]. Reconciled to [children]'s length when the two differ (pad-with-false / truncate), so a mismatched wire never trips the framework's length assert.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "booleanList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "boolean",
+              "dartTypeRef": {
+                "libraryUri": "dart:core",
+                "symbolName": "bool"
+              }
+            }
+          }
         },
         {
           "wireId": "p0407",

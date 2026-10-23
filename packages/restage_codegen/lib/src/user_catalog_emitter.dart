@@ -1,5 +1,7 @@
 import 'package:restage_codegen/src/custom_preview_reservation.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart'
+    show kGeneratedVocabularyVersion;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Emits a `user_catalog.g.dart` source string declaring
@@ -198,6 +200,7 @@ Map<WidgetLibrary, LibraryInfo> _aggregateLibraryInfo(
         version: '0.0.0',
         capabilityVersion: stampedCapabilityVersions[library.namespace],
         compatibleSince: compatibleSinceVersions[library.namespace] ?? 1,
+        generatedVersion: kGeneratedVocabularyVersion,
       ),
   };
 }
@@ -786,8 +789,11 @@ String _libraryInfoLiteral(LibraryInfo info) {
   final since = info.compatibleSince > 1
       ? ', compatibleSince: ${info.compatibleSince}'
       : '';
+  final generated = info.generatedVersion == null
+      ? ''
+      : ', generatedVersion: ${info.generatedVersion}';
   return 'const LibraryInfo(version: ${_escapeDart(info.version)}'
-      '$capability$since)';
+      '$capability$since$generated)';
 }
 
 Map<String, T> _sortedStringEntries<T>(Map<String, T> map) {

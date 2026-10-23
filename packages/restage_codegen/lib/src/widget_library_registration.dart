@@ -1,6 +1,9 @@
 import 'package:restage_codegen/src/emit_utils.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart'
+    show kGeneratedVocabularyVersion;
 
-/// Optional version arguments shared by generated widget registrations.
+/// Version arguments shared by generated widget registrations, including the
+/// version of the code generating them.
 List<String> widgetLibraryVersionArguments({
   int? capabilityVersion,
   int? compatibleSince,
@@ -9,6 +12,7 @@ List<String> widgetLibraryVersionArguments({
       if (capabilityVersion != null) 'capabilityVersion: $capabilityVersion,',
       if (compatibleSince != null && compatibleSince > 1)
         'compatibleSince: $compatibleSince,',
+      'generatedVersion: $kGeneratedVocabularyVersion,',
     ];
 
 /// Writes one custom library registration for the startup helper.

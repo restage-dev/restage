@@ -2199,7 +2199,7 @@ bool _isEmittableProperty(
     case PropertyType.structured:
       // A structured value slot is mechanically emittable ONLY when it
       // carries a `structuredRef` resolving to a structured type with a
-      // registered runtime decoder (the `_kStructuredRefDecoders` table).
+      // registered runtime decoder (the `kStructuredRefDecoders` table).
       // No `structuredRef`, or a `structuredRef` whose structured type is
       // unregistered, is NOT emittable — emittability is never flipped on
       // for structured slots in the blanket. (Fail-loud is preserved
@@ -2466,7 +2466,7 @@ PropertyEntry? _propertyByWireId(WidgetEntry entry, WireId wireId) =>
 /// is absent from this map is NOT emittable through this path — see
 /// [_structuredRefDecoderFor]; an authored-but-unregistered structured slot
 /// reaches [_decoderCallFor]'s loud throw rather than being silently dropped.
-const Map<String, String> _kStructuredRefDecoders = {
+const Map<String, String> kStructuredRefDecoders = {
   'Size': 'RestageDecoders.size',
   'BorderSide': 'RestageDecoders.borderSide',
   'TextStyle': 'RestageDecoders.textStyle',
@@ -2496,7 +2496,7 @@ String? _structuredRefDecoderFor(
   if (ref == null || index == null) return null;
   final structured = index.structuredByRef(ref);
   if (structured == null) return null;
-  return _kStructuredRefDecoders[structured.name];
+  return kStructuredRefDecoders[structured.name];
 }
 
 /// The build-time context for reconstructing custom structured values inline:
@@ -3206,29 +3206,46 @@ String _emitCustomReconstruction(
     _libraryUriOf(sourceType),
     ctx.aliases,
   );
-  final ctorName = plan.namedConstructor == null
-      ? typeName
-      : '$typeName.${plan.namedConstructor}';
   final fieldsByName = {
     for (final field in structured.fields) field.name: field,
   };
-  final args = <String>[];
-  for (final arg in plan.args) {
-    final field = fieldsByName[arg.fieldName]!;
-    final value = _customFieldDecode(
-      field,
-      sourceType,
-      [...path, arg.fieldName],
-      ctx,
-      nativeIndex,
-      isRequired: arg.isRequired,
-      defaultCode: arg.defaultCode,
-      defaultEnumValue: arg.defaultEnumValue,
-      depth: depth,
-    );
-    args.add(arg.isNamed ? '${arg.fieldName}: $value' : value);
+  String call(String? constructor, List<ReconstructionArg> planArgs) {
+    final args = <String>[];
+    for (final arg in planArgs) {
+      final field = fieldsByName[arg.fieldName]!;
+      final value = _customFieldDecode(
+        field,
+        sourceType,
+        [...path, arg.fieldName],
+        ctx,
+        nativeIndex,
+        isRequired: arg.isRequired,
+        defaultCode: arg.defaultCode,
+        defaultEnumValue: arg.defaultEnumValue,
+        depth: depth,
+      );
+      args.add(arg.isNamed ? '${arg.fieldName}: $value' : value);
+    }
+    final name = constructor == null ? typeName : '$typeName.$constructor';
+    return '$name(${args.join(', ')})';
   }
-  return '$ctorName(${args.join(', ')})';
+
+  if (plan.constructors.isEmpty) {
+    return call(plan.namedConstructor, plan.args);
+  }
+  // The value names the constructor it was built with.
+  final selector = _pathLiteral([...path, kStructuredConstructorKey]);
+  final owner = _typeNameForSourceType(sourceType);
+  // The unknown name is interpolated at run time.
+  final unknown = '"\'$owner\' has no constructor named \'\$name\'."';
+  final arms = [
+    for (final MapEntry(:key, :value) in plan.constructors.entries)
+      '${dartStringLiteral(key)} => ${call(key, value)}',
+    // A value without a selector rebuilds through the primary constructor.
+    'null => ${call(plan.namedConstructor, plan.args)}',
+    'final String name => throw ArgumentError($unknown)',
+  ];
+  return '(switch (source.v<String>($selector)) { ${arms.join(', ')} })';
 }
 
 /// The decode expression for a single custom structured [field] at [path]. A
@@ -4163,7 +4180,7 @@ String _decoderCallFor(
     case PropertyType.structured:
       // A structured value slot with a registered runtime decoder (a
       // `structuredRef` resolving to a structured type named in
-      // `_kStructuredRefDecoders`) lowers to that decoder. Anything else —
+      // `kStructuredRefDecoders`) lowers to that decoder. Anything else —
       // no `structuredRef`, or a `structuredRef` whose structured type has
       // no registered decoder — has no emission path and surfaces loudly so
       // an authored-but-unsupported structured slot fails the build rather

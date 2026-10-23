@@ -21,9 +21,11 @@ final class SdkInstalledLibraryV1 extends CanonicalValue {
     required this.namespace,
     required this.version,
     int? compatibleSince,
-  }) : compatibleSince = compatibleSince == null || compatibleSince == 1
+    int? generated,
+  })  : compatibleSince = compatibleSince == null || compatibleSince == 1
             ? null
-            : compatibleSince {
+            : compatibleSince,
+        generated = generated == null || generated == 1 ? null : generated {
     if (namespace.length > sdkInstalledLibraryMaximumNamespaceCharacters ||
         !_namespacePattern.hasMatch(namespace)) {
       throw ArgumentError.value(namespace, 'namespace', 'Invalid namespace');
@@ -41,6 +43,15 @@ final class SdkInstalledLibraryV1 extends CanonicalValue {
         'Expected 1..version',
       );
     }
+    final generated = this.generated;
+    if (generated != null &&
+        (generated < 1 || generated > kMaximumPortableJsonInteger)) {
+      throw ArgumentError.value(
+        generated,
+        'generated',
+        'Expected a positive int',
+      );
+    }
   }
 
   factory SdkInstalledLibraryV1._fromJson(Object? value, String path) {
@@ -49,7 +60,12 @@ final class SdkInstalledLibraryV1 extends CanonicalValue {
     }
     final reader = CanonicalObjectReader(
       value,
-      allowedKeys: const {'compatibleSince', 'namespace', 'version'},
+      allowedKeys: const {
+        'compatibleSince',
+        'generated',
+        'namespace',
+        'version',
+      },
       requiredKeys: const {'namespace', 'version'},
       path: path,
     );
@@ -61,11 +77,16 @@ final class SdkInstalledLibraryV1 extends CanonicalValue {
     if (since != null && since < 2) {
       throw CanonicalFormatException('$path.compatibleSince must exceed 1');
     }
+    final generated = reader.optionalInteger('generated');
+    if (generated != null && generated < 2) {
+      throw CanonicalFormatException('$path.generated must exceed 1');
+    }
     try {
       return SdkInstalledLibraryV1(
         namespace: reader.string('namespace'),
         version: version as int?,
         compatibleSince: since,
+        generated: generated,
       );
     } on ArgumentError catch (error) {
       throw CanonicalFormatException('$path: ${error.message}');
@@ -82,9 +103,14 @@ final class SdkInstalledLibraryV1 extends CanonicalValue {
   /// for 1.
   final int? compatibleSince;
 
+  /// The version of the generated code the library's factories come from, or
+  /// null for 1.
+  final int? generated;
+
   @override
   Map<String, Object?> toJson() => {
         if (compatibleSince != null) 'compatibleSince': compatibleSince,
+        if (generated != null) 'generated': generated,
         'namespace': namespace,
         'version': version,
       };

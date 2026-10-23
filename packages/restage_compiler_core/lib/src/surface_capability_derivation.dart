@@ -12,10 +12,16 @@ import 'package:restage_shared/rfw_formats.dart' hide WidgetLibrary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
     show
         Catalog,
+        CatalogValueShape,
+        ConstructorVariant,
+        ListShape,
         PropertyEntry,
         PropertyType,
+        StructuredEntry,
+        StructuredShape,
         WidgetEntry,
         WidgetLibrary,
+        WireIdRef,
         kBaselineCatalogVersion;
 
 /// What a surface library needs from a client, read against a catalog.
@@ -47,6 +53,64 @@ final class SurfaceCapabilityDerivation {
   /// Referenced custom libraries without a capability version, by namespace.
   final List<WidgetLibrary> unversionedLibraries;
 }
+
+/// The version of generated widget code that writes the current factories.
+///
+/// Version 2 decodes values built with named constructors, scalar-list fields
+/// of data classes and built-in structured properties, and builds widgets that
+/// leave out an optional property.
+const int kGeneratedVocabularyVersion = 2;
+
+/// The oldest generated widget code that builds [widget] from a payload, given
+/// the shapes its catalog entry and its data classes use.
+int generatedCodeFloor(WidgetEntry widget, Catalog catalog) {
+  final leavesOutProperty = catalog.exclusions.any(
+    (exclusion) =>
+        exclusion.property.isNotEmpty && exclusion.isOf(widget.flutterType),
+  );
+  if (leavesOutProperty) return 2;
+  final byRef = <(String, String), StructuredEntry>{
+    for (final structured in catalog.structuredTypes)
+      (structured.library.namespace, structured.wireId.value): structured,
+  };
+  final seen = <StructuredEntry>{};
+  bool needsNewer(WireIdRef? ref) {
+    if (ref == null) return false;
+    if (WidgetLibrary.builtInByNamespace(ref.library) != null) return true;
+    final structured = byRef[(ref.library, ref.wireId.value)];
+    if (structured == null || !seen.add(structured)) return false;
+    if (structured.variants.any(
+      (variant) =>
+          variant is ConstructorVariant && variant.namedConstructor != null,
+    )) {
+      return true;
+    }
+    return structured.fields.any(
+      (field) =>
+          _isNewScalarList(field.type) ||
+          needsNewer(field.structuredRef ?? _shapeRef(field.valueShape)),
+    );
+  }
+
+  for (final property in widget.properties) {
+    if (needsNewer(property.structuredRef ?? _shapeRef(property.valueShape))) {
+      return 2;
+    }
+  }
+  return 1;
+}
+
+/// A scalar-list type a data class field could not carry before version 2.
+bool _isNewScalarList(PropertyType type) =>
+    type == PropertyType.booleanList ||
+    type == PropertyType.integerList ||
+    type == PropertyType.realList;
+
+WireIdRef? _shapeRef(CatalogValueShape? shape) => switch (shape) {
+      StructuredShape(:final structuredRef) => structuredRef,
+      ListShape(:final itemShape) => _shapeRef(itemShape),
+      _ => null,
+    };
 
 /// Derives what [library] needs from a client, resolving each widget by name
 /// against [catalog]. Library-local declarations are not catalog references.
@@ -96,6 +160,16 @@ SurfaceCapabilityDerivation deriveSurfaceCapability(
     builtInFloor = kSurfaceFeatureClientFloor;
   }
 
+  final generatedFloors = <String, int>{};
+  for (final entry in referenced) {
+    final namespace = entry.library.namespace;
+    if (WidgetLibrary.builtInByNamespace(namespace) != null) continue;
+    final floor = generatedCodeFloor(entry, catalog);
+    if (floor > (generatedFloors[namespace] ?? 1)) {
+      generatedFloors[namespace] = floor;
+    }
+  }
+
   final requiredLibraries = <LibraryRequirement>[];
   final unversioned = <WidgetLibrary>[];
   for (final custom in customLibraries.toList()
@@ -105,7 +179,11 @@ SurfaceCapabilityDerivation deriveSurfaceCapability(
       unversioned.add(custom);
     } else {
       requiredLibraries.add(
-        LibraryRequirement(namespace: custom.namespace, minVersion: version),
+        LibraryRequirement(
+          namespace: custom.namespace,
+          minVersion: version,
+          minGenerated: generatedFloors[custom.namespace] ?? 1,
+        ),
       );
     }
   }

@@ -2,6 +2,8 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:restage_codegen/src/const_value_literal.dart';
+import 'package:restage_codegen/src/theme_recognition.dart';
 
 const int _kMaxScalarBindingDepth = 256;
 
@@ -293,8 +295,15 @@ Expression? resolveConstObjectFieldInitializer(Expression expr) {
   final field = _unwrapAccessor(access.field);
   if (field is! FieldElement) return null;
   final ctorCall = _receiverInstanceCreation(access.receiver);
-  if (ctorCall == null) return null;
-  return _boundArgumentForField(ctorCall, field);
+  // Same-file authored constructions substitute their bound argument.
+  if (ctorCall != null && constValueAnchor(ctorCall) == null) {
+    return _boundArgumentForField(ctorCall, field);
+  }
+  if (isFrameworkValueTypeLibrary(field)) return null;
+  return _evaluatedLiteral(
+    _receiverConstValue(access.receiver)?.getField(access.fieldName),
+    expr,
+  );
 }
 
 /// Resolves [expr] after its receiver has reached [resolvedReceiver].
@@ -498,18 +507,34 @@ Element? constDeclarationElement(Expression expr) {
   return _isConstValueElement(element) ? element : null;
 }
 
-/// The initializer of a const identifier declared in this compilation unit.
+/// The initializer of a const identifier: its authored initializer when it is
+/// declared in this compilation unit, else its evaluated value as a literal.
 Expression? resolveConstIdentifierInitializer(Expression expr) {
   final element = constDeclarationElement(expr);
   if (element == null) return null;
   final unit = expr.root;
   if (unit is! CompilationUnit) return null;
-  // Avoid walking this unit for declarations owned by another library.
   if (element.firstFragment.libraryFragment != unit.declaredFragment) {
-    return null;
+    // Framework constants keep their dedicated lowerings.
+    if (isFrameworkValueTypeLibrary(element)) return null;
+    return _evaluatedLiteral(_computeConstValue(element), expr);
   }
   return _findVariableDeclaration(element, unit)?.initializer;
 }
+
+/// [value] as a literal standing in for [anchor], cached per anchor; scalars
+/// are left to the scalar fold.
+Expression? _evaluatedLiteral(DartObject? value, Expression anchor) {
+  if (value == null || decodeConstScalar(value) != null) return null;
+  final cached = _evaluatedLiterals[anchor];
+  if (cached != null) return cached;
+  final literal = constValueLiteral(value, anchor: anchor);
+  if (literal != null) _evaluatedLiterals[anchor] = literal;
+  return literal;
+}
+
+final Expando<Expression> _evaluatedLiterals =
+    Expando<Expression>('evaluated constant literals');
 
 /// Resolves a same-unit const declaration to its authored initializer.
 Expression? resolveConstDeclarationInitializer(Expression expr) {

@@ -107,8 +107,8 @@ void main() {
     });
 
     test(
-        'a list containing a NON-CANONICAL constructor invocation defers LOUD '
-        '(never a silently wrong / partial list)', () async {
+        'a list mixing constructors encodes each element with its own '
+        'constructor', () async {
       final expr = await parseExpressionFromSourceForTest('''
         class Plan {
           const Plan({required this.name, this.badge});
@@ -128,9 +128,11 @@ void main() {
 
       final result = translator.translate(expr);
 
-      // The `.pro` element cannot round-trip through the canonical constructor,
-      // so the encode raises an issue rather than shipping a wrong element.
-      expect(result.issues, isNotEmpty);
+      expect(result.issues, isEmpty);
+      expect(
+        result.dsl,
+        '[{name: "Pro"}, {"#constructor": "pro", name: "Starter"}]',
+      );
     });
   });
 }

@@ -248,6 +248,52 @@ void main() {
       );
     });
 
+    test('rejects a built-in reference the merged built-ins do not carry',
+        () async {
+      final custom = _customCatalog();
+      final dangling = Catalog(
+        schemaVersion: custom.schemaVersion,
+        generatedAt: custom.generatedAt,
+        libraries: custom.libraries,
+        widgets: [
+          WidgetEntry(
+            wireId: WireId('w0001'),
+            name: 'AcmeLabel',
+            library: const WidgetLibrary.custom('acme.widgets'),
+            category: WidgetCategory.layout,
+            description: 'A custom label.',
+            flutterType: 'package:acme/label.dart#AcmeLabel',
+            childrenSlot: ChildrenSlot.none,
+            properties: [
+              PropertyEntry(
+                wireId: WireId('p0001'),
+                name: 'style',
+                type: PropertyType.structured,
+                description: 'Text style.',
+                structuredRef: WireIdRef(
+                  library: 'restage.core',
+                  wireId: WireId('s0099'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+      await expectLater(
+        _runLoaderWith({
+          'restage_core': encodeCatalog(_fullGraphCoreCatalog()),
+          'restage_codegen': encodeCatalog(dangling),
+        }),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.toString(),
+            'message',
+            contains('missing structured entry'),
+          ),
+        ),
+      );
+    });
+
     test('merges the custom catalog from the input package', () async {
       // The app's own generated catalog (custom @RestageLibrary widgets)
       // lives at lib/src/widget_catalog/catalog.json in the package being built

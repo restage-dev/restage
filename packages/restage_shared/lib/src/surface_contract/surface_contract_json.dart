@@ -232,7 +232,12 @@ abstract final class SurfaceContractJson {
       final requirement =
           requireObject(rawRequirements[index], requirementPath);
       exactKeys(
-          requirement, const {'namespace', 'minVersion'}, requirementPath);
+        requirement,
+        requirement.containsKey('minGenerated')
+            ? const {'namespace', 'minVersion', 'minGenerated'}
+            : const {'namespace', 'minVersion'},
+        requirementPath,
+      );
       final namespace =
           requiredString(requirement, 'namespace', requirementPath);
       final minVersion = requiredPositiveInt(
@@ -240,8 +245,20 @@ abstract final class SurfaceContractJson {
         'minVersion',
         requirementPath,
       );
+      final minGenerated = requirement.containsKey('minGenerated')
+          ? requiredPositiveInt(requirement, 'minGenerated', requirementPath)
+          : 1;
+      if (requirement.containsKey('minGenerated') && minGenerated < 2) {
+        throw FormatException(
+          'Generated floor at "$requirementPath" must be above 1.',
+        );
+      }
       requirements.add(
-        LibraryRequirement(namespace: namespace, minVersion: minVersion),
+        LibraryRequirement(
+          namespace: namespace,
+          minVersion: minVersion,
+          minGenerated: minGenerated,
+        ),
       );
     }
     final canonical = canonicalRequirements(requirements, path: path);
@@ -269,6 +286,8 @@ abstract final class SurfaceContractJson {
           <String, Object?>{
             'namespace': requirement.namespace,
             'minVersion': requirement.minVersion,
+            if (requirement.minGenerated > 1)
+              'minGenerated': requirement.minGenerated,
           },
       ],
     };

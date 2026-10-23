@@ -97,7 +97,7 @@ abstract final class BlobRenderCapabilityGate {
             ? BlobRenderRejectionReason.requiredLibraryContractBroken
             : BlobRenderRejectionReason.requiredLibraryUnsatisfied,
         message: 'requires library "${requirement.namespace}" '
-            '>= v${requirement.minVersion} '
+            '>= v${requirement.minVersion} ${_generatedNeed(requirement)}'
             '(${LibraryCompatibility.describeInstalled(library)})',
       );
     }
@@ -105,3 +105,8 @@ abstract final class BlobRenderCapabilityGate {
     return const BlobRenderAccepted();
   }
 }
+
+String _generatedNeed(LibraryRequirement requirement) =>
+    requirement.minGenerated > 1
+        ? 'from generated code v${requirement.minGenerated} '
+        : '';

@@ -11,7 +11,7 @@ import 'package:restage/restage.dart';
 /// simple widgets needs no declaration.
 @RestageLibrary(
   library: WidgetLibrary.custom('restage_example.widgets'),
-  capabilityVersion: 3,
+  capabilityVersion: 4,
 )
 const restageExampleWidgetLibrary = 0;
 
@@ -36,6 +36,9 @@ enum PlanTier {
 class Price {
   /// Creates a price.
   const Price(this.amount, {this.currency = 'USD'});
+
+  /// A free price in [currency].
+  const Price.free({this.currency = 'USD'}) : amount = 0;
 
   /// The amount in the currency's minor units (e.g. cents).
   final int amount;

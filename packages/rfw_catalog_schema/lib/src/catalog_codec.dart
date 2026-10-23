@@ -74,6 +74,8 @@ String encodeCatalog(Catalog catalog) {
           // Written only for a declared break, so existing bytes are unchanged.
           if (entry.value.compatibleSince > 1)
             'compatibleSince': entry.value.compatibleSince,
+          if (entry.value.generatedVersion case final generated?)
+            'generatedVersion': generated,
         },
     },
     'widgets': catalog.widgets.map(_widgetToJson).toList(),
@@ -2298,6 +2300,12 @@ void _requireStructuredRef(
   String path,
 ) {
   if (structuredByRef.containsKey((ref.library, ref.wireId))) return;
+  // A package catalog may use a built-in type it does not itself carry; the
+  // built-in catalogs resolve it when the catalogs are merged.
+  if (WidgetLibrary.builtInByNamespace(ref.library) != null &&
+      !structuredByRef.keys.any((key) => key.$1 == ref.library)) {
+    return;
+  }
   throw CatalogSchemaException('$path: missing structured entry $ref');
 }
 
@@ -2625,10 +2633,19 @@ LibraryInfo _libraryInfo(Map<String, dynamic> j, String path) {
     _validateCompatibleSince(raw, capabilityVersion, '$path.compatibleSince');
     compatibleSince = raw;
   }
+  final generatedVersion = j['generatedVersion'];
+  if (generatedVersion != null &&
+      (generatedVersion is! int || generatedVersion < 1)) {
+    throw CatalogSchemaException(
+      '$path: generatedVersion must be a positive integer when present, '
+      'got ${generatedVersion.runtimeType}: $generatedVersion',
+    );
+  }
   return LibraryInfo(
     version: _requiredString(j, 'version', path),
     capabilityVersion: capabilityVersion,
     compatibleSince: compatibleSince,
+    generatedVersion: generatedVersion as int?,
   );
 }
 

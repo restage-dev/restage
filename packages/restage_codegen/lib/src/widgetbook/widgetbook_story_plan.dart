@@ -564,8 +564,7 @@ WidgetbookStoryPlan planWidgetbookStory({
     );
   }
 
-  final widgetLocationPrefix =
-      '${widget.sourceAsset.path}#${widget.className}.';
+  final widgetLocationPrefix = '${widget.sourceAsset.uri}#${widget.className}.';
   final axes = _planStoryAxes(widget, properties);
   final variants = _planStoryVariants(
     widget: widget,

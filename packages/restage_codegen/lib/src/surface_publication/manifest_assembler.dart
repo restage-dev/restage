@@ -696,21 +696,36 @@ _DecodedSidecar _decodeSidecar(
       libraryJson[entry.key as String] = entry.value;
     }
     final libraryPath = '$path.manifest.requiredLibraries[$index]';
-    _exactKeys(libraryJson, const {'namespace', 'minVersion'}, libraryPath);
+    _exactKeys(
+      libraryJson,
+      libraryJson.containsKey('minGenerated')
+          ? const {'namespace', 'minVersion', 'minGenerated'}
+          : const {'namespace', 'minVersion'},
+      libraryPath,
+    );
     final namespace = libraryJson['namespace'];
     final minVersion = libraryJson['minVersion'];
+    final minGenerated = libraryJson['minGenerated'] ?? 1;
     if (namespace is! String ||
         namespace.isEmpty ||
         minVersion is! int ||
         minVersion < 1 ||
+        minGenerated is! int ||
+        minGenerated < 1 ||
+        (libraryJson.containsKey('minGenerated') && minGenerated < 2) ||
         !_isUnicodeScalarString(namespace)) {
       throw FormatException('Capability sidecar "$libraryPath" is invalid.');
     }
     if (!seenNamespaces.add(namespace)) {
       throw FormatException('Capability sidecar "$path" repeats "$namespace".');
     }
-    libraries
-        .add(LibraryRequirement(namespace: namespace, minVersion: minVersion));
+    libraries.add(
+      LibraryRequirement(
+        namespace: namespace,
+        minVersion: minVersion,
+        minGenerated: minGenerated,
+      ),
+    );
   }
   return _DecodedSidecar(
     manifest: CapabilityManifest(
@@ -733,14 +748,19 @@ FlowDocument _decodeFlowDocument(_PreparedArtifact artifact) {
 CapabilityManifest _capabilityUnion(Iterable<CapabilityManifest> manifests) {
   var builtInFloor = 1;
   final versions = <String, int>{};
+  final generated = <String, int>{};
   for (final manifest in manifests) {
     if (manifest.builtInFloor > builtInFloor) {
       builtInFloor = manifest.builtInFloor;
     }
     for (final requirement in manifest.requiredLibraries) {
-      final previous = versions[requirement.namespace];
+      final namespace = requirement.namespace;
+      final previous = versions[namespace];
       if (previous == null || requirement.minVersion > previous) {
-        versions[requirement.namespace] = requirement.minVersion;
+        versions[namespace] = requirement.minVersion;
+      }
+      if (requirement.minGenerated > (generated[namespace] ?? 1)) {
+        generated[namespace] = requirement.minGenerated;
       }
     }
   }
@@ -748,7 +768,11 @@ CapabilityManifest _capabilityUnion(Iterable<CapabilityManifest> manifests) {
     builtInFloor: builtInFloor,
     requiredLibraries: [
       for (final entry in versions.entries)
-        LibraryRequirement(namespace: entry.key, minVersion: entry.value),
+        LibraryRequirement(
+          namespace: entry.key,
+          minVersion: entry.value,
+          minGenerated: generated[entry.key] ?? 1,
+        ),
     ],
   );
 }
@@ -758,14 +782,12 @@ bool _sameCapabilities(CapabilityManifest left, CapabilityManifest right) {
       left.requiredLibraries.length != right.requiredLibraries.length) {
     return false;
   }
-  final rightByNamespace = <String, int>{
+  final rightByNamespace = <String, LibraryRequirement>{
     for (final requirement in right.requiredLibraries)
-      requirement.namespace: requirement.minVersion,
+      requirement.namespace: requirement,
   };
   for (final requirement in left.requiredLibraries) {
-    if (rightByNamespace[requirement.namespace] != requirement.minVersion) {
-      return false;
-    }
+    if (rightByNamespace[requirement.namespace] != requirement) return false;
   }
   return true;
 }

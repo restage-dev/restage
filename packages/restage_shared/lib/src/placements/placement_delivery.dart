@@ -1347,6 +1347,7 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
               namespace: library.namespace,
               version: library.version,
               compatibleSince: library.compatibleSince,
+              generated: library.generated,
             ),
         ],
       );
@@ -2977,7 +2978,12 @@ InstalledCapability _strictCapability(Map<String, Object?> json) {
   for (final raw in reader.list('installedLibraries')) {
     final library = CanonicalObjectReader(
       requireCanonicalObject(raw, 'installedLibrary'),
-      allowedKeys: const {'namespace', 'version', 'compatibleSince'},
+      allowedKeys: const {
+        'namespace',
+        'version',
+        'compatibleSince',
+        'generated',
+      },
       requiredKeys: const {'namespace', 'version'},
       path: 'installedLibrary',
     );
@@ -3008,6 +3014,14 @@ InstalledCapability _strictCapability(Map<String, Object?> json) {
           'compatibleSince must be a positive installed version floor.',
         );
       }
+    }
+    final generated = library.value('generated');
+    if (requireCanonicalObject(raw, 'installedLibrary')
+            .containsKey('generated') &&
+        (generated is! int || generated < 2)) {
+      throw const CanonicalFormatException(
+        'A generated code version must be above 1.',
+      );
     }
   }
   final vocabulary = reader.optionalObject('vocabulary');

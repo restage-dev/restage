@@ -361,6 +361,105 @@ void main() {
       expect(() => SurfacePayload.decode(swapped), throwsFormatException);
     });
 
+    test('a stored editor-state document keeps decoding', () {
+      final state = _bytes('state');
+      final stored = (BytesBuilder()
+            ..add(_blob().canonicalBytes)
+            ..add(_u32be(3))
+            ..add(_u32be(state.length))
+            ..add(state))
+          .toBytes();
+      final decoded = SurfacePayload.decode(stored) as BlobSurfacePayload;
+      expect(decoded.editorState, state);
+      expect(decoded.canonicalBytes, stored);
+    });
+
+    test('generated floors follow the editor state', () {
+      final payload = BlobSurfacePayload(
+        minClient: kSurfaceFeatureClientFloor,
+        blob: _bytes('blob'),
+        requiredLibraries: const [
+          LibraryRequirement(
+            namespace: 'acme.widgets',
+            minVersion: 1,
+            minGenerated: 2,
+          ),
+        ],
+        editorState: _bytes('state'),
+      );
+      final bytes = payload.canonicalBytes;
+      final decoded = SurfacePayload.decode(bytes) as BlobSurfacePayload;
+      expect(decoded, payload);
+      expect(decoded.requiredLibraries.single.minGenerated, 2);
+      final withoutFloors = BlobSurfacePayload(
+        minClient: kSurfaceFeatureClientFloor,
+        blob: _bytes('blob'),
+        requiredLibraries: const [
+          LibraryRequirement(namespace: 'acme.widgets', minVersion: 1),
+        ],
+        editorState: _bytes('state'),
+      ).canonicalBytes;
+      expect(bytes.sublist(0, withoutFloors.length), withoutFloors);
+      expect(
+        ByteData.sublistView(bytes, withoutFloors.length).getUint32(0),
+        4,
+      );
+    });
+
+    test('generated floors round-trip on blob and flow payloads', () {
+      final blob = BlobSurfacePayload(
+        minClient: kSurfaceFeatureClientFloor,
+        blob: _bytes('blob'),
+        requiredLibraries: _floored,
+      );
+      final decodedBlob = SurfacePayload.decode(blob.canonicalBytes);
+      expect(decodedBlob, blob);
+      expect(decodedBlob.requiredLibraries, _floored);
+      final flow = _flow();
+      final flooredFlow = FlowSurfacePayload(
+        flowDocument: flow.flowDocument,
+        screenBlobs: flow.screenBlobs,
+        requiredLibraries: _floored,
+      );
+      final decodedFlow = SurfacePayload.decode(flooredFlow.canonicalBytes);
+      expect(decodedFlow, flooredFlow);
+      expect(decodedFlow.requiredLibraries, _floored);
+    });
+
+    test('stripping editor state keeps the generated floors after it', () {
+      final withState = BlobSurfacePayload(
+        minClient: kSurfaceFeatureClientFloor,
+        blob: _bytes('blob'),
+        requiredLibraries: _floored,
+        editorState: _bytes('state'),
+      );
+      final without = BlobSurfacePayload(
+        minClient: kSurfaceFeatureClientFloor,
+        blob: _bytes('blob'),
+        requiredLibraries: _floored,
+      );
+      final stripped = withState.withoutEditorState();
+      expect(stripped.canonicalBytes, without.canonicalBytes);
+      expect(stripped.contentHash, without.contentHash);
+      expect(stripped.requiredLibraries, _floored);
+      final flow = _flow();
+      final flowWithState = FlowSurfacePayload(
+        flowDocument: flow.flowDocument,
+        screenBlobs: flow.screenBlobs,
+        requiredLibraries: _floored,
+        editorState: _bytes('state'),
+      );
+      final flowWithout = FlowSurfacePayload(
+        flowDocument: flow.flowDocument,
+        screenBlobs: flow.screenBlobs,
+        requiredLibraries: _floored,
+      );
+      expect(
+        flowWithState.withoutEditorState().contentHash,
+        flowWithout.contentHash,
+      );
+    });
+
     test('an unknown section tag is refused', () {
       final bytes = (BytesBuilder()
             ..add(_blob().canonicalBytes)
@@ -481,6 +580,10 @@ void main() {
     });
   });
 }
+
+const List<LibraryRequirement> _floored = [
+  LibraryRequirement(namespace: 'acme.widgets', minVersion: 1, minGenerated: 2),
+];
 
 Uint8List _bytes(String marker) => Uint8List.fromList(utf8.encode(marker));
 

@@ -511,12 +511,25 @@ LibraryRequirement _decodeRequiredLibrary(
   Map<String, Object?> json,
   String path,
 ) {
-  _checkExactKeys(json, const {'minVersion', 'namespace'}, path);
+  final hasGenerated = json.containsKey('minGenerated');
+  _checkExactKeys(
+    json,
+    hasGenerated
+        ? const {'minGenerated', 'minVersion', 'namespace'}
+        : const {'minVersion', 'namespace'},
+    path,
+  );
   final namespace = _requiredString(json, 'namespace', path);
   _checkNamespace(namespace, '$path.namespace');
+  final minGenerated =
+      hasGenerated ? _requiredPositiveInt(json, 'minGenerated', path) : 1;
+  if (hasGenerated && minGenerated < 2) {
+    throw FormatException('$path.minGenerated must be above 1.');
+  }
   return LibraryRequirement(
     namespace: namespace,
     minVersion: _requiredPositiveInt(json, 'minVersion', path),
+    minGenerated: minGenerated,
   );
 }
 
@@ -553,7 +566,7 @@ InstalledLibrary _decodeInstalledLibrary(
     json,
     const {'namespace', 'version'},
     path,
-    optional: const {'compatibleSince'},
+    optional: const {'compatibleSince', 'generated'},
   );
   final namespace = _requiredString(json, 'namespace', path);
   _checkNamespace(namespace, '$path.namespace');
@@ -576,10 +589,15 @@ InstalledLibrary _decodeInstalledLibrary(
       'Expected "$path.compatibleSince" to be between 1 and "$path.version".',
     );
   }
+  final generated = json['generated'];
+  if (json.containsKey('generated') && (generated is! int || generated < 2)) {
+    throw FormatException('Expected "$path.generated" to be above 1.');
+  }
   return InstalledLibrary(
     namespace: namespace,
     version: version as int?,
     compatibleSince: compatibleSince as int?,
+    generated: generated as int?,
   );
 }
 
@@ -638,6 +656,8 @@ List<int> _encodeClientContract(FlowExperimentClientContractV1 contract) {
           'requiredLibraries': <Object?>[
             for (final requirement in document.requiredLibraries)
               <String, Object?>{
+                if (requirement.minGenerated > 1)
+                  'minGenerated': requirement.minGenerated,
                 'namespace': requirement.namespace,
                 'minVersion': requirement.minVersion,
               },
@@ -657,6 +677,8 @@ List<int> _encodeClientContract(FlowExperimentClientContractV1 contract) {
             'version': library.version,
             if (library.effectiveCompatibleSince > 1)
               'compatibleSince': library.effectiveCompatibleSince,
+            if (library.effectiveGenerated > 1)
+              'generated': library.effectiveGenerated,
           },
       ],
     },

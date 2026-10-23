@@ -31,6 +31,7 @@ String? installedLibrariesCarrier({
             namespace: library.namespace,
             version: library.version,
             compatibleSince: library.compatibleSince,
+            generated: library.generated,
           ),
       ],
     );

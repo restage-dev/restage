@@ -257,7 +257,8 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
     kRestageAppVocabulary.addToInstalled(explicitSelection: true);
     Restage.registerWidgetLibrary(
       WidgetLibrary.custom('restage_example.widgets'),
-      capabilityVersion: 3,
+      capabilityVersion: 4,
+      generatedVersion: 2,
       widgets: const <RestageWidgetFactory>[
         RestageWidgetFactory(name: 'AcmeBorder', builder: _buildAcmeBorder),
         RestageWidgetFactory(name: 'AcmeStack', builder: _buildAcmeStack),
@@ -310,13 +311,50 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
               }
               m0[k0] = source.isMap(<Object>['plans', i0, 'value'])
                   ? s4.Plan(
-                      name: RestageDecoders.string(source, <Object>['plans', i0, 'value', 'name']) ??
+                      name: RestageDecoders.string(
+                              source, <Object>['plans', i0, 'value', 'name']) ??
                           (throw ArgumentError('Plan.name is required.')),
-                      price: source.isMap(<Object>['plans', i0, 'value', 'price'])
-                          ? s4.Price(source.v<int>(<Object>['plans', i0, 'value', 'price', 'amount']) ?? (throw ArgumentError('Price.amount is required.')),
-                              currency:
-                                  RestageDecoders.string(source, <Object>['plans', i0, 'value', 'price', 'currency']) ??
-                                      'USD')
+                      price: source
+                              .isMap(<Object>['plans', i0, 'value', 'price'])
+                          ? (switch (source.v<String>(<Object>[
+                              'plans',
+                              i0,
+                              'value',
+                              'price',
+                              '#constructor'
+                            ])) {
+                              'free' => s4.Price.free(
+                                  currency: RestageDecoders.string(
+                                          source, <Object>[
+                                        'plans',
+                                        i0,
+                                        'value',
+                                        'price',
+                                        'currency'
+                                      ]) ??
+                                      'USD'),
+                              null => s4.Price(
+                                  source.v<int>(<Object>[
+                                        'plans',
+                                        i0,
+                                        'value',
+                                        'price',
+                                        'amount'
+                                      ]) ??
+                                      (throw ArgumentError(
+                                          'Price.amount is required.')),
+                                  currency: RestageDecoders.string(
+                                          source, <Object>[
+                                        'plans',
+                                        i0,
+                                        'value',
+                                        'price',
+                                        'currency'
+                                      ]) ??
+                                      'USD'),
+                              final String name => throw ArgumentError(
+                                  "'Price' has no constructor named '$name'.")
+                            })
                           : (throw ArgumentError('Plan.price is required.')),
                       badge: RestageDecoders.string(
                           source, <Object>['plans', i0, 'value', 'badge']),
@@ -325,7 +363,8 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                               source,
                               <Object>['plans', i0, 'value', 'tier']) ??
                           s4.PlanTier.starter)
-                  : (throw ArgumentError('PlanBoard.plans entry value is required.'));
+                  : (throw ArgumentError(
+                      'PlanBoard.plans entry value is required.'));
             }
             return m0;
           }()
@@ -351,13 +390,50 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
               }
               m0[k0] = source.isMap(<Object>['highlights', i0, 'value'])
                   ? s4.Plan(
-                      name: RestageDecoders.string(source, <Object>['highlights', i0, 'value', 'name']) ??
+                      name: RestageDecoders.string(source,
+                              <Object>['highlights', i0, 'value', 'name']) ??
                           (throw ArgumentError('Plan.name is required.')),
-                      price: source.isMap(<Object>['highlights', i0, 'value', 'price'])
-                          ? s4.Price(source.v<int>(<Object>['highlights', i0, 'value', 'price', 'amount']) ?? (throw ArgumentError('Price.amount is required.')),
-                              currency:
-                                  RestageDecoders.string(source, <Object>['highlights', i0, 'value', 'price', 'currency']) ??
-                                      'USD')
+                      price: source.isMap(
+                              <Object>['highlights', i0, 'value', 'price'])
+                          ? (switch (source.v<String>(<Object>[
+                              'highlights',
+                              i0,
+                              'value',
+                              'price',
+                              '#constructor'
+                            ])) {
+                              'free' => s4.Price.free(
+                                  currency: RestageDecoders.string(
+                                          source, <Object>[
+                                        'highlights',
+                                        i0,
+                                        'value',
+                                        'price',
+                                        'currency'
+                                      ]) ??
+                                      'USD'),
+                              null => s4.Price(
+                                  source.v<int>(<Object>[
+                                        'highlights',
+                                        i0,
+                                        'value',
+                                        'price',
+                                        'amount'
+                                      ]) ??
+                                      (throw ArgumentError(
+                                          'Price.amount is required.')),
+                                  currency: RestageDecoders.string(
+                                          source, <Object>[
+                                        'highlights',
+                                        i0,
+                                        'value',
+                                        'price',
+                                        'currency'
+                                      ]) ??
+                                      'USD'),
+                              final String name => throw ArgumentError(
+                                  "'Price' has no constructor named '$name'.")
+                            })
                           : (throw ArgumentError('Plan.price is required.')),
                       badge: RestageDecoders.string(
                           source, <Object>['highlights', i0, 'value', 'badge']),
@@ -366,7 +442,8 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                               source,
                               <Object>['highlights', i0, 'value', 'tier']) ??
                           s4.PlanTier.starter)
-                  : (throw ArgumentError('PlanBoard.highlights entry value is required.'));
+                  : (throw ArgumentError(
+                      'PlanBoard.highlights entry value is required.'));
             }
             return m0;
           }()
@@ -381,12 +458,21 @@ Widget _buildPricingCard(BuildContext context, DataSource source) {
             name: RestageDecoders.string(source, <Object>['plan', 'name']) ??
                 (throw ArgumentError('Plan.name is required.')),
             price: source.isMap(<Object>['plan', 'price'])
-                ? s4.Price(
-                    source.v<int>(<Object>['plan', 'price', 'amount']) ??
-                        (throw ArgumentError('Price.amount is required.')),
-                    currency: RestageDecoders.string(
-                            source, <Object>['plan', 'price', 'currency']) ??
-                        'USD')
+                ? (switch (source
+                    .v<String>(<Object>['plan', 'price', '#constructor'])) {
+                    'free' => s4.Price.free(
+                        currency: RestageDecoders.string(source,
+                                <Object>['plan', 'price', 'currency']) ??
+                            'USD'),
+                    null => s4.Price(
+                        source.v<int>(<Object>['plan', 'price', 'amount']) ??
+                            (throw ArgumentError('Price.amount is required.')),
+                        currency: RestageDecoders.string(source,
+                                <Object>['plan', 'price', 'currency']) ??
+                            'USD'),
+                    final String name => throw ArgumentError(
+                        "'Price' has no constructor named '$name'.")
+                  })
                 : (throw ArgumentError('Plan.price is required.')),
             badge: RestageDecoders.string(source, <Object>['plan', 'badge']),
             tier: RestageDecoders.enumByName<s4.PlanTier>(
@@ -400,23 +486,56 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
   return s5.PricingTable(
     plans: source.isList(<Object>['plans'])
         ? [
-            for (var i0 = 0, n0 = source.length(<Object>['plans']); i0 < n0; i0++)
+            for (var i0 = 0, n0 = source.length(<Object>['plans']);
+                i0 < n0;
+                i0++)
               source.isMap(<Object>['plans', i0])
                   ? s4.Plan(
-                      name: RestageDecoders.string(source, <Object>['plans', i0, 'name']) ??
+                      name: RestageDecoders.string(
+                              source, <Object>['plans', i0, 'name']) ??
                           (throw ArgumentError('Plan.name is required.')),
                       price: source.isMap(<Object>['plans', i0, 'price'])
-                          ? s4.Price(source.v<int>(<Object>['plans', i0, 'price', 'amount']) ?? (throw ArgumentError('Price.amount is required.')),
-                              currency: RestageDecoders.string(source,
-                                      <Object>['plans', i0, 'price', 'currency']) ??
-                                  'USD')
+                          ? (switch (source.v<String>(
+                              <Object>['plans', i0, 'price', '#constructor'])) {
+                              'free' => s4.Price.free(
+                                  currency: RestageDecoders.string(
+                                          source, <Object>[
+                                        'plans',
+                                        i0,
+                                        'price',
+                                        'currency'
+                                      ]) ??
+                                      'USD'),
+                              null => s4.Price(
+                                  source.v<int>(<Object>[
+                                        'plans',
+                                        i0,
+                                        'price',
+                                        'amount'
+                                      ]) ??
+                                      (throw ArgumentError(
+                                          'Price.amount is required.')),
+                                  currency: RestageDecoders.string(
+                                          source, <Object>[
+                                        'plans',
+                                        i0,
+                                        'price',
+                                        'currency'
+                                      ]) ??
+                                      'USD'),
+                              final String name => throw ArgumentError(
+                                  "'Price' has no constructor named '$name'.")
+                            })
                           : (throw ArgumentError('Plan.price is required.')),
                       badge: RestageDecoders.string(
                           source, <Object>['plans', i0, 'badge']),
                       tier: RestageDecoders.enumByName<s4.PlanTier>(
-                              s4.PlanTier.values, source, <Object>['plans', i0, 'tier']) ??
+                              s4.PlanTier.values,
+                              source,
+                              <Object>['plans', i0, 'tier']) ??
                           s4.PlanTier.starter)
-                  : (throw ArgumentError('PricingTable.plans element must be an object.'))
+                  : (throw ArgumentError(
+                      'PricingTable.plans element must be an object.'))
           ]
         : (throw ArgumentError('PricingTable.plans is required.')),
   );

@@ -49,6 +49,7 @@ final class LibraryBreak {
     required this.namespace,
     required this.minVersion,
     required this.compatibleSince,
+    this.minGenerated = 1,
   });
 
   /// The live version.
@@ -63,6 +64,14 @@ final class LibraryBreak {
   /// The oldest library version this build renders.
   final int compatibleSince;
 
+  /// The generated widget code version it needs.
+  final int minGenerated;
+
+  /// The library it needs, as one phrase.
+  String get requirement =>
+      '$namespace v$minVersion+'
+      '${minGenerated > 1 ? ' · generated code v$minGenerated+' : ''}';
+
   /// The line naming this finding.
   String get sentence {
     final v = version;
@@ -70,7 +79,7 @@ final class LibraryBreak {
         '${v.surfaceType} ${v.surfaceSlug} '
         'v${v.publishedRevision}${v.versionLabel == null ? '' : ' (${v.versionLabel})'}';
     final needs =
-        'needs library $namespace v$minVersion. '
+        'needs library $requirement. '
         'This build renders v$compatibleSince and later.';
     return switch (v.kind) {
       LiveVersionKind.experimentArm =>
@@ -104,6 +113,7 @@ List<LibraryBreak> findLibraryBreaks({
             namespace: namespace,
             minVersion: minVersion,
             compatibleSince: since,
+            minGenerated: version.requiredGenerated[namespace] ?? 1,
           ),
         );
       }
@@ -144,6 +154,7 @@ List<Map<String, Object?>> libraryBreaksJson(List<LibraryBreak> breaks) => [
       'armLabel': item.version.armLabel,
       'namespace': item.namespace,
       'minVersion': item.minVersion,
+      if (item.minGenerated > 1) 'minGenerated': item.minGenerated,
       'compatibleSince': item.compatibleSince,
       'message': item.sentence,
     },

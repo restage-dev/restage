@@ -5,6 +5,7 @@ import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
+import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/widget_library_registration.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -55,6 +56,7 @@ String? emitUserFactoriesDart(
   SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
   bool installWholeCatalog = false,
   AppWidgetRegistrationSource? dependencyFactories,
+  NativeCatalogIndex? builtInIndex,
 }) {
   validateCustomPreviewReservations(widgets);
   final plannedUris = referencedAppWidgetLibraryUris(
@@ -94,6 +96,7 @@ String? emitUserFactoriesDart(
   for (final entry in widgets) {
     final body = emitFactoryFunction(
       entry,
+      nativeIndex: builtInIndex,
       custom: custom,
       aliases: aliasByUri,
       customChildProperties: true,

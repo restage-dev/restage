@@ -7,6 +7,7 @@ import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/const_folding.dart';
+import 'package:restage_codegen/src/const_value_literal.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/device_recognition.dart';
@@ -1722,6 +1723,11 @@ class _Walk {
     if (isFrameworkConstNamespaceLookalike(expr)) return false;
     final initializer = resolveConstIdentifierInitializer(expr);
     if (initializer == null) return false;
+    // A constant from another file is data, already folded to a literal.
+    if (constValueAnchor(initializer) != null) {
+      _mechanisms.add(InliningMechanism.constantFolding);
+      return true;
+    }
     // Classify same-file const initializers as inline expressions.
     final declaration = constDeclarationElement(expr);
     if (declaration != null && !_constDeclarationsInFlight.add(declaration)) {

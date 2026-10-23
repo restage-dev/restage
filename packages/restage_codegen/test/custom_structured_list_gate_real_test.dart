@@ -95,6 +95,35 @@ void main() {
       expect(admission.excluded.single.widget.name, 'PanelCard');
     });
 
+    test('a data class with scalar-list fields is RENDERABLE', () async {
+      final admission = await _admit({
+        'lib/card.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+          class Stroke {
+            const Stroke({
+              required this.widths,
+              this.dash,
+              this.counts = const [],
+              this.flags = const [],
+            });
+            final List<double> widths;
+            final List<double>? dash;
+            final List<int> counts;
+            final List<bool> flags;
+          }
+          @RestageWidget(name: 'StrokeCard',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.decoration, description: 'p')
+          class StrokeCard {
+            const StrokeCard({required this.stroke});
+            @RestageProperty(description: 'p') final Stroke stroke;
+          }
+        ''',
+      });
+      expect(admission.excluded, isEmpty);
+      expect(admission.admitted.map((w) => w.name), contains('StrokeCard'));
+    });
+
     test('a data class with a bare sealed-union field stays EXCLUDED-loud',
         () async {
       final admission = await _admit({

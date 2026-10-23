@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart' as rfw;
@@ -35,12 +37,14 @@ abstract final class LibraryRuntimeRegistry {
     List<RestageWidgetFactory> widgets, {
     int? capabilityVersion,
     int? compatibleSince,
+    int? generatedVersion,
   }) =>
       _register(
         library,
         widgets,
         capabilityVersion: capabilityVersion,
         compatibleSince: compatibleSince,
+        generatedVersion: generatedVersion,
         additive: false,
       );
 
@@ -49,6 +53,7 @@ abstract final class LibraryRuntimeRegistry {
     List<RestageWidgetFactory> widgets, {
     required int? capabilityVersion,
     required int? compatibleSince,
+    required int? generatedVersion,
     required bool additive,
   }) {
     if (hostInstalledRfwLibrary(library.namespace) != null) {
@@ -112,6 +117,7 @@ abstract final class LibraryRuntimeRegistry {
       widgets: widgets,
       capabilityVersion: capabilityVersion,
       compatibleSince: compatibleSince,
+      generatedVersion: generatedVersion,
     );
     final builders = <String, rfw.LocalWidgetBuilder>{};
     for (final w in registration.widgets) {
@@ -154,6 +160,7 @@ abstract final class LibraryRuntimeRegistry {
         registration.widgets,
         capabilityVersion: registration.capabilityVersion,
         compatibleSince: registration.compatibleSince,
+        generatedVersion: registration.generatedVersion,
         additive: true,
       );
       return;
@@ -181,9 +188,15 @@ abstract final class LibraryRuntimeRegistry {
       version = existingVersion;
       compatibleSince = existing.compatibleSince;
     }
+    // Merged factories are only as new as the oldest generated code among them.
+    final generatedVersion = existing.generatedVersion == null ||
+            registration.generatedVersion == null
+        ? null
+        : math.min(existing.generatedVersion!, registration.generatedVersion!);
     if (added.isEmpty &&
         version == existingVersion &&
-        compatibleSince == existing.compatibleSince) {
+        compatibleSince == existing.compatibleSince &&
+        generatedVersion == existing.generatedVersion) {
       return;
     }
     _register(
@@ -191,6 +204,7 @@ abstract final class LibraryRuntimeRegistry {
       [...existing.widgets, ...added],
       capabilityVersion: version,
       compatibleSince: compatibleSince,
+      generatedVersion: generatedVersion,
       additive: true,
     );
   }
@@ -216,6 +230,7 @@ abstract final class LibraryRuntimeRegistry {
             namespace: entry.key,
             version: entry.value.capabilityVersion,
             compatibleSince: entry.value.compatibleSince,
+            generated: entry.value.registration.generatedVersion,
           ),
       ];
 
@@ -270,6 +285,7 @@ abstract final class LibraryRuntimeRegistry {
       namespace: namespace,
       version: entry.capabilityVersion,
       compatibleSince: entry.compatibleSince,
+      generated: entry.registration.generatedVersion,
     );
   }
 

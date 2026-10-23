@@ -2440,21 +2440,30 @@ CapabilityManifest capabilityManifestUnion(
     Iterable<CapabilityManifest> manifests) {
   var builtInFloor = 1;
   final versions = <String, int>{};
+  final generated = <String, int>{};
   for (final manifest in manifests) {
     if (manifest.builtInFloor > builtInFloor) {
       builtInFloor = manifest.builtInFloor;
     }
     for (final requirement in manifest.requiredLibraries) {
-      final existing = versions[requirement.namespace];
+      final namespace = requirement.namespace;
+      final existing = versions[namespace];
       if (existing == null || requirement.minVersion > existing) {
-        versions[requirement.namespace] = requirement.minVersion;
+        versions[namespace] = requirement.minVersion;
+      }
+      if (requirement.minGenerated > (generated[namespace] ?? 1)) {
+        generated[namespace] = requirement.minGenerated;
       }
     }
   }
   final requirements = SurfaceContractJson.canonicalRequirements(
     <LibraryRequirement>[
       for (final entry in versions.entries)
-        LibraryRequirement(namespace: entry.key, minVersion: entry.value),
+        LibraryRequirement(
+          namespace: entry.key,
+          minVersion: entry.value,
+          minGenerated: generated[entry.key] ?? 1,
+        ),
     ],
     path: 'sidecar requirements',
   );

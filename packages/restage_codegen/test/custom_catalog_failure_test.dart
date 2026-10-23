@@ -1,4 +1,4 @@
-// A widget catalog that fails to build is named as the cause.
+// A widget the catalog cannot carry is left out without failing its siblings.
 
 import 'dart:io';
 
@@ -18,14 +18,16 @@ const _fixtureDartPaths = <String>[
 ];
 
 void main() {
-  test('a widget catalog that did not build is named as the cause', () async {
+  test('a widget with an undecodable required input leaves out only itself',
+      () async {
     final compiled = await _compileFixture();
-    expect(compiled.succeeded, isFalse);
+    expect(compiled.succeeded, isTrue, reason: compiled.log);
     expect(
       compiled.log,
       allOf(
+        contains('AppClock is excluded from the RFW catalog/factory'),
         contains('AppClock.moment'),
-        contains("This package's widget catalog did not build"),
+        isNot(contains("This package's widget catalog did not build")),
       ),
     );
   });

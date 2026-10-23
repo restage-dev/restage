@@ -103,6 +103,7 @@ final class AppWidgetMountFactories {
     for (final entry in collection.widgets) {
       final body = emitFactoryFunction(
         entry,
+        nativeIndex: collection.builtInIndex,
         custom: custom,
         aliases: aliases,
         customChildProperties: true,

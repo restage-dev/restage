@@ -4,7 +4,8 @@
   "libraries": {
     "acme.design_system": {
       "version": "0.0.0",
-      "capabilityVersion": 1
+      "capabilityVersion": 1,
+      "generatedVersion": 2
     }
   },
   "widgets": [

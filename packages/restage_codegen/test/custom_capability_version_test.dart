@@ -308,7 +308,10 @@ void main() {
     test('a declared break reaches the catalog and the registration', () async {
       await expectOutputs(
         library(compatibleSince: 4),
-        catalog: contains('capabilityVersion: 4, compatibleSince: 4'),
+        catalog: allOf(
+          contains('capabilityVersion: 4,'),
+          contains('compatibleSince: 4,'),
+        ),
         registration: allOf(
           contains('capabilityVersion: 4,'),
           contains('compatibleSince: 4,'),

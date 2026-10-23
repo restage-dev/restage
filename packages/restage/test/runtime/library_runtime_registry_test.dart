@@ -492,4 +492,35 @@ void main() {
       );
     });
   });
+
+  test('the generated code version is reported, and a merge keeps the oldest',
+      () {
+    LibraryRuntimeRegistry.install(
+      RestageWidgetLibraryRegistration(
+        library: WidgetLibrary.custom('acme.gen'),
+        widgets: [RestageWidgetFactory(name: 'A', builder: _stubBuilder)],
+        capabilityVersion: 1,
+        generatedVersion: 2,
+      ),
+    );
+    expect(LibraryRuntimeRegistry.installedSnapshot().single.generated, 2);
+    LibraryRuntimeRegistry.install(
+      RestageWidgetLibraryRegistration(
+        library: WidgetLibrary.custom('acme.gen'),
+        widgets: [RestageWidgetFactory(name: 'B', builder: _stubBuilder)],
+        capabilityVersion: 1,
+      ),
+    );
+    expect(LibraryRuntimeRegistry.installedSnapshot().single.generated, isNull);
+    expect(
+      LibraryRuntimeRegistry.satisfies(
+        const LibraryRequirement(
+          namespace: 'acme.gen',
+          minVersion: 1,
+          minGenerated: 2,
+        ),
+      ),
+      isFalse,
+    );
+  });
 }

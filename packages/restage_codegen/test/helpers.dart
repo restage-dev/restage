@@ -812,14 +812,22 @@ Future<Expression> parseExpressionFromSourceForTest(
   String source, {
   String rootPackage = _kRootPackage,
   String? enclosingClassName,
+
+  /// Further sources, keyed by a path in [rootPackage] or a `package|path`.
+  Map<String, String> otherFiles = const {},
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: rootPackage,
-    includeFlutter: _importsFlutter([source]),
-    includeIntl: _importsIntl([source]),
+    includeFlutter: _importsFlutter([source, ...otherFiles.values]),
+    includeIntl: _importsIntl([source, ...otherFiles.values]),
   );
   final assetKey = '$rootPackage|lib/_expr_probe.dart';
   readerWriter.testing.writeString(AssetId.parse(assetKey), source);
+  String otherKey(String path) =>
+      path.contains('|') ? path : '$rootPackage|$path';
+  for (final MapEntry(:key, :value) in otherFiles.entries) {
+    readerWriter.testing.writeString(AssetId.parse(otherKey(key)), value);
+  }
 
   Expression? result;
   await testBuilder(
@@ -853,7 +861,11 @@ Future<Expression> parseExpressionFromSourceForTest(
       },
       allowedAssetIds: {AssetId.parse(assetKey)},
     ),
-    {assetKey: source},
+    {
+      assetKey: source,
+      for (final MapEntry(:key, :value) in otherFiles.entries)
+        otherKey(key): value,
+    },
     rootPackage: rootPackage,
     readerWriter: readerWriter,
     resolvers: sharedResolvers,

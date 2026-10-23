@@ -14,6 +14,7 @@ final class InstalledLibrary {
     required this.namespace,
     this.version,
     this.compatibleSince,
+    this.generated,
   }) : assert(
           compatibleSince == null ||
               (version != null &&
@@ -41,10 +42,16 @@ final class InstalledLibrary {
       throw FormatException('malformed InstalledLibrary: $json');
     }
 
+    final generated = json['generated'];
+    if (generated != null && (generated is! int || generated < 1)) {
+      throw FormatException('malformed InstalledLibrary: $json');
+    }
+
     return InstalledLibrary(
       namespace: namespace,
       version: version as int?,
       compatibleSince: compatibleSince as int?,
+      generated: generated as int?,
     );
   }
 
@@ -68,12 +75,21 @@ final class InstalledLibrary {
   /// [compatibleSince], with `null` read as 1.
   int get effectiveCompatibleSince => compatibleSince ?? 1;
 
-  /// JSON wire form. `compatibleSince` is written only when above 1.
+  /// The version of the generated widget code the library's factories come
+  /// from, or `null` for 1 (factories written by hand or by older code).
+  final int? generated;
+
+  /// [generated], with `null` read as 1.
+  int get effectiveGenerated => generated ?? 1;
+
+  /// JSON wire form. `compatibleSince` and `generated` are written only when
+  /// above 1.
   Map<String, dynamic> toJson() => {
         'namespace': namespace,
         'version': version,
         if (effectiveCompatibleSince > 1)
           'compatibleSince': effectiveCompatibleSince,
+        if (effectiveGenerated > 1) 'generated': effectiveGenerated,
       };
 
   @override
@@ -82,10 +98,16 @@ final class InstalledLibrary {
       other is InstalledLibrary &&
           other.namespace == namespace &&
           other.version == version &&
-          other.effectiveCompatibleSince == effectiveCompatibleSince;
+          other.effectiveCompatibleSince == effectiveCompatibleSince &&
+          other.effectiveGenerated == effectiveGenerated;
 
   @override
-  int get hashCode => Object.hash(namespace, version, effectiveCompatibleSince);
+  int get hashCode => Object.hash(
+        namespace,
+        version,
+        effectiveCompatibleSince,
+        effectiveGenerated,
+      );
 }
 
 /// The built-in and custom library capabilities installed in a renderer.

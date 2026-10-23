@@ -2431,7 +2431,7 @@ class AcmeOuter extends StatelessWidget {
       expect(probe.blueprints, isNot(contains(outerKey)));
     });
 
-    test('an unfoldable cross-file const is unclassifiable', () async {
+    test('a structured cross-file const folds and is composable', () async {
       final result = await classifyFixture(
         {
           'lib/palette_shared.dart': '''
@@ -2465,7 +2465,7 @@ class AcmeCrossFile extends StatelessWidget {
         widgetName: 'AcmeCrossFile',
         catalog: iconCatalog(),
       );
-      expect(result, isA<UnclassifiableWidget>());
+      expect(result, isA<ComposableWidget>());
     });
   });
 }

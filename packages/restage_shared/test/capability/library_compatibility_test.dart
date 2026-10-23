@@ -295,4 +295,65 @@ void main() {
       );
     });
   });
+
+  group('generated code version', () {
+    const needsNewer = LibraryRequirement(
+      namespace: _ns,
+      minVersion: 1,
+      minGenerated: 2,
+    );
+
+    test('a library from older generated code is too old', () {
+      expect(
+        LibraryCompatibility.evaluate(
+          const InstalledLibrary(namespace: _ns, version: 1),
+          needsNewer,
+        ),
+        LibraryCompatibility.tooOld,
+      );
+      expect(
+        LibraryCompatibility.evaluate(
+          const InstalledLibrary(namespace: _ns, version: 1, generated: 2),
+          needsNewer,
+        ),
+        LibraryCompatibility.satisfied,
+      );
+    });
+
+    test('the render gate names the generated code it needs', () {
+      final verdict = BlobRenderCapabilityGate.evaluate(
+        required: CapabilityManifest(
+          builtInFloor: 1,
+          requiredLibraries: const [needsNewer],
+        ),
+        installed: InstalledCapability(
+          builtInCatalogVersion: 1,
+          installedLibraries: const [
+            InstalledLibrary(namespace: _ns, version: 1),
+          ],
+        ),
+      );
+      expect(verdict, isA<BlobRenderRejected>());
+      expect(
+        (verdict as BlobRenderRejected).message,
+        'requires library "$_ns" >= v1 from generated code v2 (installed v1)',
+      );
+    });
+
+    test('a default requirement and an unstamped library keep their bytes', () {
+      expect(_requires(3).toJson(), {'namespace': _ns, 'minVersion': 3});
+      expect(
+        const InstalledLibrary(namespace: _ns, version: 3).toJson(),
+        {'namespace': _ns, 'version': 3},
+      );
+      expect(
+        needsNewer.toJson(),
+        {'namespace': _ns, 'minVersion': 1, 'minGenerated': 2},
+      );
+      expect(LibraryRequirement.fromJson(needsNewer.toJson()), needsNewer);
+      const stamped =
+          InstalledLibrary(namespace: _ns, version: 1, generated: 2);
+      expect(InstalledLibrary.fromJson(stamped.toJson()), stamped);
+    });
+  });
 }

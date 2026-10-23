@@ -15,6 +15,9 @@ import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/const_folding.dart';
+import 'package:restage_codegen/src/const_value_literal.dart';
+import 'package:restage_codegen/src/custom_structured_admissibility.dart'
+    show reasonClause;
 import 'package:restage_codegen/src/custom_structured_value_emitter.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
@@ -1590,13 +1593,14 @@ final class ExpressionTranslator {
       return '';
     }
     issues.add(
-      Issue(
-        code: IssueCode.unrecognizedMethodCall,
-        capabilityGapSubject: 'expression:${_nodeKind(expr)}',
-        message: 'Unsupported expression: ${_nodeKind(expr)} `$expr`. '
-            'See the supported expression subset.',
-        location: _locationOf(expr),
-      ),
+      _appOnlyValueIssue(expr, IssueCode.unrecognizedMethodCall) ??
+          Issue(
+            code: IssueCode.unrecognizedMethodCall,
+            capabilityGapSubject: 'expression:${_nodeKind(expr)}',
+            message: 'Unsupported expression: ${_nodeKind(expr)} `$expr`. '
+                'See the supported expression subset.',
+            location: _locationOf(expr),
+          ),
     );
     return '';
   }
@@ -1817,18 +1821,19 @@ final class ExpressionTranslator {
     if (expr is PrefixedIdentifier) {
       if (_isInheritedStateWidgetReceiver(expr.prefix) &&
           _walk.rootStateContext) {
-        final param = _rootParamForElement(expr.identifier.element);
+        final param = _rootParamForElement(identifierElement(expr.identifier));
         if (param != null) {
           return _RootParamAccess.root(param: param, stateful: true);
         }
       }
       final base = _rootParamAccess(expr.prefix);
-      return base?.append(expr.identifier.element);
+      return base?.append(identifierElement(expr.identifier));
     }
     if (expr is PropertyAccess) {
       final target = expr.target;
       if (target != null) {
-        return _rootParamAccess(target)?.append(expr.propertyName.element);
+        return _rootParamAccess(target)
+            ?.append(identifierElement(expr.propertyName));
       }
     }
     if (expr is MethodInvocation) {
@@ -2653,11 +2658,11 @@ final class ExpressionTranslator {
     }
     if (expression is PrefixedIdentifier) {
       final target = _runtimeLoopReference(expression.prefix);
-      return target?.append(expression.identifier.element);
+      return target?.append(identifierElement(expression.identifier));
     }
     if (expression is PropertyAccess && expression.target != null) {
       final target = _runtimeLoopReference(expression.target!);
-      return target?.append(expression.propertyName.element);
+      return target?.append(identifierElement(expression.propertyName));
     }
     if (expression is IndexExpression) {
       final target = _runtimeLoopReference(expression.realTarget);
@@ -3050,14 +3055,14 @@ final class ExpressionTranslator {
     // synthetic-test affordance).
     if ((prefix == 'EdgeInsets' || prefix == 'EdgeInsetsDirectional') &&
         identifier == 'zero') {
-      if (!_frameworkOrUnresolved(expr.prefix.element)) {
+      if (!_frameworkOrUnresolved(identifierElement(expr.prefix))) {
         return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
       }
       return '[0.0, 0.0, 0.0, 0.0]';
     }
     if ((prefix == 'BorderRadius' || prefix == 'BorderRadiusDirectional') &&
         identifier == 'zero') {
-      if (!_frameworkOrUnresolved(expr.prefix.element)) {
+      if (!_frameworkOrUnresolved(identifierElement(expr.prefix))) {
         return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
       }
       return '0';
@@ -3069,7 +3074,7 @@ final class ExpressionTranslator {
     // look-alike with a `zero` member defers rather than lowering as the
     // framework zero value.
     if (prefix == 'Offset' && identifier == 'zero') {
-      if (!_frameworkOrUnresolved(expr.prefix.element)) {
+      if (!_frameworkOrUnresolved(identifierElement(expr.prefix))) {
         return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
       }
       return '{x: 0.0, y: 0.0}';
@@ -3096,10 +3101,10 @@ final class ExpressionTranslator {
     // `w700`. A resolved member whose const cannot be canonicalised DEFERS
     // diagnosed — never a name passthrough that nulls.
     if (prefix == 'FontWeight') {
-      if (!_frameworkOrUnresolved(expr.prefix.element)) {
+      if (!_frameworkOrUnresolved(identifierElement(expr.prefix))) {
         return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
       }
-      if (_isFrameworkValueType(expr.prefix.element)) {
+      if (_isFrameworkValueType(identifierElement(expr.prefix))) {
         final canonical = _canonicalFontWeightName(expr);
         if (canonical != null) return '"$canonical"';
         issues.add(
@@ -3122,11 +3127,11 @@ final class ExpressionTranslator {
     // synthetic prefix) keeps the member-name path below, which the decoder
     // resolves.
     if (prefix == 'TextDecoration' &&
-        !_frameworkOrUnresolved(expr.prefix.element)) {
+        !_frameworkOrUnresolved(identifierElement(expr.prefix))) {
       return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
     }
     if (prefix == 'TextDecoration' &&
-        _isFrameworkValueType(expr.prefix.element)) {
+        _isFrameworkValueType(identifierElement(expr.prefix))) {
       return '"$identifier"';
     }
 
@@ -3139,10 +3144,12 @@ final class ExpressionTranslator {
     // framework class (and an unresolved synthetic prefix) keeps the
     // member-name path below, where the catalog validator backstops the
     // supported curve set on the direct-paywall path.
-    if (prefix == 'Curves' && !_frameworkOrUnresolved(expr.prefix.element)) {
+    if (prefix == 'Curves' &&
+        !_frameworkOrUnresolved(identifierElement(expr.prefix))) {
       return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
     }
-    if (prefix == 'Curves' && _isFrameworkValueType(expr.prefix.element)) {
+    if (prefix == 'Curves' &&
+        _isFrameworkValueType(identifierElement(expr.prefix))) {
       return '"$identifier"';
     }
 
@@ -3195,7 +3202,7 @@ final class ExpressionTranslator {
     // Enum reference: `MainAxisAlignment.center` → "center". The catalog
     // declares which property accepts which enum; runtime/validation paths
     // confirm the value is recognized.
-    final member = _unwrapPropertyAccessor(expr.identifier.element);
+    final member = _unwrapPropertyAccessor(identifierElement(expr.identifier));
     if (member is FieldElement && member.isEnumConstant) {
       return '"$identifier"';
     }
@@ -3238,12 +3245,13 @@ final class ExpressionTranslator {
       return '';
     }
     issues.add(
-      Issue(
-        code: IssueCode.unresolvedIdentifier,
-        message: "'${expr.toSource()}' is not a resolved enum constant or "
-            'portable const value.',
-        location: _locationOf(expr),
-      ),
+      _appOnlyValueIssue(expr, IssueCode.unresolvedIdentifier) ??
+          Issue(
+            code: IssueCode.unresolvedIdentifier,
+            message: "'${expr.toSource()}' is not a resolved enum constant or "
+                'portable const value.',
+            location: _locationOf(expr),
+          ),
     );
     return '';
   }
@@ -3262,7 +3270,8 @@ final class ExpressionTranslator {
             .contains(expr.identifier.name)) {
       return true;
     }
-    final variable = _unwrapPropertyAccessor(expr.identifier.element);
+    final variable =
+        _unwrapPropertyAccessor(identifierElement(expr.identifier));
     if (variable is FieldElement && variable.isStatic && variable.isConst) {
       final value = variable.computeConstantValue()?.toDoubleValue();
       if (value != null) return !value.isFinite;
@@ -3290,7 +3299,7 @@ final class ExpressionTranslator {
   /// `enumValue<FontWeight>(FontWeight.values, …)` decoder matches, so every
   /// member round-trips rather than the bare alias name nulling the decoder.
   String? _canonicalFontWeightName(PrefixedIdentifier expr) {
-    final element = expr.identifier.element;
+    final element = identifierElement(expr.identifier);
     if (element is! PropertyAccessorElement) return null;
     final weight = element.variable
         .computeConstantValue()
@@ -3307,7 +3316,7 @@ final class ExpressionTranslator {
     PrefixedIdentifier expr,
     List<Issue> issues,
   ) {
-    final element = expr.identifier.element;
+    final element = identifierElement(expr.identifier);
     if (element is PropertyAccessorElement) {
       final icon = element.variable.computeConstantValue();
       final codepoint = icon?.getField('codePoint')?.toIntValue();
@@ -3376,14 +3385,14 @@ final class ExpressionTranslator {
   /// silent-wrong in a degraded/error-recovery build, so the safe direction is
   /// to defer (the recognised set is the resolved-real-Flutter case only).
   bool _prefixResolvesToFlutter(SimpleIdentifier prefix) =>
-      libraryIsFlutter(prefix.element);
+      libraryIsFlutter(identifierElement(prefix));
 
   /// The wire value of a framework static const [expr] names, gated by the
   /// framework-library predicate so a look-alike never substitutes.
   FrameworkConstValue? _frameworkConstValue(Expression expr) {
     final element = switch (expr) {
-      PrefixedIdentifier(:final identifier) => identifier.element,
-      PropertyAccess(:final propertyName) => propertyName.element,
+      PrefixedIdentifier(:final identifier) => identifierElement(identifier),
+      PropertyAccess(:final propertyName) => identifierElement(propertyName),
       _ => null,
     };
     if (!_isFrameworkValueType(element)) return null;
@@ -3700,7 +3709,7 @@ final class ExpressionTranslator {
     InstanceCreationExpression expr,
     List<Issue> issues,
   ) {
-    final constructor = expr.constructorName.element;
+    final constructor = constructionConstructor(expr);
     final styleClass = constructor?.enclosingElement;
     if (isIconThemeDataClass(styleClass)) return _iconThemeData(expr, issues);
     if (isSystemUiOverlayStyleClass(styleClass) && constructor?.name == 'new') {
@@ -4259,9 +4268,7 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
-            message: "Property '$name' is not declared on '${entry.name}'. "
-                'Catalog properties: '
-                '${entry.properties.map((p) => p.name).join(", ")}.',
+            message: _undeclaredPropertyMessage(entry, name),
             location: _locationOf(arg),
           ),
         );
@@ -5261,9 +5268,9 @@ final class ExpressionTranslator {
     if (expr is SimpleIdentifier) {
       element = expr.element;
     } else if (expr is PrefixedIdentifier) {
-      element = expr.identifier.element;
+      element = identifierElement(expr.identifier);
     } else if (expr is PropertyAccess) {
-      element = expr.propertyName.element;
+      element = identifierElement(expr.propertyName);
     }
     if (element is PropertyAccessorElement) {
       element = element.variable;
@@ -5292,9 +5299,9 @@ final class ExpressionTranslator {
     if (expr is SimpleIdentifier) {
       element = expr.element;
     } else if (expr is PrefixedIdentifier) {
-      element = expr.identifier.element;
+      element = identifierElement(expr.identifier);
     } else if (expr is PropertyAccess) {
-      element = expr.propertyName.element;
+      element = identifierElement(expr.propertyName);
     }
     if (element is PropertyAccessorElement) {
       element = element.variable;
@@ -5736,7 +5743,7 @@ final class ExpressionTranslator {
   String? _supportedCurveName(Expression source) {
     final expr = _stripParens(source);
     if (expr is PrefixedIdentifier && expr.prefix.name == 'Curves') {
-      if (!_frameworkOrUnresolved(expr.prefix.element)) return null;
+      if (!_frameworkOrUnresolved(identifierElement(expr.prefix))) return null;
       final name = expr.identifier.name;
       return kSupportedCurveNames.contains(name) ? name : null;
     }
@@ -6934,7 +6941,12 @@ final class ExpressionTranslator {
           if (inlined != null) return inlined;
           issues.add(
             _withUnbuiltCatalogNote(
-              _customWidgetIssue(classification, widgetName, anchor),
+              _customWidgetIssue(
+                classification,
+                widgetClass,
+                widgetName,
+                anchor,
+              ),
               widgetClass,
             ),
           );
@@ -7029,13 +7041,20 @@ final class ExpressionTranslator {
         );
         if (aliased != null) return aliased;
       }
+      final statePackage = _appStateBuilderPackage(widgetClass);
       issues.add(
         Issue(
           code: IssueCode.unknownWidget,
           capabilityGapSubject: 'widget:$widgetName',
-          message: "Widget '$widgetName' is not a known catalog widget. If "
-              'it is a custom widget, annotate its class with @RestageWidget '
-              'so Restage can recognise it.',
+          message: statePackage != null
+              ? "'$widgetName' (package:$statePackage) builds from app "
+                  'state. Read that state in the host widget and pass the '
+                  'values to this surface as constructor inputs. See '
+                  'https://docs.restage.dev/authoring/write-a-surface'
+                  '#adopt-an-existing-widget'
+              : "Widget '$widgetName' is not a known catalog widget. If "
+                  'it is a custom widget, annotate its class with '
+                  '@RestageWidget so Restage can recognize it.',
           location: _locationOf(anchor),
         ),
       );
@@ -7263,9 +7282,7 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
-            message: "Property '$name' is not declared on '${entry.name}'. "
-                'Catalog properties: '
-                '${entry.properties.map((p) => p.name).join(", ")}.',
+            message: _undeclaredPropertyMessage(entry, name),
             location: _locationOf(a),
           ),
         );
@@ -10699,8 +10716,8 @@ final class ExpressionTranslator {
       element is PropertyAccessorElement ? element.variable : element;
 
   Element? _enumMemberElement(Expression expr) {
-    if (expr is PrefixedIdentifier) return expr.identifier.element;
-    if (expr is PropertyAccess) return expr.propertyName.element;
+    if (expr is PrefixedIdentifier) return identifierElement(expr.identifier);
+    if (expr is PropertyAccess) return identifierElement(expr.propertyName);
     return null;
   }
 
@@ -10713,15 +10730,16 @@ final class ExpressionTranslator {
   EnumElement? _enumTargetOwner(Expression expr) {
     Element? target;
     if (expr is PrefixedIdentifier) {
-      target = expr.prefix.element;
+      target = identifierElement(expr.prefix);
     } else if (expr is PropertyAccess) {
       final receiver = expr.target;
       if (receiver is SimpleIdentifier) {
         target = receiver.element;
       } else if (receiver is PrefixedIdentifier) {
-        target = receiver.identifier.element ?? receiver.prefix.element;
+        target = identifierElement(receiver.identifier) ??
+            identifierElement(receiver.prefix);
       } else if (receiver is PropertyAccess) {
-        target = receiver.propertyName.element;
+        target = identifierElement(receiver.propertyName);
       }
     }
     final resolved = _unwrapPropertyAccessor(target);
@@ -11184,6 +11202,132 @@ final class ExpressionTranslator {
     return _translate(coalesce.read, issues);
   }
 
+  /// The refusal for [expr] when it reads a value that exists only in the
+  /// running app: an `X.of(context)` lookup or a `static final` field.
+  Issue? _appOnlyValueIssue(Expression expr, IssueCode code) {
+    Issue refuse(String message) =>
+        Issue(code: code, message: message, location: _locationOf(expr));
+    Expression? current = expr;
+    for (var depth = 0; current != null && depth < 16; depth++) {
+      current = _stripParens(current);
+      if (current is MethodInvocation) {
+        final target = current.target;
+        if (current.methodName.name == 'copyWith' && target != null) {
+          current = target;
+          continue;
+        }
+        if (_isContextLookup(current)) {
+          return refuse(
+            "'${current.toSource()}' reads from the running app. Pass the "
+            'value in as a constructor input, or use Theme.of(context).',
+          );
+        }
+        return null;
+      }
+      final (receiver, member) = switch (current) {
+        PrefixedIdentifier(:final prefix, :final identifier) => (
+            prefix,
+            identifierElement(identifier),
+          ),
+        PropertyAccess(:final target, :final propertyName) => (
+            target,
+            propertyName.element,
+          ),
+        SimpleIdentifier() => (null, current.element),
+        _ => (null, null),
+      };
+      final variable = _unwrapPropertyAccessor(member);
+      if (variable is VariableElement &&
+          variable is! LocalVariableElement &&
+          variable.isFinal &&
+          !variable.isConst &&
+          (variable is TopLevelVariableElement ||
+              (variable is FieldElement && variable.isStatic))) {
+        return refuse(
+          "'${current.toSource()}' is static final, so its value exists only "
+          'in the running app. Make it const, or pass it in as a constructor '
+          'input.',
+        );
+      }
+      final bound = current is SimpleIdentifier
+          ? _walk.paramBindings[current.element] ??
+              _walk.inlined.localBindings[current.element]
+          : null;
+      current = bound ?? receiver;
+    }
+    return null;
+  }
+
+  /// Whether [call] is a static `of` lookup on an app class taking a
+  /// `BuildContext`, such as an inherited design-system theme.
+  bool _isContextLookup(MethodInvocation call) {
+    final method = call.methodName.element;
+    if (call.methodName.name != 'of' ||
+        method is! MethodElement ||
+        !method.isStatic ||
+        _isFrameworkValueType(method.enclosingElement)) {
+      return false;
+    }
+    return call.argumentList.arguments.any(
+      (argument) =>
+          argument.argumentExpression.staticType?.element?.name ==
+          'BuildContext',
+    );
+  }
+
+  /// Why [name] is not a property of [entry]: the reason its package left it
+  /// out, or the properties the catalog does declare.
+  String _undeclaredPropertyMessage(WidgetEntry entry, String name) {
+    final dropped = catalog.exclusions.firstWhereOrNull(
+      (exclusion) =>
+          exclusion.location == '${entry.flutterType}.$name' &&
+          exclusion.target == 'rfw',
+    );
+    if (dropped != null) {
+      return "'${entry.name}' leaves out its optional property '$name': "
+          '${reasonClause(dropped.reason)}.';
+    }
+    return "Property '$name' is not declared on '${entry.name}'. "
+        'Catalog properties: '
+        '${entry.properties.map((p) => p.name).join(", ")}.';
+  }
+
+  /// The package of [widgetClass] when it is another package's widget whose
+  /// builder callback receives a value, such as a state-management builder;
+  /// `null` otherwise.
+  String? _appStateBuilderPackage(ClassElement? widgetClass) {
+    if (widgetClass == null || _isFrameworkValueType(widgetClass)) return null;
+    final library = widgetClass.library.identifier;
+    if (!library.startsWith('package:')) return null;
+    final package = library.substring('package:'.length).split('/').first;
+    final surface = _currentSourceUnit;
+    final surfaceUri = surface is CompilationUnit
+        ? surface.declaredFragment?.source.uri
+        : null;
+    if (surfaceUri != null &&
+        surfaceUri.scheme == 'package' &&
+        surfaceUri.pathSegments.first == package) {
+      return null;
+    }
+    // A builder that hands its child a data value, beyond framework plumbing
+    // such as the context, a child widget, constraints or a callback.
+    bool isStateValue(DartType type) {
+      if (type is FunctionType) return false;
+      final library = type.element?.library?.identifier;
+      return library == null || !library.startsWith('package:flutter/');
+    }
+
+    final buildsFromState = widgetClass.constructors.any(
+      (constructor) => constructor.formalParameters.any((parameter) {
+        final type = parameter.type;
+        return type is FunctionType &&
+            type.returnType.element?.name == 'Widget' &&
+            type.formalParameters.any((value) => isStateValue(value.type));
+      }),
+    );
+    return buildsFromState ? package : null;
+  }
+
   /// [issue], noting when [widgetClass] is a `@RestageWidget` whose package
   /// has no widget in the catalog at all: its widget catalog did not build.
   Issue _withUnbuiltCatalogNote(Issue issue, ClassElement widgetClass) {
@@ -11212,10 +11356,28 @@ final class ExpressionTranslator {
   /// and does not inline, from its [classification].
   Issue _customWidgetIssue(
     WidgetClassification classification,
+    ClassElement widgetClass,
     String widgetName,
     Expression anchor,
-  ) =>
-      _customWidgetGap(classification, widgetName, anchor).issue;
+  ) {
+    final issue = _customWidgetGap(classification, widgetName, anchor).issue;
+    final flutterType = '${widgetClass.library.identifier}#${widgetClass.name}';
+    final exclusion = catalog.exclusions.firstWhereOrNull(
+      (exclusion) => exclusion.isOf(flutterType) && exclusion.target == 'rfw',
+    );
+    if (exclusion == null ||
+        catalog.widgets.any((entry) => entry.flutterType == flutterType)) {
+      return issue;
+    }
+    // The widget's package left it out of its catalog, and says why.
+    return Issue(
+      code: issue.code,
+      capabilityGapSubject: issue.capabilityGapSubject,
+      message: "'$widgetName' is left out of the catalog: "
+          '${reasonClause(exclusion.reason)}.',
+      location: _locationOf(anchor),
+    );
+  }
 
   /// Why a custom widget renders from the app's compiled code, as a clause.
   String _customWidgetFactoryReason(
@@ -11611,6 +11773,8 @@ final class ExpressionTranslator {
   }
 
   String _locationOf(AstNode node) {
+    final constant = constValueAnchor(node);
+    if (constant != null) return _locationOf(constant);
     // An inlined helper or widget body reports against its own file.
     final unit = node.root;
     final current = _currentSourceUnit;
@@ -11665,7 +11829,7 @@ final class ExpressionTranslator {
   /// The resolved [ClassElement] behind an `InstanceCreationExpression`, or
   /// `null` when the analyzer could not resolve it.
   ClassElement? _classOfInstanceCreation(InstanceCreationExpression expr) {
-    final owner = expr.constructorName.element?.enclosingElement;
+    final owner = constructionConstructor(expr)?.enclosingElement;
     if (owner is ClassElement) return owner;
     final element = expr.constructorName.type.element;
     return element is ClassElement ? element : null;
@@ -11674,9 +11838,9 @@ final class ExpressionTranslator {
   /// The class a resolved construction names, the element a resolved call
   /// targets otherwise, or `null` when the source did not resolve.
   Element? _resolvedCallee(Expression anchor) => switch (anchor) {
-        InstanceCreationExpression(:final constructorName) =>
-          constructorName.element?.enclosingElement ??
-              switch (constructorName.type.element) {
+        final InstanceCreationExpression creation =>
+          constructionConstructor(creation)?.enclosingElement ??
+              switch (creation.constructorName.type.element) {
                 final InterfaceElement type => type,
                 _ => null,
               },
@@ -11770,6 +11934,11 @@ final class ExpressionTranslator {
         .toList()
       ..sort();
     final typeLabel = typeNames.isEmpty ? '' : '${typeNames.join(' or ')} ';
+    final appOnly = _appOnlyValueIssue(expr, IssueCode.unrecognizedMethodCall);
+    if (appOnly != null) {
+      issues.add(appOnly);
+      return true;
+    }
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
@@ -11810,6 +11979,7 @@ final class ExpressionTranslator {
     }
 
     final index = _nativeCatalogIndex;
+    final constant = _constantConstruction(expr);
     for (final recipe in candidateRecipes) {
       final construction = recipe.construction!;
 
@@ -11818,12 +11988,15 @@ final class ExpressionTranslator {
       if (structured == null || variant == null) continue;
 
       final match = _matchNativeInvocation(
-        expr,
+        constant?.base ?? expr,
         construction,
         owningWidget: entry,
         resultStructured: structured,
         variant: variant,
       );
+      if (match != null && constant != null) {
+        _applyCopyWith(variant, match, constant.overrides);
+      }
       if (match == null) {
         final themed = _decomposeThemeTextStyle(
           expr,
@@ -12057,6 +12230,62 @@ final class ExpressionTranslator {
     }
 
     return emitted;
+  }
+
+  /// The construction a constant [expr] evaluates to, with the named
+  /// arguments of a trailing `copyWith` to apply over it, or `null` when
+  /// [expr] is not a constant construction.
+  ({InstanceCreationExpression base, List<NamedArgument> overrides})?
+      _constantConstruction(Expression expr) {
+    var current = _stripParens(expr);
+    var overrides = const <NamedArgument>[];
+    if (current is MethodInvocation &&
+        current.methodName.name == 'copyWith' &&
+        current.target != null) {
+      final named = current.argumentList.arguments.whereType<NamedArgument>();
+      if (named.length != current.argumentList.arguments.length) return null;
+      overrides = named.toList();
+      current = _stripParens(current.target!);
+    }
+    final seen = <Element>{};
+    for (var resolved = false;; resolved = true) {
+      if (current is InstanceCreationExpression) {
+        return resolved || overrides.isNotEmpty
+            ? (base: current, overrides: overrides)
+            : null;
+      }
+      final declaration = constDeclarationElement(current);
+      if (declaration != null && !seen.add(declaration)) return null;
+      final next = isConstObjectFieldAccess(current)
+          ? resolveConstObjectFieldInitializer(current)
+          : resolveConstIdentifierInitializer(current);
+      if (next == null) return null;
+      current = _stripParens(next);
+    }
+  }
+
+  /// Binds each `copyWith` argument over the base construction's match.
+  void _applyCopyWith(
+    FactoryVariant variant,
+    _NativeInvocationMatch match,
+    List<NamedArgument> overrides,
+  ) {
+    final parameters = factoryVariantCallableFields(variant).parameters;
+    for (final override in overrides) {
+      final name = override.name.lexeme;
+      final parameter = parameters.firstWhereOrNull(
+        (p) => p.kind == FactoryParameterKind.named && p.name == name,
+      );
+      final mapped = parameter != null &&
+          _bindNativeParameter(
+            variant,
+            parameter,
+            override.argumentExpression,
+            match.parameterExpressions,
+            match.fieldExpressions,
+          );
+      if (!mapped) match.unmappedArguments[name] = override.argumentExpression;
+    }
   }
 
   String _nativeParameterLabel(FactoryParameter parameter) {

@@ -7,8 +7,8 @@ final Catalog kUserCatalog = Catalog(
   schemaVersion: 5,
   generatedAt: '1970-01-01T00:00:00Z',
   libraries: {
-    WidgetLibrary.custom('restage_example.widgets'):
-        const LibraryInfo(version: '0.0.0', capabilityVersion: 3),
+    WidgetLibrary.custom('restage_example.widgets'): const LibraryInfo(
+        version: '0.0.0', capabilityVersion: 4, generatedVersion: 2),
   },
   widgets: [
     WidgetEntry(
@@ -511,6 +511,14 @@ final Catalog kUserCatalog = Catalog(
             'currency': ArgMapping(targetFields: [WireId('p0030')]),
           },
           description: 'Creates a price.',
+        ),
+        ConstructorVariant(
+          wireId: WireId('v0006'),
+          namedConstructor: 'free',
+          argMappings: {
+            'currency': ArgMapping(targetFields: [WireId('p0030')]),
+          },
+          description: 'A free price in [currency].',
         ),
       ],
     ),
