@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kDebugMode, visibleForTesting;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -26,7 +27,7 @@ final class RestageHostedUpdateChannel implements DeliveryUpdateChannel {
   /// Creates a hosted update channel.
   RestageHostedUpdateChannel({
     required RestageRpcClient rpcClient,
-    required Uri edgeUrl,
+    Uri? edgeUrl,
     @visibleForTesting Duration reconnectBaseDelay = const Duration(seconds: 1),
     @visibleForTesting Random? random,
   })  : _rpcClient = rpcClient,
@@ -35,7 +36,7 @@ final class RestageHostedUpdateChannel implements DeliveryUpdateChannel {
         _random = random ?? Random();
 
   final RestageRpcClient _rpcClient;
-  final Uri _edgeUrl;
+  final Uri? _edgeUrl;
   final Duration _reconnectBaseDelay;
   final Random _random;
 
@@ -47,8 +48,10 @@ final class RestageHostedUpdateChannel implements DeliveryUpdateChannel {
           final stamp = await _rpcClient.fetchSurfaceStamp(
               surfaceType: surface.surfaceType, surfaceSlug: surface.slug);
           return switch (stamp) {
-            SurfaceStamp() =>
-              _WatchStamp(identity: stamp.version, token: stamp.watchChannel),
+            SurfaceStamp() => _WatchStamp(
+                identity: stamp.version,
+                token: stamp.watchChannel,
+                edgeOrigin: stamp.edgeOrigin),
             SurfaceStampRateLimited() =>
               _WatchStamp(retry: true, retryAfter: stamp.retryAfter),
             _ => const _WatchStamp(retry: true),
@@ -106,6 +109,7 @@ _WatchStamp _deliveryStamp(
       return _WatchStamp(
           identity: watch.decisionIdentityDigest,
           token: channel.token,
+          edgeOrigin: watch.edgeOrigin,
           requiresResolution: requiresResolution);
     }
   }
@@ -138,7 +142,7 @@ final class _HostedWatch<T> {
 
   final T update;
   final Future<_WatchStamp> Function() fetchStamp;
-  final Uri edgeUrl;
+  final Uri? edgeUrl;
   final Duration reconnectBaseDelay;
   final Random random;
 
@@ -212,7 +216,12 @@ final class _HostedWatch<T> {
           controller.add(update);
         }
 
-        final socket = WebSocketChannel.connect(_webSocketUri(edgeUrl, token));
+        final origin = edgeUrl ?? _advertisedEdge(stamp.edgeOrigin);
+        if (origin == null) {
+          warnNoLiveEdge();
+          return;
+        }
+        final socket = WebSocketChannel.connect(_webSocketUri(origin, token));
         _socket = socket;
         final socketDone = _listenToSocket(socket);
         await socket.ready;
@@ -322,13 +331,30 @@ final class _WatchStamp {
     this.retry = false,
     this.retryAfter,
     this.requiresResolution = false,
+    this.edgeOrigin,
   });
 
   final Object? identity;
   final String? token;
+  final String? edgeOrigin;
   final bool retry;
   final Duration? retryAfter;
   final bool requiresResolution;
+}
+
+Uri? _advertisedEdge(String? origin) {
+  if (origin == null) return null;
+  final uri = Uri.tryParse(origin);
+  return uri == null || !uri.hasScheme || uri.host.isEmpty ? null : uri;
+}
+
+bool _warnedNoEdge = false;
+
+void warnNoLiveEdge() {
+  if (_warnedNoEdge || !kDebugMode) return;
+  _warnedNoEdge = true;
+  debugPrint('[restage] live refresh has no update channel: the server '
+      'advertised no live edge. Pass liveRefreshEdgeUrl or updateChannel.');
 }
 
 Uri _webSocketUri(Uri edgeUrl, String token) {
