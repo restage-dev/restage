@@ -46,7 +46,7 @@ void main() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  test('tools/list exposes list + revoke and NO mint tool', () async {
+  test('tools/list exposes list, mint and revoke', () async {
     final connection = await connectServer(
       store: store,
       httpClient: MockClient((_) async => http.Response('[]', 200)),
@@ -58,8 +58,7 @@ void main() {
 
     expect(tools, contains('restage_list_api_keys'));
     expect(tools, contains('restage_revoke_api_key'));
-    // Minting returns a one-time plaintext secret — excluded by design.
-    expect(tools, isNot(contains('restage_mint_api_key')));
+    expect(tools, contains('restage_mint_api_key'));
 
     expect(
       tools['restage_list_api_keys']!.inputSchema.properties!.keys,
@@ -130,6 +129,62 @@ void main() {
     // The redacted view never carries the hash or plaintext.
     expect(view.containsKey('keyHash'), isFalse);
     expect(view.containsKey('plaintext'), isFalse);
+  });
+
+  test('mint_api_key mints a public key and returns it in full', () async {
+    final rec = _recorder(
+      jsonEncode({
+        'view': {
+          'id': 5,
+          'kind': 'public',
+          'keyPrefix': 'rs_pk_ab',
+          'environmentSlug': 'production',
+          'runtimePlane': 'sandbox',
+        },
+        'plaintext': 'rs_pk_sandbox_production_0123456789abcdef',
+      }),
+    );
+    final connection = await connectServer(
+      store: store,
+      httpClient: rec.client,
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_mint_api_key',
+        arguments: {
+          'projectSlug': 'acme',
+          'appSlug': 'ios',
+          'environmentSlug': 'production',
+          'environmentTargetId': 42,
+          'runtimePlane': 'sandbox',
+          'public': true,
+        },
+      ),
+    );
+
+    expect(result.isError, isNot(true));
+    expect(rec.calls.single.body['method'], 'mintKey');
+    expect(rec.calls.single.body['kind'], 'public');
+    expect(rec.calls.single.body['environmentTargetId'], 42);
+    expect(
+      result.structuredContent!['key'],
+      'rs_pk_sandbox_production_0123456789abcdef',
+    );
+
+    final refused = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_mint_api_key',
+        arguments: {
+          'projectSlug': 'acme',
+          'appSlug': 'ios',
+          'environmentSlug': 'production',
+          'public': false,
+        },
+      ),
+    );
+    expect(refused.isError, isTrue);
+    expect(rec.calls, hasLength(1));
   });
 
   test('revoke_api_key hits apiKey.revokeKey and confirms', () async {

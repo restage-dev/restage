@@ -561,45 +561,6 @@ void main() {
         expect(shown, contains('re-checks against its own bundled copy'));
       },
     );
-
-    test(
-      '(k) a backend SurfaceRollbackUnsupportedException (an undecodable/corrupt '
-      'target) prints the data-integrity message and exits 1',
-      () async {
-        final unsupportedBody = jsonEncode({
-          'className': 'SurfaceRollbackUnsupportedException',
-          'data': {
-            '__className__': 'SurfaceRollbackUnsupportedException',
-            'surfaceSlug': 'pro',
-          },
-        });
-        final client = scriptedHttpClient([
-          (_) => statusResponse(),
-          // The preflight classifies the target, but the backend fails closed on
-          // an undecodable/corrupt target version (the data-integrity guard) —
-          // the error renderer must use the corrupt-target wording, not the
-          // retired flow-shaped-paywall "isn't supported yet" message.
-          (_) => preflightResponse(),
-          (_) => http.Response(unsupportedBody, 400),
-        ]);
-
-        final err = StringBuffer();
-        final code = await makeRunner(
-          stdout: StringBuffer(),
-          stderr: err,
-          httpClient: client,
-        ).run(baseArgs());
-
-        expect(code, 1);
-        expect(err.toString(), contains('corrupt'));
-        expect(err.toString(), isNot(contains('flow-shaped')));
-        expect(err.toString(), isNot(contains('active-flow delivery')));
-        // The same wire refusal also comes from an older server that predates
-        // flow-surface rollback — the message must not present corruption as
-        // the only possible cause.
-        expect(err.toString(), contains('older server'));
-      },
-    );
   });
 
   group('preflight observability', () {

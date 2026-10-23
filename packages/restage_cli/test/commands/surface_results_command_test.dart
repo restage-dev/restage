@@ -326,6 +326,23 @@ void main() {
       expect(out, contains('drop-off 0.163265306 (800/4900)'));
     });
 
+    test('says why a reading has no versions', () {
+      final empty = SurfaceFunnelViewV1.of(
+        target: _target,
+        surfaceId: 'first_run',
+        windowStartMicros: 1788000000000000,
+        windowEndExclusiveMicros: 1788600000000000,
+        asOfMicros: 1788600000000001,
+        disclosureFloor: 5,
+        versions: const [],
+      );
+
+      expect(
+        renderSurfaceFunnel(empty),
+        contains('No version of this surface was served in this window.'),
+      );
+    });
+
     test('names the surface type when the service resolved one', () async {
       final result = await run(
         [_surfaceId],

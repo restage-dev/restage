@@ -84,14 +84,14 @@ class SurfaceResultsCommand extends Command<int> {
       'published version.';
 
   @override
-  String get invocation => 'restage surface results <surface-id>';
+  String get invocation => 'restage surface results <surface>';
 
   @override
   Future<int> run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.length != 1) {
       _io.stderr.writeln(
-        'Name exactly one surface identity, as discovery reports it.',
+        'Name exactly one surface, by slug or measurement id.',
       );
       return 1;
     }
@@ -183,6 +183,9 @@ String renderSurfaceFunnel(SurfaceFunnelViewV1 view) {
     '  read ${_utcDay(view.windowStartMicros)} through '
         '${_utcDay(view.windowEndExclusiveMicros - 1)} UTC',
   ];
+  if (view.versions.isEmpty) {
+    lines.add('  No version of this surface was served in this window.');
+  }
   for (final version in view.versions) {
     lines.add(
       '  v${version.revisionOrdinal} ${version.surfaceRevisionId} '

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/authed.dart';
@@ -114,7 +113,6 @@ class SurfaceRollbackCommand extends Command<int>
       stderr: _io.stderr,
     );
     if (identity == null) return 1;
-    final surfaceType = identity.surface;
 
     // Step 3: parse --to-version (required int).
     final toVersionRaw = argResults!['to-version'] as String?;
@@ -153,25 +151,14 @@ class SurfaceRollbackCommand extends Command<int>
       _io,
       argResults,
       OperationScope.target,
-      (ctx) async {
-        try {
-          return await _rollBack(
-            SurfaceApi(ctx.api),
-            ctx.target!,
-            identity,
-            toVersion: toVersion,
-            preview: preview,
-            reason: reason,
-          );
-        } on RestageApiException catch (e) {
-          if (decodeSurfaceTypedException(e.body)
-              is! SurfaceRollbackUnsupported) {
-            rethrow;
-          }
-          _io.stderr.writeln(_undecodableTargetMessage(surfaceType));
-          return 1;
-        }
-      },
+      (ctx) => _rollBack(
+        SurfaceApi(ctx.api),
+        ctx.target!,
+        identity,
+        toVersion: toVersion,
+        preview: preview,
+        reason: reason,
+      ),
       command: this,
       fitQuestion: 'Roll back anyway?',
     );
@@ -323,19 +310,6 @@ class SurfaceRollbackCommand extends Command<int>
     );
     return 0;
   }
-
-  /// The server-side refusal rendered for the backend
-  /// [SurfaceRollbackUnsupported] rejection. Usually the data-integrity
-  /// guard — the target version's stored payload can't be decoded (corrupt),
-  /// so re-pointing to it would reach no clients — but an older server that
-  /// predates flow-surface rollback refuses with the same wire error, so the
-  /// message must not present corruption as the only possible cause.
-  String _undecodableTargetMessage(SurfaceType surfaceType) =>
-      "The server refused to roll ${surfaceType.wireName} back to that "
-      "version. Usually the version's stored payload can't be decoded "
-      '(corrupt), so re-pointing to it would reach no clients — but an '
-      'older server that predates flow-surface rollback refuses the same '
-      'way. Roll back to a different version, or upgrade the server.';
 
   /// A one-line cohort-impact note for the confirm prompt. Total by
   /// construction — every classification, including one this CLI does not

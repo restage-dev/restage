@@ -22,7 +22,9 @@ void renderOverviewPage(StringSink out, Map<String, Object?> document) {
     );
   final names = <Object?, Object?>{
     for (final row in figureList(document, ['roster', 'rows']))
-      figureAt(row, ['id']): figureAt(row, ['label']),
+      if (figureAt(row, ['surfaceId']) != null)
+        figureAt(row, ['surfaceId']):
+            figureAt(row, ['surfaceSlug']) ?? figureAt(row, ['label']),
   };
   for (final row in figureList(document, ['rows'])) {
     final id = figureAt(row, ['surfaceId']);

@@ -24,7 +24,7 @@ final readSurfaceFunnelTool = Tool(
     properties: {
       ...exactTargetProperties(),
       'surfaceId': Schema.string(
-        description: 'The surface identity, as discovery reports it.',
+        description: 'The surface slug or measurement id.',
       ),
       'windowStartMicros': Schema.int(
         description:

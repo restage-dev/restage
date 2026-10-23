@@ -84,8 +84,6 @@ String renderSurfaceException(SurfaceException e) => switch (e) {
   SurfacePublishConflict(:final surfaceSlug, :final environmentSlug) =>
     "Concurrent push conflict for '$surfaceSlug' in '$environmentSlug'. "
         'Retry the operation.',
-  SurfaceRollbackUnsupported(:final surfaceSlug) =>
-    "Rollback is not supported for '$surfaceSlug'.",
   SurfaceVersionNotFound(:final surfaceSlug, :final toVersion) =>
     "Version v$toVersion not found for '$surfaceSlug'.",
   SurfaceFamilyRefused(:final message) => message,
