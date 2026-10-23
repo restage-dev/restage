@@ -367,6 +367,42 @@ void main() {
     expect(code, 1);
   });
 
+  test('keys mint --public mints a public key and prints it plainly', () async {
+    var code = await run(
+      ['keys', 'mint', '--public'],
+      (_) => http.Response(
+        jsonEncode({
+          'view': {
+            'id': 13,
+            'kind': 'public',
+            'keyPrefix': 'rs_pk_sandbox_ab',
+            'environmentSlug': 'staging',
+            'runtimePlane': 'sandbox',
+          },
+          'plaintext': 'rs_pk_sandbox_staging_0123456789abcdef',
+        }),
+        200,
+      ),
+    );
+
+    expect(code, 0, reason: err.toString());
+    final mint = calls.singleWhere((call) => call['method'] == 'mintKey');
+    expect(mint['kind'], 'public');
+    expect(mint['environmentTargetId'], 12);
+    expect(mint['runtimePlane'], 'sandbox');
+    expect(
+      out.toString(),
+      'staging (sandbox) public key 13:\n'
+      'rs_pk_sandbox_staging_0123456789abcdef\n',
+    );
+
+    calls.clear();
+    code = await run(['keys', 'mint'], (_) => fail('no call'));
+    expect(code, 1);
+    expect(err.toString(), contains('Only public keys can be minted here'));
+    expect(calls.where((call) => call['method'] == 'mintKey'), isEmpty);
+  });
+
   test('keys resolve finds the target a key belongs to without sending '
       'it', () async {
     const key = 'rs_pk_sandbox_staging_6326f3aa99bb00cc';

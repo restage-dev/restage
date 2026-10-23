@@ -38,20 +38,25 @@ void renderPageReply(
   try {
     envelope = jsonDecode(raw);
   } on FormatException {
-    out.writeln(kFigureUnavailable);
+    out.writeln('$kFigureUnavailable: the reply could not be read.');
     return;
   }
   if (envelope is! Map<String, Object?>) {
-    out.writeln(kFigureUnavailable);
+    out.writeln('$kFigureUnavailable: the reply could not be read.');
     return;
   }
   if (envelope['kind'] == 'refused') {
-    out.writeln(kFigureUnavailable);
+    final detail = envelope['detail'];
+    out.writeln(
+      detail is String && detail.isNotEmpty
+          ? '$kFigureUnavailable: $detail'
+          : '$kFigureUnavailable: the service refused this read.',
+    );
     return;
   }
   final document = figureAt(envelope, ['projections', 0, 'document']);
   if (document is! Map<String, Object?>) {
-    out.writeln(kFigureUnavailable);
+    out.writeln('$kFigureUnavailable: there is nothing to show for this yet.');
     return;
   }
   render(out, document);

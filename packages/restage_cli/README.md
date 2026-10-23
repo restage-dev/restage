@@ -86,6 +86,7 @@ restage slots list
 restage slots set <name> --entitlement <e> --ios-product-id <id> --android-product-id none
 restage stores list
 restage keys list
+restage keys mint --public
 restage keys revoke <id>
 restage keys resolve <key>
 

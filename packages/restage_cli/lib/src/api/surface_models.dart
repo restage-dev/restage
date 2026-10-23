@@ -1460,19 +1460,6 @@ class SurfacePublishConflict extends SurfaceException {
       'environmentSlug: $environmentSlug)';
 }
 
-/// A server refused to re-point the requested surface family. Older servers
-/// may use this for a flow-shaped target; current family lifecycle support
-/// accepts flow and blob revisions.
-@experimental
-class SurfaceRollbackUnsupported extends SurfaceException {
-  /// Construct with the offending [surfaceSlug].
-  const SurfaceRollbackUnsupported({required this.surfaceSlug});
-  final String surfaceSlug;
-
-  @override
-  String toString() => 'SurfaceRollbackUnsupported(surfaceSlug: $surfaceSlug)';
-}
-
 /// The requested rollback target version does not exist for the surface.
 @experimental
 class SurfaceVersionNotFound extends SurfaceException {
@@ -1608,10 +1595,6 @@ SurfaceException? decodeSurfaceTypedException(String body) {
       return SurfacePublishConflict(
         surfaceSlug: data['surfaceSlug'] as String,
         environmentSlug: data['environmentSlug'] as String,
-      );
-    case 'SurfaceRollbackUnsupportedException':
-      return SurfaceRollbackUnsupported(
-        surfaceSlug: data['surfaceSlug'] as String,
       );
     case 'SurfaceVersionNotFoundException':
       // Defensive: if the expected fields are absent or wrong-typed, fall

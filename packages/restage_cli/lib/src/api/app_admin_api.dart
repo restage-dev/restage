@@ -8,7 +8,8 @@ typedef AdminRow = Map<String, Object?>;
 /// App administration over the backend RPC: store products, product slots,
 /// store connections, app platform configuration, and API keys.
 ///
-/// Rows come back verbatim. None of these routes returns secret material.
+/// Rows come back verbatim. The one route that returns key material mints a
+/// public key, which ships inside apps.
 @experimental
 class AppAdminApi {
   /// Build a client backed by [_api].
@@ -157,6 +158,25 @@ class AppAdminApi {
     'projectSlug': project,
     'appSlug': app,
     'environmentSlug': environment,
+    'environmentTargetId': ?environmentTargetId,
+    'runtimePlane': ?runtimePlane?.wireName,
+    'organizationId': ?organizationId,
+  });
+
+  /// Mint a public key at one environment target. Public keys ship inside
+  /// apps, so the plaintext is safe to show; secret keys are dashboard-only.
+  Future<AdminRow> mintPublicKey({
+    required String project,
+    required String app,
+    required String environment,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
+    int? organizationId,
+  }) => _row('apiKey', 'mintKey', {
+    'projectSlug': project,
+    'appSlug': app,
+    'environmentSlug': environment,
+    'kind': 'public',
     'environmentTargetId': ?environmentTargetId,
     'runtimePlane': ?runtimePlane?.wireName,
     'organizationId': ?organizationId,

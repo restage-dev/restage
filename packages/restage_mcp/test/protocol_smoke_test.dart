@@ -161,8 +161,9 @@ void main() {
           // App configuration
           'restage_get_app_config',
           'restage_update_app_config',
-          // API keys (list + revoke only)
+          // API keys
           'restage_list_api_keys',
+          'restage_mint_api_key',
           'restage_revoke_api_key',
           // Routing
           'restage_list_routing_audiences',
@@ -175,8 +176,6 @@ void main() {
         ]),
         reason: 'the full launch tool surface is advertised',
       );
-      // Minting issues a one-time plaintext secret — excluded by design.
-      expect(toolNames, isNot(contains('restage_mint_api_key')));
 
       final result = await server.connection.callTool(
         CallToolRequest(

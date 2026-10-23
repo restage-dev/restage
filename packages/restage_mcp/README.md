@@ -297,11 +297,12 @@ command that fixes it.
 | Tool | What it does |
 | --- | --- |
 | `restage_list_api_keys` | List an environment's API keys (redacted: no hash or plaintext). |
+| `restage_mint_api_key` | Mint a public key for an environment and plane (admin). The key is returned in full. |
 | `restage_revoke_api_key` | Revoke a key by id (admin). |
 | `restage_resolve_api_key` | Find the organization, project, app, environment, and plane a key belongs to. The key is matched locally against key prefixes and never sent. |
 
-> Neither this server nor the CLI creates API keys, because a new key's secret
-> is shown only once. Create keys in the dashboard.
+> This server and the CLI mint public keys only, which ship inside your app.
+> Secret keys are shown once, so create them in the dashboard.
 
 **Audit**
 

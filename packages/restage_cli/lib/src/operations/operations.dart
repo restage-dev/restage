@@ -672,8 +672,9 @@ final List<Operation> sharedOperations = [
     mcpDescription:
         'List the active API keys for an app environment. Returns redacted '
         'views only — id, kind, a short key prefix, and lifecycle '
-        'timestamps. The key hash and plaintext are never returned. Keys are '
-        'created in the dashboard.',
+        'timestamps. The key hash and plaintext are never returned. Public '
+        'keys are minted with restage_mint_api_key; secret keys in the '
+        'dashboard.',
     scope: OperationScope.target,
     resultKey: 'apiKeys',
     columns: const [
@@ -691,6 +692,60 @@ final List<Operation> sharedOperations = [
       runtimePlane: target.runtimePlane,
       organizationId: target.organizationId,
     ),
+  ),
+  Operation(
+    cliPath: 'keys mint',
+    mcpName: 'restage_mint_api_key',
+    description:
+        'Mint a public key for an environment (admin). Public keys ship '
+        'inside your app; secret keys are created in the dashboard.',
+    mcpDescription:
+        'Mint a public API key for an app environment and plane. Requires an '
+        'admin role. Public keys ship inside applications, so the key is '
+        'returned in full and can be listed again by prefix. Secret keys '
+        'are created in the dashboard and cannot be minted here.',
+    scope: OperationScope.target,
+    params: const [
+      OperationParam(
+        'public',
+        cli: 'public',
+        type: ParamType.boolean,
+        required: true,
+        help: 'Mint a public key. Secret keys are created in the dashboard.',
+        mcpHelp: 'Must be true. Secret keys are created in the dashboard.',
+      ),
+    ],
+    validate: (args, name) => args.optBool('public') == true
+        ? null
+        : 'Only public keys can be minted here. Pass ${name('public')}; '
+              'secret keys are created in the dashboard.',
+    render: (out, value, _, _) {
+      final row = value! as Map<String, Object?>;
+      out.writeln(
+        '${row['environmentSlug']} (${row['runtimePlane']}) public key '
+        '${row['id']}:',
+      );
+      out.writeln(row['key']);
+    },
+    call: (target, _) async {
+      final result = await AppAdminApi(target.api).mintPublicKey(
+        project: target.project!,
+        app: target.app!,
+        environment: target.environment!,
+        environmentTargetId: target.environmentTargetId,
+        runtimePlane: target.runtimePlane,
+        organizationId: target.organizationId,
+      );
+      final view = (result['view']! as Map).cast<String, Object?>();
+      return <String, Object?>{
+        'id': view['id'],
+        'kind': view['kind'],
+        'environmentSlug': view['environmentSlug'],
+        'runtimePlane': view['runtimePlane'],
+        'keyPrefix': view['keyPrefix'],
+        'key': result['plaintext'],
+      };
+    },
   ),
   Operation(
     cliPath: 'keys revoke',

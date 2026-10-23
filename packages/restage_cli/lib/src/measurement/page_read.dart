@@ -223,7 +223,7 @@ const _surface = PageParam(
   cli: 'surface',
   kind: PageParamKind.string,
   required: true,
-  help: 'The surface identity, as discovery reports it.',
+  help: 'The surface slug or measurement id.',
 );
 
 /// The dimensions Explore can split by.

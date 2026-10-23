@@ -298,19 +298,6 @@ void main() {
       expect(conflict.environmentSlug, 'dev');
     });
 
-    test('decodes SurfaceRollbackUnsupportedException', () {
-      final body = jsonEncode({
-        'className': 'SurfaceRollbackUnsupportedException',
-        'data': {
-          '__className__': 'SurfaceRollbackUnsupportedException',
-          'surfaceSlug': 'welcome',
-        },
-      });
-      final decoded = decodeSurfaceTypedException(body);
-      expect(decoded, isA<SurfaceRollbackUnsupported>());
-      expect((decoded! as SurfaceRollbackUnsupported).surfaceSlug, 'welcome');
-    });
-
     test('decodes SurfaceVersionNotFoundException', () {
       // Wire key is 'version', not 'toVersion' — mirrors the real backend body.
       final body = jsonEncode({
@@ -488,11 +475,6 @@ void main() {
       );
       expect(e.toString(), contains('first_run'));
       expect(e.toString(), contains('dev'));
-    });
-
-    test('SurfaceRollbackUnsupported surfaces the slug', () {
-      const e = SurfaceRollbackUnsupported(surfaceSlug: 'welcome');
-      expect(e.toString(), contains('welcome'));
     });
 
     test('SurfaceVersionNotFound surfaces slug + version', () {

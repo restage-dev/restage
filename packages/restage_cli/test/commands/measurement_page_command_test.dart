@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/api.dart';
+import 'package:restage_cli/src/api/byte_data_wire.dart';
 import 'package:restage_cli/src/commands/experiment_command.dart';
 import 'package:restage_cli/src/commands/measurement_page_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -116,6 +117,103 @@ void main() {
   test('the nine reads are defined once, each with its own tool', () {
     expect(pageReads.map((read) => read.cliPath), _needs.keys);
     expect(pageReads.map((read) => read.mcpName).toSet(), hasLength(9));
+  });
+
+  group('a surface named by slug', () {
+    Map<String, Object?> page({
+      String? next,
+      required String slug,
+      required String id,
+    }) => {
+      'state': 'served',
+      'rows': [
+        {'id': 'roster-$id', 'surfaceId': id, 'surfaceSlug': slug},
+      ],
+      'nextCursor': next,
+    };
+
+    Future<({int code, String out, String err})> runSlug(
+      String slug,
+      List<Map<String, Object?>> pages,
+    ) async {
+      final out = StringBuffer();
+      final err = StringBuffer();
+      final runner = CommandRunner<int>('restage', '')
+        ..addCommand(
+          MeasurementPageCommand(
+            readOf('analytics surface'),
+            stdout: out,
+            stderr: err,
+            interactive: const NonInteractive(),
+            credentialStore: store,
+            httpClient: mockHttpClient((request) {
+              final body = jsonDecode(request.body) as Map<String, dynamic>;
+              sent.add(body);
+              final reply = body['method'] == 'readSurfacePage'
+                  ? encodeByteDataWire(
+                      utf8.encode(
+                        jsonEncode(
+                          pages[sent
+                                  .where(
+                                    (b) => b['method'] == 'readSurfacePage',
+                                  )
+                                  .length -
+                              1],
+                        ),
+                      ),
+                    )
+                  : _served({'kind': 'page'});
+              return http.Response(jsonEncode(reply), 200);
+            }),
+            now: () => _now,
+          ),
+        );
+      final code = await runner.run([
+        'surface',
+        '--surface=$slug',
+        '--project',
+        'p',
+        '--app',
+        'mobile',
+        '--env',
+        'production',
+      ]);
+      return (code: code ?? 1, out: out.toString(), err: err.toString());
+    }
+
+    test('resolves to its measurement id before the read', () async {
+      final result = await runSlug('first_run', [
+        page(slug: 'first_run', id: 'surface.v1.abc'),
+      ]);
+
+      expect(result.code, 0, reason: result.err);
+      expect(sent, hasLength(2));
+      expect(sent.first['method'], 'readSurfacePage');
+      expect(sent.last['method'], readOf('analytics surface').method);
+      expect(sent.last['surfaceId'], 'surface.v1.abc');
+    });
+
+    test('keeps reading pages until the slug is found', () async {
+      final result = await runSlug('first_run', [
+        page(slug: 'first_run_b', id: 'surface.v1.b', next: 'c1'),
+        page(slug: 'first_run', id: 'surface.v1.abc'),
+      ]);
+
+      expect(result.code, 0, reason: result.err);
+      final reads = sent.where((b) => b['method'] == 'readSurfacePage');
+      expect(reads, hasLength(2));
+      expect(sent.last['surfaceId'], 'surface.v1.abc');
+    });
+
+    test('is refused when no surface has the slug', () async {
+      final result = await runSlug('missing', [
+        page(slug: 'other', id: 'surface.v1.o'),
+      ]);
+
+      expect(result.code, 1);
+      expect(result.err, contains('No surface named missing'));
+      expect(sent, hasLength(1));
+    });
   });
 
   group('the delivery map', () {
@@ -514,7 +612,12 @@ void main() {
             'roster': {
               'totalMatches': 4,
               'rows': [
-                {'id': 's1', 'label': 'Pro paywall'},
+                {
+                  'id': 'roster-1',
+                  'surfaceId': 's1',
+                  'surfaceSlug': 'pro_paywall',
+                  'label': 'Pro paywall',
+                },
               ],
             },
             'rows': [
@@ -535,13 +638,13 @@ void main() {
         expect(result.out, contains('App sessions: 0'));
         expect(result.out, contains('Surfaces: 4'));
         expect(result.out, contains('Needs a look: Not available'));
-        expect(result.out, contains('Pro paywall  1,200 views'));
+        expect(result.out, contains('pro_paywall  1,200 views'));
         expect(result.out, contains('s2  Not available'));
         expect(result.out, isNot(contains('rootPresentations')));
       },
     );
 
-    test('says only Not available for a refused read', () async {
+    test('gives the reason for a refused read', () async {
       final reply = jsonEncode({
         'kind': 'refused',
         'reason': 'notServed',
@@ -556,7 +659,7 @@ void main() {
       );
 
       expect(result.code, 0);
-      expect(result.out.trim(), 'Not available');
+      expect(result.out.trim(), 'Not available: Nothing yet.');
     });
 
     test('labels the experiment list with lifecycle words', () async {

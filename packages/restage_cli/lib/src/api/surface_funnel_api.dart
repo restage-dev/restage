@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/byte_data_wire.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/surface_slug.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 /// Largest canonical funnel reading this tool accepts from the route.
@@ -35,6 +36,15 @@ class SurfaceFunnelApi {
     required TargetCoordinate target,
     required SurfaceFunnelSelectionV1 selection,
   }) async {
+    final surfaceId = await resolveSurfaceId(_api, target, selection.surfaceId);
+    if (surfaceId != selection.surfaceId) {
+      selection = SurfaceFunnelSelectionV1(
+        surfaceId: surfaceId,
+        windowStartMicros: selection.windowStartMicros,
+        windowEndExclusiveMicros: selection.windowEndExclusiveMicros,
+        surfaceRevisionIds: selection.surfaceRevisionIds,
+      );
+    }
     final raw = await _api.call(_endpointName, 'readSurfaceFunnel', {
       'organizationId': target.organizationId.value,
       'appId': target.appId.value,
