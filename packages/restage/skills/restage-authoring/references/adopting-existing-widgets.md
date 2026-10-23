@@ -2,8 +2,27 @@
 
 Start with the Flutter UI the app already has. Keep its layout, theme, data and
 supported local state; add the delivery boundary where OTA changes are useful.
-Often the source change is an import, a generated part and an annotation, followed
-by mounting the generated widget. Adapt unsupported behavior only where needed.
+Annotate the original widget and build it before writing anything new. Constants from
+any file fold into the surface, and design-system lookups and app state are evaluated
+in the app (see Design-system tokens and app state below). Never write a parallel copy
+of a screen to make it compile. If one part won't compile, register or adapt that
+part, or pass the value in as a constructor input.
+
+## Adopt by building
+
+Let the compiler say what needs to change:
+
+1. Annotate the existing widget without rewriting it.
+2. Run `dart run build_runner build`.
+3. Fix only what each diagnostic names, with the smallest change that clears it.
+   Build again after each round.
+4. Treat warnings as work. Each names a value or widget that will be dropped,
+   or that only an app release can change.
+5. Rewrite a part only when the compiler still refuses it after a minimal
+   change. Register it as a custom widget or pass the value in as a constructor
+   input before restructuring the screen.
+6. When the build is clean, mount the generated widget and check it once on a
+   device, in light and dark when the app supports both.
 
 ## Choose what Restage owns
 
@@ -182,3 +201,13 @@ See [surface-design.md](surface-design.md) to inspect what actually compiled.
 4. Review the emitted composition and any `customWidgetAppFactoryUsed`
    diagnostics. Confirm that the parts intended for OTA updates are represented
    in RFW and that the installed app supports their contract.
+
+## Design-system tokens and app state
+
+Keep the app's token reads as written. `VColors.of(context).ink`, theme extensions,
+Provider, Riverpod and GetX lookups, and `static final` tokens are evaluated in the
+generated mount and passed to the surface; the build lists them under "Evaluated in
+the app". Constants from any file fold into the surface. A published update can choose
+which tokens go where but can't redefine a token the app computes. Bloc or other state
+builders stay in the host: read the state there and pass the values as constructor
+inputs.

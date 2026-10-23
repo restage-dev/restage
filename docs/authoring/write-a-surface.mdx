@@ -55,8 +55,13 @@ replace the app's mount:
 The generated mount passes supported constructor values as
 [host data](/authoring/host-data) and uses your original widget as its fallback.
 Leave `bundled_runtime` off; the fallback needs no surface assets or publication.
-Fix any build diagnostics before mounting: fallback does not make unsupported
-source compilable.
+
+Let the build tell you what to change. Annotate the widget as it is, build, and fix
+only what each diagnostic names, with the smallest change that clears it. Treat
+warnings as work: each names a value or widget that will be dropped or that only an
+app release can change. Rewrite a part only when the compiler still refuses it after
+a minimal change, and don't write a parallel copy of the screen. Fix every
+diagnostic before mounting: fallback does not make unsupported source compilable.
 
 Keep app work in its existing owner and connect it through surface events. Keep
 supported [local state](/authoring/interactive-surfaces) in the widget. Put only

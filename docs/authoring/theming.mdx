@@ -106,5 +106,27 @@ return Container(color: isDark ? Colors.black : Colors.white);
 Only `==` and `!=` against a `Brightness` value work. Any other use of brightness stops
 the build with an error.
 
+## Your design system's tokens
+
+Values your app looks up while it runs, such as `VColors.of(context).ink`, a theme
+extension, or a Provider, Riverpod or GetX value, are evaluated in your app and passed
+to the surface. Write them as you already do:
+
+```dart
+Text('Welcome', style: TextStyle(color: VColors.of(context).ink))
+```
+
+The build lists each one under "Evaluated in the app". The value comes from your app,
+so a published update can move it, restyle around it or use a different token, but it
+can't change what `ink` is. That ships with your app. A version that reads a value your
+installed app doesn't compute is refused by that app, which keeps the version built
+into it, and the push report says the change needs an app release.
+
+Colors, numbers, strings, text styles, enums, and lists or maps of them can be passed
+this way. A lookup that returns a widget needs that widget registered as a
+[custom widget](/authoring/custom-widgets). A value that depends on something only the
+surface knows, such as an item of a list the surface builds or an event's argument,
+has to be passed in as a constructor input.
+
 The rest of the source rules are in [Authoring constraints](/authoring/constraints).
 [Custom widgets](/authoring/custom-widgets) covers your own components.
