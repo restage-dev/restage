@@ -112,7 +112,7 @@ recheck when the app returns to the foreground, or
 | --- | --- | --- |
 | `liveRefresh` | Empty set | App-wide ambient triggers. |
 | `liveRefreshOverrides` | Empty map | Per-surface trigger sets, keyed by surface slug. An empty set disables ambient refresh for that surface. |
-| `liveRefreshEdgeUrl` | Unset | Creates the hosted update channel when hosted delivery is configured. Use the refresh endpoint supplied for the deployment. |
+| `liveRefreshEdgeUrl` | Unset | Overrides the update channel address your Restage server names. Most apps leave it unset. |
 | `updateChannel` | Unset | Supplies an app-owned `SurfaceUpdateChannel`, for example from an existing push service. Takes precedence over `liveRefreshEdgeUrl`. |
 
 A widget-level override wins over the per-surface override, which wins over the

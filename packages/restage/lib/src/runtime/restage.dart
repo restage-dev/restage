@@ -305,7 +305,8 @@ abstract final class Restage {
   /// renders.
   /// A direct mount with neither can keep waiting for the response.
   ///
-  /// [liveRefreshEdgeUrl] enables hosted refresh with [baseUrl]. An explicit
+  /// Hosted refresh with [baseUrl] connects to the live edge the server
+  /// advertises; [liveRefreshEdgeUrl] overrides it. An explicit
   /// [updateChannel] takes precedence. Surfaces remain mounted if refresh is
   /// unavailable. [identity] is an experimental hook with no runtime effect:
   /// its callback is not invoked or attached to requests or analytics. [locale]
@@ -529,9 +530,14 @@ abstract final class Restage {
         entry.key: Set<SurfaceRefreshTrigger>.unmodifiable(entry.value),
     });
     _updateChannel = updateChannel;
-    if (_updateChannel == null &&
-        liveRefreshEdgeUrl != null &&
-        baseUrl != null) {
+    final wantsUpdateChannel = liveRefreshEdgeUrl != null ||
+        _liveRefresh.contains(SurfaceRefreshTrigger.updateChannel) ||
+        _liveRefreshOverrides.values
+            .any((set) => set.contains(SurfaceRefreshTrigger.updateChannel));
+    if (_updateChannel == null && wantsUpdateChannel && baseUrl == null) {
+      warnNoLiveEdge();
+    }
+    if (_updateChannel == null && wantsUpdateChannel && baseUrl != null) {
       try {
         final client = _requireRpcClient();
         if (client != null) {

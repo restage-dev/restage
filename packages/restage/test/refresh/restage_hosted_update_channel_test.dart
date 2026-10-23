@@ -21,10 +21,15 @@ PublicPlacementDeliveryV1 _delivery() =>
             as PlacementBatchAvailableV1)
         .publicDelivery;
 
-PlacementDeliveryWatchV1 _watch({String digest = 'a', String tag = 'first'}) {
+PlacementDeliveryWatchV1 _watch({
+  String digest = 'a',
+  String tag = 'first',
+  String? edgeOrigin,
+}) {
   final mac = base64UrlEncode(List.filled(32, 1)).replaceAll('=', '');
   return PlacementDeliveryWatchV1(
     decisionIdentityDigest: CanonicalDigest(digest * 64),
+    edgeOrigin: edgeOrigin,
     channels: [
       for (final (index, scope) in _delivery().dependencyClosure.indexed)
         PlacementDeliveryWatchChannelV1(
@@ -142,6 +147,40 @@ void main() {
         root: child.root, family: const DeliveryFamilySelectorV1.general());
     expect(await channel.watchDelivery(otherFamily, watch: watch).first,
         otherFamily);
+    expect(server.connectionCount, 0);
+  });
+
+  test('a watch connects to the origin the server advertised', () async {
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),
+    );
+    final watch = _watch(edgeOrigin: server.httpUrl.origin);
+    final scope = watch.channels.last.scope;
+    final updates = StreamIterator(channel.watchDelivery(scope,
+        watch: watch,
+        reconnectProbe: () async => throw StateError('no probe')));
+    addTearDown(updates.cancel);
+    final update = updates.moveNext();
+    final socket = await server.socketAt(0);
+    socket.add(jsonEncode({'type': 'surface_update'}));
+    expect(await update, isTrue);
+    expect(server.requests.single.uri.queryParameters['channel'],
+        _token(watch, scope));
+  });
+
+  test('a watch with no advertised origin and no override never connects',
+      () async {
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),
+    );
+    final watch = _watch();
+    final scope = watch.channels.last.scope;
+    final updates = StreamIterator(channel.watchDelivery(scope,
+        watch: watch,
+        reconnectProbe: () async => throw StateError('no probe')));
+    addTearDown(updates.cancel);
+    unawaited(updates.moveNext());
+    await Future<void>.delayed(const Duration(milliseconds: 200));
     expect(server.connectionCount, 0);
   });
 

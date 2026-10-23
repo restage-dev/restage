@@ -2262,6 +2262,26 @@ void _batchContractTests() {
         PlacementDeliveryWatchV1.fromCanonicalBytes(bytes),
         watch,
       );
+      final advertised = PlacementDeliveryWatchV1(
+        decisionIdentityDigest: watch.decisionIdentityDigest,
+        channels: watch.channels,
+        edgeOrigin: 'https://live.example.com',
+      );
+      expect(
+        PlacementDeliveryWatchV1.fromCanonicalBytes(advertised.canonicalBytes)
+            .edgeOrigin,
+        'https://live.example.com',
+      );
+      for (final bad in ['ftp://live.example.com', 'live.example.com/x']) {
+        expect(
+          () => PlacementDeliveryWatchV1(
+            decisionIdentityDigest: watch.decisionIdentityDigest,
+            channels: watch.channels,
+            edgeOrigin: bad,
+          ),
+          throwsA(_refusal),
+        );
+      }
       expect(
         PlacementDeliveryWatchChannelV1.fromCanonicalBytes(
           watch.channels.first.canonicalBytes,

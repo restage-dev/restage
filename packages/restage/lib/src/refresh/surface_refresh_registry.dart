@@ -429,7 +429,8 @@ PlacementDeliveryWatchV1? _snapshotWatch(
   }
   return PlacementDeliveryWatchV1(
       decisionIdentityDigest: watch.decisionIdentityDigest,
-      channels: watch.channels);
+      channels: watch.channels,
+      edgeOrigin: watch.edgeOrigin);
 }
 
 final class _ChannelSubscriptions {

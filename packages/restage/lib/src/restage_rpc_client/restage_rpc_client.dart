@@ -149,6 +149,7 @@ final class SurfaceStamp extends SurfaceStampFetchResult {
   const SurfaceStamp({
     required this.version,
     this.watchChannel,
+    this.edgeOrigin,
     this.requiresResolution = false,
   });
 
@@ -157,6 +158,9 @@ final class SurfaceStamp extends SurfaceStampFetchResult {
 
   /// An opaque realtime-channel token, when one is available.
   final String? watchChannel;
+
+  /// The origin the realtime channel connects to, when the server has one.
+  final String? edgeOrigin;
 
   /// Whether the service wants a fresh decision even at the same version.
   final bool requiresResolution;
@@ -1824,9 +1828,11 @@ class RestageRpcClient {
     // valid version stamp (a hard cast would throw and lose the whole stamp).
     final rawWatchChannel = json?['watchChannel'];
     final rawRequiresResolution = json?['requiresResolution'];
+    final rawEdgeOrigin = json?['edgeOrigin'];
     return SurfaceStamp(
       version: version,
       watchChannel: rawWatchChannel is String ? rawWatchChannel : null,
+      edgeOrigin: _validEdgeOrigin(rawEdgeOrigin),
       requiresResolution:
           rawRequiresResolution is bool && rawRequiresResolution,
     );
@@ -2569,4 +2575,14 @@ Future<SurfaceScreenDeliveryResult> replayStoredSurfaceScreen(
     publicationBindingReference: _storedBindingReference(stored),
     stored: stored,
   );
+}
+
+String? _validEdgeOrigin(Object? value) {
+  if (value is! String) return null;
+  try {
+    requireLiveEdgeOrigin(value);
+    return value;
+  } on CanonicalFormatException {
+    return null;
+  }
 }

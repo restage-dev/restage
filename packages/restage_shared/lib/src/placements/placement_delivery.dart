@@ -1971,7 +1971,9 @@ final class PlacementDeliveryWatchV1 extends _DeliveryValue {
   PlacementDeliveryWatchV1({
     required this.decisionIdentityDigest,
     required List<PlacementDeliveryWatchChannelV1> channels,
+    this.edgeOrigin,
   }) : channels = _freezeDeliveryWatchChannels(channels) {
+    requireLiveEdgeOrigin(edgeOrigin);
     _requireResponseJsonBudget(toJson());
   }
 
@@ -1981,6 +1983,7 @@ final class PlacementDeliveryWatchV1 extends _DeliveryValue {
       value,
       const {'decisionIdentityDigest', 'channels'},
       'deliveryWatch',
+      optional: const {'edgeOrigin'},
     );
     final result = _construct(
       () => PlacementDeliveryWatchV1(
@@ -1991,6 +1994,7 @@ final class PlacementDeliveryWatchV1 extends _DeliveryValue {
           for (final channel in reader.list('channels'))
             PlacementDeliveryWatchChannelV1.fromJson(channel),
         ],
+        edgeOrigin: reader.optionalString('edgeOrigin'),
       ),
     );
     if (!_sameJson(value, result.toJson())) {
@@ -2009,11 +2013,28 @@ final class PlacementDeliveryWatchV1 extends _DeliveryValue {
   /// Tokens associated with every scope in the delivery's dependency closure.
   final List<PlacementDeliveryWatchChannelV1> channels;
 
+  /// The origin the live channel connects to; absent when the
+  /// deployment has no live edge.
+  final String? edgeOrigin;
+
   @override
   Map<String, Object?> toJson() => {
         'decisionIdentityDigest': decisionIdentityDigest.hex,
         'channels': [for (final channel in channels) channel.toJson()],
+        if (edgeOrigin != null) 'edgeOrigin': edgeOrigin,
       };
+}
+
+/// Throws unless [origin] is null or a bare http(s) origin with no path.
+void requireLiveEdgeOrigin(String? origin) {
+  if (origin == null) return;
+  final uri = Uri.tryParse(origin);
+  if (uri == null ||
+      !(uri.scheme == 'https' || uri.scheme == 'http') ||
+      uri.host.isEmpty ||
+      uri.origin != origin) {
+    throw const CanonicalFormatException('Invalid live edge origin.');
+  }
 }
 
 /// An available exact delivery and all of its reachable whole payload frames.

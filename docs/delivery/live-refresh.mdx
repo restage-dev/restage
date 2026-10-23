@@ -24,7 +24,6 @@ Restage.configure(
     SurfaceRefreshTrigger.appResume,
     SurfaceRefreshTrigger.updateChannel,
   },
-  liveRefreshEdgeUrl: Uri.parse('https://updates.example.com'),
 );
 ```
 
@@ -32,8 +31,9 @@ Restage.configure(
 - `updateChannel` listens for an update signal while the surface is on screen and the
   app is in the foreground.
 
-`liveRefreshEdgeUrl` connects to the Restage Cloud update channel, so a surface on
-screen updates shortly after you publish. It needs `baseUrl` too. To use your own
+With `updateChannel` on, the SDK connects to the update channel your Restage server
+names, so a surface on screen updates shortly after you publish. It needs `baseUrl`
+too. To connect to a different address, pass `liveRefreshEdgeUrl`. To use your own
 signal instead, see [Bring your own update channel](#bring-your-own-update-channel).
 
 New triggers may be added in future releases. When your code branches on a trigger,
