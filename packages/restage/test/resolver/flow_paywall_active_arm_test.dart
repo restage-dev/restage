@@ -4,8 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/flow/bundled_flow_loader.dart';
 import 'package:restage/src/resolver/flow_paywall_active_arm.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
+import 'package:restage/src/runtime/library_runtime_registry.dart';
 import 'package:restage_shared/restage_shared.dart';
-import 'package:rfw/formats.dart';
+import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 const String _paywallId = 'pro';
 final int _installed = RestageBuiltInCatalogCapabilities.currentVersion;
@@ -251,6 +252,37 @@ void main() {
       expect(
         _reason(_resolve(active, okBundled())),
         'unsupported_required_library',
+      );
+    });
+
+    test('a library from older generated code keeps the bundled original', () {
+      addTearDown(LibraryRuntimeRegistry.clear);
+      const requirement = LibraryRequirement(
+        namespace: 'com.acme.widgets',
+        minVersion: 1,
+        minGenerated: 2,
+      );
+      final active = _active(
+        _flowDoc(reservedCommerceEventScreen),
+        reservedCommerceEventScreen,
+        requiredLibraries: const [requirement],
+      );
+      void register(int generatedVersion) => LibraryRuntimeRegistry.register(
+            WidgetLibrary.custom('com.acme.widgets'),
+            const [],
+            capabilityVersion: 1,
+            generatedVersion: generatedVersion,
+          );
+
+      register(1);
+      expect(
+        _reason(_resolve(active, okBundled())),
+        'unsupported_required_library',
+      );
+      register(2);
+      expect(
+        _resolve(active, okBundled()),
+        isA<FlowPaywallActiveAccepted>(),
       );
     });
 

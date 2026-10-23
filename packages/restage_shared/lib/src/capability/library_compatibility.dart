@@ -10,7 +10,8 @@ enum LibraryCompatibility {
   /// The library is not installed, or is installed without a version.
   missing,
 
-  /// The installed library is older than the required version.
+  /// The installed library, or the generated code its factories come from,
+  /// is older than required.
   tooOld,
 
   /// The installed library declared a breaking change after the required
@@ -36,6 +37,7 @@ enum LibraryCompatibility {
     if (required.minVersion < installed.effectiveCompatibleSince) {
       return contractBroken;
     }
+    if (installed.effectiveGenerated < required.minGenerated) return tooOld;
     return satisfied;
   }
 
@@ -53,8 +55,10 @@ enum LibraryCompatibility {
     final version = installed.version;
     if (version == null) return 'registered without a capability version';
     final since = installed.effectiveCompatibleSince;
+    final stamp = installed.generated;
+    final generated = stamp == null ? '' : ', generated code v$stamp';
     return since > 1
-        ? 'installed v$version, compatible since v$since'
-        : 'installed v$version';
+        ? 'installed v$version, compatible since v$since$generated'
+        : 'installed v$version$generated';
   }
 }

@@ -157,6 +157,66 @@ void main() {
     );
   });
 
+  test('a merged catalog with a dangling built-in reference refuses', () async {
+    await seedRenderCatalog(
+      encodeCatalog(
+        Catalog(
+          schemaVersion: kSupportedSchemaVersion,
+          generatedAt: '1970-01-01T00:00:00Z',
+          libraries: {
+            WidgetLibrary.core: const LibraryInfo(version: '1.0.0'),
+            _app: const LibraryInfo(version: '1.0.0'),
+          },
+          widgets: [
+            WidgetEntry(
+              wireId: WireId('w0001'),
+              name: 'AppLabel',
+              library: _app,
+              category: WidgetCategory.layout,
+              description: 'AppLabel fixture.',
+              flutterType: 'package:fixture/fixture.dart#AppLabel',
+              childrenSlot: ChildrenSlot.none,
+              properties: [
+                PropertyEntry(
+                  wireId: WireId('p0001'),
+                  name: 'style',
+                  type: PropertyType.structured,
+                  description: 'style',
+                  structuredRef: WireIdRef(
+                    library: WidgetLibrary.core.namespace,
+                    wireId: WireId('s0099'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          structuredTypes: [
+            StructuredEntry(
+              wireId: WireId('s0001'),
+              name: 'Shape',
+              library: WidgetLibrary.core,
+              description: 'Shape fixture.',
+              sourceType: 'package:flutter/painting.dart#Shape',
+              fields: [
+                StructuredField(
+                  wireId: WireId('p0002'),
+                  name: 'x',
+                  type: PropertyType.real,
+                  description: 'x',
+                ),
+              ],
+              variants: [ConstructorVariant(wireId: WireId('v0001'))],
+            ),
+          ],
+        ),
+      ),
+    );
+    await expectLater(
+      readGeneratedWidgetCatalog(projectRoot: root, generate: false),
+      throwsA(isA<CatalogSchemaException>()),
+    );
+  });
+
   test('skipping generation requires a produced catalog', () async {
     await expectLater(
       readGeneratedWidgetCatalog(projectRoot: root, generate: false),

@@ -47,16 +47,28 @@ class Probe {
       for (final target in WidgetVisitorTarget.values) {
         final result = await runWidgetVisitorOn(sources, target: target);
         expect(result.widgets.single.name, 'Probe', reason: target.name);
-        final failure = result.issues.singleWhere(
-          (issue) =>
-              issue.location == '$sourcePath#Probe.requiredNode' &&
-              issue.code == IssueCode.unsupportedPropertyType,
-        );
-        expect(failure.message, contains('Target: ${target.name}'));
+        // RFW leaves the widget out; the other targets fail the build.
+        if (target == WidgetVisitorTarget.rfw) {
+          final excluded = result.exclusions.singleWhere(
+            (candidate) => candidate.property == 'requiredNode',
+          );
+          expect(excluded.reason, contains('Target: rfw'));
+          expect(result.widgetUnrenderable.keys, contains(endsWith('#Probe')));
+        } else {
+          final failure = result.issues.singleWhere(
+            (issue) =>
+                issue.location == '$sourcePath#Probe.requiredNode' &&
+                issue.code == IssueCode.unsupportedPropertyType,
+          );
+          expect(failure.message, contains('Target: ${target.name}'));
+        }
         final exclusion = result.exclusions.singleWhere(
           (candidate) => candidate.property == 'optionalNode',
         );
-        expect(exclusion.location, '$sourcePath#Probe.optionalNode');
+        expect(
+          exclusion.location,
+          'package:apps_examples/host_plumbing.dart#Probe.optionalNode',
+        );
         expect(exclusion.target, target.name);
         expect(exclusion.reason, contains('Target: ${target.name}'));
       }
@@ -383,11 +395,20 @@ class Probe {
         final failures = result.issues.where(
           (issue) => issue.code == IssueCode.unsupportedPropertyType,
         );
-        expect(
-          failures.map((issue) => issue.location),
-          contains('$sourcePath#Probe.timestamp'),
-          reason: target.name,
-        );
+        if (target == WidgetVisitorTarget.rfw) {
+          expect(
+            result.exclusions.map((exclusion) => exclusion.location),
+            contains(
+              'package:apps_examples/capability_walls.dart#Probe.timestamp',
+            ),
+          );
+        } else {
+          expect(
+            failures.map((issue) => issue.location),
+            contains('$sourcePath#Probe.timestamp'),
+            reason: target.name,
+          );
+        }
         expect(
           failures.map((issue) => issue.message),
           everyElement(contains('Target: ${target.name}')),

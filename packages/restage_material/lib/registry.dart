@@ -3077,6 +3077,12 @@ final Catalog kRegistry = Catalog(
               'Each button\'s pressed state, by index, parallel to [children]. Reconciled to [children]\'s length when the two differ (pad-with-false / truncate), so a mismatched wire never trips the framework\'s length assert.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ListShape(
+              propertyType: PropertyType.booleanList,
+              itemShape: ScalarShape(
+                  propertyType: PropertyType.boolean,
+                  dartTypeRef: DartTypeRef(
+                      libraryUri: 'dart:core', symbolName: 'bool'))),
         ),
         PropertyEntry(
           wireId: WireId('p0407'),

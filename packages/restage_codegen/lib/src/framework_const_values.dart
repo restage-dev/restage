@@ -2,6 +2,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
+import 'package:restage_codegen/src/const_value_literal.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -97,8 +98,8 @@ enum FrameworkConstKind {
 /// null when [expr] is not such a reference.
 DartObject? frameworkStaticConst(Expression expr) {
   final element = switch (expr) {
-    PrefixedIdentifier(:final identifier) => identifier.element,
-    PropertyAccess(:final propertyName) => propertyName.element,
+    PrefixedIdentifier(:final identifier) => identifierElement(identifier),
+    PropertyAccess(:final propertyName) => identifierElement(propertyName),
     _ => null,
   };
   if (element is! PropertyAccessorElement) return null;

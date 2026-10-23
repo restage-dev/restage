@@ -102,6 +102,7 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
     Restage.registerWidgetLibrary(
       WidgetLibrary.custom('restage_widgetbook_example.widgets'),
       capabilityVersion: 3,
+      generatedVersion: 2,
       widgets: const <RestageWidgetFactory>[
         RestageWidgetFactory(
           name: 'BareCatalogCard',

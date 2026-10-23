@@ -7,8 +7,13 @@ final Catalog kUserCatalog = Catalog(
   schemaVersion: 5,
   generatedAt: '1970-01-01T00:00:00Z',
   libraries: {
-    WidgetLibrary.custom('restage_widgetbook_example.widgets'):
-        const LibraryInfo(version: '0.0.0', capabilityVersion: 3),
+    WidgetLibrary.custom(
+      'restage_widgetbook_example.widgets',
+    ): const LibraryInfo(
+      version: '0.0.0',
+      capabilityVersion: 3,
+      generatedVersion: 2,
+    ),
   },
   widgets: [
     WidgetEntry(
@@ -734,7 +739,7 @@ final Catalog kUserCatalog = Catalog(
       reason:
           'Unsupported property type FocusNode? on ConstructorFidelityCorpus.focusNode. Supported types: Widget, List<Widget>, Color, EdgeInsets(Geometry|Directional), Alignment(Geometry|Directional), FontWeight, bool, int, double, String, VoidCallback (and similar function types), any Dart enum, and List<scalar> (String, int, double, num, or bool). Target: rfw.',
       location:
-          'lib/widgets/constructor_fidelity_corpus.dart#ConstructorFidelityCorpus.focusNode',
+          'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart#ConstructorFidelityCorpus.focusNode',
     ),
   ],
 );

@@ -13,6 +13,7 @@ final class LibraryInfo {
     required this.version,
     this.capabilityVersion,
     this.compatibleSince = 1,
+    this.generatedVersion,
   });
 
   /// Semver of the library package this entry was generated from.
@@ -35,13 +36,23 @@ final class LibraryInfo {
   /// `@RestageLibrary(compatibleSince: …)`. `1` means no declared break.
   final int compatibleSince;
 
+  /// The version of the generated widget code the library's factories come
+  /// from, or `null` for 1. Stamped by the code generator on package catalogs.
+  final int? generatedVersion;
+
   @override
   bool operator ==(Object other) =>
       other is LibraryInfo &&
       other.version == version &&
       other.capabilityVersion == capabilityVersion &&
-      other.compatibleSince == compatibleSince;
+      other.compatibleSince == compatibleSince &&
+      other.generatedVersion == generatedVersion;
 
   @override
-  int get hashCode => Object.hash(version, capabilityVersion, compatibleSince);
+  int get hashCode => Object.hash(
+        version,
+        capabilityVersion,
+        compatibleSince,
+        generatedVersion,
+      );
 }

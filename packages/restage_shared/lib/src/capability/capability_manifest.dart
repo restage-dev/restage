@@ -10,21 +10,33 @@ import 'package:meta/meta.dart';
 final class LibraryRequirement {
   /// Creates a library requirement. [namespace] must be non-empty and
   /// [minVersion] a positive capability version.
-  const LibraryRequirement({required this.namespace, required this.minVersion})
-      : assert(namespace.length > 0, 'namespace must not be empty'),
+  const LibraryRequirement({
+    required this.namespace,
+    required this.minVersion,
+    this.minGenerated = 1,
+  })  : assert(namespace.length > 0, 'namespace must not be empty'),
         assert(
           minVersion >= 1,
           'minVersion must be a positive capability version',
-        );
+        ),
+        assert(minGenerated >= 1, 'minGenerated must be positive');
 
   /// Decodes a requirement from its JSON wire form.
   factory LibraryRequirement.fromJson(Map<String, dynamic> json) {
     final namespace = json['namespace'];
     final minVersion = json['minVersion'];
-    if (namespace is! String || minVersion is! int) {
+    final minGenerated = json['minGenerated'] ?? 1;
+    if (namespace is! String ||
+        minVersion is! int ||
+        minGenerated is! int ||
+        minGenerated < 1) {
       throw FormatException('malformed LibraryRequirement: $json');
     }
-    return LibraryRequirement(namespace: namespace, minVersion: minVersion);
+    return LibraryRequirement(
+      namespace: namespace,
+      minVersion: minVersion,
+      minGenerated: minGenerated,
+    );
   }
 
   /// Library namespace, e.g. `acme.widgets`.
@@ -33,10 +45,15 @@ final class LibraryRequirement {
   /// Minimum monotonic capability version of the library required.
   final int minVersion;
 
-  /// JSON wire form.
+  /// Minimum version of the generated widget code the library's factories
+  /// must come from, set by the compiler from the features a surface uses.
+  final int minGenerated;
+
+  /// JSON wire form. `minGenerated` is written only when above 1.
   Map<String, dynamic> toJson() => {
         'namespace': namespace,
         'minVersion': minVersion,
+        if (minGenerated > 1) 'minGenerated': minGenerated,
       };
 
   @override
@@ -44,10 +61,11 @@ final class LibraryRequirement {
       identical(this, other) ||
       other is LibraryRequirement &&
           other.namespace == namespace &&
-          other.minVersion == minVersion;
+          other.minVersion == minVersion &&
+          other.minGenerated == minGenerated;
 
   @override
-  int get hashCode => Object.hash(namespace, minVersion);
+  int get hashCode => Object.hash(namespace, minVersion, minGenerated);
 }
 
 /// What a compiled surface requires to render — a **format-general** value

@@ -508,7 +508,9 @@ CapabilitySidecar _decodeSidecar(List<int> bytes, String path) {
     final validKeys = requirement is Map &&
         setEquals(
           requirement.keys.toSet(),
-          const {'namespace', 'minVersion'},
+          requirement.containsKey('minGenerated')
+              ? const {'namespace', 'minVersion', 'minGenerated'}
+              : const {'namespace', 'minVersion'},
         );
     if (!validKeys) {
       throw FormatException(

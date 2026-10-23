@@ -305,8 +305,12 @@ final class FlowSurfacePayload extends SurfacePayload {
   FlowSurfacePayload withoutEditorState() {
     final state = editorState;
     if (state == null) return this;
-    return SurfacePayload.decode(_withoutLastSection(_canonicalBytes, state))
-        as FlowSurfacePayload;
+    final stripped = _withoutEditorStateSection(
+      _canonicalBytes,
+      state,
+      requiredLibraries,
+    );
+    return SurfacePayload.decode(stripped) as FlowSurfacePayload;
   }
 
   final Uint8List _canonicalBytes;
@@ -439,8 +443,12 @@ final class BlobSurfacePayload extends SurfacePayload {
   BlobSurfacePayload withoutEditorState() {
     final state = editorState;
     if (state == null) return this;
-    return SurfacePayload.decode(_withoutLastSection(_canonicalBytes, state))
-        as BlobSurfacePayload;
+    final stripped = _withoutEditorStateSection(
+      _canonicalBytes,
+      state,
+      requiredLibraries,
+    );
+    return SurfacePayload.decode(stripped) as BlobSurfacePayload;
   }
 
   final Uint8List _canonicalBytes;
@@ -676,7 +684,8 @@ SurfacePayload _decodeBlobPayload(
   return BlobSurfacePayload._create(
     minClient: minClient,
     blob: blob,
-    requiredLibraries: requiredLibraries,
+    requiredLibraries:
+        _withGeneratedFloors(requiredLibraries, sections.generatedFloors),
     iconFonts: sections.iconFonts,
     localSeeds: sections.localSeeds,
     editorState: sections.editorState,
@@ -712,7 +721,8 @@ SurfacePayload _decodeFlowPayload(
     return FlowSurfacePayload._create(
       flowDocument: flowDocument,
       screenBlobs: screenBlobs,
-      requiredLibraries: requiredLibraries,
+      requiredLibraries:
+          _withGeneratedFloors(requiredLibraries, sections.generatedFloors),
       iconFonts: sections.iconFonts,
       localSeeds: sections.localSeeds,
       editorState: sections.editorState,
@@ -784,7 +794,13 @@ Uint8List _buildFlowCanonicalBytes({
     _addLengthPrefixedBytes(builder, screenBlobs[id]!);
   }
   _addRequiredLibraries(builder, requiredLibraries);
-  _addSections(builder, iconFonts, seedWire, editorState: editorState);
+  _addSections(
+    builder,
+    iconFonts,
+    seedWire,
+    requiredLibraries: requiredLibraries,
+    editorState: editorState,
+  );
   return builder.toBytes();
 }
 
@@ -801,7 +817,13 @@ Uint8List _buildBlobCanonicalBytes({
   _addUint32(builder, minClient);
   _addLengthPrefixedBytes(builder, blob);
   _addRequiredLibraries(builder, requiredLibraries);
-  _addSections(builder, iconFonts, seedWire, editorState: editorState);
+  _addSections(
+    builder,
+    iconFonts,
+    seedWire,
+    requiredLibraries: requiredLibraries,
+    editorState: editorState,
+  );
   return builder.toBytes();
 }
 
@@ -924,6 +946,7 @@ List<LibraryRequirement> _readRequiredLibraries(_PayloadReader reader) {
 const int _iconFontsSectionTag = 1;
 const int _localSeedsSectionTag = 2;
 const int _editorStateSectionTag = 3;
+const int _generatedFloorsSectionTag = 4;
 
 const int _seedString = 1;
 const int _seedInt = 2;
@@ -954,10 +977,25 @@ void _checkEditorState(Uint8List? editorState) {
   }
 }
 
-/// [frame] without its trailing editor-state section, which is always the
-/// last one: `[u32 tag][u32 length][state]`.
-Uint8List _withoutLastSection(Uint8List frame, Uint8List state) =>
-    Uint8List.sublistView(frame, 0, frame.length - 8 - state.length);
+/// [frame] without its editor-state section, `[u32 tag][u32 length][state]`,
+/// which only the generated-floor section can follow.
+Uint8List _withoutEditorStateSection(
+  Uint8List frame,
+  Uint8List state,
+  List<LibraryRequirement> requiredLibraries,
+) {
+  final end = frame.length - _generatedFloorsSection(requiredLibraries).length;
+  final start = end - 8 - state.length;
+  final view = ByteData.sublistView(frame);
+  if (view.getUint32(start) != _editorStateSectionTag ||
+      view.getUint32(start + 4) != state.length) {
+    throw StateError('The editor-state section is not where it belongs.');
+  }
+  return (BytesBuilder(copy: false)
+        ..add(Uint8List.sublistView(frame, 0, start))
+        ..add(Uint8List.sublistView(frame, end)))
+      .toBytes();
+}
 
 int _compareIconFonts(DeliveredIconFont a, DeliveredIconFont b) {
   final byFamily = a.family.compareTo(b.family);
@@ -1035,6 +1073,7 @@ void _addSections(
   BytesBuilder builder,
   List<DeliveredIconFont> iconFonts,
   _SeedWireMap localSeeds, {
+  required List<LibraryRequirement> requiredLibraries,
   Uint8List? editorState,
 }) {
   if (iconFonts.isNotEmpty) {
@@ -1067,6 +1106,26 @@ void _addSections(
     _addUint32(builder, _editorStateSectionTag);
     _addLengthPrefixedBytes(builder, editorState);
   }
+  builder.add(_generatedFloorsSection(requiredLibraries));
+}
+
+/// The generated-floor section for libraries above 1, in namespace order:
+/// `[u32 tag][u32 count]` then `[u32 nsLen][ns utf8][u32 minGenerated]` per
+/// library; empty when there are none.
+Uint8List _generatedFloorsSection(List<LibraryRequirement> requiredLibraries) {
+  final floors = [
+    for (final requirement in requiredLibraries)
+      if (requirement.minGenerated > 1) requirement,
+  ];
+  final builder = BytesBuilder(copy: false);
+  if (floors.isEmpty) return builder.toBytes();
+  _addUint32(builder, _generatedFloorsSectionTag);
+  _addUint32(builder, floors.length);
+  for (final requirement in floors) {
+    _addLengthPrefixedBytes(builder, utf8.encode(requirement.namespace));
+    _addUint32(builder, requirement.minGenerated);
+  }
+  return builder.toBytes();
 }
 
 typedef _Sections = ({
@@ -1074,6 +1133,7 @@ typedef _Sections = ({
   Map<String, Map<String, Object>> localSeeds,
   Uint8List? editorState,
   _SeedWireMap? seedWire,
+  Map<String, int> generatedFloors,
 });
 
 /// A seed value's wire type and spelling.
@@ -1113,6 +1173,7 @@ _Sections _readSections(
   Uint8List? editorState;
   var localSeeds = const <String, Map<String, Object>>{};
   _SeedWireMap? seedWire;
+  var generatedFloors = const <String, int>{};
   var previousTag = 0;
   while (reader.hasRemaining) {
     final tag = reader.readUint32('section tag');
@@ -1130,6 +1191,8 @@ _Sections _readSections(
         iconFonts = _readIconFonts(reader);
       case _localSeedsSectionTag:
         (localSeeds, seedWire) = _readLocalSeeds(reader);
+      case _generatedFloorsSectionTag:
+        generatedFloors = _readGeneratedFloors(reader);
       case _editorStateSectionTag:
         editorState = reader.readLengthPrefixedBytes('editor state');
         if (editorState.isEmpty) {
@@ -1146,7 +1209,48 @@ _Sections _readSections(
     localSeeds: localSeeds,
     editorState: editorState,
     seedWire: seedWire,
+    generatedFloors: generatedFloors,
   );
+}
+
+Map<String, int> _readGeneratedFloors(_PayloadReader reader) {
+  final count = reader.readUint32('generated floor count');
+  if (count == 0) {
+    throw const FormatException('A generated-floor section must not be empty.');
+  }
+  final floors = <String, int>{};
+  String? previous;
+  for (var index = 0; index < count; index += 1) {
+    final namespace = reader.readLengthPrefixedUtf8('generated floor library');
+    final floor = reader.readUint32('generated floor');
+    if (floor < 2 || (previous != null && namespace.compareTo(previous) <= 0)) {
+      throw const FormatException('Invalid generated-floor section.');
+    }
+    previous = namespace;
+    floors[namespace] = floor;
+  }
+  return floors;
+}
+
+/// [libraries] with each library's generated-code floor from [floors].
+List<LibraryRequirement> _withGeneratedFloors(
+  List<LibraryRequirement> libraries,
+  Map<String, int> floors,
+) {
+  if (floors.isEmpty) return libraries;
+  if (floors.keys.any((ns) => !libraries.any((l) => l.namespace == ns))) {
+    throw const FormatException(
+      'A generated floor names a library the payload does not require.',
+    );
+  }
+  return [
+    for (final library in libraries)
+      LibraryRequirement(
+        namespace: library.namespace,
+        minVersion: library.minVersion,
+        minGenerated: floors[library.namespace] ?? 1,
+      ),
+  ];
 }
 
 List<DeliveredIconFont> _readIconFonts(_PayloadReader reader) {

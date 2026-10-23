@@ -89,11 +89,13 @@ WidgetEntry _widget(
       properties: props,
     );
 
-PropertyEntry _structuredProp(String name) => PropertyEntry(
+PropertyEntry _structuredProp(String name, {bool required = true}) =>
+    PropertyEntry(
       wireId: WireId.unallocatedProperty,
       name: name,
       type: PropertyType.structured,
       description: '',
+      required: required,
       structuredRef: _sentinelRef,
     );
 
@@ -294,6 +296,26 @@ void main() {
       expect(admission.admitted, isEmpty);
       expect(admission.excluded, hasLength(1));
       expect(admission.excluded.single.reason, contains('Missing'));
+    });
+
+    test('leaves out an optional property whose target is absent', () {
+      final card = _widget(
+        'OuterCard',
+        _cardFqn,
+        [_structuredProp('config', required: false)],
+      );
+      final admission = computeAdmission(
+        widgets: [card],
+        structuredTypes: const [],
+        slotTargets: const {
+          '$_cardFqn.config': 'package:acme/foo.dart#Missing',
+        },
+        localUnrenderable: const {},
+      );
+      expect(admission.excluded, isEmpty);
+      expect(admission.admitted.single.properties, isEmpty);
+      expect(admission.dropped.single.property, 'config');
+      expect(admission.dropped.single.reason, contains('Missing'));
     });
 
     test(

@@ -2,6 +2,7 @@ import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -11,6 +12,14 @@ import 'helpers.dart';
 /// “a delivered surface cannot express”. IssueCode identifies the category.
 /// Behavior tests cover recognition, compilation and classification separately.
 const String _key = 'package:restage_codegen/_expr_probe.dart#AcmeWidget';
+
+const String _contextLookupMessage =
+    "'Palette.of(context)' reads from the running app. Pass the value in as a "
+    'constructor input, or use Theme.of(context).';
+
+const String _staticFinalMessage =
+    "'Styles.title' is static final, so its value exists only in the running "
+    'app. Make it const, or pass it in as a constructor input.';
 
 const String _acmeWidgetSource = '''
   class AcmeWidget { const AcmeWidget(); }
@@ -272,6 +281,204 @@ void main() {
         CustomWidgetDisposition.indeterminate,
       );
       expect(customWidgetDispositionFor(IssueCode.unknownWidget), isNull);
+    });
+  });
+
+  group('Diagnostic wording — values and widgets from the running app', () {
+    test('a widget its package left out of the catalog says why', () async {
+      const reason = "property 'icon' targets 'Glyph' whose closure is not "
+          'fully renderable (Glyph: dash: Unsupported structured field)';
+      final translator = ExpressionTranslator(
+        catalog: const Catalog(
+          schemaVersion: kSupportedSchemaVersion,
+          generatedAt: '1970-01-01T00:00:00Z',
+          libraries: {},
+          widgets: [],
+          exclusions: [
+            PropertyExclusion(
+              widget: 'AcmeWidget',
+              property: 'icon',
+              target: 'rfw',
+              reason: reason,
+              location: '$_key.icon',
+            ),
+          ],
+        ),
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {
+          _key: const UnclassifiableWidget(_key, reason: 'opaque'),
+        },
+      );
+      final result = translator.translate(
+        await parseExpressionFromSourceForTest(_acmeWidgetSource),
+      );
+      expect(
+        result.issues.single.message,
+        "'AcmeWidget' is left out of the catalog: $reason.",
+      );
+    });
+
+    test(
+        'an exclusion of a same-named widget in another library is not '
+        'cited', () async {
+      final translator = ExpressionTranslator(
+        catalog: const Catalog(
+          schemaVersion: kSupportedSchemaVersion,
+          generatedAt: '1970-01-01T00:00:00Z',
+          libraries: {},
+          widgets: [],
+          exclusions: [
+            PropertyExclusion(
+              widget: 'AcmeWidget',
+              property: '',
+              target: 'rfw',
+              reason: 'another package',
+              location: 'package:other/widgets.dart#AcmeWidget',
+            ),
+          ],
+        ),
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {
+          _key: const UnclassifiableWidget(_key, reason: 'opaque'),
+        },
+      );
+      final result = translator.translate(
+        await parseExpressionFromSourceForTest(_acmeWidgetSource),
+      );
+      expect(
+        result.issues.single.message,
+        isNot(contains('left out of the catalog')),
+      );
+    });
+
+    test("another package's builder widget points at host data", () async {
+      final result = ExpressionTranslator(
+        catalog: kEmptyCatalog,
+        helpers: HelperRegistry(),
+      ).translate(
+        await parseExpressionFromSourceForTest(
+          '''
+          import 'package:flutter/widgets.dart';
+          import 'package:acme_state/acme_state.dart';
+          Object x() => SignalBuilder(builder: (context, value) => const SizedBox());
+          ''',
+          rootPackage: 'apps_examples',
+          otherFiles: {
+            'acme_state|lib/acme_state.dart': '''
+              import 'package:flutter/widgets.dart';
+              class SignalBuilder extends StatelessWidget {
+                const SignalBuilder({super.key, required this.builder});
+                final Widget Function(BuildContext context, int value) builder;
+                @override
+                Widget build(BuildContext context) => builder(context, 0);
+              }
+            ''',
+          },
+        ),
+      );
+      expect(
+        result.issues.single.message,
+        startsWith(
+          "'SignalBuilder' (package:acme_state) builds from app state. Read "
+          'that state in the host widget and pass the values to this surface '
+          'as constructor inputs.',
+        ),
+      );
+    });
+
+    test(
+        'a builder widget that hands over only a callback is not app '
+        'state', () async {
+      final result = ExpressionTranslator(
+        catalog: kEmptyCatalog,
+        helpers: HelperRegistry(),
+      ).translate(
+        await parseExpressionFromSourceForTest(
+          '''
+          import 'package:flutter/widgets.dart';
+          import 'package:acme_motion/acme_motion.dart';
+          Object x() => OpenContainer(
+            closedBuilder: (context, open) => const SizedBox(),
+            openBuilder: (context, close) => const SizedBox(),
+          );
+          ''',
+          rootPackage: 'apps_examples',
+          otherFiles: {
+            'acme_motion|lib/acme_motion.dart': '''
+              import 'package:flutter/widgets.dart';
+              class OpenContainer extends StatelessWidget {
+                const OpenContainer({
+                  super.key,
+                  required this.closedBuilder,
+                  required this.openBuilder,
+                });
+                final Widget Function(BuildContext, VoidCallback) closedBuilder;
+                final Widget Function(BuildContext, VoidCallback) openBuilder;
+                @override
+                Widget build(BuildContext context) =>
+                    closedBuilder(context, () {});
+              }
+            ''',
+          },
+        ),
+      );
+      expect(
+        result.issues.single.message,
+        isNot(contains('builds from app state')),
+      );
+    });
+
+    const tokens = '''
+      import 'package:flutter/widgets.dart';
+      class Palette extends InheritedWidget {
+        const Palette({super.key, required super.child, required this.ink});
+        final Color ink;
+        static Palette of(BuildContext context) =>
+            context.dependOnInheritedWidgetOfExactType<Palette>()!;
+        @override
+        bool updateShouldNotify(Palette old) => ink != old.ink;
+      }
+      abstract final class Styles {
+        static final TextStyle title = _sized(28);
+        static TextStyle _sized(double size) => TextStyle(fontSize: size);
+      }
+    ''';
+
+    Future<List<String>> messagesFor(String body) async {
+      final expr = await parseExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/widgets.dart';
+        import 'package:apps_examples/tokens.dart';
+        class Probe extends StatelessWidget {
+          const Probe({super.key});
+          @override
+          Widget build(BuildContext context) => const SizedBox();
+          Object x(BuildContext context) => $body;
+        }
+        ''',
+        rootPackage: 'apps_examples',
+        enclosingClassName: 'Probe',
+        otherFiles: {'lib/tokens.dart': tokens},
+      );
+      final result = ExpressionTranslator(
+        catalog: kEmptyCatalog,
+        helpers: HelperRegistry(),
+      ).translate(expr);
+      return [for (final issue in result.issues) issue.message];
+    }
+
+    test('an inherited lookup reads from the running app', () async {
+      expect(
+        await messagesFor('Palette.of(context).ink'),
+        [_contextLookupMessage],
+      );
+    });
+
+    test('a static final value exists only in the running app', () async {
+      expect(
+        await messagesFor('Styles.title'),
+        [_staticFinalMessage],
+      );
     });
   });
 }

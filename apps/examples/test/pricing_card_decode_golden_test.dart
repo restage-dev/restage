@@ -110,6 +110,40 @@ void main() {
   );
 
   testWidgets(
+    'a value naming its constructor rebuilds through that constructor',
+    (tester) async {
+      await pumpBlob(tester, '''
+        import restage_example.widgets;
+        widget Paywall = PricingCard(plan: {
+          name: "Free",
+          price: { "#constructor": "free", currency: "SEK" },
+        });
+      ''');
+
+      final price = readCard(tester).plan.price;
+      expect(price.amount, 0); // set by Price.free itself
+      expect(price.currency, 'SEK');
+    },
+  );
+
+  testWidgets(
+    'an unknown constructor name fails closed',
+    (tester) async {
+      await pumpBlob(tester, '''
+        import restage_example.widgets;
+        widget Paywall = PricingCard(plan: {
+          name: "Odd",
+          price: { "#constructor": "nope", amount: 5 },
+        });
+      ''');
+
+      expect(tester.takeException().toString(),
+          contains("'Price' has no constructor named 'nope'."));
+      expect(find.byType(PricingCard), findsNothing);
+    },
+  );
+
+  testWidgets(
     'a MISSING REQUIRED NESTED value (price) also FAILS CLOSED',
     (tester) async {
       await pumpBlob(tester, '''

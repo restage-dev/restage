@@ -116,11 +116,13 @@ Future<Catalog> _loadMergedCatalog(
   });
 
   final owners = <WidgetLibrary, String>{};
+  final exclusions = <PropertyExclusion>[];
   for (final package in packages) {
     await _mergeCustomCatalog(
       buildStep,
       package: package,
       owners: owners,
+      exclusions: exclusions,
       widgets: widgets,
       structuredTypes: structuredTypes,
       unions: unions,
@@ -130,7 +132,9 @@ Future<Catalog> _loadMergedCatalog(
     );
   }
 
-  return Catalog(
+  // A package catalog may reference built-in types it does not carry, so
+  // references are checked again once the built-ins are merged in.
+  final merged = Catalog(
     schemaVersion: kSupportedSchemaVersion,
     generatedAt: generatedAt ?? '1970-01-01T00:00:00Z',
     libraries: Map.unmodifiable(libraries),
@@ -140,7 +144,9 @@ Future<Catalog> _loadMergedCatalog(
     designTokens: List.unmodifiable(designTokens),
     flutterVersion: flutterVersion,
     compatRules: compatRules.isEmpty ? null : List.unmodifiable(compatRules),
+    exclusions: List.unmodifiable(exclusions),
   );
+  return requireNativeCatalog(merged);
 }
 
 /// Merges one package's custom entries after the built-ins.
@@ -148,6 +154,7 @@ Future<void> _mergeCustomCatalog(
   BuildStep buildStep, {
   required String package,
   required Map<WidgetLibrary, String> owners,
+  required List<PropertyExclusion> exclusions,
   required List<WidgetEntry> widgets,
   required List<StructuredEntry> structuredTypes,
   required List<UnionEntry> unions,
@@ -202,6 +209,7 @@ Future<void> _mergeCustomCatalog(
     owners[library] = package;
   }
   widgets.addAll(customWidgets);
+  exclusions.addAll(cat.exclusions);
   structuredTypes.addAll(cat.structuredTypes.where((s) => isCustom(s.library)));
   unions.addAll(cat.unions.where((u) => isCustom(u.library)));
   designTokens.addAll(cat.designTokens.where((t) => isCustom(t.library)));
@@ -215,6 +223,31 @@ Future<void> _mergeCustomCatalog(
   for (final entry in cat.libraries.entries) {
     if (isCustom(entry.key)) libraries[entry.key] = entry.value;
   }
+}
+
+/// The built-in catalogs alone, without any package's custom catalog.
+Future<Catalog> loadBuiltInCatalog(BuildStep buildStep) =>
+    _loadMergedCatalog(buildStep, const []);
+
+/// The built-in structured types named in [decodableNames], keyed by source
+/// type: the ones a custom widget property can take. A type several built-in
+/// libraries declare resolves to the first, so `restage.core` wins.
+Map<String, WireIdRef> builtInStructuredRefs(
+  Catalog builtIn,
+  Set<String> decodableNames,
+) {
+  final refs = <String, WireIdRef>{};
+  for (final structured in builtIn.structuredTypes) {
+    if (!decodableNames.contains(structured.name)) continue;
+    refs.putIfAbsent(
+      structured.sourceType,
+      () => WireIdRef(
+        library: structured.library.namespace,
+        wireId: structured.wireId,
+      ),
+    );
+  }
+  return refs;
 }
 
 /// Custom catalog owners in the declared dependency graph, cached per build.

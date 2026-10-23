@@ -1057,7 +1057,10 @@ abstract final class Restage {
   /// [capabilityVersion] when a delivery requirement needs it. An unversioned
   /// library satisfies no positive version requirement. [compatibleSince]
   /// (default 1) is the oldest required version the library still renders;
-  /// content requiring an older version uses its fallback.
+  /// content requiring an older version uses its fallback. Generated
+  /// registration also passes [generatedVersion], the version of the code that
+  /// produced the factories; content that needs newer generated code uses its
+  /// fallback.
   ///
   /// Debug assertions reject reserved namespaces, preview-only constructors,
   /// duplicate widget names and versions below 1. [compatibleSince] must be
@@ -1067,12 +1070,14 @@ abstract final class Restage {
     required List<RestageWidgetFactory> widgets,
     int? capabilityVersion,
     int? compatibleSince,
+    int? generatedVersion,
   }) {
     LibraryRuntimeRegistry.register(
       library,
       widgets,
       capabilityVersion: capabilityVersion,
       compatibleSince: compatibleSince,
+      generatedVersion: generatedVersion,
     );
   }
 

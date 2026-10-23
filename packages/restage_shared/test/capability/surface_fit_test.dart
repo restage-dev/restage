@@ -566,6 +566,52 @@ void main() {
       });
     }
 
+    test(
+        'a generated-code floor survives the requirement wire and gates '
+        'the build', () {
+      final requirement = SurfaceFitRequirementV1.fromJson(
+        _requirement(
+          capabilities: CapabilityManifest(
+            builtInFloor: 1,
+            requiredLibraries: const [
+              LibraryRequirement(
+                namespace: 'acme.widgets',
+                minVersion: 3,
+                minGenerated: 2,
+              ),
+            ],
+          ),
+        ).toJson(),
+      );
+      expect(requirement.capabilities.requiredLibraries.single.minGenerated, 2);
+      _expectFailure(
+        _evaluate(
+          requirement: requirement,
+          installed: _installed(
+            libraries: const [
+              InstalledLibrary(namespace: 'acme.widgets', version: 3),
+            ],
+          ),
+        ),
+        SurfaceFitFailureCodeV1.oldLibrary,
+      );
+      expect(
+        _evaluate(
+          requirement: requirement,
+          installed: _installed(
+            libraries: const [
+              InstalledLibrary(
+                namespace: 'acme.widgets',
+                version: 3,
+                generated: 2,
+              ),
+            ],
+          ),
+        ).accepted,
+        isTrue,
+      );
+    });
+
     test('selectively installed widget and icon members are exact', () {
       final required = WidgetVocabulary(
         widgetNames: const {'restage.material:Text'},

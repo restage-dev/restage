@@ -169,6 +169,105 @@ void main() {
     });
 
     test(
+        'a data class with only named constructors rebuilds through the '
+        'constructor the value names', () async {
+      const namedSource = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+        @RestageLibrary(
+          library: WidgetLibrary.custom('acme.design_system'),
+          capabilityVersion: 1,
+        )
+        const restageLibrary = 0;
+        class Part {
+          const Part.path(String this.data, {this.dash}) : x = 0;
+          const Part.circle(this.x, {this.dash}) : data = null;
+          final String? data;
+          final double x;
+          final List<double>? dash;
+        }
+        @RestageWidget(name: 'PartCard',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.decoration, description: 'c')
+        class PartCard {
+          const PartCard({required this.part});
+          @RestageProperty(description: 'p') final Part part;
+        }
+      ''';
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'restage_codegen',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/widgets.dart'),
+        namedSource,
+      );
+
+      await testBuilder(
+        const UserFactoryBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/widgets.dart': namedSource},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/user_factories.g.dart': decodedMatches(
+            allOf([
+              contains("'#constructor'"),
+              contains("'path' =>"),
+              contains("'circle' =>"),
+              contains('Part.path('),
+              contains('Part.circle('),
+              // A value without a selector rebuilds through the
+              // alphabetically first named constructor.
+              matches(RegExp(r'null\s*=>\s*\w+\.Part\.circle\(')),
+              contains(r"'Part' has no constructor named '$name'."),
+              contains('RestageDecoders.realList'),
+            ]),
+          ),
+        },
+      );
+    });
+
+    test('a TextStyle property decodes through the built-in decoder', () async {
+      const styleSource = '''
+        import 'package:flutter/painting.dart';
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+        @RestageLibrary(
+          library: WidgetLibrary.custom('acme.design_system'),
+          capabilityVersion: 1,
+        )
+        const restageLibrary = 0;
+        @RestageWidget(name: 'Label',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.display, description: 'l')
+        class Label {
+          const Label(this.text, {required this.style});
+          @RestageProperty(description: 't') final String text;
+          @RestageProperty(description: 's') final TextStyle style;
+        }
+      ''';
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/widgets.dart'),
+        styleSource,
+      );
+
+      await testBuilder(
+        const UserFactoryBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/widgets.dart': styleSource},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/user_factories.g.dart': decodedMatches(
+            allOf(
+              contains('Label('),
+              contains('RestageDecoders.textStyle'),
+            ),
+          ),
+        },
+      );
+    });
+
+    test(
         'a MIXED (positional + named) data class reconstructs '
         'positional-then-named in the correct kind', () async {
       const mixedSource = '''

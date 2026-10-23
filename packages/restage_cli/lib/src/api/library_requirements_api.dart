@@ -37,6 +37,7 @@ final class LiveVersionRequirements {
     this.experimentLabel,
     this.armId,
     this.armLabel,
+    this.requiredGenerated = const {},
   });
 
   /// Decode one wire item.
@@ -60,6 +61,12 @@ final class LiveVersionRequirements {
               for (final entry in libraries.cast<Map<String, dynamic>>())
                 entry['namespace'] as String: entry['minVersion'] as int,
             },
+      requiredGenerated: {
+        for (final entry
+            in (libraries ?? const []).cast<Map<String, dynamic>>())
+          if (entry['minGenerated'] case final int generated)
+            entry['namespace'] as String: generated,
+      },
     );
   }
 
@@ -99,6 +106,10 @@ final class LiveVersionRequirements {
   /// Minimum version per library namespace; null when the payload could not
   /// be read.
   final Map<String, int>? requiredLibraries;
+
+  /// Generated widget code version per library namespace, for libraries that
+  /// need more than the first.
+  final Map<String, int> requiredGenerated;
 }
 
 /// Reads which libraries an app's live versions need.

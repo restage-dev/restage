@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const sourcePath = 'lib/widgets/constructor_fidelity_corpus.dart';
-  const propertyPath = '$sourcePath#ConstructorFidelityCorpus.focusNode';
+  const propertyPath =
+      'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
+      '#ConstructorFidelityCorpus.focusNode';
 
   late String source;
   late String rfwCatalog;

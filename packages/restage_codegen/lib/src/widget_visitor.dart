@@ -28,7 +28,8 @@ import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
         RecordAdmitted,
         RecordExcluded,
         classifyMapType,
-        classifyRecordType;
+        classifyRecordType,
+        typeFqn;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _unknownEnumHint =
@@ -223,6 +224,7 @@ WidgetVisitorResult visitRestageWidgetsInPackage(
   required RestageWidgetPackageFacts packageFacts,
   WidgetVisitorTarget target = WidgetVisitorTarget.rfw,
   bool includeAnalyticsId = false,
+  Map<String, WireIdRef> nativeStructuredRefs = const {},
 }) =>
     _visitRestageWidgets(
       library,
@@ -230,6 +232,7 @@ WidgetVisitorResult visitRestageWidgetsInPackage(
       target: target,
       includeAnalyticsId: includeAnalyticsId,
       ownershipByWidget: packageFacts.ownershipByWidget,
+      nativeStructuredRefs: nativeStructuredRefs,
     );
 
 /// Projects [constructorFacts] through an ordinary target constructor-input
@@ -347,6 +350,7 @@ WidgetVisitorResult _visitRestageWidgets(
   required WidgetVisitorTarget target,
   required bool includeAnalyticsId,
   Map<String, List<WidgetLibrary>>? ownershipByWidget,
+  Map<String, WireIdRef> nativeStructuredRefs = const {},
 }) {
   final widgets = <WidgetEntry>[];
   final issues = <Issue>[];
@@ -438,6 +442,7 @@ WidgetVisitorResult _visitRestageWidgets(
       mapPlans: mapPlans,
       recordPlans: recordPlans,
       constructorFacts: constructorFacts[cls]!,
+      nativeStructuredRefs: nativeStructuredRefs,
     );
     if (entry == null) continue;
     widgets.add(entry);
@@ -512,6 +517,7 @@ WidgetEntry? _readWidgetAnnotation(
   required Map<String, MapPlan> mapPlans,
   required Map<String, RecordPlan> recordPlans,
   required WidgetConstructorFacts constructorFacts,
+  Map<String, WireIdRef> nativeStructuredRefs = const {},
 }) {
   final className = cls.name ?? '<unnamed>';
   final widgetLocation = '${assetId.path}#$className';
@@ -558,6 +564,7 @@ WidgetEntry? _readWidgetAnnotation(
       target: target,
       mapPlans: mapPlans,
       recordPlans: recordPlans,
+      nativeStructuredRefs: nativeStructuredRefs,
     );
     if (p == null) continue;
     properties.add(p);
@@ -791,6 +798,25 @@ String _flutterTypeOf(ClassElement cls) {
   return '$libraryUri#$className';
 }
 
+/// The shape of a framework value type that a built-in catalog entry decodes,
+/// such as `TextStyle`, or `null` for any other type.
+StructuredPropertyShape? _nativeStructuredShape(
+  DartType type,
+  Map<String, WireIdRef> nativeStructuredRefs,
+) {
+  final fqn = typeFqn(type);
+  final ref = fqn == null ? null : nativeStructuredRefs[fqn];
+  if (ref == null) return null;
+  return StructuredPropertyShape(
+    type: PropertyType.structured,
+    structuredRef: ref,
+    valueShape: StructuredShape(
+      propertyType: PropertyType.structured,
+      structuredRef: ref,
+    ),
+  );
+}
+
 PropertyEntry? _readPropertyInput(
   WidgetConstructorInput input,
   AssetId assetId,
@@ -803,6 +829,7 @@ PropertyEntry? _readPropertyInput(
   required List<PropertyExclusion> exclusions,
   required Map<String, MapPlan> mapPlans,
   required Map<String, RecordPlan> recordPlans,
+  Map<String, WireIdRef> nativeStructuredRefs = const {},
 }) {
   final field = input.field;
   final annotation = input.propertyAnnotation;
@@ -898,7 +925,11 @@ PropertyEntry? _readPropertyInput(
   // sealed union) is resolved by the structured pre-pass. Named records with
   // admitted scalar or enum labels are resolved at the RFW boundary below;
   // scalar / enum / widget / event types fall through to legacy type inference.
-  final structuredShape = structured.shapeFor(input.type);
+  final structuredShape = _nativeStructuredShape(
+        input.type,
+        nativeStructuredRefs,
+      ) ??
+      structured.shapeFor(input.type);
   final isA2ui = target == WidgetVisitorTarget.a2ui;
   final a2uiScalarList = isA2ui && _isA2uiScalarList(input.type);
   // Record and map value shapes mark this wire format only; other emit targets
@@ -932,6 +963,15 @@ PropertyEntry? _readPropertyInput(
   };
   if (excludedReason != null) {
     widgetUnrenderable.putIfAbsent(widgetFlutterType, () => excludedReason);
+    exclusions.add(
+      PropertyExclusion(
+        widget: ownerName,
+        property: fieldName,
+        target: target.name,
+        reason: excludedReason,
+        location: '$widgetFlutterType.$fieldName',
+      ),
+    );
     return null;
   }
   // The admitted slot's opaque marker, recorded alongside its build-time plan
@@ -974,7 +1014,10 @@ PropertyEntry? _readPropertyInput(
       target: target,
       input: input,
       widgetName: ownerName,
+      widgetFlutterType: widgetFlutterType,
       exclusions: exclusions,
+      excludeWidget: (reason) =>
+          widgetUnrenderable.putIfAbsent(widgetFlutterType, () => reason),
     );
   }
   if (type == null) return null;
@@ -1256,7 +1299,9 @@ PropertyType? _inferPropertyType(
   required WidgetVisitorTarget target,
   required WidgetConstructorInput input,
   required String widgetName,
+  required String widgetFlutterType,
   required List<PropertyExclusion> exclusions,
+  required void Function(String reason) excludeWidget,
 }) {
   final inferred = type_inference.inferPropertyType(t);
   if (inferred != null) return inferred;
@@ -1284,10 +1329,12 @@ PropertyType? _inferPropertyType(
       input: input,
       target: target,
       widgetName: widgetName,
+      widgetFlutterType: widgetFlutterType,
       fieldName: fieldName,
       location: location,
       issues: issues,
       exclusions: exclusions,
+      excludeWidget: excludeWidget,
     );
   }
   final lookalike = type_inference.frameworkLookalike(t);
@@ -1330,10 +1377,12 @@ PropertyType? _inferPropertyType(
     input: input,
     target: target,
     widgetName: widgetName,
+    widgetFlutterType: widgetFlutterType,
     fieldName: fieldName,
     location: '${assetId.path}#$ownerName.$fieldName',
     issues: issues,
     exclusions: exclusions,
+    excludeWidget: excludeWidget,
   );
 }
 
@@ -1381,7 +1430,7 @@ void _validateTargetPositionalExclusions({
             'earlier positional would shift the arguments after it. Make '
             '${input.name} named, or ensure ${later.name} and all '
             'later positional inputs are omitted too.',
-        location: automatic?.location ?? '$classLocation.${input.name}',
+        location: '$classLocation.${input.name}',
       ),
     );
   }
@@ -1403,22 +1452,26 @@ PropertyType? _undecodable({
   required WidgetConstructorInput input,
   required WidgetVisitorTarget target,
   required String widgetName,
+  required String widgetFlutterType,
   required String fieldName,
   required String location,
   required List<Issue> issues,
   required List<PropertyExclusion> exclusions,
+  required void Function(String reason) excludeWidget,
 }) {
   final targetReason = '$reason Target: ${target.name}.';
-  if (input.omissible) {
+  if (input.omissible || target == WidgetVisitorTarget.rfw) {
     exclusions.add(
       PropertyExclusion(
         widget: widgetName,
         property: fieldName,
         target: target.name,
         reason: targetReason,
-        location: location,
+        location: '$widgetFlutterType.$fieldName',
       ),
     );
+    // The widget cannot be built without the input, so only it is left out.
+    if (!input.omissible) excludeWidget(targetReason);
     return null;
   }
   issues.add(

@@ -60,6 +60,7 @@ void main() {
   Map<String, Object?> liveItem({
     required String kind,
     required int minVersion,
+    int? minGenerated,
     String environment = 'production',
     String surfaceType = 'paywall',
     String surfaceSlug = 'main',
@@ -73,7 +74,11 @@ void main() {
     'surfaceSlug': surfaceSlug,
     'publishedRevision': publishedRevision,
     'requiredLibraries': [
-      {'namespace': 'app', 'minVersion': minVersion},
+      {
+        'namespace': 'app',
+        'minVersion': minVersion,
+        'minGenerated': ?minGenerated,
+      },
     ],
     ...extra,
   };
@@ -130,7 +135,7 @@ void main() {
         stdout.toString(),
         'production\n'
         '  Experiment Winter sale arm B (paywall main v7) needs library app '
-        'v3. This build renders v4 and later.\n',
+        'v3+. This build renders v4 and later.\n',
       );
     });
 
@@ -156,10 +161,28 @@ void main() {
         stdout.toString(),
         'production\n'
         '  Delivery rule returning-users (paywall main v3 (Spring)) needs '
-        'library app v1. This build renders v2 and later.\n'
+        'library app v1+. This build renders v2 and later.\n'
         'staging\n'
-        '  Serving paywall main v7 needs library app v1. This build renders v2 '
+        '  Serving paywall main v7 needs library app v1+. This build renders v2 '
         'and later.\n',
+      );
+    });
+
+    test('names the generated code a live version needs', () async {
+      await seedCredential(store);
+      await seedRestageConfig(tempDir, 'demo', 'mobile');
+      await writeSnapshot('app', 4, compatibleSince: 4);
+
+      final exitCode = await check(
+        liveServer([liveItem(kind: 'serving', minVersion: 3, minGenerated: 2)]),
+      );
+
+      expect(exitCode, 1);
+      expect(
+        stdout.toString(),
+        'production\n'
+        '  Serving paywall main v7 needs library app v3+ · generated code v2+. '
+        'This build renders v4 and later.\n',
       );
     });
 
@@ -214,6 +237,7 @@ void main() {
       expect(json.single, containsPair('namespace', 'app'));
       expect(json.single, containsPair('minVersion', 3));
       expect(json.single, containsPair('compatibleSince', 4));
+      expect(json.single, isNot(contains('minGenerated')));
     });
   });
 
@@ -281,7 +305,7 @@ void main() {
         contains(
           'WARN  Library contracts\n'
           '      production: Experiment winter-sale arm b (paywall main v7) '
-          'needs library app v3. This build renders v4 and later.\n',
+          'needs library app v3+. This build renders v4 and later.\n',
         ),
       );
     });

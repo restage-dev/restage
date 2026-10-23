@@ -269,7 +269,8 @@ void main() {
       );
     });
 
-    test('emits unsupportedPropertyType for an unknown static type', () async {
+    test('leaves out only the widget whose required input has no decoder',
+        () async {
       final result = await runWidgetVisitorOn({
         'lib/foo.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -290,15 +291,41 @@ void main() {
         ''',
       });
 
+      // The widget cannot be built without the input, so it is left out of
+      // the catalog; the rest of the library still builds.
+      expect(result.issues, isEmpty);
       expect(
-        result.issues.map((i) => i.code),
-        contains(IssueCode.unsupportedPropertyType),
+        result.widgetUnrenderable.values.single,
+        contains('Mystery'),
       );
-      // The widget itself still produces an entry — only the bad property
-      // is dropped — so a single typo doesn't hide the whole widget from
-      // the catalog.
-      expect(result.widgets, hasLength(1));
-      expect(result.widgets.single.properties, isEmpty);
+      expect(result.exclusions.single.property, 'weird');
+    });
+
+    test('records why a widget with an excluded map input is left out',
+        () async {
+      final result = await runWidgetVisitorOn({
+        'lib/foo.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+          @RestageWidget(
+            name: 'Foo',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.layout,
+            description: 'A foo widget.',
+          )
+          class Foo {
+            const Foo({required this.labels});
+            @RestageProperty(description: 'Labels.')
+            final Map<Object, String> labels;
+          }
+        ''',
+      });
+
+      expect(result.widgetUnrenderable.values.single, contains('Map slot'));
+      final excluded = result.exclusions.single;
+      expect(excluded.widget, 'Foo');
+      expect(excluded.property, 'labels');
+      expect(excluded.reason, contains('Map slot on Foo.labels'));
     });
 
     test(
@@ -337,45 +364,6 @@ void main() {
       expect(excluded.property, 'weird');
       expect(excluded.reason, contains('Mystery'));
       expect(excluded.location, contains('Foo.weird'));
-    });
-
-    test(
-        'fails loudly and records NO exclusion for a REQUIRED input '
-        'whose type has no decoder', () async {
-      final result = await runWidgetVisitorOn({
-        'lib/foo.dart': '''
-          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-
-          class Mystery {}
-
-          @RestageWidget(
-            name: 'Foo',
-            library: WidgetLibrary.custom('acme.design_system'),
-            category: WidgetCategory.layout,
-            description: 'A foo widget.',
-          )
-          class Foo {
-            const Foo({required this.weird});
-            @RestageProperty(description: 'Weird thing.')
-            final Mystery weird;
-          }
-        ''',
-      });
-
-      // A required input cannot be left out, so there is no legal omission to
-      // record. It fails, and the message names what the author can actually
-      // do about it.
-      expect(
-        result.issues.map((i) => i.code),
-        contains(IssueCode.unsupportedPropertyType),
-      );
-      final message = result.issues
-          .firstWhere((i) => i.code == IssueCode.unsupportedPropertyType)
-          .message;
-      expect(message, contains('Mystery'));
-      expect(message, contains('default'));
-      expect(message, contains('wrapper'));
-      expect(result.exclusions, isEmpty);
     });
 
     test('A2UI mode admits every reflected scalar-list family', () async {

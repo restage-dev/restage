@@ -1,15 +1,23 @@
 import 'package:restage_codegen/src/custom_map_plan.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
+/// [reason] as a clause, without its closing period, to quote in a sentence.
+String reasonClause(String reason) => reason.replaceFirst(RegExp(r'\.+$'), '');
+
 /// A custom structured widget that was excluded from the RFW path, paired
 /// with a human-readable reason naming the offending property/target.
-typedef ExcludedStructuredWidget = ({WidgetEntry widget, String reason});
+typedef ExcludedStructuredWidget = ({
+  WidgetEntry widget,
+  String reason,
+  PropertyEntry? property,
+});
 
 /// The outcome of the recursive resolve-or-exclude-loud admissibility check
 /// over a package's custom `@RestageWidget`s + their structured closure.
 typedef CustomStructuredAdmission = ({
   List<WidgetEntry> admitted,
   List<ExcludedStructuredWidget> excluded,
+  List<PropertyExclusion> dropped,
   Set<String> admittedSourceTypes,
 });
 
@@ -60,8 +68,16 @@ bool isCustomRecordFieldSlot(StructuredField field) =>
 /// Whether [prop] is a custom structured slot whose target is resolved
 /// through [structuredSlotKey].
 bool isCustomStructuredPropertySlot(PropertyEntry prop) =>
-    prop.type == PropertyType.structured ||
+    (prop.type == PropertyType.structured && !isBuiltInStructuredSlot(prop)) ||
     isCustomStructuredListShape(prop.valueShape);
+
+/// Whether [prop] takes a built-in structured value, such as a `TextStyle`.
+bool isBuiltInStructuredSlot(PropertyEntry prop) {
+  final ref = prop.structuredRef;
+  return prop.type == PropertyType.structured &&
+      ref != null &&
+      WidgetLibrary.builtInByNamespace(ref.library) != null;
+}
 
 /// Whether [field] is a custom structured slot whose target is resolved
 /// through [structuredSlotKey].
@@ -130,19 +146,41 @@ CustomStructuredAdmission computeAdmission({
   };
   final admitted = <WidgetEntry>[];
   final excluded = <ExcludedStructuredWidget>[];
+  final dropped = <PropertyExclusion>[];
 
-  for (final widget in widgets) {
+  for (final original in widgets) {
     // A widget-level unrenderability (e.g. a ctor positional hole — a silent
     // wrong-render) excludes the widget outright, before the structured-closure
     // check, at this one admission point.
-    var reason = widgetUnrenderable[widget.flutterType] ??
-        _widgetExclusionReason(
-          widget,
-          bySourceType: bySourceType,
-          slotTargets: slotTargets,
-          localUnrenderable: localUnrenderable,
-          mapPlans: mapPlans,
-        );
+    var widget = original;
+    var reason = widgetUnrenderable[widget.flutterType];
+    PropertyEntry? blocking;
+    while (reason == null) {
+      final problem = _widgetExclusion(
+        widget,
+        bySourceType: bySourceType,
+        slotTargets: slotTargets,
+        localUnrenderable: localUnrenderable,
+        mapPlans: mapPlans,
+      );
+      if (problem == null) break;
+      // An input the constructor can do without is left out, not the widget.
+      if (!_canOmit(widget, problem.property)) {
+        reason = problem.reason;
+        blocking = problem.property;
+        break;
+      }
+      dropped.add(
+        PropertyExclusion(
+          widget: widget.name,
+          property: problem.property.name,
+          target: 'rfw',
+          reason: problem.reason,
+          location: '${widget.flutterType}.${problem.property.name}',
+        ),
+      );
+      widget = _withoutProperty(widget, problem.property);
+    }
     // Whole-widget emittability: a widget admitted for a nominal structured,
     // map, or record prop but not fully factory-emittable is excluded here.
     // The predicates stay disjoint: nominal slots resolve through
@@ -164,7 +202,7 @@ CustomStructuredAdmission computeAdmission({
     if (reason == null) {
       admitted.add(widget);
     } else {
-      excluded.add((widget: widget, reason: reason));
+      excluded.add((widget: widget, reason: reason, property: blocking));
     }
   }
 
@@ -192,13 +230,44 @@ CustomStructuredAdmission computeAdmission({
   return (
     admitted: admitted,
     excluded: excluded,
+    dropped: dropped,
     admittedSourceTypes: admittedSourceTypes,
   );
 }
 
-/// The reason [widget] cannot render on the RFW path, or `null` when every
-/// structured property resolves to a fully-renderable closure.
-String? _widgetExclusionReason(
+/// Whether constructing [widget] can leave [property] out: it is optional,
+/// and no positional input follows it.
+bool _canOmit(WidgetEntry widget, PropertyEntry property) {
+  if (property.required) return false;
+  if (!property.positional) return true;
+  final after = widget.properties.skipWhile((p) => !identical(p, property));
+  return !after.skip(1).any((p) => p.positional);
+}
+
+WidgetEntry _withoutProperty(WidgetEntry widget, PropertyEntry property) =>
+    WidgetEntry(
+      wireId: widget.wireId,
+      name: widget.name,
+      library: widget.library,
+      category: widget.category,
+      description: widget.description,
+      displayLabel: widget.displayLabel,
+      flutterType: widget.flutterType,
+      childrenSlot: widget.childrenSlot,
+      properties: [
+        for (final p in widget.properties)
+          if (!identical(p, property)) p,
+      ],
+      decomposes: widget.decomposes,
+      sinceVersion: widget.sinceVersion,
+      deprecatedSince: widget.deprecatedSince,
+      stability: widget.stability,
+      deprecated: widget.deprecated,
+    );
+
+/// The first property that keeps [widget] off the RFW path and why, or `null`
+/// when every structured property resolves to a fully-renderable closure.
+({PropertyEntry property, String reason})? _widgetExclusion(
   WidgetEntry widget, {
   required Map<String, StructuredEntry> bySourceType,
   required Map<String, String> slotTargets,
@@ -218,27 +287,42 @@ String? _widgetExclusionReason(
         case _MapTargetClear():
           continue;
         case _MapTargetPlanMissing():
-          return "property '${prop.name}' has no map reconstruction plan";
+          return (
+            property: prop,
+            reason: "property '${prop.name}' has no map reconstruction plan"
+          );
         case _MapTargetDangling(:final targetFqn):
-          return "property '${prop.name}' has a map value targeting "
-              "'$targetFqn', which is not an admitted structured type";
+          return (
+            property: prop,
+            reason: "property '${prop.name}' has a map value targeting "
+                "'$targetFqn', which is not an admitted structured type"
+          );
         case _MapTargetUnrenderable(:final target, :final obstruction):
-          return "property '${prop.name}' has a map value targeting "
-              "'${target.name}' whose closure is not fully renderable "
-              '($obstruction)';
+          return (
+            property: prop,
+            reason: "property '${prop.name}' has a map value targeting "
+                "'${target.name}' whose closure is not fully renderable "
+                '($obstruction)'
+          );
       }
     }
     if (!isCustomStructuredPropertySlot(prop)) continue;
     final targetFqn =
         slotTargets[structuredSlotKey(widget.flutterType, prop.name)];
     if (targetFqn == null) {
-      return "property '${prop.name}' has no resolvable custom structured "
-          'target';
+      return (
+        property: prop,
+        reason: "property '${prop.name}' has no resolvable custom structured "
+            'target'
+      );
     }
     final target = bySourceType[targetFqn];
     if (target == null) {
-      return "property '${prop.name}' targets '$targetFqn', which is not an "
-          'admitted (renderable) structured type';
+      return (
+        property: prop,
+        reason: "property '${prop.name}' targets '$targetFqn', which is not an "
+            'admitted (renderable) structured type'
+      );
     }
     final obstruction = _obstruction(
       target,
@@ -248,8 +332,12 @@ String? _widgetExclusionReason(
       mapPlans: mapPlans,
     );
     if (obstruction != null) {
-      return "property '${prop.name}' targets '${target.name}' whose closure "
-          'is not fully renderable ($obstruction)';
+      return (
+        property: prop,
+        reason:
+            "property '${prop.name}' targets '${target.name}' whose closure "
+                'is not fully renderable ($obstruction)'
+      );
     }
   }
   return null;

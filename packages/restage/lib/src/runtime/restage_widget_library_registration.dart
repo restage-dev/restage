@@ -14,6 +14,7 @@ final class RestageWidgetLibraryRegistration {
     required Iterable<RestageWidgetFactory> widgets,
     this.capabilityVersion,
     this.compatibleSince,
+    this.generatedVersion,
   }) : _widgets = List<RestageWidgetFactory>.unmodifiable(widgets) {
     if (capabilityVersion != null && capabilityVersion! < 1) {
       throw ArgumentError.value(
@@ -43,6 +44,7 @@ final class RestageWidgetLibraryRegistration {
     required List<RestageWidgetFactory> widgets,
     this.capabilityVersion,
     this.compatibleSince,
+    this.generatedVersion,
   })  : _widgets = widgets,
         assert(
           capabilityVersion == null || capabilityVersion >= 1,
@@ -63,6 +65,10 @@ final class RestageWidgetLibraryRegistration {
   /// The oldest capability version whose content this library still renders,
   /// or `null` for 1.
   final int? compatibleSince;
+
+  /// The version of the generated code these factories come from, or `null`
+  /// for factories written by hand.
+  final int? generatedVersion;
 
   /// The library's widget factories, unmodifiable.
   List<RestageWidgetFactory> get widgets =>

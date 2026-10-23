@@ -130,7 +130,7 @@ StructuredEntry _metricsEntry() => StructuredEntry(
 
 /// `Plan({required name, badge})` plus a convenience `Plan.pro` named ctor —
 /// two variants (the unnamed canonical + `pro`). Exercises the
-/// canonical-vs-non-canonical constructor gate.
+/// per-constructor encoding.
 StructuredEntry _planWithNamedCtorEntry() => StructuredEntry(
       wireId: WireId('s0006'),
       name: 'Plan',
@@ -362,19 +362,8 @@ void main() {
     });
 
     test(
-        'a value AUTHORED VIA A NON-CANONICAL CONSTRUCTOR is DEFERRED LOUD — '
-        'never silently encoded against a ctor the decoder does not '
-        'reconstruct through', () async {
-      // The decoder always rebuilds via the reconstruction variant (the
-      // canonical unnamed constructor, or the first constructor variant when
-      // there is no unnamed one) — never the constructor the author actually
-      // invoked. `Plan.pro` is a convenience named constructor that
-      // materialises `badge` to `'PRO'` without taking a `badge` parameter;
-      // encoding from it would omit `badge` from the wire map, and the
-      // decoder — reconstructing via the canonical `Plan(...)` — would then
-      // read `badge` back as its default, not `'PRO'`: a silent wrong value.
-      // The encode must recognise this mismatch and defer rather than emit a
-      // map keyed to a constructor the decoder never uses.
+        'a value authored with a named constructor encodes the constructor '
+        'name and its arguments', () async {
       final expr = await parseExpressionFromSourceForTest('''
         class Plan {
           const Plan({required this.name, this.badge});
@@ -391,11 +380,8 @@ void main() {
 
       final result = translator.translate(expr);
 
-      expect(result.dsl, ''); // deferred, never a map keyed to the wrong ctor
-      expect(
-        result.issues.map((i) => i.message).join('\n'),
-        contains('canonical constructor'),
-      );
+      expect(result.issues, isEmpty);
+      expect(result.dsl, '{"#constructor": "pro", name: "X"}');
     });
 
     test(
@@ -500,7 +486,7 @@ void main() {
       expect(result.dsl, '');
       expect(
         result.issues.map((i) => i.message).join('\n'),
-        contains('canonical constructor'),
+        contains('Price.eur cannot be encoded'),
       );
     });
 
@@ -573,6 +559,84 @@ void main() {
       expect(
         result.issues.map((i) => i.code),
         contains(IssueCode.unknownWidget),
+      );
+    });
+  });
+
+  group('constants from another file', () {
+    const shapes = '''
+      class Part {
+        const Part.path(String this.data, {this.dash}) : x = 0;
+        const Part.circle(this.x, {this.dash}) : data = null;
+        final String? data;
+        final double x;
+        final List<double>? dash;
+      }
+      abstract final class Shapes {
+        static const dot = Part.circle(4, dash: [2, 1]);
+        static const line = Part.path('M0 0');
+        static const both = [dot, line];
+      }
+    ''';
+    final part = StructuredEntry(
+      wireId: WireId('s0009'),
+      name: 'Part',
+      library: WidgetLibrary.material,
+      description: '',
+      sourceType: 'package:restage_codegen/shapes.dart#Part',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0030'),
+          name: 'data',
+          type: PropertyType.string,
+          description: '',
+        ),
+        StructuredField(
+          wireId: WireId('p0031'),
+          name: 'x',
+          type: PropertyType.real,
+          description: '',
+        ),
+        StructuredField(
+          wireId: WireId('p0032'),
+          name: 'dash',
+          type: PropertyType.realList,
+          description: '',
+        ),
+      ],
+      variants: [
+        ConstructorVariant(wireId: WireId('v0030'), namedConstructor: 'circle'),
+        ConstructorVariant(wireId: WireId('v0031'), namedConstructor: 'path'),
+      ],
+    );
+
+    Future<TranslationResult> translate(String expression) async {
+      final expr = await parseExpressionFromSourceForTest(
+        "import 'shapes.dart'; Object x() => $expression;",
+        otherFiles: {'lib/shapes.dart': shapes},
+      );
+      return ExpressionTranslator(
+        catalog: _catalog([part]),
+        helpers: HelperRegistry(),
+      ).translate(expr);
+    }
+
+    test('a constant value encodes like the construction it holds', () async {
+      final folded = await translate('Shapes.dot');
+      final inline = await translate('const Part.circle(4, dash: [2, 1])');
+      expect(folded.issues, isEmpty, reason: '${folded.issues}');
+      const expected = '{"#constructor": "circle", x: 4.0, dash: [2.0, 1.0]}';
+      expect(folded.dsl, expected);
+      expect(folded.dsl, inline.dsl);
+    });
+
+    test('a list constant encodes each element', () async {
+      final result = await translate('Shapes.both');
+      expect(result.issues, isEmpty, reason: '${result.issues}');
+      expect(
+        result.dsl,
+        '[{"#constructor": "circle", x: 4.0, dash: [2.0, 1.0]}, '
+        '{"#constructor": "path", data: "M0 0"}]',
       );
     });
   });

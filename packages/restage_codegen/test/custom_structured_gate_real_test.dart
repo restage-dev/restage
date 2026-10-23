@@ -140,16 +140,10 @@ void main() {
     });
 
     test(
-        'with NO unnamed ctor + multiple named ctors, the guard inspects the '
-        'SAME ctor the reconstruction picks (first ALPHABETICAL, not first in '
-        'source order) — an unsourceable alphabetical-first is EXCLUDED',
+        'with NO unnamed ctor, each named ctor is checked on its own: a '
+        'sourceable one admits the type, an unsourceable one is left out',
         () async {
-      // Source order: zebra first, alpha second. The enumerator sorts named
-      // ctors alphabetically, so the reconstruction picks `alpha`. `alpha`'s
-      // required `missing` has no same-named field (only `value`), so it must
-      // be excluded — a source-order guard would wrongly inspect `zebra`
-      // (whose `value` IS a field, sourceable) and admit.
-      final admission = await _admit({
+      final result = await runWidgetVisitorOn({
         'lib/card.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           class Badge {
@@ -166,20 +160,89 @@ void main() {
           }
         ''',
       });
-      expect(admission.admitted, isEmpty,
-          reason: 'reconstruction uses alpha (unsourceable), so exclude');
-      expect(admission.excluded.single.widget.name, 'BadgeCard');
+      final admission = computeAdmission(
+        widgets: result.widgets,
+        structuredTypes: result.structuredTypes,
+        slotTargets: result.slotTargets,
+        localUnrenderable: result.localUnrenderable,
+        widgetUnrenderable: result.widgetUnrenderable,
+      );
+      expect(admission.admitted.map((w) => w.name), ['BadgeCard']);
+      final plan = result.reconstructionPlans.values.single;
+      expect(plan.hasUnnamed, isFalse);
+      expect(plan.constructors.keys, ['zebra']);
     });
 
     test(
-        'when the selected reconstruction ctor is a FACTORY (which may '
-        'transform its input, un-curated for a custom type), the type is '
-        'EXCLUDED-loud even if every param name-matches a field', () async {
-      // Variants sort alphabetically: factory `alpha` before generative `raw`,
-      // so the reconstruction picks `alpha`. `alpha`'s `label` name-matches the
-      // materialized field, but the factory rewrites it ('alpha:...') — a
-      // round-trip would double it. Not faithfully reconstructable -> exclude.
-      final admission = await _admit({
+        'an optional property whose type cannot render is left out, and '
+        'the widget is admitted', () async {
+      final result = await runWidgetVisitorOn({
+        'lib/card.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+          class Link {
+            const Link({required this.label, required this.onTap});
+            final String label;
+            final void Function() onTap;
+          }
+          @RestageWidget(name: 'LinkCard',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.decoration, description: 'c')
+          class LinkCard {
+            const LinkCard({required this.title, this.link});
+            @RestageProperty(description: 't') final String title;
+            @RestageProperty(description: 'l') final Link? link;
+          }
+        ''',
+      });
+      final admission = computeAdmission(
+        widgets: result.widgets,
+        structuredTypes: result.structuredTypes,
+        slotTargets: result.slotTargets,
+        localUnrenderable: result.localUnrenderable,
+        widgetUnrenderable: result.widgetUnrenderable,
+      );
+      expect(admission.excluded, isEmpty);
+      final card = admission.admitted.single;
+      expect(card.properties.map((p) => p.name), ['title']);
+      expect(admission.dropped.single.property, 'link');
+      expect(admission.dropped.single.reason, contains("'Link'"));
+    });
+
+    test('a required property whose type cannot render excludes the widget',
+        () async {
+      final result = await runWidgetVisitorOn({
+        'lib/card.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+          class Link {
+            const Link({required this.label, required this.onTap});
+            final String label;
+            final void Function() onTap;
+          }
+          @RestageWidget(name: 'LinkCard',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.decoration, description: 'c')
+          class LinkCard {
+            const LinkCard({required this.link});
+            @RestageProperty(description: 'l') final Link link;
+          }
+        ''',
+      });
+      final admission = computeAdmission(
+        widgets: result.widgets,
+        structuredTypes: result.structuredTypes,
+        slotTargets: result.slotTargets,
+        localUnrenderable: result.localUnrenderable,
+        widgetUnrenderable: result.widgetUnrenderable,
+      );
+      expect(admission.admitted, isEmpty);
+      expect(admission.excluded.single.property?.name, 'link');
+      expect(admission.dropped, isEmpty);
+    });
+
+    test(
+        'a FACTORY named ctor is never a reconstruction target; the type '
+        'is admitted through its generative ctor', () async {
+      final result = await runWidgetVisitorOn({
         'lib/card.dart': r'''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           class Badge {
@@ -197,9 +260,9 @@ void main() {
           }
         ''',
       });
-      expect(admission.admitted, isEmpty);
-      expect(admission.excluded.single.widget.name, 'BadgeCard');
-      expect(admission.excluded.single.reason, contains('factory'));
+      expect(result.reconstructionPlans.values.single.constructors.keys, [
+        'raw',
+      ]);
     });
 
     test(

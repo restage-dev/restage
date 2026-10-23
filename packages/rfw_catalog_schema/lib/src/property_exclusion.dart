@@ -7,9 +7,10 @@ import 'package:meta/meta.dart';
 /// compiler can build its value from wire data. When no decoder exists for the
 /// input's type and the input is optional, generated construction simply leaves
 /// it out — which is legal Dart and preserves the widget's own semantics — and
-/// the omission is recorded here instead of failing the build. An input that
-/// cannot be left out is an error rather than an exclusion, so it never appears
-/// in this list.
+/// the omission is recorded here instead of failing the build. When the input
+/// cannot be left out, the widget itself is left out of the catalog and the
+/// input is recorded here with the reason, so a use of the widget can say why
+/// it is absent.
 @immutable
 final class PropertyExclusion {
   /// Const constructor.
@@ -24,7 +25,8 @@ final class PropertyExclusion {
   /// Simple name of the widget declaring the excluded input.
   final String widget;
 
-  /// The excluded constructor input's public name.
+  /// The excluded constructor input's public name, or empty when the widget
+  /// is left out for a reason no single input carries.
   final String property;
 
   /// Name of the compile target that dropped the input.
@@ -36,6 +38,11 @@ final class PropertyExclusion {
   /// Human-readable explanation naming the type that has no decoder.
   final String reason;
 
-  /// Source location of the excluded input, as `<asset path>#<owner>.<name>`.
+  /// The excluded input as `<library uri>#<widget>.<property>`, or the
+  /// widget alone as `<library uri>#<widget>` when [property] is empty.
   final String location;
+
+  /// Whether this records the widget whose `flutterType` is [flutterType].
+  bool isOf(String flutterType) =>
+      location == flutterType || location.startsWith('$flutterType.');
 }

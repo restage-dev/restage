@@ -4,6 +4,7 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/custom_map_plan.dart';
 import 'package:restage_codegen/src/custom_record_plan.dart';
 import 'package:restage_codegen/src/custom_structured_admissibility.dart';
@@ -11,6 +12,7 @@ import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
@@ -43,6 +45,7 @@ typedef RestageWidgetCollection = ({
   Map<String, int> stampedCapabilityVersions,
   Map<String, int> compatibleSinceVersions,
   List<PropertyExclusion> exclusions,
+  NativeCatalogIndex builtInIndex,
 });
 
 /// The exact whole-widget factory predicate used by the custom RFW walker.
@@ -54,9 +57,11 @@ typedef RestageWidgetCollection = ({
 bool isCustomFactoryEmittableForWalker(
   WidgetEntry widget, {
   required CustomReconstruction custom,
+  NativeCatalogIndex? builtInIndex,
 }) =>
     isFactoryEmittable(
       widget,
+      nativeIndex: builtInIndex,
       custom: custom,
       customChildProperties: true,
     );
@@ -122,6 +127,12 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   sources
       .sort((left, right) => left.assetId.path.compareTo(right.assetId.path));
   final packageFacts = indexRestageWidgetPackage(sources);
+  final builtInCatalog = await loadBuiltInCatalog(buildStep);
+  final builtInIndex = NativeCatalogIndex(builtInCatalog);
+  final nativeStructuredRefs = builtInStructuredRefs(
+    builtInCatalog,
+    kStructuredRefDecoders.keys.toSet(),
+  );
 
   for (final source in sources) {
     final assetId = source.assetId;
@@ -130,6 +141,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
       library,
       assetId,
       packageFacts: packageFacts,
+      nativeStructuredRefs: nativeStructuredRefs,
       includeAnalyticsId: true,
     );
     widgets.addAll(result.widgets);
@@ -280,6 +292,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     isWholeWidgetEmittable: (widget) => isCustomFactoryEmittableForWalker(
       widget,
       custom: emittabilityContext,
+      builtInIndex: builtInIndex,
     ),
   );
   // Exclusion is a build-time capability loss the author needs to see, so it
@@ -289,9 +302,33 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     log.warning(
       'Custom widget ${excluded.widget.library.namespace}#'
       '${excluded.widget.name} is excluded from the RFW catalog/factory: '
-      '${excluded.reason}. It still renders in the A2UI catalog.',
+      '${reasonClause(excluded.reason)}. It still '
+      'renders in the A2UI catalog.',
+    );
+    // Recorded so a surface that uses the widget can say why it is absent.
+    final name = excluded.widget.name;
+    final flutterType = excluded.widget.flutterType;
+    if (!exclusions.any((e) => e.isOf(flutterType) && e.target == 'rfw')) {
+      final property = excluded.property?.name ?? '';
+      exclusions.add(
+        PropertyExclusion(
+          widget: name,
+          property: property,
+          target: 'rfw',
+          reason: excluded.reason,
+          location: property.isEmpty ? flutterType : '$flutterType.$property',
+        ),
+      );
+    }
+  }
+  for (final dropped in admission.dropped) {
+    final reason = reasonClause(dropped.reason);
+    log.warning(
+      "'${dropped.widget}' leaves out its optional property "
+      "'${dropped.property}': $reason.",
     );
   }
+  exclusions.addAll(admission.dropped);
   final admittedWidgets = admission.admitted;
 
   // Thread only the structured types reachable from an ADMITTED widget (deduped
@@ -473,6 +510,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
         if (entry.value > 1) entry.key: entry.value,
     },
     exclusions: orderedExclusions,
+    builtInIndex: builtInIndex,
   );
 }
 

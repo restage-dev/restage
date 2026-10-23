@@ -1778,8 +1778,11 @@ String _capabilitySource(CapabilityManifest capabilities, String sdk) {
     buffer
       ..writeln('    ${sdk}LibraryRequirement(')
       ..writeln('      namespace: ${dartStringLiteral(requirement.namespace)},')
-      ..writeln('      minVersion: ${requirement.minVersion},')
-      ..writeln('    ),');
+      ..writeln('      minVersion: ${requirement.minVersion},');
+    if (requirement.minGenerated > 1) {
+      buffer.writeln('      minGenerated: ${requirement.minGenerated},');
+    }
+    buffer.writeln('    ),');
   }
   buffer
     ..writeln('  ],')

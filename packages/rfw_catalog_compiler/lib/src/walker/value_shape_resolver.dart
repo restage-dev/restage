@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:rfw_catalog_compiler/src/policy/policy_ledger.dart';
 import 'package:rfw_catalog_compiler/src/walker/abstract_type_fallback.dart';
@@ -249,19 +250,31 @@ CatalogValueShape? _listValueShapeForDartType(DartType type) {
   final itemType = listItemType(type);
   if (itemType == null) return null;
   final itemDisplayName = _typeDisplayName(itemType);
-  final propertyType = switch (itemDisplayName) {
-    'String' => PropertyType.stringList,
-    'Shadow' => PropertyType.shadowList,
-    'FontFeature' => PropertyType.fontFeatureList,
-    'FontVariation' => PropertyType.fontVariationList,
-    _ => null,
+  final nonNullItem = itemType.nullabilitySuffix == NullabilitySuffix.none;
+  final (propertyType, itemPropertyType) = switch (itemDisplayName) {
+    'String' => (PropertyType.stringList, PropertyType.string),
+    'bool' when nonNullItem => (PropertyType.booleanList, PropertyType.boolean),
+    'int' when nonNullItem => (PropertyType.integerList, PropertyType.integer),
+    'double' || 'num' when nonNullItem => (
+        PropertyType.realList,
+        PropertyType.real,
+      ),
+    'Shadow' => (PropertyType.shadowList, PropertyType.shadowList),
+    'FontFeature' => (
+        PropertyType.fontFeatureList,
+        PropertyType.fontFeatureList
+      ),
+    'FontVariation' => (
+        PropertyType.fontVariationList,
+        PropertyType.fontVariationList,
+      ),
+    _ => (null, null),
   };
-  if (propertyType == null) return null;
+  if (propertyType == null || itemPropertyType == null) return null;
   return ListShape(
     propertyType: propertyType,
     itemShape: ScalarShape(
-      propertyType:
-          itemDisplayName == 'String' ? PropertyType.string : propertyType,
+      propertyType: itemPropertyType,
       dartTypeRef: _dartTypeRef(itemType),
     ),
   );

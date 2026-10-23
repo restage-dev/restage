@@ -206,4 +206,22 @@ void main() {
       lessThanOrEqualTo(sdkInstalledLibrariesMaximumCarrierCharacters),
     );
   });
+
+  test('writes generated only above 1 and round-trips it', () {
+    final report = SdkInstalledLibrariesV1(
+      libraries: [
+        SdkInstalledLibraryV1(namespace: 'a.w', version: 1, generated: 2),
+        SdkInstalledLibraryV1(namespace: 'b.w', version: 1, generated: 1),
+      ],
+    );
+    expect(
+      utf8.decode(report.canonicalBytes),
+      contains('{"generated":2,"namespace":"a.w","version":1},'
+          '{"namespace":"b.w","version":1}'),
+    );
+    final decoded =
+        SdkInstalledLibrariesV1.fromCanonicalBytes(report.canonicalBytes);
+    expect(decoded, report);
+    expect(decoded.libraries.first.generated, 2);
+  });
 }

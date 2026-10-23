@@ -19,7 +19,7 @@ const sectionHeaderShowcaseFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '0b0301a82a77ef86a6c55241d7123a5621dd52c1372c59eb51f3f73bfe402502',
+      'fdfc6fac91570383eb5e16ac1d7bfe602b1db6588a3d33ec8be5d4bf20f480fa',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

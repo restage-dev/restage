@@ -43,18 +43,24 @@ typedef ReconstructionArg = ({
   String? defaultEnumValue,
 });
 
-/// The recipe to reconstruct a custom structured value: the constructor to
-/// call (`null` = the unnamed ctor) and its placed arguments IN CONSTRUCTOR
-/// DECLARATION ORDER.
+/// The recipe to reconstruct a custom structured value.
 ///
-/// Only *placed* params appear (a param sourced from a materialized field). An
-/// optional param with no field is validly omitted (its default applies); the
-/// positional-hole predicate guarantees no field-positional follows an omitted
-/// positional, so emitting the placed args in order is faithful. A REQUIRED
-/// param that cannot be placed is a predicate gap — the plan build returns
-/// `null` and the type is excluded-loud, NEVER reconstructed with a partial
-/// plan or a fabricated arg.
+/// `namedConstructor` and `args` are the primary constructor: the unnamed one
+/// when `hasUnnamed`, else the first named one. `constructors` lists every
+/// named constructor a value can select through [kStructuredConstructorKey],
+/// each with its placed arguments in declaration order. A value without the
+/// key rebuilds through the unnamed constructor.
+///
+/// Only placed parameters appear. An optional parameter with no field is
+/// omitted and its default applies; a required one that cannot be placed
+/// leaves the constructor out of the plan.
 typedef ReconstructionPlan = ({
   String? namedConstructor,
   List<ReconstructionArg> args,
+  bool hasUnnamed,
+  Map<String, List<ReconstructionArg>> constructors,
 });
+
+/// The wire key naming the constructor a custom structured value was built
+/// with. It is not a valid Dart identifier, so it never collides with a field.
+const String kStructuredConstructorKey = '#constructor';

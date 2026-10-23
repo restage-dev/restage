@@ -1,7 +1,9 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
-import 'package:restage_codegen/src/custom_structured_admissibility.dart'
-    show reconstructionVariant;
+import 'package:restage_codegen/src/const_value_literal.dart';
+import 'package:restage_codegen/src/custom_structured_discovery.dart'
+    show constructorPlan;
+import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/translator_recipe.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -68,31 +70,38 @@ final class CustomStructuredValueEmitter {
 
     final loc = _locationOf(expr);
 
-    // The decoder always rebuilds a value through the SAME constructor the
-    // catalog names as its reconstruction variant — never the constructor the
-    // author actually invoked. Encoding from a DIFFERENT constructor would key
-    // the wire map to fields that ctor materialises, while the decoder reads
-    // it back through a ctor that may default an omitted field differently —
-    // a silent wrong value, not a partial map an issue would catch. So the
-    // invoked constructor must MATCH the reconstruction variant; any other
-    // constructor is deferred loud, restoring encode<->decode symmetry by
-    // construction rather than trusting it as an assumption.
-    final invokedCtorName = expr.constructorName.name?.name;
-    final reconCtorName = reconstructionVariant(structured)?.namedConstructor;
-    if (invokedCtorName != reconCtorName) {
-      final invoked = _qualifiedCtorName(structured, invokedCtorName);
-      final canonical = _qualifiedCtorName(structured, reconCtorName);
+    // A value is rebuilt through the constructor it was built with, so that
+    // constructor must have a reconstruction plan. A type with only an
+    // unnamed constructor was checked when it was admitted.
+    final ctor = constructionConstructor(expr);
+    final ctorName = ctor?.name;
+    final named = ctorName == null || ctorName.isEmpty || ctorName == 'new'
+        ? null
+        : ctorName;
+    final hasNamedVariants = structured.variants.any(
+      (variant) =>
+          variant is ConstructorVariant && variant.namedConstructor != null,
+    );
+    final fields = {for (final field in structured.fields) field.name};
+    final plan = ctor == null || (named == null && !hasNamedVariants)
+        ? null
+        : constructorPlan(ctor, fields);
+    final args = plan?.args;
+    if (ctor == null || (plan != null && args == null)) {
+      final label =
+          named == null ? structured.name : '${structured.name}.$named';
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: '$invoked cannot be encoded: the delivered value is '
-              'reconstructed through $canonical, its canonical constructor. '
-              'Author a custom data-class value with its canonical '
-              'constructor.',
+          message: '$label cannot be encoded: '
+              '${plan?.reason ?? 'the constructor did not resolve'}.',
           location: loc,
         ),
       );
       return '';
+    }
+    if (named != null) {
+      return _emitNamed(expr, structured, named, args!, issues, loc);
     }
 
     final argRefByField = _argRefByFieldName(expr);
@@ -155,12 +164,50 @@ final class CustomStructuredValueEmitter {
     );
   }
 
+  /// Encodes a value built with a named constructor as that constructor's
+  /// name plus its arguments, keyed by the fields they set.
+  String _emitNamed(
+    InstanceCreationExpression expr,
+    StructuredEntry structured,
+    String constructorName,
+    List<ReconstructionArg> args,
+    List<Issue> issues,
+    String loc,
+  ) {
+    final fieldsByName = {
+      for (final field in structured.fields) field.name: field,
+    };
+    final argRefByField = _argRefByFieldName(expr);
+    final entries = <EmitMapEntry>[
+      EmitMapEntry(
+        '"$kStructuredConstructorKey"',
+        EmitFragmentLiteral('"$constructorName"'),
+      ),
+      for (final arg in args)
+        EmitMapEntry(
+          arg.fieldName,
+          EmitFragmentArg(
+            argRefByField[arg.fieldName]!,
+            asLength: _isDoubleField(fieldsByName[arg.fieldName]!.type),
+            propertyType: fieldsByName[arg.fieldName]!.type,
+          ),
+          omitWhenArgUnset: !arg.isRequired,
+        ),
+    ];
+    return _dispatch(
+      EmitFragmentMap(entries),
+      expr.argumentList.arguments,
+      issues,
+      loc,
+    );
+  }
+
   /// Maps each source constructor parameter name to the [ArgRef] that reads its
   /// author-supplied value: a named parameter by label, a positional parameter
   /// by its zero-based position among the positionals (declaration order — the
   /// same view the decode-side reconstruction plan uses).
   Map<String, ArgRef> _argRefByFieldName(InstanceCreationExpression expr) {
-    final ctor = expr.constructorName.element;
+    final ctor = constructionConstructor(expr);
     if (ctor is! ConstructorElement) return const {};
     final byName = <String, ArgRef>{};
     var positionalIndex = 0;
@@ -187,14 +234,4 @@ final class CustomStructuredValueEmitter {
   /// structured recipes (`Offset → {x, y}`) set.
   bool _isDoubleField(PropertyType type) =>
       type == PropertyType.length || type == PropertyType.real;
-
-  /// The author-facing name of a constructor for diagnostics: the bare type
-  /// name for the unnamed constructor, or `Type.named` for a named one.
-  String _qualifiedCtorName(
-    StructuredEntry structured,
-    String? namedConstructor,
-  ) =>
-      namedConstructor == null
-          ? structured.name
-          : '${structured.name}.$namedConstructor';
 }

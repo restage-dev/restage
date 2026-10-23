@@ -15,6 +15,7 @@ import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/installed_catalog_scope.dart';
+import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/project_backend.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
@@ -98,6 +99,7 @@ final class UserFactoryBuilder implements Builder {
             compatibleSinceVersions: collection.compatibleSinceVersions,
             appVocabulary: appVocabulary,
             installWholeCatalog: installWholeCatalog,
+            builtInIndex: collection.builtInIndex,
             dependencyFactories: dependencyFactories,
           );
 
@@ -243,6 +245,7 @@ String emitAdmittedUserFactoriesDart(
   SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
   bool installWholeCatalog = false,
   AppWidgetRegistrationSource? dependencyFactories,
+  NativeCatalogIndex? builtInIndex,
 }) {
   final source = emitUserFactoriesDart(
     widgets,
@@ -257,6 +260,7 @@ String emitAdmittedUserFactoriesDart(
     appVocabulary: appVocabulary,
     installWholeCatalog: installWholeCatalog,
     dependencyFactories: dependencyFactories,
+    builtInIndex: builtInIndex,
     onSkip: _throwAdmittedFactoryCoherenceFailure,
   );
   return source ??

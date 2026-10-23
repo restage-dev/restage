@@ -122,7 +122,8 @@ Future<GeneratedWidgetCatalog> readGeneratedWidgetCatalog({
 
 /// The custom libraries of the merged [renderJson], without the built-ins.
 String _customLibraries(String renderJson) {
-  final merged = decodeCatalog(renderJson);
+  // The merged catalog carries the built-ins, so every reference resolves.
+  final merged = requireNativeCatalog(decodeCatalog(renderJson));
   bool custom(WidgetLibrary library) =>
       WidgetLibrary.builtInByNamespace(library.namespace) == null;
   return encodeCatalog(

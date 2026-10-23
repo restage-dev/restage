@@ -1,3 +1,4 @@
+import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
@@ -7,7 +8,7 @@ import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/custom_map_plan.dart';
 import 'package:restage_codegen/src/custom_record_plan.dart';
 import 'package:restage_codegen/src/custom_structured_admissibility.dart'
-    show reconstructionVariant, structuredSlotKey;
+    show structuredSlotKey;
 import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -365,28 +366,20 @@ CustomStructuredDiscovery discoverCustomStructured({
       if (ir.diagnostics.isNotEmpty) {
         recordUnrenderable(_diagnosticReason(ir.diagnostics));
       }
-      // Reconstructor-soundness (analyzer-level): the by-name reconstructor
-      // sources each ctor parameter from the field of the same name. A required
-      // param that name-matches no materialized field cannot be sourced — and
-      // the lowered IR discards it (real `FactoryVariantIR.parameters` is empty
-      // and `argMappings` skips an unmapped param), so a lowered-catalog-only
-      // check is a no-op. Detect it here, over the real constructor. The target
-      // ctor is derived from `reconstructionVariant` (the SAME selection the
-      // reconstruction uses) so the check can't drift from what gets emitted.
       final materializedFieldNames = {
         for (final field in lowered.fields) field.name,
       };
-      // The reconstruction ctor, selected ONCE — the obstruction check, the
-      // plan, and the eventual emission all read the SAME variant so they can't
-      // diverge.
-      final reconVariant = reconstructionVariant(lowered);
-      recordUnrenderable(
-        _reconstructionObstruction(
-          root.element,
-          reconVariant,
-          materializedFieldNames,
-        ),
+      // Every constructor a value can be rebuilt through.
+      final constructorPlans = reconstructionPlanFor(
+        root.element,
+        materializedFieldNames,
       );
+      final plan = constructorPlans.plan;
+      if (plan == null) {
+        recordUnrenderable(constructorPlans.reason);
+      } else {
+        reconstructionPlans[lowered.sourceType] = plan;
+      }
       // Nameability (compilability, distinct from faithfulness): every type the
       // generated factory references — this type + its materialized field types
       // (a nested ctor call, an enum's `.values`) — must be NAMEABLE from the
@@ -397,31 +390,6 @@ CustomStructuredDiscovery discoverCustomStructured({
       recordUnrenderable(
         _unnameableReferencedType(root.element, materializedFieldNames),
       );
-      // Importability of a referenced FLUTTER enum (a distinct compilability
-      // axis — it must be in `widgets.dart`'s export namespace to be named
-      // bare) is checked in the ASYNC walker (see
-      // `collectRestageWidgetsForPackage`), where `widgets.dart` can be
-      // resolved; a non-exported flutter enum's
-      // owning structured type is marked `localUnrenderable` there.
-      // The build-time reconstruction plan (arg kind/order + optional
-      // non-nullable defaults), from the SAME analyzer ctor. It must place
-      // EVERY required param and reproduce EVERY optional non-nullable param's
-      // default; if it can't (a required param with no field, or an optional
-      // non-nullable param whose default cannot be faithfully reproduced in the
-      // generated library), that is a predicate gap — exclude-loud, never a
-      // partial plan or silent value loss. Consistent by construction with the
-      // obstruction check above, which reads the same variant + fields.
-      final planResult = _buildReconstructionPlan(
-        root.element,
-        reconVariant,
-        materializedFieldNames,
-      );
-      final plan = planResult.plan;
-      if (plan == null) {
-        recordUnrenderable(planResult.reason);
-      } else {
-        reconstructionPlans[lowered.sourceType] = plan;
-      }
       // Record each nested structured field's slot target for ref resolution.
       for (final (fieldName, targetFqn)
           in _structuredFieldTargets(structuredFields)) {
@@ -541,54 +509,17 @@ Iterable<(String, String)> _structuredFieldTargets(
   }
 }
 
-/// A human-readable reason the EXACT constructor the reconstructor will use —
-/// [reconVariant], resolved to the same-named analyzer constructor on
-/// [element] — cannot faithfully reconstruct a value by name, else `null`.
+/// Why [ctor] cannot rebuild a value from its fields by name, else `null`.
 ///
-/// Three obstructions:
-///  * The ctor is a FACTORY. A factory's body may transform its input (an
-///    un-curated custom `factory Badge.x({required String label}) =>
-///    Badge.raw(label: 'x:$label')` doubles on round-trip), and the analyzer
-///    can't see the body, so a factory reconstruction target is not
-///    round-trip-safe for a custom type. (Built-in splatting factories like
-///    `BorderRadius.circular` are curated and travel a different path.)
-///  * A NAMED param — required OR optional — name-matches no field in
-///    [fieldNames], so the by-name reconstructor could not source it (a
-///    non-canonical shape like `Badge({required int c}) : count = c`, or
-///    `Badge({int c = 0}) : count = c` — optionality doesn't make a renamed
-///    param sourceable; the reconstructor would still supply `count:`, so a
-///    genuinely-authored value silently reads back as whatever default the
-///    reconstruction ctor gives `count`, never the author's actual value).
-///    Optional POSITIONAL params are exempted here (a trailing extra is
-///    harmless — the positional-hole check guards their emission order).
-///  * A materialized FIELD in [fieldNames] name-matches no ctor parameter.
-///    This is the field-side dual of the param check and closes the POSITIONAL
-///    rename (`Badge([int label = 0]) : count = label`) the positional
-///    exemption above lets slip: the encode sources each field by name, so a
-///    field with no same-named param is dropped and mis-reconstructed. (It
-///    also over-excludes a constant/derived initializer-list field — a
-///    deliberate fail-safe; see the inline note.)
-///
-/// Returns `null` when [reconVariant] is null (no constructor variant), the
-/// matching analyzer ctor can't be found, or the ctor is a faithful generative
-/// ctor whose params and materialized fields name-match one-to-one.
-///
-/// The target ctor is derived from [reconstructionVariant] (over the
-/// enumerator's already-filtered, already-sorted variants) rather than
-/// re-selected here, so the soundness check stays aligned with the
-/// reconstruction BY CONSTRUCTION — one source of truth for which ctor is
-/// canonical. This alignment is load-bearing: a guard/reconstruction
-/// ctor-selection divergence (e.g. picking the source-first named ctor when the
-/// reconstruction picks the alphabetically first, inspecting a redirecting ctor
-/// the enumerator dropped, or missing a transforming factory) is an
-/// admitted-but-wrong = a custom build failure.
+/// A factory may transform its input, and every parameter must name a field.
+/// With [byFields] the value is encoded field by field, so every field must
+/// also name a parameter; otherwise the wire carries the constructor's own
+/// arguments, so every parameter must name a field of the same type.
 String? _reconstructionObstruction(
-  ClassElement element,
-  ConstructorVariant? reconVariant,
-  Set<String?> fieldNames,
-) {
-  final ctor = _reconstructionCtor(element, reconVariant);
-  if (ctor == null) return null;
+  ConstructorElement ctor,
+  Set<String?> fieldNames, {
+  required bool byFields,
+}) {
   final targetName = _normalizedCtorName(ctor); // null == the unnamed ctor
   if (ctor.isFactory) {
     return 'the reconstruction constructor "${targetName ?? 'new'}" is a '
@@ -629,6 +560,22 @@ String? _reconstructionObstruction(
   // is uncommon for a value object, the exclusion is loud, and the author's
   // fix is trivial: expose the field as a ctor parameter — `{this.kind =
   // 'default'}`).
+  if (!byFields) {
+    for (final parameter in ctor.formalParameters) {
+      final name = parameter.name;
+      if (name == null || !fieldNames.contains(name)) {
+        return 'constructor "${targetName ?? 'new'}" parameter '
+            '"${name ?? '<positional>'}" has no matching field';
+      }
+      final field = ctor.enclosingElement.getField(name);
+      if (field == null ||
+          _nonNullDisplay(field.type) != _nonNullDisplay(parameter.type)) {
+        return 'constructor "${targetName ?? 'new'}" parameter "$name" '
+            "does not have its field's type";
+      }
+    }
+    return positionalHoleReason(ctor, fieldNames);
+  }
   final ctorParamNames = {
     for (final parameter in ctor.formalParameters)
       if (parameter.name case final paramName? when paramName.isNotEmpty)
@@ -724,6 +671,81 @@ String? _unnameableReferencedType(
   return null;
 }
 
+/// The reconstruction plan for [element], or the reason it has none.
+///
+/// The unnamed constructor rebuilds a value from its fields. Each public named
+/// constructor that can be called with the value's arguments is listed too,
+/// selected on the wire by [kStructuredConstructorKey].
+({ReconstructionPlan? plan, String? reason}) reconstructionPlanFor(
+  ClassElement element,
+  Set<String?> materializedFieldNames,
+) {
+  List<ReconstructionArg>? unnamedArgs;
+  String? firstReason;
+  final named = <String, List<ReconstructionArg>>{};
+  for (final constructor in element.constructors) {
+    final name = _normalizedCtorName(constructor);
+    if (name != null && name.startsWith('_')) continue;
+    if (constructor.redirectedConstructor != null) continue;
+    if (constructor.isFactory && name != null) continue;
+    final result = constructorPlan(constructor, materializedFieldNames);
+    if (result.args == null) {
+      firstReason ??= result.reason;
+      continue;
+    }
+    if (name == null) {
+      unnamedArgs = result.args;
+    } else {
+      named[name] = result.args!;
+    }
+  }
+  if (unnamedArgs == null && named.isEmpty) {
+    return (
+      plan: null,
+      reason: firstReason ?? 'no constructor can rebuild a value',
+    );
+  }
+  // Without an unnamed constructor the primary is the alphabetically first
+  // named one, the constructor a value without a selector was built through.
+  final firstNamed = (named.keys.toList()..sort()).firstOrNull;
+  final primary = unnamedArgs != null
+      ? (name: null, args: unnamedArgs)
+      : (name: firstNamed, args: named[firstNamed]!);
+  return (
+    plan: (
+      namedConstructor: primary.name,
+      args: primary.args,
+      hasUnnamed: unnamedArgs != null,
+      constructors: named,
+    ),
+    reason: null,
+  );
+}
+
+/// The arguments [constructor] rebuilds a value with, or the reason it cannot.
+///
+/// The encoder and the generated decoder both call this, so a constructor the
+/// encoder writes is always one the decoder reads.
+({List<ReconstructionArg>? args, String? reason}) constructorPlan(
+  ConstructorElement constructor,
+  Set<String?> fieldNames,
+) {
+  final obstruction = _reconstructionObstruction(
+    constructor,
+    fieldNames,
+    byFields: _normalizedCtorName(constructor) == null,
+  );
+  if (obstruction != null) return (args: null, reason: obstruction);
+  return _buildConstructorArgs(constructor, fieldNames);
+}
+
+String _nonNullDisplay(DartType type) {
+  final display = type.getDisplayString();
+  return display.endsWith('?')
+      ? display.substring(0, display.length - 1)
+      : display;
+}
+
 /// Normalizes an analyzer constructor's name to the convention the variant
 /// enumerator uses for `namedConstructor`: the unnamed constructor (name null,
 /// empty, or `new`) is `null`; a named constructor keeps its bare name. Used to
@@ -734,49 +756,14 @@ String? _normalizedCtorName(ConstructorElement constructor) {
   return name;
 }
 
-/// The analyzer constructor the reconstruction targets: the one on [element]
-/// whose [_normalizedCtorName] matches [reconVariant]'s `namedConstructor`.
-/// This is the SINGLE ctor selection shared by [_reconstructionObstruction] and
-/// [_buildReconstructionPlan] — one analyzer view they both read, so the
-/// admission decision and the emitted arg list can't diverge on which ctor is
-/// canonical. Returns `null` when there is no variant or no matching ctor.
-ConstructorElement? _reconstructionCtor(
-  ClassElement element,
-  ConstructorVariant? reconVariant,
-) {
-  if (reconVariant == null) return null;
-  final targetName = reconVariant.namedConstructor;
-  for (final constructor in element.constructors) {
-    if (_normalizedCtorName(constructor) == targetName) return constructor;
-  }
-  return null;
-}
-
-/// The build-time reconstruction plan for [element]'s reconstruction ctor
-/// ([reconVariant]) over [materializedFieldNames]: every constructor parameter,
-/// IN DECLARATION ORDER, that is PLACED (sourced from a same-named materialized
-/// field) with its arg kind (named vs positional) and — for an optional
-/// non-nullable param — its reproduced ctor default. Returns `plan: null` +
-/// a `reason` when the type is a predicate gap (a required param with no field,
-/// or an optional non-nullable param whose default cannot be faithfully
-/// reproduced in the generated library) — the caller excludes-loud, NEVER a
-/// partial plan or a silent value loss.
-///
-/// Uses the SAME constructor selection as [_reconstructionObstruction] (unnamed/
-/// named via [_normalizedCtorName] against [reconstructionVariant]), so the
-/// admission decision and the emitted arg list read one analyzer view and can't
-/// disagree. An optional param with no field is validly omitted (its default
-/// applies); the positional-hole predicate guarantees no placed positional
-/// follows an omitted one, so emitting the placed args in order is faithful.
-({ReconstructionPlan? plan, String? reason}) _buildReconstructionPlan(
-  ClassElement element,
-  ConstructorVariant? reconVariant,
+/// The arguments [ctor] is called with, in declaration order, each sourced
+/// from its same-named field. An optional non-nullable parameter carries its
+/// reproduced default. Returns a reason instead when a required parameter has
+/// no field or a default cannot be reproduced.
+({List<ReconstructionArg>? args, String? reason}) _buildConstructorArgs(
+  ConstructorElement ctor,
   Set<String?> materializedFieldNames,
 ) {
-  final ctor = _reconstructionCtor(element, reconVariant);
-  if (ctor == null) {
-    return (plan: null, reason: 'no reconstruction constructor variant');
-  }
   final args = <ReconstructionArg>[];
   for (final parameter in ctor.formalParameters) {
     final name = parameter.name;
@@ -804,7 +791,7 @@ ConstructorElement? _reconstructionCtor(
           // exclude-loud rather than emit a non-compiling fallback or silently
           // drop the field's value.
           return (
-            plan: null,
+            args: null,
             reason: 'optional non-nullable parameter "$name" has a default '
                 '(${parameter.defaultValueCode}) that the generated factory '
                 'cannot faithfully reproduce',
@@ -822,17 +809,14 @@ ConstructorElement? _reconstructionCtor(
     } else if (parameter.isRequired) {
       // A required param with no field can neither be sourced nor omitted.
       return (
-        plan: null,
+        args: null,
         reason: 'required constructor parameter "${name ?? '<positional>'}" '
             'has no matching field',
       );
     }
     // else: optional + no field -> omit (the ctor default applies).
   }
-  return (
-    plan: (namedConstructor: _normalizedCtorName(ctor), args: args),
-    reason: null,
-  );
+  return (args: args, reason: null);
 }
 
 /// Whether [type] is a nullable type (`T?`).
@@ -852,6 +836,35 @@ bool _isNullable(DartType type) =>
 String? _reproducibleDefaultLiteral(FormalParameterElement parameter) {
   final value = parameter.computeConstantValue();
   if (value == null) return null;
+  final items = value.toListValue();
+  if (items != null) return _reproducibleScalarListLiteral(parameter, items);
+  return _primitiveLiteral(value);
+}
+
+/// A `const <T>[...]` literal for a scalar-list default, or `null`.
+String? _reproducibleScalarListLiteral(
+  FormalParameterElement parameter,
+  List<DartObject> items,
+) {
+  final type = parameter.type;
+  if (type is! InterfaceType || type.typeArguments.length != 1) return null;
+  final item = type.typeArguments.single;
+  final scalar = item.isDartCoreString ||
+      item.isDartCoreBool ||
+      item.isDartCoreInt ||
+      item.isDartCoreDouble ||
+      item.isDartCoreNum;
+  if (!scalar || item.nullabilitySuffix != NullabilitySuffix.none) return null;
+  final literals = <String>[];
+  for (final value in items) {
+    final literal = _primitiveLiteral(value);
+    if (literal == null) return null;
+    literals.add(literal);
+  }
+  return 'const <${item.getDisplayString()}>[${literals.join(', ')}]';
+}
+
+String? _primitiveLiteral(DartObject value) {
   final stringValue = value.toStringValue();
   if (stringValue != null) return dartStringLiteral(stringValue);
   final boolValue = value.toBoolValue();
