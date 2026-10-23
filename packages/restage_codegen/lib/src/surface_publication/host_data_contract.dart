@@ -1,6 +1,7 @@
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
+import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -73,13 +74,43 @@ String _contractLiteral(Object? value) => switch (value) {
 /// shape. A screen declaring none yields the empty schema, whose contract hash
 /// is absent, so its fingerprint stays what it was before host data existed.
 SurfaceScreenHostDataSchema hostDataContractOf(
-  Iterable<RootContextParam> rootParams,
-) =>
+  Iterable<RootContextParam> rootParams, {
+  Iterable<HoistedValue> hoisted = const [],
+}) =>
     SurfaceScreenHostDataSchema(<String, SurfaceScreenHostDataShape>{
       for (final param in rootParams)
         if (!param.forwardsFlutterKey && param.hostDataShape != null)
-          param.name: hostDataContractShapeOf(param.hostDataShape!),
+          param.name: _withItemValues(
+            hostDataContractShapeOf(param.hostDataShape!),
+            [
+              for (final value in hoisted)
+                if (value.item == param.name) value,
+            ],
+          ),
+      for (final value in hoisted)
+        if (value.item == null) value.key: value.shape,
     });
+
+/// [shape] with [values] added to each item of the list it describes.
+SurfaceScreenHostDataShape _withItemValues(
+  SurfaceScreenHostDataShape shape,
+  List<HoistedValue> values,
+) {
+  if (values.isEmpty) return shape;
+  return switch (shape) {
+    SurfaceScreenHostDataNullableShapeV1(:final value) =>
+      SurfaceScreenHostDataNullableShapeV1(_withItemValues(value, values)),
+    SurfaceScreenHostDataListShapeV1(:final items) =>
+      SurfaceScreenHostDataListShapeV1(_withItemValues(items, values)),
+    SurfaceScreenHostDataObjectShapeV1(:final fields) =>
+      SurfaceScreenHostDataObjectShapeV1(<String, SurfaceScreenHostDataShape>{
+        ...fields,
+        for (final value in values) value.key: value.shape,
+      }),
+    // Per-item values are admitted only over lists of objects.
+    _ => shape,
+  };
+}
 
 /// Converts one resolved host-data shape to its inert contract form.
 SurfaceScreenHostDataShape hostDataContractShapeOf(HostDataShape shape) {

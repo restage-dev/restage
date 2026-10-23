@@ -111,6 +111,7 @@ export 'src/resolver/variant_resolver.dart';
 export 'src/resolver/surface_resolution_report.dart'
     show SurfaceResolutionSource, SurfaceResolutionReport;
 export 'src/runtime/error_boundary.dart' show RuntimeErrorBoundary;
+export 'src/runtime/host_value.dart' show restageHostValue, restageHostValues;
 export 'src/commerce/restage_commerce.dart' show RestageCommerce;
 export 'src/runtime/restage.dart' hide emitRestageEvent;
 export 'src/runtime/restage_widget_factory.dart';

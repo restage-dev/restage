@@ -56,6 +56,7 @@ publishAssembledSurfacePublication({
   bool declareAssets = false,
   Future<Uint8List?> Function(SurfacePayload payload)? editorStateOf,
   Uint8List? pushImage,
+  Map<String, Object?>? previewContext,
 }) async {
   final measurementUpload = assembled.measurementUpload;
   final editorState =
@@ -75,6 +76,7 @@ publishAssembledSurfacePublication({
       organizationId: organizationId,
       editorState: editorState,
       pushImage: pushImage,
+      previewContext: previewContext,
     );
     return (result: result, profile: null);
   }
@@ -89,6 +91,7 @@ publishAssembledSurfacePublication({
     organizationId: organizationId,
     editorState: editorState,
     pushImage: pushImage,
+    previewContext: previewContext,
   );
   MeasurementProfileWrite? profile;
   if (assembled.hasBundledMeasurementSourceClosure) {

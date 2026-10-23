@@ -328,4 +328,104 @@ class ProUpgrade extends StatelessWidget {
       contains("return restage_capture_type0.ProUpgrade(title: 'Go Pro');"),
     );
   });
+
+  group('the render context of values the app computes', () {
+    const library = '''
+import 'package:flutter/material.dart';
+
+@Screen(id: 'checklist')
+final class ChecklistScreen extends StatelessWidget {
+  const ChecklistScreen({super.key, required this.owner});
+
+  final String owner;
+}
+''';
+    final withAppValue = SurfaceScreenHostDataSchema({
+      'owner': const SurfaceScreenHostDataScalarShapeV1(
+        SurfaceScreenHostDataScalarKind.string,
+      ),
+      '_h0123456789': const SurfaceScreenHostDataScalarShapeV1(
+        SurfaceScreenHostDataScalarKind.integer,
+      ),
+    });
+
+    Future<String?> contextSource(SurfaceScreenHostDataSchema schema) async {
+      write('lib/screens/checklist_screen.dart', library);
+      final entry = await seedGeneratedPaywall(
+        app,
+        slug: 'checklist',
+        surface: Surface.onboarding,
+        sources: const ['lib/screens/checklist_screen.dart'],
+        hostDataContract: schema,
+      );
+      return surfaceContextTestSource(
+        projectRoot: app,
+        appName: 'demo',
+        entry: mounted(entry, 'ChecklistSurface'),
+        name: 'onboarding.checklist',
+        sample: sampleHostContext(schema),
+      );
+    }
+
+    test('records them through the generated widget', () async {
+      final text = await contextSource(withAppValue);
+      expect(text, contains('restage_capture.captureContext('));
+      expect(
+        text,
+        matches(
+          RegExp(
+            r"return restage_capture_type0\.ChecklistSurface\(owner: 'Owner'\);",
+          ),
+        ),
+      );
+    });
+
+    test('skips a surface with none', () async {
+      final text = await contextSource(
+        SurfaceScreenHostDataSchema({
+          'owner': const SurfaceScreenHostDataScalarShapeV1(
+            SurfaceScreenHostDataScalarKind.string,
+          ),
+        }),
+      );
+      expect(text, isNull);
+    });
+
+    test('names each value by the expression it comes from', () {
+      expect(
+        hostDataAppValueLabels(
+          SurfaceScreenHostDataSchema({
+            '_h0123456789': const SurfaceScreenHostDataScalarShapeV1(
+              SurfaceScreenHostDataScalarKind.integer,
+            ).withLabel('VColors.of(context).ink'),
+            'plants': SurfaceScreenHostDataListShapeV1(
+              SurfaceScreenHostDataObjectShapeV1({
+                '_hfedcba9876': const SurfaceScreenHostDataScalarShapeV1(
+                  SurfaceScreenHostDataScalarKind.integer,
+                ).withLabel('Tones.of(context).colorFor(plant.tone)'),
+              }),
+            ),
+          }),
+        ),
+        ['Tones.of(context).colorFor(plant.tone)', 'VColors.of(context).ink'],
+      );
+    });
+
+    test('finds a value carried by each item of a list', () {
+      expect(
+        hostDataHasAppValues(
+          SurfaceScreenHostDataSchema({
+            'plants': SurfaceScreenHostDataListShapeV1(
+              SurfaceScreenHostDataObjectShapeV1({
+                '_hfedcba9876': const SurfaceScreenHostDataScalarShapeV1(
+                  SurfaceScreenHostDataScalarKind.integer,
+                ),
+              }),
+            ),
+          }),
+        ),
+        isTrue,
+      );
+    });
+  });
 }

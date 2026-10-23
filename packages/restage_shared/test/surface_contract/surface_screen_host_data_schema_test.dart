@@ -95,6 +95,53 @@ void main() {
     });
   });
 
+  group('labels', () {
+    test('round-trip on every shape kind and leave fit unchanged', () {
+      final shapes = <SurfaceScreenHostDataShape>[
+        const SurfaceScreenHostDataScalarShapeV1(
+          SurfaceScreenHostDataScalarKind.integer,
+        ).withLabel('Palette.of(context).ink'),
+        const SurfaceScreenHostDataNullableShapeV1(
+          SurfaceScreenHostDataScalarShapeV1(
+            SurfaceScreenHostDataScalarKind.string,
+          ),
+        ).withLabel('session.name'),
+        const SurfaceScreenHostDataListShapeV1(
+          SurfaceScreenHostDataScalarShapeV1(
+            SurfaceScreenHostDataScalarKind.doubleValue,
+          ),
+        ).withLabel('Space.of(context).screen'),
+        const SurfaceScreenHostDataMapShapeV1(
+          SurfaceScreenHostDataScalarShapeV1(
+            SurfaceScreenHostDataScalarKind.integer,
+          ),
+        ).withLabel('Tones.of(context).all'),
+        SurfaceScreenHostDataObjectShapeV1(
+          const <String, SurfaceScreenHostDataShape>{
+            'fontSize': SurfaceScreenHostDataScalarShapeV1(
+              SurfaceScreenHostDataScalarKind.doubleValue,
+            ),
+          },
+        ).withLabel('Styles.title'),
+      ];
+      for (final shape in shapes) {
+        final json = shape.toJson();
+        final decoded = SurfaceScreenHostDataShape.fromJson(json);
+        expect(decoded.toJson(), json);
+        expect(decoded.label, shape.label);
+        expect(
+          hostDataShapeAcceptsProvided(
+            shape,
+            SurfaceScreenHostDataShape.fromJson(
+              Map.of(json)..remove('label'),
+            ),
+          ),
+          isTrue,
+        );
+      }
+    });
+  });
+
   group('screen contract fingerprint', () {
     test('omits the host data key entirely for an empty schema', () {
       const empty = SurfaceScreenHostDataSchema.empty();

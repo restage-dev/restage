@@ -195,6 +195,8 @@ Future<int> runPush({
   onPushed,
   bool declareAssets = false,
   Uint8List? Function(AssembledSurfacePublication publication)? imageOf,
+  Map<String, Object?>? Function(AssembledSurfacePublication publication)?
+  previewContextOf,
   void Function(File file)? onContractBound,
 }) async {
   final uploader = SurfacePublicationApi(api);
@@ -220,6 +222,7 @@ Future<int> runPush({
         organizationId: target.organizationId,
         declareAssets: declareAssets,
         pushImage: imageOf?.call(publication),
+        previewContext: previewContextOf?.call(publication),
       );
       stdout.writeln(
         '${describe(publication)} to $environment; ${result.stateDescription}',

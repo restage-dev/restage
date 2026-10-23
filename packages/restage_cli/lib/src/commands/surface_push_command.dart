@@ -31,6 +31,8 @@ import 'package:restage_cli/src/receipts/receipt_location.dart';
 import 'package:restage_cli/src/receipts/release_recorder.dart';
 import 'package:restage_cli/src/receipts/release_receipt.dart';
 import 'package:restage_cli/src/render_bundles/surface_capture.dart';
+import 'package:restage_cli/src/render_bundles/surface_capture_source.dart'
+    show hostDataAppValueLabels, hostDataHasAppValues;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     hide RuntimePlane;
@@ -317,7 +319,9 @@ class SurfacePushCommand extends Command<int> {
           projectRoot: projectRoot,
           entries: [
             for (final publication in assembled)
-              if (_drawnWithAppWidgets(publication)) publication.entry,
+              if (_drawnWithAppWidgets(publication) ||
+                  _readsAppValues(publication))
+                publication.entry,
           ],
           flagRoot: argResults?['flutter-root'] as String?,
           configRoot: loadedConfig?.config.flutterRoot,
@@ -501,7 +505,8 @@ class SurfacePushCommand extends Command<int> {
         );
       }
 
-      final imageOf = _reportImages(await images, assembled);
+      final captured = await images;
+      final imageOf = _reportImages(captured, assembled);
       var recordFailed = false;
       final recordedPushes = <String>[];
       final pushCode = await runPush(
@@ -521,8 +526,24 @@ class SurfacePushCommand extends Command<int> {
         stderr: _stderr,
         declareAssets: declareAssets,
         imageOf: imageOf,
+        previewContextOf: (publication) => _readsAppValues(publication)
+            ? captured.contexts[surfaceImageName(
+                surfaceType: publication.entry.publication.surface.wireName,
+                slug: publication.entry.publication.slug,
+              )]
+            : null,
         onContractBound: recorder?.track,
         onPushed: (publication, result) async {
+          final appValues =
+              switch (publication.entry.publication.hostDataContract) {
+                final schema? => hostDataAppValueLabels(schema),
+                null => const <String>[],
+              };
+          if (appValues.isNotEmpty) {
+            _stdout
+              ..writeln('Evaluated in the app:')
+              ..writeAll([for (final label in appValues) '  $label\n']);
+          }
           await _reportPublicationFit(
             api: api,
             result: result,
@@ -655,6 +676,12 @@ class SurfacePushCommand extends Command<int> {
 
   static bool _drawnWithAppWidgets(AssembledSurfacePublication publication) =>
       publication.payload.requiredLibraries.isNotEmpty;
+
+  static bool _readsAppValues(AssembledSurfacePublication publication) =>
+      switch (publication.entry.publication.hostDataContract) {
+        final schema? => hostDataHasAppValues(schema),
+        null => false,
+      };
 
   Future<void> _reportPublicationFit({
     required RestageApi api,

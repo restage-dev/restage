@@ -26,12 +26,14 @@ final class SourceBuildBlueprint {
     List<RootContextParam> rootParams = const [],
     List<RootContextParam>? constructorParams,
     this.mountConstructorProblem,
+    List<FormalParameterElement> buildArguments = const [],
     Map<String, RecognisedSetState> eventHandlers = const {},
     Map<Element, Expression> localBindings = const {},
     Map<Element, HelperDef> helpers = const {},
   })  : state = state == null ? null : List.unmodifiable(state),
         rootParams = List.unmodifiable(rootParams),
         constructorParams = List.unmodifiable(constructorParams ?? rootParams),
+        buildArguments = List.unmodifiable(buildArguments),
         eventHandlers = Map.unmodifiable(eventHandlers),
         inlined = InlinedDefinitions(
           localBindings: Map.unmodifiable(
@@ -58,6 +60,9 @@ final class SourceBuildBlueprint {
 
   /// The effective `build()` method's `BuildContext` parameter element.
   final Element? buildContextParameter;
+
+  /// The parameters `build()` takes after its context, such as a `ref`.
+  final List<FormalParameterElement> buildArguments;
 
   /// Root `State` fields, or `null` for a stateless root.
   final List<CustomWidgetStateField>? state;
@@ -206,6 +211,9 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     return null;
   }
   final buildContextParameter = _buildContextParameter(buildMethod);
+  final buildArguments = buildContextParameter == null
+      ? const <FormalParameterElement>[]
+      : buildMethod.formalParameters.skip(1).toList();
   final constructorFacts = await _constructorParams(sourceClass, astNodeFor);
   final constructorParams = constructorFacts.params;
   final rootParams = constructorParams
@@ -217,6 +225,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     rootParams: rootParams,
     constructorParams: constructorParams,
     mountConstructorProblem: constructorFacts.mountProblem,
+    buildArguments: buildArguments,
     localBindings: localBindings,
     helpers: reachable.helpers,
   );
@@ -645,8 +654,8 @@ String _functionFormalType(FormalParameter formal) {
 
 Element? _buildContextParameter(MethodElement buildMethod) {
   final parameters = buildMethod.formalParameters;
-  if (parameters.length != 1) return null;
-  final parameter = parameters.single;
+  if (parameters.isEmpty) return null;
+  final parameter = parameters.first;
   final type = parameter.type;
   if (type is! InterfaceType || type.element.name != 'BuildContext') {
     return null;
@@ -655,6 +664,13 @@ Element? _buildContextParameter(MethodElement buildMethod) {
 }
 
 _SourceWidgetKind? _widgetKind(ClassElement cls) {
+  // A widget whose own build() receives more than its context, such as a
+  // ConsumerWidget, builds from that method.
+  final build = cls.methods.where((method) => method.name == 'build');
+  if (build.firstOrNull?.formalParameters case [final context, _, ...]
+      when context.type.element?.name == 'BuildContext') {
+    return _SourceWidgetKind.stateless;
+  }
   var supertype = cls.supertype;
   while (supertype != null) {
     final name = supertype.element.name;

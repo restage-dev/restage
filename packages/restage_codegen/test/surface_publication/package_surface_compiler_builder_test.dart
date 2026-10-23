@@ -1435,6 +1435,403 @@ const customOffer = UpgradeOfferSurface(
     });
   });
 
+  test('computes app-only values in the generated mount', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/welcome.restage.g.dart';
+
+class Palette extends InheritedWidget {
+  const Palette({super.key, required super.child, required this.ink});
+  final Color ink;
+  static Palette of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<Palette>()!;
+  @override
+  bool updateShouldNotify(Palette old) => ink != old.ink;
+}
+
+abstract final class Styles {
+  static final TextStyle title = TextStyle(fontSize: 28);
+}
+
+@Screen(id: 'welcome', surface: Surface.onboarding)
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key, required this.name});
+  final String name;
+  @override
+  Widget build(BuildContext context) {
+    final ink = Palette.of(context).ink;
+    return ColoredBox(
+      color: ink,
+      child: Text(name, style: Styles.title.copyWith(color: ink)),
+    );
+  }
+}
+""";
+    final generated = await _generatedPart(source, 'welcome');
+    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    expect(flat, contains(_hostValuesOpen));
+    expect(
+      flat,
+      matches(
+        RegExp(
+          r"'_h[0-9a-f]{10}': \( ?const bool\.fromEnvironment\('dart\.vm\.product'\) \? '' : '[^']*', "
+          r'\(\) => Palette\.of\(context\)\.ink',
+        ),
+      ),
+    );
+    expect(
+      flat,
+      contains(
+        '() => Styles.title.copyWith(color: Palette.of(context).ink)',
+      ),
+    );
+    expect(flat, contains("'name': _restageArgument1,"));
+    await _expectAnalyzesClean({
+      'apps_examples|lib/welcome.dart': source,
+      'apps_examples|lib/restage.generated/welcome.restage.g.dart': generated,
+    });
+  });
+
+  test('computes a per-item lookup for each host-supplied item', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/garden.restage.g.dart';
+
+class Tones {
+  const Tones();
+  static Tones of(BuildContext context) => const Tones();
+  Color colorFor(int tone) => Color(0xFF000000 + tone);
+}
+
+final class Plant {
+  const Plant({required this.name, required this.tone});
+  final String name;
+  final int tone;
+}
+
+@Screen(id: 'garden', surface: Surface.onboarding)
+final class Garden extends StatelessWidget {
+  const Garden({super.key, required this.plants});
+  final List<Plant> plants;
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          for (final plant in plants)
+            ColoredBox(color: Tones.of(context).colorFor(plant.tone)),
+        ],
+      );
+}
+""";
+    final generated = await _generatedPart(source, 'garden');
+    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      flat,
+      matches(
+        RegExp(
+          r"'tone': restageValue0\.tone, \.\.\.restageHostValues\(<String, "
+          r"\(String, Object\? Function\(\)\)>\{ ?'_h[0-9a-f]{10}': \( ?const bool\.fromEnvironment\('dart\.vm\.product'\) \? '' : '[^']*', \(\) => "
+          r'Tones\.of\(context\)\.colorFor\(restageValue0\.tone\)',
+        ),
+      ),
+    );
+    await _expectAnalyzesClean({
+      'apps_examples|lib/garden.dart': source,
+      'apps_examples|lib/restage.generated/garden.restage.g.dart': generated,
+    });
+  });
+
+  test('gives the same per-item expression over two lists two keys', () async {
+    const source = r"""
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/plans.restage.g.dart';
+
+final class Days {
+  const Days();
+  static Days of(BuildContext context) => const Days();
+  String format(int day) => 'Day $day';
+}
+
+final class Entry {
+  const Entry({required this.day});
+  final int day;
+}
+
+@Screen(id: 'plans', surface: Surface.onboarding)
+final class Plans extends StatelessWidget {
+  const Plans({super.key, required this.habits, required this.goals});
+  final List<Entry> habits;
+  final List<Entry> goals;
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          for (final x in habits) Text(Days.of(context).format(x.day)),
+          for (final x in goals) Text(Days.of(context).format(x.day)),
+        ],
+      );
+}
+""";
+    final generated = await _generatedPart(source, 'plans');
+    final keys = RegExp(
+      r"'(_h[0-9a-f]{10})': \( ?const bool\.fromEnvironment"
+      r"\('dart\.vm\.product'\) \? '' : '[^']*', \(\) => Days\.of",
+    )
+        .allMatches(generated.replaceAll(RegExp(r'\s+'), ' '))
+        .map((match) => match[1])
+        .toList();
+    expect(keys, hasLength(2));
+    expect(keys.toSet(), hasLength(2));
+  });
+
+  test('computes a guarded lookup under a guard of its own', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/offer_line.restage.g.dart';
+
+final class Offer {
+  const Offer(this.title);
+  final String title;
+}
+
+final class Store {
+  static final Store instance = Store();
+  Offer? offer;
+}
+
+@Screen(id: 'offer_line', surface: Surface.onboarding)
+final class OfferLine extends StatefulWidget {
+  const OfferLine({super.key});
+
+  static const toggle = SurfaceEvent<void>('toggle');
+
+  @override
+  State<OfferLine> createState() => _OfferLineState();
+}
+
+final class _OfferLineState extends State<OfferLine> {
+  bool isPro = false;
+
+  void _flip() => setState(() => isPro = !isPro);
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: _flip,
+        child: Text(isPro ? Store.instance.offer!.title : 'Free'),
+      );
+}
+""";
+    final generated = await _generatedPart(source, 'offer_line');
+    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    expect(flat, contains(_hostValuesOpen));
+    expect(flat, contains('() => Store.instance.offer!.title'));
+  });
+
+  test('mirrors a build that receives a ref so ref reads move too', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/greeting.restage.g.dart';
+
+final class Provider<T> {
+  const Provider(this.value);
+  final T value;
+}
+
+abstract class WidgetRef {
+  T watch<T>(Provider<T> provider);
+}
+
+final class _Ref implements WidgetRef {
+  @override
+  T watch<T>(Provider<T> provider) => provider.value;
+}
+
+abstract class ConsumerWidget extends StatefulWidget {
+  const ConsumerWidget({super.key});
+  Widget build(BuildContext context, WidgetRef ref);
+  @override
+  State<ConsumerWidget> createState() => _ConsumerState();
+}
+
+final class _ConsumerState extends State<ConsumerWidget> {
+  @override
+  Widget build(BuildContext context) => widget.build(context, _Ref());
+}
+
+const accent = Provider<Color>(Color(0xFF123456));
+
+@Screen(id: 'greeting', surface: Surface.onboarding)
+final class Greeting extends ConsumerWidget {
+  const Greeting({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) =>
+      ColoredBox(color: ref.watch(accent));
+}
+""";
+    final generated = await _generatedPart(source, 'greeting');
+    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      flat,
+      contains('final class GreetingSurface extends ConsumerWidget {'),
+    );
+    expect(
+      flat,
+      contains('Widget build(BuildContext context, WidgetRef ref) {'),
+    );
+    expect(flat, contains('() => ref.watch(accent)'));
+    await _expectAnalyzesClean({
+      'apps_examples|lib/greeting.dart': source,
+      'apps_examples|lib/restage.generated/greeting.restage.g.dart': generated,
+    });
+  });
+
+  group('a helper from another library', () {
+    const helpers = {
+      'apps_examples|lib/palette.dart': """
+import 'package:flutter/widgets.dart';
+
+class Palette extends InheritedWidget {
+  const Palette({super.key, required super.child, required this.ink});
+  final Color ink;
+  static Palette of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<Palette>()!;
+  @override
+  bool updateShouldNotify(Palette old) => ink != old.ink;
+}
+""",
+      'apps_examples|lib/leaf.dart': """
+import 'package:flutter/widgets.dart';
+import 'palette.dart';
+
+Color leafInk(BuildContext context) => Palette.of(context).ink;
+
+Widget leafArt(BuildContext context) =>
+    ColoredBox(color: Palette.of(context).ink);
+""",
+    };
+
+    String screen(String body) => """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+import 'leaf.dart';
+
+part 'restage.generated/leafy.restage.g.dart';
+
+@Screen(id: 'leafy', surface: Surface.onboarding)
+final class Leafy extends StatelessWidget {
+  const Leafy({super.key});
+  @override
+  Widget build(BuildContext context) => $body;
+}
+""";
+
+    test('is evaluated as the call the screen wrote', () async {
+      final generated = await _generatedPart(
+        screen('ColoredBox(color: leafInk(context))'),
+        'leafy',
+        otherFiles: helpers,
+      );
+      expect(generated, contains('() => leafInk(context)'));
+    });
+
+    test('that builds a widget names the import the screen lacks', () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final records = <LogRecord>[];
+      await testBuilders(
+        [
+          restageSourceRosterBuilder(
+            const BuilderOptions({'bundled_runtime': true}, isRoot: true),
+          ),
+          userCatalogJsonBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(
+            const BuilderOptions({'bundled_runtime': true}, isRoot: true),
+          ),
+        ],
+        {
+          'apps_examples|lib/leafy.dart':
+              screen('Center(child: leafArt(context))'),
+          ...helpers,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+        onLog: records.add,
+      );
+      expect(
+        records.map((record) => record.message).join('\n'),
+        contains(
+          "'Palette.of(context).ink' is evaluated in the app, and "
+          "lib/leafy.dart can't refer to 'Palette'. Import it there.",
+        ),
+      );
+    });
+  });
+
+  test('refuses an app-only value when the screen has no mount', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/plain.restage.g.dart';
+
+class Palette extends InheritedWidget {
+  const Palette({super.key, required super.child, required this.ink});
+  final Color ink;
+  static Palette of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<Palette>()!;
+  @override
+  bool updateShouldNotify(Palette old) => ink != old.ink;
+}
+
+@Screen(id: 'plain', surface: Surface.onboarding)
+final class Plain extends StatelessWidget {
+  const Plain({super.key, this.resolver = 'local'});
+  final String resolver;
+  @override
+  Widget build(BuildContext context) =>
+      ColoredBox(color: Palette.of(context).ink);
+}
+""";
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final records = <LogRecord>[];
+    await testBuilders(
+      [
+        restageSourceRosterBuilder(
+          const BuilderOptions({'bundled_runtime': true}, isRoot: true),
+        ),
+        userCatalogJsonBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(
+          const BuilderOptions({'bundled_runtime': true}, isRoot: true),
+        ),
+      ],
+      {'apps_examples|lib/plain.dart': source},
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+      onLog: records.add,
+    );
+    expect(
+      records.map((record) => record.message).join('\n'),
+      contains(
+        "'Palette.of(context).ink' is evaluated in the app, and this screen "
+        'has no generated mount: Plain declares the reserved constructor '
+        "parameter 'resolver'.",
+      ),
+    );
+  });
+
   test('compiles colocated explicit paywalls without a generated part',
       () async {
     const paywalls = '''
@@ -2516,7 +2913,9 @@ final class FlatParent extends RestageFlow {
               'Surface.onboarding, version: 9',
             )
             .replaceAll(
-                'flat_leaf.restage.g.dart', 'other_leaf.restage.g.dart'),
+              'flat_leaf.restage.g.dart',
+              'other_leaf.restage.g.dart',
+            ),
         'apps_examples|lib/a_parents/flat_parent.dart': parent,
       },
       rootPackage: 'apps_examples',
@@ -2893,7 +3292,14 @@ final _alternateMeasurementPolicy =
   }),
 );
 
-Future<String> _generatedPart(String source, String name) async {
+const _hostValuesOpen =
+    '...restageHostValues(<String, (String, Object? Function())>{';
+
+Future<String> _generatedPart(
+  String source,
+  String name, {
+  Map<String, String> otherFiles = const {},
+}) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: 'apps_examples',
   );
@@ -2913,7 +3319,7 @@ Future<String> _generatedPart(String source, String name) async {
         const BuilderOptions({'bundled_runtime': true}),
       ),
     ],
-    {'apps_examples|lib/$name.dart': source},
+    {'apps_examples|lib/$name.dart': source, ...otherFiles},
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
     flattenOutput: true,
@@ -2930,6 +3336,7 @@ Future<String> _generatedPart(String source, String name) async {
   await _expectAnalyzesClean({
     'apps_examples|lib/$name.dart': source,
     'apps_examples|lib/restage.generated/$name.restage.g.dart': descriptor,
+    ...otherFiles,
   });
   return descriptor;
 }

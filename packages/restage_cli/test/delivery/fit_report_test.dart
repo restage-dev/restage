@@ -103,4 +103,32 @@ void main() {
     );
     expect(fitConcernsPushedSurface(verdict(accepted: false)), isFalse);
   });
+
+  test('a value the installed app does not compute needs an app release', () {
+    expect(
+      describeFitVerdict(
+        _verdict(const [
+          {
+            'code': 'missingHostField',
+            'path': r'$.requiredContext._h0123456789',
+            'required': {'kind': 'int', 'label': 'VColors.of(context).ink'},
+            'available': null,
+          },
+          {
+            'code': 'missingHostField',
+            'path': r'$.requiredContext.plants[]._hfedcba9876',
+            'required': {'kind': 'int'},
+            'available': null,
+          },
+        ]),
+      ),
+      [
+        'does not fit',
+        "This version reads 'VColors.of(context).ink', which installed builds "
+            "don't compute. It needs an app release",
+        "This version reads '_hfedcba9876', which installed builds don't "
+            'compute. It needs an app release',
+      ],
+    );
+  });
 }

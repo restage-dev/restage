@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
@@ -273,6 +274,7 @@ final class SurfacePublicationApi {
     int? organizationId,
     Uint8List? editorState,
     Uint8List? pushImage,
+    Map<String, Object?>? previewContext,
   }) async {
     final canonicalJson =
         SurfacePublicationUploadRequestV1Codec.encodeCanonicalJson(request);
@@ -289,6 +291,7 @@ final class SurfacePublicationApi {
       'organizationId': ?organizationId,
       if (editorState != null) 'editorState': encodeByteDataWire(editorState),
       if (pushImage != null) 'pushImage': encodeByteDataWire(pushImage),
+      if (previewContext != null) 'previewContext': jsonEncode(previewContext),
     });
     try {
       return SurfacePublicationUploadResult.fromWire(raw);
@@ -316,6 +319,7 @@ final class SurfacePublicationApi {
     int? organizationId,
     Uint8List? editorState,
     Uint8List? pushImage,
+    Map<String, Object?>? previewContext,
   }) async {
     final raw = await _api.call(
       'surface',
@@ -353,6 +357,8 @@ final class SurfacePublicationApi {
         'organizationId': ?organizationId,
         if (editorState != null) 'editorState': encodeByteDataWire(editorState),
         if (pushImage != null) 'pushImage': encodeByteDataWire(pushImage),
+        if (previewContext != null)
+          'previewContext': jsonEncode(previewContext),
       },
     );
     try {
