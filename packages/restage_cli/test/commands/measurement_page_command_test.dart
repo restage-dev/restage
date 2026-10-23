@@ -19,6 +19,9 @@ import 'package:test/test.dart';
 
 import '../_helpers/test_fixtures.dart';
 
+/// The floor the fixture replies state.
+const _floor = 5;
+
 final _target = TargetCoordinate(
   organizationId: OrganizationId(7),
   appId: ApplicationId(5),
@@ -42,8 +45,9 @@ const _needs = <String, List<String>>{
   'where': ['daily-check-in@2'],
 };
 
-String _served(Map<String, Object?> document) => jsonEncode({
+String _served(Map<String, Object?> document, {int floor = 5}) => jsonEncode({
   'kind': 'served',
+  'disclosureFloor': floor,
   'projections': [
     {'document': document},
   ],
@@ -416,7 +420,7 @@ void main() {
             '—',
             'Unknown',
             'Unknown',
-            '<5',
+            '<$_floor',
             'Check-in started 34.9%',
           ].join('|'),
         ),
@@ -599,8 +603,22 @@ void main() {
   });
 
   group('human output', () {
+    test('a held count reads the floor the reply states', () async {
+      final result = await run(
+        readOf('analytics overview'),
+        const [],
+        reply: _served({
+          'sessions': {
+            'counts': {'distinctSessions': 0},
+          },
+        }, floor: 3),
+      );
+
+      expect(result.out, contains('Views: <3'));
+    });
+
     test(
-      'prints a held count as <5 and a missing figure as Not available',
+      'prints a held count as <$_floor and a missing figure as Not available',
       () async {
         final result = await run(
           readOf('analytics overview'),
@@ -634,7 +652,7 @@ void main() {
           }),
         );
 
-        expect(result.out, contains('Views: <5'));
+        expect(result.out, contains('Views: <$_floor'));
         expect(result.out, contains('App sessions: 0'));
         expect(result.out, contains('Surfaces: 4'));
         expect(result.out, contains('Needs a look: Not available'));
@@ -929,7 +947,7 @@ void main() {
           contains(
             'Purchase rate\n'
             '  v2  12 first purchases  400 views  3.0%\n'
-            '  v1  <5 first purchases  90 views  Not available',
+            '  v1  <$_floor first purchases  90 views  Not available',
           ),
         );
       },
@@ -970,33 +988,59 @@ void main() {
       expect(absent.out, contains('Purchase rate: Not available'));
     });
 
-    test('lists a version\'s busiest elements with held taps as <5', () async {
+    test(
+      'lists a version\'s busiest elements with held taps as <$_floor',
+      () async {
+        final result = await run(
+          readOf('analytics taps'),
+          _needs['analytics taps']!,
+          reply: _served({
+            'surfaceId': 's1',
+            'disclosureFloor': 5,
+            'versions': [
+              {
+                'revisionOrdinal': 3,
+                'rootCounts': {'presented': 1500},
+                'taps': [
+                  {'eventName': 'close'},
+                  {'eventName': 'buy', 'reach': 900},
+                ],
+              },
+            ],
+          }),
+        );
+
+        expect(result.out, contains('Reporting floor: 5 users'));
+        expect(result.out, contains('v3  1,500 views'));
+        final lines = result.out.split('\n');
+        expect(
+          lines.indexOf('  buy  900 taps'),
+          lessThan(lines.indexOf('  close  <$_floor taps')),
+        );
+      },
+    );
+
+    test('a sandbox read, floor one, prints no floor line', () async {
       final result = await run(
         readOf('analytics taps'),
         _needs['analytics taps']!,
         reply: _served({
           'surfaceId': 's1',
-          'disclosureFloor': 5,
+          'disclosureFloor': 1,
           'versions': [
             {
               'revisionOrdinal': 3,
-              'rootCounts': {'presented': 1500},
+              'rootCounts': {'presented': 2},
               'taps': [
-                {'eventName': 'close'},
-                {'eventName': 'buy', 'reach': 900},
+                {'eventName': 'buy', 'reach': 1},
               ],
             },
           ],
-        }),
+        }, floor: 1),
       );
 
-      expect(result.out, contains('Reporting floor: 5 users'));
-      expect(result.out, contains('v3  1,500 views'));
-      final lines = result.out.split('\n');
-      expect(
-        lines.indexOf('  buy  900 taps'),
-        lessThan(lines.indexOf('  close  <5 taps')),
-      );
+      expect(result.out, isNot(contains('Reporting floor')));
+      expect(result.out, contains('  buy  1 taps'));
     });
   });
 
@@ -1214,6 +1258,7 @@ void main() {
     test('a reply naming another app\'s own environment is refused', () async {
       final reply = jsonEncode({
         'kind': 'served',
+        'disclosureFloor': 5,
         'projections': [
           {'document': apps},
         ],
@@ -1236,6 +1281,7 @@ void main() {
   test('a reply for another target is refused', () async {
     final other = jsonEncode({
       'kind': 'served',
+      'disclosureFloor': 5,
       'projections': [
         {'document': <String, Object?>{}},
       ],

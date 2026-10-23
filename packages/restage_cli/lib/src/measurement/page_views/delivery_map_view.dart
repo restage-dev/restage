@@ -24,7 +24,8 @@ const List<String> _months = [
 /// the mismatches and the surfaces no build has placed.
 void renderDeliveryMapPage(
   StringSink out,
-  Map<String, Object?> document, {
+  Map<String, Object?> document,
+  int floor, {
   bool bySurface = false,
   SurfaceVersionArg? only,
 }) {
@@ -84,7 +85,7 @@ void renderDeliveryMapPage(
           : routes.map((id) => audiences['$id'] ?? '$id').join(', ');
       final named = [for (final id in routes) ?names['$id']];
       final rule = named.isEmpty ? _none : named.join(', ');
-      final kpi = _kpi(figureAt(edge, ['kpi']));
+      final kpi = _kpi(figureAt(edge, ['kpi']), floor);
       final versions = figureList(edge, ['versions']);
       for (final version in versions.isEmpty ? <Object?>[null] : versions) {
         if (only?.version != null &&
@@ -99,7 +100,7 @@ void renderDeliveryMapPage(
           builds: _buildRange(figureList(node, ['paintsByBuild']), builds),
           configured: _share(figureAt(node, ['routedResolutions']), requests),
           seen: _share(figureAt(node, ['paints']), paints),
-          paints: _countText(figureAt(node, ['paints'])),
+          paints: _countText(figureAt(node, ['paints']), floor),
         );
         rows.add(
           bySurface
@@ -247,11 +248,12 @@ String _window(Map<String, Object?> document) {
 /// A count's value, or null when it is unknown or held.
 int? _value(Object? count) => figureAt(count, ['value']) as int?;
 
-String _countText(Object? count) => switch (figureAt(count, ['state'])) {
-  'held' => heldCountText,
-  _ when _value(count) != null => groupedCount(_value(count)!),
-  _ => _unknown,
-};
+String _countText(Object? count, int floor) =>
+    switch (figureAt(count, ['state'])) {
+      'held' => heldCountText(floor),
+      _ when _value(count) != null => groupedCount(_value(count)!),
+      _ => _unknown,
+    };
 
 int? _count(Object? count) => _value(count);
 
@@ -271,7 +273,7 @@ String _share(Object? part, int? whole) {
   return '${(value * 1000 / whole).round() / 10}%';
 }
 
-String _kpi(Object? kpi) {
+String _kpi(Object? kpi, int floor) {
   final metric = figureAt(kpi, ['metric']);
   final text = switch (figureAt(kpi, ['state'])) {
     'available' => () {
@@ -280,7 +282,7 @@ String _kpi(Object? kpi) {
       return '${(numerator * 1000 / denominator).round() / 10}%';
     }(),
     'noResult' => 'No result yet',
-    'held' => heldCountText,
+    'held' => heldCountText(floor),
     _ => kFigureUnavailable,
   };
   return metric == null ? text : '$metric $text';

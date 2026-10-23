@@ -16,6 +16,9 @@ import 'package:test/test.dart';
 import '../_helpers/test_fixtures.dart';
 import 'delivery_command_test.dart' show policyReview;
 
+/// The floor the fixture replies state.
+const _floor = 5;
+
 /// The wire form the service reads byte columns as.
 String wire(List<int> bytes) => "decode('${base64Encode(bytes)}', 'base64')";
 
@@ -30,6 +33,7 @@ final _diagnosticsTarget = TargetCoordinate(
 MeasurementDeliveryDiagnosticsV1 diagnosticsRead({
   MeasurementDeliveryDiagnosticsSectionV1? servedDefaults,
   MeasurementDeliveryDiagnosticsSectionV1? recordedRefusals,
+  int disclosureFloor = 5,
 }) => MeasurementDeliveryDiagnosticsV1(
   target: _diagnosticsTarget,
   surfaceType: MeasurementDeliveryDiagnosticsSurfaceTypeV1.onboarding,
@@ -37,7 +41,7 @@ MeasurementDeliveryDiagnosticsV1 diagnosticsRead({
   contractVersion: 3,
   windowStartDayUtc: DateTime.utc(2026, 9, 1).microsecondsSinceEpoch,
   windowEndDayExclusiveUtc: DateTime.utc(2026, 9, 3).microsecondsSinceEpoch,
-  disclosureFloor: measurementDeliveryDiagnosticsDisclosureFloor,
+  disclosureFloor: disclosureFloor,
   servedDefaults:
       servedDefaults ??
       MeasurementDeliveryDiagnosticsSectionV1(
@@ -1481,6 +1485,44 @@ void main() {
   });
 
   group('delivery diagnostics', () {
+    Future<String> printedFor(MeasurementDeliveryDiagnosticsV1 read) async {
+      final printed = StringBuffer();
+      final code =
+          await makeRunner(
+            stdout: printed,
+            stderr: StringBuffer(),
+            httpClient: scriptedHttpClient([
+              (request) => byteData(read.canonicalBytes),
+            ]),
+          ).run([
+            'routing',
+            'delivery-diagnostics',
+            'welcome',
+            ...target(),
+            '--type',
+            'onboarding',
+            '--contract-version',
+            '3',
+            '--start-date',
+            '2026-09-01',
+            '--end-date-exclusive',
+            '2026-09-03',
+          ]);
+      expect(code, 0);
+      return printed.toString();
+    }
+
+    test('states the floor only where one holds counts', () async {
+      expect(
+        await printedFor(diagnosticsRead()),
+        contains('Disclosure floor: 5.'),
+      );
+      expect(
+        await printedFor(diagnosticsRead(disclosureFloor: 1)),
+        isNot(contains('Disclosure floor')),
+      );
+    });
+
     test('carries the complete target and a whole UTC window, then preserves '
         'both observed populations in human output', () async {
       Map<String, dynamic>? captured;
@@ -1545,7 +1587,7 @@ void main() {
         ),
       );
       expect(printed.toString(), contains('frozen: 5'));
-      expect(printed.toString(), contains('futureDefault: <5'));
+      expect(printed.toString(), contains('futureDefault: <$_floor'));
       expect(
         printed.toString(),
         contains(
@@ -1553,7 +1595,7 @@ void main() {
           'observedRecordedServerRefusals; held).',
         ),
       );
-      expect(printed.toString(), contains('audienceUndecided: <5'));
+      expect(printed.toString(), contains('audienceUndecided: <$_floor'));
       expect(printed.toString(), contains('not a census of all requests'));
     });
 
@@ -1807,61 +1849,69 @@ void main() {
   });
 
   group('delivery flow', () {
-    test('carries the target and window, states a held cell as <5, and rounds '
-        'the total that holds it', () async {
-      Map<String, dynamic>? captured;
-      final printed = StringBuffer();
-      final start = DateTime.utc(2026, 9, 1).microsecondsSinceEpoch;
-      final end = DateTime.utc(2026, 9, 3).microsecondsSinceEpoch;
-      final client = scriptedHttpClient([
-        (request) {
-          captured = jsonDecode(request.body) as Map<String, dynamic>;
-          return json({
-            'windowStartDayUtc': start,
-            'windowEndDayExclusiveUtc': end,
-            'cells': [
-              {
-                'source': 'rule',
-                'routeId': 'trial',
-                'version': 5,
-                'views': 186,
-              },
-              {'source': 'rule', 'routeId': 'beta', 'version': 5},
-              {
-                'source': 'experiment',
-                'experimentId': 'exp-1',
-                'experimentLabel': 'Welcome headline',
-                'experimentRunning': true,
-                'version': 3,
-                'views': 900,
-              },
-              {
-                'source': 'experiment',
-                'experimentId': 'exp-2',
-                'experimentRunning': true,
-                'version': 3,
-                'views': 50,
-              },
-              {
-                'source': 'experiment',
-                'experimentId': 'exp-old',
-                'experimentLabel': 'Offer layout',
-                'experimentRunning': false,
-                'version': 2,
-                'views': 30,
-              },
-              {'source': 'everyoneElse', 'version': 4, 'views': 8604},
-              {'source': 'notRecorded', 'version': 4, 'views': 12},
-            ],
-          });
-        },
-      ]);
+    test(
+      'carries the target and window, states a held cell as <$_floor, and rounds '
+      'the total that holds it',
+      () async {
+        Map<String, dynamic>? captured;
+        final printed = StringBuffer();
+        final start = DateTime.utc(2026, 9, 1).microsecondsSinceEpoch;
+        final end = DateTime.utc(2026, 9, 3).microsecondsSinceEpoch;
+        final client = scriptedHttpClient([
+          (request) {
+            captured = jsonDecode(request.body) as Map<String, dynamic>;
+            return deliveryFlowResponse('mixed');
+          },
+        ]);
 
+        final code =
+            await makeRunner(
+              stdout: printed,
+              stderr: StringBuffer(),
+              httpClient: client,
+            ).run([
+              'routing',
+              'delivery-flow',
+              'welcome',
+              ...target(),
+              '--type',
+              'onboarding',
+              '--start-date',
+              '2026-09-01',
+              '--end-date-exclusive',
+              '2026-09-03',
+            ]);
+
+        expect(code, 0);
+        expect(captured!['method'], 'readDeliveryFlow');
+        expect(captured!['surfaceSlug'], 'welcome');
+        expect(captured!['environmentId'], 12);
+        expect(captured!['organizationId'], 7);
+        expect(captured!['windowStartDayUtc'], start);
+        expect(captured!['windowEndDayExclusiveUtc'], end);
+        final output = printed.toString();
+        expect(output, contains('Rule trial, v5: 186'));
+        expect(output, contains('Rule beta, v5: <$_floor'));
+        expect(output, contains('Experiment Welcome headline, v3: 900'));
+        expect(output, contains('\nUnnamed experiment, v3: 50'));
+        expect(output, contains('Earlier experiments, v2: 30'));
+        expect(output, contains('Everyone else, v4: 8,604'));
+        // 9,782 stated beside one held cell: 9,784, to the nearest 100.
+        expect(output, contains('≈9,800 views, 12 not recorded'));
+        expect(output, isNot(contains('Not recorded, v4')));
+        expect(output, isNot(contains('exp-2')));
+      },
+    );
+
+    Future<String> flowOutput(String scenario) async {
+      final printed = StringBuffer();
       final code =
           await makeRunner(
             stdout: printed,
             stderr: StringBuffer(),
-            httpClient: client,
+            httpClient: scriptedHttpClient([
+              (_) => deliveryFlowResponse(scenario),
+            ]),
           ).run([
             'routing',
             'delivery-flow',
@@ -1874,44 +1924,35 @@ void main() {
             '--end-date-exclusive',
             '2026-09-03',
           ]);
-
       expect(code, 0);
-      expect(captured!['method'], 'readDeliveryFlow');
-      expect(captured!['surfaceSlug'], 'welcome');
-      expect(captured!['environmentId'], 12);
-      expect(captured!['organizationId'], 7);
-      expect(captured!['windowStartDayUtc'], start);
-      expect(captured!['windowEndDayExclusiveUtc'], end);
-      final output = printed.toString();
-      expect(output, contains('Rule trial, v5: 186'));
-      expect(output, contains('Rule beta, v5: <5'));
-      expect(output, contains('Experiment Welcome headline, v3: 900'));
-      expect(output, contains('\nUnnamed experiment, v3: 50'));
-      expect(output, contains('Earlier experiments, v2: 30'));
-      expect(output, contains('Everyone else, v4: 8,604'));
-      // 9,782 stated beside one held cell: 9,784, to the nearest 100.
-      expect(output, contains('≈9,800 views, 12 not recorded'));
-      expect(output, isNot(contains('Not recorded, v4')));
-      expect(output, isNot(contains('exp-2')));
+      return printed.toString();
+    }
+
+    test('shows a paused experiment and a removed rule as such', () async {
+      final output = await flowOutput('states');
+      expect(output, contains('Experiment Paused test (paused), v3: 20'));
+      expect(output, contains('Rule trial, v5: 100'));
+      expect(output, contains('Rule old (removed), v1: 40'));
+      expect(output, contains('Earlier experiments, v2: 10'));
+      expect(output, isNot(contains('Trial users')));
     });
 
+    test(
+      'names the floor the reply states, and none where nothing is held',
+      () async {
+        expect(await flowOutput('floorThree'), contains('Rule beta, v5: <3'));
+        expect(
+          await flowOutput('floorOne'),
+          contains('Rule beta, v5: Not available'),
+        );
+      },
+    );
+
     test('states the total with any views not recorded', () async {
-      Future<String> totalOf(List<Map<String, Object?>> cells) async {
+      Future<String> totalOf(String scenario) async {
         final printed = StringBuffer();
         final client = scriptedHttpClient([
-          (_) => json({
-            'windowStartDayUtc': DateTime.utc(
-              2026,
-              9,
-              1,
-            ).microsecondsSinceEpoch,
-            'windowEndDayExclusiveUtc': DateTime.utc(
-              2026,
-              9,
-              3,
-            ).microsecondsSinceEpoch,
-            'cells': cells,
-          }),
+          (_) => deliveryFlowResponse(scenario),
         ]);
         final code =
             await makeRunner(
@@ -1934,68 +1975,15 @@ void main() {
         return printed.toString().trim().split('\n').last;
       }
 
+      expect(await totalOf('notRecorded'), '13,035 views, 12 not recorded');
+      expect(await totalOf('plain'), '13,035 views');
+      expect(await totalOf('heldRuleBesideStated'), '≈13,000 views');
+      expect(await totalOf('heldRuleOnly'), '<$_floor views');
       expect(
-        await totalOf([
-          {'source': 'everyoneElse', 'version': 4, 'views': 13023},
-          {'source': 'notRecorded', 'version': 4, 'views': 12},
-        ]),
-        '13,035 views, 12 not recorded',
+        await totalOf('heldNotRecorded'),
+        '≈13,000 views, <$_floor not recorded',
       );
-      expect(
-        await totalOf([
-          {'source': 'everyoneElse', 'version': 4, 'views': 13035},
-        ]),
-        '13,035 views',
-      );
-      expect(
-        await totalOf([
-          {'source': 'rule', 'routeId': 'beta', 'version': 5},
-          {'source': 'everyoneElse', 'version': 4, 'views': 13035},
-        ]),
-        '≈13,000 views',
-      );
-      expect(
-        await totalOf([
-          {'source': 'rule', 'routeId': 'beta', 'version': 5},
-        ]),
-        '<5 views',
-      );
-      expect(
-        await totalOf([
-          {'source': 'everyoneElse', 'version': 4, 'views': 13023},
-          {'source': 'notRecorded', 'version': 4},
-        ]),
-        '≈13,000 views, <5 not recorded',
-      );
-      expect(await totalOf([]), 'No views in this period.');
-    });
-
-    test('refuses a response that names another window', () async {
-      final client = scriptedHttpClient([
-        (_) => json({
-          'windowStartDayUtc': 1,
-          'windowEndDayExclusiveUtc': 2,
-          'cells': <Object?>[],
-        }),
-      ]);
-      final code =
-          await makeRunner(
-            stdout: StringBuffer(),
-            stderr: StringBuffer(),
-            httpClient: client,
-          ).run([
-            'routing',
-            'delivery-flow',
-            'welcome',
-            ...target(),
-            '--type',
-            'onboarding',
-            '--start-date',
-            '2026-09-01',
-            '--end-date-exclusive',
-            '2026-09-03',
-          ]);
-      expect(code, isNot(0));
+      expect(await totalOf('empty'), 'No views in this period.');
     });
   });
 

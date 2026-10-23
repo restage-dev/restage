@@ -133,7 +133,7 @@ final class PlacementObservedHistoryRowV1 extends CanonicalValue {
     }
     if (authenticatedPaints != null) {
       _portable(authenticatedPaints!, 'authenticatedPaints');
-      if (authenticatedPaints! < measurementDisclosureFloor) {
+      if (authenticatedPaints! < 1) {
         throw const CanonicalFormatException(
           'Undisclosed placement paint count',
         );

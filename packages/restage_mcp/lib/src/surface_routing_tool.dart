@@ -177,8 +177,8 @@ final _readDeliveryFlowTool = Tool(
   description:
       'Who saw which version of one surface over whole UTC days: each routing '
       'rule\'s views by version, each experiment\'s, everyone else, and views '
-      'with no delivery record. A count under the disclosure floor of 5 is '
-      'null and reads "<5". A total or merged cell that includes one is null, '
+      'with no delivery record. A count under the disclosureFloor is '
+      'null and reads as less than it. A total or merged cell that includes one is null, '
       'and its approx field carries a rounded figure built only from the '
       'stated counts. The approx field is null when the total is a single '
       'held count.',

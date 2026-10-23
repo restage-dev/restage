@@ -26,14 +26,15 @@ List<Object?> figureList(Object? json, List<Object> path) =>
     ? figureAt(json, path)! as List<Object?>
     : const [];
 
+/// Writes one page document; a held count reads "<N" for the [floor] the
+/// service stated.
+typedef PageRender =
+    void Function(StringSink out, Map<String, Object?> document, int floor);
+
 /// Writes the reply for a person: the page's figures, or why it states none.
 ///
 /// [raw] is the service's reply. [render] writes the page document.
-void renderPageReply(
-  StringSink out,
-  String raw,
-  void Function(StringSink out, Map<String, Object?> document) render,
-) {
+void renderPageReply(StringSink out, String raw, PageRender render) {
   final Object? envelope;
   try {
     envelope = jsonDecode(raw);
@@ -59,7 +60,12 @@ void renderPageReply(
     out.writeln('$kFigureUnavailable: there is nothing to show for this yet.');
     return;
   }
-  render(out, document);
+  final floor = envelope['disclosureFloor'];
+  if (floor is! int || floor < 1) {
+    out.writeln('$kFigureUnavailable: the reply could not be read.');
+    return;
+  }
+  render(out, document, floor);
 }
 
 /// The words for an experiment's lifecycle.
@@ -76,14 +82,14 @@ String lifecycleLabel(Object? lifecycle) => switch (lifecycle) {
 String plainFigure(Object? json, List<Object> path) =>
     '${figureAt(json, path) ?? kFigureUnavailable}';
 
-/// A count as shown: grouped, `<5` when held beside its siblings, or
-/// `Not available` when its parent is missing.
-String countFigure(Object? json, List<Object> path) {
+/// A count as shown: grouped, `<N` under [floor] when held beside its
+/// siblings, or `Not available` when its parent is missing.
+String countFigure(Object? json, List<Object> path, int floor) {
   final parent = figureAt(json, path.sublist(0, path.length - 1));
   final value = parent is Map<String, Object?> ? parent[path.last] : null;
   return switch (value) {
     final int count => groupedCount(count),
-    _ when parent is Map<String, Object?> => heldCountText,
+    _ when parent is Map<String, Object?> => heldCountText(floor),
     _ => kFigureUnavailable,
   };
 }

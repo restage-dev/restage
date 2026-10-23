@@ -1,17 +1,21 @@
 import 'page_view_support.dart';
 
 /// Writes the Analytics overview's figures.
-void renderOverviewPage(StringSink out, Map<String, Object?> document) {
+void renderOverviewPage(
+  StringSink out,
+  Map<String, Object?> document,
+  int floor,
+) {
   out
     ..writeln(
-      'Views: ${countFigure(document, ['sessions', 'counts', 'rootPresentations'])}',
+      'Views: ${countFigure(document, ['sessions', 'counts', 'rootPresentations'], floor)}',
     )
     ..writeln(
-      'App sessions: ${countFigure(document, ['sessions', 'counts', 'distinctSessions'])}',
+      'App sessions: ${countFigure(document, ['sessions', 'counts', 'distinctSessions'], floor)}',
     )
     ..writeln(
       'Views in the previous period: '
-      '${countFigure(document, ['previousSessions', 'counts', 'rootPresentations'])}',
+      '${countFigure(document, ['previousSessions', 'counts', 'rootPresentations'], floor)}',
     )
     ..writeln('Surfaces: ${plainFigure(document, ['roster', 'totalMatches'])}')
     ..writeln(
@@ -32,7 +36,7 @@ void renderOverviewPage(StringSink out, Map<String, Object?> document) {
     final value = figureAt(row, ['sessions', 'value']);
     final views = value == null
         ? kFigureUnavailable
-        : '${countFigure(value, ['counts', 'rootPresentations'])} views';
+        : '${countFigure(value, ['counts', 'rootPresentations'], floor)} views';
     out.writeln('$name  $views');
   }
 }

@@ -17,7 +17,7 @@ final readSurfaceFunnelTool = Tool(
       'dismissals, the authored steps with their transitions, and the typed '
       'drop-off bands. Counts are integers; every rate is a decimal beside '
       'the exact numerator and denominator it came from. A count under the '
-      'disclosure floor of 5 is null and reads "<5". A version, step or band '
+      'disclosureFloor is null and reads as less than it. A version, step or band '
       'held whole keeps its identity and states no counts. The figures are '
       "the service's own and are returned unchanged.",
   inputSchema: Schema.object(

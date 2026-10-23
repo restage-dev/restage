@@ -37,7 +37,7 @@ MeasurementDeliveryDiagnosticsV1 diagnosticsRead({
   contractVersion: 3,
   windowStartDayUtc: DateTime.utc(2026, 9, 1).microsecondsSinceEpoch,
   windowEndDayExclusiveUtc: DateTime.utc(2026, 9, 3).microsecondsSinceEpoch,
-  disclosureFloor: measurementDeliveryDiagnosticsDisclosureFloor,
+  disclosureFloor: 5,
   servedDefaults:
       servedDefaults ??
       MeasurementDeliveryDiagnosticsSectionV1(
@@ -83,6 +83,19 @@ DeliveryPolicyReviewV1 currentReview(int? expectedHeadOrdinal) => policyReview(
   ),
   expectedHeadOrdinal: expectedHeadOrdinal,
 );
+
+/// The body `readDeliveryFlow` answers with for [scenario]: the server's
+/// canonical bytes in the byte wire form.
+String _flowBody(String scenario) {
+  final replies =
+      jsonDecode(
+            File(
+              '../restage_cli/test/fixtures/delivery_flow_replies.json',
+            ).readAsStringSync(),
+          )
+          as Map<String, Object?>;
+  return jsonEncode(wire(utf8.encode(replies[scenario]! as String)));
+}
 
 void main() {
   late Directory home;
@@ -471,28 +484,11 @@ void main() {
       final end = DateTime.utc(2026, 9, 3).microsecondsSinceEpoch;
       final connection = await connectServer(
         store: store,
-        httpClient: routingClient({
-          'windowStartDayUtc': start,
-          'windowEndDayExclusiveUtc': end,
-          'cells': [
-            {'source': 'rule', 'routeId': 'trial', 'version': 5, 'views': 186},
-            {
-              'source': 'experiment',
-              'experimentId': 'exp-1',
-              'experimentRunning': true,
-              'version': 3,
-            },
-            {
-              'source': 'experiment',
-              'experimentId': 'exp-old',
-              'experimentLabel': 'Offer layout',
-              'experimentRunning': false,
-              'version': 2,
-              'views': 30,
-            },
-            {'source': 'notRecorded', 'version': 4, 'views': 12},
-          ],
-        }, onCall: (body, _) => sent = body),
+        httpClient: routingClient(
+          const {},
+          rawBody: _flowBody('mixed'),
+          onCall: (body, _) => sent = body,
+        ),
       );
 
       final result = await connection.callTool(
@@ -513,41 +509,50 @@ void main() {
       expect(sent!['organizationId'], 11);
       expect(sent!['windowStartDayUtc'], start);
       expect(sent!['windowEndDayExclusiveUtc'], end);
+      Map<String, Object?> cell(
+        String source,
+        int version,
+        int? views, {
+        String? routeId,
+        String? experimentId,
+        String? experimentLabel,
+        String? experimentState,
+      }) => {
+        'source': source,
+        'routeId': routeId,
+        'experimentId': experimentId,
+        'experimentLabel': experimentLabel,
+        'experimentState': experimentState,
+        'removed': false,
+        'version': version,
+        'views': views,
+        'approxViews': null,
+      };
       expect(result.structuredContent!['cells'], [
-        {
-          'source': 'rule',
-          'routeId': 'trial',
-          'experimentId': null,
-          'experimentLabel': null,
-          'experimentRunning': null,
-          'version': 5,
-          'views': 186,
-          'approxViews': null,
-        },
-        {
-          'source': 'experiment',
-          'routeId': null,
-          'experimentId': 'exp-1',
-          'experimentLabel': 'Unnamed experiment',
-          'experimentRunning': true,
-          'version': 3,
-          'views': null,
-          'approxViews': null,
-        },
-        {
-          'source': 'earlierExperiments',
-          'routeId': null,
-          'experimentId': null,
-          'experimentLabel': null,
-          'experimentRunning': null,
-          'version': 2,
-          'views': 30,
-          'approxViews': null,
-        },
+        cell(
+          'experiment',
+          3,
+          900,
+          experimentId: 'exp-1',
+          experimentLabel: 'Welcome headline',
+          experimentState: 'running',
+        ),
+        cell(
+          'experiment',
+          3,
+          50,
+          experimentId: 'exp-2',
+          experimentLabel: 'Unnamed experiment',
+          experimentState: 'running',
+        ),
+        cell('rule', 5, 186, routeId: 'trial'),
+        cell('rule', 5, null, routeId: 'beta'),
+        cell('earlierExperiments', 2, 30),
+        cell('everyoneElse', 4, 8604),
       ]);
       expect(result.structuredContent!['totalViews'], isNull);
-      // 228 stated beside one held cell: 230, to the nearest 10.
-      expect(result.structuredContent!['approxTotalViews'], 230);
+      // 9,782 stated beside one held cell: 9,784, to the nearest 100.
+      expect(result.structuredContent!['approxTotalViews'], 9800);
       expect(result.structuredContent!['notRecordedViews'], 12);
       expect(result.structuredContent!['approxNotRecordedViews'], isNull);
     });

@@ -18,12 +18,6 @@ const int measurementDeliveryDiagnosticsDayMicros = 86400000000;
 /// Must match the server's raw Measurement retention window.
 const int measurementDeliveryDiagnosticsRetentionWindowMicros = 7776000000000;
 
-/// The floor below which a reason keeps its name but states no count.
-///
-/// The backend obtains this from the shared Measurement disclosure owner. It
-/// travels here so a consumer can distinguish a held reading from zero.
-const int measurementDeliveryDiagnosticsDisclosureFloor = 5;
-
 /// Maximum reason groups carried by either diagnostic population.
 ///
 /// This bounds a strict operator response. A wider stored vocabulary is
@@ -184,12 +178,11 @@ final class MeasurementDeliveryDiagnosticsReasonCountV1 extends CanonicalValue
       );
     }
     if (observedCount != null &&
-        (observedCount! < measurementDeliveryDiagnosticsDisclosureFloor ||
-            observedCount! > kMaximumPortableJsonInteger)) {
+        (observedCount! < 1 || observedCount! > kMaximumPortableJsonInteger)) {
       throw ArgumentError.value(
         observedCount,
         'observedCount',
-        'must clear the disclosure floor and be JSON-portable when stated',
+        'must be positive and JSON-portable when stated',
       );
     }
   }
@@ -352,11 +345,22 @@ final class MeasurementDeliveryDiagnosticsV1 extends CanonicalValue
         'must be positive when a typed family is named',
       );
     }
-    if (disclosureFloor != measurementDeliveryDiagnosticsDisclosureFloor ||
-        !_isWholeBoundedUtcDayWindow(
-          start: windowStartDayUtc,
-          end: windowEndDayExclusiveUtc,
+    if (disclosureFloor < 1 ||
+        [...servedDefaults.reasons, ...recordedRefusals.reasons].any(
+          (entry) =>
+              entry.observedCount != null &&
+              entry.observedCount! < disclosureFloor,
         )) {
+      throw ArgumentError.value(
+        disclosureFloor,
+        'disclosureFloor',
+        'must be positive and cleared by every stated count',
+      );
+    }
+    if (!_isWholeBoundedUtcDayWindow(
+      start: windowStartDayUtc,
+      end: windowEndDayExclusiveUtc,
+    )) {
       throw ArgumentError('The diagnostics scope is not a retained UTC window');
     }
     if (servedDefaults.population !=

@@ -3,13 +3,10 @@ library;
 
 import 'dart:math' as math;
 
-/// The fixed floor: a count of one to four is held, five stands.
-const int measurementDisclosureFloor = 5;
-
 /// A held total's public stand-in, built only from the parts stated beside
 /// it: the stated mass plus two for each held part, rounded to the nearest 10
 /// under 1,000, the nearest 100 under 10,000, and three significant figures
-/// above. It never reads zero, since a held total is at least five.
+/// above. It never reads zero.
 int measurementApproxTotalV1({
   required int statedMass,
   required int heldCells,

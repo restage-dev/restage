@@ -11,15 +11,22 @@ final _target = TargetCoordinate(
   runtimePlane: RuntimePlane.sandbox,
 );
 
-MeasurementDeliveryDiagnosticsV1 _read({int? contractVersion = 3}) =>
+const _floor = 5;
+
+MeasurementDeliveryDiagnosticsV1 _read({
+  TargetCoordinate? target,
+  int? contractVersion = 3,
+  int disclosureFloor = _floor,
+  int frozen = 5,
+}) =>
     MeasurementDeliveryDiagnosticsV1(
-      target: _target,
+      target: target ?? _target,
       surfaceType: MeasurementDeliveryDiagnosticsSurfaceTypeV1.paywall,
       surfaceSlug: 'upgrade',
       contractVersion: contractVersion,
       windowStartDayUtc: measurementDeliveryDiagnosticsDayMicros,
       windowEndDayExclusiveUtc: measurementDeliveryDiagnosticsDayMicros * 2,
-      disclosureFloor: measurementDeliveryDiagnosticsDisclosureFloor,
+      disclosureFloor: disclosureFloor,
       servedDefaults: MeasurementDeliveryDiagnosticsSectionV1(
         population: MeasurementDeliveryDiagnosticsPopulationV1
             .servedDefaultPresentations,
@@ -30,7 +37,7 @@ MeasurementDeliveryDiagnosticsV1 _read({int? contractVersion = 3}) =>
         reasons: [
           MeasurementDeliveryDiagnosticsReasonCountV1(
             reason: 'frozen',
-            observedCount: 5,
+            observedCount: frozen,
           ),
           MeasurementDeliveryDiagnosticsReasonCountV1(reason: 'futureDefault'),
         ],
@@ -50,6 +57,21 @@ MeasurementDeliveryDiagnosticsV1 _read({int? contractVersion = 3}) =>
     );
 
 void main() {
+  test('a read states the floor it carries and holds counts under it', () {
+    final exact = _read(disclosureFloor: 1, frozen: 1);
+    expect(
+      MeasurementDeliveryDiagnosticsV1.fromCanonicalBytes(exact.canonicalBytes)
+          .servedDefaults
+          .reasons
+          .first
+          .observedCount,
+      1,
+    );
+    expect(_read().disclosureFloor, _floor);
+    expect(() => _read(disclosureFloor: 0), throwsArgumentError);
+    expect(() => _read(frozen: _floor - 1), throwsArgumentError);
+  });
+
   group('MeasurementDeliveryDiagnosticsV1', () {
     test('round-trips distinct populations and preserves unknown reasons', () {
       final read = _read();
@@ -107,9 +129,13 @@ void main() {
         'rejects a low stated count, incorrect coverage, and an unretained window',
         () {
       expect(
+        () => _read(frozen: _floor - 1),
+        throwsArgumentError,
+      );
+      expect(
         () => MeasurementDeliveryDiagnosticsReasonCountV1(
           reason: 'frozen',
-          observedCount: measurementDeliveryDiagnosticsDisclosureFloor - 1,
+          observedCount: 0,
         ),
         throwsArgumentError,
       );
@@ -135,7 +161,7 @@ void main() {
           windowEndDayExclusiveUtc: measurementDeliveryDiagnosticsDayMicros +
               measurementDeliveryDiagnosticsRetentionWindowMicros +
               measurementDeliveryDiagnosticsDayMicros,
-          disclosureFloor: measurementDeliveryDiagnosticsDisclosureFloor,
+          disclosureFloor: _floor,
           servedDefaults: MeasurementDeliveryDiagnosticsSectionV1(
             population: MeasurementDeliveryDiagnosticsPopulationV1
                 .servedDefaultPresentations,

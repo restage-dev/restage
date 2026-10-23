@@ -405,7 +405,8 @@ class DeliveryFlowCell {
     this.routeId,
     this.experimentId,
     this.experimentLabel,
-    this.experimentRunning,
+    this.experimentState,
+    this.removed = false,
   });
 
   /// Who served the views: `rule`, `experiment`, `earlierExperiments`,
@@ -421,8 +422,11 @@ class DeliveryFlowCell {
   /// The experiment's name; null when it has none to show.
   final String? experimentLabel;
 
-  /// Whether the experiment is running now, for an experiment's cell.
-  final bool? experimentRunning;
+  /// Where the experiment stands: `running`, `paused` or `finished`.
+  final String? experimentState;
+
+  /// Whether the rule has left the routing since it served these views.
+  final bool removed;
 
   /// The published version the views saw.
   final int version;
@@ -434,17 +438,23 @@ class DeliveryFlowCell {
   /// [views] is stated or the cell is one held count (under the floor).
   final int? approxViews;
 
-  /// Decode one wire object.
-  factory DeliveryFlowCell.fromJson(Map<String, dynamic> json) =>
-      DeliveryFlowCell(
-        source: json['source']! as String,
-        routeId: json['routeId'] as String?,
-        experimentId: json['experimentId'] as String?,
-        experimentLabel: json['experimentLabel'] as String?,
-        experimentRunning: json['experimentRunning'] as bool?,
-        version: json['version']! as int,
-        views: json['views'] as int?,
-      );
+  /// One cell of a flow source, as the service states it.
+  factory DeliveryFlowCell.fromSource(
+    Map<String, dynamic> source,
+    Map<String, dynamic> cell,
+  ) {
+    final kind = source['kind']! as String;
+    return DeliveryFlowCell(
+      source: kind,
+      routeId: kind == 'rule' ? source['id'] as String? : null,
+      experimentId: kind == 'experiment' ? source['id'] as String? : null,
+      experimentLabel: kind == 'experiment' ? source['label'] as String? : null,
+      experimentState: kind == 'experiment' ? source['state'] as String? : null,
+      removed: source['removed'] == true,
+      version: cell['version']! as int,
+      views: cell['views'] as int?,
+    );
+  }
 
   /// Encode for `--json` output.
   Map<String, dynamic> toJson() => {
@@ -454,7 +464,8 @@ class DeliveryFlowCell {
     'experimentLabel': source == 'experiment'
         ? experimentLabel ?? 'Unnamed experiment'
         : experimentLabel,
-    'experimentRunning': experimentRunning,
+    'experimentState': experimentState,
+    'removed': removed,
     'version': version,
     'views': views,
     'approxViews': approxViews,
@@ -469,6 +480,7 @@ class DeliveryFlowRead {
   const DeliveryFlowRead({
     required this.windowStartDayUtc,
     required this.windowEndDayExclusiveUtc,
+    required this.disclosureFloor,
     required this.cells,
   });
 
@@ -478,19 +490,28 @@ class DeliveryFlowRead {
   /// First UTC day excluded, in microseconds since the epoch.
   final int windowEndDayExclusiveUtc;
 
+  /// The floor the service applied: a count under it is withheld.
+  final int disclosureFloor;
+
   /// Each rule's cells, each experiment's, everyone else's, then the cells
   /// with no delivery record.
   final List<DeliveryFlowCell> cells;
 
-  /// Decode one wire object.
-  factory DeliveryFlowRead.fromJson(Map<String, dynamic> json) =>
-      DeliveryFlowRead(
-        windowStartDayUtc: json['windowStartDayUtc']! as int,
-        windowEndDayExclusiveUtc: json['windowEndDayExclusiveUtc']! as int,
-        cells: _objects(
-          json['cells'],
-        ).map(DeliveryFlowCell.fromJson).toList(growable: false),
-      );
+  /// Decode the service's flow for the window that was asked for.
+  factory DeliveryFlowRead.fromJson(
+    Map<String, dynamic> json, {
+    required int windowStartDayUtc,
+    required int windowEndDayExclusiveUtc,
+  }) => DeliveryFlowRead(
+    windowStartDayUtc: windowStartDayUtc,
+    windowEndDayExclusiveUtc: windowEndDayExclusiveUtc,
+    disclosureFloor: json['disclosureFloor']! as int,
+    cells: [
+      for (final source in _objects(json['sources']))
+        for (final cell in _objects(source['cells']))
+          DeliveryFlowCell.fromSource(source, cell),
+    ],
+  );
 
   /// The cells as shown: each rule's, each running experiment's, finished
   /// experiments' together per version, then everyone else's. Views with no
@@ -502,7 +523,7 @@ class DeliveryFlowRead {
       switch (cell.source) {
         case 'notRecorded':
           continue;
-        case 'experiment' when cell.experimentRunning != true:
+        case 'experiment' when cell.experimentState == 'finished':
           (earlier[cell.version] ??= <int?>[]).add(cell.views);
         default:
           shown.add(cell);
@@ -547,6 +568,7 @@ class DeliveryFlowRead {
   Map<String, dynamic> toJson() => {
     'windowStartDayUtc': windowStartDayUtc,
     'windowEndDayExclusiveUtc': windowEndDayExclusiveUtc,
+    'disclosureFloor': disclosureFloor,
     'cells': [for (final cell in shownCells) cell.toJson()],
     'totalViews': totalViews,
     'approxTotalViews': approxTotalViews,
@@ -1170,19 +1192,26 @@ class SurfaceRoutingApi {
       'contractVersion': contractVersion,
       'organizationId': organizationId,
     });
-    final read = DeliveryFlowRead.fromJson(_object(raw));
-    if (read.windowStartDayUtc != windowStartDayUtc ||
-        read.windowEndDayExclusiveUtc != windowEndDayExclusiveUtc) {
-      throw const FormatException(
-        'The delivery flow response named another window.',
-      );
-    }
+    final bytes = decodeByteDataWire(
+      raw,
+      maximumBytes: deliveryFlowMaximumBytes,
+      malformed: (detail) =>
+          FormatException('The delivery flow response $detail.'),
+    );
+    final read = DeliveryFlowRead.fromJson(
+      jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>,
+      windowStartDayUtc: windowStartDayUtc,
+      windowEndDayExclusiveUtc: windowEndDayExclusiveUtc,
+    );
     return read;
   }
 
   Future<Object?> _call(String method, Map<String, dynamic> args) =>
       _api.call(_endpointName, method, args);
 }
+
+/// The most bytes a delivery flow reply may carry.
+const int deliveryFlowMaximumBytes = 256 * 1024;
 
 const _endpointName = 'surfaceRouting';
 

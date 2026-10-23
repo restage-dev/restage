@@ -36,15 +36,20 @@ SurfaceFunnelCountsV1 _counts({
 SurfaceFunnelViewV1 _view({
   List<SurfaceFunnelVersionV1>? versions,
   String? surfaceType = 'onboarding',
+  RuntimePlane plane = RuntimePlane.live,
+  int disclosureFloor = 5,
 }) =>
     SurfaceFunnelViewV1.of(
-      target: _target,
+      target: TargetCoordinate.fromJson({
+        ..._target.toJson(),
+        'runtimePlane': plane.wireName,
+      }),
       surfaceId: 'welcome',
       surfaceType: surfaceType,
       windowStartMicros: 1000,
       windowEndExclusiveMicros: 2000,
       asOfMicros: 2500,
-      disclosureFloor: 5,
+      disclosureFloor: disclosureFloor,
       versions: versions ??
           [
             SurfaceFunnelVersionV1.of(
@@ -188,6 +193,15 @@ void main() {
   });
 
   group('funnel view', () {
+    test('carries the floor it was given and refuses a non-positive one', () {
+      expect(_view(disclosureFloor: 1).disclosureFloor, 1);
+      expect(_view().disclosureFloor, 5);
+      expect(
+        () => _view(disclosureFloor: 0),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
     test('round-trips byte for byte through the canonical codec', () {
       final view = _view();
       final decoded = SurfaceFunnelViewV1.fromCanonicalBytes(

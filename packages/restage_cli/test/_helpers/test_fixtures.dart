@@ -712,3 +712,17 @@ String publishedSlugOf(http.Request request) =>
               as Map<String, dynamic>)['canonicalJson']
           as String,
     ).publication.slug;
+
+/// The reply `readDeliveryFlow` sends for [scenario]: the server's canonical
+/// bytes in the byte wire form.
+http.Response deliveryFlowResponse(String scenario) {
+  final replies =
+      jsonDecode(
+            File('test/fixtures/delivery_flow_replies.json').readAsStringSync(),
+          )
+          as Map<String, Object?>;
+  return http.Response(
+    jsonEncode(encodeByteDataWire(utf8.encode(replies[scenario]! as String))),
+    200,
+  );
+}

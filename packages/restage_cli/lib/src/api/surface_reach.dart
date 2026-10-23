@@ -83,11 +83,12 @@ class SurfaceReachStraggler {
 /// How far a surface's live version reached devices.
 ///
 /// [devices] counts the active devices; [reached], those holding the live
-/// version. A count from one to four is null and reads "<5".
+/// version. A count under [disclosureFloor] is null and reads as less than it.
 class SurfaceReach {
   /// Construct a reach.
   const SurfaceReach({
     required this.asOf,
+    required this.disclosureFloor,
     this.liveVersion,
     this.liveSince,
     this.devices,
@@ -106,6 +107,7 @@ class SurfaceReach {
         : DateTime.fromMicrosecondsSinceEpoch(micros as int, isUtc: true);
     return SurfaceReach(
       asOf: at(json['asOfMicros'])!,
+      disclosureFloor: json['disclosureFloor']! as int,
       liveVersion: json['liveVersion'] as int?,
       liveSince: at(json['liveSinceMicros']),
       devices: json['devices'] as int?,
@@ -128,6 +130,9 @@ class SurfaceReach {
 
   /// When the read was taken.
   final DateTime asOf;
+
+  /// The floor the service applied: a count under it is withheld.
+  final int disclosureFloor;
 
   /// The live version, or null when nothing is live.
   final int? liveVersion;
@@ -160,6 +165,7 @@ class SurfaceReach {
   /// The wire form.
   Map<String, Object?> toJson() => {
     'asOfMicros': asOf.microsecondsSinceEpoch,
+    'disclosureFloor': disclosureFloor,
     if (liveVersion != null) 'liveVersion': liveVersion,
     if (liveSince != null) 'liveSinceMicros': liveSince!.microsecondsSinceEpoch,
     if (devices != null) 'devices': devices,
@@ -192,7 +198,8 @@ String surfaceReachHeadline(SurfaceReach reach) {
       : elapsed.inMinutes < 1
       ? ' · just published'
       : ' · ${_elapsed(elapsed)} after publish';
-  return 'v$live reached ${countText(reached)} of ${countText(devices)} '
+  return 'v$live reached ${countText(reached, floor: reach.disclosureFloor)} of '
+      '${countText(devices, floor: reach.disclosureFloor)} '
       'active devices$share$since';
 }
 
@@ -210,7 +217,8 @@ List<String> renderSurfaceReach(SurfaceReach reach) => [
 ];
 
 String _straggler(SurfaceReach reach, SurfaceReachStraggler s) {
-  final devices = '${countText(s.devices)} devices';
+  final devices =
+      '${countText(s.devices, floor: reach.disclosureFloor)} devices';
   return switch (s.reason) {
     SurfaceReachReason.cantRender =>
       "Can't render v${s.version} · ${s.platform} build "

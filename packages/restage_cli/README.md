@@ -132,7 +132,7 @@ written as console commands.
 The overview shows analytics for the selected app, environment, and plane.
 Switching targets clears the previous figures while the new overview loads.
 Unavailable figures show `Not available`; counts too small to show safely appear
-as `<5`. Neither is shown as zero.
+as an upper bound. Neither is shown as zero.
 
 Commands inherit the console's selected organization, project, app, environment,
 and plane wherever the command supports those options. An explicit

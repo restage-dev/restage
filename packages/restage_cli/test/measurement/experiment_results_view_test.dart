@@ -46,7 +46,7 @@ void main() {
           },
         ],
       },
-    });
+    }, 5);
 
     expect(
       out.toString(),
@@ -75,7 +75,7 @@ void main() {
         'arms': <Object?>[],
         'declinedEnrollments': <Object?>[],
       },
-    });
+    }, 5);
 
     expect(out.toString(), isNot(contains("can't show")));
   });

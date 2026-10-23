@@ -786,7 +786,7 @@ List<String> _renderDeliveryFlow(DeliveryFlowRead flow) {
     else ...[
       for (final cell in cells)
         '${_flowSource(cell)}, v${cell.version}: '
-            '${countText(cell.views, approx: cell.approxViews)}',
+            '${countText(cell.views, floor: flow.disclosureFloor, approx: cell.approxViews)}',
       _flowTotal(flow),
     ],
   ];
@@ -794,23 +794,24 @@ List<String> _renderDeliveryFlow(DeliveryFlowRead flow) {
 
 String _flowTotal(DeliveryFlowRead flow) {
   final head =
-      '${countText(flow.totalViews, approx: flow.approxTotalViews)} views';
+      '${countText(flow.totalViews, floor: flow.disclosureFloor, approx: flow.approxTotalViews)} views';
   final notRecorded = flow.notRecordedViews;
   final approxNotRecorded = flow.approxNotRecordedViews;
   final anyNotRecorded =
       flow.cells.any((cell) => cell.source == 'notRecorded') &&
       (notRecorded == null || notRecorded > 0);
   return anyNotRecorded
-      ? '$head, ${countText(notRecorded, approx: approxNotRecorded)} not recorded'
+      ? '$head, ${countText(notRecorded, floor: flow.disclosureFloor, approx: approxNotRecorded)} not recorded'
       : head;
 }
 
 String _flowSource(DeliveryFlowCell cell) => switch (cell.source) {
-  'rule' => 'Rule ${cell.routeId}',
-  'experiment' => switch (cell.experimentLabel) {
-    final label? => 'Experiment $label',
-    null => 'Unnamed experiment',
-  },
+  'rule' => 'Rule ${cell.routeId}${cell.removed ? ' (removed)' : ''}',
+  'experiment' =>
+    '${switch (cell.experimentLabel) {
+      final label? => 'Experiment $label',
+      null => 'Unnamed experiment',
+    }}${cell.experimentState == 'paused' ? ' (paused)' : ''}',
   'earlierExperiments' => 'Earlier experiments',
   'everyoneElse' => 'Everyone else',
   _ => 'Not recorded',
@@ -821,21 +822,25 @@ List<String> _renderDeliveryDiagnostics(
 ) => [
   'UTC window: ${_formatUtcDay(diagnostics.windowStartDayUtc)} through '
       '${_formatUtcDay(diagnostics.windowEndDayExclusiveUtc)} (end exclusive).',
-  'Disclosure floor: ${diagnostics.disclosureFloor}.',
+  if (diagnostics.disclosureFloor > 1)
+    'Disclosure floor: ${diagnostics.disclosureFloor}.',
   'These are observed decision counts.',
   ..._renderDiagnosticsSection(
     label: 'Served default presentations',
     section: diagnostics.servedDefaults,
+    floor: diagnostics.disclosureFloor,
   ),
   ..._renderDiagnosticsSection(
     label: 'Recorded server refusals',
     section: diagnostics.recordedRefusals,
+    floor: diagnostics.disclosureFloor,
   ),
 ];
 
 List<String> _renderDiagnosticsSection({
   required String label,
   required MeasurementDeliveryDiagnosticsSectionV1 section,
+  required int floor,
 }) => [
   '$label (${section.population.wireName}; ${section.coverage.wireName}; '
       '${section.availability.wireName}).',
@@ -846,7 +851,7 @@ List<String> _renderDiagnosticsSection({
       section.reasons.isEmpty)
     '  No observed reasons are present in this disclosed population.',
   for (final reason in section.reasons)
-    '  ${reason.reason}: ${countText(reason.observedCount)}',
+    '  ${reason.reason}: ${countText(reason.observedCount, floor: floor)}',
 ];
 
 String _coverageText(MeasurementDeliveryDiagnosticsCoverageV1 coverage) =>

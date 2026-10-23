@@ -12,6 +12,9 @@ import 'package:test/test.dart';
 
 import '../_helpers/test_fixtures.dart';
 
+/// The floor the fixture replies state.
+const _floor = 5;
+
 /// The target the shared discovery fixture resolves for `mobile` + `production`.
 final _target = TargetCoordinate(
   organizationId: OrganizationId(7),
@@ -25,96 +28,105 @@ const _surfaceId = 'surface.v1.welcome';
 const _revisionId = 'surface-revision.v1.welcome.3';
 
 /// One reading, built through the contract's own constructors.
-SurfaceFunnelViewV1 _view({String? surfaceId, String? surfaceType}) =>
-    SurfaceFunnelViewV1.of(
-      target: _target,
-      surfaceId: surfaceId ?? _surfaceId,
-      surfaceType: surfaceType,
-      windowStartMicros: 1788000000000000,
-      windowEndExclusiveMicros: 1788600000000000,
-      asOfMicros: 1788600000000001,
-      disclosureFloor: 5,
-      versions: [
-        SurfaceFunnelVersionV1.of(
-          surfaceRevisionId: _revisionId,
-          revisionOrdinal: 3,
-          publishedAtMicros: 1787900000000000,
-          status: SurfaceFunnelVersionStatusV1.available,
+SurfaceFunnelViewV1 _view({
+  String? surfaceId,
+  String? surfaceType,
+  int disclosureFloor = 5,
+}) => SurfaceFunnelViewV1.of(
+  // A floor of one is a sandbox reading.
+  target: disclosureFloor == 1
+      ? TargetCoordinate.fromJson({
+          ..._target.toJson(),
+          'runtimePlane': RuntimePlane.sandbox.wireName,
+        })
+      : _target,
+  surfaceId: surfaceId ?? _surfaceId,
+  surfaceType: surfaceType,
+  windowStartMicros: 1788000000000000,
+  windowEndExclusiveMicros: 1788600000000000,
+  asOfMicros: 1788600000000001,
+  disclosureFloor: disclosureFloor,
+  versions: [
+    SurfaceFunnelVersionV1.of(
+      surfaceRevisionId: _revisionId,
+      revisionOrdinal: 3,
+      publishedAtMicros: 1787900000000000,
+      status: SurfaceFunnelVersionStatusV1.available,
+      disclosure: SurfaceFunnelDisclosureV1.disclosed,
+      counts: SurfaceFunnelCountsV1.of(
+        eligibleRoots: 5000,
+        views: 5000,
+        completions: 525,
+        skips: 240,
+        dismissals: 310,
+        reachedAnotherStep: 4100,
+        completeRoots: 4900,
+        pendingRoots: 60,
+        unavailableRoots: 40,
+        path: 'counts',
+      ),
+      unattributedDismissals: 12,
+      stateTransitions: const {
+        'intro': ['plan'],
+        'plan': <String>[],
+      },
+      steps: [
+        SurfaceFunnelStepV1.of(
+          stateId: 'intro',
+          screenArtifactId: 'intro-screen',
+          screenContentHash: 'a' * 64,
+          screenVersion: 3,
           disclosure: SurfaceFunnelDisclosureV1.disclosed,
           counts: SurfaceFunnelCountsV1.of(
             eligibleRoots: 5000,
-            views: 5000,
-            completions: 525,
-            skips: 240,
-            dismissals: 310,
+            views: 4900,
+            completions: 0,
+            skips: 100,
+            dismissals: 180,
             reachedAnotherStep: 4100,
             completeRoots: 4900,
             pendingRoots: 60,
             unavailableRoots: 40,
             path: 'counts',
           ),
-          unattributedDismissals: 12,
-          stateTransitions: const {
-            'intro': ['plan'],
-            'plan': <String>[],
-          },
-          steps: [
-            SurfaceFunnelStepV1.of(
-              stateId: 'intro',
-              screenArtifactId: 'intro-screen',
-              screenContentHash: 'a' * 64,
-              screenVersion: 3,
-              disclosure: SurfaceFunnelDisclosureV1.disclosed,
-              counts: SurfaceFunnelCountsV1.of(
-                eligibleRoots: 5000,
-                views: 4900,
-                completions: 0,
-                skips: 100,
-                dismissals: 180,
-                reachedAnotherStep: 4100,
-                completeRoots: 4900,
-                pendingRoots: 60,
-                unavailableRoots: 40,
-                path: 'counts',
-              ),
-              transitionTargets: const ['plan'],
-              path: 'step',
-            ),
-            SurfaceFunnelStepV1.of(
-              stateId: 'plan',
-              screenArtifactId: 'plan-screen',
-              screenContentHash: 'b' * 64,
-              screenVersion: 3,
-              disclosure: SurfaceFunnelDisclosureV1.belowDisclosureFloor,
-              path: 'step',
-            ),
-          ],
-          bands: [
-            SurfaceFunnelBandV1.of(
-              point: MeasurementBreakdownPointV1(
-                kindV1: MeasurementBreakdownPointKindV1.pageIndex,
-                reference: '0',
-                label: 'Intro',
-                authoredOrder: 0,
-              ),
-              disclosure: SurfaceFunnelDisclosureV1.disclosed,
-              counts: SurfaceFunnelBandCountsV1.of(
-                eligibleRoots: 5000,
-                reach: 4900,
-                occurrences: 5100,
-                continued: 4100,
-                completeRoots: 4900,
-                pendingRoots: 60,
-                unavailableRoots: 40,
-                path: 'band',
-              ),
-              path: 'band',
-            ),
-          ],
-          path: 'version',
+          transitionTargets: const ['plan'],
+          path: 'step',
+        ),
+        SurfaceFunnelStepV1.of(
+          stateId: 'plan',
+          screenArtifactId: 'plan-screen',
+          screenContentHash: 'b' * 64,
+          screenVersion: 3,
+          disclosure: SurfaceFunnelDisclosureV1.belowDisclosureFloor,
+          path: 'step',
         ),
       ],
-    );
+      bands: [
+        SurfaceFunnelBandV1.of(
+          point: MeasurementBreakdownPointV1(
+            kindV1: MeasurementBreakdownPointKindV1.pageIndex,
+            reference: '0',
+            label: 'Intro',
+            authoredOrder: 0,
+          ),
+          disclosure: SurfaceFunnelDisclosureV1.disclosed,
+          counts: SurfaceFunnelBandCountsV1.of(
+            eligibleRoots: 5000,
+            reach: 4900,
+            occurrences: 5100,
+            continued: 4100,
+            completeRoots: 4900,
+            pendingRoots: 60,
+            unavailableRoots: 40,
+            path: 'band',
+          ),
+          path: 'band',
+        ),
+      ],
+      path: 'version',
+    ),
+  ],
+);
 
 String _wire(List<int> bytes) => "decode('${base64Encode(bytes)}', 'base64')";
 
@@ -315,13 +327,21 @@ void main() {
       expect(result.code, 0, reason: result.err);
       final out = result.out;
       expect(out, contains('Funnel for $_surfaceId, 1 version(s), floor 5:'));
+      expect(
+        renderSurfaceFunnel(_view(disclosureFloor: 1)),
+        contains('Funnel for $_surfaceId, 1 version(s):'),
+      );
       expect(out, contains('v3 $_revisionId [available]'));
       expect(out, contains('views 5,000 of 5,000'));
       expect(out, contains('completions 525'));
       expect(out, contains('conversion 0.105000000 (525/5000)'));
       expect(out, contains('step intro: views 4,900 of 5,000, onward 4,100'));
       expect(out, contains('-> plan'));
-      expect(out, contains('step plan: views <5'));
+      expect(out, contains('step plan: views <$_floor'));
+      expect(
+        renderSurfaceFunnel(_view(disclosureFloor: 2)),
+        contains('step plan: views <2'),
+      );
       expect(out, contains('Intro: reach 4,900 of 5,000'));
       expect(out, contains('drop-off 0.163265306 (800/4900)'));
     });

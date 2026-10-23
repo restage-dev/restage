@@ -4,8 +4,12 @@ import 'package:restage_cli/src/measurement/overview_figures.dart';
 import 'package:restage_cli/src/measurement/page_views/overview_apps_view.dart';
 import 'package:test/test.dart';
 
-String _reply(Map<String, Object?> document) => jsonEncode({
+/// The floor the fixture replies state.
+const _floor = 5;
+
+String _reply(Map<String, Object?> document, {int floor = 5}) => jsonEncode({
   'kind': 'served',
+  'disclosureFloor': floor,
   'projections': [
     {'document': document},
   ],
@@ -75,18 +79,31 @@ void main() {
     },
   );
 
-  test('a held count reads <5 and an unread figure reads Not available', () {
+  test(
+    'a held count reads <$_floor and an unread figure reads Not available',
+    () {
+      final figures = overviewFiguresOf(
+        _reply({
+          'sessions': {'counts': <String, Object?>{}},
+          'typedLifecycle': _series(completed: null),
+          'rows': [_row([])],
+        }),
+      );
+
+      expect(figures.sessions, '<$_floor');
+      expect(figures.finished, '<$_floor');
+      expect(figures.revenue, 'Not available');
+    },
+  );
+
+  test('a held count reads the floor the reply states', () {
     final figures = overviewFiguresOf(
       _reply({
         'sessions': {'counts': <String, Object?>{}},
-        'typedLifecycle': _series(completed: null),
-        'rows': [_row([])],
-      }),
+      }, floor: 3),
     );
 
-    expect(figures.sessions, '<5');
-    expect(figures.finished, '<5');
-    expect(figures.revenue, 'Not available');
+    expect(figures.sessions, '<3');
   });
 
   test('sessions with no exact union read At least the known count', () {

@@ -4,6 +4,8 @@ import 'package:restage_cli/src/measurement/page_views/overview_apps_view.dart';
 import 'package:restage_cli/src/measurement/page_views/overview_view.dart';
 import 'package:restage_cli/src/measurement/page_views/explore_view.dart';
 import 'package:restage_cli/src/measurement/page_views/surface_view.dart';
+import 'package:restage_cli/src/measurement/page_views/page_view_support.dart'
+    show PageRender;
 import 'package:restage_cli/src/measurement/page_views/taps_view.dart';
 import 'package:restage_cli/src/measurement/page_views/delivery_map_view.dart';
 import 'package:restage_cli/src/measurement/page_views/health_view.dart';
@@ -153,12 +155,13 @@ class PageRead {
   final Map<String, Object?> Function(PageRequest request) wire;
 
   /// Writes the figures of one page document for a person.
-  final void Function(StringSink out, Map<String, Object?> document) render;
+  final PageRender render;
 
   /// Writes the page with the values the caller gave, when they shape it.
   final void Function(
     StringSink out,
     Map<String, Object?> document,
+    int floor,
     Map<String, Object?> values,
   )?
   renderFor;
@@ -297,14 +300,14 @@ final List<PageRead> pageReads = [
         'presentations of a surface. Users are anonymous sessions on a '
         'device. A rate is a decimal beside the exact '
         'numerator and denominator it came from. A count under the '
-        'disclosure floor of 5 is absent and reads "<5"; a figure the '
+        'disclosureFloor is absent and reads as less than it; a figure the '
         'service withholds states why. The reply names the window and the '
         'publication it was read at. Set allApps to read every app in the '
         'environment together instead: the three at-a-glance figures '
         '(app sessions that saw a surface, onboarding and surveys finished, '
         'revenue from surfaces) as a total and per app, with the finish '
         'rate per app (finished over eligible views). A figure is exact, '
-        'approximate, at least a number, held under the floor of 5, or '
+        'approximate, at least a number, held under the disclosureFloor, or '
         'unavailable. The figures are the dashboard\'s own and are '
         'returned unchanged.',
     params: const [
@@ -357,7 +360,7 @@ final List<PageRead> pageReads = [
         'platform, app build, device class or country and platform. Views '
         'are presentations of a surface. Users are anonymous sessions. '
         'Each split row states its count beside the whole; a '
-        'count under the disclosure floor of 5 is absent and reads "<5", '
+        'count under the disclosureFloor is absent and reads as less than it, '
         'and splits held whole are counted in hiddenSplitCount. Name a '
         'surface to read that one surface. The figures are the '
         'dashboard\'s own and are returned unchanged.',
@@ -401,8 +404,8 @@ final List<PageRead> pageReads = [
         'presentations of the surface. A paywall also states first purchases '
         'and the purchase rate per version, and a funnel states its steps '
         'with the users who reached each. A rate is a decimal beside the exact numerator and '
-        'denominator it came from. A count under the disclosure floor of 5 '
-        'is absent and reads "<5". A metric the service cannot state '
+        'denominator it came from. A count under the disclosureFloor '
+        'is absent and reads as less than it. A metric the service cannot state '
         'carries the reason. Name versions to read only those. The figures '
         'are the dashboard\'s own and are returned unchanged.',
     params: const [
@@ -436,7 +439,7 @@ final List<PageRead> pageReads = [
         'Read the screens and taps of one published version of a surface for '
         'one exact target and window, by the ordinal the version was '
         'served at. Counts are presentations of the surface. A '
-        'count under the disclosure floor of 5 is absent and reads "<5"; a '
+        'count under the disclosureFloor is absent and reads as less than it; a '
         'version or element held whole keeps its identity and states no '
         'counts. The figures are the dashboard\'s own and are returned '
         'unchanged.',
@@ -470,7 +473,7 @@ final List<PageRead> pageReads = [
         'compatible with the one the current SDK asks for. Sessions are '
         'anonymous SDK runtimes. A '
         'population that is lost states why and for how long. A count '
-        'under the disclosure floor of 5 is absent and reads "<5". The '
+        'under the disclosureFloor is absent and reads as less than it. The '
         'figures are the dashboard\'s own and are returned unchanged.',
     wire: (r) {
       final days = _dayWindow(r.span);
@@ -510,7 +513,7 @@ final List<PageRead> pageReads = [
         'progress, and the identity of the result it reads. The roster '
         'states its total and how many rows need attention. Experiment '
         'figures are users assigned to a variant. A count '
-        'under the disclosure floor of 5 is absent and reads "<5". The '
+        'under the disclosureFloor is absent and reads as less than it. The '
         'figures are the dashboard\'s own and are returned unchanged.',
     wire: (r) => {
       ...pageTargetArgs(r.target),
@@ -533,7 +536,7 @@ final List<PageRead> pageReads = [
         'experiment\'s whole run. Figures are users assigned to a variant. '
         'A rate, effect and interval end is a decimal beside '
         'the exact numerator and denominator it came from. A result with '
-        'fewer than 5 users, successes or failures in any variant is held '
+        'fewer users, successes or failures than the disclosureFloor in any variant is held '
         'for privacy: it states no figures. The figures are the '
         'dashboard\'s own and are returned unchanged.',
     optionalWindow: true,
@@ -616,10 +619,11 @@ final List<PageRead> pageReads = [
       'placement': ?r.values['placement'],
       'surfaceSlug': ?r.values['surfaceSlug'],
     },
-    render: (out, document) => renderDeliveryMapPage(out, document),
-    renderFor: (out, document, values) => renderDeliveryMapPage(
+    render: renderDeliveryMapPage,
+    renderFor: (out, document, floor, values) => renderDeliveryMapPage(
       out,
       document,
+      floor,
       bySurface: values['by'] == 'surface',
     ),
   ),
@@ -657,10 +661,11 @@ final List<PageRead> pageReads = [
         'version': ?version,
       };
     },
-    render: (out, document) => renderDeliveryMapPage(out, document),
-    renderFor: (out, document, values) => renderDeliveryMapPage(
+    render: renderDeliveryMapPage,
+    renderFor: (out, document, floor, values) => renderDeliveryMapPage(
       out,
       document,
+      floor,
       bySurface: true,
       only: values['surface'] as SurfaceVersionArg?,
     ),

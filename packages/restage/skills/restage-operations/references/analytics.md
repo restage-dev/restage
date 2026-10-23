@@ -74,7 +74,7 @@ tool requires both bounds even though the CLI offers defaults.
 - Views are presentations; users are anonymous sessions, not verified people.
   Experiment figures use users assigned to a variant. These populations are
   not interchangeable.
-- Counts below the disclosure floor of five may be held. Withheld, unavailable,
+- Very small production counts may be withheld; sandbox counts are exact. Withheld, unavailable,
   unknown and zero are distinct. Preserve the stated reason; do not replace a
   missing figure with zero or infer hidden counts from totals.
 - Rates include exact numerator and denominator pairs. Retain them and the

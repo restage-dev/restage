@@ -96,9 +96,9 @@ void main() {
     }
   });
 
-  test('rows reject unaligned buckets and undisclosed numeric counts', () {
+  test('rows reject unaligned buckets and non-positive counts', () {
     expect(() => row(bucket: 1), throwsA(isA<CanonicalFormatException>()));
-    for (final count in [-1, 0, 1, 4]) {
+    for (final count in [-1, 0]) {
       expect(() => row(count: count), throwsA(isA<CanonicalFormatException>()));
     }
     expect(
