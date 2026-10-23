@@ -407,14 +407,14 @@ $body
       return logs.join('\n');
     }
 
-    test('that cannot inline say why', () async {
-      final log = await refusalLog({
-        'lib/style/values.dart': '''
+    test('that compute a value are evaluated in the app', () async {
+      final sources = {
+        '$_package|lib/style/values.dart': '''
 abstract final class Values {
   static T pick<T>(T value) => value;
 }
 ''',
-        'lib/paywalls/generic_helper.dart': '''
+        '$_package|lib/paywalls/generic_helper.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -428,15 +428,21 @@ class GenericHelper extends StatelessWidget {
   Widget build(BuildContext context) => Text(Values.pick('x'));
 }
 ''',
-      });
-      expect(
-        log,
-        contains(
-          "The helper 'Values.pick' cannot be inlined: a helper must return "
-          'a widget or a value of a class type.',
-        ),
+      };
+      final logs = <String>[];
+      final result = await testBuilders(
+        [restageCodegenBuilder(BuilderOptions.empty)],
+        sources,
+        rootPackage: _package,
+        readerWriter: await _seeded(sources),
+        flattenOutput: true,
+        onLog: (record) => logs.add(record.message),
       );
-      expect(log, isNot(contains('another package')));
+      expect(result.succeeded, isTrue, reason: logs.join('\n'));
+      expect(
+        _text(result, 'generic_helper'),
+        matches(RegExp(r'text: data\.context\._h[0-9a-f]{10}')),
+      );
     });
 
     test('report errors in their own file', () async {

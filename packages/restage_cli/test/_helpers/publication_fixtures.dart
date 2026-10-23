@@ -101,6 +101,7 @@ Future<SurfacePublicationManifestEntry> seedGeneratedPaywall(
   List<String> sources = const <String>[],
   Surface surface = Surface.paywall,
   List<LibraryRequirement> requiredLibraries = const [],
+  SurfaceScreenHostDataSchema? hostDataContract,
 }) async {
   final exactBlob = Uint8List.fromList(blob ?? ordinaryRfwBlob());
   final sidecar = CapabilitySidecar(
@@ -120,7 +121,7 @@ Future<SurfacePublicationManifestEntry> seedGeneratedPaywall(
   // differs from the paywall case.
   final screenContract = surface == Surface.paywall
       ? null
-      : _screenContractFor(minClient);
+      : _screenContractFor(minClient, hostDataContract: hostDataContract);
   final publication = SurfacePublication(
     surface: surface,
     slug: slug,
@@ -134,6 +135,10 @@ Future<SurfacePublicationManifestEntry> seedGeneratedPaywall(
     eventContract: screenContract?.events,
     eventContractHash: screenContract?.eventsHash,
     contractFingerprint: screenContract?.fingerprint,
+    hostDataContract: screenContract == null ? null : hostDataContract,
+    hostDataContractHash: screenContract == null || hostDataContract == null
+        ? null
+        : SurfaceScreenHostDataContractHash.hash(hostDataContract),
   );
   final blobPath = 'assets/restage/generated/$slug/screen.rfw';
   final sidecarPath = 'assets/restage/generated/$slug/screen.capability.json';
@@ -896,7 +901,10 @@ const String defaultGeneratedManifestPath =
   String eventsHash,
   String fingerprint,
 })
-_screenContractFor(int minClient) {
+_screenContractFor(
+  int minClient, {
+  SurfaceScreenHostDataSchema? hostDataContract,
+}) {
   final events = SurfaceScreenEventSchema(events: const []);
   final eventsHash = SurfaceScreenEventContractHash.hash(events);
   final capabilities = CapabilityManifest(
@@ -913,6 +921,9 @@ _screenContractFor(int minClient) {
       payloadKind: SurfacePayloadKind.blob,
       capabilities: capabilities,
       eventContractHash: eventsHash,
+      hostDataContractHash: hostDataContract == null
+          ? null
+          : SurfaceScreenHostDataContractHash.hash(hostDataContract),
     ),
   );
 }

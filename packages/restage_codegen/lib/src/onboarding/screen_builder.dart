@@ -23,6 +23,7 @@ import 'package:restage_codegen/src/dsl_parse_diagnostic.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
+import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
@@ -94,7 +95,9 @@ final class CompiledResolvedScreen {
     required Iterable<AnalyticsIdDeclaration> analyticsIdDeclarations,
     this.vocabulary = SurfaceVocabularyReferences.empty,
     Map<String, Object> localSeeds = const {},
+    Iterable<HoistedValue> hoisted = const [],
   })  : blob = Uint8List.fromList(blob),
+        hoisted = List.unmodifiable(hoisted),
         capabilitySidecar = Uint8List.fromList(capabilitySidecar),
         analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations),
         localSeeds = Map.unmodifiable(localSeeds);
@@ -117,6 +120,9 @@ final class CompiledResolvedScreen {
 
   /// Initial screen-local values, keyed by value name.
   final Map<String, Object> localSeeds;
+
+  /// Values the screen's mount computes, ordered by key.
+  final List<HoistedValue> hoisted;
 }
 
 @immutable
@@ -300,6 +306,9 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       rootParams: source.build.rootParams,
       rootEventHandlers: source.build.eventHandlers,
       rootInlined: source.build.inlined,
+      buildContextParameter: source.build.buildContextParameter,
+      hoistInMount: source.surface != null,
+      rootBuildArguments: source.build.buildArguments,
     );
     if (_collectTranslationIssues(
       issues,
@@ -403,6 +412,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
           rfwCatalogOccurrenceSet: resolvedOccurrenceSet,
           analyticsIdDeclarations: lowering.declarations,
           localSeeds: translation.localSeeds,
+          hoisted: translation.hoisted,
         ),
       );
     } on fmt.ParserException catch (error) {

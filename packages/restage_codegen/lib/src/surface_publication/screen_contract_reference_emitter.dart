@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
+import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
@@ -72,6 +73,8 @@ class ResolvedWidgetMountInput {
     this.mountConstructorProblem,
     this.plan,
     this.partPath,
+    this.hoisted = const [],
+    this.buildArguments = const [],
   }) : constructorParams = constructorParams ?? rootParams;
 
   /// Owning library asset used for diagnostics and part output location.
@@ -94,6 +97,17 @@ class ResolvedWidgetMountInput {
 
   /// Roster-owned generated part path, when supplied by the aggregate owner.
   final String? partPath;
+
+  /// Values the mount computes for the surface, ordered by key.
+  final List<HoistedValue> hoisted;
+
+  /// The parameters the screen's build takes after its context; the mount
+  /// extends the screen's base class and receives the same ones.
+  final List<FormalParameterElement> buildArguments;
+
+  /// Everything the mount publishes under the render context.
+  SurfaceScreenHostDataSchema get hostDataContract =>
+      hostDataContractOf(rootParams, hoisted: hoisted);
 
   /// The owning library’s single generated Dart part.
   String get generatedPartPath =>
@@ -122,6 +136,8 @@ final class ResolvedStandaloneScreenContractInput
     super.constructorParams,
     super.mountConstructorProblem,
     super.plan,
+    super.hoisted,
+    super.buildArguments,
     this.bundleEntryMetadata,
     this.vocabulary = SurfaceVocabularyReferences.empty,
   });
@@ -163,16 +179,34 @@ final class ResolvedStandaloneScreenContractInput
         constructorParams: constructorParams,
         mountConstructorProblem: mountConstructorProblem,
         plan: plan,
+        hoisted: hoisted,
+        buildArguments: buildArguments,
         bundleEntryMetadata: bundleEntryMetadata,
         vocabulary: vocabulary,
       );
 }
 
+/// Refuses each value [input] hoists when its mount is omitted for [reason].
+List<Issue> hoistedWithoutMountIssues(
+  ResolvedWidgetMountInput input,
+  String reason,
+) =>
+    [
+      for (final value in input.hoisted)
+        _issue(
+          input,
+          IssueCode.unrecognizedMethodCall,
+          "'${value.label}' is evaluated in the app, and this screen has no "
+          'generated mount: $reason.',
+        ),
+    ];
+
 /// Emits a typed paywall mount using the same constructor contract as screens.
 ///
 /// [appWidgetLibraries] returns the app widget registrations the mount
 /// installs, given the SDK prefix the part spells.
-({String? source, String? omissionMessage}) emitPaywallMount(
+({String? source, String? omissionMessage, String? omissionReason})
+    emitPaywallMount(
   ResolvedWidgetMountInput input, {
   required String id,
   FlowDocument? navigationFlow,
@@ -185,7 +219,13 @@ final class ResolvedStandaloneScreenContractInput
     paywall: true,
   );
   final mount = result.mount;
-  if (mount == null) return (source: null, omissionMessage: result.message);
+  if (mount == null) {
+    return (
+      source: null,
+      omissionMessage: result.message,
+      omissionReason: result.reason,
+    );
+  }
   final librarySource = appWidgetLibraries?.call(mount.sdk);
   final buffer = StringBuffer()
     ..writeln(
@@ -201,7 +241,7 @@ final class ResolvedStandaloneScreenContractInput
                 : SurfaceContentKindV1.flow,
             presentation: SurfacePresentationV1.inline,
           ),
-          providedContext: hostDataContractOf(input.rootParams),
+          providedContext: input.hostDataContract,
           handledEvents: SurfaceScreenEventSchema(events: const []),
           flowBoundary: navigationFlow == null
               ? null
@@ -229,7 +269,11 @@ final class ResolvedStandaloneScreenContractInput
     vocabulary: vocabulary,
     appWidgetLibraries: librarySource,
   );
-  return (source: buffer.toString(), omissionMessage: null);
+  return (
+    source: buffer.toString(),
+    omissionMessage: null,
+    omissionReason: null,
+  );
 }
 
 /// Successful or rejected inspection of one standalone-screen contract.
@@ -455,7 +499,7 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
 
   final events = _inspectScreenEvents(input, issues);
   final mountResolution = screen.name == null || screen.name!.isEmpty
-      ? (mount: null, message: null)
+      ? (mount: null, message: null, reason: null)
       : _resolveScreenMount(
           input,
           reservedGeneratedSymbols: _referenceGeneratedTopLevelSymbols(
@@ -463,6 +507,9 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
             events,
           ).toSet(),
         );
+  if (mountResolution.reason case final reason? when issues.isEmpty) {
+    issues.addAll(hoistedWithoutMountIssues(input, reason));
+  }
   _reportGeneratedSymbolCollisions(
     input,
     _generatedTopLevelSymbols(
@@ -485,7 +532,7 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
       events: [for (final event in events) event.schemaEvent],
     );
     eventContractHash = SurfaceScreenEventContractHash.hash(schema);
-    hostDataContract = hostDataContractOf(input.rootParams);
+    hostDataContract = input.hostDataContract;
     contractFingerprint = SurfaceScreenContractFingerprint.hash(
       sourceKind: SurfaceSourceKind.screen,
       payloadKind: SurfacePayloadKind.blob,
@@ -868,6 +915,7 @@ void _reportGeneratedSymbolCollisions(
 ({
   _ResolvedScreenMount? mount,
   String? message,
+  String? reason,
 }) _resolveScreenMount(
   ResolvedWidgetMountInput input, {
   required Set<String> reservedGeneratedSymbols,
@@ -879,8 +927,11 @@ void _reportGeneratedSymbolCollisions(
     screenName,
     fallback: 'SurfaceScreen',
   );
-  String omitted(String reason) =>
-      'Generated screen mount $mountName was omitted because $reason.';
+  String? omittedReason;
+  String omitted(String reason) {
+    omittedReason = reason;
+    return 'Generated screen mount $mountName was omitted because $reason.';
+  }
 
   final namespace = OwningLibraryNamespace(screen.library);
   final sourceNames = _owningLibrarySourceNames(input, namespace);
@@ -899,6 +950,7 @@ void _reportGeneratedSymbolCollisions(
     return (
       mount: null,
       message: omitted(constructorResult.reason!),
+      reason: omittedReason,
     );
   }
 
@@ -917,6 +969,7 @@ void _reportGeneratedSymbolCollisions(
     return (
       mount: null,
       message: omitted('$collision already exists in ${input.assetId.path}'),
+      reason: omittedReason,
     );
   }
 
@@ -936,6 +989,22 @@ void _reportGeneratedSymbolCollisions(
             'SurfaceScreenUnavailableError',
           },
   );
+  if (sdk != null &&
+      input.hoisted.isNotEmpty &&
+      namespace.prefixForOrigin(
+            _restageSdkOrigin,
+            const {'restageHostValues'},
+          ) !=
+          sdk) {
+    return (
+      mount: null,
+      message: omitted(
+        'the owning library does not expose restageHostValues next to the '
+        'Restage widget symbols',
+      ),
+      reason: omittedReason,
+    );
+  }
   if (sdk == null) {
     return (
       mount: null,
@@ -943,6 +1012,7 @@ void _reportGeneratedSymbolCollisions(
         'the owning library does not expose the required Restage widget '
         'symbols in one namespace',
       ),
+      reason: omittedReason,
     );
   }
 
@@ -964,7 +1034,36 @@ void _reportGeneratedSymbolCollisions(
         'the owning library does not expose the required Flutter widget '
         'symbols in one namespace',
       ),
+      reason: omittedReason,
     );
+  }
+
+  String? base;
+  final buildParameters = <String>[];
+  if (input.buildArguments.isNotEmpty) {
+    final superclass = screen.supertype?.element;
+    base = superclass == null ? null : namespace.elementName(superclass);
+    if (base == null) {
+      return (
+        mount: null,
+        message: omitted('its base class has no spelling in its library'),
+        reason: omittedReason,
+      );
+    }
+    for (final argument in input.buildArguments) {
+      final type = namespace.typeCode(argument.type);
+      if (type == null) {
+        return (
+          mount: null,
+          message: omitted(
+            'the type of build argument ${argument.name} has no spelling in '
+            'its library',
+          ),
+          reason: omittedReason,
+        );
+      }
+      buildParameters.add('$type ${argument.name}');
+    }
   }
 
   final prefixCollision = _mountControlNames(paywall: paywall)
@@ -977,6 +1076,7 @@ void _reportGeneratedSymbolCollisions(
         'import prefix ${dartStringLiteral(prefixCollision)} conflicts with '
         'a generated mount control',
       ),
+      reason: omittedReason,
     );
   }
 
@@ -985,8 +1085,12 @@ void _reportGeneratedSymbolCollisions(
       sdk: sdk,
       flutter: flutter,
       constructor: mountConstructor,
+      hoisted: input.hoisted,
+      base: base,
+      buildParameters: buildParameters,
     ),
     message: null,
+    reason: null,
   );
 }
 
@@ -1082,7 +1186,7 @@ void _reportGeneratedSymbolCollisions(
         reason: 'its constructor description is unavailable',
       );
     }
-    if (controls.contains(name)) {
+    if (controls.contains(name) || isHoistedKey(name)) {
       return (
         constructor: null,
         reason: '${screen.name} declares the reserved constructor parameter '
@@ -1464,7 +1568,8 @@ void _emitScreenMount(
   buffer
     ..writeln()
     ..writeln(
-      'final class $mountName extends ${flutter}StatelessWidget {',
+      'final class $mountName extends '
+      '${mount.base ?? '${flutter}StatelessWidget'} {',
     );
   for (final atPlacement in [false, true]) {
     buffer
@@ -1577,7 +1682,10 @@ void _emitScreenMount(
     ..writeln()
     ..writeln('  @override')
     ..writeln(
-      '  ${flutter}Widget build(${flutter}BuildContext context) {',
+      '  ${flutter}Widget build(${[
+        '${flutter}BuildContext context',
+        ...mount.buildParameters,
+      ].join(', ')}) {',
     );
   // A screen mount installs through the vocabulary its reference carries. A
   // paywall mount names no reference, so it installs here instead.
@@ -1623,14 +1731,52 @@ void _emitScreenMount(
     ..writeln('      ),');
   final hostParameters =
       constructor.values.where((parameter) => parameter.root.isHostData);
-  if (hostParameters.isNotEmpty) {
+  final hoisted = mount.hoisted;
+  if (hostParameters.isNotEmpty || hoisted.isNotEmpty) {
     buffer.writeln('      context: <String, Object?>{');
+    final slots = {
+      for (final parameter in constructor.values)
+        parameter.name: parameter.slotName,
+    };
+    // Each value is computed under a guard, so one that throws is left out.
+    String thunk(HoistedValue value, String? item) {
+      final source = value.mountSource(
+        (name) => slots[name]!,
+        itemSource: item,
+      );
+      // Release builds fold the label away.
+      return '${dartStringLiteral(value.key)}: '
+          "(const bool.fromEnvironment('dart.vm.product') ? '' : "
+          '${dartStringLiteral(value.label)}, () => $source)';
+    }
+
+    String hostValues(Iterable<HoistedValue> values, {String? item}) =>
+        '...${sdk}restageHostValues(<String, (String, Object? Function())>{'
+        '${[for (final value in values) thunk(value, item)].join(', ')}})';
     for (final parameter in hostParameters) {
       final source = parameter.slotName;
+      final itemValues = [
+        for (final value in hoisted)
+          if (value.item == parameter.name) value,
+      ];
       buffer.writeln(
         '        ${dartStringLiteral(parameter.name)}: '
-        '${_mountHostDataValue(parameter.root.hostDataShape!, source)},',
+        '${_mountHostDataValue(
+          parameter.root.hostDataShape!,
+          source,
+          0,
+          itemValues.isEmpty
+              ? null
+              : (item) => hostValues(itemValues, item: item),
+        )},',
       );
+    }
+    final topLevel = [
+      for (final value in hoisted)
+        if (value.item == null) value,
+    ];
+    if (topLevel.isNotEmpty) {
+      buffer.writeln('        ${hostValues(topLevel)},');
     }
     buffer.writeln('      },');
   }
@@ -1663,34 +1809,45 @@ void _emitScreenMount(
     ..writeln('}');
 }
 
+/// Extra entries the mount adds to one list item, given that item's source.
+typedef _ItemEntries = String Function(String item);
+
 String _mountHostDataValue(
   HostDataShape shape,
   String source, [
   int depth = 0,
+  _ItemEntries? itemEntries,
 ]) {
   if (!shape.requiresEncoding) return source;
   final nullable = shape.type.nullabilitySuffix == NullabilitySuffix.question;
   if (nullable) {
     final present = 'restagePresent$depth';
     return 'switch ($source) { final $present? => '
-        '${_mountNonNullHostDataValue(shape, present, depth)}, '
+        '${_mountNonNullHostDataValue(shape, present, depth, itemEntries)}, '
         'null => null }';
   }
-  return _mountNonNullHostDataValue(shape, source, depth);
+  return _mountNonNullHostDataValue(shape, source, depth, itemEntries);
 }
 
 String _mountNonNullHostDataValue(
   HostDataShape shape,
   String source,
-  int depth,
-) {
+  int depth, [
+  _ItemEntries? itemEntries,
+]) {
   final value = 'restageValue$depth';
   final entry = 'restageEntry$depth';
   return switch (shape) {
-    HostDataObjectShape() => _mountObjectValue(shape, source, depth),
+    HostDataObjectShape() =>
+      _mountObjectValue(shape, source, depth, itemEntries),
     HostDataListShape(:final elementShape) =>
       '<Object?>[for (final $value in $source) '
-          '${_mountHostDataValue(elementShape, value, depth + 1)}]',
+          '${_mountHostDataValue(
+        elementShape,
+        value,
+        depth + 1,
+        itemEntries,
+      )}]',
     HostDataMapShape(:final valueShape) =>
       '<String, Object?>{for (final $entry in $source.entries) '
           '$entry.key: '
@@ -1702,13 +1859,19 @@ String _mountNonNullHostDataValue(
 String _mountObjectValue(
   HostDataObjectShape shape,
   String source,
-  int depth,
-) {
-  final fields = shape.fields.map((field) {
+  int depth, [
+  _ItemEntries? itemEntries,
+]) {
+  String fieldValue(HostDataObjectField field) {
     final value = '$source.${field.wireKey}';
     return '${dartStringLiteral(field.wireKey)}: '
         '${_mountHostDataValue(field.shape, value, depth + 1)}';
-  });
+  }
+
+  final fields = [
+    for (final field in shape.fields) fieldValue(field),
+    if (itemEntries != null) itemEntries(source),
+  ];
   return '<String, Object?>{${fields.join(', ')}}';
 }
 
@@ -2024,10 +2187,20 @@ final class _ResolvedScreenMount {
     required this.sdk,
     required this.flutter,
     required this.constructor,
+    required this.hoisted,
+    required this.base,
+    required this.buildParameters,
   });
 
   final String sdk;
   final String flutter;
+  final List<HoistedValue> hoisted;
+
+  /// The screen's base class, when the mount must extend it.
+  final String? base;
+
+  /// The build parameters after the context, as `Type name`.
+  final List<String> buildParameters;
   final _ResolvedMountConstructorContract constructor;
 }
 

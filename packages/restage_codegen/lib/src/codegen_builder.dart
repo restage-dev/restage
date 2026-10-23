@@ -20,6 +20,7 @@ import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/dsl_parse_diagnostic.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
+import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
@@ -65,7 +66,9 @@ final class CompiledPaywallArtifacts {
     this.standaloneRfwCatalogOccurrenceSet,
     Map<String, Object> standaloneLocalSeeds = const {},
     Map<String, Object> adapterLocalSeeds = const {},
+    Iterable<HoistedValue> hoisted = const [],
   })  : navigationPushedIds = List.unmodifiable(navigationPushedIds),
+        hoisted = List.unmodifiable(hoisted),
         standaloneLocalSeeds = Map.unmodifiable(standaloneLocalSeeds),
         adapterLocalSeeds = Map.unmodifiable(adapterLocalSeeds),
         standaloneBlob =
@@ -115,6 +118,9 @@ final class CompiledPaywallArtifacts {
 
   /// Initial screen-local values of the flow-screen form, by value name.
   final Map<String, Object> adapterLocalSeeds;
+
+  /// Values the paywall's mount computes for either form, ordered by key.
+  final List<HoistedValue> hoisted;
 }
 
 @immutable
@@ -234,6 +240,8 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
       rootEventHandlers: source.build.eventHandlers,
       buildContextParameter: source.build.buildContextParameter,
       rootInlined: source.build.inlined,
+      hoistInMount: true,
+      rootBuildArguments: source.build.buildArguments,
     );
     final usesFlowForm = probe.navigation != null || probe.suppressed;
     final emitStandalone = routeOwnership?.standalone ?? !usesFlowForm;
@@ -252,6 +260,8 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             rootEventHandlers: source.build.eventHandlers,
             buildContextParameter: source.build.buildContextParameter,
             rootInlined: source.build.inlined,
+            hoistInMount: true,
+            rootBuildArguments: source.build.buildArguments,
           )
         : probe;
     final adapter = usesFlowForm
@@ -266,6 +276,8 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             buildContextParameter: source.build.buildContextParameter,
             flowScreenContext: true,
             rootInlined: source.build.inlined,
+            hoistInMount: true,
+            rootBuildArguments: source.build.buildArguments,
           )
         : routePlan != null && emitAdapter
             ? translatorFor(source, routePlan).translate(
@@ -279,6 +291,8 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
                 buildContextParameter: source.build.buildContextParameter,
                 flowScreenContext: true,
                 rootInlined: source.build.inlined,
+                hoistInMount: true,
+                rootBuildArguments: source.build.buildArguments,
               )
             : probe;
     _addFatalTranslationIssues(
@@ -356,6 +370,11 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
         adapterAnalyticsIdDeclarations: adapterForm.analyticsIdDeclarations,
         standaloneLocalSeeds: standaloneForm?.localSeeds ?? const {},
         adapterLocalSeeds: adapterForm.localSeeds,
+        hoisted: {
+          for (final value in [...standalone.hoisted, ...adapter.hoisted])
+            value.key: value,
+        }.values.toList()
+          ..sort((left, right) => left.key.compareTo(right.key)),
         navigationPlan: standalone.navigation == null
             ? null
             : utf8.encode(

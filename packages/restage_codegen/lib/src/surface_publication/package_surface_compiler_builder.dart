@@ -16,6 +16,7 @@ import 'package:restage_codegen/src/codegen_builder.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/durable_state.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
+import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_configuration.dart';
@@ -277,6 +278,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
               assetId: screen.input.assetId,
               screen: screen.input.declaration,
               rootParams: screen.input.build.rootParams,
+              hoisted: screen.hoisted,
+              buildArguments: screen.input.build.buildArguments,
             ),
             blob: screen.blob,
             capabilitySidecar: capabilitySidecar,
@@ -317,6 +320,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             constructorParams: screen.input.build.constructorParams,
             mountConstructorProblem: screen.input.build.mountConstructorProblem,
             plan: plan,
+            hoisted: screen.hoisted,
+            buildArguments: screen.input.build.buildArguments,
             bundleEntryMetadata: bundleEntryMetadata,
             vocabulary: screen.vocabulary,
           ),
@@ -962,6 +967,31 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     return _invalidCompilation(
       issues,
       measurementCompilerOutput: priorMeasurementOutput,
+    );
+  }
+  final hoisted = {
+    for (final artifact in finalRendered)
+      for (final value
+          in artifact.compiledScreenInput?.hoisted ?? const <HoistedValue>[])
+        value.key: value,
+  }.values;
+  for (final value in hoisted) {
+    for (final field in value.paints) {
+      log.warning(
+        "'${value.label}' sets $field. A surface keeps its color, blend mode, "
+        'filter quality and anti-aliasing, and drops the rest of the paint.',
+      );
+    }
+  }
+  final appValues = {for (final value in hoisted) value.label}.toList()..sort();
+  if (appValues.isNotEmpty) {
+    // Build output the developer reads, like the app vocabulary summary.
+    // ignore: avoid_print
+    print(
+      [
+        'Evaluated in the app:',
+        for (final label in appValues) '  $label',
+      ].join('\n'),
     );
   }
   final measurementCompilerOutput = RestageMeasurementCompilerOutputV1(
@@ -1989,6 +2019,8 @@ Future<void> _appendResolvedScreens(
           assetId: screen.input.assetId,
           screen: screen.input.declaration,
           rootParams: screen.input.build.rootParams,
+          hoisted: screen.hoisted,
+          buildArguments: screen.input.build.buildArguments,
         ),
         blob: screen.blob,
         capabilitySidecar: sidecar,
@@ -2019,6 +2051,8 @@ Future<void> _appendResolvedScreens(
           constructorParams: screen.input.build.constructorParams,
           mountConstructorProblem: screen.input.build.mountConstructorProblem,
           plan: placement,
+          hoisted: screen.hoisted,
+          buildArguments: screen.input.build.buildArguments,
           vocabulary: screen.vocabulary,
           bundleEntryMetadata: ResolvedScreenBundleEntryMetadata(
             blobSha256: CapabilitySidecar.hashBlob(screen.blob),
@@ -2653,6 +2687,8 @@ Future<void> _compilePaywalls(
             assetId: entry.value.assetId,
             screen: entry.value.declaration,
             rootParams: compiled.source.build.rootParams,
+            hoisted: compiled.hoisted,
+            buildArguments: compiled.source.build.buildArguments,
           ),
           facts: facts,
           mountVocabulary: mountVocabulary,
@@ -2665,6 +2701,8 @@ Future<void> _compilePaywalls(
                   constructorParams: compiled.source.build.constructorParams,
                   mountConstructorProblem:
                       compiled.source.build.mountConstructorProblem,
+                  hoisted: compiled.hoisted,
+                  buildArguments: compiled.source.build.buildArguments,
                   partPath: source.outputs
                       .firstWhere(
                         (output) => output.role == 'paywall-descriptor',

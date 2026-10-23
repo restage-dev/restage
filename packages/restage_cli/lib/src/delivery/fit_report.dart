@@ -39,6 +39,21 @@ List<String> describeFitVerdict(List<int> verdictBytes) {
   for (final failure in failures) {
     final code = SurfaceFitFailureCodeV1.values.asNameMap()[failure['code']];
     final path = failure['path'] is String ? failure['path']! as String : '';
+    final appValue = code == SurfaceFitFailureCodeV1.missingHostField
+        ? _appValueKey.firstMatch(path)?.group(1)
+        : null;
+    if (appValue != null) {
+      final required = failure['required'];
+      final label =
+          required is Map<String, Object?> && required['label'] is String
+          ? required['label']! as String
+          : appValue;
+      reasons.add(
+        "This version reads '$label', which installed builds don't compute. "
+        'It needs an app release',
+      );
+      continue;
+    }
     if (code == SurfaceFitFailureCodeV1.missingHostField) {
       final field = _after(path, r'$.requiredContext.');
       if (field != null && !missingFields.contains(field)) {
@@ -56,6 +71,9 @@ List<String> describeFitVerdict(List<int> verdictBytes) {
     ...reasons,
   ];
 }
+
+/// A value the app's generated widget computes, at the end of a path.
+final _appValueKey = RegExp(r'\.(_h[0-9a-f]{10})$');
 
 String _needs(Object? required) => required is String && required.isNotEmpty
     ? 'needs ${required[0].toLowerCase()}${required.substring(1)}'

@@ -337,7 +337,7 @@ void main() {
   test('dependency helper errors retain their declaring file', () async {
     final build = await _DesignSystemBuild.create(
       widgetsSource: _fixture('widgets')
-          .replaceAll('Text(title);', 'Text(title.toUpperCase());'),
+          .replaceAll('Text(title);', 'CustomPaint(child: Text(title));'),
     );
     addTearDown(build.close);
     final result = await build.run(expectSuccess: false);

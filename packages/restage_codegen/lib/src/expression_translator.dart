@@ -29,6 +29,7 @@ import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/framework_const_values.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
+import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/lowering_targets.dart';
@@ -38,6 +39,7 @@ import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/navigation_recognition.dart';
 import 'package:restage_codegen/src/number_format_recognition.dart';
+import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/paywall_completion.dart';
 import 'package:restage_codegen/src/preferred_heights.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
@@ -210,8 +212,10 @@ final class TranslationResult {
     this.emitsInteractionItems = false,
     this.completesSurface = false,
     Iterable<DslEmissionSource> emissionSources = const [],
+    Iterable<HoistedValue> hoisted = const [],
   })  : issues = List.unmodifiable(issues),
         emissionSources = List.unmodifiable(emissionSources),
+        hoisted = List.unmodifiable(hoisted),
         localSeeds = Map.unmodifiable(localSeeds),
         iconReferences = List.unmodifiable(iconReferences),
         widgetDefinitions = Map.unmodifiable(widgetDefinitions),
@@ -282,6 +286,9 @@ final class TranslationResult {
 
   /// Whether the paywall declares events that complete it.
   final bool completesSurface;
+
+  /// Values the generated mount computes, ordered by key.
+  final List<HoistedValue> hoisted;
 
   /// Whether the surface needs the client floor for these features.
   bool get requiresSurfaceFeatureFloor =>
@@ -568,6 +575,9 @@ final class ExpressionTranslator {
   /// Walk-scoped state replaced atomically around nested translations.
   _WalkContext _walk = _WalkContext.initial();
 
+  /// Mount-computed values of the current translation, when it has a mount.
+  _HoistSession? _hoist;
+
   Map<Element, HelperDef> _collectionHelpers = const {};
   CollectionSemanticTraversalSession _collectionSession =
       CollectionSemanticTraversalSession();
@@ -742,6 +752,8 @@ final class ExpressionTranslator {
     Element? buildContextParameter,
     bool flowScreenContext = false,
     InlinedDefinitions rootInlined = const InlinedDefinitions.empty(),
+    bool hoistInMount = false,
+    List<FormalParameterElement> rootBuildArguments = const [],
   }) {
     final first = _translateArtifact(
       expr,
@@ -754,6 +766,8 @@ final class ExpressionTranslator {
       buildContextParameter: buildContextParameter,
       flowScreenContext: flowScreenContext,
       rootInlined: rootInlined,
+      hoistInMount: hoistInMount,
+      rootBuildArguments: rootBuildArguments,
       forcedCustomWidgetFactoryRoutes: const {},
     );
     final mixed = first.inlineClaims.intersection(first.references);
@@ -769,6 +783,8 @@ final class ExpressionTranslator {
       buildContextParameter: buildContextParameter,
       flowScreenContext: flowScreenContext,
       rootInlined: rootInlined,
+      hoistInMount: hoistInMount,
+      rootBuildArguments: rootBuildArguments,
       forcedCustomWidgetFactoryRoutes: Map.unmodifiable({
         for (final identity in mixed) identity: first.factoryRoutes[identity],
       }),
@@ -791,10 +807,47 @@ final class ExpressionTranslator {
     required Element? buildContextParameter,
     required bool flowScreenContext,
     required InlinedDefinitions rootInlined,
+    required bool hoistInMount,
+    required List<FormalParameterElement> rootBuildArguments,
     required Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>
         forcedCustomWidgetFactoryRoutes,
   }) {
     final saved = _walk;
+    final savedHoist = _hoist;
+    final hoistLibrary = switch (expr.root) {
+      CompilationUnit(:final declaredFragment?) => declaredFragment.element,
+      _ => null,
+    };
+    _hoist = hoistInMount && hoistLibrary != null
+        ? _HoistSession(
+            HoistAnalyzer(
+              namespace: OwningLibraryNamespace(hoistLibrary),
+              rootContext: buildContextParameter,
+              isStateWidget: _isStateWidgetGetter,
+              rootParamFor: _rootParamForElement,
+              bindingFor: (element) =>
+                  _walk.paramBindings[element] ??
+                  _walk.inlined.localBindings[element],
+              buildArgumentFor: (element) => rootBuildArguments
+                  .where(
+                    (argument) =>
+                        identical(argument.baseElement, element.baseElement),
+                  )
+                  .firstOrNull
+                  ?.name,
+              itemLoopFor: (element) {
+                for (final loop in _walk.runtimeLoops.reversed) {
+                  if (!identical(loop.element, element)) continue;
+                  return loop.shape is HostDataObjectShape
+                      ? loop.root?.name
+                      : null;
+                }
+                return null;
+              },
+            ),
+          )
+        : null;
+    final hoist = _hoist;
     final savedNavigation = _currentNavigation;
     final savedFlowScreenContext = _flowScreenContext;
     final savedSuppressed = _currentTranslationSuppressed;
@@ -985,6 +1038,7 @@ final class ExpressionTranslator {
       _currentSourcePath = null;
       _currentLineInfo = null;
       _currentSourceUnit = null;
+      _hoist = savedHoist;
     }
     if (dsl.isNotEmpty &&
         !suppressed &&
@@ -1009,6 +1063,10 @@ final class ExpressionTranslator {
         emitsInteractionItems: emitsInteractionItems,
         completesSurface: _declaresCompletion(expr),
         emissionSources: emissionSources,
+        hoisted: hoist == null
+            ? const []
+            : (hoist.values.values.toList()
+              ..sort((left, right) => left.key.compareTo(right.key))),
         localSeeds: localSeeds,
         usesLocalValues: localFields.isNotEmpty,
         rfwCatalogConstructorOrigins:
@@ -1172,9 +1230,111 @@ final class ExpressionTranslator {
   }
 
   String _translate(Expression expr, List<Issue> issues) {
-    final dsl = _translateExpression(expr, issues);
+    final before = issues.length;
+    final dsl = _hoisted(
+          expr,
+          issues,
+          (scratch) => _translateExpression(expr, scratch),
+        ) ??
+        _translateExpression(expr, issues);
+    _explainAppOnlyFailure(expr, issues, before);
     _recordEmission(expr, dsl);
     return dsl;
+  }
+
+  /// Replaces the failures [expr] added after [before] with the reason the
+  /// mount cannot compute it, when it is an app-only value.
+  void _explainAppOnlyFailure(
+    Expression expr,
+    List<Issue> issues,
+    int before,
+  ) {
+    final hoist = _hoist;
+    if (hoist == null || hoist.speculating || issues.length == before) return;
+    final added = issues.sublist(before);
+    final fatal = added.where((issue) => !issue.code.isBuildNotice).toList();
+    if (fatal.isEmpty || fatal.any(hoist.refusals.contains)) return;
+    if (!fatal.every(
+      (issue) =>
+          hoist.replaceable.contains(issue) ||
+          issue.code == IssueCode.customWidgetInliningDeferred,
+    )) {
+      return;
+    }
+    // A failure inside the expression already names its own cause.
+    final location = _locationOf(expr);
+    if (fatal.any((issue) => issue.location != location)) return;
+    final stripped = _stripParens(expr);
+    if (stripped is SimpleIdentifier) return;
+    // A helper that builds a widget already says why it cannot inline.
+    if (classifyHoistType(stripped.staticType) is HoistIsWidget &&
+        fatal.any(
+          (issue) => issue.code == IssueCode.customWidgetInliningDeferred,
+        )) {
+      return;
+    }
+    final message = _hoistRefusal(expr);
+    if (message == null) return;
+    final refusal = Issue(
+      code: IssueCode.unrecognizedMethodCall,
+      message: message,
+      location: _locationOf(expr),
+    );
+    hoist.refusals.add(refusal);
+    issues
+      ..removeRange(before, issues.length)
+      ..addAll([
+        for (final issue in added)
+          if (issue.code.isBuildNotice) issue,
+        refusal,
+      ]);
+  }
+
+  /// The translation of [expr], reading a mount-computed value in place of
+  /// an app-only expression; `null` when [expr] is not hoisted.
+  String? _hoisted(
+    Expression expr,
+    List<Issue> issues,
+    String Function(List<Issue> scratch) translate,
+  ) {
+    final hoist = _hoist;
+    if (hoist == null || hoist.speculating) return null;
+    final stripped = _stripParens(expr);
+    if (stripped is Literal) return null;
+    final verdict = classifyHoistType(stripped.staticType);
+    if (verdict is! HoistCrosses) return null;
+    final analysis = hoist.analyzer.analyze(stripped);
+    if (analysis is! HoistEvaluable) return null;
+    final scratch = <Issue>[];
+    final String dsl;
+    hoist.speculating = true;
+    try {
+      dsl = translate(scratch);
+    } finally {
+      hoist.speculating = false;
+    }
+    if (!scratch.any((issue) => !issue.code.isBuildNotice)) {
+      issues.addAll(scratch);
+      return dsl;
+    }
+    return _hoistedRead(
+      hoist.add(
+        analysis.value(
+          verdict,
+          stripped.staticType!,
+          expression: stripped,
+        ),
+      ),
+    );
+  }
+
+  /// The payload's read of a mount-computed [value].
+  String _hoistedRead(HoistedValue value) {
+    final item = value.item;
+    if (item == null) return 'data.context${_rfwPathPart(value.key)}';
+    final loop =
+        _walk.runtimeLoops.lastWhere((loop) => loop.root?.name == item);
+    return '${loop.identifier}${_rfwPathPart(value.key)}';
   }
 
   void _recordEmission(Expression expr, String dsl) {
@@ -1594,15 +1754,23 @@ final class ExpressionTranslator {
     }
     issues.add(
       _appOnlyValueIssue(expr, IssueCode.unrecognizedMethodCall) ??
-          Issue(
-            code: IssueCode.unrecognizedMethodCall,
-            capabilityGapSubject: 'expression:${_nodeKind(expr)}',
-            message: 'Unsupported expression: ${_nodeKind(expr)} `$expr`. '
-                'See the supported expression subset.',
-            location: _locationOf(expr),
+          _replaceable(
+            Issue(
+              code: IssueCode.unrecognizedMethodCall,
+              capabilityGapSubject: 'expression:${_nodeKind(expr)}',
+              message: 'Unsupported expression: ${_nodeKind(expr)} `$expr`. '
+                  'See the supported expression subset.',
+              location: _locationOf(expr),
+            ),
           ),
     );
     return '';
+  }
+
+  /// [issue], marked as one an app-value refusal may explain instead.
+  Issue _replaceable(Issue issue) {
+    _hoist?.replaceable.add(issue);
+    return issue;
   }
 
   /// A same-file const initializer that requires structured translation.
@@ -1863,8 +2031,10 @@ final class ExpressionTranslator {
         expr is IndexExpression;
   }
 
-  bool _isInheritedStateWidgetReceiver(SimpleIdentifier receiver) {
-    final element = receiver.element;
+  bool _isInheritedStateWidgetReceiver(SimpleIdentifier receiver) =>
+      _isStateWidgetGetter(receiver.element);
+
+  bool _isStateWidgetGetter(Element? element) {
     if (element is! GetterElement || element.name != 'widget') return false;
     final base = element.baseElement;
     return base.enclosingElement is ClassElement &&
@@ -2004,6 +2174,19 @@ final class ExpressionTranslator {
   /// Lowers a String slot's value that joins text and values to a list of
   /// parts, which the slot's decoder joins; a conditional selects per arm.
   String _joinedStringValue(Expression text, List<Issue> issues) {
+    final hoisted = _hoisted(
+      text,
+      issues,
+      (scratch) => _joinedStringValueUnhoisted(text, scratch),
+    );
+    if (hoisted != null) return hoisted;
+    final before = issues.length;
+    final dsl = _joinedStringValueUnhoisted(text, issues);
+    _explainAppOnlyFailure(text, issues, before);
+    return dsl;
+  }
+
+  String _joinedStringValueUnhoisted(Expression text, List<Issue> issues) {
     final value = _resolveBoundIdentifier(text);
     final helper = value is MethodInvocation
         ? _walk.inlined.helpers[value.methodName.element]
@@ -2500,7 +2683,12 @@ final class ExpressionTranslator {
     _walk = _walk.copyWith(
       runtimeLoops: [
         ..._walk.runtimeLoops,
-        _RuntimeLoopBinding(candidate.binding, identifier, input.elementShape),
+        _RuntimeLoopBinding(
+          candidate.binding,
+          identifier,
+          input.elementShape,
+          root: input.root,
+        ),
       ],
     );
     String? template;
@@ -2547,7 +2735,8 @@ final class ExpressionTranslator {
     return '...for $identifier in ${input.dsl}: $template';
   }
 
-  ({String dsl, HostDataShape elementShape})? _runtimeLoopInput(
+  ({String dsl, HostDataShape elementShape, RootContextParam? root})?
+      _runtimeLoopInput(
     CollectionRuntimeLoopCandidate candidate,
     CollectionUnrollRefused refusal,
     List<Issue> issues,
@@ -2564,6 +2753,7 @@ final class ExpressionTranslator {
         return (
           dsl: outer.dsl(_rfwPathPart),
           elementShape: shape.elementShape,
+          root: null,
         );
       }
     }
@@ -2580,6 +2770,7 @@ final class ExpressionTranslator {
     return (
       dsl: rootAccess.dsl(_rfwPathPart),
       elementShape: shape.elementShape,
+      root: rootAccess.isMember ? null : rootAccess.param,
     );
   }
 
@@ -3246,11 +3437,13 @@ final class ExpressionTranslator {
     }
     issues.add(
       _appOnlyValueIssue(expr, IssueCode.unresolvedIdentifier) ??
-          Issue(
-            code: IssueCode.unresolvedIdentifier,
-            message: "'${expr.toSource()}' is not a resolved enum constant or "
-                'portable const value.',
-            location: _locationOf(expr),
+          _replaceable(
+            Issue(
+              code: IssueCode.unresolvedIdentifier,
+              message: "'${expr.toSource()}' is not a resolved enum constant "
+                  'or portable const value.',
+              location: _locationOf(expr),
+            ),
           ),
     );
     return '';
@@ -4857,10 +5050,12 @@ final class ExpressionTranslator {
     }
 
     issues.add(
-      Issue(
-        code: IssueCode.unrecognizedMethodCall,
-        message: 'Unsupported method invocation: ${expr.toSource()}.',
-        location: _locationOf(expr),
+      _replaceable(
+        Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message: 'Unsupported method invocation: ${expr.toSource()}.',
+          location: _locationOf(expr),
+        ),
       ),
     );
     return '';
@@ -7042,21 +7237,24 @@ final class ExpressionTranslator {
         if (aliased != null) return aliased;
       }
       final statePackage = _appStateBuilderPackage(widgetClass);
+      final unknown = Issue(
+        code: IssueCode.unknownWidget,
+        capabilityGapSubject: 'widget:$widgetName',
+        message: statePackage != null
+            ? "'$widgetName' (package:$statePackage) builds from app "
+                'state. Read that state in the host widget and pass the '
+                'values to this surface as constructor inputs. See '
+                'https://docs.restage.dev/authoring/write-a-surface'
+                '#adopt-an-existing-widget'
+            : "Widget '$widgetName' is not a known catalog widget. If "
+                'it is a custom widget, annotate its class with '
+                '@RestageWidget so Restage can recognize it.',
+        location: _locationOf(anchor),
+      );
       issues.add(
-        Issue(
-          code: IssueCode.unknownWidget,
-          capabilityGapSubject: 'widget:$widgetName',
-          message: statePackage != null
-              ? "'$widgetName' (package:$statePackage) builds from app "
-                  'state. Read that state in the host widget and pass the '
-                  'values to this surface as constructor inputs. See '
-                  'https://docs.restage.dev/authoring/write-a-surface'
-                  '#adopt-an-existing-widget'
-              : "Widget '$widgetName' is not a known catalog widget. If "
-                  'it is a custom widget, annotate its class with '
-                  '@RestageWidget so Restage can recognize it.',
-          location: _locationOf(anchor),
-        ),
+        anchor is MethodInvocation && statePackage == null
+            ? _replaceable(unknown)
+            : unknown,
       );
       return '';
     }
@@ -10186,6 +10384,7 @@ final class ExpressionTranslator {
     FormalParameterElement? sourceParameter,
     bool coerce = true,
   }) {
+    final before = issues.length;
     final dsl = _translateSlotValueUnrecorded(
       expr,
       type,
@@ -10194,6 +10393,9 @@ final class ExpressionTranslator {
       sourceParameter: sourceParameter,
       coerce: coerce,
     );
+    if (type != PropertyType.event && type != PropertyType.widget) {
+      _explainAppOnlyFailure(expr, issues, before);
+    }
     _recordEmission(expr, dsl);
     return dsl;
   }
@@ -10206,6 +10408,21 @@ final class ExpressionTranslator {
     FormalParameterElement? sourceParameter,
     bool coerce = true,
   }) {
+    if (type != PropertyType.event && type != PropertyType.widget) {
+      final hoisted = _hoisted(
+        expr,
+        issues,
+        (scratch) => _translateSlotValueUnrecorded(
+          expr,
+          type,
+          scratch,
+          property: property,
+          sourceParameter: sourceParameter,
+          coerce: coerce,
+        ),
+      );
+      if (hoisted != null) return hoisted;
+    }
     final beforeValidation = issues.length;
     _validateDataRefForSlot(expr, type, issues, property: property);
     if (issues.length > beforeValidation) return '';
@@ -11207,6 +11424,11 @@ final class ExpressionTranslator {
   Issue? _appOnlyValueIssue(Expression expr, IssueCode code) {
     Issue refuse(String message) =>
         Issue(code: code, message: message, location: _locationOf(expr));
+    if (_hoistRefusal(expr) case final message?) {
+      final refusal = refuse(message);
+      _hoist?.refusals.add(refusal);
+      return refusal;
+    }
     Expression? current = expr;
     for (var depth = 0; current != null && depth < 16; depth++) {
       current = _stripParens(current);
@@ -11256,6 +11478,45 @@ final class ExpressionTranslator {
       current = bound ?? receiver;
     }
     return null;
+  }
+
+  /// Why the mount cannot compute [expr] for the surface, when it is an
+  /// app-only value; `null` when another refusal applies.
+  String? _hoistRefusal(Expression expr) {
+    final hoist = _hoist;
+    if (hoist == null) return null;
+    final stripped = _stripParens(expr);
+    final verdict = classifyHoistType(stripped.staticType);
+    final lookup = stripped is MethodInvocation ||
+        stripped is PropertyAccess ||
+        stripped is PrefixedIdentifier ||
+        stripped is IndexExpression ||
+        stripped is FunctionExpressionInvocation;
+    final analysis = hoist.analyzer.analyze(stripped);
+    switch (analysis) {
+      case HoistNeedsSurfaceValue(isBuildArgument: true) ||
+            HoistNeedsSurfaceValue(name: 'ref'):
+        return "'ref' needs this screen to extend a widget whose build "
+            'receives it, such as ConsumerWidget.';
+      case HoistNeedsSurfaceValue(:final name) when verdict is HoistCrosses:
+        return "'${stripped.toSource()}' depends on '$name', which exists "
+            'only inside this surface. Pass the value in as a constructor '
+            'input.';
+      case HoistUnwritable(unnamed: final name?):
+        final screen = _currentSourcePath ?? "the screen's file";
+        return "'${stripped.toSource()}' is evaluated in the app, and "
+            "$screen can't refer to '$name'. Import it there.";
+      case HoistEvaluable(:final label) when lookup && verdict is HoistIsWidget:
+        return "'$label' returns a widget. Register that widget as a custom "
+            'widget to use it here.';
+      case HoistEvaluable(:final label)
+          when lookup && verdict is HoistDoesNotCross:
+        final type = stripped.staticType?.getDisplayString() ?? 'value';
+        return "'$label' is a $type, which a surface can't receive. Pass a "
+            'color, number, string, text style or enum.';
+      case _:
+        return null;
+    }
   }
 
   /// Whether [call] is a static `of` lookup on an app class taking a
@@ -12142,14 +12403,29 @@ final class ExpressionTranslator {
       read = target;
     }
     final segments = _recognizeThemeRead(read);
-    if (segments == null || !_wholeTextThemeStyleRead(segments)) return null;
+    final String base;
+    var fromApp = false;
+    if (segments != null && _wholeTextThemeStyleRead(segments)) {
+      base = 'data.theme.${segments.join('.')}';
+    } else {
+      fromApp = true;
+      // A style the app computes is read from the mount, field by field.
+      final whole = _hoistedStyleRead(expr);
+      final hoisted =
+          whole ?? (identical(read, expr) ? null : _hoistedStyleRead(read));
+      if (hoisted == null) return null;
+      if (whole != null) overrides = const <String, Expression>{};
+      base = hoisted;
+    }
 
     // Scoped to the published fields, so the same source compiles the same
     // way whatever slot it lands in.
-    final fields = kThemeContractTextThemeFieldKinds.keys;
+    final fields = fromApp
+        ? kHoistedTextStyleFields.keys
+        : kThemeContractTextThemeFieldKinds.keys;
     final unpublished =
         overrides.keys.where((name) => !fields.contains(name)).toList();
-    if (unpublished.isNotEmpty) {
+    if (!fromApp && unpublished.isNotEmpty) {
       issues.add(
         Issue(
           code: IssueCode.themeReadOutOfContract,
@@ -12190,8 +12466,16 @@ final class ExpressionTranslator {
         );
         continue;
       }
-      final path = '${segments.join('.')}.$fieldName';
-      final kind = kThemeContractPathKinds[path];
+      final path = '$base.$fieldName';
+      if (fromApp) {
+        if (!fields.contains(fieldName)) continue;
+        emitted.add(
+          '${_rfwMapKey(destination.name)}: '
+          '${_coerceForPropertyType(destination.type, path)}',
+        );
+        continue;
+      }
+      final kind = kThemeContractTextThemeFieldKinds[fieldName];
       if (kind == null) continue;
       if (!propertyTypeAcceptsThemeKind(
         destination.type,
@@ -12201,7 +12485,7 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.propertyValueTypeMismatch,
-            message: "Theme value 'data.theme.$path' cannot be assigned to "
+            message: "Theme value '$path' cannot be assigned to "
                 "the '${destination.type.name}' property "
                 "'${entry.name}.${destination.name}' the style decomposes to.",
             location: _locationOf(expr),
@@ -12211,7 +12495,7 @@ final class ExpressionTranslator {
       }
       emitted.add(
         '${_rfwMapKey(destination.name)}: '
-        '${_coerceForPropertyType(destination.type, 'data.theme.$path')}',
+        '${_coerceForPropertyType(destination.type, path)}',
       );
     }
     if (emitted.isEmpty) return null;
@@ -12230,6 +12514,29 @@ final class ExpressionTranslator {
     }
 
     return emitted;
+  }
+
+  /// The payload's read of a mount-computed `TextStyle` [expr], when the
+  /// mount can compute it.
+  String? _hoistedStyleRead(Expression expr) {
+    final hoist = _hoist;
+    if (hoist == null || hoist.speculating) return null;
+    final stripped = _stripParens(expr);
+    final verdict = classifyHoistType(stripped.staticType);
+    if (verdict is! HoistCrosses || verdict.kind != HoistValueKind.textStyle) {
+      return null;
+    }
+    final analysis = hoist.analyzer.analyze(stripped);
+    if (analysis is! HoistEvaluable) return null;
+    return _hoistedRead(
+      hoist.add(
+        analysis.value(
+          verdict,
+          stripped.staticType!,
+          expression: stripped,
+        ),
+      ),
+    );
   }
 
   /// The construction a constant [expr] evaluates to, with the named
@@ -13620,11 +13927,19 @@ final class _WalkContext {
 }
 
 final class _RuntimeLoopBinding {
-  const _RuntimeLoopBinding(this.element, this.identifier, this.shape);
+  const _RuntimeLoopBinding(
+    this.element,
+    this.identifier,
+    this.shape, {
+    this.root,
+  });
 
   final Element element;
   final String identifier;
   final HostDataShape shape;
+
+  /// The screen input this loop walks directly, if it walks one.
+  final RootContextParam? root;
 }
 
 final class _RuntimeLoopReference {
@@ -13705,4 +14020,24 @@ final class _ElementReferenceVisitor extends RecursiveAstVisitor<void> {
   void visitSimpleIdentifier(SimpleIdentifier node) {
     if (node.element == element) onFound();
   }
+}
+
+/// One translation's mount-computed values.
+final class _HoistSession {
+  _HoistSession(this.analyzer);
+
+  final HoistAnalyzer analyzer;
+  final Map<String, HoistedValue> values = {};
+
+  /// Refusals already explained, so an enclosing expression keeps them.
+  final Set<Issue> refusals = Set.identity();
+
+  /// Generic failures an app-value refusal may explain instead.
+  final Set<Issue> replaceable = Set.identity();
+
+  /// Set while a candidate is translated to see whether it lowers.
+  bool speculating = false;
+
+  HoistedValue add(HoistedValue value) =>
+      values.putIfAbsent(value.key, () => value);
 }

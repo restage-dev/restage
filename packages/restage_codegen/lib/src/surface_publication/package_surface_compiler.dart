@@ -1381,6 +1381,9 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         );
       } else if (mount.omissionMessage case final message?) {
         warnings.add(message);
+        if (mount.omissionReason case final reason?) {
+          issues.addAll(hoistedWithoutMountIssues(mountInput, reason));
+        }
       }
     }
 
@@ -2392,7 +2395,7 @@ bool _isReferencedByAnotherPaywallFlow(
       }
       final selectedLibraries = entries.map((entry) => entry!.library).toSet();
       templates[output.path] = SurfaceCompiledScreenContractV1(
-        context: hostDataContractOf(screenInput.rootParams),
+        context: screenInput.hostDataContract,
         events: events,
         catalogResolution: occurrenceSet.input,
         catalog: Catalog(

@@ -50,6 +50,11 @@ sealed class SurfaceScreenHostDataShape {
       {String path = r'$'}) {
     final json = SurfaceContractJson.requireObject(value, path);
     final kind = SurfaceContractJson.requiredString(json, 'kind', path);
+    final label = json.containsKey('label')
+        ? SurfaceContractJson.requiredString(json, 'label', path)
+        : null;
+    Set<String> keys(Set<String> required) =>
+        {...required, if (label != null) 'label'};
     switch (kind) {
       case 'bool':
       case 'int':
@@ -57,36 +62,44 @@ sealed class SurfaceScreenHostDataShape {
       case 'num':
       case 'string':
       case 'jsonValue':
-        SurfaceContractJson.exactKeys(json, const {'kind'}, path);
+        SurfaceContractJson.exactKeys(json, keys(const {'kind'}), path);
         return SurfaceScreenHostDataScalarShapeV1(
           SurfaceScreenHostDataScalarKind.fromWireName(kind),
+          label: label,
         );
       case 'nullable':
-        SurfaceContractJson.exactKeys(json, const {'kind', 'value'}, path);
+        SurfaceContractJson.exactKeys(
+            json, keys(const {'kind', 'value'}), path);
         return SurfaceScreenHostDataNullableShapeV1(
           SurfaceScreenHostDataShape.fromJson(
             SurfaceContractJson.requiredValue(json, 'value', path),
             path: '$path.value',
           ),
+          label: label,
         );
       case 'list':
-        SurfaceContractJson.exactKeys(json, const {'kind', 'items'}, path);
+        SurfaceContractJson.exactKeys(
+            json, keys(const {'kind', 'items'}), path);
         return SurfaceScreenHostDataListShapeV1(
           SurfaceScreenHostDataShape.fromJson(
             SurfaceContractJson.requiredValue(json, 'items', path),
             path: '$path.items',
           ),
+          label: label,
         );
       case 'map':
-        SurfaceContractJson.exactKeys(json, const {'kind', 'values'}, path);
+        SurfaceContractJson.exactKeys(
+            json, keys(const {'kind', 'values'}), path);
         return SurfaceScreenHostDataMapShapeV1(
           SurfaceScreenHostDataShape.fromJson(
             SurfaceContractJson.requiredValue(json, 'values', path),
             path: '$path.values',
           ),
+          label: label,
         );
       case 'object':
-        SurfaceContractJson.exactKeys(json, const {'kind', 'fields'}, path);
+        SurfaceContractJson.exactKeys(
+            json, keys(const {'kind', 'fields'}), path);
         final raw = SurfaceContractJson.requireObject(
           SurfaceContractJson.requiredValue(json, 'fields', path),
           '$path.fields',
@@ -98,11 +111,19 @@ sealed class SurfaceScreenHostDataShape {
               raw[key],
               path: '$path.fields.$key',
             ),
-        });
+        }, label: label);
       default:
         throw FormatException('Unsupported host data shape kind "$kind".');
     }
   }
+
+  /// The source expression of a value the app's generated code computes.
+  /// It names the value in messages; fit checks ignore it, and the contract
+  /// hash includes it.
+  String? get label;
+
+  /// This shape carrying [label].
+  SurfaceScreenHostDataShape withLabel(String label);
 
   /// The strict JSON representation used by the schema codec and hash.
   Map<String, Object?> toJson();
@@ -113,13 +134,21 @@ sealed class SurfaceScreenHostDataShape {
 final class SurfaceScreenHostDataScalarShapeV1
     extends SurfaceScreenHostDataShape {
   /// Creates a scalar shape.
-  const SurfaceScreenHostDataScalarShapeV1(this.kind);
+  const SurfaceScreenHostDataScalarShapeV1(this.kind, {this.label});
 
   /// Stable scalar kind.
   final SurfaceScreenHostDataScalarKind kind;
 
   @override
-  Map<String, Object?> toJson() => {'kind': kind.wireName};
+  final String? label;
+
+  @override
+  SurfaceScreenHostDataScalarShapeV1 withLabel(String label) =>
+      SurfaceScreenHostDataScalarShapeV1(kind, label: label);
+
+  @override
+  Map<String, Object?> toJson() =>
+      {'kind': kind.wireName, if (label != null) 'label': label};
 }
 
 /// A host-data shape whose value may be absent.
@@ -127,14 +156,24 @@ final class SurfaceScreenHostDataScalarShapeV1
 final class SurfaceScreenHostDataNullableShapeV1
     extends SurfaceScreenHostDataShape {
   /// Creates a nullable wrapper around [value].
-  const SurfaceScreenHostDataNullableShapeV1(this.value);
+  const SurfaceScreenHostDataNullableShapeV1(this.value, {this.label});
 
   /// The shape carried when the value is present.
   final SurfaceScreenHostDataShape value;
 
   @override
-  Map<String, Object?> toJson() =>
-      {'kind': 'nullable', 'value': value.toJson()};
+  final String? label;
+
+  @override
+  SurfaceScreenHostDataNullableShapeV1 withLabel(String label) =>
+      SurfaceScreenHostDataNullableShapeV1(value, label: label);
+
+  @override
+  Map<String, Object?> toJson() => {
+        'kind': 'nullable',
+        'value': value.toJson(),
+        if (label != null) 'label': label,
+      };
 }
 
 /// A host-data list shape.
@@ -142,26 +181,48 @@ final class SurfaceScreenHostDataNullableShapeV1
 final class SurfaceScreenHostDataListShapeV1
     extends SurfaceScreenHostDataShape {
   /// Creates a list shape whose elements are [items].
-  const SurfaceScreenHostDataListShapeV1(this.items);
+  const SurfaceScreenHostDataListShapeV1(this.items, {this.label});
 
   /// The exact shape of every element.
   final SurfaceScreenHostDataShape items;
 
   @override
-  Map<String, Object?> toJson() => {'kind': 'list', 'items': items.toJson()};
+  final String? label;
+
+  @override
+  SurfaceScreenHostDataListShapeV1 withLabel(String label) =>
+      SurfaceScreenHostDataListShapeV1(items, label: label);
+
+  @override
+  Map<String, Object?> toJson() => {
+        'kind': 'list',
+        'items': items.toJson(),
+        if (label != null) 'label': label,
+      };
 }
 
 /// A string-keyed host-data map shape.
 @immutable
 final class SurfaceScreenHostDataMapShapeV1 extends SurfaceScreenHostDataShape {
   /// Creates a map shape whose values are [values].
-  const SurfaceScreenHostDataMapShapeV1(this.values);
+  const SurfaceScreenHostDataMapShapeV1(this.values, {this.label});
 
   /// The exact shape of every value.
   final SurfaceScreenHostDataShape values;
 
   @override
-  Map<String, Object?> toJson() => {'kind': 'map', 'values': values.toJson()};
+  final String? label;
+
+  @override
+  SurfaceScreenHostDataMapShapeV1 withLabel(String label) =>
+      SurfaceScreenHostDataMapShapeV1(values, label: label);
+
+  @override
+  Map<String, Object?> toJson() => {
+        'kind': 'map',
+        'values': values.toJson(),
+        if (label != null) 'label': label,
+      };
 }
 
 /// A host-data object shape with a fixed field set.
@@ -173,8 +234,9 @@ final class SurfaceScreenHostDataObjectShapeV1
     extends SurfaceScreenHostDataShape {
   /// Creates an object shape from [fields], canonicalized to key order.
   factory SurfaceScreenHostDataObjectShapeV1(
-    Map<String, SurfaceScreenHostDataShape> fields,
-  ) {
+    Map<String, SurfaceScreenHostDataShape> fields, {
+    String? label,
+  }) {
     if (fields.isEmpty) {
       throw const FormatException('A host data object shape requires a field.');
     }
@@ -185,16 +247,25 @@ final class SurfaceScreenHostDataObjectShapeV1
         throw const FormatException('A host data field key must be nonempty.');
       }
     }
-    return SurfaceScreenHostDataObjectShapeV1
-        ._(<String, SurfaceScreenHostDataShape>{
-      for (final key in keys) key: fields[key]!,
-    });
+    return SurfaceScreenHostDataObjectShapeV1._(
+      <String, SurfaceScreenHostDataShape>{
+        for (final key in keys) key: fields[key]!,
+      },
+      label,
+    );
   }
 
-  const SurfaceScreenHostDataObjectShapeV1._(this.fields);
+  const SurfaceScreenHostDataObjectShapeV1._(this.fields, this.label);
 
   /// Declared fields in ascending key order.
   final Map<String, SurfaceScreenHostDataShape> fields;
+
+  @override
+  final String? label;
+
+  @override
+  SurfaceScreenHostDataObjectShapeV1 withLabel(String label) =>
+      SurfaceScreenHostDataObjectShapeV1._(fields, label);
 
   @override
   Map<String, Object?> toJson() => {
@@ -202,6 +273,7 @@ final class SurfaceScreenHostDataObjectShapeV1
         'fields': <String, Object?>{
           for (final entry in fields.entries) entry.key: entry.value.toJson(),
         },
+        if (label != null) 'label': label,
       };
 }
 

@@ -27,12 +27,17 @@ String surfaceImageName({required String surfaceType, required String slug}) =>
 final class SurfaceCaptureResult {
   const SurfaceCaptureResult({
     this.images = const <String, Uint8List>{},
+    this.contexts = const <String, Map<String, Object?>>{},
     this.skipped = const <String, String>{},
     this.failure,
   });
 
   /// Validated PNGs by image name.
   final Map<String, Uint8List> images;
+
+  /// The render context each surface's generated widget built, in `light`
+  /// and `dark`, by image name, for surfaces with values the app computes.
+  final Map<String, Map<String, Object?>> contexts;
 
   /// Why a surface has no image, by image name.
   final Map<String, String> skipped;
@@ -103,6 +108,7 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
     // Sources come first: a project with nothing to draw starts no process.
     final skipped = <String, String>{};
     final sources = <String, String>{};
+    final contextSources = <String, String>{};
     final entryJson = <String, String>{};
     for (final entry in entries) {
       final publication = entry.publication;
@@ -116,6 +122,9 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
         continue;
       }
       final schema = publication.hostDataContract;
+      final sample = schema == null
+          ? const <String, Object?>{}
+          : sampleHostContext(schema);
       try {
         sources[name] = surfaceCaptureTestSource(
           projectRoot: root,
@@ -123,10 +132,19 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
           entry: entry,
           name: name,
           wrapper: wrap,
-          sample: schema == null
-              ? const <String, Object?>{}
-              : sampleHostContext(schema),
+          sample: sample,
         );
+        if (surfaceContextTestSource(
+              projectRoot: root,
+              appName: appName,
+              entry: entry,
+              name: name,
+              wrapper: wrap,
+              sample: sample,
+            )
+            case final context?) {
+          contextSources[name] = context;
+        }
         entryJson[name] = jsonEncode(entry.toJson());
       } on SurfaceCaptureSourceException catch (error) {
         skipped[name] = error.reason;
@@ -164,6 +182,8 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
         'test/restage_capture.dart': utf8.encode(support),
         for (final MapEntry(key: name, value: source) in sources.entries)
           _testPath(name): utf8.encode(source),
+        for (final MapEntry(key: name, value: source) in contextSources.entries)
+          _contextTestPath(name): utf8.encode(source),
       },
     );
     final images = Directory(p.join(project.path, _imagesDirectory));
@@ -179,22 +199,46 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
     final app = _appDigest(root);
     final record = _CaptureRecord.read(project);
     final captured = <String, Uint8List>{};
+    final contexts = <String, Map<String, Object?>>{};
+    void readContext(String name) {
+      if (!contextSources.containsKey(name)) return;
+      final context = _readContext(
+        File(p.join(images.path, '$name.context.json')),
+      );
+      if (context != null) contexts[name] = context;
+    }
+
     final stale = <String, String>{};
     for (final MapEntry(key: name, value: source) in sources.entries) {
-      final fingerprint = _digest([shared, entryJson[name]!, source, app]);
+      final fingerprint = _digest([
+        shared,
+        entryJson[name]!,
+        source,
+        contextSources[name] ?? '',
+        app,
+      ]);
       final image = File(p.join(images.path, '$name.png'));
       if (record.fingerprints[name] == fingerprint && image.existsSync()) {
         captured[name] = image.readAsBytesSync();
+        readContext(name);
       } else {
         stale[name] = fingerprint;
         record.fingerprints.remove(name);
-        if (image.existsSync()) image.deleteSync();
-        final error = File(p.join(images.path, _errorFile(name)));
-        if (error.existsSync()) error.deleteSync();
+        for (final file in [
+          image,
+          File(p.join(images.path, _errorFile(name))),
+          File(p.join(images.path, '$name.context.json')),
+        ]) {
+          if (file.existsSync()) file.deleteSync();
+        }
       }
     }
     if (stale.isEmpty) {
-      return SurfaceCaptureResult(images: captured, skipped: skipped);
+      return SurfaceCaptureResult(
+        images: captured,
+        contexts: contexts,
+        skipped: skipped,
+      );
     }
 
     final flutterSdk = Directory(toolchain.root);
@@ -223,7 +267,10 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
       <String>[
         'test',
         '--no-pub',
-        for (final name in stale.keys) _testPath(name),
+        for (final name in stale.keys) ...[
+          _testPath(name),
+          if (contextSources.containsKey(name)) _contextTestPath(name),
+        ],
       ],
       workingDirectory: project.path,
       deadline: deadline,
@@ -246,13 +293,18 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
       try {
         validateRenderBundleSnapshotPng(bytes);
         captured[name] = bytes;
+        readContext(name);
         record.fingerprints[name] = fingerprint;
       } on FormatException {
         skipped[name] = 'its image is not one the dashboard accepts';
       }
     }
     record.write(project);
-    return SurfaceCaptureResult(images: captured, skipped: skipped);
+    return SurfaceCaptureResult(
+      images: captured,
+      contexts: contexts,
+      skipped: skipped,
+    );
   } on TimeoutException {
     return const SurfaceCaptureResult(failure: 'rendering took too long');
   } on _CaptureCancelled {
@@ -337,6 +389,19 @@ const _killGrace = Duration(seconds: 5);
 const _imagesDirectory = 'images';
 
 String _testPath(String name) => 'test/${name}_test.dart';
+
+String _contextTestPath(String name) => 'test/$name.context_test.dart';
+
+/// The `light` and `dark` render contexts a context test wrote, or null.
+Map<String, Object?>? _readContext(File file) {
+  if (!file.existsSync()) return null;
+  try {
+    final decoded = jsonDecode(file.readAsStringSync());
+    return decoded is Map<String, Object?> ? decoded : null;
+  } on FormatException {
+    return null;
+  }
+}
 
 /// The fingerprints of the images in the capture project, by image name.
 final class _CaptureRecord {
