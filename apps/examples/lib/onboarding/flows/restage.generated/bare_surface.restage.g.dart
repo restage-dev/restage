@@ -6,20 +6,20 @@ const bareSurfaceFlowRef = SurfaceFlowRef<
     BareSurfaceResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'bare_surface',
   version: 1,
-  minClient: 12,
+  minClient: 17,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeBareSurfaceFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"bare_surface","initial":"starter_bare_surface","minClient":12,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_bare_surface":{"contentHash":"sha256:2a98557827676116d21fd62bd1c8e914f3ed6facbaf3081b8e99031e33a51e06","minClient":12,"path":"starter_bare_surface.rfw","schemaVersion":1,"version":1}},"states":{"starter_bare_surface":{"kind":"screen","on":{},"screen":"starter_bare_surface"}},"version":1}',
+        '{"flow":"bare_surface","initial":"starter_bare_surface","minClient":17,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_bare_surface":{"contentHash":"sha256:020dffdc4cfe9ecf9e8724da37fef6a21d94403fabd012691484596098cf4b77","minClient":17,"path":"starter_bare_surface.rfw","schemaVersion":1,"version":1}},"states":{"starter_bare_surface":{"kind":"screen","on":{},"screen":"starter_bare_surface"}},"version":1}',
     screens: {
       'starter_bare_surface': StarterBareSurfaceScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '70668ebd6d3dbd7d5e41dacc79cc9cc222a6317431e8178100e0d6d71632d238',
+      '7c28ddf22a4d83f801ffb704c89dad2fa7f23e89b7bed19a7521c1e5a320d651',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

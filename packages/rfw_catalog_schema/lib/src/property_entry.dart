@@ -1,5 +1,4 @@
 import 'package:meta/meta.dart';
-
 import 'package:rfw_catalog_schema/src/dart_const_value.dart';
 import 'package:rfw_catalog_schema/src/default_value_source.dart';
 import 'package:rfw_catalog_schema/src/deprecation_info.dart';
@@ -8,7 +7,9 @@ import 'package:rfw_catalog_schema/src/native_decompose.dart';
 import 'package:rfw_catalog_schema/src/property_metadata.dart';
 import 'package:rfw_catalog_schema/src/property_type.dart';
 import 'package:rfw_catalog_schema/src/restage_constraints.dart';
+import 'package:rfw_catalog_schema/src/scalar_callback_contract.dart';
 import 'package:rfw_catalog_schema/src/validation_expr.dart';
+import 'package:rfw_catalog_schema/src/widget_builder_contract.dart';
 import 'package:rfw_catalog_schema/src/widget_entry.dart'
     show kBaselineCatalogVersion;
 import 'package:rfw_catalog_schema/src/wire_id.dart';
@@ -44,6 +45,8 @@ final class PropertyEntry {
     this.enumType,
     this.widgetType,
     this.callbackSignature,
+    this.builderContract,
+    this.scalarContract,
     this.defaultSource,
     this.constructorNullable = false,
     this.constructorDefault,
@@ -185,6 +188,12 @@ final class PropertyEntry {
   /// `null` (the default) means the slot is a `VoidCallback?` and the
   /// codegen emits the `source.voidHandler(...)` shortcut.
   final String? callbackSignature;
+
+  /// Structural signature for a deferred widget callback.
+  final WidgetBuilderContract? builderContract;
+
+  /// Structural signature of a pure native integer callback.
+  final ScalarCallbackContract? scalarContract;
 
   /// Discriminated default source — `LiteralDefault`,
   /// `TokenRefDefault`, `ThemeBindingDefault`, or `FlutterCtorDefault`.

@@ -21,6 +21,6 @@ final class RestageWidgetbookLibrary extends WidgetLibrary {
 const WidgetLibrary restageWidgetbookLibrary = RestageWidgetbookLibrary();
 
 /// Declares the library's capability version for every generated target.
-@RestageLibrary(library: restageWidgetbookLibrary, capabilityVersion: 3)
+@RestageLibrary(library: restageWidgetbookLibrary, capabilityVersion: 4)
 const restageWidgetbookCatalog = 0;
 // #enddocregion catalog-library

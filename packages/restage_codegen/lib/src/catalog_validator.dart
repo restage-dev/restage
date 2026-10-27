@@ -1,7 +1,26 @@
+import 'package:restage_compiler_core/src/rfw_program_envelope.dart';
+import 'package:restage_compiler_core/src/surface_capability_derivation.dart'
+    show validateRfwNativeReferences;
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/issue.dart';
-import 'package:restage_shared/restage_shared.dart' show kSupportedCurveNames;
+import 'package:restage_codegen/src/optional_native_values.dart';
+import 'package:restage_codegen/src/native_binding_routes.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show
+        kSupportedCurveNames,
+        kBuilderContinuationWidgetName,
+        ValueOperation,
+        SurfaceScreenHostDataSchema,
+        SurfaceScreenHostDataShape,
+        SurfaceScreenHostDataNativeBindingShapeV1,
+        SurfaceScreenHostDataNullableShapeV1,
+        SurfaceScreenHostDataObjectShapeV1,
+        SurfaceScreenHostDataListShapeV1,
+        SurfaceScreenHostDataMapShapeV1,
+        kCollectionValueOperations,
+        kGridValueOperations,
+        kIntlValueOperations;
 import 'package:restage_shared/rfw_formats.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -30,21 +49,45 @@ const Set<String> _kCanonicalFontWeightNames = {
 ///
 /// Checks top-level scalar values. Structured-map fields are validated by
 /// the typed emitters. [rootLabels] uses authored class names in diagnostics.
+/// [operations] comes from the source-installed declarations; the default
+/// accepts only the closed built-in operations. [hostDataContract] supplies
+/// the installed declarations used to validate native constructor keys.
 List<Issue> validateModelAgainstCatalog(
   RemoteWidgetLibrary library,
   Catalog catalog, {
   Map<String, String> rootLabels = const {},
+  SurfaceScreenHostDataSchema hostDataContract =
+      const SurfaceScreenHostDataSchema.empty(),
+  Map<String, ValueOperation> operations = const {
+    ...kCollectionValueOperations,
+    ...kGridValueOperations,
+    ...kIntlValueOperations
+  },
 }) {
+  // Validate nested programs with the same lexical ownership as the runtime.
+  // Isolated re-decodes lose outer locals declared by an enclosing builder.
+  final scope = RfwProgramScope(library.widgets.map((widget) => widget.root),
+      operations: operations);
   final issues = validateCommerceAuthoring(library, rootLabels: rootLabels);
   final localNames = {for (final widget in library.widgets) widget.name};
   for (final widget in library.widgets) {
+    if (widget.name == kBuilderContinuationWidgetName) {
+      throw const FormatException(
+          'Authored declarations cannot shadow the builder continuation.');
+    }
     _walkNode(
       widget.root,
       catalog,
       localNames,
       issues,
       rootLabels[widget.name] ?? widget.name,
+      operations,
+      scope,
+      hostDataContract,
     );
+  }
+  if (issues.isEmpty) {
+    validateRfwNativeReferences(library, catalog, scope: scope);
   }
   return issues;
 }
@@ -55,8 +98,19 @@ void _walkNode(
   Set<String> localNames,
   List<Issue> issues,
   String location,
+  Map<String, ValueOperation> operations,
+  RfwProgramScope scope,
+  SurfaceScreenHostDataSchema hostDataContract,
 ) {
   if (node is ConstructorCall) {
+    if (node.name == kBuilderContinuationWidgetName) {
+      for (final value in node.arguments.values) {
+        _walkNode(value, catalog, localNames, issues, location, operations,
+            scope, hostDataContract);
+      }
+      return;
+    }
+
     // A call to a library-local `widget` definition resolves within the
     // library; its arguments bind the definition's `args.`, not catalog
     // properties — skip the catalog + property-name checks for the call
@@ -98,6 +152,43 @@ void _walkNode(
             issues,
             '$location/${node.name}',
           );
+          final property = matches.first;
+          final shape = property.valueShape;
+          final ref = property.structuredRef ??
+              (shape is StructuredShape ? shape.structuredRef : null);
+          final structured = ref == null
+              ? null
+              : catalog.structuredTypes
+                  .where((type) =>
+                      type.library.namespace == ref.library &&
+                      type.wireId == ref.wireId)
+                  .firstOrNull;
+          if (structured != null &&
+              nativeBindingRoute(structured.sourceType)?.contractType ==
+                  'flutter.Key' &&
+              !_validNativeKeyArgument(
+                  argEntry.value, property, scope, hostDataContract)) {
+            issues.add(Issue(
+                code: IssueCode.propertyValueTypeMismatch,
+                message:
+                    "Property '$propName' on '${entry.name}' requires a typed native Key reference.",
+                location: '$location/${node.name}'));
+          }
+          if (entry.library.namespace == 'restage.svg' &&
+              ref != null &&
+              catalog.structuredTypes.any((type) =>
+                  type.library.namespace == ref.library &&
+                  type.wireId == ref.wireId &&
+                  optionalNativeBindingTypes.containsKey(type.sourceType)) &&
+              _containsOpaqueNativeArgument(argEntry.value)) {
+            issues.add(Issue(
+              code: IssueCode.propertyValueTypeMismatch,
+              message: "Property '$propName' on '${entry.name}' requires "
+                  'an installed native value; RFW widgets, builders and '
+                  'events cannot supply it.',
+              location: '$location/${node.name}',
+            ));
+          }
         }
         // Required widget / widgetList slots must be present. A required
         // `widget` left out decodes to a runtime cast error; a required
@@ -137,11 +228,15 @@ void _walkNode(
         localNames,
         issues,
         '$location/${node.name}.${argEntry.key}',
+        operations,
+        scope,
+        hostDataContract,
       );
     }
   } else if (node is List) {
     for (final child in node) {
-      _walkNode(child, catalog, localNames, issues, location);
+      _walkNode(child, catalog, localNames, issues, location, operations, scope,
+          hostDataContract);
     }
   } else if (node is Switch) {
     // Each branch is a candidate value for whatever slot the switch is bound
@@ -149,15 +244,18 @@ void _walkNode(
     // validated. (Branch-literal type-checking against the slot type happens
     // in `_checkArgValueType`, where the property type is known.)
     for (final output in node.outputs.values) {
-      _walkNode(output, catalog, localNames, issues, location);
+      _walkNode(output, catalog, localNames, issues, location, operations,
+          scope, hostDataContract);
     }
   } else if (node is Loop) {
     // The loop template is applied per element; walk it for nested calls.
-    _walkNode(node.output, catalog, localNames, issues, location);
+    _walkNode(node.output, catalog, localNames, issues, location, operations,
+        scope, hostDataContract);
   } else if (node is WidgetBuilderDeclaration) {
     // The builder's returned widget (usually a constructor call) must be
     // validated like any other widget.
-    _walkNode(node.widget, catalog, localNames, issues, location);
+    _walkNode(node.widget, catalog, localNames, issues, location, operations,
+        scope, hostDataContract);
   } else if (node is Map) {
     // A map literal bound to a structured slot can carry nested calls in its
     // values (keys are inert strings). This walk recurses into the values ONLY
@@ -200,11 +298,99 @@ void _walkNode(
     // The emit-layer guard stays the primary floor; this is a scoped hardening
     // follow-up, not a blocked one.
     for (final value in node.values) {
-      _walkNode(value, catalog, localNames, issues, location);
+      _walkNode(value, catalog, localNames, issues, location, operations, scope,
+          hostDataContract);
     }
   }
   // Remaining node types (literal scalars, `DataReference`/`ArgsReference`,
   // `EventHandler`) carry no catalog references — skip them.
+}
+
+bool _validNativeKeyArgument(Object? value, PropertyEntry property,
+    RfwProgramScope scope, SurfaceScreenHostDataSchema hostDataContract) {
+  if (RfwConstructorPresenceProtocol.appliesTo(property) &&
+      value is Map &&
+      value[RfwConstructorPresenceProtocol.markerKey] ==
+          RfwConstructorPresenceProtocol.version) {
+    if (value.length != 1 &&
+        (value.length != 2 ||
+            !value.containsKey(RfwConstructorPresenceProtocol.valueKey))) {
+      return false;
+    }
+    value = value[RfwConstructorPresenceProtocol.valueKey];
+  }
+  if (value == null) return property.constructorNullable;
+  if (value is Switch)
+    return value.outputs.values.every((branch) =>
+        _validNativeKeyArgument(branch, property, scope, hostDataContract));
+  if (value is DataReference) {
+    final parts = value.parts;
+    if (parts.length < 2 || parts.first != 'context') return false;
+    SurfaceScreenHostDataShape? shape = hostDataContract.inputs[parts[1]];
+    for (final part in parts.skip(2)) {
+      while (shape is SurfaceScreenHostDataNullableShapeV1) shape = shape.value;
+      shape = switch (shape) {
+        SurfaceScreenHostDataObjectShapeV1(:final fields) => fields[part],
+        SurfaceScreenHostDataMapShapeV1(:final values) when part is String =>
+          values,
+        SurfaceScreenHostDataListShapeV1(:final items)
+            when part is int && part >= 0 =>
+          items,
+        _ => null,
+      };
+    }
+    return shape is SurfaceScreenHostDataNativeBindingShapeV1 &&
+        shape.contract.type == 'flutter.Key' &&
+        shape.contract.call == null &&
+        (property.constructorNullable || !shape.contract.nullable);
+  }
+  if (value is Map &&
+      (value['kind'] == 'nativeBinding' || value['kind'] == 'nativeLocal')) {
+    final nativeLocal = value['kind'] == 'nativeLocal';
+    final name = value[nativeLocal ? 'slot' : 'key'];
+    if (value.length != 4 ||
+        name is! String ||
+        name.isEmpty ||
+        value['type'] != 'flutter.Key' ||
+        value['nullable'] is! bool ||
+        !property.constructorNullable && value['nullable'] != false)
+      return false;
+    // Lexical cells are validated by RfwProgramScope; borrowed declarations
+    // must also agree with the installed host contract for this exact key slot.
+    if (nativeLocal) return true;
+    final shape = hostDataContract.inputs[name];
+    return shape is SurfaceScreenHostDataNativeBindingShapeV1 &&
+        shape.contract.type == 'flutter.Key' &&
+        shape.contract.call == null &&
+        shape.contract.nullable == value['nullable'];
+  }
+  final envelope = scope.decode(value);
+  if (envelope == null ||
+      envelope.builder != null ||
+      envelope.values.parameters.isNotEmpty) return false;
+  final type = envelope.values.nodes[envelope.values.root].type;
+  return type.kind == 'native' &&
+      type.nativeType == 'flutter.Key' &&
+      (property.constructorNullable || !type.nullable);
+}
+
+bool _containsOpaqueNativeArgument(Object? value) {
+  if (value is ConstructorCall ||
+      value is WidgetBuilderDeclaration ||
+      value is AnyEventHandler) {
+    return true;
+  }
+  if (value is Switch) {
+    return _containsOpaqueNativeArgument(value.input) ||
+        value.outputs.values.any(_containsOpaqueNativeArgument);
+  }
+  if (value is Loop) {
+    return _containsOpaqueNativeArgument(value.input) ||
+        _containsOpaqueNativeArgument(value.output);
+  }
+  if (value is Map) return value.values.any(_containsOpaqueNativeArgument);
+  if (value is List) return value.any(_containsOpaqueNativeArgument);
+  return false;
 }
 
 /// Type-checks an argument [value] against its matched catalog [property].
@@ -234,6 +420,26 @@ void _checkArgValueType(
       _checkArgValueType(branch, property, widgetName, issues, location);
     }
     return;
+  }
+  if (property.type == PropertyType.edgeInsets && value is Map) {
+    final directional = value.containsKey('start') || value.containsKey('end');
+    final keys = directional
+        ? const {'start', 'top', 'end', 'bottom'}
+        : const {'left', 'top', 'right', 'bottom'};
+    if (value.keys.any((key) => !keys.contains(key)) ||
+        value.values.any(
+          (component) =>
+              component is String || component is bool || component == null,
+        )) {
+      issues.add(
+        Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message:
+              "Property '${property.name}' on '$widgetName' has invalid inset components.",
+          location: location,
+        ),
+      );
+    }
   }
   if (_scalarValueMismatch(property.type, value)) {
     issues.add(
@@ -319,6 +525,8 @@ bool _scalarValueMismatch(PropertyType type, Object? value) {
     // decodes from a `{x, y}` map, not a member name).
     case PropertyType.widget:
     case PropertyType.widgetList:
+    case PropertyType.widgetBuilder:
+    case PropertyType.scalarCallback:
     case PropertyType.event:
     case PropertyType.dataReference:
     case PropertyType.edgeInsets:

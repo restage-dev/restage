@@ -22,6 +22,7 @@ import '../flow/flow_test_support.dart'
     show registerThrowingWidget, resolvedFlow, screenBlob;
 import '../support/hosted_artifact_delivery.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
+import '../support/pump_until.dart';
 
 /// The stub delivery for this file: it describes surfaces AND answers for
 /// their content, so no test here can stub half a wire.
@@ -68,13 +69,15 @@ void main() {
     await captureStarted.future;
     SurfaceAssignmentKeyProvider.current = () => 'actor-b';
     oldKey.complete('actor-a');
-    await _waitUntil(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     final firstKey = _assignmentKey(server.requests.single.request);
     if (firstKey == 'actor-a') {
       server.requests.single.complete(
         _hostedResponse(_blobEnvelope('Stale actor A', version: 1)),
       );
-      await _waitUntil(() => server.requests.length == 2);
+      await waitUntil(() => server.requests.length == 2,
+          reason: 'server.requests.length == 2');
     }
     server.requests.last.complete(
       _hostedResponse(_blobEnvelope('Actor B only', version: 2)),
@@ -108,11 +111,13 @@ void main() {
       ),
       assignmentLease: lease,
     ));
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () =>
           resolver.responses.length == 2 ||
           find.text('Actor A after validation').evaluate().isNotEmpty,
+      reason:
+          "resolver.responses.length == 2 || find.text('Actor A after validation'",
     );
     if (resolver.responses.length == 2) {
       resolver.responses[1].complete(BlobPaywallPayload(
@@ -157,19 +162,19 @@ void main() {
       ),
       assignmentLease: lease,
     ));
-    await _pumpUntil(tester, () => _ResetPaintProbe.resetTriggered);
+    await pumpUntil(tester, () => _ResetPaintProbe.resetTriggered,
+        reason: '_ResetPaintProbe.resetTriggered');
     await tester.pump(const Duration(milliseconds: 16));
-    await _pumpUntil(tester, () => resolver.responses.length == 2);
-    if (resolver.responses.length == 2) {
-      resolver.responses[1].complete(BlobPaywallPayload(
-        ResolvedVariant(
-          bytes: _blob('Actor B blob'),
-          surfaceVersion: '2',
-          paywallId: 'pro_upgrade',
-          paywallPublishedVersion: 2,
-        ),
-      ));
-    }
+    await pumpUntil(tester, () => resolver.responses.length == 2,
+        reason: 'resolver.responses.length == 2');
+    resolver.responses[1].complete(BlobPaywallPayload(
+      ResolvedVariant(
+        bytes: _blob('Actor B blob'),
+        surfaceVersion: '2',
+        paywallId: 'pro_upgrade',
+        paywallPublishedVersion: 2,
+      ),
+    ));
     await tester.pumpAndSettle();
 
     final observed = (
@@ -200,7 +205,8 @@ void main() {
       paywallPublishedVersion: 1,
       assignmentLease: lease,
     ));
-    await _pumpUntil(tester, () => _ResetPaintProbe.resetTriggered);
+    await pumpUntil(tester, () => _ResetPaintProbe.resetTriggered,
+        reason: '_ResetPaintProbe.resetTriggered');
     await tester.pumpAndSettle();
     expect(_ResetPaintProbe.resetTriggered, isTrue);
     await tester.idle();
@@ -210,9 +216,10 @@ void main() {
       paywallId: 'pro_upgrade',
       paywallPublishedVersion: 2,
     ));
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => find.text('Actor B flow').evaluate().isNotEmpty,
+      reason: "find.text('Actor B flow').evaluate().isNotEmpty",
     );
     await tester.pumpAndSettle();
 
@@ -255,7 +262,8 @@ void main() {
         onEvent: events.add,
       ),
     ));
-    await _pumpUntil(tester, () => server.requests.length == 1);
+    await pumpUntil(tester, () => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     expect(
       _requestJson(server.requests[0].request),
       isNot(contains('flowContract')),
@@ -273,8 +281,10 @@ void main() {
       ),
     ));
 
-    await _pumpUntil(tester, () => _ResetPaintProbe.resetTriggered);
-    await _pumpUntil(tester, () => server.requests.length == 2);
+    await pumpUntil(tester, () => _ResetPaintProbe.resetTriggered,
+        reason: '_ResetPaintProbe.resetTriggered');
+    await pumpUntil(tester, () => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     expect(_assignmentKey(server.requests[0].request), isNull);
     expect(_assignmentKey(server.requests[1].request), isNull);
     expect(_requestJson(server.requests[0].request)['registrationNonce'],
@@ -299,7 +309,8 @@ void main() {
         onEvent: events.add,
       ),
     ));
-    await _pumpUntil(tester, () => server.requests.length == 3);
+    await pumpUntil(tester, () => server.requests.length == 3,
+        reason: 'server.requests.length == 3');
     server.requests[2].complete(http.Response('unavailable', 503));
     await tester.pumpAndSettle();
 
@@ -322,7 +333,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
     ));
-    await _pumpUntil(tester, () => server.requests.length == 4);
+    await pumpUntil(tester, () => server.requests.length == 4,
+        reason: 'server.requests.length == 4');
     server.requests[3].complete(http.Response('unavailable', 503));
     await tester.pumpAndSettle();
     expect(find.text('Frozen bundled baseline'), findsOneWidget);
@@ -367,7 +379,8 @@ void main() {
         onEvent: events.add,
       ),
     ));
-    await _waitUntil(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
 
     final mutatedBaseline = screenBlob('Mutated bundled baseline', 'finish');
     final loadedBeforeMutation = bundle.loadedKeys.length;
@@ -379,7 +392,8 @@ void main() {
     );
 
     for (var attempt = 0; attempt < 3; attempt += 1) {
-      await _waitUntil(() => server.requests.length == attempt + 1);
+      await waitUntil(() => server.requests.length == attempt + 1,
+          reason: 'server.requests.length == attempt + 1');
       final candidate = screenBlob('Rejected content $attempt', 'finish');
       server.requests[attempt].complete(_hostedResponse(
         _strictFlowEnvelope(screen: candidate, version: 10 + attempt),
@@ -392,11 +406,13 @@ void main() {
       await tester.idle();
     }
 
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () =>
           find.text('Original frozen baseline').evaluate().isNotEmpty ||
           server.requests.length > 3,
+      reason:
+          "find.text('Original frozen baseline').evaluate().isNotEmpty || server.",
     );
     if (server.requests.length > 3) {
       server.requests[3].complete(http.Response('unavailable', 503));
@@ -467,7 +483,8 @@ void main() {
         onEvent: events.add,
       ),
     ));
-    await _waitUntil(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
 
     final mutatedBaseline =
         screenBlob('Mutated resolver-gap baseline', 'finish');
@@ -480,7 +497,8 @@ void main() {
     );
 
     for (var attempt = 0; attempt < 3; attempt += 1) {
-      await _waitUntil(() => server.requests.length == attempt + 1);
+      await waitUntil(() => server.requests.length == attempt + 1,
+          reason: 'server.requests.length == attempt + 1');
       identity.driftAfterPresentationFinalRecapture();
       server.requests[attempt].complete(_hostedResponse(
         _strictFlowEnvelope(
@@ -489,26 +507,29 @@ void main() {
         ),
       ));
       await tester.idle();
-      await _waitUntil(() => identity.completedDrifts == attempt + 1);
+      await waitUntil(() => identity.completedDrifts == attempt + 1,
+          reason: 'identity.completedDrifts == attempt + 1');
     }
 
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () =>
           find.text('Original resolver-gap baseline').evaluate().isNotEmpty ||
           server.requests.length > 3,
-      maxPumps: 100,
       step: const Duration(milliseconds: 1),
+      reason:
+          "find.text('Original resolver-gap baseline').evaluate().isNotEmpty || s",
     );
     if (server.requests.length > 3) {
       server.requests[3].complete(http.Response('unavailable', 503));
-      await _pumpUntil(
+      await pumpUntil(
         tester,
         () =>
             find.text('Original resolver-gap baseline').evaluate().isNotEmpty ||
             find.text('Mutated resolver-gap baseline').evaluate().isNotEmpty,
-        maxPumps: 100,
         step: const Duration(milliseconds: 1),
+        reason:
+            "find.text('Original resolver-gap baseline').evaluate().isNotEmpty || f",
       );
     }
     await tester.pumpAndSettle();
@@ -573,7 +594,8 @@ void main() {
       experimentAuthority: authority,
     ));
 
-    await _pumpUntil(tester, () => authority.retryCalls == 1);
+    await pumpUntil(tester, () => authority.retryCalls == 1,
+        reason: 'authority.retryCalls == 1');
     await tester.pumpAndSettle();
     FlutterError.onError = previousErrorHandler;
 
@@ -631,7 +653,8 @@ void main() {
         onEvent: events.add,
       ),
     ));
-    await _waitUntil(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     server.requests[0].complete(_hostedResponse(
       _strictFlowEnvelope(
         screen: screenBlob('Disposed candidate A', 'finish'),
@@ -642,7 +665,8 @@ void main() {
     actorGeneration += 1;
     FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
     await tester.idle();
-    await _waitUntil(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     final loadedBeforeUnmount = bundle.loadedKeys.length;
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -683,7 +707,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
     ));
-    await _pumpUntil(tester, () => server.requests.length == 1);
+    await pumpUntil(tester, () => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     expect(_assignmentKey(server.requests[0].request), isNull);
     final screenA = screenBlob('Strict current A', 'finish');
     server.requests[0].complete(_hostedResponse(
@@ -693,7 +718,8 @@ void main() {
     expect(find.text('Strict current A'), findsOneWidget);
 
     final promote = Restage.reloadSurfaces();
-    await _pumpUntil(tester, () => server.requests.length == 2);
+    await pumpUntil(tester, () => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     final screenB = screenBlob('Strict refreshed B', 'finish');
     server.requests[1].complete(_hostedResponse(
       _strictFlowEnvelope(screen: screenB, version: 10),
@@ -704,7 +730,8 @@ void main() {
     expect(find.text('Strict current A'), findsNothing);
 
     final refresh = Restage.reloadSurfaces();
-    await _pumpUntil(tester, () => server.requests.length == 3);
+    await pumpUntil(tester, () => server.requests.length == 3,
+        reason: 'server.requests.length == 3');
     final screenC = screenBlob('Strict refreshed C', 'finish');
     server.requests[2].complete(_hostedResponse(
       _strictFlowEnvelope(screen: screenC, version: 11),
@@ -719,7 +746,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
     ));
-    await _pumpUntil(tester, () => server.requests.length == 4);
+    await pumpUntil(tester, () => server.requests.length == 4,
+        reason: 'server.requests.length == 4');
     server.requests[3].complete(http.Response('unavailable', 503));
     await tester.pumpAndSettle();
 
@@ -758,17 +786,16 @@ void main() {
       assignmentLease: lease,
     ));
 
-    await _pumpUntil(tester, () => resolver.responses.length == 2);
-    if (resolver.responses.length == 2) {
-      resolver.responses[1].complete(BlobPaywallPayload(
-        ResolvedVariant(
-          bytes: _blob('Actor B after blob failure'),
-          surfaceVersion: '2',
-          paywallId: 'pro_upgrade',
-          paywallPublishedVersion: 2,
-        ),
-      ));
-    }
+    await pumpUntil(tester, () => resolver.responses.length == 2,
+        reason: 'resolver.responses.length == 2');
+    resolver.responses[1].complete(BlobPaywallPayload(
+      ResolvedVariant(
+        bytes: _blob('Actor B after blob failure'),
+        surfaceVersion: '2',
+        paywallId: 'pro_upgrade',
+        paywallPublishedVersion: 2,
+      ),
+    ));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNotNull);
 
@@ -834,24 +861,23 @@ void main() {
       assignmentLease: lease,
     ));
 
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => resolver.responses.length == 2,
-      maxPumps: 100,
       step: const Duration(milliseconds: 1),
+      reason: 'resolver.responses.length == 2',
     );
-    expect(resolver.responses, hasLength(2));
     resolver.responses[1].complete(FlowPaywallPayload(
       flow: resolvedFlow(welcomeText: 'Actor B after flow failure'),
       paywallId: 'pro_upgrade',
       paywallPublishedVersion: 2,
     ));
     await tester.idle();
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => find.text('Actor B after flow failure').evaluate().isNotEmpty,
-      maxPumps: 100,
       step: const Duration(milliseconds: 1),
+      reason: "find.text('Actor B after flow failure').evaluate().isNotEmpty",
     );
     await tester.pumpAndSettle();
 
@@ -935,8 +961,8 @@ void main() {
       paywallPublishedVersion: 1,
       assignmentLease: lease,
     ));
-    await _pumpUntil(tester, () => _ResetPaintProbe.resetTriggered);
-    await _pumpUntil(tester, () => resolver.responses.length == 2);
+    await pumpUntil(tester, () => _ResetPaintProbe.resetTriggered,
+        reason: '_ResetPaintProbe.resetTriggered');
     if (resolver.responses.length == 2) {
       resolver.responses[1].complete(FlowPaywallPayload(
         flow: resolvedFlow(welcomeText: 'Incorrect retry'),
@@ -993,33 +1019,37 @@ void main() {
         ),
       ),
     );
-    await _pumpUntil(tester, () => server.requests.length == 1);
-    if (server.requests.isNotEmpty) {
-      server.requests[0].complete(
-        _hostedResponse(
-          _blobEnvelope('Actor A', version: 1),
-        ),
-      );
-    }
-    await _pumpUntil(tester, () => resolver.firstPayloadReady.isCompleted);
+    await pumpUntil(tester, () => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
+    server.requests[0].complete(
+      _hostedResponse(
+        _blobEnvelope('Actor A', version: 1),
+      ),
+    );
+    await pumpUntil(tester, () => resolver.firstPayloadReady.isCompleted,
+        reason: 'resolver.firstPayloadReady.isCompleted');
 
     // The hosted response and its HLG entry now belong to actor A, but the
     // widget has not received or rendered the payload yet.
     SurfaceAssignmentKeyProvider.current = () => 'actor-b';
     resolver.releaseFirstPayload.complete();
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => resolver.calls == 2 || find.text('Actor A').evaluate().isNotEmpty,
+      reason:
+          "resolver.calls == 2 || find.text('Actor A').evaluate().isNotEmpty",
     );
     if (resolver.calls >= 2) {
-      await _pumpUntil(tester, () => server.requests.length >= 2);
+      await pumpUntil(tester, () => server.requests.length >= 2,
+          reason: 'server.requests.length >= 2');
     }
 
     // B's fresh tier fails. The A-generation HLG must not reappear or loop;
     // resolution continues through the existing ladder to the bundled tier.
     if (server.requests.length >= 2) {
       server.requests[1].complete(http.Response('unavailable', 503));
-      await _pumpUntil(tester, () => fallback.calls == 1);
+      await pumpUntil(tester, () => fallback.calls == 1,
+          reason: 'fallback.calls == 1');
     }
     if (fallback.hasPending) {
       fallback.complete(
@@ -1087,16 +1117,16 @@ void main() {
         home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
       ),
     );
-    await _pumpUntil(tester, () => server.requests.length == 1);
-    if (server.requests.isNotEmpty) {
-      server.requests[0].complete(
-        _hostedResponse(_blobEnvelope('Current', version: 1)),
-      );
-    }
+    await pumpUntil(tester, () => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
+    server.requests[0].complete(
+      _hostedResponse(_blobEnvelope('Current', version: 1)),
+    );
     await tester.pumpAndSettle();
 
     final refresh = Restage.reloadSurfaces();
-    await _pumpUntil(tester, () => server.requests.length == 2);
+    await pumpUntil(tester, () => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
 
     SurfaceAssignmentKeyProvider.current = () => 'actor-b';
     if (server.requests.length >= 2) {
@@ -1104,11 +1134,13 @@ void main() {
         _hostedResponse(_blobEnvelope('Stale refresh', version: 2)),
       );
     }
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () =>
           server.requests.length == 3 ||
           find.text('Stale refresh').evaluate().isNotEmpty,
+      reason:
+          "server.requests.length == 3 || find.text('Stale refresh').evaluate().i",
     );
 
     // Even a valid B response cannot replace the already-rendered A
@@ -1167,12 +1199,11 @@ void main() {
         ),
       ),
     );
-    await _pumpUntil(tester, () => server.requests.length == 1);
-    if (server.requests.isNotEmpty) {
-      server.requests[0].complete(
-        _hostedResponse(_blobEnvelope('Actor A cached', version: 1)),
-      );
-    }
+    await pumpUntil(tester, () => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
+    server.requests[0].complete(
+      _hostedResponse(_blobEnvelope('Actor A cached', version: 1)),
+    );
     await tester.pumpAndSettle();
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1232,7 +1263,8 @@ void main() {
         errorBuilder: (_, __) => const Text('Hosted render unavailable'),
       ),
     ));
-    await _pumpUntil(tester, () => server.requests.length == 1);
+    await pumpUntil(tester, () => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     server.requests[0].complete(
       _hostedResponse(_blobEnvelope('Resolver last-good', version: 1)),
     );
@@ -1241,7 +1273,8 @@ void main() {
 
     events.clear();
     final refresh = Restage.reloadSurfaces();
-    await _pumpUntil(tester, () => server.requests.length == 2);
+    await pumpUntil(tester, () => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     server.requests[1].complete(
       _hostedResponse(
         _rawBlobEnvelope(_throwingBlob(), version: 2),
@@ -1265,7 +1298,8 @@ void main() {
         errorBuilder: (_, __) => const Text('Hosted render unavailable'),
       ),
     ));
-    await _pumpUntil(tester, () => server.requests.length == 3);
+    await pumpUntil(tester, () => server.requests.length == 3,
+        reason: 'server.requests.length == 3');
     server.requests[2].complete(http.Response('unavailable', 503));
     await tester.pumpAndSettle();
 
@@ -1346,17 +1380,16 @@ void main() {
       stalePaints: _LayoutResetProbe.paintCount,
     );
 
-    await _pumpUntil(tester, () => resolver.responses.length == 3);
-    if (resolver.responses.length == 3) {
-      resolver.responses[2].complete(BlobPaywallPayload(
-        ResolvedVariant(
-          bytes: _sizedBlob('Actor B size', width: 90, height: 50),
-          surfaceVersion: '3',
-          paywallId: 'pro_upgrade',
-          paywallPublishedVersion: 3,
-        ),
-      ));
-    }
+    await pumpUntil(tester, () => resolver.responses.length == 3,
+        reason: 'resolver.responses.length == 3');
+    resolver.responses[2].complete(BlobPaywallPayload(
+      ResolvedVariant(
+        bytes: _sizedBlob('Actor B size', width: 90, height: 50),
+        surfaceVersion: '3',
+        paywallId: 'pro_upgrade',
+        paywallPublishedVersion: 3,
+      ),
+    ));
     await tester.pumpAndSettle();
     final actorB = find.text('Actor B size').evaluate().length;
     final resolverCalls = resolver.responses.length;
@@ -2093,21 +2126,4 @@ Uint8List _sizedBlob(
     );
   ''';
   return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
-}
-
-Future<void> _pumpUntil(
-  WidgetTester tester,
-  bool Function() condition, {
-  int maxPumps = 20,
-  Duration step = Duration.zero,
-}) async {
-  for (var attempt = 0; attempt < maxPumps && !condition(); attempt += 1) {
-    await tester.pump(step);
-  }
-}
-
-Future<void> _waitUntil(bool Function() condition) async {
-  for (var attempt = 0; attempt < 20 && !condition(); attempt += 1) {
-    await Future<void>.delayed(Duration.zero);
-  }
 }

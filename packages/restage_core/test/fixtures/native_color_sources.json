@@ -1,0 +1,50 @@
+{
+  "root": {
+    "dsl": "ColoredBox(color: data.context._h0c5f605b8d)",
+    "key": "_h0c5f605b8d"
+  },
+  "cast": {
+    "dsl": "ColoredBox(color: data.context._h0c5f605b8d)",
+    "key": "_h0c5f605b8d"
+  },
+  "selected": {
+    "dsl": "ColoredBox(color: data.context._h0c5f605b8d)",
+    "key": "_h0c5f605b8d"
+  },
+  "selectedElse": {
+    "dsl": "ColoredBox(color: data.context._h0c5f605b8d)",
+    "key": "_h0c5f605b8d"
+  },
+  "wrappedAlias": {
+    "dsl": "ColoredBox(color: data.context._h0c5f605b8d)",
+    "key": "_h0c5f605b8d"
+  },
+  "material": {
+    "dsl": "ColoredBox(color: data.context._he25f9ba4df)",
+    "key": "_he25f9ba4df"
+  },
+  "accent": {
+    "dsl": "ColoredBox(color: data.context._h8051fc2fb2)",
+    "key": "_h8051fc2fb2"
+  },
+  "alias": {
+    "dsl": "ColoredBox(color: data.context._h0c5f605b8d)",
+    "key": "_h0c5f605b8d"
+  },
+  "layout": {
+    "dsl": "LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"}],\\\"root\\\":0,\\\"captures\\\":{},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}}},\\\"result\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {}, bodies: [(builder0) => ColoredBox(color: data.context._h0c5f605b8d)]))",
+    "key": "_h0c5f605b8d"
+  },
+  "style": {
+    "dsl": "Text(text: \"color\", color: data.context._h0c5f605b8d, shadows: [{color: data.context._h0c5f605b8d}], decorationColor: data.context._h0c5f605b8d)",
+    "key": "_h0c5f605b8d"
+  },
+  "gradient": {
+    "dsl": "DecoratedBox(gradient: {type: \"linear\", colors: [data.context._h0c5f605b8d, data.context._h0c5f605b8d]})",
+    "key": "_h0c5f605b8d"
+  },
+  "shadow": {
+    "dsl": "Container(boxShadow: [{color: data.context._h0c5f605b8d}])",
+    "key": "_h0c5f605b8d"
+  }
+}

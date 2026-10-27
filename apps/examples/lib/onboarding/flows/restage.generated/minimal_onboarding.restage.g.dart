@@ -6,13 +6,13 @@ const minimalOnboardingFlowRef = SurfaceFlowRef<
     MinimalOnboardingResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_onboarding',
   version: 1,
-  minClient: 12,
+  minClient: 17,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMinimalOnboardingFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"minimal_onboarding","flowState":{"mode":{"classification":"internal","type":"string"}},"initial":"starter_welcome","minClient":12,"schemaVersion":1,"screenArtifacts":{"starter_done_explore":{"contentHash":"sha256:8c705fc8a2b9b20a8b1272a5b85bad1d415eea6bbe6301b1b9ff903f30e06747","minClient":12,"path":"starter_done_explore.rfw","schemaVersion":1,"version":1},"starter_done_guided":{"contentHash":"sha256:0bb6a6162150206f05405badc247a756c12b1b08f56e2e6bd065282925a082ee","minClient":12,"path":"starter_done_guided.rfw","schemaVersion":1,"version":1},"starter_question":{"contentHash":"sha256:60e9e8f1236add85c406caed49f2cfaf6d566f975b817447204f63e49098c7b6","minClient":12,"path":"starter_question.rfw","schemaVersion":1,"version":1},"starter_welcome":{"contentHash":"sha256:a0b8884f9ae6149518d379f87c7423b080693c4108db2d9b56bfb6774714f94d","minClient":12,"path":"starter_welcome.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"route":{"branches":[{"goto":"starter_done_guided","when":{"mode":{"eq":{"literal":"guided","type":"string"}}}}],"default":{"goto":"starter_done_explore"},"kind":"decision"},"starter_done_explore":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"starter_done_explore"},"starter_done_guided":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"starter_done_guided"},"starter_question":{"kind":"screen","on":{"explore":{"set":{"mode":{"type":"string","value":{"literal":"explore","type":"string"}}},"target":"route","type":"goto"},"guided":{"set":{"mode":{"type":"string","value":{"literal":"guided","type":"string"}}},"target":"route","type":"goto"}},"screen":"starter_question"},"starter_welcome":{"kind":"screen","on":{"next":{"target":"starter_question","type":"goto"}},"screen":"starter_welcome"}},"version":1}',
+        '{"flow":"minimal_onboarding","flowState":{"mode":{"classification":"internal","type":"string"}},"initial":"starter_welcome","minClient":17,"schemaVersion":1,"screenArtifacts":{"starter_done_explore":{"contentHash":"sha256:1ef396e8d8e6a907c91db75e244e08622957554cef8372bd06a1e35e5a4443ae","minClient":17,"path":"starter_done_explore.rfw","schemaVersion":1,"version":1},"starter_done_guided":{"contentHash":"sha256:33d23783c3938af4c813817ae429865d64370d56343a1d87b986abc2d12a94de","minClient":17,"path":"starter_done_guided.rfw","schemaVersion":1,"version":1},"starter_question":{"contentHash":"sha256:04b3446a66707d64ed1272bccf5ecae180a1c8aec0cb2e38dac77233f64d0758","minClient":17,"path":"starter_question.rfw","schemaVersion":1,"version":1},"starter_welcome":{"contentHash":"sha256:2ffcf5fb1e15ed0ba695665f1444c99aa7986497b7d7eb910ad4c461483aaef9","minClient":17,"path":"starter_welcome.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"route":{"branches":[{"goto":"starter_done_guided","when":{"mode":{"eq":{"literal":"guided","type":"string"}}}}],"default":{"goto":"starter_done_explore"},"kind":"decision"},"starter_done_explore":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"starter_done_explore"},"starter_done_guided":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"starter_done_guided"},"starter_question":{"kind":"screen","on":{"explore":{"set":{"mode":{"type":"string","value":{"literal":"explore","type":"string"}}},"target":"route","type":"goto"},"guided":{"set":{"mode":{"type":"string","value":{"literal":"guided","type":"string"}}},"target":"route","type":"goto"}},"screen":"starter_question"},"starter_welcome":{"kind":"screen","on":{"next":{"target":"starter_question","type":"goto"}},"screen":"starter_welcome"}},"version":1}',
     screens: {
       'starter_welcome': StarterWelcomeScreen.new,
       'starter_question': StarterQuestionScreen.new,
@@ -22,7 +22,7 @@ const minimalOnboardingFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'da91616e46a328761a09262cf62a0e6e877e675dceb6d2669afa53c686c1baef',
+      '60ae6b67bcabff15a1413829ea1e877c9faf9a6881285b0c9a52cf925779b13b',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

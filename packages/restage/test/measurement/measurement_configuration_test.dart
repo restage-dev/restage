@@ -24,6 +24,7 @@ import 'admitted_bundled_publication_fixture.dart';
 import 'measurement_host_construction_test_support.dart';
 
 import '../support/restage_runtime_test_support.dart';
+import '../support/pump_until.dart';
 
 void main() {
   installRestageRuntimeTestSupport();
@@ -257,7 +258,8 @@ widget Paywall = MeasurementSourcePresented(
         },
       ),
     );
-    await _pumpUntil(tester, () => owner.debugActiveSessionCount == 1);
+    await pumpUntil(tester, () => owner.debugActiveSessionCount == 1,
+        reason: 'owner.debugActiveSessionCount == 1');
     expect(owner.debugActiveSessionCount, 1);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
@@ -279,7 +281,8 @@ widget Paywall = MeasurementSourcePresented(
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
-    await _pumpUntil(tester, () => frames.isNotEmpty);
+    await pumpUntil(tester, () => frames.isNotEmpty,
+        reason: 'frames.isNotEmpty');
 
     final frame = frames.single;
     expect(
@@ -424,20 +427,4 @@ Future<void> _respondAccepted(
     ..statusCode = HttpStatus.ok
     ..write('{"receiptCanonicalBase64":"${receipt.canonicalReceiptBase64}"}');
   await request.response.close();
-}
-
-Future<void> _pumpUntil(
-  WidgetTester tester,
-  bool Function() predicate, {
-  Duration timeout = const Duration(seconds: 5),
-}) async {
-  final deadline = DateTime.now().add(timeout);
-  while (DateTime.now().isBefore(deadline)) {
-    if (predicate()) return;
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 10)),
-    );
-    await tester.pump();
-  }
-  fail('Timed out waiting for hosted worker-owned delivery');
 }

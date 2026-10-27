@@ -199,7 +199,10 @@ class IdentitySurface extends StatelessWidget {
                   factory.contains('RestageDecoders.positiveLayoutScalar(') &&
                   factory.contains('DragStartBehavior.start') &&
                   factory.contains('Clip.hardEdge') &&
-                  !factory.contains('controller:') &&
+                  factory.contains(
+                    'controller: RestageDecoders.nativeBinding<TabController>(',
+                  ) &&
+                  factory.contains("type: 'flutter.TabController'") &&
                   !factory.contains('physics:');
             },
             'native TabBarView factory with positive fractions and gestures',
@@ -329,7 +332,7 @@ class IdentitySurface extends StatelessWidget {
   });
 
   for (final property in ['controller', 'physics']) {
-    test('explicit $property expressions diagnose unsupported native slots',
+    test('explicit $property expressions diagnose missing native support',
         () async {
       final source = _source('tab_$property', '$property: $property,');
       final readerWriter = await readerWriterWithFilesystemSources(
@@ -350,12 +353,19 @@ class IdentitySurface extends StatelessWidget {
       expect(result.succeeded, isFalse);
       expect(
         messages.join('\n'),
-        allOf(
-          contains('[unknownProperty]'),
-          contains(
-            "Property '$property' is not declared on 'TabBarView'",
-          ),
-        ),
+        property == 'controller'
+            ? allOf(
+                contains('[unrecognizedMethodCall]'),
+                contains(
+                  'A native TabController requires an exact constructor-supplied binding.',
+                ),
+              )
+            : allOf(
+                contains('[unknownProperty]'),
+                contains(
+                  "Property '$property' is not declared on 'TabBarView'",
+                ),
+              ),
       );
     });
   }

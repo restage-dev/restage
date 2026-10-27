@@ -124,7 +124,8 @@ void main() {
     expect(source, contains('#label:'));
     expect(
       source,
-      isNot(contains("RestageDecoders.string(source, <Object>['label']) ??")),
+      isNot(contains(
+          "RestageDecoders.string(source, <Object>['label'], context: context) ??")),
     );
   });
 

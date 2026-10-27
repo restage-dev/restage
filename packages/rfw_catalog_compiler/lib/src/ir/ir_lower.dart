@@ -90,6 +90,8 @@ PropertyEntry lowerProperty(PropertyIR ir) {
     enumType: ir.enumType,
     widgetType: ir.widgetType,
     callbackSignature: ir.callbackSignature ?? ir.type.callbackSignature,
+    builderContract: ir.builderContract ?? ir.type.builderContract,
+    scalarContract: ir.scalarContract ?? ir.type.scalarContract,
     constructorNullable: ir.constructorNullable,
     constructorDefault: ir.constructorDefault,
     defaultSource: ir.defaultSource?.lowered,
@@ -148,6 +150,8 @@ StructuredField lowerStructuredField(StructuredFieldIR ir) {
     structuredRef: ir.type.structuredRef,
     unionRef: ir.type.unionRef,
     valueShape: ir.type.valueShape,
+    builderContract: ir.type.builderContract,
+    scalarContract: ir.type.scalarContract,
   );
 }
 

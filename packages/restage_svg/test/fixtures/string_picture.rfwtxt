@@ -1,0 +1,1 @@
+SvgPictureString(string: "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\" viewBox=\"0 0 10 10\"><path fill=\"currentColor\" d=\"M0 0h4v10H0z\"/></svg>", width: 24.0, height: 20.0, semanticsLabel: "Mark", matchTextDirection: true, theme: {fontSize: 20}, colorFilter: {kind: "mode", color: 0xFFAA0000, blendMode: "srcIn"})

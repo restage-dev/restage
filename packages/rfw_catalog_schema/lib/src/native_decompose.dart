@@ -209,9 +209,9 @@ final class UnionShape extends CatalogValueShape {
           propertyType == PropertyType.border ||
               propertyType == PropertyType.gradient ||
               propertyType == PropertyType.shapeBorder ||
+              propertyType == PropertyType.structured ||
               propertyType == PropertyType.unknown,
-          'UnionShape must carry PropertyType.border/gradient/shapeBorder '
-          '(or unknown)',
+          'UnionShape must carry a structured union property type',
         );
 
   /// Union catalog entry.

@@ -217,6 +217,29 @@ dependencies:
     cancel: cancel,
   );
 
+  test('native bindings skip capture before starting any process', () async {
+    entry = await seedGeneratedPaywall(
+      app,
+      surface: Surface.general,
+      hostDataContract: SurfaceScreenHostDataSchema(const {
+        'scaler': SurfaceScreenHostDataNativeBindingShapeV1(
+          NativeBindingContract(type: 'flutter.TextScaler', nullable: true),
+        ),
+      }),
+    );
+    final json = jsonDecode(jsonEncode(entry.toJson())) as Map<String, Object?>;
+    (json['publication']! as Map<String, Object?>)['mountName'] =
+        'ProUpgradeSurface';
+    entry = SurfacePublicationManifestEntry.fromJson(json, path: 'entry');
+    final result = await capture(renderer(image: _png));
+    expect(result.failure, isNull);
+    expect(
+      result.skipped['general.pro_upgrade'],
+      contains('native bindings require an installed host'),
+    );
+    expect(started, isEmpty);
+  });
+
   test('renders only stale surfaces and records what it drew', () async {
     final first = await capture(renderer(image: _png));
 

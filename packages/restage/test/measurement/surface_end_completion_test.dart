@@ -11,6 +11,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 import 'admitted_bundled_publication_fixture.dart';
 import 'measurement_host_construction_test_support.dart';
+import '../support/pump_until.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -125,12 +126,11 @@ final class _Attempt {
       bindingReadPort: fixture.port,
     ));
     // The session opens on real async work; wait for its worker registration.
-    for (var i = 0; i < 400 && harness.worker.registrations.isEmpty; i += 1) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 5)),
-      );
-      await tester.pump();
-    }
+    await pumpUntil(
+      tester,
+      () => harness.worker.registrations.isNotEmpty,
+      reason: 'a worker registration',
+    );
     for (var i = 0; i < 5; i += 1) {
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump();

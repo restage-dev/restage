@@ -506,10 +506,14 @@ ResolvedWidgetConstructorFormal _resolveWidgetConstructorFormal(
 }
 
 /// Reads the unnamed generative constructor that generated factories call.
+///
+/// [includeFlutterKey] retains the original Flutter key formal for native RFW
+/// factories. Other targets continue to omit framework constructor plumbing.
 WidgetConstructorFacts readWidgetConstructorFacts(
   ClassElement cls,
-  AssetId assetId,
-) {
+  AssetId assetId, {
+  bool includeFlutterKey = false,
+}) {
   final issues = <Issue>[];
   final inputs = <WidgetConstructorInput>[];
   final ignoredFields = <FieldElement>{};
@@ -538,7 +542,8 @@ WidgetConstructorFacts readWidgetConstructorFacts(
         ? formal.field?.name ?? inputName
         : inputName;
     final inputLocation = '$location.$sourceName';
-    final resolved = _resolveInput(cls, constructor, formal);
+    final resolved = _resolveInput(cls, constructor, formal,
+        includeFlutterKey: includeFlutterKey);
     if (resolved case _ExcludedInput()) continue;
     if (resolved case _InvalidInput(:final reason)) {
       issues.add(
@@ -1294,10 +1299,29 @@ ElementAnnotation? _inputAnnotation(
 _InputResolution _resolveInput(
   ClassElement cls,
   ConstructorElement constructor,
-  FormalParameterElement formal,
-) {
+  FormalParameterElement formal, {
+  required bool includeFlutterKey,
+}) {
   final resolved = resolveWidgetConstructorFormal(cls, constructor, formal);
-  if (resolved.forwardsFlutterKey) return const _ExcludedInput();
+  if (resolved.forwardsFlutterKey) {
+    if (!includeFlutterKey) return const _ExcludedInput();
+    final widget = cls.allSupertypes
+        .where((type) =>
+            type.element.name == 'Widget' &&
+            type.element.library.identifier ==
+                'package:flutter/src/widgets/framework.dart')
+        .firstOrNull;
+    final key = widget?.element.fields
+        .where((field) => field.name == 'key')
+        .firstOrNull;
+    if (key == null)
+      return const _InvalidInput('the Flutter key field is unresolved');
+    return _ResolvedInput(
+        field: key,
+        backingFormal: resolved.backingFormal,
+        type: resolved.type,
+        inherited: true);
+  }
   final problem = resolved.bindingProblem;
   if (problem != null) return _InvalidInput(problem);
   final field = resolved.field!;

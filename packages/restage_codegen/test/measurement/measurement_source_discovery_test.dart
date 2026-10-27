@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
@@ -6,6 +7,9 @@ import 'package:build/build.dart';
 import 'package:restage_codegen/restage_codegen.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/host_data_shape.dart';
+import 'package:restage_codegen/src/expression_translator.dart';
+import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/paywall_completion.dart';
@@ -18,6 +22,214 @@ import '../helpers.dart';
 
 void main() {
   group('MeasurementSourceDiscovery', () {
+    test(
+        'inert spans preserve owners while nested nonnull callbacks share one owner',
+        () async {
+      Future<MeasurementSourceDiscoveryResult> discover(String span) async {
+        final fixture = await _resolveFixture("""
+import 'package:flutter/widgets.dart';
+import 'package:flutter/gestures.dart';
+import 'package:restage/restage.dart';
+VoidCallback eventFor(String name) => () {};
+const VoidCallback? absent = null;
+@ScreenSource(id: 'welcome')
+class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+  @override
+  Widget build(BuildContext context) => Text.rich($span);
+}
+""");
+        final catalog = decodeCatalog(
+            File('../restage_core/lib/src/widget_catalog/catalog.json')
+                .readAsStringSync());
+        final result = _discover(fixture,
+            authority: MeasurementSourceAuthority.screen, catalog: catalog);
+        expect(
+            result.disposition, MeasurementSourceDiscoveryDisposition.accepted,
+            reason: result.rejectionReason);
+        return result;
+      }
+
+      final baseline = await discover("const TextSpan(text: 'Inert')");
+      final inert = await discover("""TextSpan(children: [
+        const TextSpan(text: 'Static'),
+        TextSpan(recognizer: TapGestureRecognizer()),
+        TextSpan(recognizer: TapGestureRecognizer()..onTap = absent),
+        const TextSpan(children: [TextSpan(text: 'Nested')]),
+      ])""");
+      expect(baseline.nodes, hasLength(1));
+      expect(inert.events, isEmpty);
+      expect(inert.nodes.map((n) => n.structuralOccurrenceKey),
+          baseline.nodes.map((n) => n.structuralOccurrenceKey));
+      final active = await discover("""TextSpan(children: [
+        TextSpan(children: [TextSpan(text: 'Active',
+          recognizer: TapGestureRecognizer()
+            ..onTap = eventFor('tap')
+            ..onTapCancel = eventFor('cancel'))]),
+        TextSpan(recognizer: TapGestureRecognizer()..onTap = absent),
+      ])""");
+      expect(active.nodes, hasLength(2));
+      expect(active.events, hasLength(2));
+      expect(active.events.map((e) => e.node.structuralOccurrenceKey).toSet(),
+          hasLength(1));
+      expect(
+          active.events.map((e) => e.emissionOccurrence).toSet(), hasLength(2));
+      expect(active.nodes.map((n) => n.structuralOccurrenceKey),
+          contains(baseline.nodes.single.structuralOccurrenceKey));
+    });
+
+    test(
+        'nested span callbacks have distinct attributed occurrences and markers',
+        () async {
+      final fixture = await _resolveFixture("""
+import 'package:flutter/widgets.dart';
+import 'package:flutter/gestures.dart';
+import 'package:restage/restage.dart';
+VoidCallback eventFor(String name) => () {};
+@ScreenSource(id: 'welcome')
+class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+  @override
+  Widget build(BuildContext context) => Text.rich(TextSpan(children: [
+    TextSpan(text: 'First', recognizer: TapGestureRecognizer()..onTap = eventFor('go')),
+    TextSpan(text: 'Second', recognizer: TapGestureRecognizer()..onTap = eventFor('go')),
+  ]));
+}
+""");
+      final catalog = decodeCatalog(
+          File('../restage_core/lib/src/widget_catalog/catalog.json')
+              .readAsStringSync());
+      final discovery = _discover(fixture,
+          authority: MeasurementSourceAuthority.screen, catalog: catalog);
+      expect(
+          discovery.disposition, MeasurementSourceDiscoveryDisposition.accepted,
+          reason: discovery.rejectionReason);
+      expect(discovery.events, hasLength(2));
+      expect(
+          discovery.events
+              .map((event) => event.node.structuralOccurrenceKey)
+              .toSet(),
+          hasLength(2));
+      expect(discovery.events.map((event) => event.emissionOccurrence).toSet(),
+          hasLength(2));
+      final emission = MeasurementRouteEmissionPlan([
+        for (final (index, event) in discovery.events.indexed)
+          MeasurementRouteEmissionBinding(
+              occurrence: event.emissionOccurrence,
+              generatedReferenceId:
+                  GeneratedReferenceId('reference.span.$index')),
+      ]);
+      final translator = ExpressionTranslator(
+          catalog: catalog,
+          helpers: HelperRegistry()
+            ..registerAll([
+              HelperDefinition(
+                  name: 'eventFor',
+                  libraryOrigin: 'package:apps_examples',
+                  returnCategory: HelperReturnCategory.voidCallback,
+                  translate: (args) => 'event ${args.positional.single} {}')
+            ]),
+          measurementRouteEmissionPlan: emission);
+      final result = translator.translate(fixture.rootExpression);
+      expect(
+          result.issues.where((issue) => !issue.code.isInformational), isEmpty);
+      for (final event in discovery.events) {
+        expect(result.dsl,
+            contains(emission.markerFor(event.emissionOccurrence)!));
+      }
+      expect('event "go"'.allMatches(result.dsl), hasLength(2));
+    });
+
+    for (final runtime in [false, true]) {
+      test(
+          'span collection occurrences agree through ${runtime ? "runtime" : "static"} loops and guards',
+          () async {
+        final fixture = await _resolveFixture("""
+import 'package:flutter/widgets.dart';
+import 'package:flutter/gestures.dart';
+import 'package:restage/restage.dart';
+VoidCallback eventFor(String name) => () {};
+class Row {
+  const Row(this.title);
+  final String title;
+}
+@ScreenSource(id: 'welcome')
+class Welcome extends StatelessWidget {
+  const Welcome({required this.rows, required this.show, super.key});
+  final List<Row> rows;
+  final bool show;
+  @override
+  Widget build(BuildContext context) => Text.rich(TextSpan(children: [
+    if (show) const TextSpan(text: 'heading'),
+    for (final row in ${runtime ? "rows" : "const ['a', 'b']"}) ...[
+      TextSpan(text: ${runtime ? 'row.title' : 'row'}, recognizer: TapGestureRecognizer()..onTap = eventFor('go')),
+      if (show) TextSpan(children: [TextSpan(text: '|', recognizer: TapGestureRecognizer()..onTap = eventFor('other'))]),
+    ],
+    ...?(show ? const [TextSpan(text: 'tail')] : null),
+  ]));
+}
+""");
+        final catalog = decodeCatalog(
+            File('../restage_core/lib/src/widget_catalog/catalog.json')
+                .readAsStringSync());
+        final discovery = _discover(fixture,
+            authority: MeasurementSourceAuthority.screen, catalog: catalog);
+        expect(discovery.disposition,
+            MeasurementSourceDiscoveryDisposition.accepted,
+            reason: discovery.rejectionReason);
+        expect(discovery.events, hasLength(2));
+        for (final event in discovery.events) {
+          expect(
+              event.emissionOccurrence.tapItem,
+              runtime
+                  ? isA<MeasurementLoopItem>()
+                  : isA<MeasurementStaticItem>());
+        }
+        final emission = MeasurementRouteEmissionPlan([
+          for (final (index, event) in discovery.events.indexed)
+            MeasurementRouteEmissionBinding(
+                occurrence: event.emissionOccurrence,
+                generatedReferenceId:
+                    GeneratedReferenceId('reference.collection.$index')),
+        ]);
+        final result = ExpressionTranslator(
+                catalog: catalog,
+                helpers: HelperRegistry()
+                  ..registerAll([
+                    HelperDefinition(
+                        name: 'eventFor',
+                        libraryOrigin: 'package:apps_examples',
+                        returnCategory: HelperReturnCategory.voidCallback,
+                        translate: (args) =>
+                            'event ${args.positional.single} {}'),
+                  ]),
+                measurementRouteEmissionPlan: emission)
+            .translate(fixture.rootExpression, rootParams: [
+          for (final parameter in fixture
+              .sourceClass.unnamedConstructor!.formalParameters
+              .whereType<FieldFormalParameterElement>())
+            RootContextParam(
+                name: parameter.name!,
+                type: parameter.type,
+                typeCode: parameter.type.getDisplayString(),
+                kind: RootContextParamKind.named,
+                hostDataShape:
+                    deriveHostDataShape(parameter.type, root: parameter.name!)
+                        .shape,
+                field: parameter.field,
+                isRequired: true,
+                defaultValueCode: null,
+                hasNullDefault: false)
+        ]);
+        expect(result.issues.where((issue) => !issue.code.isInformational),
+            isEmpty);
+        for (final event in discovery.events) {
+          final marker = emission.markerFor(event.emissionOccurrence)!;
+          expect(marker.allMatches(result.dsl), hasLength(runtime ? 1 : 2));
+        }
+      });
+    }
+
     test(
         'discovers resolved ordinary Flutter slots in ScreenSource and '
         'PaywallSource roots', () async {

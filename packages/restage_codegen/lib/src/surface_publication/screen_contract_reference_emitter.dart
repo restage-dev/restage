@@ -11,6 +11,7 @@ import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
 import 'package:restage_codegen/src/hoisting.dart';
+import 'package:restage_codegen/src/installed_native_call.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
@@ -935,6 +936,18 @@ void _reportGeneratedSymbolCollisions(
 
   final namespace = OwningLibraryNamespace(screen.library);
   final sourceNames = _owningLibrarySourceNames(input, namespace);
+  for (final value in input.hoisted) {
+    final plan = value.nativeCall ?? value.nativeConstant;
+    if (plan != null &&
+        plan.emissionLibraryIdentity != screen.library.identifier) {
+      return (
+        mount: null,
+        message: omitted(
+            'a native expression was planned for a different emission library'),
+        reason: omittedReason
+      );
+    }
+  }
 
   final constructorResult = _resolveMountConstructorContract(
     input,
@@ -993,7 +1006,12 @@ void _reportGeneratedSymbolCollisions(
       input.hoisted.isNotEmpty &&
       namespace.prefixForOrigin(
             _restageSdkOrigin,
-            const {'restageHostValues'},
+            {
+              'restageHostValues',
+              if (input.hoisted.any(
+                  (v) => v.computed || v.kind == HoistValueKind.textScaler))
+                'restageNativeObjects',
+            },
           ) !=
           sdk) {
     return (
@@ -1003,6 +1021,35 @@ void _reportGeneratedSymbolCollisions(
         'Restage widget symbols',
       ),
       reason: omittedReason,
+    );
+  }
+  final needsNativeValues = input.hoisted.any((v) =>
+      v.kind == HoistValueKind.textScaler ||
+      v.kind == HoistValueKind.nativeBinding);
+  final nativeScopePrefix = needsNativeValues
+      ? namespace.prefixForOrigin('package:restage_core', {
+          'RestageNativeValues',
+          if (input.hoisted.any((v) => v.kind == HoistValueKind.nativeBinding))
+            'NativeBinding',
+          if (input.hoisted.any((v) => v.nativeCall != null))
+            'NativeCallAdapter',
+        })
+      : null;
+  final needsNativeBindings =
+      input.hoisted.any((v) => v.kind == HoistValueKind.nativeBinding);
+  final nativeContractPrefix = needsNativeBindings
+      ? namespace.prefixForOrigin('package:restage_shared', {
+          'NativeBindingContract',
+          if (input.hoisted.any((v) => v.nativeCall != null)) 'ValueNative',
+        })
+      : null;
+  if (needsNativeValues && nativeScopePrefix == null ||
+      needsNativeBindings && nativeContractPrefix == null) {
+    return (
+      mount: null,
+      message:
+          omitted('the owning library does not expose RestageNativeValues'),
+      reason: omittedReason
     );
   }
   if (sdk == null) {
@@ -1084,8 +1131,28 @@ void _reportGeneratedSymbolCollisions(
     mount: _ResolvedScreenMount(
       sdk: sdk,
       flutter: flutter,
+      reservedNativeNames: {
+        ...sourceNames,
+        ...reservedGeneratedSymbols,
+        'context',
+        for (final argument in input.buildArguments) argument.name ?? '',
+        for (final owner in [
+          screen,
+          ...screen.allSupertypes.map((type) => type.element)
+        ]) ...[
+          for (final field in owner.fields) field.name ?? '',
+          for (final method in owner.methods) method.name ?? '',
+          for (final getter in owner.getters) getter.name ?? '',
+        ],
+      },
       constructor: mountConstructor,
       hoisted: input.hoisted,
+      nativeContractType: nativeContractPrefix == null
+          ? null
+          : '${nativeContractPrefix}NativeBindingContract',
+      nativeScopeType: nativeScopePrefix == null
+          ? null
+          : '${nativeScopePrefix}RestageNativeValues',
       base: base,
       buildParameters: buildParameters,
     ),
@@ -1535,6 +1602,7 @@ void _emitScreenMount(
   final sdk = mount.sdk;
   final flutter = mount.flutter;
   final names = {
+    ...mount.reservedNativeNames,
     for (final parameter in parameters) ...[
       parameter.name,
       parameter.slotName,
@@ -1551,11 +1619,42 @@ void _emitScreenMount(
     return name;
   }
 
+  final nativeValues = allocate('restageNativeValues');
+  final computedNatives = allocate('restageNativeObjects');
+  final nativeHoisted = [
+    for (final value in mount.hoisted)
+      if (value.kind == HoistValueKind.textScaler) value
+  ];
+  final nativeBindings = [
+    for (final value in mount.hoisted)
+      if (value.kind == HoistValueKind.nativeBinding) value
+  ];
+  final hasNativeScope = nativeHoisted.isNotEmpty || nativeBindings.isNotEmpty;
   final placementArgument = allocate('restagePlacementId');
   final placementSlot = allocate('_restagePlacementName');
   final namedPlacement = optionalPositional.isEmpty &&
       !parameters.any((parameter) => parameter.name == 'placement');
   final provider = placementDefinitionProviderName(screenName);
+
+  final nativeFactories = <String, String>{};
+  for (final value in nativeBindings) {
+    final call = value.nativeCall;
+    final constant = value.nativeConstant;
+    if (call == null && constant == null) continue;
+    final name = allocate('_restage${mountName}${value.key}Native');
+    nativeFactories[value.key] = name;
+    final nativePrefix = mount.nativeScopeType!
+        .replaceFirst(RegExp(r'RestageNativeValues$'), '');
+    final sharedPrefix = mount.nativeContractType!
+        .replaceFirst(RegExp(r'NativeBindingContract$'), '');
+    final body =
+        call?.adapterSource(core: nativePrefix, shared: sharedPrefix) ??
+            constant!.source;
+    final type = call == null
+        ? constant!.resultDartType
+        : '${nativePrefix}NativeCallAdapter';
+    buffer.writeln('$type $name() => $body;');
+  }
 
   for (final binding in constructor.defaultBindings) {
     buffer
@@ -1712,11 +1811,80 @@ void _emitScreenMount(
       buffer.writeln('    final key = ${parameter.slotName};');
     }
   }
+  if (hasNativeScope) {
+    final slots = {
+      for (final parameter in constructor.values)
+        parameter.name: parameter.slotName
+    };
+    if (nativeHoisted.isNotEmpty) {
+      buffer.writeln('    final $nativeValues = ${sdk}restageNativeObjects({');
+      for (final value in nativeHoisted) {
+        buffer.writeln('${dartStringLiteral(value.key)}: '
+            '(${_debugLabel(value)}, () => '
+            '${value.mountSource((name) => slots[name]!)}),');
+      }
+      buffer.writeln('    });');
+    }
+    final computed = [
+      for (final value in nativeBindings)
+        if (value.computed) value
+    ];
+    if (computed.isNotEmpty) {
+      buffer
+          .writeln('    final $computedNatives = ${sdk}restageNativeObjects({');
+      for (final value in computed) {
+        final entry = '(${_debugLabel(value)}, () => '
+            '${value.mountSource((name) => slots[name]!, itemSource: 'restageItem')})';
+        buffer.writeln(value.item == null
+            ? '${dartStringLiteral(value.key)}: $entry,'
+            : 'for (final (restageIndex, restageItem) in '
+                '${slots[value.item]}.indexed) '
+                '${_itemNativeKey(value)}: $entry,');
+      }
+      buffer.writeln('    });');
+    }
+    buffer.writeln('    return ${mount.nativeScopeType}(');
+    if (nativeHoisted.isNotEmpty) {
+      buffer.writeln('      textScalers: $nativeValues,');
+    }
+    if (nativeBindings.isNotEmpty) {
+      final nativePrefix = mount.nativeScopeType!
+          .replaceFirst(RegExp(r'RestageNativeValues$'), '');
+      buffer.writeln('      bindings: {');
+      for (final value in nativeBindings) {
+        final contract = value.nativeContract!;
+        final sharedPrefix = mount.nativeContractType!
+            .replaceFirst(RegExp(r'NativeBindingContract$'), '');
+        final factory = nativeFactories[value.key];
+        final installed = factory == null ? null : '$factory()';
+        final key = value.item == null
+            ? dartStringLiteral(value.key)
+            : _itemNativeKey(value);
+        buffer.writeln(
+            '${value.item == null ? '' : 'for (final (restageIndex, _) in ${slots[value.item]}.indexed) '}'
+            '${value.computed ? 'if ($computedNatives.containsKey($key)) ' : ''}'
+            '$key: ${nativePrefix}NativeBinding('
+            'contract: ${nativeContractSource(contract, sharedPrefix)}, '
+            'value: ${value.computed ? '$computedNatives[$key]' : installed ?? value.mountSource((name) => slots[name]!)}),');
+      }
+      buffer.writeln('      },');
+    }
+    // Names each native value in debug builds' missing-value messages.
+    buffer
+        .writeln("      labels: const bool.fromEnvironment('dart.vm.product') "
+            '? const <String, String>{} : const <String, String>{');
+    for (final value in [...nativeHoisted, ...nativeBindings]) {
+      buffer.writeln('        ${dartStringLiteral(value.key)}: '
+          '${dartStringLiteral(value.label)},');
+    }
+    buffer.writeln('      },');
+    buffer.write('      child: ');
+  } else {
+    buffer.write('    return ');
+  }
   buffer
     ..writeln(
-      paywall
-          ? '    return ${sdk}RestagePaywall('
-          : '    return ${sdk}RestageScreen<$eventType>(',
+      paywall ? '${sdk}RestagePaywall(' : '${sdk}RestageScreen<$eventType>(',
     )
     ..writeln(
       paywall
@@ -1757,6 +1925,12 @@ void _emitScreenMount(
       final source = parameter.slotName;
       final itemValues = [
         for (final value in hoisted)
+          if (value.item == parameter.name &&
+              value.kind != HoistValueKind.nativeBinding)
+            value,
+      ];
+      final itemNatives = [
+        for (final value in nativeBindings)
           if (value.item == parameter.name) value,
       ];
       buffer.writeln(
@@ -1765,18 +1939,40 @@ void _emitScreenMount(
           parameter.root.hostDataShape!,
           source,
           0,
-          itemValues.isEmpty
+          itemValues.isEmpty && itemNatives.isEmpty
               ? null
-              : (item) => hostValues(itemValues, item: item),
+              : _ItemEntries(
+                  (item, index) => [
+                    if (itemValues.isNotEmpty)
+                      hostValues(itemValues, item: item),
+                    for (final value in itemNatives)
+                      '${dartStringLiteral(value.key)}: '
+                          '${_nativeReference(value, _itemNativeKey(value, index))}',
+                  ].join(', '),
+                  indexed: itemNatives.isNotEmpty,
+                ),
         )},',
       );
     }
     final topLevel = [
       for (final value in hoisted)
-        if (value.item == null) value,
+        if (value.item == null &&
+            value.kind != HoistValueKind.textScaler &&
+            value.kind != HoistValueKind.nativeBinding)
+          value,
     ];
     if (topLevel.isNotEmpty) {
       buffer.writeln('        ${hostValues(topLevel)},');
+    }
+    for (final value in nativeHoisted) {
+      buffer
+          .writeln('        ${dartStringLiteral(value.key)}: <String, Object?>{'
+              '"kind": "native", "key": ${dartStringLiteral(value.key)}},');
+    }
+    for (final value in nativeBindings) {
+      if (value.item != null) continue;
+      buffer.writeln('        ${dartStringLiteral(value.key)}: '
+          '${_nativeReference(value, dartStringLiteral(value.key))},');
     }
     buffer.writeln('      },');
   }
@@ -1804,13 +2000,38 @@ void _emitScreenMount(
     ..writeln('      resolver: resolver,')
     ..writeln('      $unavailableControl: $unavailableControl,')
     ..writeln('      loadingBuilder: loadingBuilder,')
-    ..writeln('    );')
+    ..writeln(!hasNativeScope ? '    );' : '      ),\n    );')
     ..writeln('  }')
     ..writeln('}');
 }
 
+/// [value]'s source expression, folded away in release builds.
+String _debugLabel(HoistedValue value) =>
+    "const bool.fromEnvironment('dart.vm.product') ? '' : "
+    '${dartStringLiteral(value.label)}';
+
 /// Extra entries the mount adds to one list item, given that item's source.
-typedef _ItemEntries = String Function(String item);
+final class _ItemEntries {
+  const _ItemEntries(this.entries, {this.indexed = false});
+
+  /// The entries for one item, given its source and its list position.
+  final String Function(String item, String index) entries;
+
+  /// Whether the entries read the item's position.
+  final bool indexed;
+}
+
+/// The binding key of [value] for the list item at [index].
+String _itemNativeKey(HoistedValue value, [String index = 'restageIndex']) =>
+    "'${value.key}#\$$index'";
+
+/// The inert reference a surface reads for a native binding.
+String _nativeReference(HoistedValue value, String key) {
+  final contract = value.nativeContract!;
+  return '<String, Object?>{"kind": "nativeBinding", "key": $key, '
+      '"type": ${dartStringLiteral(contract.type)}, '
+      '"nullable": ${contract.nullable}}';
+}
 
 String _mountHostDataValue(
   HostDataShape shape,
@@ -1838,16 +2059,27 @@ String _mountNonNullHostDataValue(
   final value = 'restageValue$depth';
   final entry = 'restageEntry$depth';
   return switch (shape) {
+    HostDataDateTimeShape() =>
+      "<String, Object?>{'microsecondsSinceEpoch': $source.microsecondsSinceEpoch, "
+          "'isUtc': $source.isUtc}",
     HostDataObjectShape() =>
       _mountObjectValue(shape, source, depth, itemEntries),
-    HostDataListShape(:final elementShape) =>
-      '<Object?>[for (final $value in $source) '
-          '${_mountHostDataValue(
-        elementShape,
-        value,
-        depth + 1,
-        itemEntries,
-      )}]',
+    HostDataListShape(:final elementShape) => itemEntries?.indexed ?? false
+        ? '<Object?>[for (final (restageIndex$depth, $value) in $source.indexed) '
+            '${_mountHostDataValue(
+            elementShape,
+            value,
+            depth + 1,
+            _ItemEntries(
+                (item, _) => itemEntries!.entries(item, 'restageIndex$depth')),
+          )}]'
+        : '<Object?>[for (final $value in $source) '
+            '${_mountHostDataValue(
+            elementShape,
+            value,
+            depth + 1,
+            itemEntries,
+          )}]',
     HostDataMapShape(:final valueShape) =>
       '<String, Object?>{for (final $entry in $source.entries) '
           '$entry.key: '
@@ -1870,7 +2102,7 @@ String _mountObjectValue(
 
   final fields = [
     for (final field in shape.fields) fieldValue(field),
-    if (itemEntries != null) itemEntries(source),
+    if (itemEntries != null) itemEntries.entries(source, ''),
   ];
   return '<String, Object?>{${fields.join(', ')}}';
 }
@@ -2186,15 +2418,21 @@ final class _ResolvedScreenMount {
   const _ResolvedScreenMount({
     required this.sdk,
     required this.flutter,
+    required this.reservedNativeNames,
     required this.constructor,
     required this.hoisted,
+    required this.nativeScopeType,
+    required this.nativeContractType,
     required this.base,
     required this.buildParameters,
   });
 
   final String sdk;
   final String flutter;
+  final Set<String> reservedNativeNames;
   final List<HoistedValue> hoisted;
+  final String? nativeScopeType;
+  final String? nativeContractType;
 
   /// The screen's base class, when the mount must extend it.
   final String? base;

@@ -123,9 +123,44 @@ Column(
 A `for` over a value that is only known when the app runs, such as a constructor
 parameter, is [host data](/authoring/host-data) and stays a loop in the surface. Not
 supported: a C-style `for`, a null-aware spread (`...?`), sets and maps, `.map()`
-chains, `TextSpan.children`, and a condition on a build-mode constant such as
+chains, and a condition on a build-mode constant such as
 `kDebugMode`. One list can expand to at most 1,000 children. Callbacks inside a static `for`
 are compiled for each iteration, including event arguments from the loop variable.
+`TextSpan.children` requires a static list: spread, collection `if`, and collection
+`for` elements are not supported there.
+
+## Builder callbacks
+
+`LayoutBuilder`, `OrientationBuilder`, native GridView item/delegate callbacks, and
+supported SVG placeholders accept pure typed callbacks. Use expression bodies or
+blocks with immutable locals and conditional returns. Captured data, typed member
+and index reads, arithmetic, string interpolation, and supported helpers keep their
+Dart evaluation order. Boolean operators, conditional expressions, and null
+coalescing evaluate only the selected branch.
+
+Constraints, orientation, and supported inherited reads come from the native
+callback's local context. Guard unbounded constraints before using them as finite
+layout values. A nullable item builder can return null without evaluating later
+index reads. Scalar `ValueKey` values belong on returned widget roots; opaque
+object keys and unsupported descendant keys are diagnosed.
+
+Supported callback-local `Theme` and `DefaultTextStyle` paint values retain native
+color components/color space, font weights from 1 through 1000, and combined text
+decorations in native Flutter paint properties. Inside builders, custom catalog
+arguments require proven base `Color` and `FontWeight` values, including inside
+`TextStyle`, gradients, and shadows. Examples include `Colors.black`, `Color(...)`,
+`FontWeight.bold`, and `FontWeight(550)`. Deferred colors/font weights and subtypes
+such as `Colors.red` (`MaterialColor`) are diagnosed, even through a `Color`-typed
+alias. Ordinary Flutter paint properties keep their existing color admission.
+The optional SVG theme/filter slots also require proven base colors outside
+callbacks; see [Optional SVG](/authoring/widget-catalog#optional-svg).
+Arbitrary host Color captures and equality comparisons between Color objects are
+outside the callback subset; null checks are allowed.
+
+Mutation, async/generators, recursive helpers, custom operators/getters, and arbitrary
+application calls cannot be delivered through these callbacks. A source diagnostic
+names the unsupported expression. Explicit controller objects and imperative
+delegates belong in installed application code.
 
 ## Events on callbacks
 
@@ -140,6 +175,12 @@ When the widget passes a value, such as a Switch's `bool` or a TextField's text,
 value is the event's value. Don't wrap the call in a closure: `() => surfaceEvent(next)`
 returns the callback without calling it, so the event never fires when your own widget
 shows as the fallback. The build compiles it with a warning.
+
+A possibly missing nullable value read inside a builder needs a matching non-null
+guard or a fallback covering every null/missing case before it can enter an event
+payload, even if the event type permits null. Otherwise the build diagnoses that
+payload. Native callbacks that already deliver nullable event values keep their
+existing behavior.
 
 ## Build text from parts
 
@@ -156,9 +197,9 @@ return Column(children: [
 ]);
 ```
 
-In a value object such as a `TextStyle`, or in a custom widget the surface inlines, pass
-the finished string in as one value. Format numbers and other non-`String` values in the
-app and pass the text.
+Supported typed values and native `intl` formatting can also produce text inside
+value objects, nested spans, and pure builder callbacks. See
+[Dates and localized text](/authoring/host-data#dates-and-localized-text).
 
 ## Keep an interpolated string in one literal
 
@@ -172,8 +213,10 @@ Text('Hello, $name')
 
 ## Full width without double.infinity
 
-A surface can't carry `double.infinity` or any other non-finite number, so
-`SizedBox(width: double.infinity)` stops the build with an error. Use layout instead.
+A literal property in a surface can't carry `double.infinity` or another non-finite
+number. Native builder constraints may be unbounded; guard them before using a finite
+layout property. A literal `SizedBox(width: double.infinity)` stops the build with an
+error. Use layout instead.
 
 For one full-width child in a centered column, wrap it in a `Row` with `Expanded`:
 
@@ -195,8 +238,11 @@ Column(
 Custom painting, such as a `CustomPainter`, goes in a custom widget that compiles into
 your app. A surface sets it up through its constructor properties. You can often build
 the same design from catalog widgets such as containers, gradients, and borders.
-Gestures and animation work the same way; see
-[Interactive surfaces](/authoring/interactive-surfaces).
+Native `ClipPath.shape` and direct `ShapeBorderClipper` construction accept supported
+shape data; arbitrary `CustomClipper` methods stay in installed code. Recognized
+native TextSpan recognizers use installed lifetime ownership; see
+[Interactive surfaces](/authoring/interactive-surfaces#interactive-text-spans).
+Lottie and Rive are outside the supported delivered authoring set.
 
 These rules keep every surface something the app can render from data. When a surface
 needs a component of your own, [custom widgets](/authoring/custom-widgets) are the way

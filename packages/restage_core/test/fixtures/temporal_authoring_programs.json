@@ -1,0 +1,1906 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "source": "'${DateTime.utc(2024, 2, 29, 17, 23, 41, 123, 456).microsecond}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 29
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 17
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 23
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 41
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 123
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 456
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "temporal.datetime.get",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              9
+            ],
+            "value": "microsecond"
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              10
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              11,
+              12
+            ]
+          }
+        ],
+        "root": 13,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024).toLocal().toUtc().isUtc}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "intl.datetime.zone",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              2
+            ],
+            "value": {
+              "utc": false
+            }
+          },
+          {
+            "op": "intl.datetime.zone",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "utc": true
+            }
+          },
+          {
+            "op": "temporal.datetime.get",
+            "type": {
+              "kind": "bool"
+            },
+            "inputs": [
+              4
+            ],
+            "value": "isUtc"
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              6,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024).difference(DateTime.utc(2024, 1, 1, 0, 0, 0, 0, 1)).inMicroseconds}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "temporal.datetime.difference",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microseconds": {
+                  "kind": "int"
+                }
+              }
+            },
+            "inputs": [
+              2,
+              11
+            ]
+          },
+          {
+            "op": "temporal.duration.get",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              12
+            ],
+            "value": "inMicroseconds"
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              13
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              14,
+              15
+            ]
+          }
+        ],
+        "root": 16,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${Duration(microseconds: -1001).inMilliseconds}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1001
+          },
+          {
+            "op": "negate",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              1
+            ]
+          },
+          {
+            "op": "temporal.duration.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microseconds": {
+                  "kind": "int"
+                }
+              }
+            },
+            "inputs": [
+              2
+            ],
+            "value": [
+              "microseconds"
+            ]
+          },
+          {
+            "op": "temporal.duration.get",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              3
+            ],
+            "value": "inMilliseconds"
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              4
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              5,
+              6
+            ]
+          }
+        ],
+        "root": 7,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024).add(Duration(microseconds: 1001)).microsecond}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1001
+          },
+          {
+            "op": "temporal.duration.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microseconds": {
+                  "kind": "int"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": [
+              "microseconds"
+            ]
+          },
+          {
+            "op": "temporal.datetime.add",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              2,
+              4
+            ]
+          },
+          {
+            "op": "temporal.datetime.get",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              5
+            ],
+            "value": "microsecond"
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              6
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              7,
+              8
+            ]
+          }
+        ],
+        "root": 9,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024).subtract(Duration(microseconds: 1)).year}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "temporal.duration.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microseconds": {
+                  "kind": "int"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": [
+              "microseconds"
+            ]
+          },
+          {
+            "op": "temporal.datetime.subtract",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              2,
+              4
+            ]
+          },
+          {
+            "op": "temporal.datetime.get",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              5
+            ],
+            "value": "year"
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              6
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              7,
+              8
+            ]
+          }
+        ],
+        "root": 9,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024).compareTo(DateTime.utc(2025))}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2025
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "temporal.datetime.compareTo",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              2,
+              4
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              6,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024).isBefore(DateTime.utc(2025))}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2025
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "temporal.datetime.isBefore",
+            "type": {
+              "kind": "bool"
+            },
+            "inputs": [
+              2,
+              4
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              6,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024).isAfter(DateTime.utc(2025))}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2025
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "temporal.datetime.isAfter",
+            "type": {
+              "kind": "bool"
+            },
+            "inputs": [
+              2,
+              4
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              6,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024).isAtSameMomentAs(DateTime.utc(2024).toLocal())}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "intl.datetime.zone",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              4
+            ],
+            "value": {
+              "utc": false
+            }
+          },
+          {
+            "op": "temporal.datetime.isAtSameMomentAs",
+            "type": {
+              "kind": "bool"
+            },
+            "inputs": [
+              2,
+              5
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              6
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              7,
+              8
+            ]
+          }
+        ],
+        "root": 9,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024) == DateTime.utc(2024)}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "temporal.datetime.equals",
+            "type": {
+              "kind": "bool"
+            },
+            "inputs": [
+              2,
+              4
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              6,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024) != DateTime.utc(2024).toLocal()}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "intl.datetime.zone",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              4
+            ],
+            "value": {
+              "utc": false
+            }
+          },
+          {
+            "op": "temporal.datetime.equals",
+            "type": {
+              "kind": "bool"
+            },
+            "inputs": [
+              2,
+              5
+            ]
+          },
+          {
+            "op": "!",
+            "type": {
+              "kind": "bool"
+            },
+            "inputs": [
+              6
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              7
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              8,
+              9
+            ]
+          }
+        ],
+        "root": 10,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2024).timeZoneOffset.inSeconds}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "temporal.datetime.get",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microseconds": {
+                  "kind": "int"
+                }
+              }
+            },
+            "inputs": [
+              2
+            ],
+            "value": "timeZoneOffset"
+          },
+          {
+            "op": "temporal.duration.get",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              3
+            ],
+            "value": "inSeconds"
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              4
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              5,
+              6
+            ]
+          }
+        ],
+        "root": 7,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime(2024, 2, 29).timeZoneName}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 29
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1,
+              2,
+              3
+            ],
+            "value": {
+              "constructor": "",
+              "arguments": []
+            }
+          },
+          {
+            "op": "temporal.datetime.get",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              4
+            ],
+            "value": "timeZoneName"
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              6,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.DateFormat.Hms('en_US').format(DateTime.now())",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "Hms"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "en_US"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "clock.now",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            }
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              3
+            ]
+          }
+        ],
+        "root": 4,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "'${DateTime.utc(2030).difference(DateTime.now()).inSeconds}'",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2030
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              1
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "clock.now",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            }
+          },
+          {
+            "op": "temporal.datetime.difference",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microseconds": {
+                  "kind": "int"
+                }
+              }
+            },
+            "inputs": [
+              2,
+              3
+            ]
+          },
+          {
+            "op": "temporal.duration.get",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              4
+            ],
+            "value": "inSeconds"
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              6,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    }
+  ],
+  "builder": "LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"clock.now\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"microsecondsSinceEpoch\\\":{\\\"kind\\\":\\\"int\\\"},\\\"isUtc\\\":{\\\"kind\\\":\\\"bool\\\"}}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"microsecondsSinceEpoch\\\":{\\\"kind\\\":\\\"int\\\"},\\\"isUtc\\\":{\\\"kind\\\":\\\"bool\\\"}}},\\\"inputs\\\":[1],\\\"name\\\":\\\"local2\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"value\\\":\\\"\\\"},{\\\"op\\\":\\\"local.read\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"microsecondsSinceEpoch\\\":{\\\"kind\\\":\\\"int\\\"},\\\"isUtc\\\":{\\\"kind\\\":\\\"bool\\\"}}},\\\"name\\\":\\\"local2\\\"},{\\\"op\\\":\\\"temporal.datetime.get\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"inputs\\\":[4],\\\"value\\\":\\\"microsecondsSinceEpoch\\\"},{\\\"op\\\":\\\"string\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"inputs\\\":[5]},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"value\\\":\\\"|\\\"},{\\\"op\\\":\\\"local.read\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"microsecondsSinceEpoch\\\":{\\\"kind\\\":\\\"int\\\"},\\\"isUtc\\\":{\\\"kind\\\":\\\"bool\\\"}}},\\\"name\\\":\\\"local2\\\"},{\\\"op\\\":\\\"temporal.datetime.get\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"inputs\\\":[8],\\\"value\\\":\\\"microsecondsSinceEpoch\\\"},{\\\"op\\\":\\\"string\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"inputs\\\":[9]},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"value\\\":\\\"\\\"},{\\\"op\\\":\\\"concat\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"inputs\\\":[3,6,7,10,11]}],\\\"root\\\":0,\\\"captures\\\":{},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"local2\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"microsecondsSinceEpoch\\\":{\\\"kind\\\":\\\"int\\\"},\\\"isUtc\\\":{\\\"kind\\\":\\\"bool\\\"}}}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":12,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":12}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {}, bodies: [(builder0) => Text(text: builder0.values.v0)]))",
+  "grid": "GridViewBuilder(itemCount: 3, gridDelegate: {_s: \"SliverGridDelegateWithFixedCrossAxisCount\", crossAxisCount: 1}, itemBuilder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"clock.now\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"microsecondsSinceEpoch\\\":{\\\"kind\\\":\\\"int\\\"},\\\"isUtc\\\":{\\\"kind\\\":\\\"bool\\\"}}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"microsecondsSinceEpoch\\\":{\\\"kind\\\":\\\"int\\\"},\\\"isUtc\\\":{\\\"kind\\\":\\\"bool\\\"}}},\\\"inputs\\\":[1],\\\"name\\\":\\\"local2\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"value\\\":\\\"\\\"},{\\\"op\\\":\\\"string\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"inputs\\\":[0]},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"value\\\":\\\":\\\"},{\\\"op\\\":\\\"local.read\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"microsecondsSinceEpoch\\\":{\\\"kind\\\":\\\"int\\\"},\\\"isUtc\\\":{\\\"kind\\\":\\\"bool\\\"}}},\\\"name\\\":\\\"local2\\\"},{\\\"op\\\":\\\"temporal.datetime.get\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"inputs\\\":[6],\\\"value\\\":\\\"microsecondsSinceEpoch\\\"},{\\\"op\\\":\\\"string\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"inputs\\\":[7]},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"value\\\":\\\"|\\\"},{\\\"op\\\":\\\"local.read\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"microsecondsSinceEpoch\\\":{\\\"kind\\\":\\\"int\\\"},\\\"isUtc\\\":{\\\"kind\\\":\\\"bool\\\"}}},\\\"name\\\":\\\"local2\\\"},{\\\"op\\\":\\\"temporal.datetime.get\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"inputs\\\":[10],\\\"value\\\":\\\"microsecondsSinceEpoch\\\"},{\\\"op\\\":\\\"string\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"inputs\\\":[11]},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"value\\\":\\\"\\\"},{\\\"op\\\":\\\"concat\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"inputs\\\":[3,4,5,8,9,12,13]}],\\\"root\\\":0,\\\"captures\\\":{},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"int\\\"}},\\\"locals\\\":{\\\"local2\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"microsecondsSinceEpoch\\\":{\\\"kind\\\":\\\"int\\\"},\\\"isUtc\\\":{\\\"kind\\\":\\\"bool\\\"}}}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":14,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":14}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":true}\", captures: {}, bodies: [(builder0) => Text(text: builder0.values.v0)]))"
+}

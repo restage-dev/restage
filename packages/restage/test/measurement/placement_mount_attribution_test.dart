@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../support/placement_delivery_fixture.dart';
 import 'admitted_bundled_publication_fixture.dart';
 import 'measurement_host_construction_test_support.dart';
+import '../support/pump_until.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -236,9 +237,11 @@ void main() {
     expect(session.debugState, MeasurementHostSessionDebugState.pending);
     expect(harness.worker.registrations, isEmpty);
     delayed.release.complete();
-    for (var i = 0; i < 50 && harness.worker.registrations.isEmpty; i++) {
-      await Future<void>.delayed(Duration.zero);
-    }
+    await waitUntil(
+      () => harness.worker.registrations.isNotEmpty,
+      realDelay: Duration.zero,
+      reason: 'a worker registration',
+    );
     expect(session.debugState, MeasurementHostSessionDebugState.active);
     final registration = harness.worker.registrations.single;
     expect(registration.captureSessionNonce, snapshot.mountInstanceNonce);

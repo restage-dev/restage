@@ -38,6 +38,8 @@ Expression? constValueLiteral(DartObject value, {required Expression anchor}) {
   for (var i = 0; i < constructions.length; i++) {
     final constructor = writer.constructors[i];
     if (constructor != null) _constructors[constructions[i]] = constructor;
+    if (writer.nativeValues[i] case final value?)
+      _nativeValues[constructions[i]] = value;
   }
   _anchors[unit] = anchor;
   return literal;
@@ -47,6 +49,12 @@ Expression? constValueLiteral(DartObject value, {required Expression anchor}) {
 /// inside a [constValueLiteral], the one the constant was built with.
 ConstructorElement? constructionConstructor(InstanceCreationExpression node) =>
     node.constructorName.element ?? _constructors[node];
+
+/// The original native constant before its constructor was written as data.
+/// In particular, ordinary Color aliases may use an ARGB spelling while typed
+/// native destinations still need to distinguish Color from its subclasses.
+DartObject? constantConstructionValue(InstanceCreationExpression node) =>
+    _nativeValues[node];
 
 /// The element [identifier] names: its resolved one, or for a static member
 /// written inside a [constValueLiteral], the member the constant equals.
@@ -62,6 +70,8 @@ Expression? constValueAnchor(AstNode node) {
 
 final Expando<ConstructorElement> _constructors =
     Expando<ConstructorElement>('constant constructors');
+final Expando<DartObject> _nativeValues =
+    Expando<DartObject>('constant native values');
 final Expando<Expression> _anchors = Expando<Expression>('constant anchors');
 final Expando<Element> _elements = Expando<Element>('constant members');
 
@@ -93,6 +103,7 @@ final class _LiteralWriter {
   final String anchor;
 
   final List<ConstructorElement?> constructors = [];
+  final Map<int, DartObject> nativeValues = {};
   final List<({Element owner, Element member})> references = [];
 
   String? write(DartObject value) {
@@ -204,18 +215,43 @@ final class _LiteralWriter {
     return '{${written.join(', ')}}';
   }
 
-  /// A `Color` or a subclass of it, written as its ARGB value.
+  /// Retains exact base Color components and records original native identity.
+  /// Ordinary subtype paint aliases keep their established ARGB spelling;
+  /// typed destinations inspect the provenance before accepting that spelling.
   String? _color(DartObject value, InterfaceType type) {
-    final isColor = [type, ...type.allSupertypes].any(
-      (candidate) =>
-          candidate.element.name == 'Color' &&
-          isFrameworkValueTypeLibrary(candidate.element),
-    );
-    if (!isColor) return null;
+    final base = type.element.name == 'Color' &&
+        type.element.library.identifier == 'dart:ui';
+    if (!base &&
+        !type.allSupertypes.any((type) =>
+            type.element.name == 'Color' &&
+            type.element.library.identifier == 'dart:ui')) return null;
     final argb = _argb(value);
-    if (argb == null) return null;
-    constructors.add(null);
-    return 'const Color(0x${argb.toRadixString(16).padLeft(8, '0')})';
+    final components = [
+      for (final name in ['a', 'r', 'g', 'b'])
+        _field(value, name)?.toDoubleValue()
+    ];
+    if (argb != null &&
+        (!base ||
+            components.every((value) => value == null) ||
+            [
+              for (var i = 0; i < 4; i++)
+                components[i] == ((argb >> (24 - i * 8)) & 0xff) / 255
+            ].every((exact) => exact))) {
+      nativeValues[constructors.length] = value;
+      constructors.add(base ? type.element.unnamedConstructor : null);
+      return 'const Color(0x${argb.toRadixString(16).padLeft(8, '0')})';
+    }
+    final space = _field(value, 'colorSpace');
+    final constructor = type.element.getNamedConstructor('from');
+    if (space == null ||
+        constructor == null ||
+        components.any((value) => value == null || !value.isFinite))
+      return null;
+    final colorSpace = write(space);
+    if (colorSpace == null) return null;
+    nativeValues[constructors.length] = value;
+    constructors.add(constructor);
+    return 'const Color.from(alpha: ${components[0]}, red: ${components[1]}, green: ${components[2]}, blue: ${components[3]}, colorSpace: $colorSpace)';
   }
 
   int? _argb(DartObject value) {
@@ -274,6 +310,7 @@ final class _LiteralWriter {
     constructors.add(constructor);
     String? fail() {
       constructors.length = mark.$1;
+      nativeValues.removeWhere((index, _) => index >= mark.$1);
       references.length = mark.$2;
       return null;
     }

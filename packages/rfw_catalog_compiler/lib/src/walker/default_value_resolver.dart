@@ -157,6 +157,23 @@ ThemeBindingDefault? resolveThemeBindingDefault({
 /// behaviour. The enum branch is shared by the top-level and list-recursion
 /// paths so `const [E.a]` decodes to `['a']`, matching the reflector.
 Object? literalFromDartObject(DartObject value) {
+  final type = value.type?.element;
+  if (type is ClassElement &&
+      type.library.identifier ==
+          'package:flutter/src/painting/edge_insets.dart' &&
+      const {'EdgeInsets', 'EdgeInsetsDirectional'}.contains(type.name)) {
+    final keys = type.name == 'EdgeInsetsDirectional'
+        ? ['start', 'top', 'end', 'bottom']
+        : ['left', 'top', 'right', 'bottom'];
+    final result = <String, Object?>{};
+    for (final key in keys) {
+      final field = value.getField(key);
+      final number = field?.toDoubleValue() ?? field?.toIntValue()?.toDouble();
+      if (number == null || !number.isFinite) return null;
+      result[key] = number;
+    }
+    return result;
+  }
   final stringValue = value.toStringValue();
   if (stringValue != null) return stringValue;
   final boolValue = value.toBoolValue();

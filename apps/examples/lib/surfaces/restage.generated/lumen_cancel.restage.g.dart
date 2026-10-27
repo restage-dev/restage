@@ -29,7 +29,7 @@ final _lumenCancelNoteScreenProvenance =
   slug: 'lumen_cancel_note',
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 12,
+    builtInFloor: 17,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -43,9 +43,9 @@ final _lumenCancelNoteScreenProvenance =
         logicalPath:
             'assets/survey/screens/measurement/69385e84f6569c7c/lumen_cancel_note.rfw',
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 15247,
+        byteLength: 15347,
         sha256:
-            'sha256:b49ff57988cf807086a8d5887cb5f3d8866a97c93b82409d670c273f5f54f469',
+            'sha256:820709309801b61f1f714563789e1f485f85be75038a470418e2ab55802171b3',
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -53,7 +53,7 @@ final _lumenCancelNoteScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 142,
         sha256:
-            'sha256:83997fc9d4347bf01714e9d598e459dff28ff885f04aff568b9bed4e56f67b6b',
+            'sha256:2a04988b44261ecd51a57a908c9a8717253e31e62045cb26bfbc862e64cea54b',
       ),
     ],
   ),
@@ -85,7 +85,7 @@ final lumenCancelNoteScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelNoteScreenProvenance,
   eventContract: _lumenCancelNoteScreenEvents,
   measurementPublicationDraftDigest:
-      'ea6287247ec7bb163d2051e03e5caa5a73cc109c24bcec5e8a6a261714178d77',
+      'e621d2f54acb88952f37d5d975bf366b086e8b94fcd40ece1b5f3f8e4685ca63',
 );
 
 LumenCancelNoteScreenEvent _decodeValidatedLumenCancelNoteScreenEvent(
@@ -231,7 +231,7 @@ final _lumenCancelReasonScreenProvenance =
   slug: 'lumen_cancel_reason',
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 12,
+    builtInFloor: 17,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -245,9 +245,9 @@ final _lumenCancelReasonScreenProvenance =
         logicalPath:
             'assets/survey/screens/measurement/7986973e7d641fcd/lumen_cancel_reason.rfw',
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 31032,
+        byteLength: 31332,
         sha256:
-            'sha256:ba11a30fab16aecb6dc019267954d683f6afc2f4f9030bb6eef14afa47b7f84f',
+            'sha256:add242e3b9ac77811784093e9acb7c796501da3b5e18559080d232bcdcece13e',
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -255,7 +255,7 @@ final _lumenCancelReasonScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 142,
         sha256:
-            'sha256:5e7558e0ac35716dbe9f3f2c70e8556434bec264ff63fbd65a09a2b3c2f49481',
+            'sha256:a0fede5d0a4d260fbd94923a7a29b2a8acb091324e19b7f0e38173d3bd452e11',
       ),
     ],
   ),
@@ -298,7 +298,7 @@ final lumenCancelReasonScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelReasonScreenProvenance,
   eventContract: _lumenCancelReasonScreenEvents,
   measurementPublicationDraftDigest:
-      'af74a371c6a8966579d503fcb5672ced78c161a6e5b087450acec3ca46b714e4',
+      '046216f4320c29d2ca2c25345011904aee226b7579687d14e1ff5ce179e8161e',
 );
 
 LumenCancelReasonScreenEvent _decodeValidatedLumenCancelReasonScreenEvent(
@@ -437,7 +437,7 @@ final _lumenCancelThanksScreenProvenance =
   slug: 'lumen_cancel_thanks',
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 12,
+    builtInFloor: 17,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -451,9 +451,9 @@ final _lumenCancelThanksScreenProvenance =
         logicalPath:
             'assets/survey/screens/measurement/79821ca45fbefc0b/lumen_cancel_thanks.rfw',
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 14841,
+        byteLength: 14941,
         sha256:
-            'sha256:4576781a03576123949c809ff3793162ccccacef0cd268a0c6b7660be15be0d6',
+            'sha256:95193db36d106a8896a9063d3b2b55b4c45f7e00fcb566e68f7ae288d525dd15',
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -461,7 +461,7 @@ final _lumenCancelThanksScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 142,
         sha256:
-            'sha256:bdc8166edad5fd14082f1c84800a3f4976e666b7473317b3745d2eb7b08a2d34',
+            'sha256:741362304db11f888369126e7f76f66110dfe73fad4bba5666447d6acbdac5a4',
       ),
     ],
   ),
@@ -498,7 +498,7 @@ final lumenCancelThanksScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelThanksScreenProvenance,
   eventContract: _lumenCancelThanksScreenEvents,
   measurementPublicationDraftDigest:
-      'bffb318f4a7e2cdd5ca045354061412e0d8a02b8b826d787a4bce21a59f5be9d',
+      '61a0b43a79a63f3513dba0e5afabb3bab4315688110977b480a4845e5ff3f644',
 );
 
 LumenCancelThanksScreenEvent _decodeValidatedLumenCancelThanksScreenEvent(

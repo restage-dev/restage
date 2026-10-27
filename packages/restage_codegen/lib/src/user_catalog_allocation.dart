@@ -839,6 +839,7 @@ PropertyEntry _copyProperty(
     enumType: property.enumType,
     widgetType: property.widgetType,
     callbackSignature: property.callbackSignature,
+    builderContract: property.builderContract,
     defaultSource: property.defaultSource,
     constructorNullable: property.constructorNullable,
     constructorDefault: property.constructorDefault,

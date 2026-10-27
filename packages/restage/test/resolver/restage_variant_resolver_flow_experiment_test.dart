@@ -23,6 +23,7 @@ import 'package:rfw/formats.dart' hide WidgetLibrary;
 import '../support/hosted_artifact_delivery.dart';
 import '../support/canonical_assignment_fixture.dart';
 import '../support/supported_policy_revisions_body.dart';
+import '../support/pump_until.dart';
 
 /// The stub delivery for this file: it describes surfaces AND answers for
 /// their content, so no test here can stub half a wire.
@@ -74,7 +75,8 @@ void main() {
             ..writeScreen('paywall_pro_upgrade.rfw', bundledScreen)),
     );
     final pending = resolver.resolvePayloadForPresentation('pro_upgrade');
-    await _waitUntil(() => server.requests.isNotEmpty);
+    await waitUntil(() => server.requests.isNotEmpty,
+        reason: 'server.requests.isNotEmpty');
     final request = _requestBody(server.requests.single.request);
     expect(request['registrationNonce'], isA<String>());
     expect(request, isNot(contains('assignmentKey')));
@@ -166,7 +168,8 @@ void main() {
 
     final resolved = resolver.resolvePayloadForPresentation('pro_upgrade');
     for (var attempt = 0; attempt < 3; attempt += 1) {
-      await _waitUntil(() => assignmentAttempts.length == attempt + 1);
+      await waitUntil(() => assignmentAttempts.length == attempt + 1,
+          reason: 'assignmentAttempts.length == attempt + 1');
       expect(server.requests, isEmpty);
       SurfaceAssignmentKeyProvider.current = provider;
       assignmentAttempts[attempt].complete(null);
@@ -218,12 +221,14 @@ void main() {
     );
 
     final resolved = resolver.resolvePayloadForPresentation('pro_upgrade');
-    await _waitUntil(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     actorGeneration += 1;
     server.requests[0].complete(_surfaceResponse(
       _flowEnvelope(screen: staleScreen, publishedVersion: 8),
     ));
-    await _waitUntil(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     server.requests[1].complete(_surfaceResponse(
       _flowEnvelope(screen: freshScreen, publishedVersion: 9),
     ));
@@ -279,7 +284,8 @@ void main() {
     );
 
     final resolved = resolver.resolvePayloadForPresentation('pro_upgrade');
-    await _waitUntil(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     server.requests[0].complete(_surfaceResponse(
       _flowEnvelopeFor(
         staleRoot,
@@ -287,7 +293,8 @@ void main() {
         publishedVersion: 9,
       ),
     ));
-    await _waitUntil(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     final staleChildRequest = _requestBody(server.requests[1].request);
     actorGeneration += 1;
     server.requests[1].complete(_surfaceResponse(
@@ -297,7 +304,8 @@ void main() {
         publishedVersion: 1,
       ),
     ));
-    await _waitUntil(() => server.requests.length == 3);
+    await waitUntil(() => server.requests.length == 3,
+        reason: 'server.requests.length == 3');
     server.requests[2].complete(_surfaceResponse(
       _flowEnvelopeFor(
         candidateRoot,
@@ -305,7 +313,8 @@ void main() {
         publishedVersion: 10,
       ),
     ));
-    await _waitUntil(() => server.requests.length == 4);
+    await waitUntil(() => server.requests.length == 4,
+        reason: 'server.requests.length == 4');
     final freshChildRequest = _requestBody(server.requests[3].request);
     server.requests[3].complete(_surfaceResponse(
       _flowEnvelopeFor(
@@ -372,7 +381,8 @@ void main() {
       guard: () => current,
       resolve: () => resolver.resolvePayloadForPresentation('pro_upgrade'),
     );
-    await _waitUntil(() => bundle.loadedKeys.isNotEmpty);
+    await waitUntil(() => bundle.loadedKeys.isNotEmpty,
+        reason: 'bundle.loadedKeys.isNotEmpty');
     current = false;
     bundle.release('assets/paywalls/pro_upgrade.flow.json');
 
@@ -413,7 +423,8 @@ void main() {
       guard: () => current,
       resolve: () => resolver.resolvePayloadForPresentation('pro_upgrade'),
     );
-    await _waitUntil(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     current = false;
     server.requests[0].complete(_surfaceResponse(
       _flowEnvelope(screen: disposedScreen, publishedVersion: 9),
@@ -425,7 +436,8 @@ void main() {
 
     current = true;
     final next = resolver.resolvePayloadForPresentation('pro_upgrade');
-    await _waitUntil(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     server.requests[1].complete(http.Response('unavailable', 503));
     final payload = await next as FlowPaywallPayload;
 
@@ -451,7 +463,8 @@ void main() {
     );
 
     final resolved = resolver.resolvePayloadForPresentation('pro_upgrade');
-    await _waitUntil(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     final request = _requestBody(server.requests.single.request);
     server.requests.single.complete(http.Response('unavailable', 503));
     final payload = await resolved as FlowPaywallPayload;
@@ -771,11 +784,5 @@ final class _ControlledPaywallBundle extends CachingAssetBundle {
     final bytes = _assets[key];
     if (bytes == null) throw FlutterError('Unable to load asset: $key');
     return ByteData.view(Uint8List.fromList(bytes).buffer);
-  }
-}
-
-Future<void> _waitUntil(bool Function() condition) async {
-  for (var attempt = 0; attempt < 100 && !condition(); attempt += 1) {
-    await Future<void>.delayed(Duration.zero);
   }
 }

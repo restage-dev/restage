@@ -6,7 +6,7 @@ const lumenRecapScreenRef = NeutralFlowScreenRef(
   id: 'lumen_recap',
   artifactPath: 'lumen_recap.rfw',
   version: 1,
-  minClient: 12,
+  minClient: 17,
 );
 
 @Deprecated('Use lumenRecapScreenRef')

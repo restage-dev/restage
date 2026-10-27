@@ -1,0 +1,12 @@
+{
+  "list": {
+    "dsl": "ListView(controller: data.context._h0c91fa81fb, children: [SizedBox(height: 2000.0)])",
+    "key": "_h0c91fa81fb",
+    "type": "flutter.ScrollController"
+  },
+  "tabs": {
+    "dsl": "Column(children: [TabBar(controller: data.context._he8b7d27e3a, tabs: [Text(text: \"one\"), Text(text: \"two\")]), Expanded(child: TabBarView(controller: data.context._he8b7d27e3a, children: [Text(text: \"first\"), Text(text: \"second\")]))])",
+    "key": "_he8b7d27e3a",
+    "type": "flutter.TabController"
+  }
+}

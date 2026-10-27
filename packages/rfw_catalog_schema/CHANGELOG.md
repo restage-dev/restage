@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Breaking:** exhaustive switches must handle `PropertyType.scalarCallback` and `PropertyType.widgetBuilder`.
 - Add `PropertyType.integerList` and `PropertyType.realList`.
 - Add `PropertyEntry.sinceVersion` and `PropertyOverride.sinceVersion`: a
   property added to an existing widget carries the content version that

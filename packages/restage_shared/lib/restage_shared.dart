@@ -42,6 +42,7 @@ export 'src/flow_document/flow_document_validation.dart';
 export 'src/flow_document/flow_predicate_sugar.dart';
 export 'src/flow_document/general_render_gate.dart';
 export 'src/flow_document/paywall_screen_assets.dart';
+export 'src/expressions/intl_value_operations.dart';
 export 'src/fonts/sfnt_cmap.dart';
 export 'src/generated_output_path_order.dart';
 export 'src/identity/surface_slug.dart';
@@ -75,3 +76,17 @@ export 'src/surface_document/surface_payload_publish_validation.dart';
 export 'src/surface_feature_client_floor.dart';
 export 'src/taps/surface_tap_names.dart';
 export 'src/theme/theme_data_contract.dart';
+
+export 'src/expressions/value_program.dart';
+export 'src/expressions/builder_program.dart';
+
+export 'src/expressions/builder_context.dart';
+
+export 'src/expressions/grid_operations.dart';
+export 'src/expressions/scalar_callback_contract.dart';
+
+export 'src/expressions/temporal_value_operations.dart';
+export 'src/surface_contract/native_binding_contract.dart';
+
+export 'src/expressions/native_call_operation.dart';
+export 'src/expressions/collection_operations.dart';

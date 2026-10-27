@@ -164,19 +164,19 @@ List<(_Slot, String, Object?)> _cases() => [
         'Offset.zero',
         {'x': 0.0, 'y': 0.0},
       ),
-      for (final (c, argb) in [
-        ('Colors.red', 0xFFF44336),
-        ('Colors.transparent', 0x00000000),
-        ('Colors.white', 0xFFFFFFFF),
-        ('Colors.black', 0xFF000000),
-        ('Colors.redAccent', 0xFFFF5252),
-        ('Colors.white70', 0xB3FFFFFF),
-        ('Colors.black54', 0x8A000000),
-        ('Colors.amber', 0xFFFFC107),
-        ('Colors.blueGrey', 0xFF607D8B),
-        ('CupertinoColors.white', 0xFFFFFFFF),
-        ('CupertinoColors.black', 0xFF000000),
-        ('CupertinoColors.transparent', 0x00000000),
+      for (final (c, argb, material) in [
+        ('Colors.red', 0xFFF44336, 'red'),
+        ('Colors.transparent', 0x00000000, null),
+        ('Colors.white', 0xFFFFFFFF, null),
+        ('Colors.black', 0xFF000000, null),
+        ('Colors.redAccent', 0xFFFF5252, 'redAccent'),
+        ('Colors.white70', 0xB3FFFFFF, null),
+        ('Colors.black54', 0x8A000000, null),
+        ('Colors.amber', 0xFFFFC107, 'amber'),
+        ('Colors.blueGrey', 0xFF607D8B, 'blueGrey'),
+        ('CupertinoColors.white', 0xFFFFFFFF, null),
+        ('CupertinoColors.black', 0xFF000000, null),
+        ('CupertinoColors.transparent', 0x00000000, null),
       ])
         (
           const _Slot(
@@ -186,7 +186,16 @@ List<(_Slot, String, Object?)> _cases() => [
             'color',
           ),
           c,
-          argb,
+          material == null
+              ? argb
+              : {
+                  'colorSpace': 'sRGB',
+                  'material': material,
+                  'a': ((argb >> 24) & 255) / 255,
+                  'r': ((argb >> 16) & 255) / 255,
+                  'g': ((argb >> 8) & 255) / 255,
+                  'b': (argb & 255) / 255,
+                },
         ),
       for (final c in kSupportedCurveNames)
         (
@@ -211,7 +220,14 @@ List<(_Slot, String, Object?)> _cases() => [
       ),
       for (final (slot, constant) in [
         for (final c in ['BorderRadius.zero', 'BorderRadiusDirectional.zero'])
-          for (final slot in _borderRadiusSlots) (slot, c),
+          for (final slot in _borderRadiusSlots)
+            (
+              c == 'BorderRadiusDirectional.zero'
+                  ? _Slot(slot.type, slot.template, slot.widget,
+                      'borderRadiusTopStart')
+                  : slot,
+              c
+            ),
         (
           const _Slot(
             PropertyType.real,
@@ -395,9 +411,18 @@ bool _typeAccepts(PropertyType type, Object? value) => switch (type) {
       PropertyType.alignmentXY ||
       PropertyType.offset =>
         value is Map && value['x'] is double && value['y'] is double,
-      PropertyType.edgeInsets =>
-        value is List && value.every((v) => v is double),
-      PropertyType.color || PropertyType.duration => value is int,
+      PropertyType.edgeInsets => value is Map &&
+          value.length == 4 &&
+          value.values.every((v) => v is double),
+      PropertyType.color => value is int ||
+          value is Map &&
+              value.length == 6 &&
+              const {'red', 'redAccent', 'amber', 'blueGrey'}
+                  .contains(value['material']) &&
+              value['colorSpace'] == 'sRGB' &&
+              const ['a', 'r', 'g', 'b']
+                  .every((channel) => value[channel] is double),
+      PropertyType.duration => value is int,
       PropertyType.real => value is double,
       PropertyType.shapeBorder => value is Map && value['type'] is String,
       PropertyType.curve =>

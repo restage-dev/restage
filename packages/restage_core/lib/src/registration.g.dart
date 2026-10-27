@@ -7,7 +7,14 @@
 // catalog, and this file).
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:restage_core/restage_core.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
+    show
+        WidgetBuilderContract,
+        WidgetBuilderParameter,
+        ScalarCallbackContract,
+        ScalarCallbackParameter;
 import 'dart:ui' show ImageFilter;
 import 'package:rfw/rfw.dart' hide Switch;
 
@@ -15,7 +22,10 @@ import 'package:rfw/rfw.dart' hide Switch;
 /// keyed by widget name.
 const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
     <String, LocalWidgetBuilder>{
+  'Directionality': buildDirectionality,
   'AbsorbPointer': buildAbsorbPointer,
+  'LayoutBuilder': buildLayoutBuilder,
+  'OrientationBuilder': buildOrientationBuilder,
   'Align': buildAlign,
   'AnimatedAlign': buildAnimatedAlign,
   'AnimatedContainer': buildAnimatedContainer,
@@ -31,6 +41,8 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
   'BackdropFilter': buildBackdropFilter,
   'Center': buildCenter,
   'ClipOval': buildClipOval,
+  'ClipPath': buildClipPath,
+  'ClipPathShape': buildClipPathShape,
   'ClipRRect': buildClipRRect,
   'ClipRect': buildClipRect,
   'ColoredBox': buildColoredBox,
@@ -51,6 +63,11 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
   'IntrinsicHeight': buildIntrinsicHeight,
   'IntrinsicWidth': buildIntrinsicWidth,
   'LimitedBox': buildLimitedBox,
+  'GridView': buildGridView,
+  'GridViewCount': buildGridViewCount,
+  'GridViewExtent': buildGridViewExtent,
+  'GridViewBuilder': buildGridViewBuilder,
+  'GridViewCustom': buildGridViewCustom,
   'ListView': buildListView,
   'RestageFadeIn': buildRestageFadeIn,
   'RestageFormattedNumber': buildRestageFormattedNumber,
@@ -78,1233 +95,2229 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
   'TransformScale': buildTransformScale,
   'Visibility': buildVisibility,
   'Wrap': buildWrap,
+  '__RestageBuilderContinuation': buildRestageBuilderContinuation,
 };
+
+/// Builds the catalog's `Directionality` widget from [source].
+Widget buildDirectionality(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Directionality(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      textDirection: RestageDecoders.enumByName<TextDirection>(
+              TextDirection.values, source, <Object>['textDirection']) ??
+          (throw ArgumentError('Directionality.textDirection is required.')),
+      child: source.child(const <Object>['child']),
+    );
+  });
+}
 
 /// Builds the catalog's `AbsorbPointer` widget from [source].
 Widget buildAbsorbPointer(BuildContext context, DataSource source) {
-  return AbsorbPointer(
-    absorbing: source.v<bool>(const <Object>['absorbing']) ?? true,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return AbsorbPointer(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      absorbing: RestageValueBinding.read<bool>(
+              source, const <Object>['absorbing'], context) ??
+          true,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
+}
+
+/// Builds the catalog's `LayoutBuilder` widget from [source].
+Widget buildLayoutBuilder(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final restageBuilderBindingbuilder = RestageBuilderBinding(
+        source, const <Object>['builder'],
+        contract: const WidgetBuilderContract(parameters: [
+          WidgetBuilderParameter.buildContext,
+          WidgetBuilderParameter.boxConstraints
+        ], nullableResult: false));
+    builderBindings.add(restageBuilderBindingbuilder);
+
+    return LayoutBuilder(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      builder: (BuildContext arg0, BoxConstraints arg1) =>
+          restageBuilderBindingbuilder
+              .build(arg0, {'arg1': RestageBuilderBinding.constraints(arg1)}),
+    );
+  });
+}
+
+/// Builds the catalog's `OrientationBuilder` widget from [source].
+Widget buildOrientationBuilder(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final restageBuilderBindingbuilder = RestageBuilderBinding(
+        source, const <Object>['builder'],
+        contract: const WidgetBuilderContract(parameters: [
+          WidgetBuilderParameter.buildContext,
+          WidgetBuilderParameter.orientation
+        ], nullableResult: false));
+    builderBindings.add(restageBuilderBindingbuilder);
+
+    return OrientationBuilder(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      builder: (BuildContext arg0, Orientation arg1) =>
+          restageBuilderBindingbuilder.build(arg0, {'arg1': arg1.name}),
+    );
+  });
 }
 
 /// Builds the catalog's `Align` widget from [source].
 Widget buildAlign(BuildContext context, DataSource source) {
-  return RestageAlign(
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-        AlignmentDirectional.center,
-    widthFactor: RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
-    heightFactor:
-        RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageAlign(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'Align'),
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
+          AlignmentDirectional.center,
+      widthFactor:
+          RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
+      heightFactor:
+          RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AnimatedAlign` widget from [source].
 Widget buildAnimatedAlign(BuildContext context, DataSource source) {
-  return RestageAnimatedAlign(
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-        AlignmentDirectional.center,
-    heightFactor:
-        RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
-    widthFactor: RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
-    duration: RestageDecoders.duration(source, <Object>['duration']) ??
-        (throw ArgumentError('AnimatedAlign.duration is required.')),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageAnimatedAlign(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'AnimatedAlign'),
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
+          AlignmentDirectional.center,
+      heightFactor:
+          RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
+      widthFactor:
+          RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
+      duration: RestageDecoders.duration(source, <Object>['duration']) ??
+          (throw ArgumentError('AnimatedAlign.duration is required.')),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AnimatedContainer` widget from [source].
 Widget buildAnimatedContainer(BuildContext context, DataSource source) {
-  return AnimatedContainer(
-    decoration: BoxDecoration(
-        color: ArgumentDecoders.color(source, <Object>['color']),
-        image: RestageDecoders.decorationImage(
-            source, <Object>['decorationImage']),
-        border: RestageDecoders.border(source, <Object>['border']),
-        borderRadius: (source.v<double>(const <Object>['borderRadiusTopLeft']) ??
-                    source.v<double>(const <Object>['borderRadiusTopRight']) ??
-                    source
-                        .v<double>(const <Object>['borderRadiusBottomLeft']) ??
-                    source.v<double>(
-                        const <Object>['borderRadiusBottomRight'])) !=
-                null
-            ? BorderRadius.only(
-                topLeft: Radius.circular(
-                    source.v<double>(const <Object>['borderRadiusTopLeft']) ??
-                        0.0),
-                topRight: Radius.circular(
-                    source.v<double>(const <Object>['borderRadiusTopRight']) ?? 0.0),
-                bottomLeft: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomLeft']) ?? 0.0),
-                bottomRight: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomRight']) ?? 0.0))
-            : (source.v<double>(const <Object>['borderRadius']) == null ? null : BorderRadius.circular(source.v<double>(const <Object>['borderRadius'])!)),
-        boxShadow: ArgumentDecoders.list<BoxShadow>(source, <Object>['boxShadow'], ArgumentDecoders.boxShadow),
-        gradient: ArgumentDecoders.gradient(source, <Object>['gradient']),
-        shape: RestageDecoders.enumByName<BoxShape>(BoxShape.values, source, <Object>['shape']) ?? BoxShape.rectangle),
-    constraints: RestageDecoders.safeConstraints(BoxConstraints(
-        minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
-        maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
-            double.infinity,
-        minHeight: RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
-        maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
-            double.infinity)),
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']),
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    width: RestageDecoders.constraintScalar(source, <Object>['width']),
-    height: RestageDecoders.constraintScalar(source, <Object>['height']),
-    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
-    duration: RestageDecoders.duration(source, <Object>['duration']) ??
-        (throw ArgumentError('AnimatedContainer.duration is required.')),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return AnimatedContainer(
+      decoration: BoxDecoration(
+          color: RestageDecoders.color(source, <Object>['color']),
+          image: RestageDecoders.decorationImage(
+              source, <Object>['decorationImage']),
+          border: RestageDecoders.border(source, <Object>['border']),
+          borderRadius: (source.v<double>(const <Object>['borderRadiusTopLeft']) ?? source.v<double>(const <Object>['borderRadiusTopRight']) ?? source.v<double>(const <Object>['borderRadiusBottomLeft']) ?? source.v<double>(const <Object>['borderRadiusBottomRight']) ?? source.v<double>(const <Object>['borderRadiusTopStart']) ?? source.v<double>(const <Object>['borderRadiusTopEnd']) ?? source.v<double>(const <Object>['borderRadiusBottomStart']) ?? source.v<double>(const <Object>['borderRadiusBottomEnd'])) != null
+              ? ((source.v<double>(const <Object>['borderRadiusTopStart']) ??
+                          source.v<double>(
+                              const <Object>['borderRadiusTopEnd']) ??
+                          source.v<double>(
+                              const <Object>['borderRadiusBottomStart']) ??
+                          source.v<double>(
+                              const <Object>['borderRadiusBottomEnd'])) !=
+                      null
+                  ? BorderRadiusDirectional.only(
+                      topStart:
+                          Radius.circular(source.v<double>(const <Object>['borderRadiusTopStart']) ?? 0.0),
+                      topEnd: Radius.circular(source.v<double>(const <Object>['borderRadiusTopEnd']) ?? 0.0),
+                      bottomStart: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomStart']) ?? 0.0),
+                      bottomEnd: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomEnd']) ?? 0.0))
+                  : BorderRadius.only(topLeft: Radius.circular(source.v<double>(const <Object>['borderRadiusTopLeft']) ?? 0.0), topRight: Radius.circular(source.v<double>(const <Object>['borderRadiusTopRight']) ?? 0.0), bottomLeft: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomLeft']) ?? 0.0), bottomRight: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomRight']) ?? 0.0)))
+              : (RestageValueBinding.read<double>(source, const <Object>['borderRadius'], context) == null ? null : BorderRadius.circular(RestageValueBinding.read<double>(source, const <Object>['borderRadius'], context)!)),
+          boxShadow: ArgumentDecoders.list<BoxShadow>(source, <Object>['boxShadow'], RestageDecoders.boxShadow),
+          gradient: RestageDecoders.gradient(source, <Object>['gradient']),
+          shape: RestageDecoders.enumByName<BoxShape>(BoxShape.values, source, <Object>['shape']) ?? BoxShape.rectangle),
+      constraints: RestageDecoders.safeConstraints(BoxConstraints(
+          minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
+          maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
+              double.infinity,
+          minHeight:
+              RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
+          maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
+              double.infinity)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      width: RestageDecoders.constraintScalar(source, <Object>['width']),
+      height: RestageDecoders.constraintScalar(source, <Object>['height']),
+      margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
+      duration: RestageDecoders.duration(source, <Object>['duration']) ??
+          (throw ArgumentError('AnimatedContainer.duration is required.')),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AnimatedDefaultTextStyle` widget from [source].
 Widget buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
-  return AnimatedDefaultTextStyle(
-    style: RestageDecoders.packagedFont(TextStyle(
-        inherit: source.v<bool>(const <Object>['inherit']) ?? true,
-        color: ArgumentDecoders.color(source, <Object>['color']),
-        backgroundColor:
-            ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
-        fontWeight: ArgumentDecoders.enumValue<FontWeight>(
-            FontWeight.values, source, <Object>['fontWeight']),
-        fontStyle: RestageDecoders.enumByName<FontStyle>(
-            FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing:
-            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
-        wordSpacing:
-            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
-        textBaseline: RestageDecoders.enumByName<TextBaseline>(
-            TextBaseline.values, source, <Object>['textBaseline']),
-        height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution:
-            RestageDecoders.enumByName<TextLeadingDistribution>(
-                TextLeadingDistribution.values,
-                source,
-                <Object>['leadingDistribution']),
-        locale: ArgumentDecoders.locale(source, <Object>['locale']),
-        foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
-        background: ArgumentDecoders.paint(source, <Object>['background']),
-        shadows: RestageDecoders.shadows(source, <Object>['shadows']),
-        fontFeatures:
-            RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-        fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
-        decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
-        decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
-        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
-        fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: RestageDecoders.string(source, <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip)),
-    textAlign: RestageDecoders.enumByName<TextAlign>(
-        TextAlign.values, source, <Object>['textAlign']),
-    softWrap: source.v<bool>(const <Object>['softWrap']) ?? true,
-    maxLines: source.v<int>(const <Object>['maxLines']),
-    textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
-            TextWidthBasis.values, source, <Object>['textWidthBasis']) ??
-        TextWidthBasis.parent,
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
-    duration: RestageDecoders.duration(source, <Object>['duration']) ??
-        (throw ArgumentError('AnimatedDefaultTextStyle.duration is required.')),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return AnimatedDefaultTextStyle(
+      style: RestageDecoders.packagedFont(TextStyle(
+          inherit: RestageValueBinding.read<bool>(source, const <Object>['inherit'], context) ??
+              true,
+          color: RestageDecoders.color(source, <Object>['color']),
+          backgroundColor:
+              RestageDecoders.color(source, <Object>['backgroundColor']),
+          fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
+          fontWeight:
+              RestageDecoders.fontWeight(source, <Object>['fontWeight']),
+          fontStyle: RestageDecoders.enumByName<FontStyle>(
+              FontStyle.values, source, <Object>['fontStyle']),
+          letterSpacing:
+              RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+          wordSpacing:
+              RestageDecoders.textMetric(source, <Object>['wordSpacing']),
+          textBaseline: RestageDecoders.enumByName<TextBaseline>(
+              TextBaseline.values, source, <Object>['textBaseline']),
+          height: RestageDecoders.textMetric(source, <Object>['height']),
+          leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
+              TextLeadingDistribution.values,
+              source,
+              <Object>['leadingDistribution']),
+          locale: ArgumentDecoders.locale(source, <Object>['locale']),
+          foreground: RestageDecoders.paint(source, <Object>['foreground']),
+          background: RestageDecoders.paint(source, <Object>['background']),
+          shadows: RestageDecoders.shadows(source, <Object>['shadows']),
+          fontFeatures:
+              RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
+          fontVariations:
+              RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+          decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
+          decorationColor: RestageDecoders.color(source, <Object>['decorationColor']),
+          decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+          decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
+          debugLabel: RestageDecoders.string(source, <Object>['debugLabel'], context: context),
+          fontFamily: RestageDecoders.string(source, <Object>['fontFamily'], context: context),
+          fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
+          package: RestageDecoders.string(source, <Object>['fontPackage'], context: context),
+          overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      textAlign: RestageDecoders.enumByName<TextAlign>(
+          TextAlign.values, source, <Object>['textAlign']),
+      softWrap: RestageValueBinding.read<bool>(
+              source, const <Object>['softWrap'], context) ??
+          true,
+      maxLines: RestageValueBinding.read<int>(
+          source, const <Object>['maxLines'], context),
+      textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
+              TextWidthBasis.values, source, <Object>['textWidthBasis']) ??
+          TextWidthBasis.parent,
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
+      duration: RestageDecoders.duration(source, <Object>['duration']) ??
+          (throw ArgumentError(
+              'AnimatedDefaultTextStyle.duration is required.')),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AnimatedOpacity` widget from [source].
 Widget buildAnimatedOpacity(BuildContext context, DataSource source) {
-  return AnimatedOpacity(
-    opacity: source.v<double>(const <Object>['opacity']) ??
-        (throw ArgumentError('AnimatedOpacity.opacity is required.')),
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
-    duration: RestageDecoders.duration(source, <Object>['duration']) ??
-        (throw ArgumentError('AnimatedOpacity.duration is required.')),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    alwaysIncludeSemantics:
-        source.v<bool>(const <Object>['alwaysIncludeSemantics']) ?? false,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return AnimatedOpacity(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      opacity: RestageValueBinding.read<double>(
+              source, const <Object>['opacity'], context) ??
+          (throw ArgumentError('AnimatedOpacity.opacity is required.')),
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
+      duration: RestageDecoders.duration(source, <Object>['duration']) ??
+          (throw ArgumentError('AnimatedOpacity.duration is required.')),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      alwaysIncludeSemantics: RestageValueBinding.read<bool>(
+              source, const <Object>['alwaysIncludeSemantics'], context) ??
+          false,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AnimatedPadding` widget from [source].
 Widget buildAnimatedPadding(BuildContext context, DataSource source) {
-  return RestageAnimatedPadding(
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-        (throw ArgumentError('AnimatedPadding.padding is required.')),
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
-    duration: RestageDecoders.duration(source, <Object>['duration']) ??
-        (throw ArgumentError('AnimatedPadding.duration is required.')),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageAnimatedPadding(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'AnimatedPadding'),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
+          (throw ArgumentError('AnimatedPadding.padding is required.')),
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
+      duration: RestageDecoders.duration(source, <Object>['duration']) ??
+          (throw ArgumentError('AnimatedPadding.duration is required.')),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AnimatedPositioned` widget from [source].
 Widget buildAnimatedPositioned(BuildContext context, DataSource source) {
-  return AnimatedPositioned(
-    left: RestageDecoders.constraintScalar(source, <Object>['left']),
-    top: RestageDecoders.constraintScalar(source, <Object>['top']),
-    right: RestageDecoders.constraintScalar(source, <Object>['right']),
-    bottom: RestageDecoders.constraintScalar(source, <Object>['bottom']),
-    width: RestageDecoders.constraintScalar(source, <Object>['width']),
-    height: RestageDecoders.constraintScalar(source, <Object>['height']),
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
-    duration: RestageDecoders.duration(source, <Object>['duration']) ??
-        (throw ArgumentError('AnimatedPositioned.duration is required.')),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return AnimatedPositioned(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      left: RestageDecoders.constraintScalar(source, <Object>['left']),
+      top: RestageDecoders.constraintScalar(source, <Object>['top']),
+      right: RestageDecoders.constraintScalar(source, <Object>['right']),
+      bottom: RestageDecoders.constraintScalar(source, <Object>['bottom']),
+      width: RestageDecoders.constraintScalar(source, <Object>['width']),
+      height: RestageDecoders.constraintScalar(source, <Object>['height']),
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
+      duration: RestageDecoders.duration(source, <Object>['duration']) ??
+          (throw ArgumentError('AnimatedPositioned.duration is required.')),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AnimatedRotation` widget from [source].
 Widget buildAnimatedRotation(BuildContext context, DataSource source) {
-  return AnimatedRotation(
-    turns: source.v<double>(const <Object>['turns']) ??
-        (throw ArgumentError('AnimatedRotation.turns is required.')),
-    alignment: RestageDecoders.alignmentXY(source, <Object>['alignment']) ??
-        Alignment.center,
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
-    duration: RestageDecoders.duration(source, <Object>['duration']) ??
-        (throw ArgumentError('AnimatedRotation.duration is required.')),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return AnimatedRotation(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      turns: RestageValueBinding.read<double>(
+              source, const <Object>['turns'], context) ??
+          (throw ArgumentError('AnimatedRotation.turns is required.')),
+      alignment: RestageDecoders.alignmentXY(source, <Object>['alignment']) ??
+          Alignment.center,
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
+      duration: RestageDecoders.duration(source, <Object>['duration']) ??
+          (throw ArgumentError('AnimatedRotation.duration is required.')),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AnimatedScale` widget from [source].
 Widget buildAnimatedScale(BuildContext context, DataSource source) {
-  return AnimatedScale(
-    scale: source.v<double>(const <Object>['scale']) ??
-        (throw ArgumentError('AnimatedScale.scale is required.')),
-    alignment: RestageDecoders.alignmentXY(source, <Object>['alignment']) ??
-        Alignment.center,
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
-    duration: RestageDecoders.duration(source, <Object>['duration']) ??
-        (throw ArgumentError('AnimatedScale.duration is required.')),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return AnimatedScale(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      scale: RestageValueBinding.read<double>(
+              source, const <Object>['scale'], context) ??
+          (throw ArgumentError('AnimatedScale.scale is required.')),
+      alignment: RestageDecoders.alignmentXY(source, <Object>['alignment']) ??
+          Alignment.center,
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
+      duration: RestageDecoders.duration(source, <Object>['duration']) ??
+          (throw ArgumentError('AnimatedScale.duration is required.')),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AnimatedSize` widget from [source].
 Widget buildAnimatedSize(BuildContext context, DataSource source) {
-  return RestageAnimatedSize(
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-        AlignmentDirectional.center,
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
-    duration: RestageDecoders.duration(source, <Object>['duration']) ??
-        (throw ArgumentError('AnimatedSize.duration is required.')),
-    reverseDuration:
-        RestageDecoders.duration(source, <Object>['reverseDuration']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.hardEdge,
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageAnimatedSize(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'AnimatedSize'),
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
+          AlignmentDirectional.center,
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
+      duration: RestageDecoders.duration(source, <Object>['duration']) ??
+          (throw ArgumentError('AnimatedSize.duration is required.')),
+      reverseDuration:
+          RestageDecoders.duration(source, <Object>['reverseDuration']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AnimatedSlide` widget from [source].
 Widget buildAnimatedSlide(BuildContext context, DataSource source) {
-  return AnimatedSlide(
-    offset: RestageDecoders.offset(source, <Object>['offset']) ?? Offset.zero,
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
-    duration: RestageDecoders.duration(source, <Object>['duration']) ??
-        (throw ArgumentError('AnimatedSlide.duration is required.')),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return AnimatedSlide(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      offset: RestageDecoders.offset(source, <Object>['offset']) ?? Offset.zero,
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
+      duration: RestageDecoders.duration(source, <Object>['duration']) ??
+          (throw ArgumentError('AnimatedSlide.duration is required.')),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `AspectRatio` widget from [source].
 Widget buildAspectRatio(BuildContext context, DataSource source) {
-  return RestageAspectRatio(
-    aspectRatio: RestageDecoders.requiredLayoutScalar(
-        source, <Object>['aspectRatio'],
-        slot: 'AspectRatio.aspectRatio', mustBePositive: true),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageAspectRatio(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'AspectRatio'),
+      aspectRatio: RestageDecoders.requiredLayoutScalar(
+          source, <Object>['aspectRatio'],
+          slot: 'AspectRatio.aspectRatio', mustBePositive: true),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `BackdropFilter` widget from [source].
 Widget buildBackdropFilter(BuildContext context, DataSource source) {
-  return BackdropFilter(
-    filter: ImageFilter.blur(
-        sigmaX: (source.v<double>(const <Object>['blurSigmaX']) ?? 0.0),
-        sigmaY: (source.v<double>(const <Object>['blurSigmaY']) ?? 0.0)),
-    blendMode: RestageDecoders.enumByName<BlendMode>(
-            BlendMode.values, source, <Object>['blendMode']) ??
-        BlendMode.srcOver,
-    enabled: source.v<bool>(const <Object>['enabled']) ?? true,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return BackdropFilter(
+      filter: ImageFilter.blur(
+          sigmaX: (RestageValueBinding.read<double>(
+                  source, const <Object>['blurSigmaX'], context) ??
+              0.0),
+          sigmaY: (RestageValueBinding.read<double>(
+                  source, const <Object>['blurSigmaY'], context) ??
+              0.0)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      blendMode: RestageDecoders.enumByName<BlendMode>(
+              BlendMode.values, source, <Object>['blendMode']) ??
+          BlendMode.srcOver,
+      enabled: RestageValueBinding.read<bool>(
+              source, const <Object>['enabled'], context) ??
+          true,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Center` widget from [source].
 Widget buildCenter(BuildContext context, DataSource source) {
-  return RestageCenter(
-    widthFactor: RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
-    heightFactor:
-        RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageCenter(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'Center'),
+      widthFactor:
+          RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
+      heightFactor:
+          RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `ClipOval` widget from [source].
 Widget buildClipOval(BuildContext context, DataSource source) {
-  return ClipOval(
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.antiAlias,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ClipOval(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.antiAlias,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
+}
+
+/// Builds the catalog's `ClipPath` widget from [source].
+Widget buildClipPath(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ClipPath(
+      clipper: (RestageDecoders.shapeBorder(source, <Object>['shape']) == null)
+          ? null
+          : ShapeBorderClipper(
+              shape: (RestageDecoders.shapeBorder(source, <Object>['shape']))!,
+              textDirection: RestageDecoders.enumByName<TextDirection>(
+                  TextDirection.values,
+                  source,
+                  <Object>['clipperTextDirection'])),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.antiAlias,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
+}
+
+/// Builds the catalog's `ClipPathShape` widget from [source].
+Widget buildClipPathShape(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ClipPath.shape(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']) ??
+          (throw ArgumentError('ClipPathShape.shape is required.')),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.antiAlias,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `ClipRRect` widget from [source].
 Widget buildClipRRect(BuildContext context, DataSource source) {
-  return ClipRRect(
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.antiAlias,
-    borderRadius: (source.v<double>(const <Object>['borderRadiusTopLeft']) ??
-                source.v<double>(const <Object>['borderRadiusTopRight']) ??
-                source.v<double>(const <Object>['borderRadiusBottomLeft']) ??
-                source.v<double>(const <Object>['borderRadiusBottomRight'])) !=
-            null
-        ? BorderRadius.only(
-            topLeft: Radius.circular(
-                source.v<double>(const <Object>['borderRadiusTopLeft']) ?? 0.0),
-            topRight: Radius.circular(
-                source.v<double>(const <Object>['borderRadiusTopRight']) ??
-                    0.0),
-            bottomLeft: Radius.circular(
-                source.v<double>(const <Object>['borderRadiusBottomLeft']) ??
-                    0.0),
-            bottomRight:
-                Radius.circular(source.v<double>(const <Object>['borderRadiusBottomRight']) ?? 0.0))
-        : (BorderRadius.circular(source.v<double>(const <Object>['borderRadius']) ?? 0.0)),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ClipRRect(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.antiAlias,
+      borderRadius: (source.v<double>(const <Object>['borderRadiusTopLeft']) ??
+                  source.v<double>(const <Object>['borderRadiusTopRight']) ??
+                  source.v<double>(const <Object>['borderRadiusBottomLeft']) ??
+                  source.v<double>(const <Object>['borderRadiusBottomRight']) ??
+                  source.v<double>(const <Object>['borderRadiusTopStart']) ??
+                  source.v<double>(const <Object>['borderRadiusTopEnd']) ??
+                  source.v<double>(const <Object>['borderRadiusBottomStart']) ??
+                  source.v<double>(const <Object>['borderRadiusBottomEnd'])) !=
+              null
+          ? ((source.v<double>(const <Object>['borderRadiusTopStart']) ??
+                      source.v<double>(const <Object>['borderRadiusTopEnd']) ??
+                      source.v<double>(
+                          const <Object>['borderRadiusBottomStart']) ??
+                      source.v<double>(
+                          const <Object>['borderRadiusBottomEnd'])) !=
+                  null
+              ? BorderRadiusDirectional.only(
+                  topStart: Radius.circular(source
+                          .v<double>(const <Object>['borderRadiusTopStart']) ??
+                      0.0),
+                  topEnd:
+                      Radius.circular(source.v<double>(const <Object>['borderRadiusTopEnd']) ?? 0.0),
+                  bottomStart: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomStart']) ?? 0.0),
+                  bottomEnd: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomEnd']) ?? 0.0))
+              : BorderRadius.only(topLeft: Radius.circular(source.v<double>(const <Object>['borderRadiusTopLeft']) ?? 0.0), topRight: Radius.circular(source.v<double>(const <Object>['borderRadiusTopRight']) ?? 0.0), bottomLeft: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomLeft']) ?? 0.0), bottomRight: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomRight']) ?? 0.0)))
+          : (BorderRadius.circular(RestageValueBinding.read<double>(source, const <Object>['borderRadius'], context) ?? 0.0)),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `ClipRect` widget from [source].
 Widget buildClipRect(BuildContext context, DataSource source) {
-  return ClipRect(
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.hardEdge,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ClipRect(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `ColoredBox` widget from [source].
 Widget buildColoredBox(BuildContext context, DataSource source) {
-  return ColoredBox(
-    color: ArgumentDecoders.color(source, <Object>['color']) ??
-        (throw ArgumentError('ColoredBox.color is required.')),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ColoredBox(
+      color: RestageDecoders.color(source, <Object>['color']) ??
+          (throw ArgumentError('ColoredBox.color is required.')),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Column` widget from [source].
 Widget buildColumn(BuildContext context, DataSource source) {
-  final children = RestageDecoders.widgetList(source, <Object>['children']);
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final children = RestageDecoders.widgetList(source, <Object>['children'],
+        context: context, bindings: builderBindings);
 
-  return RestageColumn(
-    mainAxisAlignment: RestageDecoders.enumByName<MainAxisAlignment>(
-            MainAxisAlignment.values, source, <Object>['mainAxisAlignment']) ??
-        MainAxisAlignment.start,
-    mainAxisSize: RestageDecoders.enumByName<MainAxisSize>(
-            MainAxisSize.values, source, <Object>['mainAxisSize']) ??
-        MainAxisSize.max,
-    crossAxisAlignment: RestageDecoders.enumByName<CrossAxisAlignment>(
-            CrossAxisAlignment.values,
-            source,
-            <Object>['crossAxisAlignment']) ??
-        CrossAxisAlignment.center,
-    textBaseline: RestageDecoders.enumByName<TextBaseline>(
-        TextBaseline.values, source, <Object>['textBaseline']),
-    spacing: RestageDecoders.derivedSpacing(
-        source, <Object>['spacing'], children.length),
-    children: children,
-  );
+    return RestageColumn(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'Column'),
+      mainAxisAlignment: RestageDecoders.enumByName<MainAxisAlignment>(
+              MainAxisAlignment.values,
+              source,
+              <Object>['mainAxisAlignment']) ??
+          MainAxisAlignment.start,
+      mainAxisSize: RestageDecoders.enumByName<MainAxisSize>(
+              MainAxisSize.values, source, <Object>['mainAxisSize']) ??
+          MainAxisSize.max,
+      crossAxisAlignment: RestageDecoders.enumByName<CrossAxisAlignment>(
+              CrossAxisAlignment.values,
+              source,
+              <Object>['crossAxisAlignment']) ??
+          CrossAxisAlignment.center,
+      textDirection: RestageDecoders.enumByName<TextDirection>(
+          TextDirection.values, source, <Object>['textDirection']),
+      textBaseline: RestageDecoders.enumByName<TextBaseline>(
+          TextBaseline.values, source, <Object>['textBaseline']),
+      spacing: RestageDecoders.derivedSpacing(
+          source, <Object>['spacing'], children.length),
+      children: children,
+    );
+  });
 }
 
 /// Builds the catalog's `ConstrainedBox` widget from [source].
 Widget buildConstrainedBox(BuildContext context, DataSource source) {
-  return ConstrainedBox(
-    constraints: RestageDecoders.safeConstraints(BoxConstraints(
-        minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
-        maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
-            double.infinity,
-        minHeight: RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
-        maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
-            double.infinity)),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ConstrainedBox(
+      constraints: RestageDecoders.safeConstraints(BoxConstraints(
+          minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
+          maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
+              double.infinity,
+          minHeight:
+              RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
+          maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
+              double.infinity)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Container` widget from [source].
 Widget buildContainer(BuildContext context, DataSource source) {
-  return Container(
-    decoration: BoxDecoration(
-        color: ArgumentDecoders.color(source, <Object>['color']),
-        image: RestageDecoders.decorationImage(
-            source, <Object>['decorationImage']),
-        border: RestageDecoders.border(source, <Object>['border']),
-        borderRadius: (source.v<double>(const <Object>['borderRadiusTopLeft']) ??
-                    source.v<double>(const <Object>['borderRadiusTopRight']) ??
-                    source
-                        .v<double>(const <Object>['borderRadiusBottomLeft']) ??
-                    source.v<double>(
-                        const <Object>['borderRadiusBottomRight'])) !=
-                null
-            ? BorderRadius.only(
-                topLeft: Radius.circular(
-                    source.v<double>(const <Object>['borderRadiusTopLeft']) ??
-                        0.0),
-                topRight: Radius.circular(
-                    source.v<double>(const <Object>['borderRadiusTopRight']) ?? 0.0),
-                bottomLeft: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomLeft']) ?? 0.0),
-                bottomRight: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomRight']) ?? 0.0))
-            : (source.v<double>(const <Object>['borderRadius']) == null ? null : BorderRadius.circular(source.v<double>(const <Object>['borderRadius'])!)),
-        boxShadow: ArgumentDecoders.list<BoxShadow>(source, <Object>['boxShadow'], ArgumentDecoders.boxShadow),
-        gradient: ArgumentDecoders.gradient(source, <Object>['gradient']),
-        shape: RestageDecoders.enumByName<BoxShape>(BoxShape.values, source, <Object>['shape']) ?? BoxShape.rectangle),
-    constraints: RestageDecoders.safeConstraints(BoxConstraints(
-        minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
-        maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
-            double.infinity,
-        minHeight: RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
-        maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
-            double.infinity)),
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']),
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    width: RestageDecoders.constraintScalar(source, <Object>['width']),
-    height: RestageDecoders.constraintScalar(source, <Object>['height']),
-    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Container(
+      decoration: BoxDecoration(
+          color: RestageDecoders.color(source, <Object>['color']),
+          image: RestageDecoders.decorationImage(
+              source, <Object>['decorationImage']),
+          border: RestageDecoders.border(source, <Object>['border']),
+          borderRadius: (source.v<double>(const <Object>['borderRadiusTopLeft']) ?? source.v<double>(const <Object>['borderRadiusTopRight']) ?? source.v<double>(const <Object>['borderRadiusBottomLeft']) ?? source.v<double>(const <Object>['borderRadiusBottomRight']) ?? source.v<double>(const <Object>['borderRadiusTopStart']) ?? source.v<double>(const <Object>['borderRadiusTopEnd']) ?? source.v<double>(const <Object>['borderRadiusBottomStart']) ?? source.v<double>(const <Object>['borderRadiusBottomEnd'])) != null
+              ? ((source.v<double>(const <Object>['borderRadiusTopStart']) ??
+                          source.v<double>(
+                              const <Object>['borderRadiusTopEnd']) ??
+                          source.v<double>(
+                              const <Object>['borderRadiusBottomStart']) ??
+                          source.v<double>(
+                              const <Object>['borderRadiusBottomEnd'])) !=
+                      null
+                  ? BorderRadiusDirectional.only(
+                      topStart:
+                          Radius.circular(source.v<double>(const <Object>['borderRadiusTopStart']) ?? 0.0),
+                      topEnd: Radius.circular(source.v<double>(const <Object>['borderRadiusTopEnd']) ?? 0.0),
+                      bottomStart: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomStart']) ?? 0.0),
+                      bottomEnd: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomEnd']) ?? 0.0))
+                  : BorderRadius.only(topLeft: Radius.circular(source.v<double>(const <Object>['borderRadiusTopLeft']) ?? 0.0), topRight: Radius.circular(source.v<double>(const <Object>['borderRadiusTopRight']) ?? 0.0), bottomLeft: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomLeft']) ?? 0.0), bottomRight: Radius.circular(source.v<double>(const <Object>['borderRadiusBottomRight']) ?? 0.0)))
+              : (RestageValueBinding.read<double>(source, const <Object>['borderRadius'], context) == null ? null : BorderRadius.circular(RestageValueBinding.read<double>(source, const <Object>['borderRadius'], context)!)),
+          boxShadow: ArgumentDecoders.list<BoxShadow>(source, <Object>['boxShadow'], RestageDecoders.boxShadow),
+          gradient: RestageDecoders.gradient(source, <Object>['gradient']),
+          shape: RestageDecoders.enumByName<BoxShape>(BoxShape.values, source, <Object>['shape']) ?? BoxShape.rectangle),
+      constraints: RestageDecoders.safeConstraints(BoxConstraints(
+          minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
+          maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
+              double.infinity,
+          minHeight:
+              RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
+          maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
+              double.infinity)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      width: RestageDecoders.constraintScalar(source, <Object>['width']),
+      height: RestageDecoders.constraintScalar(source, <Object>['height']),
+      margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `DecoratedBox` widget from [source].
 Widget buildDecoratedBox(BuildContext context, DataSource source) {
-  return DecoratedBox(
-    decoration: BoxDecoration(
-        color: ArgumentDecoders.color(source, <Object>['color']),
-        gradient: ArgumentDecoders.gradient(source, <Object>['gradient'])),
-    position: RestageDecoders.enumByName<DecorationPosition>(
-            DecorationPosition.values, source, <Object>['position']) ??
-        DecorationPosition.background,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+          color: RestageDecoders.color(source, <Object>['color']),
+          gradient: RestageDecoders.gradient(source, <Object>['gradient'])),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      position: RestageDecoders.enumByName<DecorationPosition>(
+              DecorationPosition.values, source, <Object>['position']) ??
+          DecorationPosition.background,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `DefaultTextStyle` widget from [source].
 Widget buildDefaultTextStyle(BuildContext context, DataSource source) {
-  return DefaultTextStyle(
-    style: RestageDecoders.packagedFont(TextStyle(
-        inherit: source.v<bool>(const <Object>['inherit']) ?? true,
-        color: ArgumentDecoders.color(source, <Object>['color']),
-        backgroundColor:
-            ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
-        fontWeight: ArgumentDecoders.enumValue<FontWeight>(
-            FontWeight.values, source, <Object>['fontWeight']),
-        fontStyle: RestageDecoders.enumByName<FontStyle>(
-            FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing:
-            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
-        wordSpacing:
-            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
-        textBaseline: RestageDecoders.enumByName<TextBaseline>(
-            TextBaseline.values, source, <Object>['textBaseline']),
-        height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution:
-            RestageDecoders.enumByName<TextLeadingDistribution>(
-                TextLeadingDistribution.values,
-                source,
-                <Object>['leadingDistribution']),
-        locale: ArgumentDecoders.locale(source, <Object>['locale']),
-        foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
-        background: ArgumentDecoders.paint(source, <Object>['background']),
-        shadows: RestageDecoders.shadows(source, <Object>['shadows']),
-        fontFeatures:
-            RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-        fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
-        decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
-        decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
-        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
-        fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: RestageDecoders.string(source, <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip)),
-    textAlign: RestageDecoders.enumByName<TextAlign>(
-        TextAlign.values, source, <Object>['textAlign']),
-    softWrap: source.v<bool>(const <Object>['softWrap']) ?? true,
-    maxLines: source.v<int>(const <Object>['maxLines']),
-    textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
-            TextWidthBasis.values, source, <Object>['textWidthBasis']) ??
-        TextWidthBasis.parent,
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return DefaultTextStyle(
+      style: RestageDecoders.packagedFont(TextStyle(
+          inherit: RestageValueBinding.read<bool>(source, const <Object>['inherit'], context) ??
+              true,
+          color: RestageDecoders.color(source, <Object>['color']),
+          backgroundColor:
+              RestageDecoders.color(source, <Object>['backgroundColor']),
+          fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
+          fontWeight:
+              RestageDecoders.fontWeight(source, <Object>['fontWeight']),
+          fontStyle: RestageDecoders.enumByName<FontStyle>(
+              FontStyle.values, source, <Object>['fontStyle']),
+          letterSpacing:
+              RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+          wordSpacing:
+              RestageDecoders.textMetric(source, <Object>['wordSpacing']),
+          textBaseline: RestageDecoders.enumByName<TextBaseline>(
+              TextBaseline.values, source, <Object>['textBaseline']),
+          height: RestageDecoders.textMetric(source, <Object>['height']),
+          leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
+              TextLeadingDistribution.values,
+              source,
+              <Object>['leadingDistribution']),
+          locale: ArgumentDecoders.locale(source, <Object>['locale']),
+          foreground: RestageDecoders.paint(source, <Object>['foreground']),
+          background: RestageDecoders.paint(source, <Object>['background']),
+          shadows: RestageDecoders.shadows(source, <Object>['shadows']),
+          fontFeatures:
+              RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
+          fontVariations:
+              RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+          decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
+          decorationColor: RestageDecoders.color(source, <Object>['decorationColor']),
+          decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+          decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
+          debugLabel: RestageDecoders.string(source, <Object>['debugLabel'], context: context),
+          fontFamily: RestageDecoders.string(source, <Object>['fontFamily'], context: context),
+          fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
+          package: RestageDecoders.string(source, <Object>['fontPackage'], context: context),
+          overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      textAlign: RestageDecoders.enumByName<TextAlign>(
+          TextAlign.values, source, <Object>['textAlign']),
+      softWrap: RestageValueBinding.read<bool>(
+              source, const <Object>['softWrap'], context) ??
+          true,
+      maxLines: RestageValueBinding.read<int>(
+          source, const <Object>['maxLines'], context),
+      textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
+              TextWidthBasis.values, source, <Object>['textWidthBasis']) ??
+          TextWidthBasis.parent,
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Expanded` widget from [source].
 Widget buildExpanded(BuildContext context, DataSource source) {
-  return Expanded(
-    flex: source.v<int>(const <Object>['flex']) ?? 1,
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Expanded(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      flex: RestageValueBinding.read<int>(
+              source, const <Object>['flex'], context) ??
+          1,
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `FadeInImageAssetNetwork` widget from [source].
 Widget buildFadeInImageAssetNetwork(BuildContext context, DataSource source) {
-  return RestageFadeInImage.assetNetwork(
-    placeholder: RestageDecoders.string(source, <Object>['placeholder']) ??
-        (throw ArgumentError(
-            'FadeInImageAssetNetwork.placeholder is required.')),
-    image: RestageDecoders.string(source, <Object>['image']) ??
-        (throw ArgumentError('FadeInImageAssetNetwork.image is required.')),
-    imageScale:
-        RestageDecoders.positiveLayoutScalar(source, <Object>['imageScale']) ??
-            1.0,
-    width: RestageDecoders.constraintScalar(source, <Object>['width']),
-    height: RestageDecoders.constraintScalar(source, <Object>['height']),
-    fit: RestageDecoders.enumByName<BoxFit>(
-        BoxFit.values, source, <Object>['fit']),
-    placeholderFit: RestageDecoders.enumByName<BoxFit>(
-        BoxFit.values, source, <Object>['placeholderFit']),
-    placeholderFilterQuality: RestageDecoders.enumByName<FilterQuality>(
-        FilterQuality.values, source, <Object>['placeholderFilterQuality']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageFadeInImage.assetNetwork(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'FadeInImageAssetNetwork'),
+      placeholder: RestageDecoders.string(source, <Object>['placeholder'],
+              context: context) ??
+          (throw ArgumentError(
+              'FadeInImageAssetNetwork.placeholder is required.')),
+      image: RestageDecoders.string(source, <Object>['image'],
+              context: context) ??
+          (throw ArgumentError('FadeInImageAssetNetwork.image is required.')),
+      imageScale: RestageDecoders.positiveLayoutScalar(
+              source, <Object>['imageScale']) ??
+          1.0,
+      width: RestageDecoders.constraintScalar(source, <Object>['width']),
+      height: RestageDecoders.constraintScalar(source, <Object>['height']),
+      fit: RestageDecoders.enumByName<BoxFit>(
+          BoxFit.values, source, <Object>['fit']),
+      placeholderFit: RestageDecoders.enumByName<BoxFit>(
+          BoxFit.values, source, <Object>['placeholderFit']),
+      placeholderFilterQuality: RestageDecoders.enumByName<FilterQuality>(
+          FilterQuality.values, source, <Object>['placeholderFilterQuality']),
+    );
+  });
 }
 
 /// Builds the catalog's `FittedBox` widget from [source].
 Widget buildFittedBox(BuildContext context, DataSource source) {
-  return RestageFittedBox(
-    fit: RestageDecoders.enumByName<BoxFit>(
-            BoxFit.values, source, <Object>['fit']) ??
-        BoxFit.contain,
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-        AlignmentDirectional.center,
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageFittedBox(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'FittedBox'),
+      fit: RestageDecoders.enumByName<BoxFit>(
+              BoxFit.values, source, <Object>['fit']) ??
+          BoxFit.contain,
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
+          AlignmentDirectional.center,
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Flexible` widget from [source].
 Widget buildFlexible(BuildContext context, DataSource source) {
-  return Flexible(
-    flex: source.v<int>(const <Object>['flex']) ?? 1,
-    fit: RestageDecoders.enumByName<FlexFit>(
-            FlexFit.values, source, <Object>['fit']) ??
-        FlexFit.loose,
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Flexible(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      flex: RestageValueBinding.read<int>(
+              source, const <Object>['flex'], context) ??
+          1,
+      fit: RestageDecoders.enumByName<FlexFit>(
+              FlexFit.values, source, <Object>['fit']) ??
+          FlexFit.loose,
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `FractionallySizedBox` widget from [source].
 Widget buildFractionallySizedBox(BuildContext context, DataSource source) {
-  return RestageFractionallySizedBox(
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-        AlignmentDirectional.center,
-    widthFactor: RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
-    heightFactor:
-        RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageFractionallySizedBox(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'FractionallySizedBox'),
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
+          AlignmentDirectional.center,
+      widthFactor:
+          RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
+      heightFactor:
+          RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `GestureDetector` widget from [source].
 Widget buildGestureDetector(BuildContext context, DataSource source) {
-  return GestureDetector(
-    onTap: source.voidHandler(const <Object>['onTap']),
-    onDoubleTap: source.voidHandler(const <Object>['onDoubleTap']),
-    onLongPress: source.voidHandler(const <Object>['onLongPress']),
-    behavior: RestageDecoders.enumByName<HitTestBehavior>(
-        HitTestBehavior.values, source, <Object>['behavior']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return GestureDetector(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      onTap: source.voidHandler(const <Object>['onTap']),
+      onDoubleTap: source.voidHandler(const <Object>['onDoubleTap']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      behavior: RestageDecoders.enumByName<HitTestBehavior>(
+          HitTestBehavior.values, source, <Object>['behavior']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `IgnorePointer` widget from [source].
 Widget buildIgnorePointer(BuildContext context, DataSource source) {
-  return IgnorePointer(
-    ignoring: source.v<bool>(const <Object>['ignoring']) ?? true,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return IgnorePointer(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      ignoring: RestageValueBinding.read<bool>(
+              source, const <Object>['ignoring'], context) ??
+          true,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Image` widget from [source].
 Widget buildImage(BuildContext context, DataSource source) {
-  return RestageImage.network(
-    RestageDecoders.string(source, <Object>['url']) ??
-        (throw ArgumentError('Image.url is required.')),
-    semanticLabel: RestageDecoders.string(source, <Object>['semanticLabel']),
-    width: RestageDecoders.constraintScalar(source, <Object>['width']),
-    height: RestageDecoders.constraintScalar(source, <Object>['height']),
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    colorBlendMode: RestageDecoders.enumByName<BlendMode>(
-        BlendMode.values, source, <Object>['colorBlendMode']),
-    fit: RestageDecoders.enumByName<BoxFit>(
-        BoxFit.values, source, <Object>['fit']),
-    alignment: RestageDecoders.alignmentXY(source, <Object>['alignment']) ??
-        Alignment.center,
-    repeat: RestageDecoders.enumByName<ImageRepeat>(
-            ImageRepeat.values, source, <Object>['repeat']) ??
-        ImageRepeat.noRepeat,
-    filterQuality: RestageDecoders.enumByName<FilterQuality>(
-            FilterQuality.values, source, <Object>['filterQuality']) ??
-        FilterQuality.medium,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageImage.network(
+      RestageDecoders.string(source, <Object>['url'], context: context) ??
+          (throw ArgumentError('Image.url is required.')),
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'Image'),
+      semanticLabel: RestageDecoders.string(source, <Object>['semanticLabel'],
+          context: context),
+      width: RestageDecoders.constraintScalar(source, <Object>['width']),
+      height: RestageDecoders.constraintScalar(source, <Object>['height']),
+      color: RestageDecoders.color(source, <Object>['color']),
+      colorBlendMode: RestageDecoders.enumByName<BlendMode>(
+          BlendMode.values, source, <Object>['colorBlendMode']),
+      fit: RestageDecoders.enumByName<BoxFit>(
+          BoxFit.values, source, <Object>['fit']),
+      alignment: RestageDecoders.alignmentXY(source, <Object>['alignment']) ??
+          Alignment.center,
+      repeat: RestageDecoders.enumByName<ImageRepeat>(
+              ImageRepeat.values, source, <Object>['repeat']) ??
+          ImageRepeat.noRepeat,
+      filterQuality: RestageDecoders.enumByName<FilterQuality>(
+              FilterQuality.values, source, <Object>['filterQuality']) ??
+          FilterQuality.medium,
+    );
+  });
 }
 
 /// Builds the catalog's `ImageAsset` widget from [source].
 Widget buildImageAsset(BuildContext context, DataSource source) {
-  return RestageImage.asset(
-    RestageDecoders.string(source, <Object>['name']) ??
-        (throw ArgumentError('ImageAsset.name is required.')),
-    semanticLabel: RestageDecoders.string(source, <Object>['semanticLabel']),
-    width: RestageDecoders.constraintScalar(source, <Object>['width']),
-    height: RestageDecoders.constraintScalar(source, <Object>['height']),
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    colorBlendMode: RestageDecoders.enumByName<BlendMode>(
-        BlendMode.values, source, <Object>['colorBlendMode']),
-    fit: RestageDecoders.enumByName<BoxFit>(
-        BoxFit.values, source, <Object>['fit']),
-    alignment: RestageDecoders.alignmentXY(source, <Object>['alignment']) ??
-        Alignment.center,
-    repeat: RestageDecoders.enumByName<ImageRepeat>(
-            ImageRepeat.values, source, <Object>['repeat']) ??
-        ImageRepeat.noRepeat,
-    filterQuality: RestageDecoders.enumByName<FilterQuality>(
-            FilterQuality.values, source, <Object>['filterQuality']) ??
-        FilterQuality.medium,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageImage.asset(
+      RestageDecoders.string(source, <Object>['name'], context: context) ??
+          (throw ArgumentError('ImageAsset.name is required.')),
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'ImageAsset'),
+      semanticLabel: RestageDecoders.string(source, <Object>['semanticLabel'],
+          context: context),
+      width: RestageDecoders.constraintScalar(source, <Object>['width']),
+      height: RestageDecoders.constraintScalar(source, <Object>['height']),
+      color: RestageDecoders.color(source, <Object>['color']),
+      colorBlendMode: RestageDecoders.enumByName<BlendMode>(
+          BlendMode.values, source, <Object>['colorBlendMode']),
+      fit: RestageDecoders.enumByName<BoxFit>(
+          BoxFit.values, source, <Object>['fit']),
+      alignment: RestageDecoders.alignmentXY(source, <Object>['alignment']) ??
+          Alignment.center,
+      repeat: RestageDecoders.enumByName<ImageRepeat>(
+              ImageRepeat.values, source, <Object>['repeat']) ??
+          ImageRepeat.noRepeat,
+      filterQuality: RestageDecoders.enumByName<FilterQuality>(
+              FilterQuality.values, source, <Object>['filterQuality']) ??
+          FilterQuality.medium,
+    );
+  });
 }
 
 /// Builds the catalog's `IntrinsicHeight` widget from [source].
 Widget buildIntrinsicHeight(BuildContext context, DataSource source) {
-  return IntrinsicHeight(
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return IntrinsicHeight(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `IntrinsicWidth` widget from [source].
 Widget buildIntrinsicWidth(BuildContext context, DataSource source) {
-  return RestageIntrinsicWidth(
-    stepWidth: RestageDecoders.layoutFactor(source, <Object>['stepWidth']),
-    stepHeight: RestageDecoders.layoutFactor(source, <Object>['stepHeight']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageIntrinsicWidth(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'IntrinsicWidth'),
+      stepWidth: RestageDecoders.layoutFactor(source, <Object>['stepWidth']),
+      stepHeight: RestageDecoders.layoutFactor(source, <Object>['stepHeight']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `LimitedBox` widget from [source].
 Widget buildLimitedBox(BuildContext context, DataSource source) {
-  return LimitedBox(
-    maxWidth: RestageDecoders.requiredLayoutScalar(source, <Object>['maxWidth'],
-        slot: 'LimitedBox.maxWidth', mustBePositive: false),
-    maxHeight: RestageDecoders.requiredLayoutScalar(
-        source, <Object>['maxHeight'],
-        slot: 'LimitedBox.maxHeight', mustBePositive: false),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return LimitedBox(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      maxWidth: RestageDecoders.requiredLayoutScalar(
+          source, <Object>['maxWidth'],
+          slot: 'LimitedBox.maxWidth', mustBePositive: false),
+      maxHeight: RestageDecoders.requiredLayoutScalar(
+          source, <Object>['maxHeight'],
+          slot: 'LimitedBox.maxHeight', mustBePositive: false),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
+}
+
+/// Builds the catalog's `GridView` widget from [source].
+Widget buildGridView(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return GridView(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      scrollDirection: RestageDecoders.enumByName<Axis>(
+              Axis.values, source, <Object>['scrollDirection']) ??
+          Axis.vertical,
+      reverse: RestageValueBinding.read<bool>(
+              source, const <Object>['reverse'], context) ??
+          false,
+      controller: RestageDecoders.nativeBinding<ScrollController>(
+          context, source, <Object>['controller'],
+          type: 'flutter.ScrollController'),
+      primary: RestageValueBinding.read<bool>(
+          source, const <Object>['primary'], context),
+      physics: RestageGridValues.physics(source, <Object>['physics']),
+      shrinkWrap: RestageValueBinding.read<bool>(
+              source, const <Object>['shrinkWrap'], context) ??
+          false,
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      gridDelegate:
+          RestageGridValues.gridDelegate(source, <Object>['gridDelegate']) ??
+              (throw ArgumentError('GridView.gridDelegate is required.')),
+      addAutomaticKeepAlives: RestageValueBinding.read<bool>(
+              source, const <Object>['addAutomaticKeepAlives'], context) ??
+          true,
+      addRepaintBoundaries: RestageValueBinding.read<bool>(
+              source, const <Object>['addRepaintBoundaries'], context) ??
+          true,
+      addSemanticIndexes: RestageValueBinding.read<bool>(
+              source, const <Object>['addSemanticIndexes'], context) ??
+          true,
+      cacheExtent: RestageValueBinding.read<double>(
+          source, const <Object>['cacheExtent'], context),
+      scrollCacheExtent:
+          RestageGridValues.cacheExtent(source, <Object>['scrollCacheExtent']),
+      semanticChildCount: RestageValueBinding.read<int>(
+          source, const <Object>['semanticChildCount'], context),
+      dragStartBehavior: RestageDecoders.enumByName<DragStartBehavior>(
+              DragStartBehavior.values,
+              source,
+              <Object>['dragStartBehavior']) ??
+          DragStartBehavior.start,
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      keyboardDismissBehavior:
+          RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
+              ScrollViewKeyboardDismissBehavior.values,
+              source,
+              <Object>['keyboardDismissBehavior']),
+      restorationId: RestageDecoders.string(source, <Object>['restorationId'],
+          context: context),
+      hitTestBehavior: RestageDecoders.enumByName<HitTestBehavior>(
+              HitTestBehavior.values, source, <Object>['hitTestBehavior']) ??
+          HitTestBehavior.opaque,
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
+}
+
+/// Builds the catalog's `GridViewCount` widget from [source].
+Widget buildGridViewCount(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return GridView.count(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      scrollDirection: RestageDecoders.enumByName<Axis>(
+              Axis.values, source, <Object>['scrollDirection']) ??
+          Axis.vertical,
+      reverse: RestageValueBinding.read<bool>(
+              source, const <Object>['reverse'], context) ??
+          false,
+      controller: RestageDecoders.nativeBinding<ScrollController>(
+          context, source, <Object>['controller'],
+          type: 'flutter.ScrollController'),
+      primary: RestageValueBinding.read<bool>(
+          source, const <Object>['primary'], context),
+      physics: RestageGridValues.physics(source, <Object>['physics']),
+      shrinkWrap: RestageValueBinding.read<bool>(
+              source, const <Object>['shrinkWrap'], context) ??
+          false,
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      crossAxisCount: RestageValueBinding.read<int>(
+              source, const <Object>['crossAxisCount'], context) ??
+          (throw ArgumentError('GridViewCount.crossAxisCount is required.')),
+      mainAxisSpacing: RestageValueBinding.read<double>(
+              source, const <Object>['mainAxisSpacing'], context) ??
+          0.0,
+      crossAxisSpacing: RestageValueBinding.read<double>(
+              source, const <Object>['crossAxisSpacing'], context) ??
+          0.0,
+      childAspectRatio: RestageValueBinding.read<double>(
+              source, const <Object>['childAspectRatio'], context) ??
+          1.0,
+      mainAxisExtent: RestageValueBinding.read<double>(
+          source, const <Object>['mainAxisExtent'], context),
+      addAutomaticKeepAlives: RestageValueBinding.read<bool>(
+              source, const <Object>['addAutomaticKeepAlives'], context) ??
+          true,
+      addRepaintBoundaries: RestageValueBinding.read<bool>(
+              source, const <Object>['addRepaintBoundaries'], context) ??
+          true,
+      addSemanticIndexes: RestageValueBinding.read<bool>(
+              source, const <Object>['addSemanticIndexes'], context) ??
+          true,
+      cacheExtent: RestageValueBinding.read<double>(
+          source, const <Object>['cacheExtent'], context),
+      scrollCacheExtent:
+          RestageGridValues.cacheExtent(source, <Object>['scrollCacheExtent']),
+      semanticChildCount: RestageValueBinding.read<int>(
+          source, const <Object>['semanticChildCount'], context),
+      dragStartBehavior: RestageDecoders.enumByName<DragStartBehavior>(
+              DragStartBehavior.values,
+              source,
+              <Object>['dragStartBehavior']) ??
+          DragStartBehavior.start,
+      keyboardDismissBehavior:
+          RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
+              ScrollViewKeyboardDismissBehavior.values,
+              source,
+              <Object>['keyboardDismissBehavior']),
+      restorationId: RestageDecoders.string(source, <Object>['restorationId'],
+          context: context),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      hitTestBehavior: RestageDecoders.enumByName<HitTestBehavior>(
+              HitTestBehavior.values, source, <Object>['hitTestBehavior']) ??
+          HitTestBehavior.opaque,
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
+}
+
+/// Builds the catalog's `GridViewExtent` widget from [source].
+Widget buildGridViewExtent(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return GridView.extent(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      scrollDirection: RestageDecoders.enumByName<Axis>(
+              Axis.values, source, <Object>['scrollDirection']) ??
+          Axis.vertical,
+      reverse: RestageValueBinding.read<bool>(
+              source, const <Object>['reverse'], context) ??
+          false,
+      controller: RestageDecoders.nativeBinding<ScrollController>(
+          context, source, <Object>['controller'],
+          type: 'flutter.ScrollController'),
+      primary: RestageValueBinding.read<bool>(
+          source, const <Object>['primary'], context),
+      physics: RestageGridValues.physics(source, <Object>['physics']),
+      shrinkWrap: RestageValueBinding.read<bool>(
+              source, const <Object>['shrinkWrap'], context) ??
+          false,
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      maxCrossAxisExtent: RestageValueBinding.read<double>(
+              source, const <Object>['maxCrossAxisExtent'], context) ??
+          (throw ArgumentError(
+              'GridViewExtent.maxCrossAxisExtent is required.')),
+      mainAxisSpacing: RestageValueBinding.read<double>(
+              source, const <Object>['mainAxisSpacing'], context) ??
+          0.0,
+      crossAxisSpacing: RestageValueBinding.read<double>(
+              source, const <Object>['crossAxisSpacing'], context) ??
+          0.0,
+      childAspectRatio: RestageValueBinding.read<double>(
+              source, const <Object>['childAspectRatio'], context) ??
+          1.0,
+      mainAxisExtent: RestageValueBinding.read<double>(
+          source, const <Object>['mainAxisExtent'], context),
+      addAutomaticKeepAlives: RestageValueBinding.read<bool>(
+              source, const <Object>['addAutomaticKeepAlives'], context) ??
+          true,
+      addRepaintBoundaries: RestageValueBinding.read<bool>(
+              source, const <Object>['addRepaintBoundaries'], context) ??
+          true,
+      addSemanticIndexes: RestageValueBinding.read<bool>(
+              source, const <Object>['addSemanticIndexes'], context) ??
+          true,
+      cacheExtent: RestageValueBinding.read<double>(
+          source, const <Object>['cacheExtent'], context),
+      scrollCacheExtent:
+          RestageGridValues.cacheExtent(source, <Object>['scrollCacheExtent']),
+      semanticChildCount: RestageValueBinding.read<int>(
+          source, const <Object>['semanticChildCount'], context),
+      dragStartBehavior: RestageDecoders.enumByName<DragStartBehavior>(
+              DragStartBehavior.values,
+              source,
+              <Object>['dragStartBehavior']) ??
+          DragStartBehavior.start,
+      keyboardDismissBehavior:
+          RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
+              ScrollViewKeyboardDismissBehavior.values,
+              source,
+              <Object>['keyboardDismissBehavior']),
+      restorationId: RestageDecoders.string(source, <Object>['restorationId'],
+          context: context),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      hitTestBehavior: RestageDecoders.enumByName<HitTestBehavior>(
+              HitTestBehavior.values, source, <Object>['hitTestBehavior']) ??
+          HitTestBehavior.opaque,
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
+}
+
+/// Builds the catalog's `GridViewBuilder` widget from [source].
+Widget buildGridViewBuilder(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final restageBuilderBindingitemBuilder = RestageBuilderBinding(
+        source, const <Object>['itemBuilder'],
+        contract: const WidgetBuilderContract(parameters: [
+          WidgetBuilderParameter.buildContext,
+          WidgetBuilderParameter.itemIndex
+        ], nullableResult: true));
+    builderBindings.add(restageBuilderBindingitemBuilder);
+    final restageBuilderBindingfindChildIndexCallback =
+        RestageDecoders.keyIndexCallback(
+            context, source, const <Object>['findChildIndexCallback'],
+            bindings: builderBindings);
+
+    return GridView.builder(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      scrollDirection: RestageDecoders.enumByName<Axis>(
+              Axis.values, source, <Object>['scrollDirection']) ??
+          Axis.vertical,
+      reverse: RestageValueBinding.read<bool>(
+              source, const <Object>['reverse'], context) ??
+          false,
+      controller: RestageDecoders.nativeBinding<ScrollController>(
+          context, source, <Object>['controller'],
+          type: 'flutter.ScrollController'),
+      primary: RestageValueBinding.read<bool>(
+          source, const <Object>['primary'], context),
+      physics: RestageGridValues.physics(source, <Object>['physics']),
+      shrinkWrap: RestageValueBinding.read<bool>(
+              source, const <Object>['shrinkWrap'], context) ??
+          false,
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      gridDelegate: RestageGridValues.gridDelegate(
+              source, <Object>['gridDelegate']) ??
+          (throw ArgumentError('GridViewBuilder.gridDelegate is required.')),
+      itemBuilder: (BuildContext arg0, int arg1) =>
+          restageBuilderBindingitemBuilder.buildNullable(arg0, {'arg1': arg1}),
+      findChildIndexCallback: restageBuilderBindingfindChildIndexCallback,
+      itemCount: RestageValueBinding.read<int>(
+          source, const <Object>['itemCount'], context),
+      addAutomaticKeepAlives: RestageValueBinding.read<bool>(
+              source, const <Object>['addAutomaticKeepAlives'], context) ??
+          true,
+      addRepaintBoundaries: RestageValueBinding.read<bool>(
+              source, const <Object>['addRepaintBoundaries'], context) ??
+          true,
+      addSemanticIndexes: RestageValueBinding.read<bool>(
+              source, const <Object>['addSemanticIndexes'], context) ??
+          true,
+      cacheExtent: RestageValueBinding.read<double>(
+          source, const <Object>['cacheExtent'], context),
+      scrollCacheExtent:
+          RestageGridValues.cacheExtent(source, <Object>['scrollCacheExtent']),
+      semanticChildCount: RestageValueBinding.read<int>(
+          source, const <Object>['semanticChildCount'], context),
+      dragStartBehavior: RestageDecoders.enumByName<DragStartBehavior>(
+              DragStartBehavior.values,
+              source,
+              <Object>['dragStartBehavior']) ??
+          DragStartBehavior.start,
+      keyboardDismissBehavior:
+          RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
+              ScrollViewKeyboardDismissBehavior.values,
+              source,
+              <Object>['keyboardDismissBehavior']),
+      restorationId: RestageDecoders.string(source, <Object>['restorationId'],
+          context: context),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      hitTestBehavior: RestageDecoders.enumByName<HitTestBehavior>(
+              HitTestBehavior.values, source, <Object>['hitTestBehavior']) ??
+          HitTestBehavior.opaque,
+    );
+  });
+}
+
+/// Builds the catalog's `GridViewCustom` widget from [source].
+Widget buildGridViewCustom(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return GridView.custom(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      scrollDirection: RestageDecoders.enumByName<Axis>(
+              Axis.values, source, <Object>['scrollDirection']) ??
+          Axis.vertical,
+      reverse: RestageValueBinding.read<bool>(
+              source, const <Object>['reverse'], context) ??
+          false,
+      controller: RestageDecoders.nativeBinding<ScrollController>(
+          context, source, <Object>['controller'],
+          type: 'flutter.ScrollController'),
+      primary: RestageValueBinding.read<bool>(
+          source, const <Object>['primary'], context),
+      physics: RestageGridValues.physics(source, <Object>['physics']),
+      shrinkWrap: RestageValueBinding.read<bool>(
+              source, const <Object>['shrinkWrap'], context) ??
+          false,
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      gridDelegate:
+          RestageGridValues.gridDelegate(source, <Object>['gridDelegate']) ??
+              (throw ArgumentError('GridViewCustom.gridDelegate is required.')),
+      childrenDelegate: RestageGridChildren.delegate(
+              source, <Object>['childrenDelegate'],
+              context: context, bindings: builderBindings) ??
+          (throw ArgumentError('GridViewCustom.childrenDelegate is required.')),
+      cacheExtent: RestageValueBinding.read<double>(
+          source, const <Object>['cacheExtent'], context),
+      scrollCacheExtent:
+          RestageGridValues.cacheExtent(source, <Object>['scrollCacheExtent']),
+      semanticChildCount: RestageValueBinding.read<int>(
+          source, const <Object>['semanticChildCount'], context),
+      dragStartBehavior: RestageDecoders.enumByName<DragStartBehavior>(
+              DragStartBehavior.values,
+              source,
+              <Object>['dragStartBehavior']) ??
+          DragStartBehavior.start,
+      keyboardDismissBehavior:
+          RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
+              ScrollViewKeyboardDismissBehavior.values,
+              source,
+              <Object>['keyboardDismissBehavior']),
+      restorationId: RestageDecoders.string(source, <Object>['restorationId'],
+          context: context),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      hitTestBehavior: RestageDecoders.enumByName<HitTestBehavior>(
+              HitTestBehavior.values, source, <Object>['hitTestBehavior']) ??
+          HitTestBehavior.opaque,
+    );
+  });
 }
 
 /// Builds the catalog's `ListView` widget from [source].
 Widget buildListView(BuildContext context, DataSource source) {
-  return RestageListView(
-    scrollDirection: RestageDecoders.enumByName<Axis>(
-            Axis.values, source, <Object>['scrollDirection']) ??
-        Axis.vertical,
-    reverse: source.v<bool>(const <Object>['reverse']) ?? false,
-    shrinkWrap: source.v<bool>(const <Object>['shrinkWrap']) ?? false,
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    keyboardDismissBehavior:
-        RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
-            ScrollViewKeyboardDismissBehavior.values,
-            source,
-            <Object>['keyboardDismissBehavior']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.hardEdge,
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageListView(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'ListView'),
+      scrollDirection: RestageDecoders.enumByName<Axis>(
+              Axis.values, source, <Object>['scrollDirection']) ??
+          Axis.vertical,
+      reverse: RestageValueBinding.read<bool>(
+              source, const <Object>['reverse'], context) ??
+          false,
+      controller: RestageDecoders.nativeBinding<ScrollController>(
+          context, source, <Object>['controller'],
+          type: 'flutter.ScrollController'),
+      shrinkWrap: RestageValueBinding.read<bool>(
+              source, const <Object>['shrinkWrap'], context) ??
+          false,
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      keyboardDismissBehavior:
+          RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
+              ScrollViewKeyboardDismissBehavior.values,
+              source,
+              <Object>['keyboardDismissBehavior']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
 }
 
 /// Builds the catalog's `RestageFadeIn` widget from [source].
 Widget buildRestageFadeIn(BuildContext context, DataSource source) {
-  return RestageFadeIn(
-    duration: RestageDecoders.duration(source, <Object>['duration']),
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.easeOut,
-    fromOpacity: source.v<double>(const <Object>['fromOpacity']) ?? 0.0,
-    fromOffset:
-        RestageDecoders.offset(source, <Object>['fromOffset']) ?? Offset.zero,
-    delay: RestageDecoders.duration(source, <Object>['delay']),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageFadeIn(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      duration: RestageDecoders.duration(source, <Object>['duration']),
+      curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.easeOut,
+      fromOpacity: RestageValueBinding.read<double>(
+              source, const <Object>['fromOpacity'], context) ??
+          0.0,
+      fromOffset:
+          RestageDecoders.offset(source, <Object>['fromOffset']) ?? Offset.zero,
+      delay: RestageDecoders.duration(source, <Object>['delay']),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `RestageFormattedNumber` widget from [source].
 Widget buildRestageFormattedNumber(BuildContext context, DataSource source) {
-  return RestageFormattedNumber(
-    style: RestageDecoders.packagedFont(TextStyle(
-        inherit: source.v<bool>(const <Object>['inherit']) ?? true,
-        color: ArgumentDecoders.color(source, <Object>['color']),
-        backgroundColor:
-            ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
-        fontWeight: ArgumentDecoders.enumValue<FontWeight>(
-            FontWeight.values, source, <Object>['fontWeight']),
-        fontStyle: RestageDecoders.enumByName<FontStyle>(
-            FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing:
-            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
-        wordSpacing:
-            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
-        textBaseline: RestageDecoders.enumByName<TextBaseline>(
-            TextBaseline.values, source, <Object>['textBaseline']),
-        height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution:
-            RestageDecoders.enumByName<TextLeadingDistribution>(
-                TextLeadingDistribution.values,
-                source,
-                <Object>['leadingDistribution']),
-        locale: ArgumentDecoders.locale(source, <Object>['locale']),
-        foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
-        background: ArgumentDecoders.paint(source, <Object>['background']),
-        shadows: RestageDecoders.shadows(source, <Object>['shadows']),
-        fontFeatures:
-            RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-        fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
-        decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
-        decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
-        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
-        fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: RestageDecoders.string(source, <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
-    value: source.v<double>(const <Object>['value']),
-    numberLocale: RestageDecoders.string(source, <Object>['numberLocale']),
-    textAlign: RestageDecoders.enumByName<TextAlign>(
-        TextAlign.values, source, <Object>['textAlign']),
-    maxLines: source.v<int>(const <Object>['maxLines']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageFormattedNumber(
+      style: RestageDecoders.packagedFont(TextStyle(
+          inherit: RestageValueBinding.read<bool>(source, const <Object>['inherit'], context) ??
+              true,
+          color: RestageDecoders.color(source, <Object>['color']),
+          backgroundColor:
+              RestageDecoders.color(source, <Object>['backgroundColor']),
+          fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
+          fontWeight:
+              RestageDecoders.fontWeight(source, <Object>['fontWeight']),
+          fontStyle: RestageDecoders.enumByName<FontStyle>(
+              FontStyle.values, source, <Object>['fontStyle']),
+          letterSpacing:
+              RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+          wordSpacing:
+              RestageDecoders.textMetric(source, <Object>['wordSpacing']),
+          textBaseline: RestageDecoders.enumByName<TextBaseline>(
+              TextBaseline.values, source, <Object>['textBaseline']),
+          height: RestageDecoders.textMetric(source, <Object>['height']),
+          leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
+              TextLeadingDistribution.values,
+              source,
+              <Object>['leadingDistribution']),
+          locale: ArgumentDecoders.locale(source, <Object>['locale']),
+          foreground: RestageDecoders.paint(source, <Object>['foreground']),
+          background: RestageDecoders.paint(source, <Object>['background']),
+          shadows: RestageDecoders.shadows(source, <Object>['shadows']),
+          fontFeatures:
+              RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
+          fontVariations:
+              RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+          decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
+          decorationColor: RestageDecoders.color(source, <Object>['decorationColor']),
+          decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+          decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
+          debugLabel: RestageDecoders.string(source, <Object>['debugLabel'], context: context),
+          fontFamily: RestageDecoders.string(source, <Object>['fontFamily'], context: context),
+          fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
+          package: RestageDecoders.string(source, <Object>['fontPackage'], context: context),
+          overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<double>(
+          source, const <Object>['value'], context),
+      numberLocale: RestageDecoders.string(source, <Object>['numberLocale'],
+          context: context),
+      textAlign: RestageDecoders.enumByName<TextAlign>(
+          TextAlign.values, source, <Object>['textAlign']),
+      maxLines: RestageValueBinding.read<int>(
+          source, const <Object>['maxLines'], context),
+    );
+  });
 }
 
 /// Builds the catalog's `RestageMotion` widget from [source].
 Widget buildRestageMotion(BuildContext context, DataSource source) {
-  return RestageMotion(
-    spring: RestageDecoders.enumByName<RestageSpring>(
-            RestageSpring.values, source, <Object>['spring']) ??
-        RestageSpring.smooth,
-    duration: RestageDecoders.duration(source, <Object>['duration']),
-    bounce: source.v<double>(const <Object>['bounce']),
-    fromScale: source.v<double>(const <Object>['fromScale']) ?? 1.0,
-    fromOpacity: source.v<double>(const <Object>['fromOpacity']) ?? 1.0,
-    fromOffset:
-        RestageDecoders.offset(source, <Object>['fromOffset']) ?? Offset.zero,
-    delay: RestageDecoders.duration(source, <Object>['delay']),
-    onEnd: source.voidHandler(const <Object>['onEnd']),
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageMotion(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      spring: RestageDecoders.enumByName<RestageSpring>(
+              RestageSpring.values, source, <Object>['spring']) ??
+          RestageSpring.smooth,
+      duration: RestageDecoders.duration(source, <Object>['duration']),
+      bounce: RestageValueBinding.read<double>(
+          source, const <Object>['bounce'], context),
+      fromScale: RestageValueBinding.read<double>(
+              source, const <Object>['fromScale'], context) ??
+          1.0,
+      fromOpacity: RestageValueBinding.read<double>(
+              source, const <Object>['fromOpacity'], context) ??
+          1.0,
+      fromOffset:
+          RestageDecoders.offset(source, <Object>['fromOffset']) ?? Offset.zero,
+      delay: RestageDecoders.duration(source, <Object>['delay']),
+      onEnd: source.voidHandler(const <Object>['onEnd']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `RestagePrice` widget from [source].
 Widget buildRestagePrice(BuildContext context, DataSource source) {
-  return RestagePrice(
-    style: RestageDecoders.packagedFont(TextStyle(
-        inherit: source.v<bool>(const <Object>['inherit']) ?? true,
-        color: ArgumentDecoders.color(source, <Object>['color']),
-        backgroundColor:
-            ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
-        fontWeight: ArgumentDecoders.enumValue<FontWeight>(
-            FontWeight.values, source, <Object>['fontWeight']),
-        fontStyle: RestageDecoders.enumByName<FontStyle>(
-            FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing:
-            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
-        wordSpacing:
-            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
-        textBaseline: RestageDecoders.enumByName<TextBaseline>(
-            TextBaseline.values, source, <Object>['textBaseline']),
-        height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution:
-            RestageDecoders.enumByName<TextLeadingDistribution>(
-                TextLeadingDistribution.values,
-                source,
-                <Object>['leadingDistribution']),
-        locale: ArgumentDecoders.locale(source, <Object>['locale']),
-        foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
-        background: ArgumentDecoders.paint(source, <Object>['background']),
-        shadows: RestageDecoders.shadows(source, <Object>['shadows']),
-        fontFeatures:
-            RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-        fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
-        decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
-        decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
-        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
-        fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: RestageDecoders.string(source, <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
-    value: source.v<double>(const <Object>['value']),
-    numberLocale: RestageDecoders.string(source, <Object>['numberLocale']),
-    symbol: RestageDecoders.string(source, <Object>['symbol']),
-    decimalDigits: source.v<int>(const <Object>['decimalDigits']),
-    textAlign: RestageDecoders.enumByName<TextAlign>(
-        TextAlign.values, source, <Object>['textAlign']),
-    maxLines: source.v<int>(const <Object>['maxLines']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestagePrice(
+      style: RestageDecoders.packagedFont(TextStyle(
+          inherit: RestageValueBinding.read<bool>(source, const <Object>['inherit'], context) ??
+              true,
+          color: RestageDecoders.color(source, <Object>['color']),
+          backgroundColor:
+              RestageDecoders.color(source, <Object>['backgroundColor']),
+          fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
+          fontWeight:
+              RestageDecoders.fontWeight(source, <Object>['fontWeight']),
+          fontStyle: RestageDecoders.enumByName<FontStyle>(
+              FontStyle.values, source, <Object>['fontStyle']),
+          letterSpacing:
+              RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+          wordSpacing:
+              RestageDecoders.textMetric(source, <Object>['wordSpacing']),
+          textBaseline: RestageDecoders.enumByName<TextBaseline>(
+              TextBaseline.values, source, <Object>['textBaseline']),
+          height: RestageDecoders.textMetric(source, <Object>['height']),
+          leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
+              TextLeadingDistribution.values,
+              source,
+              <Object>['leadingDistribution']),
+          locale: ArgumentDecoders.locale(source, <Object>['locale']),
+          foreground: RestageDecoders.paint(source, <Object>['foreground']),
+          background: RestageDecoders.paint(source, <Object>['background']),
+          shadows: RestageDecoders.shadows(source, <Object>['shadows']),
+          fontFeatures:
+              RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
+          fontVariations:
+              RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+          decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
+          decorationColor: RestageDecoders.color(source, <Object>['decorationColor']),
+          decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+          decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
+          debugLabel: RestageDecoders.string(source, <Object>['debugLabel'], context: context),
+          fontFamily: RestageDecoders.string(source, <Object>['fontFamily'], context: context),
+          fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
+          package: RestageDecoders.string(source, <Object>['fontPackage'], context: context),
+          overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<double>(
+          source, const <Object>['value'], context),
+      numberLocale: RestageDecoders.string(source, <Object>['numberLocale'],
+          context: context),
+      symbol:
+          RestageDecoders.string(source, <Object>['symbol'], context: context),
+      decimalDigits: RestageValueBinding.read<int>(
+          source, const <Object>['decimalDigits'], context),
+      textAlign: RestageDecoders.enumByName<TextAlign>(
+          TextAlign.values, source, <Object>['textAlign']),
+      maxLines: RestageValueBinding.read<int>(
+          source, const <Object>['maxLines'], context),
+    );
+  });
 }
 
 /// Builds the catalog's `RestagePulse` widget from [source].
 Widget buildRestagePulse(BuildContext context, DataSource source) {
-  return RestagePulse(
-    minScale: source.v<double>(const <Object>['minScale']) ?? 0.97,
-    maxScale: source.v<double>(const <Object>['maxScale']) ?? 1.03,
-    period: RestageDecoders.duration(source, <Object>['period']),
-    curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.easeInOut,
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestagePulse(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      minScale: RestageValueBinding.read<double>(
+              source, const <Object>['minScale'], context) ??
+          0.97,
+      maxScale: RestageValueBinding.read<double>(
+              source, const <Object>['maxScale'], context) ??
+          1.03,
+      period: RestageDecoders.duration(source, <Object>['period']),
+      curve:
+          RestageDecoders.curve(source, <Object>['curve']) ?? Curves.easeInOut,
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `RestageShaderMask` widget from [source].
 Widget buildRestageShaderMask(BuildContext context, DataSource source) {
-  return RestageShaderMask(
-    gradient: ArgumentDecoders.gradient(source, <Object>['gradient']),
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    rotation: source.v<double>(const <Object>['rotation']) ?? 0.0,
-    blendMode: RestageDecoders.enumByName<BlendMode>(
-            BlendMode.values, source, <Object>['blendMode']) ??
-        BlendMode.modulate,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageShaderMask(
+      gradient: RestageDecoders.gradient(source, <Object>['gradient']),
+      color: RestageDecoders.color(source, <Object>['color']),
+      rotation: RestageValueBinding.read<double>(
+              source, const <Object>['rotation'], context) ??
+          0.0,
+      blendMode: RestageDecoders.enumByName<BlendMode>(
+              BlendMode.values, source, <Object>['blendMode']) ??
+          BlendMode.modulate,
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `RestageStagger` widget from [source].
 Widget buildRestageStagger(BuildContext context, DataSource source) {
-  return RestageStagger(
-    delayBetween: RestageDecoders.duration(source, <Object>['delayBetween']),
-    spring: RestageDecoders.enumByName<RestageSpring>(
-            RestageSpring.values, source, <Object>['spring']) ??
-        RestageSpring.smooth,
-    fromOffset:
-        RestageDecoders.offset(source, <Object>['fromOffset']) ?? Offset.zero,
-    fromOpacity: source.v<double>(const <Object>['fromOpacity']) ?? 0.0,
-    fromScale: source.v<double>(const <Object>['fromScale']) ?? 1.0,
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageStagger(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      delayBetween: RestageDecoders.duration(source, <Object>['delayBetween']),
+      spring: RestageDecoders.enumByName<RestageSpring>(
+              RestageSpring.values, source, <Object>['spring']) ??
+          RestageSpring.smooth,
+      fromOffset:
+          RestageDecoders.offset(source, <Object>['fromOffset']) ?? Offset.zero,
+      fromOpacity: RestageValueBinding.read<double>(
+              source, const <Object>['fromOpacity'], context) ??
+          0.0,
+      fromScale: RestageValueBinding.read<double>(
+              source, const <Object>['fromScale'], context) ??
+          1.0,
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
 }
 
 /// Builds the catalog's `Offstage` widget from [source].
 Widget buildOffstage(BuildContext context, DataSource source) {
-  return Offstage(
-    offstage: source.v<bool>(const <Object>['offstage']) ?? true,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Offstage(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      offstage: RestageValueBinding.read<bool>(
+              source, const <Object>['offstage'], context) ??
+          true,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Opacity` widget from [source].
 Widget buildOpacity(BuildContext context, DataSource source) {
-  return Opacity(
-    opacity: source.v<double>(const <Object>['opacity']) ??
-        (throw ArgumentError('Opacity.opacity is required.')),
-    alwaysIncludeSemantics:
-        source.v<bool>(const <Object>['alwaysIncludeSemantics']) ?? false,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Opacity(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      opacity: RestageValueBinding.read<double>(
+              source, const <Object>['opacity'], context) ??
+          (throw ArgumentError('Opacity.opacity is required.')),
+      alwaysIncludeSemantics: RestageValueBinding.read<bool>(
+              source, const <Object>['alwaysIncludeSemantics'], context) ??
+          false,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Padding` widget from [source].
 Widget buildPadding(BuildContext context, DataSource source) {
-  return RestagePadding(
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-        (throw ArgumentError('Padding.padding is required.')),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestagePadding(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'Padding'),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
+          (throw ArgumentError('Padding.padding is required.')),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Positioned` widget from [source].
 Widget buildPositioned(BuildContext context, DataSource source) {
-  return Positioned(
-    left: RestageDecoders.constraintScalar(source, <Object>['left']),
-    top: RestageDecoders.constraintScalar(source, <Object>['top']),
-    right: RestageDecoders.constraintScalar(source, <Object>['right']),
-    bottom: RestageDecoders.constraintScalar(source, <Object>['bottom']),
-    width: RestageDecoders.constraintScalar(source, <Object>['width']),
-    height: RestageDecoders.constraintScalar(source, <Object>['height']),
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Positioned(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      left: RestageDecoders.constraintScalar(source, <Object>['left']),
+      top: RestageDecoders.constraintScalar(source, <Object>['top']),
+      right: RestageDecoders.constraintScalar(source, <Object>['right']),
+      bottom: RestageDecoders.constraintScalar(source, <Object>['bottom']),
+      width: RestageDecoders.constraintScalar(source, <Object>['width']),
+      height: RestageDecoders.constraintScalar(source, <Object>['height']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Row` widget from [source].
 Widget buildRow(BuildContext context, DataSource source) {
-  final children = RestageDecoders.widgetList(source, <Object>['children']);
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final children = RestageDecoders.widgetList(source, <Object>['children'],
+        context: context, bindings: builderBindings);
 
-  return RestageRow(
-    mainAxisAlignment: RestageDecoders.enumByName<MainAxisAlignment>(
-            MainAxisAlignment.values, source, <Object>['mainAxisAlignment']) ??
-        MainAxisAlignment.start,
-    mainAxisSize: RestageDecoders.enumByName<MainAxisSize>(
-            MainAxisSize.values, source, <Object>['mainAxisSize']) ??
-        MainAxisSize.max,
-    crossAxisAlignment: RestageDecoders.enumByName<CrossAxisAlignment>(
-            CrossAxisAlignment.values,
-            source,
-            <Object>['crossAxisAlignment']) ??
-        CrossAxisAlignment.center,
-    textBaseline: RestageDecoders.enumByName<TextBaseline>(
-        TextBaseline.values, source, <Object>['textBaseline']),
-    spacing: RestageDecoders.derivedSpacing(
-        source, <Object>['spacing'], children.length),
-    children: children,
-  );
+    return RestageRow(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'Row'),
+      mainAxisAlignment: RestageDecoders.enumByName<MainAxisAlignment>(
+              MainAxisAlignment.values,
+              source,
+              <Object>['mainAxisAlignment']) ??
+          MainAxisAlignment.start,
+      mainAxisSize: RestageDecoders.enumByName<MainAxisSize>(
+              MainAxisSize.values, source, <Object>['mainAxisSize']) ??
+          MainAxisSize.max,
+      crossAxisAlignment: RestageDecoders.enumByName<CrossAxisAlignment>(
+              CrossAxisAlignment.values,
+              source,
+              <Object>['crossAxisAlignment']) ??
+          CrossAxisAlignment.center,
+      textDirection: RestageDecoders.enumByName<TextDirection>(
+          TextDirection.values, source, <Object>['textDirection']),
+      textBaseline: RestageDecoders.enumByName<TextBaseline>(
+          TextBaseline.values, source, <Object>['textBaseline']),
+      spacing: RestageDecoders.derivedSpacing(
+          source, <Object>['spacing'], children.length),
+      children: children,
+    );
+  });
 }
 
 /// Builds the catalog's `RotatedBox` widget from [source].
 Widget buildRotatedBox(BuildContext context, DataSource source) {
-  return RotatedBox(
-    quarterTurns: source.v<int>(const <Object>['quarterTurns']) ??
-        (throw ArgumentError('RotatedBox.quarterTurns is required.')),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RotatedBox(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      quarterTurns: RestageValueBinding.read<int>(
+              source, const <Object>['quarterTurns'], context) ??
+          (throw ArgumentError('RotatedBox.quarterTurns is required.')),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `SafeArea` widget from [source].
 Widget buildSafeArea(BuildContext context, DataSource source) {
-  return SafeArea(
-    left: source.v<bool>(const <Object>['left']) ?? true,
-    top: source.v<bool>(const <Object>['top']) ?? true,
-    right: source.v<bool>(const <Object>['right']) ?? true,
-    bottom: source.v<bool>(const <Object>['bottom']) ?? true,
-    maintainBottomViewPadding:
-        source.v<bool>(const <Object>['maintainBottomViewPadding']) ?? false,
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return SafeArea(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      left: RestageValueBinding.read<bool>(
+              source, const <Object>['left'], context) ??
+          true,
+      top: RestageValueBinding.read<bool>(
+              source, const <Object>['top'], context) ??
+          true,
+      right: RestageValueBinding.read<bool>(
+              source, const <Object>['right'], context) ??
+          true,
+      bottom: RestageValueBinding.read<bool>(
+              source, const <Object>['bottom'], context) ??
+          true,
+      maintainBottomViewPadding: RestageValueBinding.read<bool>(
+              source, const <Object>['maintainBottomViewPadding'], context) ??
+          false,
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `SingleChildScrollView` widget from [source].
 Widget buildSingleChildScrollView(BuildContext context, DataSource source) {
-  return SingleChildScrollView(
-    scrollDirection: RestageDecoders.enumByName<Axis>(
-            Axis.values, source, <Object>['scrollDirection']) ??
-        Axis.vertical,
-    reverse: source.v<bool>(const <Object>['reverse']) ?? false,
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.hardEdge,
-    keyboardDismissBehavior:
-        RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
-            ScrollViewKeyboardDismissBehavior.values,
-            source,
-            <Object>['keyboardDismissBehavior']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return SingleChildScrollView(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      scrollDirection: RestageDecoders.enumByName<Axis>(
+              Axis.values, source, <Object>['scrollDirection']) ??
+          Axis.vertical,
+      reverse: RestageValueBinding.read<bool>(
+              source, const <Object>['reverse'], context) ??
+          false,
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      controller: RestageDecoders.nativeBinding<ScrollController>(
+          context, source, <Object>['controller'],
+          type: 'flutter.ScrollController'),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      keyboardDismissBehavior:
+          RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
+              ScrollViewKeyboardDismissBehavior.values,
+              source,
+              <Object>['keyboardDismissBehavior']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Semantics` widget from [source].
 Widget buildSemantics(BuildContext context, DataSource source) {
-  return Semantics(
-    container: source.v<bool>(const <Object>['container']) ?? false,
-    explicitChildNodes:
-        source.v<bool>(const <Object>['explicitChildNodes']) ?? false,
-    excludeSemantics:
-        source.v<bool>(const <Object>['excludeSemantics']) ?? false,
-    blockUserActions:
-        source.v<bool>(const <Object>['blockUserActions']) ?? false,
-    enabled: source.v<bool>(const <Object>['enabled']),
-    checked: source.v<bool>(const <Object>['checked']),
-    mixed: source.v<bool>(const <Object>['mixed']),
-    selected: source.v<bool>(const <Object>['selected']),
-    toggled: source.v<bool>(const <Object>['toggled']),
-    button: source.v<bool>(const <Object>['button']),
-    slider: source.v<bool>(const <Object>['slider']),
-    keyboardKey: source.v<bool>(const <Object>['keyboardKey']),
-    link: source.v<bool>(const <Object>['link']),
-    header: source.v<bool>(const <Object>['header']),
-    headingLevel: source.v<int>(const <Object>['headingLevel']),
-    textField: source.v<bool>(const <Object>['textField']),
-    readOnly: source.v<bool>(const <Object>['readOnly']),
-    focusable: source.v<bool>(const <Object>['focusable']),
-    focused: source.v<bool>(const <Object>['focused']),
-    inMutuallyExclusiveGroup:
-        source.v<bool>(const <Object>['inMutuallyExclusiveGroup']),
-    obscured: source.v<bool>(const <Object>['obscured']),
-    multiline: source.v<bool>(const <Object>['multiline']),
-    scopesRoute: source.v<bool>(const <Object>['scopesRoute']),
-    namesRoute: source.v<bool>(const <Object>['namesRoute']),
-    hidden: source.v<bool>(const <Object>['hidden']),
-    image: source.v<bool>(const <Object>['image']),
-    liveRegion: source.v<bool>(const <Object>['liveRegion']),
-    expanded: source.v<bool>(const <Object>['expanded']),
-    isRequired: source.v<bool>(const <Object>['isRequired']),
-    maxValueLength: source.v<int>(const <Object>['maxValueLength']),
-    currentValueLength: source.v<int>(const <Object>['currentValueLength']),
-    identifier: RestageDecoders.string(source, <Object>['identifier']),
-    label: RestageDecoders.string(source, <Object>['label']),
-    value: RestageDecoders.string(source, <Object>['value']),
-    hint: RestageDecoders.string(source, <Object>['hint']),
-    tooltip: RestageDecoders.string(source, <Object>['tooltip']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Semantics(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      container: RestageValueBinding.read<bool>(
+              source, const <Object>['container'], context) ??
+          false,
+      explicitChildNodes: RestageValueBinding.read<bool>(
+              source, const <Object>['explicitChildNodes'], context) ??
+          false,
+      excludeSemantics: RestageValueBinding.read<bool>(
+              source, const <Object>['excludeSemantics'], context) ??
+          false,
+      blockUserActions: RestageValueBinding.read<bool>(
+              source, const <Object>['blockUserActions'], context) ??
+          false,
+      enabled: RestageValueBinding.read<bool>(
+          source, const <Object>['enabled'], context),
+      checked: RestageValueBinding.read<bool>(
+          source, const <Object>['checked'], context),
+      mixed: RestageValueBinding.read<bool>(
+          source, const <Object>['mixed'], context),
+      selected: RestageValueBinding.read<bool>(
+          source, const <Object>['selected'], context),
+      toggled: RestageValueBinding.read<bool>(
+          source, const <Object>['toggled'], context),
+      button: RestageValueBinding.read<bool>(
+          source, const <Object>['button'], context),
+      slider: RestageValueBinding.read<bool>(
+          source, const <Object>['slider'], context),
+      keyboardKey: RestageValueBinding.read<bool>(
+          source, const <Object>['keyboardKey'], context),
+      link: RestageValueBinding.read<bool>(
+          source, const <Object>['link'], context),
+      header: RestageValueBinding.read<bool>(
+          source, const <Object>['header'], context),
+      headingLevel: RestageValueBinding.read<int>(
+          source, const <Object>['headingLevel'], context),
+      textField: RestageValueBinding.read<bool>(
+          source, const <Object>['textField'], context),
+      readOnly: RestageValueBinding.read<bool>(
+          source, const <Object>['readOnly'], context),
+      focusable: RestageValueBinding.read<bool>(
+          source, const <Object>['focusable'], context),
+      focused: RestageValueBinding.read<bool>(
+          source, const <Object>['focused'], context),
+      inMutuallyExclusiveGroup: RestageValueBinding.read<bool>(
+          source, const <Object>['inMutuallyExclusiveGroup'], context),
+      obscured: RestageValueBinding.read<bool>(
+          source, const <Object>['obscured'], context),
+      multiline: RestageValueBinding.read<bool>(
+          source, const <Object>['multiline'], context),
+      scopesRoute: RestageValueBinding.read<bool>(
+          source, const <Object>['scopesRoute'], context),
+      namesRoute: RestageValueBinding.read<bool>(
+          source, const <Object>['namesRoute'], context),
+      hidden: RestageValueBinding.read<bool>(
+          source, const <Object>['hidden'], context),
+      image: RestageValueBinding.read<bool>(
+          source, const <Object>['image'], context),
+      liveRegion: RestageValueBinding.read<bool>(
+          source, const <Object>['liveRegion'], context),
+      expanded: RestageValueBinding.read<bool>(
+          source, const <Object>['expanded'], context),
+      isRequired: RestageValueBinding.read<bool>(
+          source, const <Object>['isRequired'], context),
+      maxValueLength: RestageValueBinding.read<int>(
+          source, const <Object>['maxValueLength'], context),
+      currentValueLength: RestageValueBinding.read<int>(
+          source, const <Object>['currentValueLength'], context),
+      identifier: RestageDecoders.string(source, <Object>['identifier'],
+          context: context),
+      label:
+          RestageDecoders.string(source, <Object>['label'], context: context),
+      value:
+          RestageDecoders.string(source, <Object>['value'], context: context),
+      hint: RestageDecoders.string(source, <Object>['hint'], context: context),
+      tooltip:
+          RestageDecoders.string(source, <Object>['tooltip'], context: context),
+      textDirection: RestageDecoders.enumByName<TextDirection>(
+          TextDirection.values, source, <Object>['textDirection']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `SizedBox` widget from [source].
 Widget buildSizedBox(BuildContext context, DataSource source) {
-  return SizedBox(
-    width: RestageDecoders.constraintScalar(source, <Object>['width']),
-    height: RestageDecoders.constraintScalar(source, <Object>['height']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return SizedBox(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      width: RestageDecoders.constraintScalar(source, <Object>['width']),
+      height: RestageDecoders.constraintScalar(source, <Object>['height']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Spacer` widget from [source].
 Widget buildSpacer(BuildContext context, DataSource source) {
-  return Spacer(
-    flex: source.v<int>(const <Object>['flex']) ?? 1,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Spacer(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      flex: RestageValueBinding.read<int>(
+              source, const <Object>['flex'], context) ??
+          1,
+    );
+  });
 }
 
 /// Builds the catalog's `Stack` widget from [source].
 Widget buildStack(BuildContext context, DataSource source) {
-  return RestageStack(
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-        AlignmentDirectional.topStart,
-    fit: RestageDecoders.enumByName<StackFit>(
-            StackFit.values, source, <Object>['fit']) ??
-        StackFit.loose,
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.hardEdge,
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageStack(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'Stack'),
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
+          AlignmentDirectional.topStart,
+      textDirection: RestageDecoders.enumByName<TextDirection>(
+          TextDirection.values, source, <Object>['textDirection']),
+      fit: RestageDecoders.enumByName<StackFit>(
+              StackFit.values, source, <Object>['fit']) ??
+          StackFit.loose,
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
 }
 
 /// Builds the catalog's `Text` widget from [source].
 Widget buildText(BuildContext context, DataSource source) {
-  return Text(
-    RestageDecoders.string(source, <Object>['text']) ??
-        (throw ArgumentError('Text.text is required.')),
-    style: RestageDecoders.packagedFont(TextStyle(
-        inherit: source.v<bool>(const <Object>['inherit']) ?? true,
-        color: ArgumentDecoders.color(source, <Object>['color']),
-        backgroundColor:
-            ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
-            resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
-                as double?,
-        fontWeight: ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
-            resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
-                as FontWeight?,
-        fontStyle: RestageDecoders.enumByName<FontStyle>(
-            FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing:
-            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
-        wordSpacing:
-            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
-        textBaseline: RestageDecoders.enumByName<TextBaseline>(
-            TextBaseline.values, source, <Object>['textBaseline']),
-        height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution:
-            RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
-        locale: ArgumentDecoders.locale(source, <Object>['locale']),
-        foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
-        background: ArgumentDecoders.paint(source, <Object>['background']),
-        shadows: RestageDecoders.shadows(source, <Object>['shadows']),
-        fontFeatures: RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-        fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
-        decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
-        decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
-        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
-        fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: RestageDecoders.string(source, <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
-    textAlign: RestageDecoders.enumByName<TextAlign>(
-        TextAlign.values, source, <Object>['textAlign']),
-    softWrap: source.v<bool>(const <Object>['softWrap']),
-    maxLines: source.v<int>(const <Object>['maxLines']),
-    semanticsLabel: RestageDecoders.string(source, <Object>['semanticsLabel']),
-    textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
-        TextWidthBasis.values, source, <Object>['textWidthBasis']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Text(
+      RestageDecoders.string(source, <Object>['text'], context: context) ??
+          (throw ArgumentError('Text.text is required.')),
+      style: RestageDecoders.packagedFont(TextStyle(
+          inherit: RestageValueBinding.read<bool>(
+                  source, const <Object>['inherit'], context) ??
+              true,
+          color: RestageDecoders.color(source, <Object>['color']),
+          backgroundColor:
+              RestageDecoders.color(source, <Object>['backgroundColor']),
+          fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
+              resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
+                  as double?,
+          fontWeight: RestageDecoders.fontWeight(source, <Object>['fontWeight']) ??
+              resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
+                  as FontWeight?,
+          fontStyle: RestageDecoders.enumByName<FontStyle>(
+              FontStyle.values, source, <Object>['fontStyle']),
+          letterSpacing:
+              RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+          wordSpacing:
+              RestageDecoders.textMetric(source, <Object>['wordSpacing']),
+          textBaseline: RestageDecoders.enumByName<TextBaseline>(TextBaseline.values, source, <Object>['textBaseline']),
+          height: RestageDecoders.textMetric(source, <Object>['height']),
+          leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
+          locale: ArgumentDecoders.locale(source, <Object>['locale']),
+          foreground: RestageDecoders.paint(source, <Object>['foreground']),
+          background: RestageDecoders.paint(source, <Object>['background']),
+          shadows: RestageDecoders.shadows(source, <Object>['shadows']),
+          fontFeatures: RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
+          fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+          decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
+          decorationColor: RestageDecoders.color(source, <Object>['decorationColor']),
+          decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+          decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
+          debugLabel: RestageDecoders.string(source, <Object>['debugLabel'], context: context),
+          fontFamily: RestageDecoders.string(source, <Object>['fontFamily'], context: context),
+          fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
+          package: RestageDecoders.string(source, <Object>['fontPackage'], context: context),
+          overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      textAlign: RestageDecoders.enumByName<TextAlign>(
+          TextAlign.values, source, <Object>['textAlign']),
+      textDirection: RestageDecoders.enumByName<TextDirection>(
+          TextDirection.values, source, <Object>['textDirection']),
+      softWrap: RestageValueBinding.read<bool>(
+          source, const <Object>['softWrap'], context),
+      textScaleFactor: RestageValueBinding.read<double>(
+          source, const <Object>['textScaleFactor'], context),
+      maxLines: RestageValueBinding.read<int>(
+          source, const <Object>['maxLines'], context),
+      semanticsLabel: RestageDecoders.string(source, <Object>['semanticsLabel'],
+          context: context),
+      textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
+          TextWidthBasis.values, source, <Object>['textWidthBasis']),
+      textScaler:
+          RestageDecoders.textScaler(context, source, <Object>['textScaler']),
+    );
+  });
 }
 
 /// Builds the catalog's `TextRich` widget from [source].
 Widget buildTextRich(BuildContext context, DataSource source) {
-  return Text.rich(
-    RestageDecoders.inlineSpan(source, <Object>['textSpan']) ??
-        (throw ArgumentError('TextRich.textSpan is required.')),
-    style: RestageDecoders.packagedFont(TextStyle(
-        inherit: source.v<bool>(const <Object>['inherit']) ?? true,
-        color: ArgumentDecoders.color(source, <Object>['color']),
-        backgroundColor:
-            ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
-            resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
-                as double?,
-        fontWeight: ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
-            resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
-                as FontWeight?,
-        fontStyle: RestageDecoders.enumByName<FontStyle>(
-            FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing:
-            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
-        wordSpacing:
-            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
-        textBaseline: RestageDecoders.enumByName<TextBaseline>(
-            TextBaseline.values, source, <Object>['textBaseline']),
-        height: RestageDecoders.textMetric(source, <Object>['height']),
-        leadingDistribution:
-            RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
-        locale: ArgumentDecoders.locale(source, <Object>['locale']),
-        foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
-        background: ArgumentDecoders.paint(source, <Object>['background']),
-        shadows: RestageDecoders.shadows(source, <Object>['shadows']),
-        fontFeatures: RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-        fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
-        decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
-        decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
-        debugLabel: RestageDecoders.string(source, <Object>['debugLabel']),
-        fontFamily: RestageDecoders.string(source, <Object>['fontFamily']),
-        fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
-        package: RestageDecoders.string(source, <Object>['fontPackage']),
-        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
-    textAlign: RestageDecoders.enumByName<TextAlign>(
-        TextAlign.values, source, <Object>['textAlign']),
-    softWrap: source.v<bool>(const <Object>['softWrap']),
-    maxLines: source.v<int>(const <Object>['maxLines']),
-    semanticsLabel: RestageDecoders.string(source, <Object>['semanticsLabel']),
-    textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
-        TextWidthBasis.values, source, <Object>['textWidthBasis']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageResourceBuilder(
+        builder: (resources) => Text.rich(
+              RestageDecoders.inlineSpan(source, <Object>['textSpan'],
+                      context: context, resources: resources) ??
+                  (throw ArgumentError('TextRich.textSpan is required.')),
+              style: RestageDecoders.packagedFont(TextStyle(
+                  inherit: RestageValueBinding.read<bool>(
+                          source, const <Object>['inherit'], context) ??
+                      true,
+                  color: RestageDecoders.color(source, <Object>['color']),
+                  backgroundColor: RestageDecoders.color(
+                      source, <Object>['backgroundColor']),
+                  fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
+                      resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
+                          as double?,
+                  fontWeight: RestageDecoders.fontWeight(source, <Object>['fontWeight']) ??
+                      resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
+                          as FontWeight?,
+                  fontStyle: RestageDecoders.enumByName<FontStyle>(
+                      FontStyle.values, source, <Object>['fontStyle']),
+                  letterSpacing:
+                      RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+                  wordSpacing: RestageDecoders.textMetric(source, <Object>['wordSpacing']),
+                  textBaseline: RestageDecoders.enumByName<TextBaseline>(TextBaseline.values, source, <Object>['textBaseline']),
+                  height: RestageDecoders.textMetric(source, <Object>['height']),
+                  leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
+                  locale: ArgumentDecoders.locale(source, <Object>['locale']),
+                  foreground: RestageDecoders.paint(source, <Object>['foreground']),
+                  background: RestageDecoders.paint(source, <Object>['background']),
+                  shadows: RestageDecoders.shadows(source, <Object>['shadows']),
+                  fontFeatures: RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
+                  fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+                  decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
+                  decorationColor: RestageDecoders.color(source, <Object>['decorationColor']),
+                  decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+                  decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
+                  debugLabel: RestageDecoders.string(source, <Object>['debugLabel'], context: context),
+                  fontFamily: RestageDecoders.string(source, <Object>['fontFamily'], context: context),
+                  fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
+                  package: RestageDecoders.string(source, <Object>['fontPackage'], context: context),
+                  overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']))),
+              key: RestageDecoders.nativeBinding<Key>(
+                  context, source, <Object>['key'],
+                  type: 'flutter.Key'),
+              textAlign: RestageDecoders.enumByName<TextAlign>(
+                  TextAlign.values, source, <Object>['textAlign']),
+              textDirection: RestageDecoders.enumByName<TextDirection>(
+                  TextDirection.values, source, <Object>['textDirection']),
+              softWrap: RestageValueBinding.read<bool>(
+                  source, const <Object>['softWrap'], context),
+              textScaleFactor: RestageValueBinding.read<double>(
+                  source, const <Object>['textScaleFactor'], context),
+              maxLines: RestageValueBinding.read<int>(
+                  source, const <Object>['maxLines'], context),
+              semanticsLabel: RestageDecoders.string(
+                  source, <Object>['semanticsLabel'],
+                  context: context),
+              textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
+                  TextWidthBasis.values, source, <Object>['textWidthBasis']),
+              textScaler: RestageDecoders.textScaler(
+                  context, source, <Object>['textScaler']),
+            ));
+  });
 }
 
 /// Builds the catalog's `TransformRotate` widget from [source].
 Widget buildTransformRotate(BuildContext context, DataSource source) {
-  return Transform.rotate(
-    angle: source.v<double>(const <Object>['angle']) ??
-        (throw ArgumentError('TransformRotate.angle is required.')),
-    origin: RestageDecoders.offset(source, <Object>['origin']),
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-        AlignmentDirectional.center,
-    transformHitTests:
-        source.v<bool>(const <Object>['transformHitTests']) ?? true,
-    filterQuality: RestageDecoders.enumByName<FilterQuality>(
-        FilterQuality.values, source, <Object>['filterQuality']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Transform.rotate(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      angle: RestageValueBinding.read<double>(
+              source, const <Object>['angle'], context) ??
+          (throw ArgumentError('TransformRotate.angle is required.')),
+      origin: RestageDecoders.offset(source, <Object>['origin']),
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
+          AlignmentDirectional.center,
+      transformHitTests: RestageValueBinding.read<bool>(
+              source, const <Object>['transformHitTests'], context) ??
+          true,
+      filterQuality: RestageDecoders.enumByName<FilterQuality>(
+          FilterQuality.values, source, <Object>['filterQuality']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `TransformTranslate` widget from [source].
 Widget buildTransformTranslate(BuildContext context, DataSource source) {
-  return Transform.translate(
-    offset: RestageDecoders.offset(source, <Object>['offset']) ??
-        (throw ArgumentError('TransformTranslate.offset is required.')),
-    transformHitTests:
-        source.v<bool>(const <Object>['transformHitTests']) ?? true,
-    filterQuality: RestageDecoders.enumByName<FilterQuality>(
-        FilterQuality.values, source, <Object>['filterQuality']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Transform.translate(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      offset: RestageDecoders.offset(source, <Object>['offset']) ??
+          (throw ArgumentError('TransformTranslate.offset is required.')),
+      transformHitTests: RestageValueBinding.read<bool>(
+              source, const <Object>['transformHitTests'], context) ??
+          true,
+      filterQuality: RestageDecoders.enumByName<FilterQuality>(
+          FilterQuality.values, source, <Object>['filterQuality']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `TransformScale` widget from [source].
 Widget buildTransformScale(BuildContext context, DataSource source) {
-  final restagePresenceAlignment = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['alignment'],
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final restagePresenceAlignment = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['alignment'],
+    );
 
-  return Function.apply(
-    Transform.scale,
-    <Object?>[],
-    <Symbol, Object?>{
-      #scale: RestageDecoders.number(source, <Object>['scale']),
-      #scaleX: RestageDecoders.number(source, <Object>['scaleX']),
-      #scaleY: RestageDecoders.number(source, <Object>['scaleY']),
-      #origin: RestageDecoders.offset(source, <Object>['origin']),
-      if (restagePresenceAlignment.supplied)
-        #alignment: RestageDecoders.alignment(
-            source, restagePresenceAlignment.valuePath),
-      #transformHitTests:
-          source.v<bool>(const <Object>['transformHitTests']) ?? true,
-      #filterQuality: RestageDecoders.enumByName<FilterQuality>(
-          FilterQuality.values, source, <Object>['filterQuality']),
-      #child: source.optionalChild(const <Object>['child']),
-    },
-  ) as Widget;
+    return Function.apply(
+      Transform.scale,
+      <Object?>[],
+      <Symbol, Object?>{
+        #key: RestageDecoders.nativeBinding<Key>(
+            context, source, <Object>['key'],
+            type: 'flutter.Key'),
+        #scale: RestageDecoders.number(source, <Object>['scale']),
+        #scaleX: RestageDecoders.number(source, <Object>['scaleX']),
+        #scaleY: RestageDecoders.number(source, <Object>['scaleY']),
+        #origin: RestageDecoders.offset(source, <Object>['origin']),
+        if (restagePresenceAlignment.supplied)
+          #alignment: RestageDecoders.alignment(
+              source, restagePresenceAlignment.valuePath),
+        #transformHitTests: RestageValueBinding.read<bool>(
+                source, const <Object>['transformHitTests'], context) ??
+            true,
+        #filterQuality: RestageDecoders.enumByName<FilterQuality>(
+            FilterQuality.values, source, <Object>['filterQuality']),
+        #child: source.optionalChild(const <Object>['child']),
+      },
+    ) as Widget;
+  });
 }
 
 /// Builds the catalog's `Visibility` widget from [source].
 Widget buildVisibility(BuildContext context, DataSource source) {
-  return Visibility(
-    visible: source.v<bool>(const <Object>['visible']) ?? true,
-    maintainFocusability:
-        source.v<bool>(const <Object>['maintainFocusability']) ?? false,
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Visibility(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      visible: RestageValueBinding.read<bool>(
+              source, const <Object>['visible'], context) ??
+          true,
+      maintainFocusability: RestageValueBinding.read<bool>(
+              source, const <Object>['maintainFocusability'], context) ??
+          false,
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Wrap` widget from [source].
 Widget buildWrap(BuildContext context, DataSource source) {
-  return RestageWrap(
-    direction: RestageDecoders.enumByName<Axis>(
-            Axis.values, source, <Object>['direction']) ??
-        Axis.horizontal,
-    alignment: RestageDecoders.enumByName<WrapAlignment>(
-            WrapAlignment.values, source, <Object>['alignment']) ??
-        WrapAlignment.start,
-    spacing: RestageDecoders.layoutFactor(source, <Object>['spacing']) ?? 0.0,
-    runAlignment: RestageDecoders.enumByName<WrapAlignment>(
-            WrapAlignment.values, source, <Object>['runAlignment']) ??
-        WrapAlignment.start,
-    runSpacing:
-        RestageDecoders.layoutFactor(source, <Object>['runSpacing']) ?? 0.0,
-    crossAxisAlignment: RestageDecoders.enumByName<WrapCrossAlignment>(
-            WrapCrossAlignment.values,
-            source,
-            <Object>['crossAxisAlignment']) ??
-        WrapCrossAlignment.start,
-    textDirection: RestageDecoders.enumByName<TextDirection>(
-        TextDirection.values, source, <Object>['textDirection']),
-    verticalDirection: RestageDecoders.enumByName<VerticalDirection>(
-            VerticalDirection.values, source, <Object>['verticalDirection']) ??
-        VerticalDirection.down,
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageWrap(
+      key: RestageDecoders.guardReplacementKey(
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+              type: 'flutter.Key'),
+          'Wrap'),
+      direction: RestageDecoders.enumByName<Axis>(
+              Axis.values, source, <Object>['direction']) ??
+          Axis.horizontal,
+      alignment: RestageDecoders.enumByName<WrapAlignment>(
+              WrapAlignment.values, source, <Object>['alignment']) ??
+          WrapAlignment.start,
+      spacing: RestageDecoders.layoutFactor(source, <Object>['spacing']) ?? 0.0,
+      runAlignment: RestageDecoders.enumByName<WrapAlignment>(
+              WrapAlignment.values, source, <Object>['runAlignment']) ??
+          WrapAlignment.start,
+      runSpacing:
+          RestageDecoders.layoutFactor(source, <Object>['runSpacing']) ?? 0.0,
+      crossAxisAlignment: RestageDecoders.enumByName<WrapCrossAlignment>(
+              WrapCrossAlignment.values,
+              source,
+              <Object>['crossAxisAlignment']) ??
+          WrapCrossAlignment.start,
+      textDirection: RestageDecoders.enumByName<TextDirection>(
+          TextDirection.values, source, <Object>['textDirection']),
+      verticalDirection: RestageDecoders.enumByName<VerticalDirection>(
+              VerticalDirection.values,
+              source,
+              <Object>['verticalDirection']) ??
+          VerticalDirection.down,
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
 }

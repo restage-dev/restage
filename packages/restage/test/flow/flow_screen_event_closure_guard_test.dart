@@ -19,6 +19,40 @@ Object _read(DynamicContent dc, String key) {
 void main() {
   setUp(Restage.debugReset);
 
+  testWidgets('flow publishers refresh keyboard and accessibility fields',
+      (tester) async {
+    final dc = DynamicContent();
+    Widget app(MediaQueryData mediaQuery) => MaterialApp(
+        home: MediaQuery(
+            data: mediaQuery,
+            child: Builder(builder: (context) {
+              populateFlowScreenData(context, dc, includeInheritedData: true);
+              return const SizedBox();
+            })));
+    await tester.pumpWidget(app(const MediaQueryData()));
+    expect((_read(dc, 'device') as Map)['boldText'], isFalse);
+    await tester.pumpWidget(app(const MediaQueryData(
+      viewInsets: EdgeInsets.fromLTRB(1, 2, 3, 4),
+      boldText: true,
+      disableAnimations: true,
+      accessibleNavigation: true,
+      highContrast: true,
+    )));
+    final device = _read(dc, 'device') as Map;
+    for (final (key, value) in [
+      ('viewInsetsLeft', 1.0),
+      ('viewInsetsTop', 2.0),
+      ('viewInsetsRight', 3.0),
+      ('viewInsetsBottom', 4.0),
+      ('boldText', true),
+      ('disableAnimations', true),
+      ('accessibleNavigation', true),
+      ('highContrast', true)
+    ]) {
+      expect(device[key], value, reason: key);
+    }
+  });
+
   testWidgets('omitting context arguments preserves the existing namespace set',
       (tester) async {
     late final BuildContext ctx;

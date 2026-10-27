@@ -122,10 +122,8 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
         continue;
       }
       final schema = publication.hostDataContract;
-      final sample = schema == null
-          ? const <String, Object?>{}
-          : sampleHostContext(schema);
       try {
+        final sample = sampleSurfaceCaptureContext(schema);
         sources[name] = surfaceCaptureTestSource(
           projectRoot: root,
           appName: appName,

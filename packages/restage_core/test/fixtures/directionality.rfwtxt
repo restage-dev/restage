@@ -1,0 +1,2 @@
+import restage.core;
+widget Surface = Directionality(textDirection: "rtl", child: Row(children: [Padding(padding: {left: 7.0, top: 0.0, right: 0.0, bottom: 0.0}, child: Text(text: "physical")), Padding(padding: {start: 11.0, top: 0.0, end: 0.0, bottom: 0.0}, child: Text(text: "logical"))]));

@@ -8,6 +8,8 @@ library;
 export 'library_registration.dart';
 export 'registry.dart';
 export 'src/runtime/decoders.dart';
+export 'src/runtime/native_values.dart' hide reportMissingNativeValue;
+export 'src/runtime/resource_builder.dart';
 export 'src/runtime/icon_table.dart';
 export 'src/runtime/rfw_constructor_presence.dart';
 export 'src/runtime/theme_binding_resolver.dart';
@@ -36,3 +38,8 @@ export 'src/widgets/restage_shader_mask.dart';
 // Only the named-preset enum is public; the spring-math helper stays internal.
 export 'src/widgets/restage_spring.dart' show RestageSpring;
 export 'src/widgets/restage_stagger.dart';
+
+export 'src/runtime/builder_binding.dart';
+
+export 'src/runtime/grid_values.dart';
+export 'src/runtime/grid_children.dart';

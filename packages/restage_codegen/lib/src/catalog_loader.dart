@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/native_binding_routes.dart';
 import 'package:build/build.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:yaml/yaml.dart';
@@ -229,16 +230,17 @@ Future<void> _mergeCustomCatalog(
 Future<Catalog> loadBuiltInCatalog(BuildStep buildStep) =>
     _loadMergedCatalog(buildStep, const []);
 
-/// The built-in structured types named in [decodableNames], keyed by source
-/// type: the ones a custom widget property can take. A type several built-in
-/// libraries declare resolves to the first, so `restage.core` wins.
+/// The built-in structured types with a named decoder or a closed native
+/// binding route, keyed by source type. A type several built-in libraries
+/// declare resolves to the first, so `restage.core` wins.
 Map<String, WireIdRef> builtInStructuredRefs(
   Catalog builtIn,
   Set<String> decodableNames,
 ) {
   final refs = <String, WireIdRef>{};
   for (final structured in builtIn.structuredTypes) {
-    if (!decodableNames.contains(structured.name)) continue;
+    if (!decodableNames.contains(structured.name) &&
+        nativeBindingRoute(structured.sourceType) == null) continue;
     refs.putIfAbsent(
       structured.sourceType,
       () => WireIdRef(

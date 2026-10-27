@@ -11,6 +11,15 @@ import 'helpers.dart';
 
 const _package = 'apps_examples';
 
+const _canonicalRed = <String, Object?>{
+  'colorSpace': 'sRGB',
+  'material': 'red',
+  'a': 1.0,
+  'r': 244 / 255,
+  'g': 67 / 255,
+  'b': 54 / 255,
+};
+
 const _light = <String, Object?>{
   'systemNavigationBarColor': 0xFF000000,
   'systemNavigationBarIconBrightness': 'light',
@@ -665,7 +674,7 @@ void main() {
         ..._light,
         'copyWith': [
           {'statusBarColor': 0xFF123456},
-          {'statusBarColor': 0xFFF44336},
+          {'statusBarColor': _canonicalRed},
         ],
       });
       expect(_atBrightness(overlay, 'light'), {
@@ -688,7 +697,7 @@ void main() {
       expect(
         _appBar(result, 'nullable_color_copy_chain')['systemOverlayStyle'],
         {
-          'statusBarColor': 0xFFF44336,
+          'statusBarColor': _canonicalRed,
           'copyWith': [
             {
               'statusBarColor': _dataReference(['theme', 'iconTheme', 'color']),
@@ -750,7 +759,7 @@ void main() {
         final result = await _build({id: source});
         expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
         expect(_appBar(result, id)['systemOverlayStyle'], {
-          field: 0xFFF44336,
+          field: _canonicalRed,
           'copyWith': [
             {field: _dataReference(parts)},
           ],

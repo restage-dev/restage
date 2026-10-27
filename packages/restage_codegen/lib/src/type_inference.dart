@@ -2,6 +2,8 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
+import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
+    show scalarCallbackContractFor, widgetBuilderContractFor;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The framework value types [inferPropertyType] recognises by name.
@@ -95,7 +97,13 @@ PropertyType? inferPropertyType(DartType t) {
   if (t.isDartCoreString) return PropertyType.string;
 
   // Function types → event.
-  if (t is FunctionType) return PropertyType.event;
+  if (t is FunctionType) {
+    return widgetBuilderContractFor(t) != null
+        ? PropertyType.widgetBuilder
+        : scalarCallbackContractFor(t) != null
+            ? PropertyType.scalarCallback
+            : PropertyType.event;
+  }
 
   if (t is InterfaceType && t.isDartCoreList && t.typeArguments.length == 1) {
     final itemElement = t.typeArguments.single.element;

@@ -10,6 +10,12 @@ enum PropertyType {
   /// A list of nested widgets (list-child slot).
   widgetList,
 
+  /// A deferred native widget callback with a structural builder contract.
+  widgetBuilder,
+
+  /// A pure integer callback with a structural native signature.
+  scalarCallback,
+
   /// A color value, typically a 32-bit ARGB int.
   color,
 

@@ -1,0 +1,5 @@
+import test.insets;
+widget PhysicalNegative = InsetReadout(insets: {left: -7.0, top: 0.0, right: 0.0, bottom: 0.0}, label: "PhysicalNegative");
+widget LogicalNegative = InsetReadout(insets: {start: -7.0, top: 0.0, end: 0.0, bottom: 0.0}, label: "LogicalNegative");
+widget PhysicalOverflow = InsetReadout(insets: {left: 1.7e308, top: 1.7e308, right: 1.7e308, bottom: 1.7e308}, label: "PhysicalOverflow");
+widget LogicalOverflow = InsetReadout(insets: {start: 1.7e308, top: 1.7e308, end: 1.7e308, bottom: 1.7e308}, label: "LogicalOverflow");

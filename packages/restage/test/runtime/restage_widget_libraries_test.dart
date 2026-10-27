@@ -1,4 +1,8 @@
 import 'package:flutter/widgets.dart';
+import 'package:restage_core/restage_core.dart'
+    show buildRestageBuilderContinuation;
+import 'package:restage_shared/restage_shared.dart'
+    show kBuilderContinuationWidgetName;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart'
     show
@@ -37,6 +41,15 @@ Runtime _install(RestageWidgetLibraries libraries) {
 }
 
 void main() {
+  test('selective factories retain the private callback runtime', () {
+    final runtime = _install(const RestageWidgetLibraries.fromVocabulary(
+        material: {'Marker': _stub}));
+    final core = runtime.libraries[_core]! as LocalWidgetLibrary;
+    expect(core.widgets[kBuilderContinuationWidgetName],
+        same(buildRestageBuilderContinuation));
+    expect(core.widgets.length, 1);
+  });
+
   group('with nothing installed', () {
     setUp(InstalledWidgetLibraries.reset);
     tearDown(() {

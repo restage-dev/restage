@@ -72,6 +72,8 @@ WidgetbookFiniteChoiceTransport? widgetbookFiniteChoiceTransport(
       PropertyType.realList ||
       PropertyType.widget ||
       PropertyType.widgetList ||
+      PropertyType.widgetBuilder ||
+      PropertyType.scalarCallback ||
       PropertyType.event ||
       PropertyType.structured ||
       PropertyType.dataReference ||
@@ -124,6 +126,8 @@ WidgetbookPropertyCapability widgetbookPropertyCapability(
           PropertyType.enumValue ||
           PropertyType.structured =>
             WidgetbookPropertyCapability.native,
+          PropertyType.widgetBuilder ||
+          PropertyType.scalarCallback ||
           PropertyType.length ||
           PropertyType.alignmentXY ||
           PropertyType.stringList ||
@@ -170,6 +174,8 @@ WidgetbookPropertyCapability widgetbookPropertyCapability(
           PropertyType.realList ||
           PropertyType.widget ||
           PropertyType.widgetList ||
+          PropertyType.widgetBuilder ||
+          PropertyType.scalarCallback ||
           PropertyType.event ||
           PropertyType.dataReference ||
           PropertyType.gradient ||

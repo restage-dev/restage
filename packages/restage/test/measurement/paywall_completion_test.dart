@@ -12,6 +12,7 @@ import 'package:rfw/formats.dart';
 
 import 'admitted_bundled_publication_fixture.dart';
 import 'measurement_host_construction_test_support.dart';
+import '../support/pump_until.dart';
 
 String _carrier(String letter) {
   final edge =
@@ -96,13 +97,11 @@ void main() {
       bindingReadPort: fixture.port,
     ));
     // The session opens on real async work; wait for its worker registration.
-    for (var i = 0; i < 400 && harness.worker.registrations.isEmpty; i += 1) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 5)),
-      );
-      await tester.pump();
-    }
-    expect(harness.worker.registrations, isNotEmpty);
+    await pumpUntil(
+      tester,
+      () => harness.worker.registrations.isNotEmpty,
+      reason: 'a worker registration',
+    );
 
     await tester.tap(find.text(label));
     await tester.pump();
@@ -112,12 +111,7 @@ void main() {
     bool ended() => harness.worker.appendRecords.any((record) =>
         record.value == MeasurementWorkerAppendValue.completion ||
         record.value == MeasurementWorkerAppendValue.dismiss);
-    for (var i = 0; i < 400 && !ended(); i += 1) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 5)),
-      );
-      await tester.pump();
-    }
+    await pumpUntil(tester, ended, reason: 'the surface end record');
 
     return [
       for (final record in harness.worker.appendRecords)

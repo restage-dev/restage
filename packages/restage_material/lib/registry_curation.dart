@@ -871,7 +871,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'opticalSize',
       'shadows',
       'semanticLabel',
-      'textDirection',
       'applyTextScaling',
       'blendMode',
       'fontWeight',
@@ -1393,16 +1392,15 @@ const List<BuiltinWidgetCuration> kCuration = [
     ],
   ),
   // Wraps a scrollable child (typically `SingleChildScrollView` /
-  // `ListView` from the core library once those land). `controller` is
-  // excluded (`ScrollController` not catalog-modeled); `radius` (the
-  // thumb `Radius`) and `notificationPredicate` (function type) are
+  // `ListView` from the core library). `controller` is excluded from this
+  // curation; `radius` (the thumb `Radius`) and `notificationPredicate`
+  // (function type) are
   // unsupported. `scrollbarOrientation` enum is uncommon — skipped to
   // keep the inspector lean.
   BuiltinWidgetCuration<Scrollbar>(
     category: WidgetCategory.layout,
     excludeParams: [
-      // `controller: ScrollController` is excluded via the centralized
-      // type denylist (suffix `Controller`).
+      'controller',
       'notificationPredicate',
       'scrollbarOrientation',
     ],
@@ -1580,19 +1578,19 @@ const List<BuiltinWidgetCuration> kCuration = [
     sinceVersion: 15,
     category: WidgetCategory.layout,
     propertyOverrides: {
+      'controller':
+          PropertyOverride(type: PropertyType.structured, sinceVersion: 24),
       'dragStartBehavior': PropertyOverride(
         type: PropertyType.enumValue,
         enumType: 'DragStartBehavior',
       ),
     },
   ),
-  // Reads its selection from an enclosing `DefaultTabController`. The
-  // surface is the tab set plus the colors a bar is themed by.
+  // Borrows an explicit controller or reads the enclosing `DefaultTabController`.
+  // The surface is the tab set plus the colors a bar is themed by.
   BuiltinWidgetCuration<TabBar>(
     category: WidgetCategory.input,
     excludeParams: [
-      // `controller: TabController` and `scrollController:
-      // ScrollController` are excluded via the centralized type denylist.
       'padding',
       'automaticIndicatorColorAdjustment',
       'indicatorWeight',
@@ -1615,6 +1613,8 @@ const List<BuiltinWidgetCuration> kCuration = [
       'indicatorAnimation',
     ],
     propertyOverrides: {
+      'controller':
+          PropertyOverride(type: PropertyType.structured, sinceVersion: 24),
       'onTap': PropertyOverride(callbackSignature: 'ValueChanged<int>'),
     },
   ),
@@ -1701,11 +1701,12 @@ const List<BuiltinWidgetCuration> kCuration = [
       ),
     },
     excludeParams: [
+      'scrollController',
       // `controller: TextEditingController`, `focusNode: FocusNode`,
       // `undoController: UndoHistoryController`,
       // `statesController: WidgetStatesController`,
       // `mouseCursor: MouseCursor`, `dragStartBehavior: DragStartBehavior`,
-      // `scrollController: ScrollController`, `scrollPhysics: ScrollPhysics`,
+      // `scrollPhysics: ScrollPhysics`,
       // `contentInsertionConfiguration: ContentInsertionConfiguration`,
       // `contextMenuBuilder: EditableTextContextMenuBuilder`,
       // `spellCheckConfiguration: SpellCheckConfiguration`, and
@@ -1718,7 +1719,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'strutStyle',
       'textAlign',
       'textAlignVertical',
-      'textDirection',
       'readOnly',
       // Deprecated in v3.3.0-0.5.pre in favour of `contextMenuBuilder`.
       'toolbarOptions',

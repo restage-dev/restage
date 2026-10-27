@@ -24,6 +24,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../measurement/admitted_bundled_publication_fixture.dart';
 import '../measurement/measurement_host_construction_test_support.dart';
 import '../support/canonical_assignment_fixture.dart';
+import '../support/pump_until.dart';
 import 'surface_screen_test_support.dart';
 
 const _baseUrl = 'https://surfaces.example.com';
@@ -850,10 +851,12 @@ widget OnboardingScreen = SizedBox(
         },
       ),
     );
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () =>
           find.byType(RemoteWidget, skipOffstage: false).evaluate().isNotEmpty,
+      reason:
+          'find.byType(RemoteWidget, skipOffstage: false).evaluate().isNotEmpty',
     );
 
     final assignment = projectSurfaceAssignment(servedAssignment);
@@ -899,7 +902,8 @@ widget OnboardingScreen = SizedBox(
     expect(event.variantId, servedAssignment.armId.value);
 
     await tester.pumpWidget(const SizedBox());
-    await _pumpUntil(tester, () => harness.worker.finalizationCalls == 1);
+    await pumpUntil(tester, () => harness.worker.finalizationCalls == 1,
+        reason: 'harness.worker.finalizationCalls == 1');
     expect(assignmentWhileOffstage, isNull);
     expect(harness.worker.finalizationCalls, 1);
     expect(harness.worker.discardCalls, 1);
@@ -969,13 +973,15 @@ widget OnboardingScreen = SizedBox(
         },
       ),
     );
-    await _pumpUntil(tester, () => readPort.references.isNotEmpty);
-    await _pumpUntil(
-        tester,
-        () => find
-            .byType(RemoteWidget, skipOffstage: false)
-            .evaluate()
-            .isNotEmpty);
+    await pumpUntil(tester, () => readPort.references.isNotEmpty,
+        reason: 'readPort.references.isNotEmpty');
+    await pumpUntil(
+      tester,
+      () =>
+          find.byType(RemoteWidget, skipOffstage: false).evaluate().isNotEmpty,
+      reason:
+          'find .byType(RemoteWidget, skipOffstage: false) .evaluate() .isNotEmpt',
+    );
     expect(readPort.references, <Object?>[binding.reference]);
     expect(find.byType(RemoteWidget, skipOffstage: false), findsOneWidget);
     expect(
@@ -1217,19 +1223,6 @@ final class _ControlledBindingReadPort
   }
 
   void completeAccepted() => _result.complete(_acceptedBinding(binding));
-}
-
-Future<void> _pumpUntil(
-  WidgetTester tester,
-  bool Function() predicate,
-) async {
-  for (var attempt = 0; attempt < 20 && !predicate(); attempt += 1) {
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 1)),
-    );
-  }
-  expect(predicate(), isTrue);
 }
 
 Future<void> _pumpFrames(WidgetTester tester, {int count = 20}) async {

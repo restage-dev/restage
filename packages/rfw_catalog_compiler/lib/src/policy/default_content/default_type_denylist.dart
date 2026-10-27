@@ -1,7 +1,8 @@
 // packages/rfw_catalog_compiler/lib/src/policy/default_content/default_type_denylist.dart
 
-/// Exact-match type display names that never become catalog property
-/// types. Curated against the framework primitives, restoration / key
+/// Exact-match type display names excluded from catalog property types.
+/// Installed native consumers are admitted only by their resolved identity.
+/// Curated against the framework primitives, restoration / key
 /// types, reactivity surfaces, imperative controllers / focus nodes,
 /// painter / clipper surfaces, locale / matrix / route types, and
 /// layout / hit-testing primitives whose values cannot round-trip
@@ -36,11 +37,9 @@ const Set<String> kBuiltInTypeDenylist = {
 
   // Imperative controllers / nodes / providers.
   'TextEditingController',
-  'ScrollController',
   'FocusNode',
   'FocusScopeNode',
   'PageController',
-  'TabController',
 
   // Painters / clippers / drawing primitives.
   'CustomPainter',
@@ -74,7 +73,6 @@ const Set<String> kBuiltInTypeDenylist = {
   // Scroll abstractions the catalog doesn't surface.
   // (`ScrollViewKeyboardDismissBehavior` is a clean 2-member enum that DOES
   // round-trip through the wire format, so it is surfaced, not denylisted.)
-  'ScrollPhysics',
 };
 
 /// Type-display-name suffix patterns.

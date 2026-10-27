@@ -1,3 +1,5 @@
+import 'package:restage_shared/restage_shared.dart'
+    show kFormattingExpressionClientFloor;
 import 'package:restage_core/registry.dart' show kCoreCatalogContentVersion;
 import 'package:restage_cupertino/registry.dart'
     show kCupertinoCatalogContentVersion;
@@ -6,24 +8,12 @@ import 'package:restage_material/registry.dart'
 
 /// The built-in catalog capability this SDK build can render.
 ///
-/// Replaces the hand-set capability ceiling: [currentVersion] is the maximum
-/// content version across the three built-in catalog libraries (core, material,
-/// cupertino), single-sourced from the committed catalogs at SDK build via the
-/// per-library generated constants. A delivered surface whose required built-in
-/// floor exceeds this value needs a newer SDK than the installed one, so the
-/// resolvers reject it before render (fail-closed) rather than rendering a
-/// surface they cannot faithfully display.
-///
-/// Each per-library constant is generated from the committed catalog and locked
-/// (by test) against the catalog's max `sinceVersion` over widgets and their
-/// properties, so this value cannot drift from the catalog it summarizes.
+/// Combines installed native value operations with generated widget versions.
+/// Resolvers refuse delivered surfaces above this version before rendering.
 abstract final class RestageBuiltInCatalogCapabilities {
   RestageBuiltInCatalogCapabilities._();
 
-  /// The installed built-in catalog content version (the maximum over the three
-  /// built-in libraries). A compile-time constant — each per-library version is
-  /// a `const` generated from the committed catalog.
-  static const int currentVersion =
+  static const int _catalogVersion =
       kCoreCatalogContentVersion >= kMaterialCatalogContentVersion
           ? (kCoreCatalogContentVersion >= kCupertinoCatalogContentVersion
               ? kCoreCatalogContentVersion
@@ -31,4 +21,10 @@ abstract final class RestageBuiltInCatalogCapabilities {
           : (kMaterialCatalogContentVersion >= kCupertinoCatalogContentVersion
               ? kMaterialCatalogContentVersion
               : kCupertinoCatalogContentVersion);
+
+  /// Includes native expression operations in the installed capability line.
+  static const int currentVersion =
+      _catalogVersion >= kFormattingExpressionClientFloor
+          ? _catalogVersion
+          : kFormattingExpressionClientFloor;
 }

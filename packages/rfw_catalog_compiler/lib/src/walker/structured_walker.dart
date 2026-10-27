@@ -17,11 +17,13 @@ import 'package:rfw_catalog_compiler/src/walker/element_fqn.dart';
 import 'package:rfw_catalog_compiler/src/walker/factory_variant_enumerator.dart';
 import 'package:rfw_catalog_compiler/src/walker/map_shape_resolver.dart';
 import 'package:rfw_catalog_compiler/src/walker/record_shape_resolver.dart';
+import 'package:rfw_catalog_compiler/src/walker/scalar_callback_contract.dart';
 import 'package:rfw_catalog_compiler/src/walker/structured_description_resolver.dart';
 import 'package:rfw_catalog_compiler/src/walker/structured_type_predicate.dart';
 import 'package:rfw_catalog_compiler/src/walker/value_shape_resolver.dart';
 import 'package:rfw_catalog_compiler/src/walker/walker_issue_codes.dart'
     as issue_codes;
+import 'package:rfw_catalog_compiler/src/walker/widget_builder_contract.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Result of walking one structured type entry point.
@@ -211,6 +213,28 @@ StructuredWalkResult _walkConcrete({
       continue;
     }
 
+    final builderContract = widgetBuilderContractFor(field.type);
+    final scalarContract = scalarCallbackContractFor(field.type);
+    if (builderContract != null || scalarContract != null) {
+      fields.add(
+        _structuredField(
+          field,
+          descriptionModel: descriptionModel,
+          ownerSourceType: fqn,
+          kind: builderContract != null
+              ? ResolvedTypeKind.widgetBuilder
+              : ResolvedTypeKind.scalarCallback,
+          builderContract: builderContract,
+          scalarContract: scalarContract,
+          valueShape: ScalarShape(
+            propertyType: builderContract != null
+                ? PropertyType.widgetBuilder
+                : PropertyType.scalarCallback,
+          ),
+        ),
+      );
+      continue;
+    }
     final scalarKind = _inlineScalarKind(field.type);
     if (scalarKind != null) {
       fields.add(
@@ -574,6 +598,8 @@ StructuredFieldIR _structuredField(
   String? structuredRefFqn,
   String? unionSourceKey,
   CatalogValueShape? valueShape,
+  WidgetBuilderContract? builderContract,
+  ScalarCallbackContract? scalarContract,
   List<DiagnosticIR> diagnostics = const [],
 }) {
   final description = descriptionModel.descriptionForField(field) ??
@@ -587,6 +613,8 @@ StructuredFieldIR _structuredField(
     type: ResolvedType(
       kind: kind,
       dartType: field.type,
+      builderContract: builderContract,
+      scalarContract: scalarContract,
       structuredRef: structuredRef,
       unionRef: unionRef,
       valueShape: valueShape,
@@ -730,6 +758,8 @@ ResolvedTypeKind _resolvedKindForPropertyType(PropertyType type) {
     PropertyType.selectionOptionList => ResolvedTypeKind.selectionOptionList,
     PropertyType.widget => ResolvedTypeKind.widget,
     PropertyType.widgetList => ResolvedTypeKind.widgetList,
+    PropertyType.widgetBuilder => ResolvedTypeKind.widgetBuilder,
+    PropertyType.scalarCallback => ResolvedTypeKind.scalarCallback,
     PropertyType.event => ResolvedTypeKind.event,
     PropertyType.dataReference => ResolvedTypeKind.dataReference,
     PropertyType.unknown => throw ArgumentError.value(

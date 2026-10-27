@@ -207,10 +207,8 @@ Object x() => $source;
     });
   });
 
-  group('alignment members: only the 9 concrete Alignment constants lower', () {
-    test(
-        'a resolved AlignmentDirectional.* member defers LOUD — no bare-name '
-        'silent null to Alignment.center', () async {
+  group('alignment geometry members', () {
+    test('a resolved directional member retains its geometry', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
         import 'package:flutter/material.dart'
@@ -223,13 +221,8 @@ Object x() => $source;
         rootPackage: 'apps_examples',
       );
       final r = translator.translate(expr);
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-      // No bare member-name string that the alignmentXY decoder would null.
-      expect(r.dsl, isNot(contains('"centerStart"')));
-      expect(r.dsl, isNot(contains('centerStart')));
+      expect(r.issues, isEmpty);
+      expect(r.dsl, contains('alignment: {start: -1.0, y: 0.0}'));
     });
 
     test('a resolved Alignment(x, y) constructor still lowers to {x, y}',

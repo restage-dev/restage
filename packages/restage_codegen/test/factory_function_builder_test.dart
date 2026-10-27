@@ -8,14 +8,16 @@ import 'package:test/test.dart';
 import 'helpers.dart';
 
 /// Properties every emitted `registration.g.dart` shares: the generated
-/// banner, the rfw import, and an empty `LocalWidgetBuilder` map. The
+/// banner, the rfw import, and a `LocalWidgetBuilder` map. The
 /// per-namespace const identifier is checked separately.
 Matcher _emittedScaffoldFor(String constMapName) => decodedMatches(
       allOf(
         contains('GENERATED CODE - DO NOT MODIFY BY HAND'),
         contains("import 'package:rfw/rfw.dart' hide Switch;"),
         contains('const Map<String, LocalWidgetBuilder> $constMapName'),
-        contains('<String, LocalWidgetBuilder>{}'),
+        contains(constMapName == 'kCoreLibraryFactories'
+            ? "'__RestageBuilderContinuation': buildRestageBuilderContinuation"
+            : '<String, LocalWidgetBuilder>{}'),
       ),
     );
 
@@ -80,7 +82,8 @@ void main() {
       );
     });
 
-    test('restage.core catalog → kCoreLibraryFactories empty map', () async {
+    test('restage.core catalog → kCoreLibraryFactories continuation map',
+        () async {
       const catalogJson = '''
 {
   "schemaVersion": 5,

@@ -3,6 +3,8 @@ import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:rfw_catalog_compiler/src/policy/denylist_policy.dart';
 import 'package:rfw_catalog_compiler/src/policy/policy_ledger.dart';
+import 'package:rfw_catalog_compiler/src/walker/scalar_callback_contract.dart';
+import 'package:rfw_catalog_compiler/src/walker/widget_builder_contract.dart';
 
 /// Pure type predicate. Stateless and depth-agnostic so it can walk
 /// analyzer type structures without depending on the rest of the compiler.
@@ -21,6 +23,10 @@ final class DenylistFilter {
     Set<DartType> seen,
   ) {
     if (!seen.add(type)) return null;
+    if (widgetBuilderContractFor(type) != null ||
+        scalarCallbackContractFor(type) != null) {
+      return null;
+    }
 
     final alias = type.alias;
     if (alias != null) {
@@ -115,7 +121,6 @@ final class DenylistFilter {
     final policy = ledger.denylist;
     final typeName = _interfaceTypeName(type);
     final typeFqn = _elementFqn(type.element);
-
     final exactTarget = policy.types.contains(typeName)
         ? typeName
         : policy.types.contains(typeFqn)
@@ -128,6 +133,12 @@ final class DenylistFilter {
         target: exactTarget,
       );
     }
+
+    // Installed consumers bypass the generic suffix rule after explicit denies.
+    if (const {
+      'package:flutter/src/widgets/scroll_controller.dart#ScrollController',
+      'package:flutter/src/material/tab_controller.dart#TabController',
+    }.contains(typeFqn)) return null;
 
     for (final suffix in policy.typeSuffixes) {
       if (typeName.endsWith(suffix) && typeName != suffix) {

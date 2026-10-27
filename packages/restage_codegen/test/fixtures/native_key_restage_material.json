@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 5,
+  "generatedAt": "1970-01-01T00:00:00Z",
+  "libraries": {
+    "restage.material": {
+      "version": "0.1.0"
+    }
+  },
+  "widgets": [
+    {
+      "wireId": "w0001",
+      "name": "Icon",
+      "library": "restage.material",
+      "category": "decoration",
+      "description": "A graphical icon widget drawn with a glyph from a font described in an [IconData] such as material's predefined [IconData]s in [Icons].",
+      "flutterType": "package:flutter/src/widgets/icon.dart#Icon",
+      "childrenSlot": "none",
+      "properties": [
+        {
+          "wireId": "p0001",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0001"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
+          "wireId": "p0002",
+          "name": "size",
+          "type": "length",
+          "description": "The size of the icon in logical pixels.",
+          "defaultSource": {
+            "kind": "themeBinding",
+            "path": {
+              "path": "iconTheme.size"
+            }
+          },
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0003",
+          "name": "color",
+          "type": "color",
+          "description": "The color to use when drawing the icon.",
+          "defaultSource": {
+            "kind": "themeBinding",
+            "path": {
+              "path": "iconTheme.color"
+            }
+          },
+          "constructorNullable": true,
+          "category": "style",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0004",
+          "name": "textDirection",
+          "type": "enumValue",
+          "description": "The text direction to use for rendering the icon.",
+          "enumType": "TextDirection",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "TextDirection"
+            }
+          },
+          "sinceVersion": 17
+        },
+        {
+          "wireId": "p0005",
+          "name": "iconCodepoint",
+          "type": "integer",
+          "description": "Material icon codepoint, e.g. 0xe145 for Icons.add.",
+          "displayLabel": "Icon",
+          "required": true,
+          "synthetic": "iconData",
+          "positional": true,
+          "priority": "primary"
+        },
+        {
+          "wireId": "p0006",
+          "name": "iconFontFamily",
+          "type": "string",
+          "description": "Icon font family the codepoint belongs to, e.g. CupertinoIcons. Defaults to the Material icon font when absent.",
+          "displayLabel": "Icon font",
+          "synthetic": "iconFontFamily"
+        },
+        {
+          "wireId": "p0007",
+          "name": "iconMatchTextDirection",
+          "type": "boolean",
+          "description": "Selects the mirroring variant of a codepoint that has one — the glyph that flips in a right-to-left locale. Defaults to false.",
+          "displayLabel": "Mirror icon for RTL",
+          "synthetic": "iconMatchTextDirection"
+        },
+        {
+          "wireId": "p0008",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ],
+      "sinceVersion": 6
+    }
+  ],
+  "structuredTypes": [
+    {
+      "wireId": "s0001",
+      "name": "Key",
+      "library": "restage.material",
+      "description": "Closed native data value.",
+      "sourceType": "package:flutter/src/foundation/key.dart#Key",
+      "fields": [],
+      "variants": [],
+      "stability": "volatile"
+    }
+  ]
+}

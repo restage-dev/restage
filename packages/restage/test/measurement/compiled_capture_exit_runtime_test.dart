@@ -16,6 +16,7 @@ import 'package:restage_shared/restage_shared.dart';
 
 import '../flow/flow_test_support.dart' show StaticFlowResolver;
 import '../support/restage_runtime_test_support.dart';
+import '../support/pump_until.dart';
 
 /// Invoked by the persisted backend proof with its actual accepted publication.
 /// The only handoff is canonical input/output files; no occurrences are authored
@@ -206,14 +207,12 @@ void main() {
 
 Map<String, Object?> _decode(Map<String, Object?> value) => value;
 Future<void> _settleReal(WidgetTester tester, bool Function() ready) async {
-  for (var attempt = 0; attempt < 200 && !ready(); attempt++) {
-    await tester
-        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
-    await tester.pump(const Duration(milliseconds: 20));
-  }
-  if (!ready()) debugDumpApp();
-  expect(ready(), isTrue,
-      reason: 'Actual flow/worker did not reach next source boundary');
+  await pumpUntil(
+    tester,
+    ready,
+    reason: 'the flow and worker to reach the next source boundary',
+    realDelay: const Duration(milliseconds: 20),
+  );
 }
 
 final class _Clock implements MeasurementCaptureMonotonicClock {

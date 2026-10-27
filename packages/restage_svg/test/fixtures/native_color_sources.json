@@ -1,0 +1,18 @@
+{
+  "theme": {
+    "dsl": "SvgPictureString(string: \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"8\\\" height=\\\"8\\\"><path d=\\\"M0 0h8v8H0z\\\" fill=\\\"currentColor\\\"/></svg>\", theme: {currentColor: data.context._h0c5f605b8d})",
+    "key": "_h0c5f605b8d"
+  },
+  "filter": {
+    "dsl": "SvgPictureString(string: \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"8\\\" height=\\\"8\\\"><path d=\\\"M0 0h8v8H0z\\\" fill=\\\"currentColor\\\"/></svg>\", colorFilter: {kind: \"mode\", color: data.context._h0c5f605b8d, blendMode: \"srcIn\"})",
+    "key": "_h0c5f605b8d"
+  },
+  "layout": {
+    "dsl": "LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"name\\\":\\\"c0\\\"}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"String\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":1,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":1}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {c0: \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"8\\\" height=\\\"8\\\"><path d=\\\"M0 0h8v8H0z\\\" fill=\\\"currentColor\\\"/></svg>\"}, bodies: [(builder0) => SvgPictureString(string: builder0.values.v0, theme: {currentColor: data.context._h0c5f605b8d}, colorFilter: {kind: \"mode\", color: data.context._h0c5f605b8d, blendMode: \"srcIn\"})]))",
+    "key": "_h0c5f605b8d"
+  },
+  "wrapped": {
+    "dsl": "SvgPictureString(string: \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"8\\\" height=\\\"8\\\"><path d=\\\"M0 0h8v8H0z\\\" fill=\\\"currentColor\\\"/></svg>\", theme: {currentColor: data.context._h0c5f605b8d}, colorFilter: {kind: \"mode\", color: data.context._h0c5f605b8d, blendMode: \"srcIn\"})",
+    "key": "_h0c5f605b8d"
+  }
+}

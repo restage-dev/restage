@@ -8,9 +8,10 @@ wrote, and it becomes a surface you can publish, measure, and roll back without 
 app build: an onboarding flow, a message, a survey, a paywall, or any screen. It renders
 as real Flutter widgets inside your app, using your theme.
 
-What ships is data the app renders. Your widgets carry the logic, as Dart compiled into
-your app. A published version composes and configures them. New behavior still ships as
-an app release.
+What ships is a description your app's widgets draw, in a small closed language the
+compiler checks. It can carry simple logic, like conditions over data your app supplies.
+Gestures, drawing, network calls and native work stay in Dart compiled into your app. New
+kinds of behavior still ship as an app release.
 
 These guides describe the current repository source, which can include changes not
 yet published to pub.dev. For a released package, use its release tag and changelog.
@@ -89,8 +90,8 @@ class OnboardingPage extends StatelessWidget {
 It could as easily be one card inside an existing screen. Only the subtree under the
 mount is delivered; the rest of the page stays app code.
 
-The button fires `surfaceEvent(next)` instead of a callback, because a published surface
-carries no code. The app receives the event through the mount's `onEvent`. The mount
+The button fires `surfaceEvent(next)` instead of a callback. A published surface can't
+carry Dart functions. The app receives the event through the mount's `onEvent`. The mount
 renders the published version of the screen, passes `name` to it, and shows the
 compiled-in `WelcomeScreen` if delivery or rendering fails. With no backend configured it
 renders from the app itself, so it works offline with no account.

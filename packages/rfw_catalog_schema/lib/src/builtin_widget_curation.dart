@@ -1,8 +1,9 @@
 import 'package:meta/meta.dart';
-
 import 'package:rfw_catalog_schema/src/native_decompose.dart';
 import 'package:rfw_catalog_schema/src/property_entry.dart';
 import 'package:rfw_catalog_schema/src/property_type.dart';
+import 'package:rfw_catalog_schema/src/scalar_callback_contract.dart';
+import 'package:rfw_catalog_schema/src/widget_builder_contract.dart';
 import 'package:rfw_catalog_schema/src/widget_entry.dart';
 import 'package:rfw_catalog_schema/src/widget_metadata.dart';
 
@@ -32,12 +33,14 @@ import 'package:rfw_catalog_schema/src/widget_metadata.dart';
 ///
 /// By default, [T]'s unnamed canonical constructor is targeted. Set
 /// [constructorName] to target a named constructor — e.g. `'network'`
-/// for `Image.network`, `'tonal'` for `FilledButton.tonal`.
+/// for `Image.network`, `'tonal'` for `FilledButton.tonal`. Use
+/// [staticMethodName] for a static Widget method such as `ClipPath.shape`.
 ///
 /// ## Catalog name
 ///
 /// The resulting widget entry's name defaults to [T]'s class name
-/// plus the capitalised [constructorName] when present (`FilledButton`
+/// plus the capitalised [constructorName] or [staticMethodName] when present
+/// (`FilledButton`
 /// + `tonal` → `'FilledButtonTonal'`). Set [nameOverride] to suppress
 /// the suffix
 /// when only one constructor of the underlying class is curated and the
@@ -66,6 +69,7 @@ final class BuiltinWidgetCuration<T extends Object> {
   const BuiltinWidgetCuration({
     required this.category,
     this.constructorName,
+    this.staticMethodName,
     this.nameOverride,
     this.descriptionOverride,
     this.displayLabel,
@@ -88,6 +92,10 @@ final class BuiltinWidgetCuration<T extends Object> {
   /// (e.g. `'network'` for `Image.network`). `null` selects the unnamed
   /// canonical constructor.
   final String? constructorName;
+
+  /// Static method on [T] returning a Widget. Mutually exclusive with
+  /// [constructorName]; the emitted call retains the native method suffix.
+  final String? staticMethodName;
 
   /// Overrides the auto-derived widget entry name. Used when only one
   /// constructor of the underlying class is curated and the bare class
@@ -409,6 +417,8 @@ final class PropertyOverride {
     this.enumType,
     this.widgetType,
     this.callbackSignature,
+    this.builderContract,
+    this.scalarContract,
     this.sinceVersion,
   }) : assert(
           defaultValue == null || defaultBrandToken == null,
@@ -489,4 +499,10 @@ final class PropertyOverride {
   /// catalog event slot needs a typed handler beyond `VoidCallback?`
   /// (e.g. `'ValueChanged<bool>'` for `Switch.onChanged`).
   final String? callbackSignature;
+
+  /// Structural signature for a deferred widget callback.
+  final WidgetBuilderContract? builderContract;
+
+  /// Structural signature of a pure native integer callback.
+  final ScalarCallbackContract? scalarContract;
 }

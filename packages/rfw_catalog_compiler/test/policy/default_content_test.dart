@@ -22,7 +22,6 @@ void main() {
           'Key',
           'GlobalKey',
           'TextEditingController',
-          'ScrollController',
           'FocusNode',
           'CustomPainter',
           'CustomClipper',
@@ -44,12 +43,14 @@ void main() {
           'PageRoute',
           'MouseCursor',
           'DragStartBehavior',
-          'ScrollPhysics',
         }),
       );
+      expect(ledger.denylist.types, isNot(contains('ScrollController')));
+      expect(ledger.denylist.types, isNot(contains('TabController')));
       expect(ledger.denylist.types, isNot(contains('TextBaseline')));
       expect(ledger.denylist.types, isNot(contains('HitTestBehavior')));
       expect(ledger.denylist.types, isNot(contains('Curve')));
+      expect(ledger.denylist.types, isNot(contains('ScrollPhysics')));
     });
 
     test(
@@ -118,7 +119,7 @@ void main() {
 
     test(
         'widget denylist excludes Navigator, Hero, Drawer, dialogs, '
-        'drag targets, layout builders, etc.', () {
+        'drag targets and painters', () {
       expect(
         ledger.denylist.widgets,
         containsAll(<String>{
@@ -127,10 +128,28 @@ void main() {
           'package:flutter/src/material/drawer.dart#Drawer',
           'package:flutter/src/material/dialog.dart#AlertDialog',
           'package:flutter/src/widgets/form.dart#Form',
-          'package:flutter/src/widgets/layout_builder.dart#LayoutBuilder',
           'package:flutter/src/widgets/drag_target.dart#DragTarget',
           'package:flutter/src/widgets/basic.dart#CustomPaint',
         }),
+      );
+    });
+
+    test('widget denylist permits native responsive builders', () {
+      expect(
+        ledger.denylist.widgets,
+        isNot(
+          contains(
+            'package:flutter/src/widgets/layout_builder.dart#LayoutBuilder',
+          ),
+        ),
+      );
+      expect(
+        ledger.denylist.widgets,
+        isNot(
+          contains(
+            'package:flutter/src/widgets/orientation_builder.dart#OrientationBuilder',
+          ),
+        ),
       );
     });
 
@@ -216,12 +235,31 @@ void main() {
   });
 
   group('default_structured_walk', () {
-    test('concrete whitelist has 26 entries', () {
-      expect(kBuiltInStructuredConcrete, hasLength(26));
+    test('concrete whitelist has 32 entries', () {
+      expect(kBuiltInStructuredConcrete, hasLength(32));
+      expect(
+        kBuiltInStructuredConcrete,
+        containsAll(<String>{
+          'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegateWithFixedCrossAxisCount',
+          'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegateWithMaxCrossAxisExtent',
+          'package:flutter/src/widgets/scroll_delegate.dart#SliverChildListDelegate',
+          'package:flutter/src/widgets/scroll_delegate.dart#SliverChildBuilderDelegate',
+          'package:flutter/src/widgets/scroll_physics.dart#ScrollPhysics',
+          'package:flutter/src/rendering/viewport.dart#ScrollCacheExtent',
+        }),
+      );
     });
 
-    test('abstract list has 6 entries', () {
-      expect(kBuiltInStructuredAbstract, hasLength(6));
+    test('abstract list has 9 entries', () {
+      expect(kBuiltInStructuredAbstract, hasLength(9));
+      expect(
+        kBuiltInStructuredAbstract,
+        containsAll(<String>{
+          'package:flutter/src/painting/text_scaler.dart#TextScaler',
+          'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegate',
+          'package:flutter/src/widgets/scroll_delegate.dart#SliverChildDelegate',
+        }),
+      );
     });
 
     test('max depth is 8', () {

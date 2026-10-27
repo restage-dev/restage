@@ -18,8 +18,15 @@ void main() {
       }
     });
 
-    test('seeds the six built-in abstract bases', () {
-      expect(kBuiltInUnionSeeds.keys, hasLength(6));
+    test('seeds the eight built-in abstract bases', () {
+      expect(kBuiltInUnionSeeds.keys, hasLength(8));
+      expect(
+        kBuiltInUnionSeeds.keys,
+        containsAll(<String>{
+          'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegate',
+          'package:flutter/src/widgets/scroll_delegate.dart#SliverChildDelegate',
+        }),
+      );
     });
 
     test('every entry has a non-empty description', () {

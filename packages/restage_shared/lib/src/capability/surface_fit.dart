@@ -956,6 +956,16 @@ void _checkHostShape(
   }
   switch ((required, provided)) {
     case (
+        SurfaceScreenHostDataNativeBindingShapeV1(
+          contract: final requiredContract
+        ),
+        SurfaceScreenHostDataNativeBindingShapeV1(
+          contract: final providedContract
+        )
+      ):
+      if (requiredContract == providedContract) return;
+
+    case (
         SurfaceScreenHostDataScalarShapeV1(kind: final requiredKind),
         SurfaceScreenHostDataScalarShapeV1(kind: final providedKind),
       ):

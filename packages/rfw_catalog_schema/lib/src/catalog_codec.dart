@@ -21,10 +21,12 @@ import 'package:rfw_catalog_schema/src/property_metadata.dart';
 import 'package:rfw_catalog_schema/src/property_type.dart';
 import 'package:rfw_catalog_schema/src/restage_constraints.dart';
 import 'package:rfw_catalog_schema/src/rfw_callback_signature_policy.dart';
+import 'package:rfw_catalog_schema/src/scalar_callback_contract.dart';
 import 'package:rfw_catalog_schema/src/stability.dart';
 import 'package:rfw_catalog_schema/src/structured_entry.dart';
 import 'package:rfw_catalog_schema/src/union_entry.dart';
 import 'package:rfw_catalog_schema/src/validation_expr.dart';
+import 'package:rfw_catalog_schema/src/widget_builder_contract.dart';
 import 'package:rfw_catalog_schema/src/widget_entry.dart';
 import 'package:rfw_catalog_schema/src/widget_library.dart';
 import 'package:rfw_catalog_schema/src/widget_metadata.dart';
@@ -209,6 +211,12 @@ void _validateProperty(PropertyEntry property, String path) {
       '$path.callbackSignature',
     );
   }
+  _validateCallbackContracts(
+    property.type,
+    property.builderContract,
+    property.scalarContract,
+    path,
+  );
   _validateValueShape(property.valueShape, '$path.valueShape');
   _validateDeprecation(property.deprecated, '$path.deprecated');
   _validateSinceVersion(property.sinceVersion, '$path.sinceVersion');
@@ -872,6 +880,12 @@ void _validateStructuredField(StructuredField field, String path) {
       expectedKind: WireIdKind.union,
     );
   }
+  _validateCallbackContracts(
+    field.type,
+    field.builderContract,
+    field.scalarContract,
+    path,
+  );
   _validateValueShape(field.valueShape, '$path.valueShape');
   _validateDeprecation(field.deprecated, '$path.deprecated');
 }
@@ -1053,6 +1067,8 @@ bool _literalDefaultMatchesShape(Object? value, CatalogValueShape shape) {
       return value is int;
     case PropertyType.widget:
     case PropertyType.widgetList:
+    case PropertyType.widgetBuilder:
+    case PropertyType.scalarCallback:
     case PropertyType.edgeInsets:
     case PropertyType.alignment:
     case PropertyType.alignmentXY:
@@ -1096,6 +1112,7 @@ void _validateDartTypeRef(DartTypeRef ref, String path) {
 
 /// PropertyTypes a `UnionShape` may carry — the discriminated-union types.
 const Set<PropertyType> _unionShapePropertyTypes = {
+  PropertyType.structured,
   PropertyType.border,
   PropertyType.gradient,
   PropertyType.shapeBorder,
@@ -1511,6 +1528,10 @@ Map<String, dynamic> _propertyToJson(PropertyEntry p) {
     if (p.enumType != null) 'enumType': p.enumType,
     if (p.widgetType != null) 'widgetType': p.widgetType,
     if (p.callbackSignature != null) 'callbackSignature': p.callbackSignature,
+    if (p.builderContract != null)
+      'builderContract': widgetBuilderContractToJson(p.builderContract!),
+    if (p.scalarContract != null)
+      'scalarContract': scalarCallbackContractToJson(p.scalarContract!),
     if (p.defaultSource != null)
       'defaultSource': defaultSourceToJson(p.defaultSource!),
     if (p.constructorNullable) 'constructorNullable': true,
@@ -1604,6 +1625,10 @@ Map<String, dynamic> _structuredFieldToJson(StructuredField f) {
       'structuredRef': wireIdRefToJson(f.structuredRef!),
     if (f.unionRef != null) 'unionRef': wireIdRefToJson(f.unionRef!),
     if (f.valueShape != null) 'valueShape': _valueShapeToJson(f.valueShape!),
+    if (f.builderContract != null)
+      'builderContract': widgetBuilderContractToJson(f.builderContract!),
+    if (f.scalarContract != null)
+      'scalarContract': scalarCallbackContractToJson(f.scalarContract!),
   };
 }
 
@@ -3143,6 +3168,18 @@ PropertyEntry _propertyFromJson(
     enumType: _optionalString(j, 'enumType', path),
     widgetType: _optionalString(j, 'widgetType', path),
     callbackSignature: _optionalString(j, 'callbackSignature', path),
+    builderContract: j['builderContract'] == null
+        ? null
+        : widgetBuilderContractFromJson(
+            _jsonObject(j['builderContract'], '$path.builderContract'),
+            '$path.builderContract',
+          ),
+    scalarContract: j['scalarContract'] == null
+        ? null
+        : scalarCallbackContractFromJson(
+            _jsonObject(j['scalarContract'], '$path.scalarContract'),
+            '$path.scalarContract',
+          ),
     defaultSource:
         defaultSourceFromJson(j['defaultSource'], '$path.defaultSource'),
     constructorNullable: _optionalBool(j, 'constructorNullable', path),
@@ -3430,7 +3467,19 @@ StructuredField _structuredFieldFromJson(Map<String, dynamic> j, String path) {
         ) ??
         PropertyType.unknown,
     description: _requiredString(j, 'description', path),
+    builderContract: j['builderContract'] == null
+        ? null
+        : widgetBuilderContractFromJson(
+            _jsonObject(j['builderContract'], '$path.builderContract'),
+            '$path.builderContract',
+          ),
     required: _optionalBool(j, 'required', path),
+    scalarContract: j['scalarContract'] == null
+        ? null
+        : scalarCallbackContractFromJson(
+            _jsonObject(j['scalarContract'], '$path.scalarContract'),
+            '$path.scalarContract',
+          ),
     defaultSource:
         defaultSourceFromJson(j['defaultSource'], '$path.defaultSource'),
     category: j['category'] == null
@@ -3470,6 +3519,12 @@ StructuredField _structuredFieldFromJson(Map<String, dynamic> j, String path) {
   // covers every entrypoint, including plain decodeCatalog (the app-import
   // path), not just the requireNativeCatalog validation pass.
   _checkStructuredFieldRefShape(field, path);
+  _validateCallbackContracts(
+    field.type,
+    field.builderContract,
+    field.scalarContract,
+    path,
+  );
   return field;
 }
 
@@ -4315,4 +4370,118 @@ ValidationExpr validationExprFromJson(Map<String, dynamic> j, String path) {
     expression: _requiredString(j, 'expression', path),
     message: _requiredString(j, 'message', path),
   );
+}
+
+/// Encodes a native widget callback's structural signature.
+Map<String, dynamic> widgetBuilderContractToJson(
+  WidgetBuilderContract contract,
+) {
+  if (!contract.isSupported) {
+    throw CatalogSchemaException(
+      'builderContract: unsupported widget builder signature',
+    );
+  }
+  return {
+    'parameters': contract.parameters.map((p) => p.name).toList(),
+    'nullableResult': contract.nullableResult,
+  };
+}
+
+/// Decodes and validates an admitted native callback signature.
+WidgetBuilderContract widgetBuilderContractFromJson(
+  Map<String, dynamic> json,
+  String path,
+) {
+  final raw = _requiredList(json, 'parameters', path);
+  final contract = WidgetBuilderContract(
+    parameters: List.unmodifiable([
+      for (var i = 0; i < raw.length; i++)
+        _enumFromName(
+          WidgetBuilderParameter.values,
+          _expectStringValue(raw[i], '$path.parameters[$i]'),
+          'parameter',
+          '$path.parameters[$i]',
+        ),
+    ]),
+    nullableResult: _requiredBool(json, 'nullableResult', path),
+  );
+  if (!contract.isSupported) {
+    throw CatalogSchemaException('$path: unsupported widget builder signature');
+  }
+  return contract;
+}
+
+void _validateCallbackContracts(
+  PropertyType type,
+  WidgetBuilderContract? builder,
+  ScalarCallbackContract? scalar,
+  String path,
+) {
+  if (type == PropertyType.widgetBuilder) {
+    if (builder == null || !builder.isSupported) {
+      throw CatalogSchemaException(
+        '$path.builderContract: unsupported or missing '
+        'widget builder signature',
+      );
+    }
+  } else if (builder != null) {
+    throw CatalogSchemaException(
+      '$path.builderContract: only widgetBuilder properties '
+      'may declare a builder contract',
+    );
+  }
+  if (type == PropertyType.scalarCallback) {
+    if (scalar == null || !scalar.isSupported) {
+      throw CatalogSchemaException(
+        '$path.scalarContract: unsupported or missing '
+        'scalar callback signature',
+      );
+    }
+  } else if (scalar != null) {
+    throw CatalogSchemaException(
+      '$path.scalarContract: only scalarCallback properties '
+      'may declare a scalar contract',
+    );
+  }
+}
+
+/// Encodes a pure native integer callback's structural signature.
+Map<String, dynamic> scalarCallbackContractToJson(
+  ScalarCallbackContract contract,
+) {
+  if (!contract.isSupported) {
+    throw CatalogSchemaException(
+      'scalarContract: unsupported scalar callback signature',
+    );
+  }
+  return {
+    'parameters': contract.parameters.map((p) => p.name).toList(),
+    'nullableResult': contract.nullableResult,
+  };
+}
+
+/// Decodes and validates an installed native integer callback signature.
+ScalarCallbackContract scalarCallbackContractFromJson(
+  Map<String, dynamic> json,
+  String path,
+) {
+  final raw = _requiredList(json, 'parameters', path);
+  final contract = ScalarCallbackContract(
+    parameters: List.unmodifiable([
+      for (var i = 0; i < raw.length; i++)
+        _enumFromName(
+          ScalarCallbackParameter.values,
+          _expectStringValue(raw[i], '$path.parameters[$i]'),
+          'parameter',
+          '$path.parameters[$i]',
+        ),
+    ]),
+    nullableResult: _requiredBool(json, 'nullableResult', path),
+  );
+  if (!contract.isSupported) {
+    throw CatalogSchemaException(
+      '$path: unsupported scalar callback signature',
+    );
+  }
+  return contract;
 }

@@ -1,9 +1,12 @@
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/catalog_loader.dart' show findWidgetsByName;
+import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_compiler_core/restage_compiler_core.dart'
     show deriveSurfaceCapability;
 import 'package:restage_shared/restage_shared.dart' show CapabilityManifest;
+import 'package:restage_codegen/src/installed_native_call.dart';
 import 'package:restage_shared/rfw_formats.dart' show RemoteWidgetLibrary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -63,11 +66,14 @@ CapabilityDerivationResult deriveCapabilityManifest(
   RemoteWidgetLibrary surface,
   Catalog catalog, {
   bool requiresSurfaceFeatureFloor = false,
+  Iterable<HoistedValue> hoisted = const [],
 }) {
   final derivation = deriveSurfaceCapability(
     surface,
     catalog,
     requiresSurfaceFeatureFloor: requiresSurfaceFeatureFloor,
+    hostDataContract: hostDataContractOf(const [], hoisted: hoisted),
+    operations: installedNativeCallOperations(hoisted),
   );
 
   // Fail closed on a name that resolves across more than one library (a custom

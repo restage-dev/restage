@@ -15,6 +15,28 @@ const kDefaultUnionDiscriminatorField = '_s';
 /// form so downstream analysis passes can resolve each member to a
 /// `ClassElement` without an additional lookup step.
 const Map<String, UnionRegistryEntry> kBuiltInUnionSeeds = {
+  'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegate':
+      UnionRegistryEntry(
+    abstractType:
+        'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegate',
+    members: [
+      'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegateWithFixedCrossAxisCount',
+      'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegateWithMaxCrossAxisExtent',
+    ],
+    discriminatorField: kDefaultUnionDiscriminatorField,
+    description: 'A fixed-count or maximum-extent grid layout.',
+  ),
+  'package:flutter/src/widgets/scroll_delegate.dart#SliverChildDelegate':
+      UnionRegistryEntry(
+    abstractType:
+        'package:flutter/src/widgets/scroll_delegate.dart#SliverChildDelegate',
+    members: [
+      'package:flutter/src/widgets/scroll_delegate.dart#SliverChildListDelegate',
+      'package:flutter/src/widgets/scroll_delegate.dart#SliverChildBuilderDelegate',
+    ],
+    discriminatorField: kDefaultUnionDiscriminatorField,
+    description: 'A native list or lazily built child delegate.',
+  ),
   'package:flutter/src/painting/gradient.dart#Gradient': UnionRegistryEntry(
     abstractType: 'package:flutter/src/painting/gradient.dart#Gradient',
     members: [

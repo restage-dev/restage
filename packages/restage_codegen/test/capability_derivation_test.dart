@@ -30,6 +30,151 @@ Catalog _committedCatalog(String package) {
 }
 
 void main() {
+  test(
+      'interactive spans require capability 22 while static rich text keeps its floor',
+      () {
+    final catalog = _committedCatalog('restage_core');
+    int floor(String span) => deriveCapabilityManifest(
+            parseLibraryFile(
+                'import restage.core; widget Surface = TextRich(textSpan: $span);'),
+            catalog)
+        .manifest!
+        .builtInFloor;
+    expect(floor('{text: "static"}'), lessThan(22));
+    expect(floor('{text: "null", recognizer: null}'), lessThan(22));
+    expect(
+        floor(
+            '{children: [{text: "link", recognizer: {kind: "tap", onTap: event "go" {}}}]}'),
+        22);
+    // The span slot predates interactive recognizers; actual use supplies 22.
+    final span = catalog.widgets
+        .singleWhere((widget) => widget.name == 'TextRich')
+        .properties
+        .singleWhere((property) => property.name == 'textSpan');
+    expect(span.sinceVersion, kBaselineCatalogVersion);
+    final required = deriveCapabilityManifest(
+            parseLibraryFile(
+                'import restage.core; widget Surface = TextRich(textSpan: {recognizer: {kind: "tap"}});'),
+            catalog)
+        .manifest!;
+    for (final (version, accepted) in [(21, false), (22, true)]) {
+      expect(
+          BlobRenderCapabilityGate.evaluate(
+              required: required,
+              installed: InstalledCapability(
+                  builtInCatalogVersion: version,
+                  installedLibraries: const [])).accepted,
+          accepted);
+    }
+  });
+
+  group('interactive span selectors and forwarding', () {
+    for (final source in [
+      'widget Surface = TextRich(textSpan: {recognizer: switch data.enabled {true: {kind: "tap"}, default: {kind: "longPress"}}});',
+      'widget Surface = TextRich(textSpan: switch data.enabled {true: {recognizer: {kind: "tap"}}, default: {text: "plain"}});',
+      'widget Link = TextRich(textSpan: args.span); widget Surface = Link(span: {recognizer: {kind: "tap"}});',
+      'widget Link = TextRich(textSpan: args.span); widget Forward = Link(span: args.wrapper.span); widget Surface = Forward(wrapper: switch data.enabled {true: {span: {recognizer: {kind: "tap"}}}, default: {span: {text: "plain"}}});',
+      'widget Link = TextRich(textSpan: {children: args.spans}); widget Surface = Link(spans: [{text: "link", recognizer: switch data.enabled {true: {kind: "tap"}, default: {kind: "doubleTap"}}}]);',
+      'widget Link = TextRich(textSpan: {recognizer: args.recognizer}); widget Surface = Link(recognizer: {kind: "tap"});',
+      'widget Link = switch data.done {true: TextRich(textSpan: args.span), default: Link(span: args.next)}; widget Surface = Link(span: {text: "plain"}, next: {recognizer: {kind: "tap"}});',
+    ]) {
+      test('selected or forwarded descriptor requires capability 22: $source',
+          () {
+        final result = deriveCapabilityManifest(
+            parseLibraryFile('import restage.core; $source'),
+            _committedCatalog('restage_core'));
+        expect(result.issues, isEmpty);
+        expect(result.manifest!.builtInFloor, 22);
+        expect(
+            BlobRenderCapabilityGate.evaluate(
+                required: result.manifest!,
+                installed: InstalledCapability(
+                    builtInCatalogVersion: 21,
+                    installedLibraries: const [])).accepted,
+            isFalse);
+      });
+    }
+    for (final source in [
+      'widget Link = TextRich(textSpan: args.span); widget Surface = Link(span: {text: "plain"});',
+      'widget Link = TextRich(textSpan: args.span); widget Surface = Link(span: {recognizer: null});',
+      'widget Link = TextRich(textSpan: args.span); widget Surface = Link(span: switch data.enabled {true: {text: "plain"}, default: {text: "also plain"}});',
+      'widget Link = Text(text: "plain"); widget Surface = Link(unused: {recognizer: {kind: "tap"}});',
+      'widget Surface = TextRich(textSpan: {text: "plain", style: {recognizer: {kind: "tap"}}});',
+      'widget Surface = TextRich(textSpan: [{recognizer: {kind: "tap"}}]);',
+      'widget Surface = TextRich(textSpan: {children: {recognizer: {kind: "tap"}}});',
+      'widget Surface = TextRich(textSpan: {recognizer: [{kind: "tap"}]});',
+      'widget Link = switch data.done {true: Text(text: "plain"), default: Link(unused: args.unused)}; widget Surface = Link(unused: {recognizer: {kind: "tap"}});',
+    ]) {
+      test('static or unrelated maps keep their floor: $source', () {
+        final result = deriveCapabilityManifest(
+            parseLibraryFile('import restage.core; $source'),
+            _committedCatalog('restage_core'));
+        expect(result.issues, isEmpty);
+        expect(result.manifest!.builtInFloor, lessThan(22));
+      });
+    }
+  });
+
+  group('recursive static inline spans', () {
+    for (final span in [
+      '{text: "plain"}',
+      '{text: "plain", recognizer: null}',
+      '{text: "plain", style: {recognizer: {kind: "tap"}}}',
+      '{children: [{text: "plain", recognizer: null}]}',
+      '{text: "plain", recognizer: [{kind: "tap"}]}',
+    ]) {
+      test('finite recursive static literal keeps its old floor: $span', () {
+        final catalog = _committedCatalog('restage_core');
+        final direct = deriveCapabilityManifest(
+                parseLibraryFile(
+                    'import restage.core; widget Surface = TextRich(textSpan: $span);'),
+                catalog)
+            .manifest!;
+        final recursive = deriveCapabilityManifest(parseLibraryFile('''
+import restage.core;
+widget Link = switch args.more {
+  false: TextRich(textSpan: $span),
+  default: Link(more: args.next.more, next: args.next.next)
+};
+widget Surface = Link(more: true, next: {more: false});
+'''), catalog);
+        expect(recursive.issues, isEmpty);
+        expect((
+          recursive.manifest!.builtInFloor,
+          BlobRenderCapabilityGate.evaluate(
+              required: recursive.manifest!,
+              installed: InstalledCapability(
+                  builtInCatalogVersion: 21,
+                  installedLibraries: const [])).accepted
+        ), (
+          direct.builtInFloor,
+          true
+        ));
+        expect(recursive.manifest!.builtInFloor, lessThan(22));
+      });
+    }
+    test('local expansion budget preserves a proven static literal', () {
+      final declarations = <String>[
+        'widget Layer0 = TextRich(textSpan: {text: "plain", recognizer: null});',
+        for (var index = 1; index <= 13; index++)
+          'widget Layer$index = Column(children: [Layer${index - 1}(), Layer${index - 1}()]);',
+        'widget Surface = Layer13();',
+      ];
+      final result = deriveCapabilityManifest(
+          parseLibraryFile('import restage.core; ${declarations.join('\n')}'),
+          _committedCatalog('restage_core'));
+      expect(result.issues, isEmpty);
+      expect(result.manifest!.builtInFloor, lessThan(22));
+      expect(
+          BlobRenderCapabilityGate.evaluate(
+              required: result.manifest!,
+              installed: InstalledCapability(
+                  builtInCatalogVersion: 21,
+                  installedLibraries: const [])).accepted,
+          isTrue);
+    });
+  });
+
   // A built-in (restage.core) catalog whose widgets carry distinct
   // `sinceVersion`s so the floor (max over referenced built-ins) is testable.
   final builtInCatalog = catalogWith([

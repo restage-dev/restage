@@ -5,6 +5,7 @@
 import 'dart:convert';
 
 import 'package:meta/meta.dart';
+import 'package:restage_shared/src/surface_contract/native_binding_contract.dart';
 import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 
 /// The sole supported scalar shapes for host-supplied render data.
@@ -97,6 +98,13 @@ sealed class SurfaceScreenHostDataShape {
           ),
           label: label,
         );
+      case 'nativeBinding':
+        SurfaceContractJson.exactKeys(
+            json, keys(const {'kind', 'contract'}), path);
+        return SurfaceScreenHostDataNativeBindingShapeV1(
+          NativeBindingContract.fromJson(json['contract']),
+          label: label,
+        );
       case 'object':
         SurfaceContractJson.exactKeys(
             json, keys(const {'kind', 'fields'}), path);
@@ -127,6 +135,31 @@ sealed class SurfaceScreenHostDataShape {
 
   /// The strict JSON representation used by the schema codec and hash.
   Map<String, Object?> toJson();
+}
+
+/// An inert reference to a declared installed native value.
+@immutable
+final class SurfaceScreenHostDataNativeBindingShapeV1
+    extends SurfaceScreenHostDataShape {
+  /// Creates a native binding reference shape.
+  const SurfaceScreenHostDataNativeBindingShapeV1(this.contract, {this.label});
+
+  /// The exact installed type and nullability.
+  final NativeBindingContract contract;
+
+  @override
+  final String? label;
+
+  @override
+  SurfaceScreenHostDataNativeBindingShapeV1 withLabel(String label) =>
+      SurfaceScreenHostDataNativeBindingShapeV1(contract, label: label);
+
+  @override
+  Map<String, Object?> toJson() => {
+        'kind': 'nativeBinding',
+        'contract': contract.toJson(),
+        if (label != null) 'label': label,
+      };
 }
 
 /// A scalar host-data shape.

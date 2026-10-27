@@ -1,3 +1,5 @@
+import 'package:restage_cli/src/output/held_count.dart';
+
 import 'page_view_support.dart';
 
 /// Writes the Analytics overview's figures.
@@ -36,7 +38,7 @@ void renderOverviewPage(
     final value = figureAt(row, ['sessions', 'value']);
     final views = value == null
         ? kFigureUnavailable
-        : '${countFigure(value, ['counts', 'rootPresentations'], floor)} views';
+        : viewsText(countFigure(value, ['counts', 'rootPresentations'], floor));
     out.writeln('$name  $views');
   }
 }

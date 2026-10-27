@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 import '../surface_screen/surface_screen_test_support.dart';
+import '../support/pump_until.dart';
 
 const _baseUrl = 'https://surfaces.example.com';
 const _apiKey = 'rs_pk_test_screen';
@@ -365,15 +366,15 @@ final class _Harness {
   }
 
   /// Lets real I/O and zero-time work run, without advancing the clock,
-  /// until [done] holds or a generous number of turns has passed.
+  /// until [done] holds.
   Future<void> settle({bool Function()? done}) async {
-    for (var i = 0; i < 200; i += 1) {
-      if (i >= 10 && (done?.call() ?? true)) return;
+    for (var i = 0; i < 10; i += 1) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 5)),
       );
       await tester.pump();
     }
+    if (done != null) await pumpUntil(tester, done, reason: 'settle condition');
   }
 
   /// Removes the screen and its error handler before advancing stalled I/O.

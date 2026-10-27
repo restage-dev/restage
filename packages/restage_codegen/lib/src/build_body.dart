@@ -171,16 +171,19 @@ String? inlinableBuildBodyProblem(
     }
   }
 
-  // Value reachability follows the emitted output, which discards key operands;
-  // source reachability follows the authored text, and the two together tell a
-  // local nothing reads from one only a discarded key reads.
+  final borrowedKeyAliases = bindings.keys
+      .where((element) =>
+          _isBorrowedKeyInput(bindings[element]!, bindings, {element}))
+      .toSet();
   final valueReachable = _reachableBindings(
     _referencedBindings(
       body.expression,
       bindingElements,
       discardWidgetKeys: true,
+      borrowedKeyAliases: borrowedKeyAliases,
     ),
-    _bindingDependencies(bindings, bindingElements, discardWidgetKeys: true),
+    _bindingDependencies(bindings, bindingElements,
+        discardWidgetKeys: true, borrowedKeyAliases: borrowedKeyAliases),
   );
   final sourceReachable = _reachableBindings(
     _referencedBindings(body.expression, bindingElements),
@@ -217,6 +220,7 @@ Map<Element, Set<Element>> _bindingDependencies(
   Map<Element, Expression> bindings,
   Set<Element> bindingElements, {
   bool discardWidgetKeys = false,
+  Set<Element> borrowedKeyAliases = const {},
 }) =>
     {
       for (final entry in bindings.entries)
@@ -224,6 +228,7 @@ Map<Element, Set<Element>> _bindingDependencies(
           entry.value,
           bindingElements,
           discardWidgetKeys: discardWidgetKeys,
+          borrowedKeyAliases: borrowedKeyAliases,
         ),
     };
 
@@ -242,14 +247,39 @@ bool isDiscardedWidgetKeyArgument(NamedArgument argument) {
   return _isFlutterWidgetClass(owner);
 }
 
+/// Historical scalar keys do not request an installed native widget owner.
+/// Replacement lowerings may retain that behavior, but must reject every
+/// other key rather than erase a native key's identity or owner.
+bool isLegacyScalarWidgetKey(Expression expression) {
+  while (expression is ParenthesizedExpression) {
+    expression = expression.expression;
+  }
+  if (expression is NullLiteral) return true;
+  if (expression is! InstanceCreationExpression) return false;
+  final element = expression.constructorName.element?.enclosingElement;
+  if (element?.name != 'ValueKey' ||
+      element?.library.identifier !=
+          'package:flutter/src/foundation/key.dart' ||
+      expression.argumentList.arguments.length != 1) return false;
+  final value = expression.argumentList.arguments.single.argumentExpression;
+  final type = value.staticType;
+  return value is NullLiteral ||
+      type is InterfaceType &&
+          type.element.library.identifier == 'dart:core' &&
+          const {'String', 'int', 'double', 'num', 'bool', 'Null'}
+              .contains(type.element.name);
+}
+
 Set<Element> _referencedBindings(
   Expression expression,
   Set<Element> bindings, {
   bool discardWidgetKeys = false,
+  Set<Element> borrowedKeyAliases = const {},
 }) {
   final collector = _ReferencedBindingCollector(
     bindings,
     discardWidgetKeys: discardWidgetKeys,
+    borrowedKeyAliases: borrowedKeyAliases,
   );
   expression.accept(collector);
   return collector.elements;
@@ -259,15 +289,22 @@ final class _ReferencedBindingCollector extends RecursiveAstVisitor<void> {
   _ReferencedBindingCollector(
     this.bindings, {
     required this.discardWidgetKeys,
+    required this.borrowedKeyAliases,
   });
 
   final Set<Element> bindings;
   final bool discardWidgetKeys;
+  final Set<Element> borrowedKeyAliases;
   final Set<Element> elements = {};
 
   @override
   void visitNamedArgument(NamedArgument node) {
-    if (discardWidgetKeys && isDiscardedWidgetKeyArgument(node)) return;
+    if (discardWidgetKeys && isDiscardedWidgetKeyArgument(node)) {
+      var value = node.argumentExpression;
+      while (value is ParenthesizedExpression) value = value.expression;
+      if (value is! SimpleIdentifier ||
+          !borrowedKeyAliases.contains(value.element)) return;
+    }
     super.visitNamedArgument(node);
   }
 
@@ -277,6 +314,30 @@ final class _ReferencedBindingCollector extends RecursiveAstVisitor<void> {
     if (element != null && bindings.contains(element)) elements.add(element);
     super.visitSimpleIdentifier(node);
   }
+}
+
+bool _isBorrowedKeyInput(Expression expression,
+    Map<Element, Expression> bindings, Set<Element> seen) {
+  if (expression is ParenthesizedExpression) {
+    return _isBorrowedKeyInput(expression.expression, bindings, seen);
+  }
+  final element = switch (expression) {
+    SimpleIdentifier() => expression.element,
+    PropertyAccess(target: ThisExpression()) => expression.propertyName.element,
+    _ => null,
+  };
+  final alias = bindings[element];
+  if (alias != null && element != null && seen.add(element)) {
+    return _isBorrowedKeyInput(alias, bindings, seen);
+  }
+  final field = element is GetterElement ? element.variable : element;
+  if (field is! FieldElement || !_isFlutterKeyType(field.type)) return false;
+  final owner = field.enclosingElement;
+  return owner is ClassElement &&
+      owner.constructors.any((constructor) => constructor.formalParameters.any(
+          (parameter) =>
+              parameter is FieldFormalParameterElement &&
+              parameter.field == field));
 }
 
 bool _isFlutterKeyType(DartType type) {

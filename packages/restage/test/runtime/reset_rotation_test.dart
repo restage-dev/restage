@@ -12,6 +12,7 @@ import 'package:rfw/formats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/hosted_artifact_delivery.dart';
+import '../support/pump_until.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -390,12 +391,11 @@ Future<void> _mountPaywall(
   );
   // Platform observation replies need real event-loop turns. Keep the fake
   // mount clock within its original deadline while those ready inputs settle.
-  for (var i = 0; i < 200 && find.text('Ready').evaluate().isEmpty; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 5)),
-    );
-    await tester.pump();
-  }
+  await pumpUntil(
+    tester,
+    () => find.text('Ready').evaluate().isNotEmpty,
+    reason: 'the Ready text',
+  );
   await tester.pumpAndSettle();
 }
 

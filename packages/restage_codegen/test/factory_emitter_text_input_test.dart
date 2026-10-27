@@ -101,7 +101,8 @@ void main() {
       expect(source, isNot(contains('    hintText:')));
       expect(
         source,
-        contains("maxLines: source.v<int>(const <Object>['maxLines'])"),
+        contains("maxLines: RestageValueBinding.read<int>(source, "
+            "const <Object>['maxLines'], context)"),
       );
     });
 

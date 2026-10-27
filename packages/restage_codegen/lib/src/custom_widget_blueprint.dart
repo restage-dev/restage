@@ -216,6 +216,7 @@ final class HelperDef {
     required this.params,
     required this.body,
     this.localBindings = const {},
+    this.functionBody,
   });
 
   /// The helper's formal parameters, in declaration order.
@@ -223,6 +224,9 @@ final class HelperDef {
 
   /// The helper's single returned expression — inlined at the call site.
   final Expression body;
+
+  /// The resolved body when control flow requires lexical lowering.
+  final FunctionBody? functionBody;
 
   /// The helper body's leading `final` locals, keyed by declared element; each
   /// reference resolves-through to its initializer, as in `build()`.
@@ -363,14 +367,19 @@ Set<String> artifactHelperPackages(Catalog? catalog) => catalog == null
 
 /// Whether a call is an own instance helper or a top-level/static helper from
 /// the caller's package or an admitted widget package.
+///
+/// [allowDynamicReturn] is for closed value lowering, which proves the result
+/// type from the resolved body. Widget discovery requires a declared interface.
 bool isArtifactHelperInvocation(
   MethodInvocation invocation, {
   Set<String> admittedHelperPackages = const {},
+  bool allowDynamicReturn = false,
 }) {
   final element = invocation.methodName.element;
   if (element is! ExecutableElement ||
       element.name == 'build' ||
-      element.returnType is! InterfaceType) {
+      (element.returnType is! InterfaceType &&
+          !(allowDynamicReturn && element.returnType is DynamicType))) {
     return false;
   }
   if (element is MethodElement && !element.isStatic) {

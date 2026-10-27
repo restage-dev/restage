@@ -1,0 +1,14 @@
+import 'package:flutter/material.dart';
+class Item { const Item(this.id); final String? id; }
+class P extends StatelessWidget {
+ const P({required this.items}); final List<Item> items;
+ @override Widget build(BuildContext context)=>LayoutBuilder(builder:(outer,box)=>GridView.builder(
+  primary:false,
+  gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,mainAxisExtent:40),
+  itemCount:items.length,
+  itemBuilder:(_,index)=>null,
+  findChildIndexCallback:(key)=>items.indexWhere((item) {
+    final same=item.id==(key as ValueKey<String?>).value;
+    return same && Theme.of(outer).brightness==Brightness.light && MediaQuery.sizeOf(outer).width>100;
+  })));
+}

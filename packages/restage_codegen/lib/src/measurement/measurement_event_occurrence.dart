@@ -192,6 +192,34 @@ final class MeasurementUnavailableItem extends MeasurementItemIdentity {
 
 const Set<String> _kPlainTapSlots = {'onTap', 'onPressed'};
 
+/// Assigns each static template one ordinal across all of its iterations.
+final class MeasurementCollectionOrdinals {
+  final _staticTemplates = <String, int>{};
+  var _next = 0;
+
+  /// Returns the semantic list position of this leaf or runtime template.
+  int next(CollectionListTraversalEntry entry) {
+    final key = measurementCollectionIterationKey(entry);
+    return key == null
+        ? _next++
+        : _staticTemplates.putIfAbsent(key, () => _next++);
+  }
+}
+
+/// Static repetition identity shared by leaves and conditional templates.
+String? measurementCollectionIterationKey(CollectionListTraversalEntry entry) {
+  final occurrences = switch (entry) {
+    CollectionListElement(:final occurrence) => [occurrence],
+    CollectionListRefusal(:final refusal) =>
+      refusal.runtimeIf?.leafOccurrences ??
+          refusal.runtimeLoop?.template.leafOccurrences ??
+          const <CollectionSemanticOccurrence>[],
+  };
+  return occurrences.isEmpty
+      ? null
+      : measurementStaticIterationKey(occurrences.first);
+}
+
 /// A key the iterations of one static loop share, or null for any other
 /// element. Consecutive elements with one key take one list position.
 String? measurementStaticIterationKey(
@@ -345,6 +373,18 @@ final class MeasurementWidgetOccurrence {
         ],
         parentStructuralOccurrenceKey: structuralOccurrenceKey,
       );
+
+  /// Enters one structurally identified native inline value.
+  MeasurementOccurrenceScope nestedValue(List<Object> path) {
+    final nestedPath = path
+        .map((segment) => segment is int ? '[$segment]' : segment.toString())
+        .join('/');
+    return scope._copy(pathSegments: [
+      ...scope.pathSegments,
+      'widget:$widgetIdentity',
+      'value:$nestedPath',
+    ], parentStructuralOccurrenceKey: structuralOccurrenceKey);
+  }
 
   /// Selects one exact callback slot on this occurrence.
   MeasurementEventOccurrence event(Element eventElement) =>

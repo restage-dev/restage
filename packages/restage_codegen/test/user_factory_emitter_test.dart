@@ -66,7 +66,8 @@ void main() {
       expect(source, isNot(contains("['analyticsId']")));
       expect(
         source,
-        contains("RestageDecoders.string(source, <Object>['label'])"),
+        contains(
+            "RestageDecoders.string(source, <Object>['label'], context: context)"),
       );
     });
 
@@ -227,7 +228,7 @@ void main() {
       expect(
         src,
         contains(
-          "RestageDecoders.string(source, <Object>['label']) ??",
+          "RestageDecoders.string(source, <Object>['label'], context: context) ??",
         ),
       );
       expect(
@@ -441,10 +442,10 @@ void main() {
             'DataSource source)'),
       );
       expect(
-        src,
+        src?.replaceAll(RegExp(r'\s+'), ' '),
         contains(
           'children: RestageDecoders.widgetList(source, '
-          "const <Object>['children'])",
+          "const <Object>['children'], context: context, bindings: builderBindings)",
         ),
       );
     });
@@ -578,10 +579,11 @@ void main() {
           contains("source.child(const <Object>['header'])"),
         );
         expect(
-          flat,
+          flat.replaceAll(' ', ''),
           contains(
-            'primaryActions: RestageDecoders.widgetList(source, const '
-            "<Object>['primaryActions'])",
+            ('primaryActions: RestageDecoders.widgetList(source, const '
+                    "<Object>['primaryActions'], context: context, bindings: builderBindings)")
+                .replaceAll(' ', ''),
           ),
         );
         expect(
@@ -589,12 +591,13 @@ void main() {
           contains("footer: source.optionalChild(const <Object>['footer'])"),
         );
         expect(
-          flat,
+          flat.replaceAll(' ', ''),
           contains(
-            'secondaryActions: source.isList(const '
-            "<Object>['secondaryActions']) "
-            '? RestageDecoders.widgetList(source, '
-            "const <Object>['secondaryActions']) : null",
+            ('secondaryActions: RestageDecoders.isWidgetList(source, const '
+                    "<Object>['secondaryActions']) "
+                    '? RestageDecoders.widgetList(source, '
+                    "const <Object>['secondaryActions'], context: context, bindings: builderBindings) : null")
+                .replaceAll(' ', ''),
           ),
         );
       },

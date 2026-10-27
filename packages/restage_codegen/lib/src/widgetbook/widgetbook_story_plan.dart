@@ -1967,6 +1967,8 @@ WidgetbookStoryEditableControl? _editableControlFor(PropertyEntry property) {
     PropertyType.widgetList ||
     PropertyType.enumValue ||
     PropertyType.structured ||
+    PropertyType.widgetBuilder ||
+    PropertyType.scalarCallback ||
     PropertyType.event ||
     PropertyType.length ||
     PropertyType.alignmentXY ||
@@ -2031,6 +2033,8 @@ Object? _scalarPreview(DartType type, PropertyEntry property) {
           PropertyType.booleanList ||
           PropertyType.integerList ||
           PropertyType.realList ||
+          PropertyType.widgetBuilder ||
+          PropertyType.scalarCallback ||
           PropertyType.event ||
           PropertyType.dataReference ||
           PropertyType.enumValue ||

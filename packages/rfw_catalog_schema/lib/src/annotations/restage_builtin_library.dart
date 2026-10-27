@@ -35,8 +35,17 @@ final class RestageBuiltinLibrary {
     required this.library,
     required this.version,
     this.minSchemaVersion = 1,
+    this.capabilityVersion,
+    this.compatibleSince = 1,
     this.propertyLabels = const {},
-  });
+  })  : assert(
+          capabilityVersion == null || capabilityVersion >= 1,
+          'capabilityVersion must be positive',
+        ),
+        assert(
+          compatibleSince >= 1 && compatibleSince <= (capabilityVersion ?? 1),
+          'compatibleSince must be between one and capabilityVersion',
+        );
 
   /// Sibling library namespace this curation populates.
   final WidgetLibrary library;
@@ -44,6 +53,12 @@ final class RestageBuiltinLibrary {
   /// Semver of the package authoring this curation. Surfaced in the
   /// generated `LibraryInfo.version` field.
   final String version;
+
+  /// Monotonic installed capability version for an optional library.
+  final int? capabilityVersion;
+
+  /// Oldest capability version this library still supports.
+  final int compatibleSince;
 
   /// Catalog schema version this curation requires. Defaults to 1.
   /// Mirrors the `minSchemaVersion` field on `RestageWidget` and

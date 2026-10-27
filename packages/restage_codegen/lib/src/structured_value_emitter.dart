@@ -139,23 +139,18 @@ final class StructuredValueEmitter {
   /// Resolves the pre-computed source location string for a node.
   final String Function(AstNode) _locationOf;
 
-  /// Emits the four-element `[left, top, right, bottom]` RFW list for an
-  /// `EdgeInsets.<method>(...)` factory. `loc` is the pre-computed source
-  /// location for diagnostics.
+  /// Emits explicit physical or directional inset component maps.
   String edgeInsets(
     String method,
     List<Argument> args,
     List<Issue> issues,
-    String loc,
-  ) {
-    // Translates a named arg by name; returns '0.0' if absent.
-    //
-    // rfw's `ArgumentDecoders.edgeInsets` reads each list slot with
-    // `source.v<double>(...)`, which strict-casts the value — an int
-    // literal returns null, and `Padding.padding` (which is required)
-    // throws on a null decoded value. So every emitted edge value is
-    // forced to a double literal regardless of whether the author wrote
-    // `24` or `24.0` in source.
+    String loc, {
+    bool directional = false,
+  }) {
+    String encoded(String l, String t, String r, String b) => directional
+        ? '{start: $l, top: $t, end: $r, bottom: $b}'
+        : '{left: $l, top: $t, right: $r, bottom: $b}';
+    // Normalize components to doubles for strict numeric consumers.
     String namedOrZero(String name) {
       for (final a in args) {
         if (a is NamedArgument && a.name.lexeme == name) {
@@ -182,12 +177,13 @@ final class StructuredValueEmitter {
           return '[0.0, 0.0, 0.0, 0.0]';
         }
         final v = _translateDoubleScalar(pos.first, issues);
-        return '[$v, $v, $v, $v]';
+        return encoded(v, v, v, v);
       case 'symmetric':
         final h = namedOrZero('horizontal');
         final v = namedOrZero('vertical');
-        return '[$h, $v, $h, $v]';
+        return encoded(h, v, h, v);
       case 'fromLTRB':
+      case 'fromSTEB':
         final pos = positional();
         if (pos.length != 4) {
           issues.add(
@@ -204,13 +200,13 @@ final class StructuredValueEmitter {
         final t = _translateDoubleScalar(pos[1], issues);
         final r = _translateDoubleScalar(pos[2], issues);
         final b = _translateDoubleScalar(pos[3], issues);
-        return '[$l, $t, $r, $b]';
+        return encoded(l, t, r, b);
       case 'only':
-        final l = namedOrZero('left');
+        final l = namedOrZero(directional ? 'start' : 'left');
         final t = namedOrZero('top');
-        final r = namedOrZero('right');
+        final r = namedOrZero(directional ? 'end' : 'right');
         final b = namedOrZero('bottom');
-        return '[$l, $t, $r, $b]';
+        return encoded(l, t, r, b);
       default:
         issues.add(
           Issue(
@@ -262,17 +258,35 @@ final class StructuredValueEmitter {
     String method,
     List<Argument> args,
     List<Issue> issues,
-    String loc,
-  ) {
+    String loc, {
+    bool directional = false,
+  }) {
+    String uniform(String radius) => directional
+        ? '$_kBorderRadiusSentinelPrefix${[
+            for (final key in [
+              'topStart',
+              'topEnd',
+              'bottomStart',
+              'bottomEnd',
+            ])
+              '$key: ${asDoubleLiteral(radius)}',
+          ].join(', ')})'
+        : radius;
     switch (method) {
       case 'circular':
-        return _borderRadiusCircular(args, issues, loc);
+        return uniform(_borderRadiusCircular(args, issues, loc));
       case 'all':
-        return _borderRadiusAll(args, issues, loc);
+        return uniform(_borderRadiusAll(args, issues, loc));
       case 'only':
       case 'vertical':
       case 'horizontal':
-        return _borderRadiusPerCorner(method, args, issues, loc);
+        return _borderRadiusPerCorner(
+          method,
+          args,
+          issues,
+          loc,
+          directional: directional,
+        );
       default:
         issues.add(
           Issue(
@@ -360,8 +374,9 @@ final class StructuredValueEmitter {
     String method,
     List<Argument> args,
     List<Issue> issues,
-    String loc,
-  ) {
+    String loc, {
+    bool directional = false,
+  }) {
     Expression? named(String name) {
       for (final a in args) {
         if (a is NamedArgument && a.name.lexeme == name) {
@@ -371,17 +386,23 @@ final class StructuredValueEmitter {
       return null;
     }
 
+    final order = directional
+        ? const ['topStart', 'topEnd', 'bottomStart', 'bottomEnd']
+        : _kBorderRadiusCornerOrder;
+    String key(String name) => directional
+        ? name.replaceAll('Left', 'Start').replaceAll('Right', 'End')
+        : name;
     final corners = <String, Expression>{};
     void set(String corner, Expression? e) {
-      if (e != null) corners[corner] = e;
+      if (e != null) corners[key(corner)] = e;
     }
 
     switch (method) {
       case 'only':
-        set('topLeft', named('topLeft'));
-        set('topRight', named('topRight'));
-        set('bottomLeft', named('bottomLeft'));
-        set('bottomRight', named('bottomRight'));
+        set('topLeft', named(key('topLeft')));
+        set('topRight', named(key('topRight')));
+        set('bottomLeft', named(key('bottomLeft')));
+        set('bottomRight', named(key('bottomRight')));
       case 'vertical':
         final top = named('top');
         final bottom = named('bottom');
@@ -390,8 +411,8 @@ final class StructuredValueEmitter {
         set('bottomLeft', bottom);
         set('bottomRight', bottom);
       case 'horizontal':
-        final left = named('left');
-        final right = named('right');
+        final left = named(directional ? 'start' : 'left');
+        final right = named(directional ? 'end' : 'right');
         set('topLeft', left);
         set('bottomLeft', left);
         set('topRight', right);
@@ -399,7 +420,7 @@ final class StructuredValueEmitter {
     }
 
     final parts = <String>[];
-    for (final corner in _kBorderRadiusCornerOrder) {
+    for (final corner in order) {
       final radius = corners[corner];
       if (radius == null) continue;
       final scalar = _radiusCircularScalar(radius);
@@ -417,6 +438,9 @@ final class StructuredValueEmitter {
         return '0';
       }
       parts.add('$corner: ${asDoubleLiteral(scalar)}');
+    }
+    if (directional && parts.isEmpty) {
+      parts.addAll(order.map((corner) => '$corner: 0.0'));
     }
     return '$_kBorderRadiusSentinelPrefix${parts.join(', ')})';
   }
@@ -500,7 +524,8 @@ final class StructuredValueEmitter {
         case 'begin':
         case 'end':
           parts.add(
-              '$name: ${alignmentGeometry(a.argumentExpression, issues, loc)}');
+            '$name: ${alignmentGeometry(a.argumentExpression, issues, loc, allowDirectional: true)}',
+          );
         case 'colors':
           final value = _typedList(
             a.argumentExpression,
@@ -837,7 +862,8 @@ final class StructuredValueEmitter {
       switch (name) {
         case 'side':
           parts.add(
-              'side: ${_borderSideExpression(a.argumentExpression, issues)}');
+            'side: ${_borderSideExpression(a.argumentExpression, issues)}',
+          );
         case 'borderRadius':
           if (supportsBorderRadius) {
             final constValue = frameworkStaticConst(a.argumentExpression);
@@ -845,7 +871,7 @@ final class StructuredValueEmitter {
                 constValue == null ? null : encodeFrameworkConst(constValue);
             final radius = encoded?.kind == FrameworkConstKind.borderRadius
                 ? encoded!.dsl
-                : _translateDoubleScalar(a.argumentExpression, issues);
+                : _translate(a.argumentExpression, issues);
             parts.add('borderRadius: ${borderRadiusCornersAsMap(radius)}');
           } else {
             _unknownNamedArg(wireType, name, supported, issues, loc);
@@ -916,13 +942,15 @@ final class StructuredValueEmitter {
       switch (name) {
         case 'side':
           parts.add(
-              'side: ${_borderSideExpression(a.argumentExpression, issues)}');
+            'side: ${_borderSideExpression(a.argumentExpression, issues)}',
+          );
         case 'start':
         case 'end':
         case 'top':
         case 'bottom':
           parts.add(
-              '$name: ${_linearBorderEdge(a.argumentExpression, issues, loc)}');
+            '$name: ${_linearBorderEdge(a.argumentExpression, issues, loc)}',
+          );
         default:
           _unknownNamedArg(
             'LinearBorder',
@@ -1034,7 +1062,8 @@ final class StructuredValueEmitter {
       switch (name) {
         case 'side':
           parts.add(
-              'side: ${_borderSideExpression(a.argumentExpression, issues)}');
+            'side: ${_borderSideExpression(a.argumentExpression, issues)}',
+          );
         case 'sides':
           if (polygon) {
             parts.add(_doubleShapePart('sides', a.argumentExpression, issues));
@@ -1530,18 +1559,41 @@ final class StructuredValueEmitter {
   String alignmentGeometry(
     Expression rawExpr,
     List<Issue> issues,
-    String loc,
-  ) {
+    String loc, {
+    bool allowDirectional = false,
+  }) {
     // This helper dispatches on the raw expression's shape with no fallback,
     // so a bound name or const chain is resolved through before dispatching.
     final expr = _resolveAlignmentSource(rawExpr);
+    if (!allowDirectional &&
+        ((expr is PrefixedIdentifier &&
+                expr.prefix.name == 'AlignmentDirectional') ||
+            (expr is InstanceCreationExpression &&
+                expr.constructorName.type.name.lexeme ==
+                    'AlignmentDirectional') ||
+            (expr is MethodInvocation &&
+                expr.methodName.name == 'AlignmentDirectional'))) {
+      issues.add(
+        Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message:
+              'A concrete Alignment slot cannot accept AlignmentDirectional.',
+          location: loc,
+        ),
+      );
+      return '';
+    }
     final constValue = frameworkStaticConst(expr);
     final encoded =
         constValue == null ? null : encodeFrameworkConst(constValue);
-    if (encoded != null && encoded.kind == FrameworkConstKind.alignment) {
+    if (encoded != null &&
+        (encoded.kind == FrameworkConstKind.alignment ||
+            encoded.kind == FrameworkConstKind.directionalAlignment)) {
       return encoded.dsl;
     }
-    if (expr is PrefixedIdentifier && expr.prefix.name == 'Alignment') {
+    if (expr is PrefixedIdentifier &&
+        (expr.prefix.name == 'Alignment' ||
+            expr.prefix.name == 'AlignmentDirectional')) {
       // Nested name-only gate: an `Alignment.<member>` argument inside a real
       // framework gradient is lowered against a hard-coded coordinate table by
       // member NAME. A resolved custom class named `Alignment` must NOT
@@ -1558,24 +1610,47 @@ final class StructuredValueEmitter {
           issues,
         );
       }
+      if (expr.prefix.name == 'AlignmentDirectional') {
+        const values = {
+          'topStart': (-1.0, -1.0),
+          'topCenter': (0.0, -1.0),
+          'topEnd': (1.0, -1.0),
+          'centerStart': (-1.0, 0.0),
+          'center': (0.0, 0.0),
+          'centerEnd': (1.0, 0.0),
+          'bottomStart': (-1.0, 1.0),
+          'bottomCenter': (0.0, 1.0),
+          'bottomEnd': (1.0, 1.0),
+        };
+        final pair = values[expr.identifier.name];
+        if (pair != null) {
+          return '{start: ${pair.$1}, y: ${pair.$2}}';
+        }
+      }
       return _alignmentMember(expr.identifier.name, issues, loc);
     }
     NodeList<Argument>? ctorArgs;
+    var directional = false;
     if (expr is InstanceCreationExpression &&
-        expr.constructorName.type.name.lexeme == 'Alignment' &&
+        (expr.constructorName.type.name.lexeme == 'Alignment' ||
+            expr.constructorName.type.name.lexeme == 'AlignmentDirectional') &&
         expr.constructorName.name == null) {
       if (_isResolvedNonFrameworkCtor(expr)) {
         return _deferFrameworkCtorLookalike(expr, 'Alignment', issues);
       }
+      directional =
+          expr.constructorName.type.name.lexeme == 'AlignmentDirectional';
       ctorArgs = expr.argumentList.arguments;
     } else if (expr is MethodInvocation &&
         expr.target == null &&
-        expr.methodName.name == 'Alignment') {
+        (expr.methodName.name == 'Alignment' ||
+            expr.methodName.name == 'AlignmentDirectional')) {
+      directional = expr.methodName.name == 'AlignmentDirectional';
       ctorArgs = expr.argumentList.arguments;
     }
     if (ctorArgs != null) {
       final xy = _xyMap(ctorArgs, issues, loc, diagnoseHost: null);
-      if (xy != null) return xy;
+      if (xy != null) return directional ? xy.replaceFirst('x:', 'start:') : xy;
     }
     // A const reference nothing above could resolve refuses without a value:
     // the `{x, y}` failure shape reads as a centred alignment, and no floor

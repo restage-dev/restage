@@ -494,13 +494,14 @@ void main() {
       expect(issue.location, isNotEmpty);
     });
 
-    test('a null-aware spread body refuses loudly', () async {
+    test('a null-aware literal spread body preserves its condition', () async {
       final result = await lower(
         "Column(children: [if (isPro) ...?[Text(text: 'b')]])",
       );
       expect(
-        result.issues.map((issue) => issue.code),
-        contains(IssueCode.unsupportedCollectionFlow),
+        parsed(result),
+        'Column(children: [...for presence in switch state.isPro '
+        '{ true: [0], false: [] }: Text(text: "b")])',
       );
     });
   });

@@ -23,6 +23,31 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('populateDeviceData', () {
+    test('publishes every keyboard edge and accessibility boolean', () {
+      final dc = DynamicContent();
+      populateDeviceData(dc,
+          locale: const Locale('en'),
+          mediaQuery: const MediaQueryData(
+            viewInsets: EdgeInsets.fromLTRB(1, 2, 3, 4),
+            boldText: true,
+            disableAnimations: true,
+            accessibleNavigation: true,
+            highContrast: true,
+          ));
+      final device = _readKey(dc, 'device') as Map;
+      for (final (field, value) in [
+        ('viewInsetsLeft', 1.0),
+        ('viewInsetsTop', 2.0),
+        ('viewInsetsRight', 3.0),
+        ('viewInsetsBottom', 4.0),
+        ('boldText', true),
+        ('disableAnimations', true),
+        ('accessibleNavigation', true),
+        ('highContrast', true)
+      ]) {
+        expect(device[field], value, reason: field);
+      }
+    });
     test('null region uses the device country instead of the UI country', () {
       final country = normalizePresentationCountry(
         PlatformDispatcher.instance.locale.countryCode,

@@ -887,7 +887,7 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// GenUI 0.10.1 inline catalogs are serialization-only here;
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/053a0e3226ed247944bdc06005bbb9d8dee665535d11c436c45ebdcb49fe969c';
+    'restage:catalog/sha256/d096797bdd12e12d11499c1c3a2a510266bf38e618f98fac6a14bf4f61ef74a5';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -896,12 +896,12 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '0.9.1',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/053a0e3226ed247944bdc06005bbb9d8dee665535d11c436c45ebdcb49fe969c',
+      'sha256/d096797bdd12e12d11499c1c3a2a510266bf38e618f98fac6a14bf4f61ef74a5',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[
     A2uiAvailableLibrary(
       namespace: 'restage_widgetbook_example.widgets',
-      version: 3,
+      version: 4,
     ),
   ],
   perItemSinceVersion: <String, int>{
@@ -920,7 +920,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/053a0e3226ed247944bdc06005bbb9d8dee665535d11c436c45ebdcb49fe969c".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/d096797bdd12e12d11499c1c3a2a510266bf38e618f98fac6a14bf4f61ef74a5".',
   'BareCatalogCard: A card registered with only `@RestageWidget()`.',
   'CatalogShowcase: Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.',
   'ConstructorFidelityCorpus: Use to verify accepted constructor, default, and callback families.',

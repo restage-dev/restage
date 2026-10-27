@@ -19,7 +19,7 @@ abstract final class RfwConstructorPresenceEncoder {
     return "{ '$marker': $version, '$value': $valueExpression }";
   }
 
-  /// Applies the protocol to optional properties with a constructor default.
+  /// Preserves constructor defaults and required nullable callback presence.
   static String encode(PropertyEntry property, String valueExpression) =>
       RfwConstructorPresenceProtocol.appliesTo(property)
           ? supplied(valueExpression)

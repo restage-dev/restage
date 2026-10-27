@@ -29,6 +29,7 @@ import '../support/held_assignment.dart';
 import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
 import '../support/supported_policy_revisions_body.dart';
+import '../support/pump_until.dart';
 
 const _baseUrl = 'https://surfaces.example.com';
 const _apiKey = 'rs_pk_test_abc123';
@@ -111,7 +112,8 @@ void main() {
     );
     addTearDown(presentation.disposePresentation);
     final pending = presentation.resolveActiveRoot(_flowRef);
-    await _waitFor(() => server.requests.isNotEmpty);
+    await waitUntil(() => server.requests.isNotEmpty,
+        reason: 'server.requests.isNotEmpty');
     final request = _requestBody(server.requests.single);
     expect(request['registrationNonce'], isA<String>());
     expect(request, isNot(contains('assignmentKey')));
@@ -179,16 +181,18 @@ void main() {
     );
 
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => meteringLookups == 1);
+    await waitUntil(() => meteringLookups == 1, reason: 'meteringLookups == 1');
     final requestsBeforeMeteringCompleted = server.requests.length;
     actorGeneration = 1;
     meteringReady.complete(preferences);
-    await _waitFor(() => server.requests.isNotEmpty);
+    await waitUntil(() => server.requests.isNotEmpty,
+        reason: 'server.requests.isNotEmpty');
 
     final firstKey = _requestBody(server.requests[0])['assignmentKey'];
     server.respondJson(0, _contentBody(candidateEnvelope));
     if (firstKey == 'actor-0') {
-      await _waitFor(() => server.requests.length == 2);
+      await waitUntil(() => server.requests.length == 2,
+          reason: 'server.requests.length == 2');
       server.respondJson(1, _contentBody(candidateEnvelope));
     }
     await tester.pumpAndSettle();
@@ -262,10 +266,11 @@ void main() {
     );
     addTearDown(presentation.disposePresentation);
     final resolvedFuture = presentation.resolveActiveRoot(_flowRef);
-    await _waitFor(() => meteringLookups == 1);
+    await waitUntil(() => meteringLookups == 1, reason: 'meteringLookups == 1');
     throwNextCapture = true;
     meteringReady.complete(preferences);
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     server.respondNotFound(0);
     final outcome =
         await resolvedFuture.then<({Object? error, ResolvedFlow? resolved})>(
@@ -318,14 +323,16 @@ void main() {
     );
 
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     server.respondJson(
       0,
       _contentBody(
         _envelope(candidateRoot, {'welcome': candidateRootBytes}),
       ),
     );
-    await _waitFor(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
 
     await tester.pump();
     final candidateBeforeChild = find.text('Candidate root').evaluate().length;
@@ -438,7 +445,8 @@ void main() {
     addTearDown(presentation.disposePresentation);
 
     final resolvedFuture = presentation.resolveActiveRoot(_flowRef);
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     SharedPreferences.setMockInitialValues(const {
       'restage.metering_token': 'd9428888-122b-4b0b-8b7f-3e23441121e8',
     });
@@ -457,18 +465,20 @@ void main() {
       0,
       _contentBody(_envelope(candidateRoot, {'welcome': rootBytes})),
     );
-    await _waitFor(() => meteringLookups == 1);
+    await waitUntil(() => meteringLookups == 1, reason: 'meteringLookups == 1');
 
     actorGeneration += 1;
     meteringReady.complete(preferences);
-    await _waitFor(() => server.requests.length >= 2);
+    await waitUntil(() => server.requests.length >= 2,
+        reason: 'server.requests.length >= 2');
     final secondBody = _requestBody(server.requests[1]);
     if (secondBody['surfaceSlug'] == 'child') {
       server.respondJson(
         1,
         _contentBody(_envelope(child, {'screen': childBytes})),
       );
-      await _waitFor(() => server.requests.length == 3);
+      await waitUntil(() => server.requests.length == 3,
+          reason: 'server.requests.length == 3');
       server.respondNotFound(2);
     } else {
       server.respondNotFound(1);
@@ -478,7 +488,10 @@ void main() {
     presentation.publishHostedLastGood();
     final beforeExactProbe = server.requests.length;
     final exactProbe = resolver.resolve<Object?>(childRef);
-    await _waitFor(() => server.requests.length > beforeExactProbe);
+    await waitUntil(
+      () => server.requests.length > beforeExactProbe,
+      reason: 'server.requests.length > beforeExactProbe',
+    );
     server.respondJson(
       beforeExactProbe,
       _contentBody(_envelope(child, {'screen': childBytes})),
@@ -493,7 +506,10 @@ void main() {
     addTearDown(nextPresentation.disposePresentation);
     final beforeNextPresentation = server.requests.length;
     final next = nextPresentation.resolveActiveRoot(_flowRef);
-    await _waitFor(() => server.requests.length > beforeNextPresentation);
+    await waitUntil(
+      () => server.requests.length > beforeNextPresentation,
+      reason: 'server.requests.length > beforeNextPresentation',
+    );
     server.respondNotFound(server.requests.length - 1);
     final nextRoot = await next;
 
@@ -567,7 +583,8 @@ void main() {
           onError: (_) => null,
         )
         .whenComplete(() => resolutionDone = true);
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     SharedPreferences.setMockInitialValues(const {
       'restage.metering_token': 'd9428888-122b-4b0b-8b7f-3e23441121e8',
     });
@@ -586,11 +603,14 @@ void main() {
       0,
       _contentBody(_envelope(candidateRoot, {'welcome': rootBytes})),
     );
-    await _waitFor(() => meteringLookups == 1);
+    await waitUntil(() => meteringLookups == 1, reason: 'meteringLookups == 1');
 
     presentation.disposePresentation();
     meteringReady.complete(preferences);
-    await _waitFor(() => resolutionDone || server.requests.length > 1);
+    await waitUntil(
+      () => resolutionDone || server.requests.length > 1,
+      reason: 'resolutionDone || server.requests.length > 1',
+    );
     final childPublished = server.requests.length > 1;
     if (childPublished) {
       server.respondJson(
@@ -602,7 +622,10 @@ void main() {
 
     final beforeExactProbe = server.requests.length;
     final exactProbe = resolver.resolve<Object?>(childRef);
-    await _waitFor(() => server.requests.length > beforeExactProbe);
+    await waitUntil(
+      () => server.requests.length > beforeExactProbe,
+      reason: 'server.requests.length > beforeExactProbe',
+    );
     server.respondJson(
       beforeExactProbe,
       _contentBody(_envelope(child, {'screen': childBytes})),
@@ -670,7 +693,8 @@ void main() {
     addTearDown(presentation.disposePresentation);
 
     final resolvedFuture = presentation.resolveActiveRoot(_flowRef);
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     SharedPreferences.setMockInitialValues(const {
       'restage.metering_token': 'd9428888-122b-4b0b-8b7f-3e23441121e8',
     });
@@ -689,11 +713,12 @@ void main() {
       0,
       _contentBody(_envelope(candidateRoot, {'welcome': rootBytes})),
     );
-    await _waitFor(() => meteringLookups == 1);
+    await waitUntil(() => meteringLookups == 1, reason: 'meteringLookups == 1');
     expect(server.requests, hasLength(1));
 
     meteringReady.complete(preferences);
-    await _waitFor(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     final childRequest = _requestBody(server.requests[1]);
     server.respondJson(
       1,
@@ -762,12 +787,14 @@ void main() {
     );
 
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     server.respondJson(
       0,
       _contentBody(_envelope(candidateRoot, const {})),
     );
-    await _waitFor(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     server.respondJson(
       1,
       _contentBody(
@@ -808,7 +835,8 @@ void main() {
       );
 
       await tester.pumpWidget(_host(resolver));
-      await _waitFor(() => server.requests.length == 1);
+      await waitUntil(() => server.requests.length == 1,
+          reason: 'server.requests.length == 1');
       final firstRequest = _requestBody(server.requests.first);
       expect(firstRequest['assignmentKey'], 'actor-a');
       expect(
@@ -843,7 +871,8 @@ void main() {
       await tester.pump();
       assignmentKey = 'actor-b';
       await tester.pumpWidget(_host(resolver));
-      await _waitFor(() => server.requests.length == 2);
+      await waitUntil(() => server.requests.length == 2,
+          reason: 'server.requests.length == 2');
       server.respondNotFound(1);
       await tester.pumpAndSettle();
 
@@ -887,7 +916,8 @@ void main() {
     );
 
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     server.respondJson(
       0,
       _contentBody(_envelope(
@@ -908,7 +938,8 @@ void main() {
         screenAssets: {'welcome.rfw': bundledBBytes},
       ));
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     server.respondNotFound(1);
     await tester.pumpAndSettle();
 
@@ -989,14 +1020,16 @@ void main() {
     final freshPresentation = createPresentation();
     final freshRootFuture =
         freshPresentation.resolveActiveRoot<Object?>(rootRef);
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     server.respondJson(
       0,
       _contentBody(
         _envelope(candidateRoot, {'welcome': candidateRootBytes}),
       ),
     );
-    await _waitFor(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     server.respondJson(
       1,
       _contentBody(_envelope(child, {'screen': childBytes})),
@@ -1007,7 +1040,8 @@ void main() {
 
     final heldPresentation = createPresentation();
     final heldRootFuture = heldPresentation.resolveActiveRoot<Object?>(rootRef);
-    await _waitFor(() => server.requests.length == 3);
+    await waitUntil(() => server.requests.length == 3,
+        reason: 'server.requests.length == 3');
     server.respondNotFound(2);
     final heldRoot = await heldRootFuture;
     final heldChild = await heldPresentation.resolve<Object?>(childRef);
@@ -1054,7 +1088,8 @@ void main() {
     );
 
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     final request = _requestBody(server.requests.single);
     server.respondJson(
       0,
@@ -1191,7 +1226,8 @@ void main() {
     );
 
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     server.respondJson(
@@ -1204,7 +1240,8 @@ void main() {
     await tester.idle();
 
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     server.respondNotFound(1);
     await tester.pumpAndSettle();
 
@@ -1236,7 +1273,8 @@ void main() {
     );
 
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     server.respondJson(
       0,
       _contentBody(_envelope(
@@ -1254,7 +1292,8 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     server.respondNotFound(1);
     await tester.pumpAndSettle();
 
@@ -1327,7 +1366,8 @@ void main() {
         ],
       ),
     ));
-    await _waitFor(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     final messageIndex = server.requests.indexWhere(
       (request) => _requestBody(request)['surfaceType'] == 'message',
     );
@@ -1398,7 +1438,8 @@ void main() {
     );
 
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     actorGeneration += 1;
     server.respondJson(
       0,
@@ -1407,7 +1448,8 @@ void main() {
         {'welcome': staleBytes},
       )),
     );
-    await _waitFor(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
     final staleKey = _requestBody(server.requests[0])['assignmentKey'];
     final freshKey = _requestBody(server.requests[1])['assignmentKey'];
 
@@ -1475,26 +1517,30 @@ void main() {
     );
 
     await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
+    await waitUntil(() => server.requests.length == 1,
+        reason: 'server.requests.length == 1');
     server.respondJson(
       0,
       _contentBody(_envelope(staleRoot, {'welcome': staleRootBytes})),
     );
-    await _waitFor(() => server.requests.length == 2);
+    await waitUntil(() => server.requests.length == 2,
+        reason: 'server.requests.length == 2');
 
     actorGeneration += 1;
     server.respondJson(
       1,
       _contentBody(_envelope(child, {'screen': childBytes})),
     );
-    await _waitFor(() => server.requests.length == 3);
+    await waitUntil(() => server.requests.length == 3,
+        reason: 'server.requests.length == 3');
     final requestBodies = server.requests.map(_requestBody).toList();
 
     server.respondJson(
       2,
       _contentBody(_envelope(freshRoot, {'welcome': freshRootBytes})),
     );
-    await _waitFor(() => server.requests.length == 4);
+    await waitUntil(() => server.requests.length == 4,
+        reason: 'server.requests.length == 4');
     server.respondJson(
       3,
       _contentBody(_envelope(child, {'screen': childBytes})),
@@ -1547,7 +1593,10 @@ void main() {
     await tester.pumpWidget(_host(resolver));
 
     for (var attempt = 0; attempt < 3; attempt += 1) {
-      await _waitFor(() => server.requests.length == attempt + 1);
+      await waitUntil(
+        () => server.requests.length == attempt + 1,
+        reason: 'server.requests.length == attempt + 1',
+      );
       final candidateBytes = screenBlob('Candidate $attempt', 'next');
       server.respondJson(
           attempt,
@@ -1785,14 +1834,6 @@ Map<String, Uint8List> _bundleAssets({
     for (final entry in screenAssets.entries)
       'assets/$surface/screens/${entry.key}': entry.value,
   };
-}
-
-Future<void> _waitFor(bool Function() predicate) async {
-  for (var attempt = 0; attempt < 100; attempt += 1) {
-    if (predicate()) return;
-    await Future<void>.value();
-  }
-  fail('Controlled test boundary did not become ready.');
 }
 
 final class _ControlledServer {

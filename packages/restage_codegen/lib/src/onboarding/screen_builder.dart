@@ -350,6 +350,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       }
       final resolvedOccurrenceSet = frozenOccurrenceSet ??
           ResolvedRfwCatalogOccurrenceSet.resolve(
+            operations: translation.valueOperations,
             parsedLibrary: parsedLibrary,
             input: translation.rfwCatalogOccurrenceResolutionInput(
               artifactProvenance: _rfwOccurrenceSetKey(
@@ -382,10 +383,12 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
         rootLabels: {
           onboardingScreenRootWidgetName: source.declaration.name ?? source.id,
         },
+        operations: translation.valueOperations,
       );
       issues.addAll(validationIssues);
       if (validationIssues.isNotEmpty) continue;
-      final derivation = deriveCapabilityManifest(library, catalog);
+      final derivation = deriveCapabilityManifest(library, catalog,
+          hoisted: translation.hoisted);
       issues.addAll(derivation.issues);
       if (derivation.issues.isNotEmpty || derivation.manifest == null) continue;
       final blob = fmt.encodeLibraryBlob(canonicalizeLibrary(library));
@@ -612,6 +615,7 @@ final class OnboardingScreenBuilder implements Builder {
         );
         final declarationIdentity = '${library.identifier}#${src.className}';
         final occurrenceSet = ResolvedRfwCatalogOccurrenceSet.resolve(
+          operations: translation.valueOperations,
           parsedLibrary: parsedLibrary,
           input: translation.rfwCatalogOccurrenceResolutionInput(
             artifactProvenance: _rfwOccurrenceSetKey(
@@ -637,6 +641,7 @@ final class OnboardingScreenBuilder implements Builder {
           rfwLibrary,
           catalog,
           rootLabels: {onboardingScreenRootWidgetName: src.className},
+          operations: translation.valueOperations,
         );
         issues.addAll(validationIssues);
         if (issues.isNotEmpty) continue;
@@ -647,7 +652,8 @@ final class OnboardingScreenBuilder implements Builder {
         // a paywall does. A surface that references a custom library missing a
         // capability version (or an ambiguous shadowed name) fails the build
         // (fail-when-referenced), the same posture as an unknown-widget error.
-        final derivation = deriveCapabilityManifest(rfwLibrary, catalog);
+        final derivation = deriveCapabilityManifest(rfwLibrary, catalog,
+            hoisted: translation.hoisted);
         if (derivation.issues.isNotEmpty) {
           issues.addAll(derivation.issues);
           continue;

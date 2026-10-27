@@ -165,6 +165,8 @@ final class RestageCatalogGenEventLogWireIdResolver {
       structuredRef: field.structuredRef,
       unionRef: field.unionRef,
       valueShape: field.valueShape,
+      builderContract: field.builderContract,
+      scalarContract: field.scalarContract,
     );
   }
 

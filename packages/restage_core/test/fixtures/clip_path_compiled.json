@@ -1,0 +1,12 @@
+{
+  "plain": "ClipPath(child: SizedBox(width: 60.0, height: 40.0))",
+  "none": "ClipPath(clipBehavior: \"none\", child: SizedBox(width: 60.0, height: 40.0))",
+  "constNull": "ClipPath(child: SizedBox(width: 60.0, height: 40.0))",
+  "directNull": "ClipPath(shape: {type: \"rounded\", borderRadius: {topLeft: 12.0}}, child: SizedBox(width: 60.0, height: 40.0))",
+  "directLtr": "ClipPath(shape: {type: \"rounded\", borderRadius: {topLeft: 12.0}}, clipperTextDirection: \"ltr\", child: SizedBox(width: 60.0, height: 40.0))",
+  "directRtl": "ClipPath(shape: {type: \"rounded\", borderRadius: {topLeft: 12.0}}, clipperTextDirection: \"rtl\", child: SizedBox(width: 60.0, height: 40.0))",
+  "shape": "ClipPathShape(shape: {type: \"rounded\", borderRadius: {topLeft: 12.0}}, child: SizedBox(width: 60.0, height: 40.0))",
+  "directionalShape": "ClipPathShape(shape: {type: \"rounded\", borderRadius: {topStart: 12.0}}, child: SizedBox(width: 60.0, height: 40.0))",
+  "directionalLtr": "ClipPath(shape: {type: \"rounded\", borderRadius: {topStart: 12.0}}, clipperTextDirection: \"ltr\", child: SizedBox(width: 60.0, height: 40.0))",
+  "directionalRtl": "ClipPath(shape: {type: \"rounded\", borderRadius: {topStart: 12.0}}, clipperTextDirection: \"rtl\", child: SizedBox(width: 60.0, height: 40.0))"
+}

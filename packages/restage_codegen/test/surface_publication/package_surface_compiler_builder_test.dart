@@ -6,9 +6,8 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
 import 'package:logging/logging.dart';
-import 'package:pub_semver/pub_semver.dart';
+import 'package:package_config/package_config.dart';
 import 'package:restage_codegen/builder.dart';
-import 'package:restage_codegen/restage_codegen.dart' show formatGeneratedDart;
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
@@ -18,8 +17,218 @@ import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../support/native_flow_fixture_generation.dart';
 
 void main() {
+  test(
+      'canonical paywall threads installed native declarations through artifacts',
+      () async {
+    const source = '''
+import 'package:flutter/material.dart' as f;
+import 'package:restage/restage.dart' as r;
+part 'restage.generated/native_offer.restage.g.dart';
+int shade() => -1;
+@r.Paywall(id: 'native_offer')
+final class NativeOffer extends f.StatelessWidget {
+  const NativeOffer({super.key, required this.swatch});
+  final Map<int, f.Color> swatch;
+  static const base = 0xff102030;
+  static final offset = 0;
+  static int get extra => 0;
+  static int shade() => base + offset + extra;
+  @override
+  f.Widget build(f.BuildContext context) => f.LayoutBuilder(builder: (context, constraints) {
+    final color = f.MaterialColor(shade() + base - base + offset + extra, swatch);
+    return f.ColoredBox(color: color);
+  });
+}
+''';
+    final readerWriter =
+        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        const {'apps_examples|lib/native_offer.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true);
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    final generated = utf8.decode(bundle
+        .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!);
+    expect(generated, contains('r.NativeCallAdapter('));
+    expect(generated, contains('_restageAs<Map<int, f.Color>>'));
+    for (final member in ['shade', 'base', 'offset', 'extra']) {
+      expect(generated, contains('NativeOffer.$member'));
+    }
+    expect(bundle.artifacts, contains('assets/paywalls/native_offer.rfw'));
+    await _expectAnalyzesClean({
+      'apps_examples|lib/native_offer.dart': source,
+      'apps_examples|lib/restage.generated/native_offer.restage.g.dart':
+          generated,
+    });
+  });
+
+  test('canonical native identity is stable across physical package roots',
+      () async {
+    const source = '''
+import 'package:flutter/material.dart' as f;
+import 'package:restage/restage.dart' as r;
+part 'restage.generated/native_offer.restage.g.dart';
+@r.Paywall(id: 'native_offer')
+final class NativeOffer extends f.StatelessWidget {
+  const NativeOffer({super.key});
+  static const seed = 0xff102030;
+  static final swatch = <int, f.Color>{500: const f.Color(seed)};
+  @override
+  f.Widget build(f.BuildContext context) => f.LayoutBuilder(builder: (context, constraints) {
+    final color = f.MaterialColor(seed, swatch);
+    return f.ColoredBox(color: color);
+  });
+}
+''';
+    final config = (await findPackageConfig(Directory.current))!;
+    final roots = [
+      Directory.systemTemp.createTempSync('native-source-a-'),
+      Directory.systemTemp.createTempSync('native-source-b-')
+    ];
+    addTearDown(() {
+      for (final root in roots) {
+        root.deleteSync(recursive: true);
+      }
+    });
+    final outputs = <String>[];
+    for (final root in roots) {
+      final file = File.fromUri(root.uri.resolve('lib/native_offer.dart'));
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(source);
+      final relocated = PackageConfig([
+        for (final package in config.packages)
+          if (package.name == 'apps_examples')
+            Package(package.name, root.uri,
+                packageUriRoot: root.uri.resolve('lib/'),
+                languageVersion: package.languageVersion)
+          else
+            package,
+      ]);
+      final readerWriter =
+          await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+      final result = await testBuilder(
+          const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/native_offer.dart': file.readAsStringSync()},
+          packageConfig: relocated,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true);
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+      final generated = utf8.decode(bundle
+          .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!);
+      expect(generated, contains('r.NativeCallAdapter('));
+      outputs.add(generated);
+    }
+    expect(outputs[0], outputs[1]);
+  });
+
+  test(
+      'canonical native factories preserve free library names outside mount scope',
+      () async {
+    const source = '''
+import 'package:flutter/material.dart' as f;
+import 'package:restage/restage.dart' as r;
+part 'restage.generated/native_offer.restage.g.dart';
+const context = <int, f.Color>{500: f.Color(0xff102030)};
+const loadingBuilder = context;
+@r.Paywall(id: 'native_offer')
+final class NativeOffer extends f.StatelessWidget {
+  const NativeOffer({super.key});
+  @override
+  f.Widget build(f.BuildContext ctx) => f.ColoredBox(
+    color: const f.MaterialColor(0xff102030, context),
+    child: f.ColoredBox(color: const f.MaterialAccentColor(0xff102030, loadingBuilder)));
+}
+''';
+    final readerWriter =
+        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/native_offer.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true);
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    final generated = utf8.decode(bundle
+        .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!);
+    expect(generated.indexOf('const f.MaterialColor('),
+        lessThan(generated.indexOf('final class NativeOfferSurface')));
+    await _expectAnalyzesClean({
+      'apps_examples|lib/native_offer.dart': source,
+      'apps_examples|lib/restage.generated/native_offer.restage.g.dart':
+          generated
+    });
+  });
+
+  test(
+      'canonical helper native plans use destination imports and refuse private names',
+      () async {
+    const screen = '''
+import 'package:flutter/material.dart' as _restageInputs;
+import 'package:restage/restage.dart' as r;
+import 'helper.dart' as h;
+part 'restage.generated/native_offer.restage.g.dart';
+@r.Paywall(id: 'native_offer')
+final class NativeOffer extends _restageInputs.StatelessWidget {
+  const NativeOffer({super.key});
+  @override
+  _restageInputs.Widget build(_restageInputs.BuildContext context) => h.box();
+}
+''';
+    for (final private in [false, true]) {
+      final swatch = private ? '_swatch' : 'swatch';
+      final helper = '''
+import 'package:flutter/material.dart' as f;
+final $swatch = <int, f.Color>{500: const f.Color(0xff102030)};
+f.Widget box() => f.LayoutBuilder(builder: (context, constraints) {
+  final color = f.MaterialColor(0xff102030, $swatch);
+  return f.ColoredBox(color: color);
+});
+''';
+      final readerWriter =
+          await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+      final result = await testBuilder(
+          const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          {
+            'apps_examples|lib/native_offer.dart': screen,
+            'apps_examples|lib/helper.dart': helper
+          },
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true);
+      expect(result.succeeded, !private, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      expect(bundle.valid, !private, reason: bundle.errors.join('\n'));
+      if (private) {
+        expect(bundle.errors.join('\n'), contains('emission library'));
+        continue;
+      }
+      final generated = utf8.decode(bundle
+          .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!);
+      expect(generated, contains('_restageInputs.MaterialColor'));
+      expect(generated, contains('h.swatch'));
+      expect(generated, contains('_restage_Inputs'));
+      expect(generated, isNot(contains('f.MaterialColor')));
+      await _expectAnalyzesClean({
+        'apps_examples|lib/native_offer.dart': screen,
+        'apps_examples|lib/helper.dart': helper,
+        'apps_examples|lib/restage.generated/native_offer.restage.g.dart':
+            generated
+      });
+    }
+  });
+
   group('tracked package Measurement policy', () {
     test('shares one policy within a package', () async {
       final compilations = await _runPolicyProbe({
@@ -1321,23 +1530,13 @@ const secondJourney = FlowDefinition(
   test(
       'compiled flow fixture retains original constructors '
       'and exact child graphs', () async {
-    final fixture = Directory('../restage/test/fixtures/compiled_surfaces');
-    final source = File('${fixture.path}/native_flow.dart').readAsStringSync();
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      {'apps_examples|lib/native_flow.dart': source},
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+    final candidate = await compileNativeFlowFixture();
+    final source = candidate.source;
+    final result = candidate.result;
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = _readBundle(readerWriter);
+    final bundle = candidate.bundle;
     expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    final generated = utf8.decode(
-      bundle.ownedOutputs['lib/restage.generated/native_flow.restage.g.dart']!,
-    );
+    final generated = candidate.generated;
     await _expectAnalyzesClean({
       'apps_examples|lib/native_flow.dart': '''
 $source
@@ -1360,14 +1559,11 @@ Future<void> presentOffer(BuildContext context) => Restage.presentPlacement(
       'apps_examples|lib/restage.generated/native_flow.restage.g.dart':
           generated,
     });
-    final output =
-        File('${fixture.path}/restage.generated/native_flow.restage.g.dart');
+    final output = File(nativeFlowFixturePath);
     // The fixture lives in a package on the short format style, so compare
     // content and ignore layout.
     if (Platform.environment['UPDATE_COMPILED_SURFACE_FIXTURE'] == '1') {
-      output.writeAsStringSync(
-        formatGeneratedDart(generated, languageVersion: Version(3, 5, 0)),
-      );
+      output.writeAsStringSync(candidate.rendered);
     }
     String packed(String source) => source
         .replaceAll(RegExp(r'\s+'), '')
@@ -1435,6 +1631,85 @@ const customOffer = UpgradeOfferSurface(
     });
   });
 
+  test('borrows constructor native scalers through the typed binding scope',
+      () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/welcome.restage.g.dart';
+@Screen(id: 'welcome', surface: Surface.onboarding)
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key, required this.scaler});
+  final TextScaler? scaler;
+  @override
+  Widget build(BuildContext context) => Text('Hi', textScaler: scaler);
+}
+""";
+    final generated =
+        await _generatedPart(source, 'welcome', expectedFloor: 24);
+    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    expect(flat, contains('RestageNativeValues('));
+    expect(flat, contains('bindings: {'));
+    expect(flat, contains('NativeBinding('));
+    expect(flat, contains("type: 'flutter.TextScaler', nullable: true"));
+    expect(flat, contains('"kind": "nativeBinding"'));
+    expect(flat, isNot(contains('restageNativeObjects({')));
+    await _expectAnalyzesClean({
+      'apps_examples|lib/welcome.dart': source,
+      'apps_examples|lib/restage.generated/welcome.restage.g.dart': generated,
+    });
+  });
+
+  test('mounts exact native text scalers at the authored root context',
+      () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/welcome.restage.g.dart';
+@Screen(id: 'welcome', surface: Surface.onboarding)
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+  @override
+  Widget build(BuildContext context) => Text('Hi', textScaler:
+    MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.8));
+}
+""";
+    final generated = await _generatedPart(source, 'welcome');
+    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    expect(flat, contains('restageNativeObjects({'));
+    expect(
+        flat,
+        contains(
+            '() => MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.8)'));
+    expect(flat, contains('RestageNativeValues('));
+    expect(flat, contains('textScalers: restageNativeValues'));
+    expect(flat, contains('"kind": "native"'));
+    expect(flat, isNot(contains('textScaleFactor:')));
+  });
+
+  test('mounts native scalers through a root-context helper alias', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/welcome.restage.g.dart';
+TextScaler scalerFor(BuildContext root) => MediaQuery.textScalerOf(root);
+@Screen(id: 'welcome', surface: Surface.onboarding)
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final root = context;
+    return Text('Hi', softWrap: !MediaQuery.boldTextOf(root), textScaler: scalerFor(root));
+  }
+}
+""";
+    final generated = await _generatedPart(source, 'welcome');
+    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    expect(flat, contains('() => scalerFor(context)'));
+    expect(flat, contains('() => !MediaQuery.boldTextOf(context)'));
+    expect(flat, contains('RestageNativeValues('));
+  });
+
   test('computes app-only values in the generated mount', () async {
     const source = """
 import 'package:flutter/widgets.dart';
@@ -1474,13 +1749,9 @@ final class Welcome extends StatelessWidget {
     expect(flat, contains(_hostValuesOpen));
     expect(
       flat,
-      matches(
-        RegExp(
-          r"'_h[0-9a-f]{10}': \( ?const bool\.fromEnvironment\('dart\.vm\.product'\) \? '' : '[^']*', "
-          r'\(\) => Palette\.of\(context\)\.ink',
-        ),
-      ),
+      contains('() => Palette.of(context).ink'),
     );
+    expect(flat, contains('.containsKey('));
     expect(
       flat,
       contains(
@@ -1495,6 +1766,56 @@ final class Welcome extends StatelessWidget {
   });
 
   test('computes a per-item lookup for each host-supplied item', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/garden.restage.g.dart';
+
+class Labels {
+  const Labels();
+  static Labels of(BuildContext context) => const Labels();
+  String labelFor(int tone) => tone.toString();
+}
+
+final class Plant {
+  const Plant({required this.name, required this.tone});
+  final String name;
+  final int tone;
+}
+
+@Screen(id: 'garden', surface: Surface.onboarding)
+final class Garden extends StatelessWidget {
+  const Garden({super.key, required this.plants});
+  final List<Plant> plants;
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          for (final plant in plants)
+            Text(Labels.of(context).labelFor(plant.tone)),
+        ],
+      );
+}
+""";
+    final generated = await _generatedPart(source, 'garden');
+    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      flat,
+      matches(
+        RegExp(
+          r"'tone': restageValue0\.tone, \.\.\.restageHostValues\(<String, "
+          r"\(String, Object\? Function\(\)\)>\{ ?'_h[0-9a-f]{10}': \( ?const bool\.fromEnvironment\('dart\.vm\.product'\) \? '' : '[^']*', \(\) => "
+          r'Labels\.of\(context\)\.labelFor\(restageValue0\.tone\)',
+        ),
+      ),
+    );
+    await _expectAnalyzesClean({
+      'apps_examples|lib/garden.dart': source,
+      'apps_examples|lib/restage.generated/garden.restage.g.dart': generated,
+    });
+  });
+
+  test('binds a Color computed for each host-supplied item per item', () async {
     const source = """
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
@@ -1528,20 +1849,11 @@ final class Garden extends StatelessWidget {
 """;
     final generated = await _generatedPart(source, 'garden');
     final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    expect(flat, contains('"key": \'_h'));
+    expect(flat, contains('#\$restageIndex0\''));
     expect(
-      flat,
-      matches(
-        RegExp(
-          r"'tone': restageValue0\.tone, \.\.\.restageHostValues\(<String, "
-          r"\(String, Object\? Function\(\)\)>\{ ?'_h[0-9a-f]{10}': \( ?const bool\.fromEnvironment\('dart\.vm\.product'\) \? '' : '[^']*', \(\) => "
-          r'Tones\.of\(context\)\.colorFor\(restageValue0\.tone\)',
-        ),
-      ),
-    );
-    await _expectAnalyzesClean({
-      'apps_examples|lib/garden.dart': source,
-      'apps_examples|lib/restage.generated/garden.restage.g.dart': generated,
-    });
+        flat, contains('() => Tones.of(context).colorFor(restageItem.tone)'));
+    expect(flat, contains('in _restageArgument1.indexed)'));
   });
 
   test('gives the same per-item expression over two lists two keys', () async {
@@ -3299,6 +3611,7 @@ Future<String> _generatedPart(
   String source,
   String name, {
   Map<String, String> otherFiles = const {},
+  int? expectedFloor,
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: 'apps_examples',
@@ -3326,6 +3639,14 @@ Future<String> _generatedPart(
   );
 
   expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  if (expectedFloor != null) {
+    final bytes = _readBundle(readerWriter)
+        .artifacts['assets/onboarding/screens/$name.capability.json'];
+    expect(bytes, isNotNull);
+    final sidecar = CapabilitySidecar.fromJson(
+        jsonDecode(utf8.decode(bytes!)) as Map<String, Object?>);
+    expect(sidecar.manifest.builtInFloor, expectedFloor);
+  }
   final descriptor = readerWriter.testing.readString(
     AssetId(
       'apps_examples',

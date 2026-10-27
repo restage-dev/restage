@@ -3,8 +3,17 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_render_host/src/render_core.dart';
-import 'package:restage_shared/restage_shared.dart' show kDeviceContractPaths;
+import 'package:restage_shared/restage_shared.dart'
+    show
+        BuilderProgram,
+        BuilderResult,
+        ValueNode,
+        ValueProgram,
+        ValueType,
+        kBuilderContinuationWidgetName,
+        kDeviceContractPaths;
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+import 'package:rfw/rfw.dart' show RemoteWidget;
 
 RenderEnv _environment({
   Map<String, Object?> theme = const <String, Object?>{},
@@ -23,6 +32,76 @@ RenderEnv _environment({
     );
 
 void main() {
+  testWidgets(
+      'installed core inventory keeps native constructors without placeholders',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: RawRfwRenderSurface.library(
+        epoch: 1,
+        library: RemoteWidgetLibrary(
+          const [
+            Import(LibraryName(['restage', 'core']))
+          ],
+          [
+            WidgetDeclaration(
+              'Preview',
+              null,
+              ConstructorCall('LayoutBuilder', {
+                'builder': ConstructorCall(kBuilderContinuationWidgetName, {
+                  'version': 1,
+                  'program': const BuilderProgram(
+                    values: ValueProgram(
+                      nodes: [
+                        ValueNode('literal', ValueType.integer, value: 0)
+                      ],
+                      root: 0,
+                    ),
+                    result: BuilderResult.body(0),
+                    bodyCount: 1,
+                  ).encode(),
+                  'captures': <String, Object?>{},
+                  'bodies': const [
+                    WidgetBuilderDeclaration(
+                      'frame',
+                      ConstructorCall('Column', {
+                        'children': [
+                          ConstructorCall('Text', {'text': 'Native inventory'}),
+                        ],
+                      }),
+                    ),
+                  ],
+                }),
+              }),
+            ),
+          ],
+        ),
+        data: const {},
+        environment: _environment(),
+        registrations: [
+          RestageWidgetLibraryRegistration(
+            library: const WidgetLibrary.custom('restage.core'),
+            widgets: [
+              RestageWidgetFactory(
+                name: kBuilderContinuationWidgetName,
+                builder: (_, __) => const Text('Hijacked helper'),
+              ),
+            ],
+            capabilityVersion: 1,
+          ),
+        ],
+        entryWidgetName: 'Preview',
+        onRemoteEvent: (_, __) {},
+      ),
+    ));
+    await tester.pump();
+    expect(find.text('Native inventory'), findsOneWidget);
+    expect(find.text('Hijacked helper'), findsNothing);
+    final runtime =
+        tester.widget<RemoteWidget>(find.byType(RemoteWidget)).runtime;
+    expect(runtime.libraries.keys,
+        isNot(contains(const LibraryName(['restage', 'preview', 'absent']))));
+  });
+
   testWidgets('render environment owns unstyled text across host themes', (
     tester,
   ) async {
@@ -164,6 +243,18 @@ widget Preview = SizedBox(
     expect(published['orientation'], 'portrait');
     expect(published['languageCode'], 'sv');
     expect(published['countryCode'], 'SE');
+    for (final side in ['Top', 'Bottom', 'Left', 'Right']) {
+      expect(published['viewInsets$side'], isA<double>());
+      expect(published['viewInsets$side'], 0.0);
+    }
+    for (final flag in [
+      'boldText',
+      'disableAnimations',
+      'accessibleNavigation',
+      'highContrast',
+    ]) {
+      expect(published[flag], false, reason: flag);
+    }
   });
 
   testWidgets('raw core publishes the host brightness in the theme namespace',

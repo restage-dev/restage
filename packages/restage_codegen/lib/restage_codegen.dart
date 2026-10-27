@@ -90,6 +90,10 @@ export 'src/measurement/measurement_source_discovery.dart'
         MeasurementSourceDiscoveryResult,
         MeasurementSourceProvenance;
 export 'src/type_inference.dart' show inferPropertyType;
+export 'src/optional_native_values.dart'
+    show optionalNativeDecoder, optionalNativeSourceType;
+export 'src/surface_publication/app_widget_mount_install.dart'
+    show AppWidgetMountFactories, kAppWidgetFactoriesPath;
 export 'src/user_catalog_emitter.dart'
     show emitDartConstValue, emitUserCatalogDart;
 export 'src/widget_constructor_facts.dart' show readWidgetConstructorDefault;

@@ -65,17 +65,63 @@ const Map<String, String> kPropertyLabels = {
   'prefixIconMatchTextDirection': 'Mirror prefix icon for RTL',
 };
 
+const _textScalerProperty = PropertyEntry(
+  wireId: WireId.unallocatedProperty,
+  name: 'textScaler',
+  type: PropertyType.structured,
+  description: 'Explicit native text scaling.',
+  constructorNullable: true,
+  sinceVersion: 18,
+  valueShape: StructuredShape(
+    propertyType: PropertyType.structured,
+    structuredRef: WireIdRef(
+        library: 'restage.core', wireId: WireId.unallocatedStructured),
+  ),
+);
+
 @RestageBuiltinLibrary(
   library: WidgetLibrary.core,
   version: '0.1.0',
   propertyLabels: kPropertyLabels,
 )
 const List<BuiltinWidgetCuration> kCuration = [
+  BuiltinWidgetCuration<Directionality>(
+    sinceVersion: 17,
+    category: WidgetCategory.layout,
+  ),
   BuiltinWidgetCuration<AbsorbPointer>(
     category: WidgetCategory.input,
     // The next GLOBAL content version — see the note on `ColoredBox`.
     sinceVersion: 16,
     excludeParams: ['ignoringSemantics'],
+  ),
+  BuiltinWidgetCuration<LayoutBuilder>(
+    category: WidgetCategory.layout,
+    sinceVersion: 19,
+    propertyOverrides: {
+      'builder': PropertyOverride(
+        type: PropertyType.widgetBuilder,
+        sinceVersion: 19,
+        builderContract: WidgetBuilderContract(parameters: [
+          WidgetBuilderParameter.buildContext,
+          WidgetBuilderParameter.boxConstraints,
+        ]),
+      ),
+    },
+  ),
+  BuiltinWidgetCuration<OrientationBuilder>(
+    category: WidgetCategory.layout,
+    sinceVersion: 19,
+    propertyOverrides: {
+      'builder': PropertyOverride(
+        type: PropertyType.widgetBuilder,
+        sinceVersion: 19,
+        builderContract: WidgetBuilderContract(parameters: [
+          WidgetBuilderParameter.buildContext,
+          WidgetBuilderParameter.orientation,
+        ]),
+      ),
+    },
   ),
   BuiltinWidgetCuration<Align>(
     category: WidgetCategory.layout,
@@ -218,10 +264,20 @@ const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<Center>(category: WidgetCategory.layout),
   BuiltinWidgetCuration<ClipOval>(
     category: WidgetCategory.decoration,
-    // `clipper: CustomClipper<Rect>?` is an imperative-callback type
-    // the declarative surface can't carry. Authors needing a custom
-    // clip shape compose `ClipPath` (deferred).
+    // Custom clipper methods are not declarative values.
     excludeParams: ['clipper'],
+  ),
+  BuiltinWidgetCuration<ClipPath>(
+    category: WidgetCategory.decoration,
+    sinceVersion: 21,
+    excludeParams: ['clipper'],
+    nativeDecomposes: [kShapeBorderClipperNativeDecompose],
+    synthetics: kShapeBorderClipperSynthetics,
+  ),
+  BuiltinWidgetCuration<ClipPath>(
+    category: WidgetCategory.decoration,
+    staticMethodName: 'shape',
+    sinceVersion: 21,
   ),
   BuiltinWidgetCuration<ClipRRect>(
     displayLabel: 'Rounded clip',
@@ -498,6 +554,76 @@ const List<BuiltinWidgetCuration> kCuration = [
       'maxHeight': PropertyOverride(type: PropertyType.length, required: true),
     },
   ),
+  BuiltinWidgetCuration<GridView>(
+    category: WidgetCategory.layout,
+    sinceVersion: 20,
+    propertyOverrides: {
+      'controller':
+          PropertyOverride(type: PropertyType.structured, sinceVersion: 24),
+      'physics': PropertyOverride(type: PropertyType.structured),
+      'scrollCacheExtent': PropertyOverride(type: PropertyType.structured),
+      'dragStartBehavior': PropertyOverride(type: PropertyType.enumValue),
+      'gridDelegate': PropertyOverride(type: PropertyType.structured),
+    },
+  ),
+  BuiltinWidgetCuration<GridView>(
+    category: WidgetCategory.layout,
+    sinceVersion: 20,
+    constructorName: 'count',
+    propertyOverrides: {
+      'controller':
+          PropertyOverride(type: PropertyType.structured, sinceVersion: 24),
+      'physics': PropertyOverride(type: PropertyType.structured),
+      'scrollCacheExtent': PropertyOverride(type: PropertyType.structured),
+      'dragStartBehavior': PropertyOverride(type: PropertyType.enumValue),
+    },
+  ),
+  BuiltinWidgetCuration<GridView>(
+    category: WidgetCategory.layout,
+    sinceVersion: 20,
+    constructorName: 'extent',
+    propertyOverrides: {
+      'controller':
+          PropertyOverride(type: PropertyType.structured, sinceVersion: 24),
+      'physics': PropertyOverride(type: PropertyType.structured),
+      'scrollCacheExtent': PropertyOverride(type: PropertyType.structured),
+      'dragStartBehavior': PropertyOverride(type: PropertyType.enumValue),
+    },
+  ),
+  BuiltinWidgetCuration<GridView>(
+    category: WidgetCategory.layout,
+    sinceVersion: 20,
+    constructorName: 'builder',
+    propertyOverrides: {
+      'controller':
+          PropertyOverride(type: PropertyType.structured, sinceVersion: 24),
+      'physics': PropertyOverride(type: PropertyType.structured),
+      'scrollCacheExtent': PropertyOverride(type: PropertyType.structured),
+      'dragStartBehavior': PropertyOverride(type: PropertyType.enumValue),
+      'gridDelegate': PropertyOverride(type: PropertyType.structured),
+      'itemBuilder': PropertyOverride(
+          type: PropertyType.widgetBuilder,
+          sinceVersion: 20,
+          builderContract: WidgetBuilderContract(parameters: [
+            WidgetBuilderParameter.buildContext,
+            WidgetBuilderParameter.itemIndex
+          ], nullableResult: true)),
+    },
+  ),
+  BuiltinWidgetCuration<GridView>(
+    category: WidgetCategory.layout,
+    sinceVersion: 20,
+    constructorName: 'custom',
+    propertyOverrides: {
+      'controller':
+          PropertyOverride(type: PropertyType.structured, sinceVersion: 24),
+      'physics': PropertyOverride(type: PropertyType.structured),
+      'scrollCacheExtent': PropertyOverride(type: PropertyType.structured),
+      'dragStartBehavior': PropertyOverride(type: PropertyType.enumValue),
+      'gridDelegate': PropertyOverride(type: PropertyType.structured),
+      'childrenDelegate': PropertyOverride(type: PropertyType.structured),
+    },
+  ),
   BuiltinWidgetCuration<ListView>(
     category: WidgetCategory.layout,
     // Default constructor only. Named variants (.builder, .separated,
@@ -516,6 +642,10 @@ const List<BuiltinWidgetCuration> kCuration = [
       'addSemanticIndexes',
       'semanticChildCount',
     ],
+    propertyOverrides: {
+      'controller':
+          PropertyOverride(type: PropertyType.structured, sinceVersion: 24),
+    },
   ),
   // Locale-aware number/currency formatting rendered as text. The
   // formatting configuration is inert data; the value is formatted with
@@ -621,6 +751,10 @@ const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<SingleChildScrollView>(
     category: WidgetCategory.layout,
     excludeParams: kScrollableImperativeExcludes,
+    propertyOverrides: {
+      'controller':
+          PropertyOverride(type: PropertyType.structured, sinceVersion: 24),
+    },
   ),
   // Names its subtree for assistive technology and for interaction labels.
   // The flags, strings and heading level are surfaced; callbacks, attributed
@@ -643,7 +777,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'attributedHint',
       'onTapHint',
       'onLongPressHint',
-      'textDirection',
       'sortKey',
       'tagForChildren',
       'onTap',
@@ -685,7 +818,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<Spacer>(category: WidgetCategory.layout),
   BuiltinWidgetCuration<Stack>(
     category: WidgetCategory.layout,
-    excludeParams: ['textDirection'],
     // `Stack.alignment`'s default (`AlignmentDirectional.topStart`) is now
     // mechanically resolved from the Flutter constructor parameter — the
     // const-default resolver recovers the static-const member name for
@@ -699,24 +831,21 @@ const List<BuiltinWidgetCuration> kCuration = [
     // string decoders. `overflow` is already provided as a slot via the
     // shared TextStyle decompose (`style.overflow`), so it is not re-added
     // here. The remaining knobs stay excluded: `strutStyle` /
-    // `textHeightBehavior` (structured), `textDirection` (directional),
-    // `textScaleFactor` / `textScaler` (deprecated / abstract),
+    // `textHeightBehavior` (structured),
     // `semanticsIdentifier` (niche), `selectionColor` (selectable-text only).
     excludeParams: [
       'strutStyle',
-      'textDirection',
       // `locale: Locale` is excluded via the centralized type denylist.
       'overflow',
-      'textScaleFactor',
-      'textScaler',
       'semanticsIdentifier',
       'textHeightBehavior',
       'selectionColor',
     ],
     propertyOverrides: {
       'data': PropertyOverride(name: 'text'),
+      'textScaleFactor': PropertyOverride(sinceVersion: 18),
     },
-    synthetics: kTextStyleSynthetics,
+    synthetics: [...kTextStyleSynthetics, _textScalerProperty],
     nativeDecomposes: [kTextStyleNativeDecompose],
   ),
   BuiltinWidgetCuration<Text>(
@@ -737,11 +866,8 @@ const List<BuiltinWidgetCuration> kCuration = [
         'Rich text — a styled inline-span tree with optional styling.',
     excludeParams: [
       'strutStyle',
-      'textDirection',
       // `locale: Locale` is excluded via the centralized type denylist.
       'overflow',
-      'textScaleFactor',
-      'textScaler',
       'semanticsIdentifier',
       'textHeightBehavior',
       'selectionColor',
@@ -751,12 +877,13 @@ const List<BuiltinWidgetCuration> kCuration = [
       // not a mechanically-inferable catalog type, so the override declares
       // it explicitly as the recursive `inlineSpan` slot decoded by the
       // bespoke depth-bounded span decoder.
+      'textScaleFactor': PropertyOverride(sinceVersion: 18),
       'textSpan': PropertyOverride(
         type: PropertyType.inlineSpan,
         positional: true,
       ),
     },
-    synthetics: kTextStyleSynthetics,
+    synthetics: [...kTextStyleSynthetics, _textScalerProperty],
     nativeDecomposes: [kTextStyleNativeDecompose],
   ),
   BuiltinWidgetCuration<Transform>(
@@ -823,6 +950,8 @@ const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<Wrap>(
     category: WidgetCategory.layout,
     propertyOverrides: {
+      // Wrap already exposed textDirection in the baseline catalog.
+      'textDirection': PropertyOverride(sinceVersion: 1),
       'spacing': PropertyOverride(type: PropertyType.length),
       'runSpacing': PropertyOverride(type: PropertyType.length),
     },

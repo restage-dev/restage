@@ -234,7 +234,8 @@ void main() {
         );
         expect(
           _emissionFor('AppBar', property, PropertyType.real),
-          contains("$property: source.v<double>(const <Object>['$property'])"),
+          contains("$property: RestageValueBinding.read<double>("
+              "source, const <Object>['$property'], context)"),
         );
       }
     });
@@ -324,8 +325,8 @@ void main() {
       )!;
       expect(
         appBar,
-        contains(
-            "toolbarHeight: source.v<double>(const <Object>['toolbarHeight'])"),
+        contains('toolbarHeight: RestageValueBinding.read<double>('
+            "source, const <Object>['toolbarHeight'], context)"),
       );
       expect(appBar, isNot(contains('RestageDecoders.layoutFactor')));
 
@@ -338,7 +339,8 @@ void main() {
       )!;
       expect(
         activity,
-        contains("radius: source.v<double>(const <Object>['radius']) ?? 10.0,"),
+        contains('radius: RestageValueBinding.read<double>('
+            "source, const <Object>['radius'], context) ?? 10.0,"),
       );
       expect(activity, isNot(contains('safeActivityIndicatorRadius')));
 
@@ -352,7 +354,8 @@ void main() {
       expect(
         picker,
         contains(
-          "itemExtent: source.v<double>(const <Object>['itemExtent']) ?? "
+          'itemExtent: RestageValueBinding.read<double>('
+          "source, const <Object>['itemExtent'], context) ?? "
           "(throw ArgumentError('CupertinoPicker.itemExtent is required.'))",
         ),
       );
@@ -516,7 +519,8 @@ void main() {
       expect(
         source,
         contains(
-          "aspectRatio: source.v<double>(const <Object>['aspectRatio']),",
+          'aspectRatio: RestageValueBinding.read<double>('
+          "source, const <Object>['aspectRatio'], context),",
         ),
       );
       expect(
@@ -562,7 +566,7 @@ void main() {
           source,
           contains(
             'final children = RestageDecoders.widgetList(source, '
-            "<Object>['children']);",
+            "<Object>['children'], context: context, bindings: builderBindings);",
           ),
           reason: widgetName,
         );
@@ -581,7 +585,7 @@ void main() {
         expect(
           _occurrences(
             source,
-            "RestageDecoders.widgetList(source, <Object>['children'])",
+            "RestageDecoders.widgetList(source, <Object>['children'], context: context, bindings: builderBindings)",
           ),
           1,
           reason: widgetName,
@@ -604,14 +608,14 @@ void main() {
         expect(
           source,
           contains(
-            "spacing: source.v<double>(const <Object>['spacing']) ?? 12.0,",
+            "spacing: RestageValueBinding.read<double>(source, const <Object>['spacing'], context) ?? 12.0,",
           ),
         );
         expect(
           source,
           contains(
             'children: RestageDecoders.widgetList(source, '
-            "const <Object>['children']),",
+            "const <Object>['children'], context: context, bindings: builderBindings),",
           ),
         );
         expect(source, isNot(contains('final children =')));
@@ -639,7 +643,7 @@ void main() {
       expect(
         _occurrences(
           source,
-          "RestageDecoders.widgetList(source, const <Object>['children'])",
+          "RestageDecoders.widgetList(source, const <Object>['children'], context: context, bindings: builderBindings)",
         ),
         1,
       );
@@ -666,13 +670,14 @@ void main() {
         expect(
           source,
           contains(
-              "spacing: source.v<double>(const <Object>['spacing']) ?? 0.0,"),
+              "spacing: RestageValueBinding.read<double>(source, const <Object>['spacing'], context) ?? 0.0,"),
           reason: library.namespace,
         );
         expect(
           source,
           contains(
-            "runSpacing: source.v<double>(const <Object>['runSpacing']) ?? 0.0,",
+            'runSpacing: RestageValueBinding.read<double>('
+            "source, const <Object>['runSpacing'], context) ?? 0.0,",
           ),
           reason: library.namespace,
         );
@@ -693,7 +698,7 @@ void main() {
       expect(custom, contains('return s0.Wrap('));
       expect(custom, isNot(contains('RestageDecoders.layoutFactor')));
       expect(
-        _occurrences(custom, 'source.v<double>'),
+        _occurrences(custom, 'RestageValueBinding.read<double>'),
         2,
       );
     });
@@ -733,14 +738,14 @@ void main() {
       expect(
         source,
         contains(
-          "spacing: source.v<double>(const <Object>['spacing']) ?? 0.0,",
+          "spacing: RestageValueBinding.read<double>(source, const <Object>['spacing'], context) ?? 0.0,",
         ),
       );
       expect(
         source,
         contains(
           'children: RestageDecoders.widgetList(source, '
-          "const <Object>['children']),",
+          "const <Object>['children'], context: context, bindings: builderBindings),",
         ),
       );
       expect(source, isNot(contains('final children =')));
@@ -754,7 +759,7 @@ void main() {
         source,
         contains(
           'children: RestageDecoders.widgetList(source, '
-          "const <Object>['children'])",
+          "const <Object>['children'], context: context, bindings: builderBindings)",
         ),
       );
       expect(source, isNot(contains('final children =')));
@@ -765,7 +770,8 @@ void main() {
       final elevation = _emissionFor('AppBar', 'elevation', PropertyType.real);
       expect(
         elevation,
-        contains("source.v<double>(const <Object>['elevation'])"),
+        contains(
+            "RestageValueBinding.read<double>(source, const <Object>['elevation'], context)"),
       );
       expect(elevation, isNot(contains('RestageDecoders.constraintScalar')));
       expect(elevation, isNot(contains('RestageDecoders.layoutFactor')));
@@ -788,7 +794,8 @@ void main() {
           );
           expect(
             source,
-            contains("source.v<double>(const <Object>['$propertyName'])"),
+            contains(
+                "RestageValueBinding.read<double>(source, const <Object>['$propertyName'], context)"),
             reason: '$widgetName.$propertyName',
           );
           expect(

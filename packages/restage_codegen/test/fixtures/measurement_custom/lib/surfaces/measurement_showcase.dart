@@ -22,7 +22,7 @@ final class CustomMeasurementShowcase extends StatelessWidget {
           InlineAction(onPressed: surfaceEvent(activate)),
           OpaqueAction(onPressed: surfaceEvent(activate)),
           FilledButton(
-            key: UniqueKey(),
+            key: const ValueKey<String>('original-host-key'),
             onPressed: surfaceEvent(activate),
             child: const Text('Repeated A'),
           ),

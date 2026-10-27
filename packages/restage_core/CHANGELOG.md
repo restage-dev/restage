@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add native Directionality, explicit textDirection, direction-preserving geometry,
+  exact scoped TextScaler values, and native responsive/grid factories.
+- Add native ClipPath and ShapeBorderClipper factories, including ClipPath.shape.
+- Own recognized TextSpan gesture resources with native pending-gesture behavior,
+  and evaluate supported native intl values through the shared typed value mechanism.
+
 - Register `AbsorbPointer`, `IgnorePointer` and `GestureDetector.behavior` at
   catalog capability 16. Build surfaces with the `restage_codegen` release
   that matches this one: an older `restage_codegen` does not raise the

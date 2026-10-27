@@ -19,6 +19,8 @@ library;
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
+import 'package:restage_codegen/src/build_body.dart'
+    show isLegacyScalarWidgetKey;
 
 /// One recognised option — the `value` and `label` source expressions, to be
 /// translated and emitted by the dispatch site.
@@ -104,7 +106,11 @@ SingleSelectOutcome recogniseRadioGroup(InstanceCreationExpression creation) {
     }
     switch (arg.name.lexeme) {
       case 'key':
-        break; // the universal super.key convention
+        if (!isLegacyScalarWidgetKey(arg.argumentExpression)) {
+          return const SingleSelectDeferred(
+              'a native key requires the original widget owner');
+        }
+        break;
       case 'groupValue':
         selected = arg.argumentExpression;
       case 'onChanged':
@@ -165,6 +171,10 @@ SingleSelectOutcome recogniseDropdown(InstanceCreationExpression creation) {
     }
     switch (arg.name.lexeme) {
       case 'key':
+        if (!isLegacyScalarWidgetKey(arg.argumentExpression)) {
+          return const SingleSelectDeferred(
+              'a native key requires the original widget owner');
+        }
         break;
       case 'value':
         selected = arg.argumentExpression;
@@ -365,7 +375,10 @@ _LeafOutcome _optionFromCarrier(
     } else if (name == labelArg) {
       label = arg.argumentExpression;
     } else if (name == 'key') {
-      // The universal `super.key` convention — inert, never a behavior change.
+      if (!isLegacyScalarWidgetKey(arg.argumentExpression)) {
+        return const _LeafDeferred(
+            'a native key requires the original widget owner');
+      }
       continue;
     } else {
       // Any OTHER carrier argument changes the option's behavior or
@@ -431,6 +444,9 @@ List<Expression>? _staticChildLeaves(Expression child) {
   // bare type name, the same affordance the leaf carrier gate uses.
   final element = creation.constructorName.type.element;
   if (element != null && !libraryIsFlutter(element)) return null;
+  if (creation.argumentList.arguments.whereType<NamedArgument>().any((arg) =>
+      arg.name.lexeme == 'key' &&
+      !isLegacyScalarWidgetKey(arg.argumentExpression))) return null;
   for (final arg in creation.argumentList.arguments) {
     if (arg is NamedArgument && arg.name.lexeme == 'children') {
       final list = arg.argumentExpression;
@@ -487,6 +503,9 @@ Expression? _literalTextContent(Expression label) {
   final element = creation.constructorName.type.element;
   if (element != null && !libraryIsFlutter(element)) return null;
   final args = creation.argumentList.arguments;
+  if (args.whereType<NamedArgument>().any((arg) =>
+      arg.name.lexeme == 'key' &&
+      !isLegacyScalarWidgetKey(arg.argumentExpression))) return null;
   if (args.isEmpty) return null;
   final first = args.first;
   // The data is the first positional argument.

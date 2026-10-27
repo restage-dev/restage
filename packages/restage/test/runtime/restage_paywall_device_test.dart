@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+import 'package:rfw/rfw.dart' show RemoteWidget;
 
 class _StaticResolver implements VariantResolver {
   _StaticResolver(this.bytes);
@@ -46,6 +47,68 @@ void _registerProbe() {
 }
 
 void main() {
+  for (final pending in [false, true]) {
+    testWidgets(
+        'keyboard and accessibility updates reach ${pending ? 'pending' : 'mounted'} data',
+        (tester) async {
+      final resolver = _StaticResolver(Uint8List.fromList(encodeLibraryBlob(
+        parseLibraryFile(
+            'import restage.core; widget Paywall = Text(text: "Hi");'),
+      )));
+      Widget app(MediaQueryData data, {bool? offstage}) => MaterialApp(
+          home: MediaQuery(
+              data: data,
+              child: Offstage(
+                  offstage: offstage ?? pending,
+                  child: RestagePaywall(id: 'flags', resolver: resolver))));
+      var data = const MediaQueryData();
+      await tester.pumpWidget(app(data));
+      await tester.pump();
+      await tester.pump();
+      Map<Object?, Object?> snapshot() {
+        final remote = tester.widget<RemoteWidget>(
+            find.byType(RemoteWidget, skipOffstage: false).first);
+        void callback(Object value) {}
+        final value = remote.data.subscribe(const ['device'], callback);
+        remote.data.unsubscribe(const ['device'], callback);
+        return value as Map;
+      }
+
+      expect(snapshot()['viewInsetsBottom'], 0.0);
+      data = data.copyWith(viewInsets: const EdgeInsets.fromLTRB(1, 2, 3, 250));
+      await tester.pumpWidget(app(data));
+      await tester.pump();
+      expect(snapshot(), containsPair('viewInsetsLeft', 1.0));
+      expect(snapshot(), containsPair('viewInsetsTop', 2.0));
+      expect(snapshot(), containsPair('viewInsetsRight', 3.0));
+      expect(snapshot(), containsPair('viewInsetsBottom', 250.0));
+      for (final field in [
+        'boldText',
+        'disableAnimations',
+        'accessibleNavigation',
+        'highContrast'
+      ]) {
+        data = switch (field) {
+          'boldText' => data.copyWith(boldText: true),
+          'disableAnimations' => data.copyWith(disableAnimations: true),
+          'accessibleNavigation' => data.copyWith(accessibleNavigation: true),
+          _ => data.copyWith(highContrast: true),
+        };
+        await tester.pumpWidget(app(data));
+        await tester.pump();
+        expect(snapshot(), containsPair(field, true), reason: field);
+      }
+      if (pending) {
+        await tester.pumpWidget(app(data, offstage: false));
+        await tester.pumpAndSettle();
+        expect(snapshot(), containsPair('viewInsetsBottom', 250.0));
+        expect(snapshot(), containsPair('highContrast', true));
+      }
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    });
+  }
+
   setUp(() {
     Restage.debugReset();
     _registerProbe();

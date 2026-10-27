@@ -1,12 +1,13 @@
 import 'package:meta/meta.dart';
-
 import 'package:rfw_catalog_schema/src/default_value_source.dart';
 import 'package:rfw_catalog_schema/src/deprecation_info.dart';
 import 'package:rfw_catalog_schema/src/factory_variant.dart';
 import 'package:rfw_catalog_schema/src/native_decompose.dart';
 import 'package:rfw_catalog_schema/src/property_metadata.dart';
 import 'package:rfw_catalog_schema/src/property_type.dart';
+import 'package:rfw_catalog_schema/src/scalar_callback_contract.dart';
 import 'package:rfw_catalog_schema/src/stability.dart';
+import 'package:rfw_catalog_schema/src/widget_builder_contract.dart';
 import 'package:rfw_catalog_schema/src/widget_library.dart';
 import 'package:rfw_catalog_schema/src/wire_id.dart';
 
@@ -70,7 +71,7 @@ final class StructuredEntry {
 }
 
 /// One field on a [StructuredEntry]. Same shape as `PropertyEntry`'s
-/// declarative-compatible subset (no events, no widget slots).
+/// declarative-compatible subset, including declared deferred callbacks.
 @immutable
 final class StructuredField {
   /// Const constructor.
@@ -87,6 +88,8 @@ final class StructuredField {
     this.structuredRef,
     this.unionRef,
     this.valueShape,
+    this.builderContract,
+    this.scalarContract,
   });
 
   /// Wire identity for this field. Drawn from the library's `p*`
@@ -139,4 +142,10 @@ final class StructuredField {
 
   /// Native semantic shape for this structured-field value.
   final CatalogValueShape? valueShape;
+
+  /// Structural signature of a deferred native widget callback.
+  final WidgetBuilderContract? builderContract;
+
+  /// Structural signature of a pure native integer callback.
+  final ScalarCallbackContract? scalarContract;
 }

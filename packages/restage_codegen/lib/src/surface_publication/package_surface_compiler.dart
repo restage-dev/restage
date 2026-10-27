@@ -2438,8 +2438,13 @@ bool _isReferencedByAnotherPaywallFlow(
       // source-selected catalog/local input is resolved on the final bytes.
       try {
         ResolvedRfwCatalogOccurrenceSet.resolve(
-                parsedLibrary: library, input: contract.catalogResolution)
-            .inspectFinalBody(library);
+            parsedLibrary: library,
+            input: contract.catalogResolution,
+            operations: nativeCallOperations(contract.context, const {
+              ...kCollectionValueOperations,
+              ...kGridValueOperations,
+              ...kIntlValueOperations
+            })).inspectFinalBody(library);
       } on FormatException catch (error) {
         missing[artifact.path] = error.message;
         continue;

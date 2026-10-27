@@ -6,7 +6,7 @@ const reelFrequencyScreenRef = NeutralFlowScreenRef(
   id: 'reel_frequency',
   artifactPath: 'reel_frequency.rfw',
   version: 1,
-  minClient: 12,
+  minClient: 17,
 );
 
 @Deprecated('Use reelFrequencyScreenRef')

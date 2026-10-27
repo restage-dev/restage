@@ -11,6 +11,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../support/placement_delivery_fixture.dart';
+import '../support/pump_until.dart';
 
 void main() {
   group('MeasurementWorkerRuntime', () {
@@ -1320,10 +1321,8 @@ String _section(String source, String startNeedle, String endNeedle) {
   return source.substring(start, end);
 }
 
-Future<void> _eventually(bool Function() predicate) async {
-  for (var attempt = 0; attempt < 100; attempt += 1) {
-    if (predicate()) return;
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-  }
-  fail('Timed out waiting for asynchronous worker state');
-}
+Future<void> _eventually(bool Function() predicate) => waitUntil(
+      predicate,
+      reason: 'asynchronous worker state',
+      realDelay: const Duration(milliseconds: 10),
+    );

@@ -11,6 +11,7 @@ import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../support/canonical_assignment_fixture.dart';
+import '../support/pump_until.dart';
 
 void main() {
   group('FlowMountContractSnapshotBuilder', () {
@@ -138,7 +139,10 @@ void main() {
         resolver: resolver,
       ).seal();
 
-      await _waitFor(() => resolver.calls.contains('child'));
+      await waitUntil(
+        () => resolver.calls.contains('child'),
+        reason: "resolver.calls.contains('child')",
+      );
       source.signalGeneration += 1;
       childCompleter.complete(child);
 
@@ -184,7 +188,10 @@ void main() {
         resolver: resolver,
       ).seal();
 
-      await _waitFor(() => resolver.calls.contains('leaf'));
+      await waitUntil(
+        () => resolver.calls.contains('leaf'),
+        reason: "resolver.calls.contains('leaf')",
+      );
       var completed = false;
       unawaited(future.then((_) => completed = true));
       await Future<void>.value();
@@ -357,7 +364,10 @@ void main() {
         resolver: resolver,
       )..then((value) => outcome = value);
 
-      await _waitFor(() => resolver.calls.contains('child'));
+      await waitUntil(
+        () => resolver.calls.contains('child'),
+        reason: "resolver.calls.contains('child')",
+      );
       await Future<void>.value();
       expect(outcome, isNull);
       childCompleter.completeError(StateError('controlled child failure'));
@@ -404,7 +414,10 @@ void main() {
         candidateRoot: candidateRoot,
         resolver: resolver,
       );
-      await _waitFor(() => resolver.calls.contains('child'));
+      await waitUntil(
+        () => resolver.calls.contains('child'),
+        reason: "resolver.calls.contains('child')",
+      );
       var completed = false;
       unawaited(future.then((_) => completed = true));
       await Future<void>.value();
@@ -857,12 +870,18 @@ Future<FlowMountSnapshotOutcome> _sealWithMutationAtBoundary(
       assignmentKey.complete('assignment-key');
       break;
     case _AwaitBoundary.baselineRoot:
-      await _waitFor(() => resolver.calls.contains('first_run'));
+      await waitUntil(
+        () => resolver.calls.contains('first_run'),
+        reason: "resolver.calls.contains('first_run')",
+      );
       mutate(source);
       rootCompleter.complete(root);
       break;
     case _AwaitBoundary.baselineChild:
-      await _waitFor(() => resolver.calls.contains('child'));
+      await waitUntil(
+        () => resolver.calls.contains('child'),
+        reason: "resolver.calls.contains('child')",
+      );
       mutate(source);
       childCompleter.complete(leaf);
       break;
@@ -1128,14 +1147,6 @@ Future<void> _expectLocalParityRejection({
     ),
   );
   expect(outcome, isNot(isA<FlowCandidatePrefetchAccepted>()));
-}
-
-Future<void> _waitFor(bool Function() predicate) async {
-  for (var index = 0; index < 100; index += 1) {
-    if (predicate()) return;
-    await Future<void>.value();
-  }
-  fail('Condition did not become true.');
 }
 
 Map<String, Object?> _decodeMap(Map<String, Object?> value) => value;

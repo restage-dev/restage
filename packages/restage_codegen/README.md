@@ -80,9 +80,10 @@ From one annotated source file:
 - **A publication manifest** (`.restage/build/metadata/restage.publication.json`):
   the generated files for each surface id. `restage surface push` reads it.
 
-What ships is data the app renders. Your widgets carry the logic, as real Dart
-compiled into your app. A surface composes and configures them over the air.
-New behavior needs an app release.
+What ships is a description your app's widgets draw, in a small closed
+language the compiler checks. It can carry simple logic, like conditions over
+data your app supplies. Gestures, drawing, network calls and native work stay
+in Dart compiled into your app. New kinds of behavior need an app release.
 
 Every generated `<Name>Surface(...)` mount declares a placement automatically. Use the
 ordinary constructor for screens, paywalls and flows. The generated

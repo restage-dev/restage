@@ -23,6 +23,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/placement_delivery_fixture.dart';
 import '../surface_screen/surface_screen_test_support.dart';
+import '../support/pump_until.dart';
 
 void main() {
   for (final expireBeforeRefresh in [true, false]) {
@@ -257,9 +258,11 @@ void main() {
                           .add(MountAttributionEventContext.current?.snapshot);
                     }
                   }))));
-      for (var i = 0; i < 120 && channel.watches.isEmpty; i++) {
-        await tester.pump(const Duration(milliseconds: 1));
-      }
+      await pumpUntil(
+        tester,
+        () => channel.watches.isNotEmpty,
+        reason: 'the placement watch',
+      );
       final initialWatch = channel.watches.toList();
       if (assigned) {
         if (initialWatch.isEmpty) {

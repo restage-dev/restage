@@ -92,36 +92,58 @@ Future<List<String>> _messages(String body) async =>
     [for (final issue in (await _translate(body)).issues) issue.message];
 
 void main() {
+  group('device scalar root computations', () {
+    for (final source in [
+      'SizedBox(height: MediaQuery.viewInsetsOf(context).bottom)',
+      "Text('Hi', softWrap: MediaQuery.boldTextOf(context))",
+      "Text('Hi', softWrap: MediaQuery.disableAnimationsOf(context))",
+      'SizedBox(height: MediaQuery.textScalerOf(context).scale(20))',
+    ]) {
+      test(source, () async {
+        final result = await _translate(source);
+        expect(result.issues, isEmpty, reason: '${result.issues}');
+        expect(result.hoisted, hasLength(1));
+        expect(result.hoisted.single.mountSource((name) => name),
+            contains('context'));
+      });
+    }
+  });
+
   group('runtime lookups move into the mount', () {
-    test('an inherited color', () async {
+    test('an inherited Color result crosses as the native object', () async {
       final result =
           await _translate('ColoredBox(color: Palette.of(context).ink)');
-      expect(result.issues, isEmpty, reason: '${result.issues}');
-      final value = result.hoisted.single;
-      expect(value.label, 'Palette.of(context).ink');
-      expect(value.shape.toJson(), {
-        'kind': 'int',
-        'label': 'Palette.of(context).ink',
-      });
-      expect(result.dsl, 'ColoredBox(color: data.context.${value.key})');
-      expect(
-        value.mountSource((name) => name),
-        'Palette.of(context).ink',
-      );
+      expect(result.issues, isEmpty);
+      expect(result.hoisted.single.kind, HoistValueKind.nativeBinding);
+      expect(result.hoisted.single.nativeContract?.type, 'flutter.Color');
     });
 
+    const scalar = 'MediaQuery.viewInsetsOf(context).bottom';
     test('the same expression shares one key', () async {
       final result = await _translate(
-        'Column(children: [ColoredBox(color: Palette.of(context).ink), '
-        'ColoredBox(color: Palette.of(context).ink)])',
+        'Column(children: [SizedBox(height: $scalar), SizedBox(height: $scalar)])',
       );
       expect(result.issues, isEmpty, reason: '${result.issues}');
       expect(result.hoisted, hasLength(1));
+      final value = result.hoisted.single;
+      expect(value.kind, HoistValueKind.scalar);
+      expect(value.label, scalar);
+      expect(value.shape.toJson(), {'kind': 'double', 'label': scalar});
+      expect(value.mountSource((name) => name), scalar);
+      expect(
+          'SizedBox(height: data.context.${value.key})'.allMatches(result.dsl),
+          hasLength(2));
     });
 
     test('keys are stable across builds', () async {
-      final a = await _translate('ColoredBox(color: Palette.of(context).ink)');
-      final b = await _translate('ColoredBox(color: Palette.of(context).ink)');
+      final a = await _translate('SizedBox(height: $scalar)');
+      final b = await _translate('SizedBox(height: $scalar)');
+      for (final result in [a, b]) {
+        expect(result.issues, isEmpty, reason: '${result.issues}');
+        expect(result.hoisted, hasLength(1));
+        expect(result.dsl,
+            'SizedBox(height: data.context.${result.hoisted.single.key})');
+      }
       expect(a.hoisted.single.key, b.hoisted.single.key);
       expect(a.hoisted.single.key, matches(RegExp(r'^_h[0-9a-f]{10}$')));
     });

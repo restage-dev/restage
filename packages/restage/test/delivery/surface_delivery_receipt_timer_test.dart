@@ -16,6 +16,7 @@ import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/hosted_artifact_delivery.dart';
+import '../support/pump_until.dart';
 
 const String _baseUrl = 'https://example.com';
 const String _apiKey = 'rs_pk_test';
@@ -101,12 +102,13 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: RestagePaywall(id: 'pro'))),
       );
-      for (var attempt = 0; attempt < 100; attempt += 1) {
-        await tester.pump();
-        if (find.text('Hello').evaluate().isNotEmpty) return;
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      }
     });
+    await pumpUntil(
+      tester,
+      () => find.text('Hello').evaluate().isNotEmpty,
+      reason: 'the Hello text',
+      realDelay: const Duration(milliseconds: 20),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Hello'), findsOneWidget);
     expect(SurfaceDeliveryReceiptUploader.instance.hasPeriodicTimer, isTrue);

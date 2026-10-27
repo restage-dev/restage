@@ -341,6 +341,170 @@ const Map<String, TranslatorRecipe> kTranslatorRecipes = {
         ])
       ]),
       failureDsl: ''),
+  '#SliverGridDelegateWithFixedCrossAxisCount': TranslatorRecipe(
+      typeName: 'SliverGridDelegateWithFixedCrossAxisCount',
+      emit: EmitFragmentMap([
+        EmitMapEntry('_s',
+            EmitFragmentLiteral('"SliverGridDelegateWithFixedCrossAxisCount"')),
+        EmitMapEntry(
+            'crossAxisCount',
+            EmitFragmentArg(ArgRef.named('crossAxisCount'),
+                propertyType: PropertyType.integer)),
+        EmitMapEntry('mainAxisSpacing',
+            EmitFragmentArg(ArgRef.named('mainAxisSpacing'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry('crossAxisSpacing',
+            EmitFragmentArg(ArgRef.named('crossAxisSpacing'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry('childAspectRatio',
+            EmitFragmentArg(ArgRef.named('childAspectRatio'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry('mainAxisExtent',
+            EmitFragmentArg(ArgRef.named('mainAxisExtent'), asLength: true),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#SliverGridDelegateWithMaxCrossAxisExtent': TranslatorRecipe(
+      typeName: 'SliverGridDelegateWithMaxCrossAxisExtent',
+      emit: EmitFragmentMap([
+        EmitMapEntry('_s',
+            EmitFragmentLiteral('"SliverGridDelegateWithMaxCrossAxisExtent"')),
+        EmitMapEntry(
+            'maxCrossAxisExtent',
+            EmitFragmentArg(ArgRef.named('maxCrossAxisExtent'),
+                asLength: true)),
+        EmitMapEntry('mainAxisSpacing',
+            EmitFragmentArg(ArgRef.named('mainAxisSpacing'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry('crossAxisSpacing',
+            EmitFragmentArg(ArgRef.named('crossAxisSpacing'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry('childAspectRatio',
+            EmitFragmentArg(ArgRef.named('childAspectRatio'), asLength: true),
+            omitWhenArgUnset: true),
+        EmitMapEntry('mainAxisExtent',
+            EmitFragmentArg(ArgRef.named('mainAxisExtent'), asLength: true),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#ScrollPhysics': TranslatorRecipe(
+      typeName: 'ScrollPhysics',
+      emit: EmitFragmentMap([
+        EmitMapEntry('_s', EmitFragmentLiteral('"ScrollPhysics"')),
+        EmitMapEntry('parent', EmitFragmentArg(ArgRef.named('parent')),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#RangeMaintainingScrollPhysics': TranslatorRecipe(
+      typeName: 'RangeMaintainingScrollPhysics',
+      emit: EmitFragmentMap([
+        EmitMapEntry(
+            '_s', EmitFragmentLiteral('"RangeMaintainingScrollPhysics"')),
+        EmitMapEntry('parent', EmitFragmentArg(ArgRef.named('parent')),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#BouncingScrollPhysics': TranslatorRecipe(
+      typeName: 'BouncingScrollPhysics',
+      emit: EmitFragmentMap([
+        EmitMapEntry('_s', EmitFragmentLiteral('"BouncingScrollPhysics"')),
+        EmitMapEntry('parent', EmitFragmentArg(ArgRef.named('parent')),
+            omitWhenArgUnset: true),
+        EmitMapEntry(
+            'decelerationRate',
+            EmitFragmentArg(ArgRef.named('decelerationRate'),
+                propertyType: PropertyType.enumValue),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#ClampingScrollPhysics': TranslatorRecipe(
+      typeName: 'ClampingScrollPhysics',
+      emit: EmitFragmentMap([
+        EmitMapEntry('_s', EmitFragmentLiteral('"ClampingScrollPhysics"')),
+        EmitMapEntry('parent', EmitFragmentArg(ArgRef.named('parent')),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#AlwaysScrollableScrollPhysics': TranslatorRecipe(
+      typeName: 'AlwaysScrollableScrollPhysics',
+      emit: EmitFragmentMap([
+        EmitMapEntry(
+            '_s', EmitFragmentLiteral('"AlwaysScrollableScrollPhysics"')),
+        EmitMapEntry('parent', EmitFragmentArg(ArgRef.named('parent')),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#NeverScrollableScrollPhysics': TranslatorRecipe(
+      typeName: 'NeverScrollableScrollPhysics',
+      emit: EmitFragmentMap([
+        EmitMapEntry(
+            '_s', EmitFragmentLiteral('"NeverScrollableScrollPhysics"')),
+        EmitMapEntry('parent', EmitFragmentArg(ArgRef.named('parent')),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#PageScrollPhysics': TranslatorRecipe(
+      typeName: 'PageScrollPhysics',
+      emit: EmitFragmentMap([
+        EmitMapEntry('_s', EmitFragmentLiteral('"PageScrollPhysics"')),
+        EmitMapEntry('parent', EmitFragmentArg(ArgRef.named('parent')),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#FixedExtentScrollPhysics': TranslatorRecipe(
+      typeName: 'FixedExtentScrollPhysics',
+      emit: EmitFragmentMap([
+        EmitMapEntry('_s', EmitFragmentLiteral('"FixedExtentScrollPhysics"')),
+        EmitMapEntry('parent', EmitFragmentArg(ArgRef.named('parent')),
+            omitWhenArgUnset: true)
+      ]),
+      failureDsl: '{}'),
+  '#ScrollCacheExtent.pixels': TranslatorRecipe(
+      typeName: 'ScrollCacheExtent',
+      variant: 'pixels',
+      validations: [
+        RecipeValidation(
+            check: ArityExact(1),
+            issueCode: 'unrecognizedMethodCall',
+            message:
+                'ScrollCacheExtent requires one positional numeric argument.')
+      ],
+      emit: EmitFragmentMap([
+        EmitMapEntry('_s', EmitFragmentLiteral('"pixels"')),
+        EmitMapEntry(
+            'value', EmitFragmentArg(ArgRef.positional(0), asLength: true))
+      ]),
+      failureDsl: '{}'),
+  '#ScrollCacheExtent.viewport': TranslatorRecipe(
+      typeName: 'ScrollCacheExtent',
+      variant: 'viewport',
+      validations: [
+        RecipeValidation(
+            check: ArityExact(1),
+            issueCode: 'unrecognizedMethodCall',
+            message:
+                'ScrollCacheExtent requires one positional numeric argument.')
+      ],
+      emit: EmitFragmentMap([
+        EmitMapEntry('_s', EmitFragmentLiteral('"viewport"')),
+        EmitMapEntry(
+            'value', EmitFragmentArg(ArgRef.positional(0), asLength: true))
+      ]),
+      failureDsl: '{}'),
+  '#AlignmentDirectional': TranslatorRecipe(
+      typeName: 'AlignmentDirectional',
+      validations: [
+        RecipeValidation(
+            check: ArityExact(2),
+            issueCode: 'unrecognizedMethodCall',
+            message: 'AlignmentDirectional requires two arguments.')
+      ],
+      emit: EmitFragmentMap([
+        EmitMapEntry(
+            'start', EmitFragmentArg(ArgRef.positional(0), asLength: true)),
+        EmitMapEntry('y', EmitFragmentArg(ArgRef.positional(1), asLength: true))
+      ]),
+      failureDsl: '{start: 0.0, y: 0.0}'),
   '#Alignment': TranslatorRecipe(
       typeName: 'Alignment',
       validations: [
@@ -375,21 +539,8 @@ const Map<String, TranslatorRecipe> kTranslatorRecipes = {
             omitWhenArgUnset: true),
         EmitMapEntry(
             'center',
-            EmitFragmentMemberTable(
-                ArgRef.named('center'),
-                {
-                  'topLeft': EmitFragmentLiteral('{x: -1.0, y: -1.0}'),
-                  'topCenter': EmitFragmentLiteral('{x: 0.0, y: -1.0}'),
-                  'topRight': EmitFragmentLiteral('{x: 1.0, y: -1.0}'),
-                  'centerLeft': EmitFragmentLiteral('{x: -1.0, y: 0.0}'),
-                  'center': EmitFragmentLiteral('{x: 0.0, y: 0.0}'),
-                  'centerRight': EmitFragmentLiteral('{x: 1.0, y: 0.0}'),
-                  'bottomLeft': EmitFragmentLiteral('{x: -1.0, y: 1.0}'),
-                  'bottomCenter': EmitFragmentLiteral('{x: 0.0, y: 1.0}'),
-                  'bottomRight': EmitFragmentLiteral('{x: 1.0, y: 1.0}')
-                },
-                fallback: EmitFragmentArg(ArgRef.named('center'),
-                    propertyType: PropertyType.alignmentXY)),
+            EmitFragmentArg(ArgRef.named('center'),
+                propertyType: PropertyType.alignment),
             omitWhenArgUnset: true),
         EmitMapEntry(
             'radius',
@@ -398,21 +549,8 @@ const Map<String, TranslatorRecipe> kTranslatorRecipes = {
             omitWhenArgUnset: true),
         EmitMapEntry(
             'focal',
-            EmitFragmentMemberTable(
-                ArgRef.named('focal'),
-                {
-                  'topLeft': EmitFragmentLiteral('{x: -1.0, y: -1.0}'),
-                  'topCenter': EmitFragmentLiteral('{x: 0.0, y: -1.0}'),
-                  'topRight': EmitFragmentLiteral('{x: 1.0, y: -1.0}'),
-                  'centerLeft': EmitFragmentLiteral('{x: -1.0, y: 0.0}'),
-                  'center': EmitFragmentLiteral('{x: 0.0, y: 0.0}'),
-                  'centerRight': EmitFragmentLiteral('{x: 1.0, y: 0.0}'),
-                  'bottomLeft': EmitFragmentLiteral('{x: -1.0, y: 1.0}'),
-                  'bottomCenter': EmitFragmentLiteral('{x: 0.0, y: 1.0}'),
-                  'bottomRight': EmitFragmentLiteral('{x: 1.0, y: 1.0}')
-                },
-                fallback: EmitFragmentArg(ArgRef.named('focal'),
-                    propertyType: PropertyType.alignmentXY)),
+            EmitFragmentArg(ArgRef.named('focal'),
+                propertyType: PropertyType.alignment),
             omitWhenArgUnset: true),
         EmitMapEntry(
             'focalRadius',
@@ -441,21 +579,8 @@ const Map<String, TranslatorRecipe> kTranslatorRecipes = {
             omitWhenArgUnset: true),
         EmitMapEntry(
             'center',
-            EmitFragmentMemberTable(
-                ArgRef.named('center'),
-                {
-                  'topLeft': EmitFragmentLiteral('{x: -1.0, y: -1.0}'),
-                  'topCenter': EmitFragmentLiteral('{x: 0.0, y: -1.0}'),
-                  'topRight': EmitFragmentLiteral('{x: 1.0, y: -1.0}'),
-                  'centerLeft': EmitFragmentLiteral('{x: -1.0, y: 0.0}'),
-                  'center': EmitFragmentLiteral('{x: 0.0, y: 0.0}'),
-                  'centerRight': EmitFragmentLiteral('{x: 1.0, y: 0.0}'),
-                  'bottomLeft': EmitFragmentLiteral('{x: -1.0, y: 1.0}'),
-                  'bottomCenter': EmitFragmentLiteral('{x: 0.0, y: 1.0}'),
-                  'bottomRight': EmitFragmentLiteral('{x: 1.0, y: 1.0}')
-                },
-                fallback: EmitFragmentArg(ArgRef.named('center'),
-                    propertyType: PropertyType.alignmentXY)),
+            EmitFragmentArg(ArgRef.named('center'),
+                propertyType: PropertyType.alignment),
             omitWhenArgUnset: true),
         EmitMapEntry(
             'startAngle',
@@ -533,21 +658,8 @@ const Map<String, TranslatorRecipe> kTranslatorRecipes = {
             omitWhenArgUnset: true),
         EmitMapEntry(
             'alignment',
-            EmitFragmentMemberTable(
-                ArgRef.named('alignment'),
-                {
-                  'topLeft': EmitFragmentLiteral('{x: -1.0, y: -1.0}'),
-                  'topCenter': EmitFragmentLiteral('{x: 0.0, y: -1.0}'),
-                  'topRight': EmitFragmentLiteral('{x: 1.0, y: -1.0}'),
-                  'centerLeft': EmitFragmentLiteral('{x: -1.0, y: 0.0}'),
-                  'center': EmitFragmentLiteral('{x: 0.0, y: 0.0}'),
-                  'centerRight': EmitFragmentLiteral('{x: 1.0, y: 0.0}'),
-                  'bottomLeft': EmitFragmentLiteral('{x: -1.0, y: 1.0}'),
-                  'bottomCenter': EmitFragmentLiteral('{x: 0.0, y: 1.0}'),
-                  'bottomRight': EmitFragmentLiteral('{x: 1.0, y: 1.0}')
-                },
-                fallback: EmitFragmentArg(ArgRef.named('alignment'),
-                    propertyType: PropertyType.alignmentXY)),
+            EmitFragmentArg(ArgRef.named('alignment'),
+                propertyType: PropertyType.alignment),
             omitWhenArgUnset: true),
         EmitMapEntry(
             'repeat',

@@ -1,3 +1,5 @@
+import 'package:restage_codegen/src/custom_structured_admissibility.dart'
+    show isBuiltInStructuredSlot;
 import 'package:restage_codegen/src/custom_preview_reservation.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_compiler_core/restage_compiler_core.dart'
@@ -143,6 +145,8 @@ Catalog userCatalogFromGraph({
 /// A structured/union graph reference is allowed ONLY when a structured graph
 /// is provided to back it ([hasStructuredGraph]) — a bare reference with no
 /// graph is the same unpreservable shape the widget-only builder rejects.
+/// Qualified built-in slots retain their external catalog reference; their
+/// decoder and target are checked against the merged built-in catalog.
 void _rejectUnsupportedFullGraph(
   List<WidgetEntry> widgets, {
   required bool hasStructuredGraph,
@@ -157,6 +161,7 @@ void _rejectUnsupportedFullGraph(
     }
     for (final property in widget.properties) {
       if (!hasStructuredGraph &&
+          !isBuiltInStructuredSlot(property) &&
           (property.structuredRef != null ||
               _valueShapeNeedsGraph(property.valueShape))) {
         throw UnsupportedError(
@@ -340,6 +345,14 @@ void _writePropertyEntry(
   if (p.widgetType != null) {
     buf.writeln('$indent  widgetType: ${_escapeDart(p.widgetType!)},');
   }
+  if (p.builderContract case final contract?) {
+    buf.writeln(
+        '${indent}  builderContract: WidgetBuilderContract(parameters: [${contract.parameters.map((p) => "WidgetBuilderParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),');
+  }
+  if (p.scalarContract case final contract?) {
+    buf.writeln(
+        '${indent}  scalarContract: ScalarCallbackContract(parameters: [${contract.parameters.map((p) => "ScalarCallbackParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),');
+  }
   if (p.callbackSignature != null) {
     buf.writeln(
       '$indent  callbackSignature: ${_escapeDart(p.callbackSignature!)},',
@@ -490,6 +503,14 @@ void _writeStructuredField(
     ..writeln('$indent  name: ${_escapeDart(field.name)},')
     ..writeln('$indent  type: PropertyType.${field.type.name},')
     ..writeln('$indent  description: ${_escapeDart(field.description)},');
+  if (field.builderContract case final contract?) {
+    buf.writeln(
+        '${indent}  builderContract: WidgetBuilderContract(parameters: [${contract.parameters.map((p) => "WidgetBuilderParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),');
+  }
+  if (field.scalarContract case final contract?) {
+    buf.writeln(
+        '${indent}  scalarContract: ScalarCallbackContract(parameters: [${contract.parameters.map((p) => "ScalarCallbackParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),');
+  }
   if (field.required) buf.writeln('$indent  required: true,');
   if (field.defaultSource != null) {
     buf.writeln(

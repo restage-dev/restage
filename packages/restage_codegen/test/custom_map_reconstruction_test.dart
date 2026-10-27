@@ -178,7 +178,7 @@ void main() {
         src,
         matches(
           RegExp(
-            r"RestageDecoders\.string\(\s*source,\s*<Object>\['glossary', i0, 'value'\]\)",
+            r"RestageDecoders\.string\(\s*source,\s*<Object>\['glossary', i0, 'value'\],\s*context: context\s*,?\s*\)",
           ),
         ),
       );

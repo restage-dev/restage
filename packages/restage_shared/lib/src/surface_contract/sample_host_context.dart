@@ -13,6 +13,9 @@ Map<String, Object?> sampleHostContext(SurfaceScreenHostDataSchema schema) =>
 
 Object? _sample(SurfaceScreenHostDataShape shape, String name) =>
     switch (shape) {
+      SurfaceScreenHostDataNativeBindingShapeV1() =>
+        throw const FormatException(
+            'Native bindings require an installed host.'),
       SurfaceScreenHostDataScalarShapeV1(:final kind) => switch (kind) {
           SurfaceScreenHostDataScalarKind.boolean => true,
           SurfaceScreenHostDataScalarKind.integer => 3,

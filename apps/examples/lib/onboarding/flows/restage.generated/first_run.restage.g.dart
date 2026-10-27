@@ -6,13 +6,13 @@ const firstRunFlowRef = SurfaceFlowRef<
     FirstRunResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'first_run',
   version: 1,
-  minClient: 12,
+  minClient: 17,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeFirstRunFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"actions":{"requestNotifications":{"actionName":"requestNotifications","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":6,"resultSchema":{"fields":{"granted":{"required":true,"schema":{"kind":"bool"}}},"kind":"object"},"resultSchemaHash":"sha256:ef1c091bc0c82e02a9c18695d6ececbd01dee150396df8bea8ea2b8428ece4ec"}},"flow":"first_run","flowState":{"completed":{"classification":"exportable","type":"bool"}},"initial":"welcome","minClient":12,"outbound":{"customEvents":{"skip":{"fields":{}}},"terminalResult":{"fields":{"completed":{"ref":{"state":"completed"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"notify":{"contentHash":"sha256:c04e581304ffcf8b01a452f59db1d010a8901c5edaf8a87cd9bc4083a387ddbe","minClient":12,"path":"notify.rfw","schemaVersion":1,"version":1},"ready":{"contentHash":"sha256:0d5de3ac018d406515c40ffdf8164fe9164bb47f67f05f1964345e1a3771d108","minClient":12,"path":"ready.rfw","schemaVersion":1,"version":1},"value":{"contentHash":"sha256:04531924805acf51eee23d33eea857125f6e6f7ea6eac13d78aa751e3554f967","minClient":12,"path":"value.rfw","schemaVersion":1,"version":1},"welcome":{"contentHash":"sha256:fab25148acb8e0451b99045d393c32e692fa3dea3772e74b7e446fd8380ae36a","minClient":12,"path":"welcome.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{"completed":true}},"notify":{"kind":"screen","on":{"enable":{"action":"requestNotifications","resultPredicate":{"field":"granted","kind":"objectBoolFieldEquals","value":true},"target":"ready","type":"action"}},"screen":"notify"},"ready":{"kind":"screen","on":{"start":{"target":"done","type":"goto"}},"screen":"ready"},"value":{"kind":"screen","on":{"next":{"target":"notify","type":"goto"}},"screen":"value"},"welcome":{"kind":"screen","on":{"next":{"target":"value","type":"goto"}},"screen":"welcome"}},"version":1}',
+        '{"actions":{"requestNotifications":{"actionName":"requestNotifications","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":6,"resultSchema":{"fields":{"granted":{"required":true,"schema":{"kind":"bool"}}},"kind":"object"},"resultSchemaHash":"sha256:ef1c091bc0c82e02a9c18695d6ececbd01dee150396df8bea8ea2b8428ece4ec"}},"flow":"first_run","flowState":{"completed":{"classification":"exportable","type":"bool"}},"initial":"welcome","minClient":17,"outbound":{"customEvents":{"skip":{"fields":{}}},"terminalResult":{"fields":{"completed":{"ref":{"state":"completed"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"notify":{"contentHash":"sha256:e602080e37d6c68384371396f25856ec79f14805b3e0f8ca86b0967e34868c0a","minClient":17,"path":"notify.rfw","schemaVersion":1,"version":1},"ready":{"contentHash":"sha256:690db124ce229ae17256552c478c7a92c1a31c568e6ab4367a43682f548ce0a8","minClient":17,"path":"ready.rfw","schemaVersion":1,"version":1},"value":{"contentHash":"sha256:b9714a8403c502e0a978194f8157a97071b5ed6da5124d5446b85c6dea3be1c1","minClient":17,"path":"value.rfw","schemaVersion":1,"version":1},"welcome":{"contentHash":"sha256:c0d1d83adff39e5fa2ec7e1258fb4bf9401f54cf4b27d2ddfa06d2e27045a521","minClient":17,"path":"welcome.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{"completed":true}},"notify":{"kind":"screen","on":{"enable":{"action":"requestNotifications","resultPredicate":{"field":"granted","kind":"objectBoolFieldEquals","value":true},"target":"ready","type":"action"}},"screen":"notify"},"ready":{"kind":"screen","on":{"start":{"target":"done","type":"goto"}},"screen":"ready"},"value":{"kind":"screen","on":{"next":{"target":"notify","type":"goto"}},"screen":"value"},"welcome":{"kind":"screen","on":{"next":{"target":"value","type":"goto"}},"screen":"welcome"}},"version":1}',
     screens: {
       'welcome': WelcomeScreen.new,
       'value': ValueScreen.new,
@@ -22,7 +22,7 @@ const firstRunFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'e19d5678041193d3cd24ddbfa4bdb98bbd85196196621fc21654b197ed652990',
+      'cad28ee72785f051e84ae303de19fc0bef0d14ea8f4603f227f951ebd4d4eba8',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

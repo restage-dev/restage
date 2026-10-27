@@ -3329,15 +3329,13 @@ Object x() => const Acme();
 
       expect(result.issues, isEmpty);
       final box = _widget(result.decoded!, 'Acme');
-      expect(box.arguments['padding'], [0.0, 0.0, 0.0, 0.0]);
+      expect(box.arguments['padding'],
+          {'left': 0.0, 'top': 0.0, 'right': 0.0, 'bottom': 0.0});
       expect(box.arguments['offset'], {'x': 0.0, 'y': 0.0});
       expect(box.arguments['radius'], 0);
     });
 
-    test(
-        'the Directional .zero siblings (EdgeInsetsDirectional/'
-        'BorderRadiusDirectional) lower to the same structured values',
-        () async {
+    test('directional radii require directional geometry slots', () async {
       final result = await _transpile(
         '''
 $kFlutterClassifierStubs
@@ -3380,10 +3378,8 @@ Object x() => const Acme();
         rootPackage: 'apps_examples',
       );
 
-      expect(result.issues, isEmpty);
-      final box = _widget(result.decoded!, 'Acme');
-      expect(box.arguments['padding'], [0.0, 0.0, 0.0, 0.0]);
-      expect(box.arguments['radius'], 0);
+      expect(result.issues.map((issue) => issue.code),
+          contains(IssueCode.unrecognizedMethodCall));
     });
 
     test(

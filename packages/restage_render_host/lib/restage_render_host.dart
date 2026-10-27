@@ -3,6 +3,7 @@
 library;
 
 import 'package:flutter/widgets.dart' show VoidCallback, runApp;
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'src/browser_render_message_transport.dart';
 import 'src/render_bundle_manifest_loader.dart';
@@ -25,6 +26,7 @@ Future<void> runRestageRenderBundle({
   required String parentOrigin,
   required String flutterVersion,
 }) async {
+  await initializeDateFormatting();
   final manifest = await loadRenderBundleManifest();
   final transport = createBrowserRenderMessageTransport(
     parentOrigin: parentOrigin,

@@ -453,6 +453,18 @@ const Set<String> _qualifierAnnotations = {
 };
 
 const Set<String> _nonAnnotationClassNameGuards = {
+  // Resolved native values, enums and loader types, not annotation names.
+  'Color',
+  'GridView',
+  'PointerDeviceKind',
+  'ScrollCacheExtent',
+  'SliverChildListDelegate',
+  'SvgAssetLoader',
+  'SvgBytesLoader',
+  'SvgFileLoader',
+  'SvgNetworkLoader',
+  'ValueKey',
+
   'Restage',
   // A resolved Flutter superclass identity, not an annotation name.
   'StatelessWidget',

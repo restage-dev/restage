@@ -191,7 +191,7 @@ void main() {
         _packed(part),
         contains(
           _packed(
-            'capabilityVersion:4,compatibleSince:4,generatedVersion:2,widgets:',
+            'capabilityVersion:4,compatibleSince:4,generatedVersion:3,widgets:',
           ),
         ),
       );

@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- **Breaking:** `A2uiDartCoverageReason` gains `unsupportedScalarCallback`; exhaustive switches must handle it.
+- Compile native Directionality/textDirection, physical and directional geometry,
+  keyboard/accessibility reads, and exact scoped TextScaler values.
+- Compile supported LayoutBuilder/OrientationBuilder callbacks and native
+  GridView constructor/delegate forms with lazy indexed data, nullable returns,
+  and scalar ValueKeys. Preserve local reassignment, captured values,
+  DateTime.now reads, and bounded lazy collection operations.
+- Bind constructor-supplied ScrollController and TabController objects at
+  supported GridView, ListView, SingleChildScrollView, TabBar, and TabBarView
+  arguments, retaining caller ownership.
+- Preserve native Key identity at factories that retain the actual widget
+  owner, including borrowed ObjectKey/GlobalKey values and keys created in
+  supported callback initializers. Native keys on inlined or substituted owners
+  receive explicit diagnostics or use the existing unavailable fallback.
+- Compile ClipPath/ShapeBorderClipper and native static ClipPath.shape, plus
+  TextSpan spread/if/for children and recognized gesture callbacks receiving
+  actual native detail objects. Borrowed recognizers retain caller ownership;
+  generated recognizers retain their owned lifecycle.
+- Preserve exact Color and Material swatch values through typed native bindings,
+  including supported custom swatch initializers and conditional/null-coalescing
+  color selections from constants and constructor fields.
+  Support SVG bundles, clients, mappers, files, loaders, and typed image/error
+  callbacks through installed native bindings.
+- Compile native intl date/number and plural/gender/select values, preserving
+  DateTime microseconds and UTC identity. Installed translation adapters retain
+  fixed lookup identities and typed arguments. Discover optional restage_svg
+  catalogs and generate their native factory registrations without a mandatory
+  SVG dependency.
+- Refuse unsupported application effects, custom clippers/delegates, source
+  State lifecycles, captured source-root BuildContext values, effectful root
+  arguments without a proven evaluation point, and unbound callable or message
+  lookup targets. Actual native callback contexts belong to the generated
+  Surface tree. Regenerate and ship matching SDK and app factories before
+  publishing content that uses these capabilities; native implementations
+  remain installed in the app.
+
 Custom widgets accept `List<String>`, `List<bool>`, `List<int>`,
 `List<double>` and `List<num>` properties. Taps inside the widget slots of a
 custom widget, and on its positional arguments, are measured. A `String`

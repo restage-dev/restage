@@ -38,15 +38,10 @@ const Set<String> kBuiltInWidgetDenylist = {
   'package:flutter/src/widgets/form.dart#FormField',
   'package:flutter/src/material/text_form_field.dart#TextFormField',
 
-  // Imperative context construction (genuinely irreducible). Builder widgets
-  // take executable callback closures that a declarative blob cannot carry;
-  // Theme and MediaQuery establish inherited runtime context rather than leaf
-  // catalog values.
-  'package:flutter/src/widgets/layout_builder.dart#LayoutBuilder',
+  // Context construction and callbacks without a declared inert adapter.
   'package:flutter/src/widgets/basic.dart#Builder',
   'package:flutter/src/widgets/theme.dart#Theme',
   'package:flutter/src/widgets/media_query.dart#MediaQuery',
-  'package:flutter/src/widgets/orientation_builder.dart#OrientationBuilder',
   'package:flutter/src/widgets/value_listenable_builder.dart#ValueListenableBuilder',
   'package:flutter/src/widgets/animated_builder.dart#AnimatedBuilder',
   'package:flutter/src/widgets/binding.dart#RootWidget',

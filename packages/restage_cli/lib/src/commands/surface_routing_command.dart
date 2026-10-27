@@ -793,8 +793,13 @@ List<String> _renderDeliveryFlow(DeliveryFlowRead flow) {
 }
 
 String _flowTotal(DeliveryFlowRead flow) {
-  final head =
-      '${countText(flow.totalViews, floor: flow.disclosureFloor, approx: flow.approxTotalViews)} views';
+  final head = viewsText(
+    countText(
+      flow.totalViews,
+      floor: flow.disclosureFloor,
+      approx: flow.approxTotalViews,
+    ),
+  );
   final notRecorded = flow.notRecordedViews;
   final approxNotRecorded = flow.approxNotRecordedViews;
   final anyNotRecorded =

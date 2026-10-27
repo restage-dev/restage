@@ -919,7 +919,6 @@ void main() {
       '[0, if (enabled) 1]',
       '[0, for (final value in values) value]',
       '[0, ...values]',
-      '[0, ...?const [1]]',
       '[0, for (var value = 0; value < 2; value++) value]',
       '[0, ...[for (final value in values) value]]',
     ]) {
@@ -940,6 +939,24 @@ void main() {
         expect(result.mapIssueCount, 1);
       });
     }
+
+    test('numeric null-aware spreads coerce static values and omit null',
+        () async {
+      final result = await emitDoubleListFixture(
+        '[0, ...?const [1, 2.5], ...?null, 3]',
+        translate: fakeTranslate,
+        translateDouble: fakeTranslateDouble,
+      );
+
+      const expected = '[0.0, 1.0, 2.5, 3.0]';
+      expect(result.refused, isFalse);
+      expect(result.value, expected);
+      expect(result.list, '["prefix", $expected]');
+      expect(result.map, '{stops: $expected}');
+      expect(result.directIssueCount, 0);
+      expect(result.listIssueCount, 0);
+      expect(result.mapIssueCount, 0);
+    });
 
     for (final count in [1000, 1001]) {
       test('numeric collection expansion enforces the element ceiling: $count',

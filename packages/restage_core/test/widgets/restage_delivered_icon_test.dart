@@ -55,6 +55,39 @@ Future<void> main() async {
         ),
       };
 
+  for (final installed in [true, false]) {
+    testWidgets('native key belongs to the actual icon installed=$installed',
+        (tester) async {
+      final key = GlobalKey();
+      if (installed) {
+        InstalledIconTable.install(RestageIconTable.fromFamilies(families: {
+          _material: {_codePoint: Icons.check},
+        }));
+      }
+      await tester.pumpWidget(host(
+        fonts: deliveredMaterial(),
+        builder: (context) =>
+            restageIcon(context, key: key, codePoint: _codePoint),
+      ));
+      if (installed) {
+        final actual = tester.widget<Icon>(find.byType(Icon));
+        expect(actual.key, same(key));
+        expect(key.currentWidget, same(actual));
+        expect(key.currentContext, same(tester.element(find.byKey(key))));
+        expect(tester.takeException(), isNull);
+      } else {
+        expect(
+            tester.takeException(),
+            isA<RestageIconUnavailableError>().having(
+                (error) => error.requiresNativeIcon,
+                'requiresNativeIcon',
+                isTrue));
+        expect(key.currentWidget, isNull);
+        expect(find.byType(RestageDeliveredIcon), findsNothing);
+      }
+    });
+  }
+
   testWidgets('the installed table wins over a delivered font', (tester) async {
     InstalledIconTable.install(
       RestageIconTable.fromFamilies(

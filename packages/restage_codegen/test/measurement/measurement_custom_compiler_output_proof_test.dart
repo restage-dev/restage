@@ -40,6 +40,8 @@ void main() {
   test(
     'custom source graph emits the CLI-consumable Measurement closure',
     () async {
+      const sourceKey = "key: const ValueKey<String>('original-host-key'),";
+      final source = _fixtureSources()['$_package|$_screenSourcePath']!;
       final compiled = await _compileFixture();
       final compilerOutput = compiled.compilerOutput;
       expect(compilerOutput.valid, isTrue);
@@ -254,8 +256,6 @@ void main() {
         orderedEquals(screenPublication.draft.canonicalBytes),
       );
 
-      final source = _fixtureSources()['$_package|$_screenSourcePath']!;
-      const sourceKey = 'key: UniqueKey(),';
       final changedKeySource = source.replaceFirst(
         sourceKey,
         "key: const ValueKey<String>('host-only-key'),",

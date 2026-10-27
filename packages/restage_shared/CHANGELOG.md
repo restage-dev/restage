@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Breaking:** `DeviceContractValueKind` gains `boolean`; exhaustive switches must handle it.
+
+**Breaking:** `SurfaceScreenHostDataShape` adds the exported
+`SurfaceScreenHostDataNativeBindingShapeV1` variant. Exhaustive switches must
+handle its installed native binding contract; native values cannot be sampled
+as JSON.
+
 Flow documents gain the `always` and `matches` host-action result predicates,
 and `actionResultPredicateSchemaIssue` checks a predicate against a result
 schema. `kJoinedStringClientFloor` is the client capability for text joined

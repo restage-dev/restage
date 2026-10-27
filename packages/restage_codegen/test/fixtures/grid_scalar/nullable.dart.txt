@@ -1,0 +1,11 @@
+import 'package:flutter/widgets.dart';
+class Item { const Item(this.id); final String? id; }
+class P extends StatelessWidget {
+ const P({required this.items}); final List<Item> items;
+ @override Widget build(BuildContext context)=>GridView.builder(
+  primary:false,
+  gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,mainAxisExtent:40),
+  itemCount:items.length,
+  itemBuilder:(_,index)=>Text(items[index].id??'nil',key:ValueKey<String?>(items[index].id)),
+  findChildIndexCallback:(key)=>items.indexWhere((item)=>item.id==(key as ValueKey<String?>).value));
+}

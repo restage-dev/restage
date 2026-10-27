@@ -10,9 +10,10 @@ guarantee approval. You remain responsible for your app and how it uses remote c
 ## What a published surface contains
 
 A Restage surface uses the [Remote Flutter Widgets](https://pub.dev/packages/rfw) format.
-What ships is data the app renders. Your widgets carry the logic, as Dart compiled into
-your app. A published version composes and configures them. New behavior still ships as
-an app release.
+What ships is a description your app's widgets draw, in a small closed language the
+compiler checks. It can carry simple logic, like conditions over data your app supplies.
+Gestures, drawing, network calls and native work stay in Dart compiled into your app. New
+kinds of behavior still ship as an app release.
 
 An update can change copy, layout, style values, flow routing, conditions and loops over
 data your app supplies, and which registered event or action a control uses. Widget
@@ -23,8 +24,9 @@ your app build.
 
 [Apple's App Review Guideline 2.5.2](https://developer.apple.com/app-store/review/guidelines/#software-requirements)
 addresses downloading, installing, or executing code that introduces or changes
-application features or functionality. A Restage surface carries no code. It uses widgets
-and typed actions compiled into the app.
+application features or functionality. A Restage surface carries no Dart and no script. It is a
+description in a closed language the compiler checks, drawn by widgets and typed actions
+compiled into the app.
 
 [Guideline 4.7](https://developer.apple.com/app-store/review/guidelines/#mini-apps-mini-games-streaming-games-chatbots-plug-ins-and-game-emulators)
 covers apps that offer certain forms of software not embedded in the binary, including
