@@ -60,6 +60,9 @@ class _FakeFunctionType implements FunctionType {
         ];
 
   @override
+  List<TypeParameterElement> get typeParameters => const [];
+
+  @override
   final DartType returnType;
 
   @override

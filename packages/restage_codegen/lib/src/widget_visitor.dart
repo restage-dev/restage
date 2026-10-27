@@ -30,6 +30,8 @@ import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
         classifyMapType,
         classifyRecordType,
         typeFqn;
+import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
+    show scalarCallbackContractFor, widgetBuilderContractFor;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _unknownEnumHint =
@@ -377,7 +379,8 @@ WidgetVisitorResult _visitRestageWidgets(
     final facts = projectWidgetConstructorFacts(
       cls,
       assetId,
-      readWidgetConstructorFacts(cls, assetId),
+      readWidgetConstructorFacts(cls, assetId,
+          includeFlutterKey: target == WidgetVisitorTarget.rfw),
       target: _emitTarget(target),
     );
     constructorFacts[cls] = facts;
@@ -1126,6 +1129,8 @@ PropertyEntry? _readPropertyInput(
     validationRule: validationRule,
     constraints: constraints,
     callbackSignature: callback.signature,
+    builderContract: widgetBuilderContractFor(input.type),
+    scalarContract: scalarCallbackContractFor(input.type),
   );
 }
 

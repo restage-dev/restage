@@ -136,13 +136,15 @@ Future<List<Object>> _exercise(
 }
 
 void main() {
-  test('TabBarView catalog exposes the native controller-free surface', () {
+  test('TabBarView catalog exposes the native surface', () {
     final entry = kRegistry.findByName('TabBarView', WidgetLibrary.material)!;
     expect(entry.sinceVersion, 15);
     expect(
         entry.flutterType, 'package:flutter/src/material/tabs.dart#TabBarView');
     expect(entry.properties.map((p) => p.name).toSet(), {
+      'key',
       'children',
+      'controller',
       'clipBehavior',
       'dragStartBehavior',
       'viewportFraction',

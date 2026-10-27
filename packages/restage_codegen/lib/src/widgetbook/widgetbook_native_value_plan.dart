@@ -467,6 +467,8 @@ final class WidgetbookNativeValuePlanner {
       PropertyType.real ||
       PropertyType.stringList ||
       PropertyType.enumValue ||
+      PropertyType.widgetBuilder ||
+      PropertyType.scalarCallback ||
       PropertyType.event ||
       PropertyType.length ||
       PropertyType.alignmentXY ||
@@ -678,7 +680,9 @@ final class WidgetbookNativeValuePlanner {
         return WidgetbookScalarValuePlan(type: type, value: 0);
       case PropertyType.real:
         return WidgetbookScalarValuePlan(type: type, value: 0.0);
-      case PropertyType.event ||
+      case PropertyType.widgetBuilder ||
+            PropertyType.scalarCallback ||
+            PropertyType.event ||
             PropertyType.length ||
             PropertyType.alignmentXY ||
             PropertyType.booleanList ||
@@ -1008,10 +1012,8 @@ final class WidgetbookNativeDartRenderer {
         _colorLiteral(value, renderedType),
       WidgetbookFrameworkLiteralKind.edgeInsets => _edgeInsetsLiteral(
           value,
-          type.symbol == 'EdgeInsetsDirectional'
-              ? owner('EdgeInsetsDirectional')
-              : owner('EdgeInsets'),
-          directional: type.symbol == 'EdgeInsetsDirectional',
+          type.symbol,
+          owner,
         ),
       WidgetbookFrameworkLiteralKind.alignment =>
         _alignmentLiteral(value, type.symbol, owner),
@@ -1124,13 +1126,23 @@ String _colorLiteral(Object value, String type) {
 
 String _edgeInsetsLiteral(
   Object value,
-  String type, {
-  required bool directional,
-}) {
-  final values = _numberList(value, 4).join(', ');
+  String type,
+  String Function(String) qualify,
+) {
+  final directional = value is Map
+      ? value.containsKey('start') || value.containsKey('end')
+      : type == 'EdgeInsetsDirectional';
+  final owner = qualify(directional ? 'EdgeInsetsDirectional' : 'EdgeInsets');
+  final values = value is Map
+      ? (directional
+              ? ['start', 'top', 'end', 'bottom']
+              : ['left', 'top', 'right', 'bottom'])
+          .map((key) => _number(value[key]))
+          .join(', ')
+      : _numberList(value, 4).join(', ');
   return directional
-      ? 'const $type.fromSTEB($values)'
-      : 'const $type.fromLTRB($values)';
+      ? 'const $owner.fromSTEB($values)'
+      : 'const $owner.fromLTRB($values)';
 }
 
 String _alignmentLiteral(
@@ -1220,8 +1232,7 @@ void _validateNativeInput(
       finite(candidate['y']);
   final valid = switch (propertyType) {
     PropertyType.color => _isColorValue(value),
-    PropertyType.edgeInsets =>
-      value is List<Object?> && value.length == 4 && value.every(finite),
+    PropertyType.edgeInsets => _isEdgeInsetsValue(value, dartType),
     PropertyType.alignment => _isAlignmentValue(value, dartType),
     PropertyType.offset => coordinateMap(value, 'x'),
     PropertyType.fontWeight =>
@@ -1240,6 +1251,8 @@ void _validateNativeInput(
     PropertyType.enumValue ||
     PropertyType.structured =>
       true,
+    PropertyType.widgetBuilder ||
+    PropertyType.scalarCallback ||
     PropertyType.event ||
     PropertyType.length ||
     PropertyType.alignmentXY ||
@@ -1281,6 +1294,20 @@ bool _isColorValue(Object value) {
           : '';
   return (normalized.length == 6 || normalized.length == 8) &&
       RegExp(r'^[0-9a-fA-F]+$').hasMatch(normalized);
+}
+
+bool _isEdgeInsetsValue(Object value, DartType type) {
+  bool finite(Object? component) => component is num && component.isFinite;
+  if (value is List<Object?>) return value.length == 4 && value.every(finite);
+  if (value is! Map<String, Object?> || value.length != 4) return false;
+  final directional = value.containsKey('start') || value.containsKey('end');
+  final keys = directional
+      ? ['start', 'top', 'end', 'bottom']
+      : ['left', 'top', 'right', 'bottom'];
+  final symbol = type.getDisplayString().replaceAll('?', '');
+  return keys.every((key) => finite(value[key])) &&
+      (symbol == 'EdgeInsetsGeometry' ||
+          symbol == (directional ? 'EdgeInsetsDirectional' : 'EdgeInsets'));
 }
 
 bool _isAlignmentValue(
@@ -1426,6 +1453,8 @@ void _validatePropertyDartType(
     PropertyType.duration => isDartCore('Duration'),
     PropertyType.curve => isFlutterType(const {'Curve'}),
     PropertyType.structured => true,
+    PropertyType.widgetBuilder ||
+    PropertyType.scalarCallback ||
     PropertyType.event ||
     PropertyType.length ||
     PropertyType.alignmentXY ||

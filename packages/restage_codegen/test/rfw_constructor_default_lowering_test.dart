@@ -1,3 +1,5 @@
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
 import 'package:test/test.dart';
@@ -147,17 +149,23 @@ void main() {
     String presenceLocal(String property) =>
         'restagePresence${property[0].toUpperCase()}'
         '${property.substring(1)}';
+    final factory = parseString(content: dart)
+        .unit
+        .declarations
+        .whereType<FunctionDeclaration>()
+        .singleWhere(
+            (declaration) => declaration.name.lexeme == '_buildDefaultProbe');
+    final arguments = _symbolArguments(factory).toList();
     String argumentSource(String property) {
-      final start = flat.indexOf('#$property:');
+      final matches = arguments
+          .where((entry) => entry.key.toSource() == '#$property')
+          .toList();
       expect(
-        start,
-        isNonNegative,
-        reason: '$property argument was not emitted',
+        matches,
+        hasLength(1),
+        reason: '$property argument must be emitted once',
       );
-      final nextArgument = flat.indexOf(', if (', start);
-      final end = nextArgument < 0 ? flat.indexOf(', },', start) : nextArgument;
-      expect(end, isNonNegative, reason: '$property argument was not closed');
-      return flat.substring(start, end);
+      return matches.single.toSource().replaceAll(RegExp(r'\s+'), ' ');
     }
 
     String compactArgumentSource(String property) =>
@@ -167,10 +175,11 @@ void main() {
     expect(dart, isNot(contains('defaultTimeout')));
     expect(dart, isNot(contains('Color.new(4279383126)')));
     expect(
-      flat,
+      flat.replaceAll(' ', ''),
       contains(
-        'if (restagePresenceRetries.supplied) '
-        '#retries: source.v<int>(restagePresenceRetries.valuePath)',
+        'if(restagePresenceRetries.supplied)'
+        '#retries:RestageValueBinding.read<int>('
+        'source,restagePresenceRetries.valuePath,context)',
       ),
       reason: 'Function.apply must include a supplied scalar even when its '
           'decoded value is null or the wrong scalar type',
@@ -184,14 +193,15 @@ void main() {
       ),
     );
     expect(
-      flat,
-      isNot(contains('restagePresenceRetries.valuePath) ?? Tokens.retries')),
+      flat.replaceAll(' ', ''),
+      isNot(contains('RestageValueBinding.read<int>('
+          'source,restagePresenceRetries.valuePath,context)??Tokens.retries')),
       reason: 'a supplied malformed scalar must not silently take the Dart '
           'constructor default',
     );
     expect(
-      flat,
-      contains('#labels: RestageDecoders.stringList(source,'),
+      flat.replaceAll(' ', ''),
+      contains('#labels:RestageDecoders.stringList(source,'),
       reason: 'a scalar-list property decodes through its list decoder',
     );
     for (final property in [
@@ -252,8 +262,9 @@ void main() {
       );
     }
     expect(
-      flat,
-      contains('source.isList(restagePresenceChildren.valuePath)'),
+      flat.replaceAll(' ', ''),
+      contains(
+          'RestageDecoders.isWidgetList(source,restagePresenceChildren.valuePath)'),
       reason: 'canonical children must validate the nested supplied value',
     );
     for (final property in ['tone', 'tones', 'scores', 'summary', 'children']) {
@@ -293,7 +304,7 @@ void main() {
     expect(
       flat.replaceAll(' ', ''),
       contains(
-        'RestageDecoders.widgetList(source,restagePresenceChildren.valuePath)',
+        'RestageDecoders.widgetList(source,restagePresenceChildren.valuePath,context:context,bindings:builderBindings)',
       ),
     );
     expect(
@@ -323,4 +334,11 @@ void main() {
     expect(dart, isNot(contains('CatalogItem(')));
     expect(dart, isNot(contains(r'$RestageExclusions')));
   });
+}
+
+Iterable<MapLiteralEntry> _symbolArguments(AstNode node) sync* {
+  if (node is MapLiteralEntry && node.key is SymbolLiteral) yield node;
+  for (final child in node.childEntities.whereType<AstNode>()) {
+    yield* _symbolArguments(child);
+  }
 }

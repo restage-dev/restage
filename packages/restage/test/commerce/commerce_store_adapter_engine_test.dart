@@ -33,6 +33,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../support/placement_delivery_fixture.dart';
 import '../measurement/admitted_bundled_publication_fixture.dart';
 import '../measurement/measurement_host_construction_test_support.dart';
+import '../support/pump_until.dart';
 
 const _applicationToken = 'c9ea7617-468c-4be9-9430-080703537a9c';
 const _secondApplicationToken = '59eb1fa6-e556-46a4-9fb8-1f77244fe865';
@@ -645,9 +646,11 @@ void main() {
     final beforeMeasurement = harness.worker.registrations.length;
     final beforeOpen = intents.toList();
     release.complete();
-    for (var i = 0; i < 50 && harness.worker.registrations.isEmpty; i++) {
-      await tester.pump(const Duration(milliseconds: 1));
-    }
+    await pumpUntil(
+      tester,
+      () => harness.worker.registrations.isNotEmpty,
+      reason: 'a worker registration',
+    );
     final registrations = harness.worker.registrations.toList();
     final receipts = await SurfaceDeliveryReceiptBatch.instance.drain();
     final painted = receipts.counts.keys

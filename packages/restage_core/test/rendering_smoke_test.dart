@@ -47,77 +47,56 @@ const Set<String> _rootOnlyEntries = <String>{
   'SingleChildScrollView',
 };
 
-/// Curated minimal-props for catalog entries the generic synthesiser
-/// can't render with empty arguments.
-///
-/// The factory emitter throws on missing `required: true` scalars
-/// (string, edgeInsets, double, etc.) and on missing required widget
-/// children (`source.child(...)`), so any widget with such a property
-/// must supply a fragment here.
-///
-/// `Image` / `ImageAsset` / `FadeInImage` all kick off async image
-/// loads that fail under `TestWidgetsFlutterBinding`: `Image.network`
-/// returns HTTP 400, `Image.asset` and `FadeInImage.assetNetwork`'s
-/// asset lookup misses the rootBundle. Each surfaces an exception via
-/// the image stream that lands in the binding's exception queue and
-/// is drained via `tester.takeException()` after the pump completes.
+/// A minimal value for each required property type a factory demands.
+const Map<PropertyType, String> _requiredValueByType = <PropertyType, String>{
+  PropertyType.widget: 'SizedBox()',
+  PropertyType.widgetList: '[SizedBox()]',
+  PropertyType.duration: '200',
+  PropertyType.real: '1.0',
+  PropertyType.integer: '1',
+  PropertyType.length: '100.0',
+  PropertyType.alignment: '{x: 0.0, y: 0.0}',
+  PropertyType.offset: '{x: 0.0, y: 0.0}',
+  PropertyType.edgeInsets: '[0.0, 0.0, 0.0, 0.0]',
+  PropertyType.color: '0xFF2196F3',
+  PropertyType.string: '"smoke"',
+};
+
+const String _grid =
+    '{_s: "SliverGridDelegateWithFixedCrossAxisCount", crossAxisCount: 2}';
+
+/// Entries whose required values the type table cannot supply. Image loads
+/// fail under the test binding and are drained via `tester.takeException()`.
 const Map<String, String> _curatedMinimalRfwSource = <String, String>{
-  'AnimatedAlign': 'AnimatedAlign(alignment: {x: 0.0, y: 0.0}, duration: 200, '
-      'child: SizedBox())',
-  'AnimatedContainer':
-      'AnimatedContainer(duration: 200, width: 32.0, height: 32.0)',
-  'AnimatedDefaultTextStyle':
-      'AnimatedDefaultTextStyle(duration: 200, child: SizedBox())',
-  'AnimatedOpacity':
-      'AnimatedOpacity(opacity: 1.0, duration: 200, child: SizedBox())',
-  'AnimatedPadding':
-      'AnimatedPadding(padding: [0.0, 0.0, 0.0, 0.0], duration: 200, '
-          'child: SizedBox())',
-  'AnimatedRotation':
-      'AnimatedRotation(turns: 0.0, alignment: {x: 0.0, y: 0.0}, '
-          'duration: 200, child: SizedBox())',
-  'AnimatedScale': 'AnimatedScale(scale: 1.0, alignment: {x: 0.0, y: 0.0}, '
-      'duration: 200, child: SizedBox())',
-  'AnimatedSize': 'AnimatedSize(duration: 200, child: SizedBox())',
-  'AnimatedSlide': 'AnimatedSlide(offset: {x: 0.0, y: 0.0}, duration: 200, '
-      'child: SizedBox())',
-  'AspectRatio': 'AspectRatio(aspectRatio: 1.0)',
-  // `color` is a required scalar with no Flutter default.
-  'ColoredBox': 'ColoredBox(color: 0xFF2196F3)',
-  'DefaultTextStyle': 'DefaultTextStyle(child: SizedBox())',
-  'Expanded': 'Expanded(child: SizedBox())',
+  'ClipPathShape': 'ClipPathShape(shape: {type: "rounded", '
+      'borderRadius: {topLeft: 12.0}}, child: SizedBox())',
+  'Directionality': 'Directionality(textDirection: "ltr", child: SizedBox())',
   'FadeInImageAssetNetwork':
       'FadeInImageAssetNetwork(placeholder: "smoke.png", '
           'image: "https://smoke.invalid/2.png")',
-  'Flexible': 'Flexible(child: SizedBox())',
   'GestureDetector': 'GestureDetector(child: SizedBox())',
+  'GridView': 'GridView(shrinkWrap: true, gridDelegate: $_grid)',
+  'GridViewCount': 'GridViewCount(shrinkWrap: true, crossAxisCount: 2)',
+  'GridViewExtent': 'GridViewExtent(shrinkWrap: true, maxCrossAxisExtent: 1.0)',
+  'GridViewCustom': 'GridViewCustom(shrinkWrap: true, gridDelegate: $_grid, '
+      'childrenDelegate: {_s: "SliverChildListDelegate", children: []})',
   'Image': 'Image(url: "https://smoke.invalid/1.png")',
   'ImageAsset': 'ImageAsset(name: "smoke.png")',
-  'LimitedBox': 'LimitedBox(maxWidth: 100.0, maxHeight: 100.0)',
-  'RestageFadeIn': 'RestageFadeIn(child: SizedBox())',
-  'RestageMotion': 'RestageMotion(child: SizedBox())',
-  'RestagePulse': 'RestagePulse(child: SizedBox())',
-  'RestageStagger': 'RestageStagger(children: [SizedBox()])',
-  'Opacity': 'Opacity(opacity: 1.0)',
-  'Padding': 'Padding(padding: [0.0, 0.0, 0.0, 0.0])',
-  'RotatedBox': 'RotatedBox(quarterTurns: 0)',
-  'SafeArea': 'SafeArea(child: SizedBox())',
-  'Text': 'Text(text: "smoke")',
-  // TextRich's positional `textSpan` is required (the factory throws on a
-  // missing slot), so the generic `TextRich()` synthesiser can't render it —
-  // supply a minimal one-node inline-span tree.
   'TextRich': 'TextRich(textSpan: { text: "smoke" })',
-  'TransformRotate': 'TransformRotate(angle: 0.0)',
   'TransformScale': 'TransformScale(scale: 1.0)',
-  'TransformTranslate': 'TransformTranslate(offset: {x: 0.0, y: 0.0})',
-  'Visibility': 'Visibility(child: SizedBox())',
 };
 
-/// Factory-function defaults handle missing properties (`source.v` returns
-/// null, `optionalChild` returns null, `childList` returns []), so the
-/// default fragment for any entry is just an empty constructor call.
-String _minimalRfwSourceFor(WidgetEntry entry) =>
-    _curatedMinimalRfwSource[entry.name] ?? '${entry.name}()';
+String _minimalRfwSourceFor(WidgetEntry entry) {
+  final curated = _curatedMinimalRfwSource[entry.name];
+  if (curated != null) return curated;
+  final arguments = [
+    for (final property in entry.properties)
+      if (property.required)
+        if (_requiredValueByType[property.type] case final value?)
+          '${property.name}: $value',
+  ];
+  return '${entry.name}(${arguments.join(', ')})';
+}
 
 String _composeSmokeSource(Iterable<WidgetEntry> entries) {
   final fragments = entries.map(_minimalRfwSourceFor).join(',\n      ');
@@ -130,150 +109,6 @@ widget Paywall = Column(
   ],
 );
 ''';
-}
-
-/// Maps the catalog `entry.name` to the corresponding Flutter [Type].
-///
-/// The mapping is hand-maintained rather than reflected from
-/// `entry.flutterType` because Dart Type objects can't be looked up by
-/// URI at runtime. Named-constructor variants (`ImageAsset`) map to
-/// the same base class as their default-constructor sibling, since
-/// Flutter has no distinct Type per named constructor. A new catalog
-/// entry trips a clear `StateError` here before reaching the
-/// assertion loop.
-Type _flutterTypeFor(String entryName) {
-  switch (entryName) {
-    case 'Align':
-      return RestageAlign;
-    case 'AnimatedAlign':
-      return RestageAnimatedAlign;
-    case 'AbsorbPointer':
-      return AbsorbPointer;
-    case 'AnimatedContainer':
-      return AnimatedContainer;
-    case 'AnimatedDefaultTextStyle':
-      return AnimatedDefaultTextStyle;
-    case 'AnimatedOpacity':
-      return AnimatedOpacity;
-    case 'AnimatedPadding':
-      return RestageAnimatedPadding;
-    case 'AnimatedPositioned':
-      return AnimatedPositioned;
-    case 'AnimatedRotation':
-      return AnimatedRotation;
-    case 'AnimatedScale':
-      return AnimatedScale;
-    case 'AnimatedSize':
-      return RestageAnimatedSize;
-    case 'AnimatedSlide':
-      return AnimatedSlide;
-    case 'AspectRatio':
-      return RestageAspectRatio;
-    case 'BackdropFilter':
-      return BackdropFilter;
-    case 'Center':
-      return RestageCenter;
-    case 'ClipOval':
-      return ClipOval;
-    case 'ClipRect':
-      return ClipRect;
-    case 'ClipRRect':
-      return ClipRRect;
-    case 'ColoredBox':
-      return ColoredBox;
-    case 'Column':
-      return RestageColumn;
-    case 'ConstrainedBox':
-      return ConstrainedBox;
-    case 'Container':
-      return Container;
-    case 'DecoratedBox':
-      return DecoratedBox;
-    case 'DefaultTextStyle':
-      return DefaultTextStyle;
-    case 'Expanded':
-      return Expanded;
-    case 'FadeInImageAssetNetwork':
-      return RestageFadeInImage;
-    case 'FittedBox':
-      return RestageFittedBox;
-    case 'FractionallySizedBox':
-      // The catalog name stays unchanged for authored source, while its runtime
-      // realization differs from the framework type an author writes.
-      return RestageFractionallySizedBox;
-    case 'Flexible':
-      return Flexible;
-    case 'GestureDetector':
-      return GestureDetector;
-    case 'IgnorePointer':
-      return IgnorePointer;
-    case 'Image':
-    case 'ImageAsset':
-      return RestageImage;
-    case 'IntrinsicHeight':
-      return IntrinsicHeight;
-    case 'IntrinsicWidth':
-      return RestageIntrinsicWidth;
-    case 'LimitedBox':
-      return LimitedBox;
-    case 'ListView':
-      return RestageListView;
-    case 'RestageFadeIn':
-      return RestageFadeIn;
-    case 'RestageFormattedNumber':
-      return RestageFormattedNumber;
-    case 'RestageMotion':
-      return RestageMotion;
-    case 'RestagePrice':
-      return RestagePrice;
-    case 'RestagePulse':
-      return RestagePulse;
-    case 'RestageShaderMask':
-      return RestageShaderMask;
-    case 'RestageStagger':
-      return RestageStagger;
-    case 'Offstage':
-      return Offstage;
-    case 'Opacity':
-      return Opacity;
-    case 'Padding':
-      return RestagePadding;
-    case 'Positioned':
-      return Positioned;
-    case 'RotatedBox':
-      return RotatedBox;
-    case 'Row':
-      return RestageRow;
-    case 'SafeArea':
-      return SafeArea;
-    case 'Semantics':
-      return Semantics;
-    case 'SingleChildScrollView':
-      return SingleChildScrollView;
-    case 'SizedBox':
-      return SizedBox;
-    case 'Spacer':
-      return Spacer;
-    case 'Stack':
-      return RestageStack;
-    case 'Text':
-    case 'TextRich':
-      // `Text.rich` constructs a `Text` widget (Flutter has no distinct Type
-      // per named constructor), same as the plain `Text` entry.
-      return Text;
-    case 'TransformScale':
-    case 'TransformTranslate':
-    case 'TransformRotate':
-      return Transform;
-    case 'Visibility':
-      return Visibility;
-    case 'Wrap':
-      return RestageWrap;
-  }
-  throw StateError(
-    'rendering_smoke_test: no Flutter Type mapping for catalog entry '
-    '"$entryName" — add a case to _flutterTypeFor.',
-  );
 }
 
 /// Wraps each builder in a `LocalWidgetLibrary` so the result of every
@@ -316,14 +151,26 @@ void _expectRendered(WidgetEntry entry) {
     reason: 'no _SmokeMarker emitted for ${entry.name} — the factory '
         'either threw or rfw substituted an ErrorWidget',
   );
-  final expectedType = _flutterTypeFor(entry.name);
+  // A factory returns the catalog's Flutter class or its Restage wrapper;
+  // ClipPath.shape and resource-owning factories return a builder around it.
+  final expected = entry.flutterType.split('#').last.split('.').first;
+  bool named(Widget widget) =>
+      '${widget.runtimeType}' == expected ||
+      '${widget.runtimeType}' == 'Restage$expected';
   for (final element in markers) {
-    final marker = element.widget as _SmokeMarker;
+    final child = (element.widget as _SmokeMarker).child;
     expect(
-      marker.child.runtimeType,
-      expectedType,
-      reason: 'factory for ${entry.name} returned ${marker.child.runtimeType}, '
-          'expected $expectedType (catalog flutterType: ${entry.flutterType})',
+      child is Builder || child is RestageResourceBuilder
+          ? find
+              .descendant(
+                  of: find.byWidget(child),
+                  matching: find.byWidgetPredicate(named))
+              .evaluate()
+              .isNotEmpty
+          : named(child),
+      isTrue,
+      reason: 'factory for ${entry.name} returned ${child.runtimeType} '
+          '(catalog flutterType: ${entry.flutterType})',
     );
   }
 }
@@ -371,8 +218,14 @@ void main() {
       expect(allEntries, isNotEmpty,
           reason: 'kRegistry must have widgets for the smoke to be meaningful');
 
-      final walkerEntries =
-          allEntries.where((w) => !_rootOnlyEntries.contains(w.name)).toList();
+      // Builder widgets need compiled builder programs; their runtime tests
+      // render them.
+      final walkerEntries = allEntries
+          .where((w) =>
+              !_rootOnlyEntries.contains(w.name) &&
+              !w.properties.any(
+                  (p) => p.required && p.type == PropertyType.widgetBuilder))
+          .toList();
 
       final runtime = _buildRuntime(_composeSmokeSource(walkerEntries));
       final data = DynamicContent();

@@ -160,12 +160,10 @@ void main() {
     expect(
       rfwFactories.replaceAll(RegExp(r'\s+'), ' '),
       allOf(
-        contains(
-          'if (restagePresenceLeading.supplied || '
-          'restagePresenceTrailing.supplied)',
-        ),
+        contains('restagePresenceLeading.supplied ? ('),
         contains(": 'leading-default'"),
-        contains('if (restagePresenceTrailing.supplied)'),
+        contains('restagePresenceTrailing.supplied ? ('),
+        contains(": 'trailing-default'"),
       ),
     );
     expect(

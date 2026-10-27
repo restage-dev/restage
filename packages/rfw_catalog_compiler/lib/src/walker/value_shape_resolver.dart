@@ -5,7 +5,9 @@ import 'package:rfw_catalog_compiler/src/policy/policy_ledger.dart';
 import 'package:rfw_catalog_compiler/src/walker/abstract_type_fallback.dart';
 import 'package:rfw_catalog_compiler/src/walker/element_fqn.dart';
 import 'package:rfw_catalog_compiler/src/walker/record_shape_resolver.dart';
+import 'package:rfw_catalog_compiler/src/walker/scalar_callback_contract.dart';
 import 'package:rfw_catalog_compiler/src/walker/structured_type_predicate.dart';
+import 'package:rfw_catalog_compiler/src/walker/widget_builder_contract.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Resolves the semantic [CatalogValueShape] of a Dart [type].
@@ -49,6 +51,24 @@ CatalogValueShape? resolveValueShape(
   PolicyLedger? policy,
   Set<String>? referencedUnionFqns,
 }) {
+  if (widgetBuilderContractFor(type) != null) {
+    return const ScalarShape(propertyType: PropertyType.widgetBuilder);
+  }
+  if (scalarCallbackContractFor(type) != null) {
+    return const ScalarShape(propertyType: PropertyType.scalarCallback);
+  }
+  if (_isNativeWidget(type)) {
+    return const ScalarShape(propertyType: PropertyType.widget);
+  }
+  final widgetItem = listItemType(type);
+  if (widgetItem != null &&
+      widgetItem.nullabilitySuffix == NullabilitySuffix.none &&
+      _isNativeWidget(widgetItem)) {
+    return const ListShape(
+      propertyType: PropertyType.widgetList,
+      itemShape: ScalarShape(propertyType: PropertyType.widget),
+    );
+  }
   final widgetStateValueType = _widgetStatePropertyValueType(type);
   if (widgetStateValueType != null) {
     return resolveValueShape(
@@ -118,7 +138,10 @@ CatalogValueShape? resolveValueShape(
   final structuredElement = classElementFor(type);
   if (structuredElement != null &&
       library != null &&
-      knownRecipeStructuredTypes.contains(structuredElement.name)) {
+      knownRecipeStructuredTypes.contains(structuredElement.name) &&
+      (structuredElement.name != 'TextScaler' ||
+          interfaceFqnOrNull(structuredElement) ==
+              'package:flutter/src/painting/text_scaler.dart#TextScaler')) {
     return StructuredShape(
       propertyType: PropertyType.structured,
       structuredRef: WireIdRef(
@@ -158,6 +181,7 @@ const Set<String> knownRecipeStructuredTypes = {
   'Size',
   'SystemUiOverlayStyle',
   'TextStyle',
+  'TextScaler',
 };
 
 /// The canonical Flutter FQN of `WidgetStateProperty`. The unwrap is gated on
@@ -203,7 +227,7 @@ CatalogValueShape? _unionValueShapeForDartType(
     PropertyType.shapeBorder => CatalogWireCodec.rfwShapeBorder,
     _ => null,
   };
-  if (propertyType == null || wireCodec == null) return null;
+  if (propertyType == null) return null;
   return UnionShape(
     propertyType: propertyType,
     unionRef: WireIdRef(
@@ -361,3 +385,9 @@ bool _isFrameworkValueTypeLibrary(Element? element) {
   return identifier.startsWith('dart:') ||
       kFrameworkLibraryPrefixes.any(identifier.startsWith);
 }
+
+bool _isNativeWidget(DartType type) =>
+    type is InterfaceType &&
+    type.element.name == 'Widget' &&
+    type.element.library.uri.toString() ==
+        'package:flutter/src/widgets/framework.dart';

@@ -6,7 +6,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///
 /// The runtime `RestageDecoders.decorationImage` decoder reads a
 /// self-describing map: a nested `image` provider map (`{kind, src}`) plus
-/// optional `fit`, `alignment` (`{x, y}`), `repeat`, `opacity`, and `scale`
+/// optional `fit`, alignment geometry, `repeat`, `opacity`, and `scale`
 /// fields. Each recipe emits only the keys the author set — the
 /// `omitWhenArgUnset` entries drop out when their named argument is absent, so
 /// the decoder reapplies the Flutter `DecorationImage` constructor default for
@@ -125,14 +125,6 @@ const List<TranslatorRecipe> kDecorationImageRecipes = [
         ),
         omitWhenArgUnset: true,
       ),
-      // A concrete `Alignment.<member>` resolves through the member table to
-      // its `{x, y}` coordinate pair (the shape the runtime `alignmentXY`
-      // decoder reads); an `Alignment(x, y)` constructor call misses the table
-      // and recurses via the fallback to the same `{x, y}` shape. A resolved
-      // framework member NOT in the table (`AlignmentDirectional.*`, which has
-      // no concrete x until layout-time text direction) defers LOUD at the
-      // member-table dispatch rather than emitting its bare name (which the
-      // decoder would silently null to `Alignment.center`).
       EmitMapEntry(
         'alignment',
         _kAlignmentArg,
@@ -160,40 +152,8 @@ const List<TranslatorRecipe> kDecorationImageRecipes = [
   ),
 ];
 
-/// The `alignment` argument fragment for the `DecorationImage` recipe. A member
-/// reference (`Alignment.X`) resolves through the member table to its `{x, y}`
-/// coordinate pair; an `Alignment(x, y)` constructor call (not a member access)
-/// recurses via the `fallback` to the same `{x, y}` shape. A resolved framework
-/// member NOT in the table defers LOUD at the member-table dispatch (see the
-/// member-table handling in `recipe_dispatcher.dart`) rather than reaching the
-/// recursing fallback. Both supported shapes decode at runtime via
-/// `RestageDecoders.alignmentXY`.
-const EmitFragment _kAlignmentArg = EmitFragmentMemberTable(
+/// Alignment geometry is resolved by Flutter at render time.
+const EmitFragment _kAlignmentArg = EmitFragmentArg(
   ArgRef.named('alignment'),
-  _kAlignmentMemberFragments,
-  fallback: EmitFragmentArg(
-    ArgRef.named('alignment'),
-    propertyType: PropertyType.alignmentXY,
-  ),
+  propertyType: PropertyType.alignment,
 );
-
-/// Coordinate-pair fragments for Flutter's nine `Alignment` constants, in the
-/// `{x, y}` shape the runtime `alignmentXY` decoder reads.
-///
-/// `AlignmentDirectional` constants are intentionally absent: a resolved
-/// `{x, y}` pair is required, and directional members carry no concrete x
-/// value until layout-time text direction is known. A resolved
-/// `AlignmentDirectional.*` member-access misses this table and defers LOUD at
-/// the member-table dispatch (never its bare name, which the decoder would
-/// silently null to `Alignment.center`).
-const Map<String, EmitFragment> _kAlignmentMemberFragments = {
-  'topLeft': EmitFragmentLiteral('{x: -1.0, y: -1.0}'),
-  'topCenter': EmitFragmentLiteral('{x: 0.0, y: -1.0}'),
-  'topRight': EmitFragmentLiteral('{x: 1.0, y: -1.0}'),
-  'centerLeft': EmitFragmentLiteral('{x: -1.0, y: 0.0}'),
-  'center': EmitFragmentLiteral('{x: 0.0, y: 0.0}'),
-  'centerRight': EmitFragmentLiteral('{x: 1.0, y: 0.0}'),
-  'bottomLeft': EmitFragmentLiteral('{x: -1.0, y: 1.0}'),
-  'bottomCenter': EmitFragmentLiteral('{x: 0.0, y: 1.0}'),
-  'bottomRight': EmitFragmentLiteral('{x: 1.0, y: 1.0}'),
-};

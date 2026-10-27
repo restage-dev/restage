@@ -203,7 +203,7 @@ void main() {
     final payload = assembled.payload;
     expect(payload, isA<FlowSurfacePayload>());
     expect((payload as FlowSurfacePayload).requiredLibraries, const [
-      LibraryRequirement(namespace: 'restage_example.widgets', minVersion: 4),
+      LibraryRequirement(namespace: 'restage_example.widgets', minVersion: 5),
     ]);
     expect(
       assembled.request.publication.payloadContentHash,

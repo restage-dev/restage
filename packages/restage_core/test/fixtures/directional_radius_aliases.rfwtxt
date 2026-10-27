@@ -1,0 +1,5 @@
+import restage.core;
+widget ContainerPhysicalAlias = Container(borderRadiusTopLeft: 13.0, child: SizedBox(width: 40.0, height: 30.0));
+widget ContainerLogicalAlias = Container(borderRadiusTopStart: 13.0, child: SizedBox(width: 40.0, height: 30.0));
+widget AnimatedContainerPhysicalAlias = AnimatedContainer(duration: 1, borderRadiusTopLeft: 13.0, child: SizedBox(width: 40.0, height: 30.0));
+widget AnimatedContainerLogicalAlias = AnimatedContainer(duration: 1, borderRadiusTopStart: 13.0, child: SizedBox(width: 40.0, height: 30.0));

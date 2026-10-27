@@ -215,16 +215,18 @@ class Probe {
       }
       expect(
         flat,
-        contains('source.v<bool>(restagePresenceEnabled.valuePath)'),
+        contains(RegExp(
+            r'RestageValueBinding\.read<bool>\(\s*source,\s*restagePresenceEnabled\.valuePath,\s*context\)')),
       );
       expect(
         flat,
-        contains('source.v<int>(restagePresenceCount.valuePath)'),
+        contains(RegExp(
+            r'RestageValueBinding\.read<int>\(\s*source,\s*restagePresenceCount\.valuePath,\s*context\)')),
       );
       expect(
         flat,
         contains(
-          'RestageDecoders.string(source, restagePresenceLabel.valuePath)',
+          'RestageDecoders.string(source, restagePresenceLabel.valuePath, context: context)',
         ),
       );
       expect(
@@ -365,7 +367,7 @@ class Probe {
       expect(
         factory,
         contains(
-          'ArgumentDecoders.color(source, restagePresenceColor.valuePath)',
+          'RestageDecoders.color(source, restagePresenceColor.valuePath)',
         ),
       );
       expect(factory, isNot(contains('Color.new(4279383126)')));
@@ -416,7 +418,8 @@ class Probe {
       expect(factory, contains('RestageRfwConstructorPresence.read('));
       expect(
         factory,
-        contains('source.v<int>(restagePresenceRetries.valuePath)'),
+        contains(RegExp(
+            r'RestageValueBinding\.read<int>\(\s*source,\s*restagePresenceRetries\.valuePath,\s*context\)')),
       );
       expect(factory, isNot(contains('Tokens.retries')));
     });
@@ -458,7 +461,8 @@ class Probe {
       expect(factory, contains('RestageRfwConstructorPresence.read('));
       expect(
         factory,
-        contains('source.v<int>(restagePresenceRetries.valuePath)'),
+        contains(RegExp(
+            r'RestageValueBinding\.read<int>\(\s*source,\s*restagePresenceRetries\.valuePath,\s*context\)')),
       );
       expect(factory, isNot(contains('Tokens.retries')));
     });

@@ -22,9 +22,10 @@ Flutter widgets in your app, using your theme.
 This package is the runtime SDK. It renders what the build produced through
 [Remote Flutter Widgets](https://pub.dev/packages/rfw).
 
-What ships is data the app renders. Your widgets carry the logic, as real Dart
-compiled into your app. An update over the air composes and configures them.
-New behavior still ships as an app release.
+What ships is a description your app's widgets draw, in a small closed
+language the compiler checks. It can carry simple logic, like conditions over
+data your app supplies. Gestures, drawing, network calls and native work stay
+in Dart compiled into your app. New kinds of behavior need an app release.
 
 ## Why Restage
 

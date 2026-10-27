@@ -35,6 +35,7 @@ import 'dart:io';
 const _publishable = <String>{
   'restage',
   'restage_core',
+  'restage_svg',
   'restage_material',
   'restage_cupertino',
   'rfw_catalog_schema',

@@ -1,0 +1,2966 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "source": "i.Intl.plural(one: i.DateFormat.yMd('unknown_locale').format(DateTime.utc(2024)), 1 ~/ 0, other: 'other')",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "unknown_locale"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              4
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "~/",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              6,
+              7
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "other"
+          },
+          {
+            "op": "intl.plural",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              8,
+              5,
+              9
+            ],
+            "value": {
+              "arguments": [
+                "one",
+                "other"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              9,
+              10
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              8,
+              11
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5,
+              12
+            ]
+          }
+        ],
+        "root": 13,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.gender(female: i.DateFormat.yMd('unknown_locale').format(DateTime.utc(2024)), '${1 ~/ 0}', other: 'other')",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "unknown_locale"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              4
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "~/",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              7,
+              8
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              9
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              6,
+              10,
+              11
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "other"
+          },
+          {
+            "op": "intl.gender",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              12,
+              5,
+              13
+            ],
+            "value": {
+              "arguments": [
+                "female",
+                "other"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              13,
+              14
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              12,
+              15
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5,
+              16
+            ]
+          }
+        ],
+        "root": 17,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.select(locale: i.DateFormat.yMd('unknown_locale').format(DateTime.utc(2024)), '${1 ~/ 0}', {'other': 'other'})",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "unknown_locale"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              4
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "~/",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              7,
+              8
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              9
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              6,
+              10,
+              11
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "other"
+          },
+          {
+            "op": "intl.select",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              12,
+              13,
+              5
+            ],
+            "value": {
+              "arguments": [
+                "locale"
+              ],
+              "keys": [
+                "other"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              13,
+              14
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              12,
+              15
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5,
+              16
+            ]
+          }
+        ],
+        "root": 17,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.select('active', locale: '${1 ~/ 0}', {'other': i.DateFormat.yMd('unknown_locale').format(DateTime.utc(2024))})",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "active"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "~/",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              2,
+              3
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              4
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              1,
+              5,
+              6
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "unknown_locale"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              8,
+              9
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              11
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              10,
+              12
+            ]
+          },
+          {
+            "op": "intl.select",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              13,
+              7
+            ],
+            "value": {
+              "arguments": [
+                "locale"
+              ],
+              "keys": [
+                "other"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              13,
+              14
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              7,
+              15
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              16
+            ]
+          }
+        ],
+        "root": 17,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.select('active', {'other': i.DateFormat.yMd('unknown_locale').format(DateTime.utc(2024)), 'active': '${1 ~/ 0}'})",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "active"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "unknown_locale"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              1,
+              2
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              4
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              3,
+              5
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "~/",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              8,
+              9
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              10
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              7,
+              11,
+              12
+            ]
+          },
+          {
+            "op": "intl.select",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              6,
+              13
+            ],
+            "value": {
+              "arguments": [],
+              "keys": [
+                "other",
+                "active"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              13,
+              14
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              6,
+              15
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              16
+            ]
+          }
+        ],
+        "root": 17,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.select('active', {'other': i.DateFormat.yMd('unknown_locale').format(DateTime.utc(2024))}, locale: '${1 ~/ 0}')",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "active"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "unknown_locale"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              1,
+              2
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              4
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              3,
+              5
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "~/",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              8,
+              9
+            ]
+          },
+          {
+            "op": "string",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              10
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "concat",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              7,
+              11,
+              12
+            ]
+          },
+          {
+            "op": "intl.select",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              6,
+              13
+            ],
+            "value": {
+              "arguments": [
+                "locale"
+              ],
+              "keys": [
+                "other"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              13,
+              14
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              6,
+              15
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              16
+            ]
+          }
+        ],
+        "root": 17,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.plural(1, one: 'one', other: 'other')",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "one"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "other"
+          },
+          {
+            "op": "intl.plural",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              1,
+              2
+            ],
+            "value": {
+              "arguments": [
+                "one",
+                "other"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              3
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              1,
+              4
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              5
+            ]
+          }
+        ],
+        "root": 6,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.gender('male', other: 'they', male: 'he')",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "male"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "they"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "he"
+          },
+          {
+            "op": "intl.gender",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              1,
+              2
+            ],
+            "value": {
+              "arguments": [
+                "other",
+                "male"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              3
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              1,
+              4
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              5
+            ]
+          }
+        ],
+        "root": 6,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.select('active', {'active': 'yes', 'other': 'no'}, locale: 'en_US')",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "active"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yes"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "no"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "en_US"
+          },
+          {
+            "op": "intl.select",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "value": {
+              "arguments": [
+                "locale"
+              ],
+              "keys": [
+                "active",
+                "other"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              3,
+              4
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              5
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              1,
+              6
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.plural(one: 'one', 1, other: 'other')",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "one"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "other"
+          },
+          {
+            "op": "intl.plural",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              1,
+              0,
+              2
+            ],
+            "value": {
+              "arguments": [
+                "one",
+                "other"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              3
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              1,
+              4
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              5
+            ]
+          }
+        ],
+        "root": 6,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.gender(other: 'they', 'male', male: 'he')",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "they"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "male"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "he"
+          },
+          {
+            "op": "intl.gender",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              1,
+              0,
+              2
+            ],
+            "value": {
+              "arguments": [
+                "other",
+                "male"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              3
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              1,
+              4
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              5
+            ]
+          }
+        ],
+        "root": 6,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.Intl.select(meaning: null, 'active', {'active': 'yes', 'other': 'no'}, locale: 'en_US')",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "Null",
+              "nullable": true
+            },
+            "value": null
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "active"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yes"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "no"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "en_US"
+          },
+          {
+            "op": "intl.select",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              1,
+              2,
+              3,
+              0,
+              4
+            ],
+            "value": {
+              "arguments": [
+                "meaning",
+                "locale"
+              ],
+              "keys": [
+                "active",
+                "other"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              4,
+              5
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              3,
+              6
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              7
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              1,
+              8
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              0,
+              9
+            ]
+          }
+        ],
+        "root": 10,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.DateFormat.yMd('en_US').format(DateTime.fromMicrosecondsSinceEpoch(1234567))",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "en_US"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1234567
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "fromMicrosecondsSinceEpoch",
+              "arguments": []
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3,
+              4
+            ]
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              5
+            ]
+          }
+        ],
+        "root": 6,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.DateFormat.yMd('en_US').format(DateTime.fromMillisecondsSinceEpoch(1234))",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "en_US"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1234
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3
+            ],
+            "value": {
+              "constructor": "fromMillisecondsSinceEpoch",
+              "arguments": []
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3,
+              4
+            ]
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              5
+            ]
+          }
+        ],
+        "root": 6,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.DateFormat.yMd('en_US').format(DateTime.fromMicrosecondsSinceEpoch(isUtc: true, 1234567))",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "en_US"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "bool"
+            },
+            "value": true
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1234567
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              4,
+              3
+            ],
+            "value": {
+              "constructor": "fromMicrosecondsSinceEpoch",
+              "arguments": [
+                "isUtc"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              4,
+              5
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3,
+              6
+            ]
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.DateFormat.yMd('en_US').format(DateTime.fromMicrosecondsSinceEpoch(1234567, isUtc: false))",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "en_US"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1234567
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "bool"
+            },
+            "value": false
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3,
+              4
+            ],
+            "value": {
+              "constructor": "fromMicrosecondsSinceEpoch",
+              "arguments": [
+                "isUtc"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              4,
+              5
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3,
+              6
+            ]
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.DateFormat.yMd('en_US').format(DateTime.fromMillisecondsSinceEpoch(isUtc: false, 1234))",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "en_US"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "bool"
+            },
+            "value": false
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1234
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              4,
+              3
+            ],
+            "value": {
+              "constructor": "fromMillisecondsSinceEpoch",
+              "arguments": [
+                "isUtc"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              4,
+              5
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3,
+              6
+            ]
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.DateFormat.yMd('en_US').format(DateTime.fromMillisecondsSinceEpoch(1234, isUtc: true))",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "en_US"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1234
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "bool"
+            },
+            "value": true
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3,
+              4
+            ],
+            "value": {
+              "constructor": "fromMillisecondsSinceEpoch",
+              "arguments": [
+                "isUtc"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              4,
+              5
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              3,
+              6
+            ]
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              7
+            ]
+          }
+        ],
+        "root": 8,
+        "captures": {},
+        "parameters": {}
+      }
+    },
+    {
+      "source": "i.DateFormat.yMd('en_US').format(DateTime.fromMicrosecondsSinceEpoch(isUtc: i.DateFormat.yMd('unknown_locale').format(DateTime.utc(2024)) == '', 1 ~/ 0))",
+      "program": {
+        "version": 1,
+        "nodes": [
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "en_US"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              0,
+              1
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "yMd"
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": "unknown_locale"
+          },
+          {
+            "op": "intl.date.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "pattern": {
+                  "kind": "String",
+                  "nullable": true
+                },
+                "locale": {
+                  "kind": "String"
+                },
+                "nativeDigits": {
+                  "kind": "bool",
+                  "nullable": true
+                },
+                "steps": {
+                  "kind": "list",
+                  "item": {
+                    "kind": "record",
+                    "fields": {
+                      "pattern": {
+                        "kind": "String",
+                        "nullable": true
+                      },
+                      "separator": {
+                        "kind": "String"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": [
+              3,
+              4
+            ],
+            "value": {
+              "arguments": [
+                "pattern",
+                "locale"
+              ]
+            }
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 2024
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              6
+            ],
+            "value": {
+              "constructor": "utc",
+              "arguments": []
+            }
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              5,
+              7
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "String"
+            },
+            "value": ""
+          },
+          {
+            "op": "==",
+            "type": {
+              "kind": "bool"
+            },
+            "inputs": [
+              8,
+              9
+            ]
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 1
+          },
+          {
+            "op": "literal",
+            "type": {
+              "kind": "int"
+            },
+            "value": 0
+          },
+          {
+            "op": "~/",
+            "type": {
+              "kind": "int"
+            },
+            "inputs": [
+              11,
+              12
+            ]
+          },
+          {
+            "op": "intl.datetime.new",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              13,
+              10
+            ],
+            "value": {
+              "constructor": "fromMicrosecondsSinceEpoch",
+              "arguments": [
+                "isUtc"
+              ]
+            }
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              13,
+              14
+            ]
+          },
+          {
+            "op": "let",
+            "type": {
+              "kind": "record",
+              "fields": {
+                "microsecondsSinceEpoch": {
+                  "kind": "int"
+                },
+                "isUtc": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "inputs": [
+              10,
+              15
+            ]
+          },
+          {
+            "op": "intl.date.format",
+            "type": {
+              "kind": "String"
+            },
+            "inputs": [
+              2,
+              16
+            ]
+          }
+        ],
+        "root": 17,
+        "captures": {},
+        "parameters": {}
+      }
+    }
+  ]
+}

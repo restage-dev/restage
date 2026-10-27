@@ -1,4 +1,8 @@
 import 'package:meta/meta.dart' show immutable;
+import 'package:restage_core/restage_core.dart'
+    show buildRestageBuilderContinuation;
+import 'package:restage_shared/restage_shared.dart'
+    show kBuilderContinuationWidgetName;
 import 'package:restage_core/library_registration.dart' as restage_core;
 import 'package:restage_cupertino/library_registration.dart'
     as restage_cupertino;
@@ -98,8 +102,8 @@ final class RestageWidgetLibraries {
   ///
   /// The names are parameters because a paywall runtime and a flow screen
   /// runtime import the same namespaces under their own [LibraryName]
-  /// constants. A namespace with no builders is skipped rather than installed
-  /// empty, so an unused namespace stays absent from the runtime.
+  /// constants. Core also installs the private callback continuation used by
+  /// generated factories. Empty visual families remain absent.
   ///
   /// A surface drawing only the application's own widgets legitimately carries
   /// no built-in widget at all, and those widgets reach the runtime through
@@ -117,9 +121,12 @@ final class RestageWidgetLibraries {
       !isEmpty || LibraryRuntimeRegistry.hasRegistrations,
       _noWidgetsAvailableMessage,
     );
-    if (core.isNotEmpty) {
-      runtime.update(coreName, LocalWidgetLibrary(core));
-    }
+    runtime.update(
+        coreName,
+        LocalWidgetLibrary({
+          ...core,
+          kBuilderContinuationWidgetName: buildRestageBuilderContinuation,
+        }));
     if (material.isNotEmpty) {
       runtime.update(materialName, LocalWidgetLibrary(material));
     }

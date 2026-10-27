@@ -22,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../support/hosted_artifact_delivery.dart';
 import 'admitted_bundled_publication_fixture.dart';
 import 'measurement_host_construction_test_support.dart';
+import '../support/pump_until.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -442,10 +443,11 @@ Future<void> _pumpForTerminalDiagnostics(
   WidgetTester tester,
   DeterministicMeasurementDeliveryWorker worker,
 ) async {
-  for (var attempt = 0; attempt < 20; attempt += 1) {
-    if (worker.terminalDiagnostics.isNotEmpty) return;
-    await tester.pump();
-  }
+  await pumpUntil(
+    tester,
+    () => worker.terminalDiagnostics.isNotEmpty,
+    reason: 'a terminal diagnostic',
+  );
 }
 
 final class _Attempt {

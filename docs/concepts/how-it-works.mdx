@@ -48,9 +48,10 @@ your app can render. The compiler accepts only source it can express with that c
 and the SDK registers the matching widgets, including factories generated for your own
 widgets.
 
-What ships is data the app renders. Your widgets carry the logic, as Dart compiled into
-your app. A published version composes and configures them. New behavior still ships as
-an app release.
+What ships is a description your app's widgets draw, in a small closed language the
+compiler checks. It can carry simple logic, like conditions over data your app supplies.
+Gestures, drawing, network calls and native work stay in Dart compiled into your app. New
+kinds of behavior still ship as an app release.
 
 ## On the device
 

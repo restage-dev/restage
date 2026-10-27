@@ -73,833 +73,1193 @@ const Map<String, LocalWidgetBuilder> kMaterialLibraryFactories =
 
 /// Builds the catalog's `ActionChip` widget from [source].
 Widget buildActionChip(BuildContext context, DataSource source) {
-  return ActionChip(
-    avatar: source.optionalChild(const <Object>['avatar']),
-    label: source.child(const <Object>['label']),
-    onPressed: source.voidHandler(const <Object>['onPressed']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ActionChip(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      avatar: source.optionalChild(const <Object>['avatar']),
+      label: source.child(const <Object>['label']),
+      onPressed: source.voidHandler(const <Object>['onPressed']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+    );
+  });
 }
 
 /// Builds the catalog's `AppBar` widget from [source].
 Widget buildAppBar(BuildContext context, DataSource source) {
-  return AppBar(
-    leading: source.optionalChild(const <Object>['leading']),
-    automaticallyImplyLeading:
-        source.v<bool>(const <Object>['automaticallyImplyLeading']) ?? true,
-    title: source.optionalChild(const <Object>['title']),
-    actions: source.isList(const <Object>['actions'])
-        ? RestageDecoders.widgetList(source, const <Object>['actions'])
-        : null,
-    automaticallyImplyActions:
-        source.v<bool>(const <Object>['automaticallyImplyActions']) ?? true,
-    flexibleSpace: source.optionalChild(const <Object>['flexibleSpace']),
-    bottom: RestageDecoders.optionalPreferredSize(
-        source.optionalChild(const <Object>['bottom']),
-        RestageDecoders.number(source, const <Object>['bottomHeight'])),
-    elevation: source.v<double>(const <Object>['elevation']),
-    scrolledUnderElevation:
-        source.v<double>(const <Object>['scrolledUnderElevation']),
-    shadowColor: ArgumentDecoders.color(source, <Object>['shadowColor']),
-    surfaceTintColor:
-        ArgumentDecoders.color(source, <Object>['surfaceTintColor']),
-    shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    foregroundColor:
-        ArgumentDecoders.color(source, <Object>['foregroundColor']),
-    primary: source.v<bool>(const <Object>['primary']) ?? true,
-    centerTitle: source.v<bool>(const <Object>['centerTitle']),
-    excludeHeaderSemantics:
-        source.v<bool>(const <Object>['excludeHeaderSemantics']) ?? false,
-    titleSpacing: source.v<double>(const <Object>['titleSpacing']),
-    toolbarOpacity: source.v<double>(const <Object>['toolbarOpacity']) ?? 1.0,
-    bottomOpacity: source.v<double>(const <Object>['bottomOpacity']) ?? 1.0,
-    toolbarHeight:
-        RestageDecoders.layoutFactor(source, <Object>['toolbarHeight']),
-    leadingWidth:
-        RestageDecoders.layoutFactor(source, <Object>['leadingWidth']),
-    forceMaterialTransparency:
-        source.v<bool>(const <Object>['forceMaterialTransparency']) ?? false,
-    useDefaultSemanticsOrder:
-        source.v<bool>(const <Object>['useDefaultSemanticsOrder']) ?? true,
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-        Clip.values, source, <Object>['clipBehavior']),
-    actionsPadding:
-        RestageDecoders.edgeInsets(source, <Object>['actionsPadding']),
-    animateColor: source.v<bool>(const <Object>['animateColor']) ?? false,
-    titleTextStyle:
-        RestageDecoders.textStyle(source, <Object>['titleTextStyle']),
-    toolbarTextStyle:
-        RestageDecoders.textStyle(source, <Object>['toolbarTextStyle']),
-    systemOverlayStyle: RestageDecoders.systemUiOverlayStyle(
-        source, <Object>['systemOverlayStyle']),
-    iconTheme: RestageDecoders.iconThemeData(source, <Object>['iconTheme']),
-    notificationPredicate: RestageDecoders.scrollNotificationPredicate(
-        source, const <Object>['notificationPredicate']),
-    actionsIconTheme:
-        RestageDecoders.iconThemeData(source, <Object>['actionsIconTheme']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return AppBar(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      leading: source.optionalChild(const <Object>['leading']),
+      automaticallyImplyLeading: RestageValueBinding.read<bool>(
+              source, const <Object>['automaticallyImplyLeading'], context) ??
+          true,
+      title: source.optionalChild(const <Object>['title']),
+      actions: RestageDecoders.isWidgetList(source, const <Object>['actions'])
+          ? RestageDecoders.widgetList(source, const <Object>['actions'],
+              context: context, bindings: builderBindings)
+          : null,
+      automaticallyImplyActions: RestageValueBinding.read<bool>(
+              source, const <Object>['automaticallyImplyActions'], context) ??
+          true,
+      flexibleSpace: source.optionalChild(const <Object>['flexibleSpace']),
+      bottom: RestageDecoders.optionalPreferredSize(
+          source.optionalChild(const <Object>['bottom']),
+          RestageDecoders.number(source, const <Object>['bottomHeight'])),
+      elevation: RestageValueBinding.read<double>(
+          source, const <Object>['elevation'], context),
+      scrolledUnderElevation: RestageValueBinding.read<double>(
+          source, const <Object>['scrolledUnderElevation'], context),
+      shadowColor: RestageDecoders.color(source, <Object>['shadowColor']),
+      surfaceTintColor:
+          RestageDecoders.color(source, <Object>['surfaceTintColor']),
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      foregroundColor:
+          RestageDecoders.color(source, <Object>['foregroundColor']),
+      primary: RestageValueBinding.read<bool>(
+              source, const <Object>['primary'], context) ??
+          true,
+      centerTitle: RestageValueBinding.read<bool>(
+          source, const <Object>['centerTitle'], context),
+      excludeHeaderSemantics: RestageValueBinding.read<bool>(
+              source, const <Object>['excludeHeaderSemantics'], context) ??
+          false,
+      titleSpacing: RestageValueBinding.read<double>(
+          source, const <Object>['titleSpacing'], context),
+      toolbarOpacity: RestageValueBinding.read<double>(
+              source, const <Object>['toolbarOpacity'], context) ??
+          1.0,
+      bottomOpacity: RestageValueBinding.read<double>(
+              source, const <Object>['bottomOpacity'], context) ??
+          1.0,
+      toolbarHeight:
+          RestageDecoders.layoutFactor(source, <Object>['toolbarHeight']),
+      leadingWidth:
+          RestageDecoders.layoutFactor(source, <Object>['leadingWidth']),
+      forceMaterialTransparency: RestageValueBinding.read<bool>(
+              source, const <Object>['forceMaterialTransparency'], context) ??
+          false,
+      useDefaultSemanticsOrder: RestageValueBinding.read<bool>(
+              source, const <Object>['useDefaultSemanticsOrder'], context) ??
+          true,
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+          Clip.values, source, <Object>['clipBehavior']),
+      actionsPadding:
+          RestageDecoders.edgeInsets(source, <Object>['actionsPadding']),
+      animateColor: RestageValueBinding.read<bool>(
+              source, const <Object>['animateColor'], context) ??
+          false,
+      titleTextStyle:
+          RestageDecoders.textStyle(source, <Object>['titleTextStyle']),
+      toolbarTextStyle:
+          RestageDecoders.textStyle(source, <Object>['toolbarTextStyle']),
+      systemOverlayStyle: RestageDecoders.systemUiOverlayStyle(
+          source, <Object>['systemOverlayStyle']),
+      iconTheme: RestageDecoders.iconThemeData(source, <Object>['iconTheme']),
+      notificationPredicate: RestageDecoders.scrollNotificationPredicate(
+          source, const <Object>['notificationPredicate']),
+      actionsIconTheme:
+          RestageDecoders.iconThemeData(source, <Object>['actionsIconTheme']),
+    );
+  });
 }
 
 /// Builds the catalog's `Badge` widget from [source].
 Widget buildBadge(BuildContext context, DataSource source) {
-  return Badge(
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    textColor: ArgumentDecoders.color(source, <Object>['textColor']),
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']),
-    offset: RestageDecoders.offset(source, <Object>['offset']),
-    label: source.optionalChild(const <Object>['label']),
-    isLabelVisible: source.v<bool>(const <Object>['isLabelVisible']) ?? true,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Badge(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      textColor: RestageDecoders.color(source, <Object>['textColor']),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']),
+      offset: RestageDecoders.offset(source, <Object>['offset']),
+      label: source.optionalChild(const <Object>['label']),
+      isLabelVisible: RestageValueBinding.read<bool>(
+              source, const <Object>['isLabelVisible'], context) ??
+          true,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Card` widget from [source].
 Widget buildCard(BuildContext context, DataSource source) {
-  return Card(
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    elevation: source.v<double>(const <Object>['elevation']) ?? 1.0,
-    shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-        Clip.values, source, <Object>['clipBehavior']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Card(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      color: RestageDecoders.color(source, <Object>['color']),
+      elevation: RestageValueBinding.read<double>(
+              source, const <Object>['elevation'], context) ??
+          1.0,
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
+      margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+          Clip.values, source, <Object>['clipBehavior']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `CardFilled` widget from [source].
 Widget buildCardFilled(BuildContext context, DataSource source) {
-  return Card.filled(
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    elevation: source.v<double>(const <Object>['elevation']) ?? 0.0,
-    shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-        Clip.values, source, <Object>['clipBehavior']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Card.filled(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      color: RestageDecoders.color(source, <Object>['color']),
+      elevation: RestageValueBinding.read<double>(
+              source, const <Object>['elevation'], context) ??
+          0.0,
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
+      margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+          Clip.values, source, <Object>['clipBehavior']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `CardOutlined` widget from [source].
 Widget buildCardOutlined(BuildContext context, DataSource source) {
-  return Card.outlined(
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    elevation: source.v<double>(const <Object>['elevation']) ?? 0.0,
-    shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-        Clip.values, source, <Object>['clipBehavior']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Card.outlined(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      color: RestageDecoders.color(source, <Object>['color']),
+      elevation: RestageValueBinding.read<double>(
+              source, const <Object>['elevation'], context) ??
+          0.0,
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
+      margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+          Clip.values, source, <Object>['clipBehavior']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Checkbox` widget from [source].
 Widget buildCheckbox(BuildContext context, DataSource source) {
-  return Checkbox(
-    value: source.v<bool>(const <Object>['value']) ??
-        (throw ArgumentError('Checkbox.value is required.')),
-    onChanged: RestageDecoders.valueChanged<bool?>(
-        source, const <Object>['onChanged']),
-    activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Checkbox(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<bool>(
+              source, const <Object>['value'], context) ??
+          (throw ArgumentError('Checkbox.value is required.')),
+      onChanged: RestageDecoders.valueChanged<bool?>(
+          source, const <Object>['onChanged']),
+      activeColor: RestageDecoders.color(source, <Object>['activeColor']),
+    );
+  });
 }
 
 /// Builds the catalog's `CheckboxListTile` widget from [source].
 Widget buildCheckboxListTile(BuildContext context, DataSource source) {
-  return CheckboxListTile(
-    value: source.v<bool>(const <Object>['value']) ??
-        (throw ArgumentError('CheckboxListTile.value is required.')),
-    onChanged: RestageDecoders.valueChanged<bool?>(
-        source, const <Object>['onChanged']),
-    activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
-    shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    title: source.optionalChild(const <Object>['title']),
-    subtitle: source.optionalChild(const <Object>['subtitle']),
-    secondary: source.optionalChild(const <Object>['secondary']),
-    selected: source.v<bool>(const <Object>['selected']) ?? false,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CheckboxListTile(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<bool>(
+              source, const <Object>['value'], context) ??
+          (throw ArgumentError('CheckboxListTile.value is required.')),
+      onChanged: RestageDecoders.valueChanged<bool?>(
+          source, const <Object>['onChanged']),
+      activeColor: RestageDecoders.color(source, <Object>['activeColor']),
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
+      title: source.optionalChild(const <Object>['title']),
+      subtitle: source.optionalChild(const <Object>['subtitle']),
+      secondary: source.optionalChild(const <Object>['secondary']),
+      selected: RestageValueBinding.read<bool>(
+              source, const <Object>['selected'], context) ??
+          false,
+    );
+  });
 }
 
 /// Builds the catalog's `Chip` widget from [source].
 Widget buildChip(BuildContext context, DataSource source) {
-  return Chip(
-    avatar: source.optionalChild(const <Object>['avatar']),
-    label: source.child(const <Object>['label']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Chip(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      avatar: source.optionalChild(const <Object>['avatar']),
+      label: source.child(const <Object>['label']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+    );
+  });
 }
 
 /// Builds the catalog's `ChoiceChip` widget from [source].
 Widget buildChoiceChip(BuildContext context, DataSource source) {
-  return ChoiceChip(
-    avatar: source.optionalChild(const <Object>['avatar']),
-    label: source.child(const <Object>['label']),
-    onSelected: RestageDecoders.valueChanged<bool>(
-        source, const <Object>['onSelected']),
-    selected: source.v<bool>(const <Object>['selected']) ??
-        (throw ArgumentError('ChoiceChip.selected is required.')),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    avatarBorder:
-        RestageDecoders.shapeBorder(source, <Object>['avatarBorder']) ??
-            const CircleBorder(),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ChoiceChip(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      avatar: source.optionalChild(const <Object>['avatar']),
+      label: source.child(const <Object>['label']),
+      onSelected: RestageDecoders.valueChanged<bool>(
+          source, const <Object>['onSelected']),
+      selected: RestageValueBinding.read<bool>(
+              source, const <Object>['selected'], context) ??
+          (throw ArgumentError('ChoiceChip.selected is required.')),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      avatarBorder:
+          RestageDecoders.shapeBorder(source, <Object>['avatarBorder']) ??
+              const CircleBorder(),
+    );
+  });
 }
 
 /// Builds the catalog's `CircularProgressIndicator` widget from [source].
 Widget buildCircularProgressIndicator(BuildContext context, DataSource source) {
-  return CircularProgressIndicator(
-    value: source.v<double>(const <Object>['value']),
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    strokeWidth: source.v<double>(const <Object>['strokeWidth']) ?? 4.0,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CircularProgressIndicator(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<double>(
+          source, const <Object>['value'], context),
+      color: RestageDecoders.color(source, <Object>['color']),
+      strokeWidth: RestageValueBinding.read<double>(
+              source, const <Object>['strokeWidth'], context) ??
+          4.0,
+    );
+  });
 }
 
 /// Builds the catalog's `Divider` widget from [source].
 Widget buildDivider(BuildContext context, DataSource source) {
-  return Divider(
-    height: RestageDecoders.layoutFactor(source, <Object>['height']) ?? 16.0,
-    thickness:
-        RestageDecoders.layoutFactor(source, <Object>['thickness']) ?? 1.0,
-    color: ArgumentDecoders.color(source, <Object>['color']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Divider(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      height: RestageDecoders.layoutFactor(source, <Object>['height']) ?? 16.0,
+      thickness:
+          RestageDecoders.layoutFactor(source, <Object>['thickness']) ?? 1.0,
+      color: RestageDecoders.color(source, <Object>['color']),
+    );
+  });
 }
 
 /// Builds the catalog's `ElevatedButton` widget from [source].
 Widget buildElevatedButton(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
-  return ElevatedButton(
-    style: ElevatedButton.styleFrom(
-        foregroundColor:
-            ArgumentDecoders.color(source, <Object>['foregroundColor']),
-        backgroundColor:
-            ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        elevation: source.v<double>(const <Object>['elevation']) ?? 1.0,
-        textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-            const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
-        minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
-        fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
-        side: RestageDecoders.borderSide(source, <Object>['side']),
-        shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
-            as OutlinedBorder?)),
-    onPressed:
-        disabled ? null : source.voidHandler(const <Object>['onPressed']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-        Clip.values, source, <Object>['clipBehavior']),
-    child: source.child(const <Object>['child']),
-  );
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+          foregroundColor:
+              RestageDecoders.color(source, <Object>['foregroundColor']),
+          backgroundColor:
+              RestageDecoders.color(source, <Object>['backgroundColor']),
+          elevation: RestageValueBinding.read<double>(
+                  source, const <Object>['elevation'], context) ??
+              1.0,
+          textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
+              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
+          fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
+          side: RestageDecoders.borderSide(source, <Object>['side']),
+          shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
+              as OutlinedBorder?)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      onPressed:
+          disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+          Clip.values, source, <Object>['clipBehavior']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `ExpansionTile` widget from [source].
 Widget buildExpansionTile(BuildContext context, DataSource source) {
-  return ExpansionTile(
-    leading: source.optionalChild(const <Object>['leading']),
-    title: source.child(const <Object>['title']),
-    subtitle: source.optionalChild(const <Object>['subtitle']),
-    onExpansionChanged: RestageDecoders.valueChanged<bool>(
-        source, const <Object>['onExpansionChanged']),
-    trailing: source.optionalChild(const <Object>['trailing']),
-    initiallyExpanded:
-        source.v<bool>(const <Object>['initiallyExpanded']) ?? false,
-    shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    collapsedShape:
-        RestageDecoders.shapeBorder(source, <Object>['collapsedShape']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-        Clip.values, source, <Object>['clipBehavior']),
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ExpansionTile(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      leading: source.optionalChild(const <Object>['leading']),
+      title: source.child(const <Object>['title']),
+      subtitle: source.optionalChild(const <Object>['subtitle']),
+      onExpansionChanged: RestageDecoders.valueChanged<bool>(
+          source, const <Object>['onExpansionChanged']),
+      trailing: source.optionalChild(const <Object>['trailing']),
+      initiallyExpanded: RestageValueBinding.read<bool>(
+              source, const <Object>['initiallyExpanded'], context) ??
+          false,
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
+      collapsedShape:
+          RestageDecoders.shapeBorder(source, <Object>['collapsedShape']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+          Clip.values, source, <Object>['clipBehavior']),
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
 }
 
 /// Builds the catalog's `FilledButton` widget from [source].
 Widget buildFilledButton(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
-  return FilledButton(
-    style: FilledButton.styleFrom(
-        foregroundColor:
-            ArgumentDecoders.color(source, <Object>['foregroundColor']),
-        backgroundColor:
-            ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        elevation: source.v<double>(const <Object>['elevation']) ?? 0.0,
-        textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-            const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
-        minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
-        fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
-        side: RestageDecoders.borderSide(source, <Object>['side']),
-        shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
-            as OutlinedBorder?)),
-    onPressed:
-        disabled ? null : source.voidHandler(const <Object>['onPressed']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    child: source.child(const <Object>['child']),
-  );
+    return FilledButton(
+      style: FilledButton.styleFrom(
+          foregroundColor:
+              RestageDecoders.color(source, <Object>['foregroundColor']),
+          backgroundColor:
+              RestageDecoders.color(source, <Object>['backgroundColor']),
+          elevation: RestageValueBinding.read<double>(
+                  source, const <Object>['elevation'], context) ??
+              0.0,
+          textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
+              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
+          fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
+          side: RestageDecoders.borderSide(source, <Object>['side']),
+          shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
+              as OutlinedBorder?)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      onPressed:
+          disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `FilledButtonTonal` widget from [source].
 Widget buildFilledButtonTonal(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
-  return FilledButton.tonal(
-    style: FilledButton.styleFrom(
-        foregroundColor:
-            ArgumentDecoders.color(source, <Object>['foregroundColor']),
-        backgroundColor:
-            ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-            const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
-        minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
-        fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
-        side: RestageDecoders.borderSide(source, <Object>['side']),
-        shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
-            as OutlinedBorder?)),
-    onPressed:
-        disabled ? null : source.voidHandler(const <Object>['onPressed']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    child: source.child(const <Object>['child']),
-  );
+    return FilledButton.tonal(
+      style: FilledButton.styleFrom(
+          foregroundColor:
+              RestageDecoders.color(source, <Object>['foregroundColor']),
+          backgroundColor:
+              RestageDecoders.color(source, <Object>['backgroundColor']),
+          textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
+              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
+          fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
+          side: RestageDecoders.borderSide(source, <Object>['side']),
+          shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
+              as OutlinedBorder?)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      onPressed:
+          disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `FilterChip` widget from [source].
 Widget buildFilterChip(BuildContext context, DataSource source) {
-  return FilterChip(
-    avatar: source.optionalChild(const <Object>['avatar']),
-    label: source.child(const <Object>['label']),
-    selected: source.v<bool>(const <Object>['selected']) ?? false,
-    onSelected: RestageDecoders.valueChanged<bool>(
-        source, const <Object>['onSelected']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    avatarBorder:
-        RestageDecoders.shapeBorder(source, <Object>['avatarBorder']) ??
-            const CircleBorder(),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return FilterChip(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      avatar: source.optionalChild(const <Object>['avatar']),
+      label: source.child(const <Object>['label']),
+      selected: RestageValueBinding.read<bool>(
+              source, const <Object>['selected'], context) ??
+          false,
+      onSelected: RestageDecoders.valueChanged<bool>(
+          source, const <Object>['onSelected']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      avatarBorder:
+          RestageDecoders.shapeBorder(source, <Object>['avatarBorder']) ??
+              const CircleBorder(),
+    );
+  });
 }
 
 /// Builds the catalog's `FloatingActionButton` widget from [source].
 Widget buildFloatingActionButton(BuildContext context, DataSource source) {
-  return FloatingActionButton(
-    tooltip: RestageDecoders.string(source, <Object>['tooltip']),
-    foregroundColor:
-        ArgumentDecoders.color(source, <Object>['foregroundColor']),
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    elevation: source.v<double>(const <Object>['elevation']),
-    onPressed: source.voidHandler(const <Object>['onPressed']),
-    mini: source.v<bool>(const <Object>['mini']) ?? false,
-    shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return FloatingActionButton(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      tooltip:
+          RestageDecoders.string(source, <Object>['tooltip'], context: context),
+      foregroundColor:
+          RestageDecoders.color(source, <Object>['foregroundColor']),
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      elevation: RestageValueBinding.read<double>(
+          source, const <Object>['elevation'], context),
+      onPressed: source.voidHandler(const <Object>['onPressed']),
+      mini: RestageValueBinding.read<bool>(
+              source, const <Object>['mini'], context) ??
+          false,
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Icon` widget from [source].
 Widget buildIcon(BuildContext context, DataSource source) {
-  return restageIcon(
-    context,
-    codePoint: source.v<int>(const <Object>['iconCodepoint']) ??
-        (throw ArgumentError('Icon.iconCodepoint is required.')),
-    fontFamily:
-        source.v<String>(const <Object>['iconFontFamily']) ?? 'MaterialIcons',
-    matchTextDirection:
-        source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false,
-    size: RestageDecoders.constraintScalar(source, <Object>['size']) ??
-        resolveThemeBinding(context, path: 'iconTheme.size') as double?,
-    color: ArgumentDecoders.color(source, <Object>['color']) ??
-        resolveThemeBinding(context, path: 'iconTheme.color') as Color?,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return restageIcon(
+      context,
+      codePoint: source.v<int>(const <Object>['iconCodepoint']) ??
+          (throw ArgumentError('Icon.iconCodepoint is required.')),
+      fontFamily:
+          source.v<String>(const <Object>['iconFontFamily']) ?? 'MaterialIcons',
+      matchTextDirection:
+          source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false,
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      size: RestageDecoders.constraintScalar(source, <Object>['size']) ??
+          resolveThemeBinding(context, path: 'iconTheme.size') as double?,
+      color: RestageDecoders.color(source, <Object>['color']) ??
+          resolveThemeBinding(context, path: 'iconTheme.color') as Color?,
+      textDirection: RestageDecoders.enumByName<TextDirection>(
+          TextDirection.values, source, <Object>['textDirection']),
+    );
+  });
 }
 
 /// Builds the catalog's `IconButton` widget from [source].
 Widget buildIconButton(BuildContext context, DataSource source) {
-  return IconButton(
-    iconSize:
-        RestageDecoders.constraintScalar(source, <Object>['iconSize']) ?? 24.0,
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    onPressed: source.voidHandler(const <Object>['onPressed']),
-    tooltip: RestageDecoders.string(source, <Object>['tooltip']),
-    icon: source.child(const <Object>['icon']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return IconButton(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      iconSize:
+          RestageDecoders.constraintScalar(source, <Object>['iconSize']) ??
+              24.0,
+      color: RestageDecoders.color(source, <Object>['color']),
+      onPressed: source.voidHandler(const <Object>['onPressed']),
+      tooltip:
+          RestageDecoders.string(source, <Object>['tooltip'], context: context),
+      icon: source.child(const <Object>['icon']),
+    );
+  });
 }
 
 /// Builds the catalog's `InkWell` widget from [source].
 Widget buildInkWell(BuildContext context, DataSource source) {
-  return InkWell(
-    onTap: source.voidHandler(const <Object>['onTap']),
-    customBorder: RestageDecoders.shapeBorder(source, <Object>['customBorder']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return InkWell(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      onTap: source.voidHandler(const <Object>['onTap']),
+      customBorder:
+          RestageDecoders.shapeBorder(source, <Object>['customBorder']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `LinearProgressIndicator` widget from [source].
 Widget buildLinearProgressIndicator(BuildContext context, DataSource source) {
-  return LinearProgressIndicator(
-    value: source.v<double>(const <Object>['value']),
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    minHeight:
-        RestageDecoders.positiveLayoutScalar(source, <Object>['minHeight']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return LinearProgressIndicator(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<double>(
+          source, const <Object>['value'], context),
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      color: RestageDecoders.color(source, <Object>['color']),
+      minHeight:
+          RestageDecoders.positiveLayoutScalar(source, <Object>['minHeight']),
+    );
+  });
 }
 
 /// Builds the catalog's `ListTile` widget from [source].
 Widget buildListTile(BuildContext context, DataSource source) {
-  return ListTile(
-    leading: source.optionalChild(const <Object>['leading']),
-    title: source.optionalChild(const <Object>['title']),
-    subtitle: source.optionalChild(const <Object>['subtitle']),
-    trailing: source.optionalChild(const <Object>['trailing']),
-    shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    onTap: source.voidHandler(const <Object>['onTap']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return ListTile(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      leading: source.optionalChild(const <Object>['leading']),
+      title: source.optionalChild(const <Object>['title']),
+      subtitle: source.optionalChild(const <Object>['subtitle']),
+      trailing: source.optionalChild(const <Object>['trailing']),
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
+      onTap: source.voidHandler(const <Object>['onTap']),
+    );
+  });
 }
 
 /// Builds the catalog's `MaterialApp` widget from [source].
 Widget buildMaterialApp(BuildContext context, DataSource source) {
-  return MaterialApp(
-    home: source.optionalChild(const <Object>['home']),
-    title: RestageDecoders.string(source, <Object>['title']) ?? '',
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return MaterialApp(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      home: source.optionalChild(const <Object>['home']),
+      title:
+          RestageDecoders.string(source, <Object>['title'], context: context) ??
+              '',
+    );
+  });
 }
 
 /// Builds the catalog's `RestageModalSheet` widget from [source].
 Widget buildRestageModalSheet(BuildContext context, DataSource source) {
-  return RestageModalSheet(
-    open: source.v<bool>(const <Object>['open']) ??
-        (throw ArgumentError('RestageModalSheet.open is required.')),
-    isDismissible: source.v<bool>(const <Object>['isDismissible']) ?? true,
-    enableDrag: source.v<bool>(const <Object>['enableDrag']) ?? true,
-    showDragHandle: source.v<bool>(const <Object>['showDragHandle']),
-    dragHandleColor:
-        ArgumentDecoders.color(source, <Object>['dragHandleColor']),
-    isScrollControlled:
-        source.v<bool>(const <Object>['isScrollControlled']) ?? false,
-    scrollControlDisabledMaxHeightRatio: RestageDecoders.unitIntervalFactor(
-            source, <Object>['scrollControlDisabledMaxHeightRatio']) ??
-        0.5625,
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    elevation: source.v<double>(const <Object>['elevation']),
-    shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-        Clip.values, source, <Object>['clipBehavior']),
-    useSafeArea: source.v<bool>(const <Object>['useSafeArea']) ?? false,
-    barrierColor: ArgumentDecoders.color(source, <Object>['barrierColor']),
-    barrierLabel: RestageDecoders.string(source, <Object>['barrierLabel']),
-    anchorPoint: RestageDecoders.offset(source, <Object>['anchorPoint']),
-    enterDuration: RestageDecoders.duration(source, <Object>['enterDuration']),
-    exitDuration: RestageDecoders.duration(source, <Object>['exitDuration']),
-    enterCurve: RestageDecoders.curve(source, <Object>['enterCurve']),
-    exitCurve: RestageDecoders.curve(source, <Object>['exitCurve']),
-    presentation: RestageDecoders.enumByName<RestageSheetPresentation>(
-            RestageSheetPresentation.values,
-            source,
-            <Object>['presentation']) ??
-        RestageSheetPresentation.adaptive,
-    underlay: source.optionalChild(const <Object>['underlay']),
-    onSheetDismissed: source.voidHandler(const <Object>['onSheetDismissed']),
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageModalSheet(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      open: RestageValueBinding.read<bool>(
+              source, const <Object>['open'], context) ??
+          (throw ArgumentError('RestageModalSheet.open is required.')),
+      isDismissible: RestageValueBinding.read<bool>(
+              source, const <Object>['isDismissible'], context) ??
+          true,
+      enableDrag: RestageValueBinding.read<bool>(
+              source, const <Object>['enableDrag'], context) ??
+          true,
+      showDragHandle: RestageValueBinding.read<bool>(
+          source, const <Object>['showDragHandle'], context),
+      dragHandleColor:
+          RestageDecoders.color(source, <Object>['dragHandleColor']),
+      isScrollControlled: RestageValueBinding.read<bool>(
+              source, const <Object>['isScrollControlled'], context) ??
+          false,
+      scrollControlDisabledMaxHeightRatio: RestageDecoders.unitIntervalFactor(
+              source, <Object>['scrollControlDisabledMaxHeightRatio']) ??
+          0.5625,
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      elevation: RestageValueBinding.read<double>(
+          source, const <Object>['elevation'], context),
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+          Clip.values, source, <Object>['clipBehavior']),
+      useSafeArea: RestageValueBinding.read<bool>(
+              source, const <Object>['useSafeArea'], context) ??
+          false,
+      barrierColor: RestageDecoders.color(source, <Object>['barrierColor']),
+      barrierLabel: RestageDecoders.string(source, <Object>['barrierLabel'],
+          context: context),
+      anchorPoint: RestageDecoders.offset(source, <Object>['anchorPoint']),
+      enterDuration:
+          RestageDecoders.duration(source, <Object>['enterDuration']),
+      exitDuration: RestageDecoders.duration(source, <Object>['exitDuration']),
+      enterCurve: RestageDecoders.curve(source, <Object>['enterCurve']),
+      exitCurve: RestageDecoders.curve(source, <Object>['exitCurve']),
+      presentation: RestageDecoders.enumByName<RestageSheetPresentation>(
+              RestageSheetPresentation.values,
+              source,
+              <Object>['presentation']) ??
+          RestageSheetPresentation.adaptive,
+      underlay: source.optionalChild(const <Object>['underlay']),
+      onSheetDismissed: source.voidHandler(const <Object>['onSheetDismissed']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `RestagePager` widget from [source].
 Widget buildRestagePager(BuildContext context, DataSource source) {
-  return RestagePager(
-    initialPage: source.v<int>(const <Object>['initialPage']) ?? 0,
-    viewportFraction: RestageDecoders.unitIntervalFactor(
-            source, <Object>['viewportFraction']) ??
-        1.0,
-    scrollDirection: RestageDecoders.enumByName<Axis>(
-            Axis.values, source, <Object>['scrollDirection']) ??
-        Axis.horizontal,
-    pageSnapping: source.v<bool>(const <Object>['pageSnapping']) ?? true,
-    onPageChanged: RestageDecoders.valueChanged<int>(
-        source, const <Object>['onPageChanged']),
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestagePager(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      initialPage: RestageValueBinding.read<int>(
+              source, const <Object>['initialPage'], context) ??
+          0,
+      viewportFraction: RestageDecoders.unitIntervalFactor(
+              source, <Object>['viewportFraction']) ??
+          1.0,
+      scrollDirection: RestageDecoders.enumByName<Axis>(
+              Axis.values, source, <Object>['scrollDirection']) ??
+          Axis.horizontal,
+      pageSnapping: RestageValueBinding.read<bool>(
+              source, const <Object>['pageSnapping'], context) ??
+          true,
+      onPageChanged: RestageDecoders.valueChanged<int>(
+          source, const <Object>['onPageChanged']),
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
 }
 
 /// Builds the catalog's `RestageRadioGroupString` widget from [source].
 Widget buildRestageRadioGroupString(BuildContext context, DataSource source) {
-  return RestageRadioGroup<String>(
-    items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
-        (throw ArgumentError('RestageRadioGroupString.items is required.')),
-    selected: RestageDecoders.string(source, <Object>['selected']),
-    onChanged: RestageDecoders.valueChanged<String?>(
-        source, const <Object>['onChanged']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageRadioGroup<String>(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
+          (throw ArgumentError('RestageRadioGroupString.items is required.')),
+      selected: RestageDecoders.string(source, <Object>['selected'],
+          context: context),
+      onChanged: RestageDecoders.valueChanged<String?>(
+          source, const <Object>['onChanged']),
+    );
+  });
 }
 
 /// Builds the catalog's `RestageDropdownString` widget from [source].
 Widget buildRestageDropdownString(BuildContext context, DataSource source) {
-  return RestageDropdown<String>(
-    items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
-        (throw ArgumentError('RestageDropdownString.items is required.')),
-    selected: RestageDecoders.string(source, <Object>['selected']),
-    onChanged: RestageDecoders.valueChanged<String?>(
-        source, const <Object>['onChanged']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageDropdown<String>(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
+          (throw ArgumentError('RestageDropdownString.items is required.')),
+      selected: RestageDecoders.string(source, <Object>['selected'],
+          context: context),
+      onChanged: RestageDecoders.valueChanged<String?>(
+          source, const <Object>['onChanged']),
+    );
+  });
 }
 
 /// Builds the catalog's `RestageToggleButtons` widget from [source].
 Widget buildRestageToggleButtons(BuildContext context, DataSource source) {
-  return RestageToggleButtons(
-    isSelected: RestageDecoders.booleanList(source, <Object>['isSelected']) ??
-        (throw ArgumentError('RestageToggleButtons.isSelected is required.')),
-    onPressed:
-        RestageDecoders.valueChanged<int>(source, const <Object>['onPressed']),
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageToggleButtons(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      isSelected: RestageDecoders.booleanList(source, <Object>['isSelected']) ??
+          (throw ArgumentError('RestageToggleButtons.isSelected is required.')),
+      onPressed: RestageDecoders.valueChanged<int>(
+          source, const <Object>['onPressed']),
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
 }
 
 /// Builds the catalog's `RestageSegmentedButtonString` widget from [source].
 Widget buildRestageSegmentedButtonString(
     BuildContext context, DataSource source) {
-  return RestageSegmentedButton<String>(
-    items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
-        (throw ArgumentError(
-            'RestageSegmentedButtonString.items is required.')),
-    selected: RestageDecoders.stringList(source, <Object>['selected']),
-    onChanged: RestageDecoders.valueChanged<List<String>>(
-        source, const <Object>['onChanged']),
-    multiSelectionEnabled:
-        source.v<bool>(const <Object>['multiSelectionEnabled']) ?? false,
-    emptySelectionAllowed:
-        source.v<bool>(const <Object>['emptySelectionAllowed']) ?? false,
-    showSelectedIcon:
-        source.v<bool>(const <Object>['showSelectedIcon']) ?? true,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageSegmentedButton<String>(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
+          (throw ArgumentError(
+              'RestageSegmentedButtonString.items is required.')),
+      selected: RestageDecoders.stringList(source, <Object>['selected']),
+      onChanged: RestageDecoders.valueChanged<List<String>>(
+          source, const <Object>['onChanged']),
+      multiSelectionEnabled: RestageValueBinding.read<bool>(
+              source, const <Object>['multiSelectionEnabled'], context) ??
+          false,
+      emptySelectionAllowed: RestageValueBinding.read<bool>(
+              source, const <Object>['emptySelectionAllowed'], context) ??
+          false,
+      showSelectedIcon: RestageValueBinding.read<bool>(
+              source, const <Object>['showSelectedIcon'], context) ??
+          true,
+    );
+  });
 }
 
 /// Builds the catalog's `RestageDraggableSheet` widget from [source].
 Widget buildRestageDraggableSheet(BuildContext context, DataSource source) {
-  return RestageDraggableSheet(
-    initialChildSize:
-        source.v<double>(const <Object>['initialChildSize']) ?? 0.5,
-    minChildSize: source.v<double>(const <Object>['minChildSize']) ?? 0.25,
-    maxChildSize: source.v<double>(const <Object>['maxChildSize']) ?? 1.0,
-    expand: source.v<bool>(const <Object>['expand']) ?? true,
-    snap: source.v<bool>(const <Object>['snap']) ?? false,
-    snapAnimationDuration:
-        RestageDecoders.duration(source, <Object>['snapAnimationDuration']),
-    expanded: source.v<bool>(const <Object>['expanded']) ?? false,
-    expandDuration:
-        RestageDecoders.duration(source, <Object>['expandDuration']),
-    expandCurve: RestageDecoders.curve(source, <Object>['expandCurve']),
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return RestageDraggableSheet(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      initialChildSize: RestageValueBinding.read<double>(
+              source, const <Object>['initialChildSize'], context) ??
+          0.5,
+      minChildSize: RestageValueBinding.read<double>(
+              source, const <Object>['minChildSize'], context) ??
+          0.25,
+      maxChildSize: RestageValueBinding.read<double>(
+              source, const <Object>['maxChildSize'], context) ??
+          1.0,
+      expand: RestageValueBinding.read<bool>(
+              source, const <Object>['expand'], context) ??
+          true,
+      snap: RestageValueBinding.read<bool>(
+              source, const <Object>['snap'], context) ??
+          false,
+      snapAnimationDuration:
+          RestageDecoders.duration(source, <Object>['snapAnimationDuration']),
+      expanded: RestageValueBinding.read<bool>(
+              source, const <Object>['expanded'], context) ??
+          false,
+      expandDuration:
+          RestageDecoders.duration(source, <Object>['expandDuration']),
+      expandCurve: RestageDecoders.curve(source, <Object>['expandCurve']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `OutlinedButton` widget from [source].
 Widget buildOutlinedButton(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
-  return OutlinedButton(
-    style: OutlinedButton.styleFrom(
-        foregroundColor:
-            ArgumentDecoders.color(source, <Object>['foregroundColor']),
-        textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-            const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
-        minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
-        fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
-        side: RestageDecoders.borderSide(source, <Object>['side']),
-        shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
-            as OutlinedBorder?)),
-    onPressed:
-        disabled ? null : source.voidHandler(const <Object>['onPressed']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-        Clip.values, source, <Object>['clipBehavior']),
-    child: source.child(const <Object>['child']),
-  );
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+          foregroundColor:
+              RestageDecoders.color(source, <Object>['foregroundColor']),
+          textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
+              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
+          fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
+          side: RestageDecoders.borderSide(source, <Object>['side']),
+          shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
+              as OutlinedBorder?)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      onPressed:
+          disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+          Clip.values, source, <Object>['clipBehavior']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `OutlinedButtonIcon` widget from [source].
 Widget buildOutlinedButtonIcon(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
-  return OutlinedButton.icon(
-    style: OutlinedButton.styleFrom(
-        foregroundColor:
-            ArgumentDecoders.color(source, <Object>['foregroundColor']),
-        textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-            const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
-        minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
-        fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
-        side: RestageDecoders.borderSide(source, <Object>['side']),
-        shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
-            as OutlinedBorder?)),
-    onPressed:
-        disabled ? null : source.voidHandler(const <Object>['onPressed']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-        Clip.values, source, <Object>['clipBehavior']),
-    icon: source.child(const <Object>['icon']),
-    label: source.child(const <Object>['label']),
-  );
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+          foregroundColor:
+              RestageDecoders.color(source, <Object>['foregroundColor']),
+          textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
+              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
+          fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
+          side: RestageDecoders.borderSide(source, <Object>['side']),
+          shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
+              as OutlinedBorder?)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      onPressed:
+          disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+          Clip.values, source, <Object>['clipBehavior']),
+      icon: source.child(const <Object>['icon']),
+      label: source.child(const <Object>['label']),
+    );
+  });
 }
 
 /// Builds the catalog's `Scaffold` widget from [source].
 Widget buildScaffold(BuildContext context, DataSource source) {
-  return Scaffold(
-    appBar: RestageDecoders.appBarPreferredSize(
-        source.optionalChild(const <Object>['appBar']),
-        source.v<double>(const <Object>['appBarHeight']),
-        RestageDecoders.layoutFactor(
-            source, const <Object>['appBarToolbarHeight']),
-        RestageDecoders.appBarBottomHeight(
-            source, const <Object>['appBarBottomHeight'])),
-    body: source.optionalChild(const <Object>['body']),
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Scaffold(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      appBar: RestageDecoders.appBarPreferredSize(
+          source.optionalChild(const <Object>['appBar']),
+          source.v<double>(const <Object>['appBarHeight']),
+          RestageDecoders.layoutFactor(
+              source, const <Object>['appBarToolbarHeight']),
+          RestageDecoders.appBarBottomHeight(
+              source, const <Object>['appBarBottomHeight'])),
+      body: source.optionalChild(const <Object>['body']),
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+    );
+  });
 }
 
 /// Builds the catalog's `Scrollbar` widget from [source].
 Widget buildScrollbar(BuildContext context, DataSource source) {
-  return Scrollbar(
-    thumbVisibility: source.v<bool>(const <Object>['thumbVisibility']),
-    trackVisibility: source.v<bool>(const <Object>['trackVisibility']),
-    thickness: source.v<double>(const <Object>['thickness']),
-    interactive: source.v<bool>(const <Object>['interactive']),
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Scrollbar(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      thumbVisibility: RestageValueBinding.read<bool>(
+          source, const <Object>['thumbVisibility'], context),
+      trackVisibility: RestageValueBinding.read<bool>(
+          source, const <Object>['trackVisibility'], context),
+      thickness: RestageValueBinding.read<double>(
+          source, const <Object>['thickness'], context),
+      interactive: RestageValueBinding.read<bool>(
+          source, const <Object>['interactive'], context),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `Slider` widget from [source].
 Widget buildSlider(BuildContext context, DataSource source) {
-  return Slider(
-    value: source.v<double>(const <Object>['value']) ??
-        (throw ArgumentError('Slider.value is required.')),
-    secondaryTrackValue:
-        source.v<double>(const <Object>['secondaryTrackValue']),
-    onChanged: RestageDecoders.valueChanged<double>(
-        source, const <Object>['onChanged']),
-    min: source.v<double>(const <Object>['min']) ?? 0.0,
-    max: source.v<double>(const <Object>['max']) ?? 1.0,
-    divisions: source.v<int>(const <Object>['divisions']),
-    label: RestageDecoders.string(source, <Object>['label']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Slider(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<double>(
+              source, const <Object>['value'], context) ??
+          (throw ArgumentError('Slider.value is required.')),
+      secondaryTrackValue: RestageValueBinding.read<double>(
+          source, const <Object>['secondaryTrackValue'], context),
+      onChanged: RestageDecoders.valueChanged<double>(
+          source, const <Object>['onChanged']),
+      min: RestageValueBinding.read<double>(
+              source, const <Object>['min'], context) ??
+          0.0,
+      max: RestageValueBinding.read<double>(
+              source, const <Object>['max'], context) ??
+          1.0,
+      divisions: RestageValueBinding.read<int>(
+          source, const <Object>['divisions'], context),
+      label:
+          RestageDecoders.string(source, <Object>['label'], context: context),
+    );
+  });
 }
 
 /// Builds the catalog's `Switch` widget from [source].
 Widget buildSwitch(BuildContext context, DataSource source) {
-  return Switch(
-    value: source.v<bool>(const <Object>['value']) ??
-        (throw ArgumentError('Switch.value is required.')),
-    onChanged:
-        RestageDecoders.valueChanged<bool>(source, const <Object>['onChanged']),
-    activeThumbColor:
-        ArgumentDecoders.color(source, <Object>['activeThumbColor']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Switch(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<bool>(
+              source, const <Object>['value'], context) ??
+          (throw ArgumentError('Switch.value is required.')),
+      onChanged: RestageDecoders.valueChanged<bool>(
+          source, const <Object>['onChanged']),
+      activeThumbColor:
+          RestageDecoders.color(source, <Object>['activeThumbColor']),
+    );
+  });
 }
 
 /// Builds the catalog's `SwitchListTile` widget from [source].
 Widget buildSwitchListTile(BuildContext context, DataSource source) {
-  return SwitchListTile(
-    value: source.v<bool>(const <Object>['value']) ??
-        (throw ArgumentError('SwitchListTile.value is required.')),
-    onChanged:
-        RestageDecoders.valueChanged<bool>(source, const <Object>['onChanged']),
-    activeThumbColor:
-        ArgumentDecoders.color(source, <Object>['activeThumbColor']),
-    title: source.optionalChild(const <Object>['title']),
-    subtitle: source.optionalChild(const <Object>['subtitle']),
-    secondary: source.optionalChild(const <Object>['secondary']),
-    shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return SwitchListTile(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<bool>(
+              source, const <Object>['value'], context) ??
+          (throw ArgumentError('SwitchListTile.value is required.')),
+      onChanged: RestageDecoders.valueChanged<bool>(
+          source, const <Object>['onChanged']),
+      activeThumbColor:
+          RestageDecoders.color(source, <Object>['activeThumbColor']),
+      title: source.optionalChild(const <Object>['title']),
+      subtitle: source.optionalChild(const <Object>['subtitle']),
+      secondary: source.optionalChild(const <Object>['secondary']),
+      shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
+    );
+  });
 }
 
 /// Builds the catalog's `TextButton` widget from [source].
 Widget buildTextButton(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
-  return TextButton(
-    style: TextButton.styleFrom(
-        foregroundColor:
-            ArgumentDecoders.color(source, <Object>['foregroundColor']),
-        textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-            const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
-        minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
-        fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
-        side: RestageDecoders.borderSide(source, <Object>['side']),
-        shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
-            as OutlinedBorder?)),
-    onPressed:
-        disabled ? null : source.voidHandler(const <Object>['onPressed']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-        Clip.values, source, <Object>['clipBehavior']),
-    child: source.child(const <Object>['child']),
-  );
+    return TextButton(
+      style: TextButton.styleFrom(
+          foregroundColor:
+              RestageDecoders.color(source, <Object>['foregroundColor']),
+          textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
+              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
+          fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
+          side: RestageDecoders.borderSide(source, <Object>['side']),
+          shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
+              as OutlinedBorder?)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      onPressed:
+          disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+          Clip.values, source, <Object>['clipBehavior']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `TextButtonIcon` widget from [source].
 Widget buildTextButtonIcon(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
-  return TextButton.icon(
-    style: TextButton.styleFrom(
-        foregroundColor:
-            ArgumentDecoders.color(source, <Object>['foregroundColor']),
-        textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-            const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
-        minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
-        fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
-        side: RestageDecoders.borderSide(source, <Object>['side']),
-        shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
-            as OutlinedBorder?)),
-    onPressed:
-        disabled ? null : source.voidHandler(const <Object>['onPressed']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    icon: source.child(const <Object>['icon']),
-    label: source.child(const <Object>['label']),
-  );
+    return TextButton.icon(
+      style: TextButton.styleFrom(
+          foregroundColor:
+              RestageDecoders.color(source, <Object>['foregroundColor']),
+          textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
+              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
+          fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
+          side: RestageDecoders.borderSide(source, <Object>['side']),
+          shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
+              as OutlinedBorder?)),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      onPressed:
+          disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      icon: source.child(const <Object>['icon']),
+      label: source.child(const <Object>['label']),
+    );
+  });
 }
 
 /// Builds the catalog's `PreferredSize` widget from [source].
 Widget buildPreferredSize(BuildContext context, DataSource source) {
-  return PreferredSize(
-    preferredSize: Size.fromHeight(
-        source.v<double>(const <Object>['preferredSize']) ??
-            (throw ArgumentError('PreferredSize.preferredSize is required.'))),
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return PreferredSize(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      preferredSize: Size.fromHeight(RestageValueBinding.read<double>(
+              source, const <Object>['preferredSize'], context) ??
+          (throw ArgumentError('PreferredSize.preferredSize is required.'))),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `DefaultTabController` widget from [source].
 Widget buildDefaultTabController(BuildContext context, DataSource source) {
-  return DefaultTabController(
-    length: source.v<int>(const <Object>['length']) ??
-        (throw ArgumentError('DefaultTabController.length is required.')),
-    initialIndex: source.v<int>(const <Object>['initialIndex']) ?? 0,
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return DefaultTabController(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      length: RestageValueBinding.read<int>(
+              source, const <Object>['length'], context) ??
+          (throw ArgumentError('DefaultTabController.length is required.')),
+      initialIndex: RestageValueBinding.read<int>(
+              source, const <Object>['initialIndex'], context) ??
+          0,
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `TabBarView` widget from [source].
 Widget buildTabBarView(BuildContext context, DataSource source) {
-  return TabBarView(
-    dragStartBehavior: RestageDecoders.enumByName<DragStartBehavior>(
-            DragStartBehavior.values, source, <Object>['dragStartBehavior']) ??
-        DragStartBehavior.start,
-    viewportFraction: RestageDecoders.positiveLayoutScalar(
-            source, <Object>['viewportFraction']) ??
-        1.0,
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.hardEdge,
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return TabBarView(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      controller: RestageDecoders.nativeBinding<TabController>(
+          context, source, <Object>['controller'],
+          type: 'flutter.TabController'),
+      dragStartBehavior: RestageDecoders.enumByName<DragStartBehavior>(
+              DragStartBehavior.values,
+              source,
+              <Object>['dragStartBehavior']) ??
+          DragStartBehavior.start,
+      viewportFraction: RestageDecoders.positiveLayoutScalar(
+              source, <Object>['viewportFraction']) ??
+          1.0,
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
 }
 
 /// Builds the catalog's `TabBar` widget from [source].
 Widget buildTabBar(BuildContext context, DataSource source) {
-  return TabBar(
-    tabs: RestageDecoders.widgetList(source, const <Object>['tabs']),
-    isScrollable: source.v<bool>(const <Object>['isScrollable']) ?? false,
-    indicatorColor: ArgumentDecoders.color(source, <Object>['indicatorColor']),
-    labelColor: ArgumentDecoders.color(source, <Object>['labelColor']),
-    unselectedLabelColor:
-        ArgumentDecoders.color(source, <Object>['unselectedLabelColor']),
-    onTap: RestageDecoders.valueChanged<int>(source, const <Object>['onTap']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return TabBar(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      tabs: RestageDecoders.widgetList(source, const <Object>['tabs'],
+          context: context, bindings: builderBindings),
+      controller: RestageDecoders.nativeBinding<TabController>(
+          context, source, <Object>['controller'],
+          type: 'flutter.TabController'),
+      isScrollable: RestageValueBinding.read<bool>(
+              source, const <Object>['isScrollable'], context) ??
+          false,
+      indicatorColor: RestageDecoders.color(source, <Object>['indicatorColor']),
+      labelColor: RestageDecoders.color(source, <Object>['labelColor']),
+      unselectedLabelColor:
+          RestageDecoders.color(source, <Object>['unselectedLabelColor']),
+      onTap: RestageDecoders.valueChanged<int>(source, const <Object>['onTap']),
+    );
+  });
 }
 
 /// Builds the catalog's `Tab` widget from [source].
 Widget buildTab(BuildContext context, DataSource source) {
-  return Tab(
-    text: RestageDecoders.string(source, <Object>['text']),
-    icon: source.optionalChild(const <Object>['icon']),
-    iconMargin: RestageDecoders.edgeInsets(source, <Object>['iconMargin']),
-    height: RestageDecoders.layoutFactor(source, <Object>['height']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Tab(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      text: RestageDecoders.string(source, <Object>['text'], context: context),
+      icon: source.optionalChild(const <Object>['icon']),
+      iconMargin: RestageDecoders.edgeInsets(source, <Object>['iconMargin']),
+      height: RestageDecoders.layoutFactor(source, <Object>['height']),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `TextField` widget from [source].
 Widget buildTextField(BuildContext context, DataSource source) {
-  return TextField(
-    decoration: InputDecoration(
-      hintText: source.v<String>(const <Object>['hintText']),
-      labelText: source.v<String>(const <Object>['labelText']),
-      helperText: source.v<String>(const <Object>['helperText']),
-      prefixIcon: source.v<int>(const <Object>['prefixIconCodepoint']) == null
-          ? null
-          : restageIcon(context,
-              codePoint: source.v<int>(const <Object>['prefixIconCodepoint'])!,
-              fontFamily:
-                  source.v<String>(const <Object>['prefixIconFontFamily']) ??
-                      'MaterialIcons',
-              matchTextDirection: source.v<bool>(
-                      const <Object>['prefixIconMatchTextDirection']) ??
-                  false),
-      border: switch (source.v<String>(const <Object>['border'])) {
-        'none' => InputBorder.none,
-        'underline' => const UnderlineInputBorder(),
-        'outline' => const OutlineInputBorder(),
-        _ => null
-      },
-    ),
-    textInputAction: RestageDecoders.enumByName<TextInputAction>(
-        TextInputAction.values, source, <Object>['textInputAction']),
-    obscureText: source.v<bool>(const <Object>['obscureText']) ?? false,
-    maxLines: source.v<int>(const <Object>['maxLines']) ?? 1,
-    maxLength: source.v<int>(const <Object>['maxLength']),
-    onChanged: RestageDecoders.valueChanged<String>(
-        source, const <Object>['onChanged']),
-    onSubmitted: RestageDecoders.valueChanged<String>(
-        source, const <Object>['onSubmitted']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.hardEdge,
-    keyboardType:
-        RestageDecoders.textInputType(source, const <Object>['keyboardType']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return TextField(
+      decoration: InputDecoration(
+        hintText: source.v<String>(const <Object>['hintText']),
+        labelText: source.v<String>(const <Object>['labelText']),
+        helperText: source.v<String>(const <Object>['helperText']),
+        prefixIcon: source.v<int>(const <Object>['prefixIconCodepoint']) == null
+            ? null
+            : restageIcon(context,
+                codePoint:
+                    source.v<int>(const <Object>['prefixIconCodepoint'])!,
+                fontFamily:
+                    source.v<String>(const <Object>['prefixIconFontFamily']) ??
+                        'MaterialIcons',
+                matchTextDirection: source.v<bool>(
+                        const <Object>['prefixIconMatchTextDirection']) ??
+                    false),
+        border: switch (source.v<String>(const <Object>['border'])) {
+          'none' => InputBorder.none,
+          'underline' => const UnderlineInputBorder(),
+          'outline' => const OutlineInputBorder(),
+          _ => null
+        },
+      ),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      textInputAction: RestageDecoders.enumByName<TextInputAction>(
+          TextInputAction.values, source, <Object>['textInputAction']),
+      textDirection: RestageDecoders.enumByName<TextDirection>(
+          TextDirection.values, source, <Object>['textDirection']),
+      obscureText: RestageValueBinding.read<bool>(
+              source, const <Object>['obscureText'], context) ??
+          false,
+      maxLines: RestageValueBinding.read<int>(
+              source, const <Object>['maxLines'], context) ??
+          1,
+      maxLength: RestageValueBinding.read<int>(
+          source, const <Object>['maxLength'], context),
+      onChanged: RestageDecoders.valueChanged<String>(
+          source, const <Object>['onChanged']),
+      onSubmitted: RestageDecoders.valueChanged<String>(
+          source, const <Object>['onSubmitted']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      keyboardType:
+          RestageDecoders.textInputType(source, const <Object>['keyboardType']),
+    );
+  });
 }
 
 /// Builds the catalog's `Tooltip` widget from [source].
 Widget buildTooltip(BuildContext context, DataSource source) {
-  return Tooltip(
-    message: RestageDecoders.string(source, <Object>['message']) ??
-        (throw ArgumentError('Tooltip.message is required.')),
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    preferBelow: source.v<bool>(const <Object>['preferBelow']),
-    child: source.optionalChild(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return Tooltip(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      message: RestageDecoders.string(source, <Object>['message'],
+              context: context) ??
+          (throw ArgumentError('Tooltip.message is required.')),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
+      preferBelow: RestageValueBinding.read<bool>(
+          source, const <Object>['preferBelow'], context),
+      child: source.optionalChild(const <Object>['child']),
+    );
+  });
 }

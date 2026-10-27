@@ -6,13 +6,13 @@ const cravePermissionFlowRef = SurfaceFlowRef<
     CravePermissionResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'crave_permission',
   version: 1,
-  minClient: 12,
+  minClient: 17,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeCravePermissionFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"actions":{"requestLocation":{"actionName":"requestLocation","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":6,"resultSchema":{"fields":{"granted":{"required":true,"schema":{"kind":"bool"}}},"kind":"object"},"resultSchemaHash":"sha256:ef1c091bc0c82e02a9c18695d6ececbd01dee150396df8bea8ea2b8428ece4ec"}},"flow":"crave_permission","flowState":{"locationEnabled":{"classification":"exportable","type":"bool"}},"initial":"crave_location","minClient":12,"outbound":{"customEvents":{"skip":{"fields":{}}},"terminalResult":{"fields":{"locationEnabled":{"ref":{"state":"locationEnabled"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"crave_location":{"contentHash":"sha256:b438a8096b2c4343ac1e4a3fdd8b98532c3d40d96a9301193da2199ef5fdf4d9","minClient":12,"path":"crave_location.rfw","schemaVersion":1,"version":1},"crave_ready":{"contentHash":"sha256:ad8b4b0f458437a4a54621d728f019fd9cac502b1d949c844ef54fcf29e6c5d8","minClient":12,"path":"crave_ready.rfw","schemaVersion":1,"version":1}},"states":{"crave_location":{"kind":"screen","on":{"allow":{"action":"requestLocation","resultPredicate":{"field":"granted","kind":"objectBoolFieldEquals","value":true},"target":"crave_ready","type":"action"}},"screen":"crave_location"},"crave_ready":{"kind":"screen","on":{"start":{"target":"done","type":"goto"}},"screen":"crave_ready"},"done":{"kind":"end","result":{"locationEnabled":true}}},"version":1}',
+        '{"actions":{"requestLocation":{"actionName":"requestLocation","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":6,"resultSchema":{"fields":{"granted":{"required":true,"schema":{"kind":"bool"}}},"kind":"object"},"resultSchemaHash":"sha256:ef1c091bc0c82e02a9c18695d6ececbd01dee150396df8bea8ea2b8428ece4ec"}},"flow":"crave_permission","flowState":{"locationEnabled":{"classification":"exportable","type":"bool"}},"initial":"crave_location","minClient":17,"outbound":{"customEvents":{"skip":{"fields":{}}},"terminalResult":{"fields":{"locationEnabled":{"ref":{"state":"locationEnabled"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"crave_location":{"contentHash":"sha256:3299138b28ddd1550e6d3e22ebe9e3abe43fba7cd5284f629966dd792b7cc325","minClient":17,"path":"crave_location.rfw","schemaVersion":1,"version":1},"crave_ready":{"contentHash":"sha256:2b0a6c1b66ab94c0ce47690f265a9763499e88bae326717c6ea73f28180904f9","minClient":17,"path":"crave_ready.rfw","schemaVersion":1,"version":1}},"states":{"crave_location":{"kind":"screen","on":{"allow":{"action":"requestLocation","resultPredicate":{"field":"granted","kind":"objectBoolFieldEquals","value":true},"target":"crave_ready","type":"action"}},"screen":"crave_location"},"crave_ready":{"kind":"screen","on":{"start":{"target":"done","type":"goto"}},"screen":"crave_ready"},"done":{"kind":"end","result":{"locationEnabled":true}}},"version":1}',
     screens: {
       'crave_location': CraveLocationScreen.new,
       'crave_ready': CraveReadyScreen.new,
@@ -20,7 +20,7 @@ const cravePermissionFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '3af587bd668d3e3682acf202151f04a1e8b018795113a26152234667d2774769',
+      '769396322c0d34f9a6192a7b5cea1c912cb76aed01d1827390d31b649d08586f',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:restage_shared/restage_shared.dart'
     show
+        kBuilderContinuationWidgetName,
         renderBundleMaxCapabilityManifestBytes,
         renderBundleMaxCapabilityManifestNodes;
 import 'package:restage_shared/rfw_formats.dart'
@@ -405,7 +406,9 @@ void _preflightJsonNesting(String source, {required int maxDepth}) {
 
 void _validateCatalogIndexes(Map<String, Object?> catalog) {
   final libraries = _requiredMap(catalog, 'libraries');
-  if (libraries.keys.any((name) => hostInstalledRfwLibrary(name) != null)) {
+  if (libraries.keys.any(
+    (name) => hostInstalledRfwLibrary(name)?.reservesCatalogNamespace == true,
+  )) {
     throw const RenderBundleArchiveException('catalog_reserved_library');
   }
   for (final entry in libraries.entries) {
@@ -429,7 +432,8 @@ void _validateCatalogIndexes(Map<String, Object?> catalog) {
     final widget = _stringMapFromValue(value, 'widget');
     final library = _requiredNonEmptyString(widget, 'library');
     final name = _requiredNonEmptyString(widget, 'name');
-    if (name == kReservedPreviewConstructorName) {
+    if (name == kReservedPreviewConstructorName ||
+        name == kBuilderContinuationWidgetName) {
       throw const RenderBundleArchiveException('catalog_reserved_widget');
     }
     if (!libraries.containsKey(library)) {

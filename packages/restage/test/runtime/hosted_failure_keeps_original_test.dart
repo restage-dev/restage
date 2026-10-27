@@ -21,6 +21,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fixtures/compiled_surfaces/native_flow.dart';
 import '../support/placement_delivery_fixture.dart';
+import '../support/pump_until.dart';
 
 /// How the delivery service answers, and the reason a mount then reports.
 enum _Server {
@@ -482,10 +483,15 @@ Future<void> _finish(WidgetTester tester,
   }
   await tester.pump(const Duration(seconds: 2));
   // An abandoned response body releases on the real event loop.
-  for (var i = 0; i < 100 && !(until?.call() ?? i >= 10); i++) {
-    await tester
-        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
-    await tester.pump(const Duration(milliseconds: 1));
+  if (until == null) {
+    for (var i = 0; i < 10; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+  } else {
+    await pumpUntil(tester, until, reason: 'the awaited condition');
   }
 }
 

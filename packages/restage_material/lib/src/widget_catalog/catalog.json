@@ -17,11 +17,31 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0541",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0001",
           "name": "avatar",
           "type": "widget",
           "description": "",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0002",
@@ -29,7 +49,11 @@
           "type": "widget",
           "description": "",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0003",
@@ -108,11 +132,31 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0542",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0459",
           "name": "leading",
           "type": "widget",
           "description": "{@template flutter.material.appbar.leading} A widget to display before the toolbar's [title].",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0460",
@@ -138,14 +182,26 @@
           "name": "title",
           "type": "widget",
           "description": "{@template flutter.material.appbar.title} The primary widget displayed in the app bar.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0461",
           "name": "actions",
           "type": "widgetList",
           "description": "{@template flutter.material.appbar.actions} A list of Widgets to display in a row after the [title] widget.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "widgetList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "widget"
+            }
+          }
         },
         {
           "wireId": "p0502",
@@ -170,7 +226,11 @@
           "name": "flexibleSpace",
           "type": "widget",
           "description": "{@template flutter.material.appbar.flexibleSpace} This widget is stacked behind the toolbar and the tab bar. Its height will be the same as the app bar's overall height.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0473",
@@ -245,7 +305,16 @@
           "name": "shape",
           "type": "shapeBorder",
           "description": "{@template flutter.material.appbar.shape} The shape of the app bar's [Material] as well as its shadow.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0008",
@@ -600,6 +669,22 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0543",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0011",
           "name": "backgroundColor",
           "type": "color",
@@ -681,7 +766,11 @@
           "name": "label",
           "type": "widget",
           "description": "The badge's content, typically a [Text] widget that contains 1 to 4 characters.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0016",
@@ -706,7 +795,11 @@
           "name": "child",
           "type": "widget",
           "description": "The widget that the badge is stacked on top of.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0416",
@@ -726,6 +819,22 @@
       "flutterType": "package:flutter/src/material/card.dart#Card",
       "childrenSlot": "single",
       "properties": [
+        {
+          "wireId": "p0544",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0018",
           "name": "color",
@@ -766,7 +875,16 @@
           "name": "shape",
           "type": "shapeBorder",
           "description": "The shape of the card's [Material].",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0020",
@@ -804,7 +922,11 @@
           "name": "child",
           "type": "widget",
           "description": "The widget below this widget in the tree.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0417",
@@ -825,6 +947,22 @@
       "flutterType": "package:flutter/src/material/card.dart#Card.filled",
       "childrenSlot": "single",
       "properties": [
+        {
+          "wireId": "p0545",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0022",
           "name": "color",
@@ -865,7 +1003,16 @@
           "name": "shape",
           "type": "shapeBorder",
           "description": "The shape of the card's [Material].",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0024",
@@ -903,7 +1050,11 @@
           "name": "child",
           "type": "widget",
           "description": "The widget below this widget in the tree.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0418",
@@ -924,6 +1075,22 @@
       "flutterType": "package:flutter/src/material/card.dart#Card.outlined",
       "childrenSlot": "single",
       "properties": [
+        {
+          "wireId": "p0546",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0026",
           "name": "color",
@@ -964,7 +1131,16 @@
           "name": "shape",
           "type": "shapeBorder",
           "description": "The shape of the card's [Material].",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0028",
@@ -1002,7 +1178,11 @@
           "name": "child",
           "type": "widget",
           "description": "The widget below this widget in the tree.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0419",
@@ -1022,6 +1202,22 @@
       "flutterType": "package:flutter/src/material/checkbox.dart#Checkbox",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0547",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0030",
           "name": "value",
@@ -1084,6 +1280,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0548",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0033",
           "name": "value",
           "type": "boolean",
@@ -1131,28 +1343,49 @@
           "name": "shape",
           "type": "shapeBorder",
           "description": "{@macro flutter.material.ListTile.shape}",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0036",
           "name": "title",
           "type": "widget",
           "description": "The primary content of the list tile.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0037",
           "name": "subtitle",
           "type": "widget",
           "description": "Additional content displayed below the title.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0038",
           "name": "secondary",
           "type": "widget",
           "description": "A widget to display on the opposite side of the tile from the checkbox.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0039",
@@ -1191,11 +1424,31 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0549",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0040",
           "name": "avatar",
           "type": "widget",
           "description": "",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0041",
@@ -1203,7 +1456,11 @@
           "type": "widget",
           "description": "",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0354",
@@ -1274,11 +1531,31 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0550",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0044",
           "name": "avatar",
           "type": "widget",
           "description": "",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0045",
@@ -1286,7 +1563,11 @@
           "type": "widget",
           "description": "",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0046",
@@ -1371,6 +1652,15 @@
           "defaultSource": {
             "kind": "literal",
             "value": "circle"
+          },
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
           }
         },
         {
@@ -1391,6 +1681,22 @@
       "flutterType": "package:flutter/src/material/progress_indicator.dart#CircularProgressIndicator",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0551",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0050",
           "name": "value",
@@ -1459,6 +1765,22 @@
       "flutterType": "package:flutter/src/material/divider.dart#Divider",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0552",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0053",
           "name": "height",
@@ -1532,6 +1854,22 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0553",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0056",
           "name": "onPressed",
           "type": "event",
@@ -1564,7 +1902,11 @@
           "description": "",
           "required": true,
           "constructorNullable": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0058",
@@ -1823,11 +2165,31 @@
       "childrenSlot": "list",
       "properties": [
         {
+          "wireId": "p0554",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0063",
           "name": "leading",
           "type": "widget",
           "description": "A widget to display before the title.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0064",
@@ -1835,14 +2197,22 @@
           "type": "widget",
           "description": "The primary content of the list item.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0065",
           "name": "subtitle",
           "type": "widget",
           "description": "Additional content displayed below the title.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0066",
@@ -1857,14 +2227,26 @@
           "wireId": "p0067",
           "name": "children",
           "type": "widgetList",
-          "description": "The widgets that are displayed when the tile expands."
+          "description": "The widgets that are displayed when the tile expands.",
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "widgetList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "widget"
+            }
+          }
         },
         {
           "wireId": "p0068",
           "name": "trailing",
           "type": "widget",
           "description": "A widget to display after the title.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0069",
@@ -1889,14 +2271,32 @@
           "name": "shape",
           "type": "shapeBorder",
           "description": "The tile's border shape when the sublist is expanded.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0268",
           "name": "collapsedShape",
           "type": "shapeBorder",
           "description": "The tile's border shape when the sublist is collapsed.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0357",
@@ -1932,6 +2332,22 @@
       "flutterType": "package:flutter/src/material/filled_button.dart#FilledButton",
       "childrenSlot": "single",
       "properties": [
+        {
+          "wireId": "p0555",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0073",
           "name": "onPressed",
@@ -1969,7 +2385,11 @@
           "description": "",
           "required": true,
           "constructorNullable": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0075",
@@ -2229,6 +2649,22 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0556",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0080",
           "name": "onPressed",
           "type": "event",
@@ -2265,7 +2701,11 @@
           "description": "",
           "required": true,
           "constructorNullable": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0082",
@@ -2499,11 +2939,31 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0557",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0086",
           "name": "avatar",
           "type": "widget",
           "description": "",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0087",
@@ -2511,7 +2971,11 @@
           "type": "widget",
           "description": "",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0088",
@@ -2598,6 +3062,15 @@
           "defaultSource": {
             "kind": "literal",
             "value": "circle"
+          },
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
           }
         },
         {
@@ -2619,11 +3092,31 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0558",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0092",
           "name": "child",
           "type": "widget",
           "description": "The widget below this widget in the tree.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0093",
@@ -2719,7 +3212,16 @@
           "name": "shape",
           "type": "shapeBorder",
           "description": "The shape of the button's [Material].",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0361",
@@ -2758,6 +3260,22 @@
       "flutterType": "package:flutter/src/widgets/icon.dart#Icon",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0559",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0099",
           "name": "size",
@@ -2800,6 +3318,23 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0538",
+          "name": "textDirection",
+          "type": "enumValue",
+          "description": "The text direction to use for rendering the icon.",
+          "enumType": "TextDirection",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "TextDirection"
+            }
+          },
+          "sinceVersion": 17
         },
         {
           "wireId": "p0101",
@@ -2847,6 +3382,22 @@
       "flutterType": "package:flutter/src/material/icon_button.dart#IconButton",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0560",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0102",
           "name": "iconSize",
@@ -2913,7 +3464,11 @@
           "type": "widget",
           "description": "The icon to display inside the button.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0434",
@@ -2934,11 +3489,31 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0561",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0107",
           "name": "child",
           "type": "widget",
           "description": "",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0108",
@@ -2953,7 +3528,16 @@
           "name": "customBorder",
           "type": "shapeBorder",
           "description": "",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0435",
@@ -2973,6 +3557,22 @@
       "flutterType": "package:flutter/src/material/progress_indicator.dart#LinearProgressIndicator",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0562",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0109",
           "name": "value",
@@ -3054,39 +3654,80 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0563",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0112",
           "name": "leading",
           "type": "widget",
           "description": "A widget to display before the title.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0113",
           "name": "title",
           "type": "widget",
           "description": "The primary content of the list tile.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0114",
           "name": "subtitle",
           "type": "widget",
           "description": "Additional content displayed below the title.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0115",
           "name": "trailing",
           "type": "widget",
           "description": "A widget to display after the title.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0274",
           "name": "shape",
           "type": "shapeBorder",
           "description": "{@template flutter.material.ListTile.shape} Defines the tile's [InkWell.customBorder] and [Ink.decoration] shape. {@endtemplate}",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0116",
@@ -3115,11 +3756,31 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0564",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0117",
           "name": "home",
           "type": "widget",
           "description": "{@macro flutter.widgets.widgetsApp.home}",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0118",
@@ -3159,6 +3820,22 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0565",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0316",
           "name": "open",
           "type": "boolean",
@@ -3180,7 +3857,11 @@
           "type": "widget",
           "description": "The sheet body.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0318",
@@ -3321,7 +4002,16 @@
           "name": "shape",
           "type": "shapeBorder",
           "description": "The sheet's shape. Null defers to the theme default (rounded top corners under Material 3).",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0327",
@@ -3486,7 +4176,11 @@
           "name": "underlay",
           "type": "widget",
           "description": "The surface shown *beneath* the sheet, owned by this widget. When non-null and the platform is iOS/macOS, it scales down and rounds as the sheet rises (the iOS card-sheet look); on other platforms it renders plain behind the sheet. Null (the default) is a pure overlay — the sheet floats over whatever is already behind it, with no owned surface and no scale-down.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0332",
@@ -3515,12 +4209,36 @@
       "childrenSlot": "list",
       "properties": [
         {
+          "wireId": "p0566",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0119",
           "name": "children",
           "type": "widgetList",
           "description": "Pages displayed in order. Must be non-empty.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "widgetList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "widget"
+            }
+          }
         },
         {
           "wireId": "p0120",
@@ -3624,6 +4342,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0567",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0399",
           "name": "items",
           "type": "selectionOptionList",
@@ -3676,6 +4410,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0568",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0402",
           "name": "items",
           "type": "selectionOptionList",
@@ -3727,12 +4477,36 @@
       "childrenSlot": "list",
       "properties": [
         {
+          "wireId": "p0569",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0405",
           "name": "children",
           "type": "widgetList",
           "description": "The per-button labels, in display order. Each becomes one toggle button. An empty list renders nothing.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "widgetList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "widget"
+            }
+          }
         },
         {
           "wireId": "p0406",
@@ -3783,6 +4557,22 @@
       "flutterType": "package:restage_material/src/widgets/restage_segmented_button.dart#RestageSegmentedButton<String>",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0570",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0408",
           "name": "items",
@@ -3894,12 +4684,32 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0571",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0339",
           "name": "child",
           "type": "widget",
           "description": "The sheet body. Wrapped in a [SingleChildScrollView] bound to the sheet's drag controller, so the whole sheet is draggable and the body scrolls once the sheet is fully expanded.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0340",
@@ -4073,6 +4883,22 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0572",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0125",
           "name": "onPressed",
           "type": "event",
@@ -4105,7 +4931,11 @@
           "description": "",
           "required": true,
           "constructorNullable": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0127",
@@ -4318,6 +5148,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0573",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0130",
           "name": "onPressed",
           "type": "event",
@@ -4350,7 +5196,11 @@
           "description": "",
           "required": true,
           "constructorNullable": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0132",
@@ -4358,7 +5208,11 @@
           "type": "widget",
           "description": "",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0133",
@@ -4570,6 +5424,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0574",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0471",
           "name": "appBar",
           "type": "widget",
@@ -4582,7 +5452,11 @@
           "name": "body",
           "type": "widget",
           "description": "The primary content of the scaffold.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0139",
@@ -4641,12 +5515,32 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0575",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0140",
           "name": "child",
           "type": "widget",
           "description": "{@macro flutter.widgets.Scrollbar.child}",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0141",
@@ -4726,6 +5620,22 @@
       "flutterType": "package:flutter/src/material/slider.dart#Slider",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0576",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0145",
           "name": "value",
@@ -4853,6 +5763,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0577",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0152",
           "name": "value",
           "type": "boolean",
@@ -4913,6 +5839,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0578",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0155",
           "name": "value",
           "type": "boolean",
@@ -4959,28 +5901,49 @@
           "name": "title",
           "type": "widget",
           "description": "The primary content of the list tile.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0159",
           "name": "subtitle",
           "type": "widget",
           "description": "Additional content displayed below the title.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0160",
           "name": "secondary",
           "type": "widget",
           "description": "A widget to display on the opposite side of the tile from the switch.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0277",
           "name": "shape",
           "type": "shapeBorder",
           "description": "{@macro flutter.material.ListTile.shape}",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "shapeBorder",
+            "unionRef": {
+              "library": "restage.material",
+              "wireId": "u0002"
+            },
+            "wireCodec": "rfwShapeBorder"
+          }
         },
         {
           "wireId": "p0453",
@@ -5000,6 +5963,22 @@
       "flutterType": "package:flutter/src/material/text_button.dart#TextButton",
       "childrenSlot": "single",
       "properties": [
+        {
+          "wireId": "p0579",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0161",
           "name": "onPressed",
@@ -5032,7 +6011,11 @@
           "type": "widget",
           "description": "",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0163",
@@ -5245,6 +6228,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0580",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0166",
           "name": "onPressed",
           "type": "event",
@@ -5281,7 +6280,11 @@
           "description": "",
           "required": true,
           "constructorNullable": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0168",
@@ -5289,7 +6292,11 @@
           "type": "widget",
           "description": "",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0169",
@@ -5501,12 +6508,32 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0581",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0475",
           "name": "child",
           "type": "widget",
           "description": "The widget below this widget in the tree.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0476",
@@ -5535,6 +6562,22 @@
       "flutterType": "package:flutter/src/material/tab_controller.dart#DefaultTabController",
       "childrenSlot": "single",
       "properties": [
+        {
+          "wireId": "p0582",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0478",
           "name": "length",
@@ -5575,7 +6618,11 @@
           "type": "widget",
           "description": "The widget below this widget in the tree.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0481",
@@ -5596,12 +6643,52 @@
       "childrenSlot": "list",
       "properties": [
         {
+          "wireId": "p0583",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0532",
           "name": "children",
           "type": "widgetList",
           "description": "One widget per tab.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "widgetList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "widget"
+            }
+          }
+        },
+        {
+          "wireId": "p0584",
+          "name": "controller",
+          "type": "structured",
+          "description": "This widget's selection and animation state.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0030"
+            }
+          },
+          "sinceVersion": 24
         },
         {
           "wireId": "p0533",
@@ -5679,12 +6766,52 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0585",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0482",
           "name": "tabs",
           "type": "widgetList",
           "description": "Typically a list of two or more [Tab] widgets.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "widgetList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "widget"
+            }
+          }
+        },
+        {
+          "wireId": "p0586",
+          "name": "controller",
+          "type": "structured",
+          "description": "This widget's selection and animation state.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0030"
+            }
+          },
+          "sinceVersion": 24
         },
         {
           "wireId": "p0483",
@@ -5777,6 +6904,22 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0587",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0172",
           "name": "text",
           "type": "string",
@@ -5796,7 +6939,11 @@
           "name": "icon",
           "type": "widget",
           "description": "An icon to display as the tab's label.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0174",
@@ -5833,7 +6980,11 @@
           "name": "child",
           "type": "widget",
           "description": "The widget to be used as the tab's label.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0456",
@@ -5854,6 +7005,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0588",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0491",
           "name": "textInputAction",
           "type": "enumValue",
@@ -5868,6 +7035,23 @@
               "symbolName": "TextInputAction"
             }
           }
+        },
+        {
+          "wireId": "p0539",
+          "name": "textDirection",
+          "type": "enumValue",
+          "description": "{@macro flutter.widgets.editableText.textDirection}",
+          "enumType": "TextDirection",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "TextDirection"
+            }
+          },
+          "sinceVersion": 17
         },
         {
           "wireId": "p0177",
@@ -6056,6 +7240,22 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0589",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0029"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0182",
           "name": "message",
           "type": "string",
@@ -6122,7 +7322,11 @@
           "name": "child",
           "type": "widget",
           "description": "The widget below this widget in the tree.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0458",
@@ -6135,6 +7339,16 @@
     }
   ],
   "structuredTypes": [
+    {
+      "wireId": "s0029",
+      "name": "Key",
+      "library": "restage.material",
+      "description": "Closed native data value.",
+      "sourceType": "package:flutter/src/foundation/key.dart#Key",
+      "fields": [],
+      "variants": [],
+      "stability": "volatile"
+    },
     {
       "wireId": "s0002",
       "name": "TextStyle",
@@ -7512,6 +8726,56 @@
           "sourceKind": "constValue",
           "staticAccessor": "zero",
           "description": "A radius with [x] and [y] values set to zero."
+        }
+      ],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0030",
+      "name": "TabController",
+      "library": "restage.material",
+      "description": "Closed native data value.",
+      "sourceType": "package:flutter/src/material/tab_controller.dart#TabController",
+      "fields": [],
+      "variants": [],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0028",
+      "name": "ScrollPhysics",
+      "library": "restage.material",
+      "description": "Determines the physics of a [Scrollable] widget.",
+      "sourceType": "package:flutter/src/widgets/scroll_physics.dart#ScrollPhysics",
+      "fields": [
+        {
+          "wireId": "p0540",
+          "name": "parent",
+          "type": "structured",
+          "description": "If non-null, determines the default behavior for each method.",
+          "structuredRef": {
+            "library": "restage.material",
+            "wireId": "s0028"
+          },
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.material",
+              "wireId": "s0028"
+            }
+          }
+        }
+      ],
+      "variants": [
+        {
+          "wireId": "v0061",
+          "sourceKind": "constructor",
+          "argMappings": {
+            "parent": [
+              "p0540"
+            ]
+          },
+          "description": "Creates an object with the default scroll physics."
         }
       ],
       "stability": "volatile"

@@ -15,6 +15,8 @@ final class ResolvedType {
     this.unionRef,
     this.elementType,
     this.callbackSignature,
+    this.builderContract,
+    this.scalarContract,
     this.valueShape,
   });
 
@@ -38,6 +40,12 @@ final class ResolvedType {
 
   /// Callback signature for event properties.
   final String? callbackSignature;
+
+  /// Structural native widget callback contract.
+  final WidgetBuilderContract? builderContract;
+
+  /// Structural native integer callback signature.
+  final ScalarCallbackContract? scalarContract;
 
   /// Native semantic value shape carried to schema lowering.
   final CatalogValueShape? valueShape;
@@ -71,6 +79,8 @@ final class ResolvedType {
       ResolvedTypeKind.enumValue => PropertyType.enumValue,
       ResolvedTypeKind.widget => PropertyType.widget,
       ResolvedTypeKind.widgetList => PropertyType.widgetList,
+      ResolvedTypeKind.widgetBuilder => PropertyType.widgetBuilder,
+      ResolvedTypeKind.scalarCallback => PropertyType.scalarCallback,
       ResolvedTypeKind.event => PropertyType.event,
       ResolvedTypeKind.dataReference => PropertyType.dataReference,
       ResolvedTypeKind.gradient => PropertyType.gradient,
@@ -176,6 +186,12 @@ enum ResolvedTypeKind {
 
   /// List child widget slot.
   widgetList,
+
+  /// Deferred native widget callback.
+  widgetBuilder,
+
+  /// Pure native integer callback.
+  scalarCallback,
 
   /// Event callback.
   event,

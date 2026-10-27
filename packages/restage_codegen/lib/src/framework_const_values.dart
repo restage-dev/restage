@@ -3,8 +3,11 @@ import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:restage_codegen/src/const_value_literal.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show canonicalMaterialColorNames;
 
 /// Prefix of the per-corner `BorderRadius` value the host property-emit
 /// splices onto the per-corner catalog slots; it never reaches the blob.
@@ -42,6 +45,7 @@ final class FrameworkConstValue {
           type == PropertyType.alignment || type == PropertyType.alignmentXY,
         FrameworkConstKind.directionalAlignment =>
           type == PropertyType.alignment,
+        FrameworkConstKind.edgeInsets => type == PropertyType.edgeInsets,
         FrameworkConstKind.color => type == PropertyType.color,
         FrameworkConstKind.duration => type == PropertyType.duration,
         FrameworkConstKind.offset => type == PropertyType.offset,
@@ -61,6 +65,9 @@ enum FrameworkConstKind {
 
   /// `{start, y}`.
   directionalAlignment,
+
+  /// A physical or directional inset map.
+  edgeInsets,
 
   /// A packed ARGB integer.
   color,
@@ -84,6 +91,7 @@ enum FrameworkConstKind {
   String get label => switch (this) {
         alignment => 'an alignment',
         directionalAlignment => 'a directional alignment',
+        edgeInsets => 'edge insets',
         color => 'a color',
         duration => 'a duration',
         offset => 'an offset',
@@ -111,6 +119,132 @@ DartObject? frameworkStaticConst(Expression expr) {
   return variable.computeConstantValue();
 }
 
+/// Evaluates a resolved native shade getter on a canonical constant swatch.
+DartObject? canonicalMaterialShade(Expression expression) {
+  final (receiver, accessor) = switch (expression) {
+    PropertyAccess(:final target, :final propertyName) => (
+        target,
+        propertyName.element
+      ),
+    PrefixedIdentifier(:final prefix, :final identifier) => (
+        prefix,
+        identifier.element
+      ),
+    _ => (null, null),
+  };
+  if (receiver == null ||
+      accessor is! GetterElement ||
+      accessor.library.identifier !=
+          'package:flutter/src/material/colors.dart' ||
+      !const {'MaterialColor', 'MaterialAccentColor'}
+          .contains(accessor.enclosingElement.name)) return null;
+  final shade = const {
+    'shade50': 50,
+    'shade100': 100,
+    'shade200': 200,
+    'shade300': 300,
+    'shade400': 400,
+    'shade500': 500,
+    'shade600': 600,
+    'shade700': 700,
+    'shade800': 800,
+    'shade900': 900,
+  }[accessor.name];
+  if (shade == null) return null;
+  final element = switch (receiver) {
+    SimpleIdentifier() => receiver.element,
+    PrefixedIdentifier() => receiver.identifier.element,
+    PropertyAccess() => receiver.propertyName.element,
+    _ => null,
+  };
+  final variable =
+      element is PropertyAccessorElement ? element.variable : element;
+  final value = variable is VariableElement && variable.isConst
+      ? variable.computeConstantValue()
+      : null;
+  if (value == null || (exactColorConstant(value)?['material'] ?? '') == '')
+    return null;
+  final swatch = _field(value, '_swatch')?.toMapValue();
+  if (swatch == null) return null;
+  for (final entry in swatch.entries) {
+    if (entry.key?.toIntValue() == shade) return entry.value;
+  }
+  return null;
+}
+
+/// Preserves native color channels and color space without ARGB quantization.
+Map<String, Object?>? exactColorConstant(DartObject value) {
+  final type = value.type;
+  if (type is! InterfaceType ||
+      ![type, ...type.allSupertypes].any((t) =>
+          t.element.name == 'Color' &&
+          t.element.library.identifier == 'dart:ui')) return null;
+  if ((!type.element.library.identifier.startsWith('package:flutter/') &&
+          type.element.library.identifier != 'dart:ui') ||
+      _classNames(value).contains('CupertinoDynamicColor')) return null;
+  String material = '';
+  if (type.element.name != 'Color' ||
+      type.element.library.identifier != 'dart:ui') {
+    if (type.element.library.identifier !=
+            'package:flutter/src/material/colors.dart' ||
+        !const {'MaterialColor', 'MaterialAccentColor'}
+            .contains(type.element.name)) return null;
+    final colors = type.element.library.getClass('Colors');
+    for (final field in colors?.fields ?? <FieldElement>[]) {
+      if (field.isStatic &&
+          field.isConst &&
+          field.computeConstantValue() == value) {
+        material = field.name!;
+        break;
+      }
+    }
+    if (!canonicalMaterialColorNames.contains(material)) return null;
+  }
+  final colorSpace = _field(value, 'colorSpace');
+  if (colorSpace == null) return null;
+  final space = _field(colorSpace, '_name')?.toStringValue();
+  if (!const {'sRGB', 'extendedSRGB', 'displayP3'}.contains(space)) return null;
+  final result = <String, Object?>{'colorSpace': space, 'material': material};
+  for (final channel in const ['a', 'r', 'g', 'b']) {
+    final number = _double(value, channel);
+    if (number == null) return null;
+    result[channel] = number;
+  }
+  return result;
+}
+
+/// Writes a proven native Color record, retaining legacy integers only when
+/// every channel round-trips exactly through the sRGB ARGB representation.
+String exactColorLiteral(Map<String, Object?> value) {
+  final material = value['material'];
+  final argb =
+      material is String && material.isNotEmpty ? null : _exactArgb(value);
+  if (argb != null)
+    return '0x${argb.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+  final fields = value.entries
+      .where((entry) => entry.key != 'material' || entry.value != '')
+      .map((entry) {
+    final component = entry.value;
+    final literal = component is String
+        ? '"$component"'
+        : rfwNumberLiteral(component! as num);
+    return '${entry.key}: $literal';
+  });
+  return '{${fields.join(', ')}}';
+}
+
+/// Extracts the finite native representation of a style scalar constant.
+int? exactStyleScalarConstant(DartObject value) {
+  final type = value.type;
+  if (type is! InterfaceType || type.element.library.identifier != 'dart:ui')
+    return null;
+  return switch (type.element.name) {
+    'FontWeight' => _field(value, 'value')?.toIntValue(),
+    'TextDecoration' => _field(value, '_mask')?.toIntValue(),
+    _ => null,
+  };
+}
+
 /// Encodes an evaluated framework constant by its runtime class, or null when
 /// the class has no wire encoding.
 FrameworkConstValue? encodeFrameworkConst(DartObject value) {
@@ -129,6 +263,16 @@ FrameworkConstValue? encodeFrameworkConst(DartObject value) {
     );
   }
   final classes = _classNames(value);
+  if (classes.contains('EdgeInsets') ||
+      classes.contains('EdgeInsetsDirectional')) {
+    final keys = classes.contains('EdgeInsetsDirectional')
+        ? ['start', 'top', 'end', 'bottom']
+        : ['left', 'top', 'right', 'bottom'];
+    final values = {for (final key in keys) key: _double(value, key)};
+    if (values.values.contains(null)) return null;
+    return FrameworkConstValue(FrameworkConstKind.edgeInsets,
+        '{${values.entries.map((e) => '${e.key}: ${e.value}').join(', ')}}');
+  }
   if (classes.contains('AlignmentDirectional')) {
     final start = _double(value, 'start');
     final y = _double(value, 'y');
@@ -156,16 +300,13 @@ FrameworkConstValue? encodeFrameworkConst(DartObject value) {
     return FrameworkConstValue(FrameworkConstKind.radius, '$r');
   }
   if (classes.contains('BorderRadiusDirectional')) {
-    // Without a text direction only a uniform radius has a single value.
-    final corners = [
+    final corners = {
       for (final c in ['topStart', 'topEnd', 'bottomStart', 'bottomEnd'])
-        _circularField(value, c),
-    ];
-    if (corners.contains(null) || corners.toSet().length != 1) return null;
-    return FrameworkConstValue(
-      FrameworkConstKind.borderRadius,
-      '${corners.first}',
-    );
+        c: _circularField(value, c)
+    };
+    if (corners.values.contains(null)) return null;
+    return FrameworkConstValue(FrameworkConstKind.borderRadius,
+        '$kBorderRadiusCornerSentinel${corners.entries.map((e) => '${e.key}: ${e.value}').join(', ')})');
   }
   if (classes.contains('BorderRadius')) {
     final corners = {
@@ -195,12 +336,10 @@ FrameworkConstValue? encodeFrameworkConst(DartObject value) {
   // A dynamic colour resolves against the build context, so it has no single
   // wire value.
   if (classes.contains('Color') && !classes.contains('CupertinoDynamicColor')) {
-    final argb = _argb(value);
-    if (argb == null) return null;
+    final exact = exactColorConstant(value);
+    if (exact == null) return null;
     return FrameworkConstValue(
-      FrameworkConstKind.color,
-      '0x${argb.toRadixString(16).padLeft(8, '0').toUpperCase()}',
-    );
+        FrameworkConstKind.color, exactColorLiteral(exact));
   }
   return null;
 }
@@ -322,16 +461,13 @@ double? _circularField(DartObject value, String name) {
   return radius == null ? null : _circular(radius);
 }
 
-int? _argb(DartObject value) {
-  final legacy = _field(value, 'value')?.toIntValue();
-  if (legacy != null) return legacy;
-  final space = _field(value, 'colorSpace');
-  if (space != null && _field(space, '_name')?.toStringValue() != 'sRGB') {
-    return null;
-  }
+int? _exactArgb(Map<String, Object?> value) {
+  if (value['colorSpace'] != 'sRGB') return null;
   int channel(String name) {
-    final c = _double(value, name);
-    return c == null ? -1 : (c * 255.0).round() & 0xff;
+    final c = value[name];
+    if (c is! num || !c.isFinite || c < 0 || c > 1) return -1;
+    final channel = (c * 255.0).round();
+    return channel / 255.0 == c ? channel : -1;
   }
 
   final a = channel('a');

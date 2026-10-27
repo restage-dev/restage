@@ -10,6 +10,7 @@ import 'package:restage_shared/src/flow_document/flow_action_schema.dart';
 import 'package:restage_shared/src/flow_document/flow_active_render_gate.dart';
 import 'package:restage_shared/src/flow_document/flow_document.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_event_schema.dart';
+import 'package:restage_shared/src/surface_contract/native_binding_contract.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_host_data_schema.dart';
 import 'package:test/test.dart';
 
@@ -47,6 +48,9 @@ const _eventInt = SurfaceScreenEventScalarShapeV1(
 const _eventJson = SurfaceScreenEventScalarShapeV1(
   SurfaceScreenEventScalarKind.jsonValue,
 );
+
+const _itemColor = SurfaceScreenHostDataNativeBindingShapeV1(
+    NativeBindingContract(type: 'flutter.Color'));
 
 void main() {
   test('projects global child bindings while retaining root-only state/results',
@@ -298,6 +302,24 @@ void main() {
         ),
         true
       ),
+      for (final (label, provided, accepted) in [
+        ('per-item native object of the same contract', _itemColor, true),
+        (
+          'per-item native object of another type',
+          const SurfaceScreenHostDataNativeBindingShapeV1(
+              NativeBindingContract(type: 'flutter.Key')),
+          false
+        ),
+        ('per-item plain data for a native object', _int, false),
+      ])
+        (
+          label,
+          SurfaceScreenHostDataListShapeV1(
+              SurfaceScreenHostDataObjectShapeV1(const {'ink': _itemColor})),
+          SurfaceScreenHostDataListShapeV1(
+              SurfaceScreenHostDataObjectShapeV1({'ink': provided})),
+          accepted
+        ),
     ];
     for (final (label, required, provided, accepted) in cases) {
       test(label, () {

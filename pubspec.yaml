@@ -18,6 +18,7 @@ workspace:
   - packages/restage_cli
   - packages/restage_mcp
   - packages/restage_core
+  - packages/restage_svg
   - packages/restage_material
   - packages/restage_cupertino
   - packages/restage_revenuecat
@@ -35,7 +36,7 @@ dev_dependencies:
   # Source inspection tests use this reviewed dependency version.
   rfw: 1.1.3
   melos: ^8.2.2
-  very_good_analysis: ^10.2.0
+  very_good_analysis: ^11.0.0
 
 melos:
   scripts:
@@ -51,6 +52,9 @@ melos:
         find packages apps tool -name '*.dart' \
           -not -name '*.g.dart' \
           -not -path '*/test/generated/*' \
+          -not -path 'packages/restage_codegen/test/fixtures/*' \
+          -not -path 'packages/restage_codegen/test/coverage_measurement/coverage_fixtures/*' \
+          -not -path 'packages/restage_svg/lib/registry.dart' \
           -not -path '*/restage.generated/*' \
           -not -path '*/.dart_tool/*' -print0 \
           | xargs -0 dart format --output=none --set-exit-if-changed

@@ -12,7 +12,8 @@ import 'context_data.dart';
 /// Populates the `data.device.*` namespace on [target].
 ///
 /// Includes the UI locale, device region, platform identifier, screen size
-/// and orientation, device pixel ratio, and safe-area insets. Authors reference
+/// and orientation, device pixel ratio, all inset edges, and accessibility
+/// flags. Authors reference
 /// these via `data.device.screenWidth`, `data.device.orientation`, and so on.
 ///
 /// ```dart
@@ -54,6 +55,14 @@ void populateDeviceData(
     'viewPaddingBottom': mediaQuery.viewPadding.bottom,
     'viewPaddingLeft': mediaQuery.viewPadding.left,
     'viewPaddingRight': mediaQuery.viewPadding.right,
+    'viewInsetsTop': mediaQuery.viewInsets.top,
+    'viewInsetsBottom': mediaQuery.viewInsets.bottom,
+    'viewInsetsLeft': mediaQuery.viewInsets.left,
+    'viewInsetsRight': mediaQuery.viewInsets.right,
+    'boldText': mediaQuery.boldText,
+    'disableAnimations': mediaQuery.disableAnimations,
+    'accessibleNavigation': mediaQuery.accessibleNavigation,
+    'highContrast': mediaQuery.highContrast,
   });
 }
 

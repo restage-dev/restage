@@ -27,35 +27,44 @@ const _source = '''
   }
 ''';
 
+/// Captures the original fixture through its production catalog owner.
+Future<String> generateMapFreeCustomCatalog() async {
+  final rw =
+      await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+  rw.testing.writeString(
+    AssetId('apps_examples', 'lib/widgets.dart'),
+    _source,
+  );
+  final result = await testBuilder(
+    const UserCatalogJsonBuilder(BuilderOptions.empty),
+    {'apps_examples|lib/widgets.dart': _source},
+    rootPackage: 'apps_examples',
+    readerWriter: rw,
+    flattenOutput: true,
+    onLog: (_) {},
+  );
+  if (!result.succeeded) {
+    throw StateError('Map-free custom catalog build failed: '
+        '${result.errors.join('\n')}');
+  }
+  final captured = rw.testing.readString(
+    AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
+  );
+  final factories = rw.testing.readString(
+    AssetId(
+        'apps_examples', 'lib/src/widget_catalog/app_widget_factories.json'),
+  );
+  if (captured.trim().isEmpty || factories.trim().isEmpty) {
+    throw StateError('Map-free custom catalog build emitted empty outputs.');
+  }
+  return captured;
+}
+
 void main() {
   test(
       'a map-free custom catalog records constructor facts and synthetic metadata',
       () async {
-    final rw =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-    rw.testing.writeString(
-      AssetId('apps_examples', 'lib/widgets.dart'),
-      _source,
-    );
-    String? captured;
-    await testBuilder(
-      const UserCatalogJsonBuilder(BuilderOptions.empty),
-      {'apps_examples|lib/widgets.dart': _source},
-      rootPackage: 'apps_examples',
-      readerWriter: rw,
-      outputs: {
-        'apps_examples|lib/src/widget_catalog/catalog.json': decodedMatches(
-          predicate<String>((value) {
-            captured = value;
-            return true;
-          }),
-        ),
-        'apps_examples|lib/src/widget_catalog/app_widget_factories.json':
-            anything,
-      },
-      onLog: (_) {},
-    );
-    expect(captured, isNotNull);
+    final captured = await generateMapFreeCustomCatalog();
     final golden = File('test/fixtures/goldens/map_free_custom_catalog.json')
         .readAsStringSync();
 

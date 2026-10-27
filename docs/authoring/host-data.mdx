@@ -46,7 +46,8 @@ A read of a parameter (`habits`, or `widget.habits` in a `State`) becomes a read
 `data.context.habits` in the delivered surface. A `for` over a list parameter stays a
 loop, so the device decides the number of rows from the data, and `habit.name` inside
 the loop reads that row's field. String interpolation over a `String`
-parameter (`'Hi $name'`) works too; format numbers into a `String` in your app first.
+parameter (`'Hi $name'`) works too. Use native `intl` expressions for localized
+dates, numbers, and messages, as shown below.
 
 A collection `if` can filter the widgets inside that loop:
 
@@ -66,8 +67,8 @@ Filtered loops need an app built with a catalog that supports them (catalog
 capability 10). After upgrading, run `dart run build_runner build` and release the
 app before you publish filtered lists, including lists passed to custom widgets.
 
-**What a parameter can be.** A string, integer, finite double, or boolean; a `List` or
-a `Map<String, …>` of those; any of them nullable; or a plain data class like `Habit`
+**What a parameter can be.** A string, integer, finite double, boolean, or `DateTime`;
+a `List` or a `Map<String, …>` of those; any of them nullable; or a plain data class like `Habit`
 above: public final fields of those types, an unnamed constructor, and no behavior. The
 build uses the same field list to encode the value and to read fields such as
 `habit.name`, so the two always match.
@@ -75,9 +76,61 @@ build uses the same field list to encode the value and to read fields such as
 **What the build rejects.** Reading a parameter whose type is outside that list stops
 the build with an error that names the type. Only reads are checked, so the class can
 declare a parameter of another type (an analytics tag, a callback for the app) as long
-as `build` doesn't read it. A member of a scalar parameter (`title.length`) is
-rejected, because the app never supplies a value by that name. An index inside a loop
-(`habit.days[2]`) is rejected too.
+as `build` doesn't read it. Supported typed member and index expressions work in pure
+builders and value expressions. Arbitrary object getters and methods remain outside
+that vocabulary and receive a source diagnostic.
+
+## Dates and localized text
+
+Pass a `DateTime` through a generated mount just like another typed constructor
+argument. Its microseconds since epoch and UTC/local flag are retained, including
+inside lists and data classes. Write normal `intl` calls in the surface:
+
+```dart
+import 'package:intl/intl.dart';
+
+Column(children: [
+  Text('Starts ${DateFormat.yMMMd(locale).add_Hm().format(start)}'),
+  Text(Intl.plural(count,
+    one: 'One reminder',
+    other: '$count reminders',
+    locale: locale,
+  )),
+])
+```
+
+Supported `NumberFormat` constructors and configuration, `Intl.gender`, and
+`Intl.select` use the same value mechanism, including nested strings and callback
+locals. Formatter calls preserve Dart argument evaluation and native locale/error
+behavior. Initialize date symbols for the locales your app uses as you would with
+`intl`; omitting locale follows its normal default. Translated-message options such
+as `name` and `args` require an installed native binding and are diagnosed when that
+binding cannot be proven. `DateTime.now()` remains an installed app computation.
+
+## Keyboard accessibility and scaling
+
+Use native reads from your authored `build` context:
+
+```dart
+final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+final scaler = MediaQuery.textScalerOf(context);
+return Padding(
+  padding: EdgeInsets.only(bottom: keyboard),
+  child: Text('Add a reminder', textScaler: scaler),
+);
+```
+
+All four `viewInsets` edges and `boldText`, `disableAnimations`,
+`accessibleNavigation`, and `highContrast` update with their inherited values.
+`Text` and `Text.rich` accept `TextScaler.noScaling`, `TextScaler.linear`, and exact
+native scalers bound at the generated mount's authored root context. Nonlinear
+scalers retain their behavior at each font size. Omitted scalers inherit normally;
+Flutter's mutual exclusion with deprecated `textScaleFactor` still applies.
+
+Builder callbacks use their own context for supported scalar reads. An opaque
+native value from an unsupported descendant context is diagnosed; a root scaler
+cannot stand in for that context's scaler. An unavailable native binding fails
+explicitly. Native scaler bindings belong to the mounted subtree.
 
 ## Mount it with the generated widget
 
@@ -136,16 +189,19 @@ writes the values into it. It always writes, without comparing to the previous v
   nesting below the root, 10,000 values in total including the root, and 100,000 map
   entries or list elements checked per update. Null map values are left out. Null list
   elements are removed and the list closes up.
-- **Anything else is an error.** A `DateTime`, a closure, another object, a non-finite
-  double, or a cycle throws in debug. In release it is reported through
-  `FlutterError` and left out, and the rest of the values still apply.
+- **Anything else is an error in a lower-level context map.** A raw `DateTime`, a
+  closure, another object, a non-finite double, or a cycle throws in debug. In release
+  it is reported through `FlutterError` and left out, and the rest of the values still apply.
 - **Equal values do nothing.** Passing a map with the same content doesn't update the
-  surface. Passing `null` removes all the host data.
+  surface. Passing `null` removes all the host data. Generated typed mounts encode
+  `DateTime` arguments before this map boundary.
 - **A single value change rebuilds what read it.** The widget that reads that value
   rebuilds, with its children. Widgets next to it that read other values don't.
 - **A list change rebuilds the list and its rows, by position.** When a row is
   inserted or the list is reordered, state kept in a row stays at its position while
-  your row ids move. Keep one number type per value: values are compared with Dart
+  your row ids move. Native GridView callbacks can instead retain keyed child state;
+  see [Responsive layouts and grids](/authoring/widget-catalog#responsive-layouts-and-grids).
+  Keep one number type per value: values are compared with Dart
   `==`, so an `int` that later becomes a `double` at the same place can be missed.
 
 ## What host data is not

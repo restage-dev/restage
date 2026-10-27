@@ -6,6 +6,8 @@ import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show kBuilderContinuationWidgetName;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _catalogAsset = 'lib/src/widget_catalog/catalog.json';
@@ -137,6 +139,10 @@ String _emitRegistrationFile({
     mapEntries.add("  '${entry.name}': ${publicFunctionNameFor(entry)},");
     emittedEntries.add(entry);
   }
+  if (library == WidgetLibrary.core) {
+    mapEntries.add("  '$kBuilderContinuationWidgetName': "
+        'buildRestageBuilderContinuation,');
+  }
 
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
@@ -171,13 +177,16 @@ String _emitRegistrationFile({
   // Import non-Flutter widget and enum libraries by sorted, deduplicated
   // source URI. Add the core barrel only when emitted factories use its
   // runtime helpers.
-  final referencesCoreRuntime = factoryDefinitions.any(
-    (d) =>
-        d.contains('RestageDecoders.') ||
-        d.contains('RestageRfwConstructorPresence.') ||
-        d.contains('resolveThemeBinding(') ||
-        d.contains('restageIcon('),
-  );
+  final referencesCoreRuntime = library == WidgetLibrary.core ||
+      factoryDefinitions.any((d) =>
+          d.contains('RestageDecoders.') ||
+          d.contains('RestageGridValues.') ||
+          d.contains('RestageGridChildren.') ||
+          d.contains('RestageBuilderBinding') ||
+          d.contains('RestageValueBinding') ||
+          d.contains('RestageRfwConstructorPresence.') ||
+          d.contains('resolveThemeBinding(') ||
+          d.contains('restageIcon('));
   final primaryFlutterImport = _flutterImportFor(library);
   final extraWidgetImports = <String>{
     for (final entry in emittedEntries)
@@ -203,6 +212,16 @@ String _emitRegistrationFile({
   }
   if (referencesCoreRuntime) {
     buf.writeln("import 'package:restage_core/restage_core.dart';");
+  }
+  if (emittedEntries.any(
+    (entry) => entry.properties.any(
+      (property) =>
+          property.type == PropertyType.widgetBuilder ||
+          property.type == PropertyType.scalarCallback,
+    ),
+  )) {
+    buf.writeln("import 'package:rfw_catalog_schema/rfw_catalog_schema.dart' "
+        'show WidgetBuilderContract, WidgetBuilderParameter, ScalarCallbackContract, ScalarCallbackParameter;');
   }
   // `ImageFilter` is in `dart:ui`; `package:flutter/widgets.dart`
   // doesn't re-export it. Conditional import keeps libraries that

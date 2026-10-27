@@ -56,6 +56,9 @@ jobs:
           find packages apps tool -name '*.dart' \
             -not -name '*.g.dart' \
             -not -path '*/test/generated/*' \
+            -not -path 'packages/restage_codegen/test/fixtures/*' \
+            -not -path 'packages/restage_codegen/test/coverage_measurement/coverage_fixtures/*' \
+            -not -path 'packages/restage_svg/lib/registry.dart' \
             -not -path '*/restage.generated/*' \
             -not -path '*/.dart_tool/*' -print0 \
             | xargs -0 dart format --output=none --set-exit-if-changed

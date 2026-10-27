@@ -58,11 +58,10 @@ void main() {
           resolver: _HostedByIdResolver(), analyticsEnabled: false);
     });
     final libraries = InstalledWidgetLibraries.current;
-    expect(
-        libraries.core.length +
-            libraries.material.length +
-            libraries.cupertino.length,
-        126);
+    final builtIn = RestageWidgetLibraries.builtIn();
+    expect(libraries.core.keys, unorderedEquals(builtIn.core.keys));
+    expect(libraries.material.keys, unorderedEquals(builtIn.material.keys));
+    expect(libraries.cupertino.keys, unorderedEquals(builtIn.cupertino.keys));
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
             body: RestagePaywall(

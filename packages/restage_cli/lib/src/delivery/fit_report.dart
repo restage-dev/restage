@@ -156,8 +156,9 @@ String _reason(
           'the surface does not accept',
     SurfaceFitFailureCodeV1.signalMismatch =>
       required is String && required.isNotEmpty
-          ? 'the app does not send the signal `$required` here'
-          : 'the app does not send a signal the surface waits for',
+          ? 'the surface fires the signal `$required`. '
+                'This app has no handler for it'
+          : 'the surface fires a signal this app has no handler for',
     SurfaceFitFailureCodeV1.resultMismatch =>
       'the app expects a different result from the flow',
     SurfaceFitFailureCodeV1.outboundMismatch =>

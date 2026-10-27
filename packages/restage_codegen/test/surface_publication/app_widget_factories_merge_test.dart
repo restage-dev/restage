@@ -8,6 +8,52 @@ import 'package:test/test.dart';
 import '../helpers.dart';
 
 void main() {
+  test('factories keep only referenced aliases without renumbering', () {
+    final json = {
+      'libraries': {
+        'restageLibrary0': 'package:unused/types.dart',
+        'restageLibrary1': 'package:example/widgets.dart',
+        'restageLibrary2': 'package:example/types.dart',
+      },
+      'capabilityVersions': {'example.widgets': 1},
+      'compatibleSince': {'example.widgets': 1},
+      'factories': {
+        'example.widgets:Badge': {
+          'function': 'buildBadge',
+          'source': '''
+Widget buildBadge(BuildContext context, DataSource source) {
+  final restageLibrary2.Label label = restageLibrary1.makeLabel();
+  return restageLibrary1.Badge(label: label, marker: 'restageLibrary0.Marker',
+      contract: const WidgetBuilderContract(
+          parameters: [WidgetBuilderParameter.buildContext],
+          nullableResult: false));
+}
+''',
+        },
+      },
+    };
+    final factories = AppWidgetMountFactories.fromJson(json);
+    final source = factories.curatedLibrarySource();
+    expect(source, isNot(contains('package:unused/types.dart')));
+    expect(
+      source,
+      contains("import 'package:example/widgets.dart' as restageLibrary1;"),
+    );
+    expect(
+      source,
+      contains("import 'package:example/types.dart' as restageLibrary2;"),
+    );
+    expect(
+      source,
+      contains('show WidgetBuilderContract, WidgetBuilderParameter;'),
+    );
+    expect(source, contains("marker: 'restageLibrary0.Marker'"));
+    expect(factories.toJson()['libraries'], isNot(contains('restageLibrary0')));
+    expect(factories.registrationSource().imports.join('\n'),
+        isNot(contains('package:unused/types.dart')));
+    expect(parseString(content: source).errors, isEmpty);
+  });
+
   test('merging sidecars renames import prefixes without changing literals',
       () {
     final first = _factories('alpha', 'Badge');

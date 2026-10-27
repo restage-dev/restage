@@ -111,7 +111,8 @@ export 'src/resolver/variant_resolver.dart';
 export 'src/resolver/surface_resolution_report.dart'
     show SurfaceResolutionSource, SurfaceResolutionReport;
 export 'src/runtime/error_boundary.dart' show RuntimeErrorBoundary;
-export 'src/runtime/host_value.dart' show restageHostValue, restageHostValues;
+export 'src/runtime/host_value.dart'
+    show restageHostValue, restageHostValues, restageNativeObjects;
 export 'src/commerce/restage_commerce.dart' show RestageCommerce;
 export 'src/runtime/restage.dart' hide emitRestageEvent;
 export 'src/runtime/restage_widget_factory.dart';
@@ -142,6 +143,9 @@ export 'package:restage_core/restage_core.dart'
         RestageIconTable,
         RestageIconUnavailableError,
         RestageRfwConstructorPresence,
+        RestageResourceBuilder,
+        RestageResourceHandle,
+        RestageResources,
         resolveInstalledIcon;
 // The whole-catalog icon table, for a surface that renders content whose
 // icons the app cannot know ahead of time.
@@ -160,7 +164,14 @@ export 'src/measurement/governed_measurement_transport.dart'
 // RFW types host-side builder closures depend on. Re-exporting keeps
 // hand-written extensions (and generated factory bodies) free of a direct
 // `package:rfw` import.
-export 'package:restage_core/restage_core.dart' show RestageDecoders;
+export 'package:restage_core/restage_core.dart'
+    show RestageDecoders, RestageBuilderBinding, RestageValueBinding;
+export 'package:restage_shared/restage_shared.dart'
+    show
+        WidgetBuilderContract,
+        WidgetBuilderParameter,
+        ScalarCallbackContract,
+        ScalarCallbackParameter;
 // The measurement contract types this package's own public API names, plus
 // what a caller needs to use them. An explicit list rather than the whole
 // contract package: re-exporting all of it made every future contract
@@ -321,3 +332,14 @@ export 'src/runtime/state_variables.dart'
         populateContextData,
         populateDeviceData,
         populateThemeData;
+
+export 'package:restage_core/restage_core.dart'
+    show
+        RestageNativeValues,
+        NativeBinding,
+        NativeBindingContract,
+        NativeCallContract,
+        NativeCallAdapter,
+        NativeCapture,
+        ValueNative,
+        ValueType;

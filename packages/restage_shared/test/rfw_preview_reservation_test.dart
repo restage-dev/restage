@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:restage_shared/restage_shared.dart'
+    show kBuilderContinuationWidgetName;
 import 'package:restage_shared/rfw_formats.dart';
 import 'package:test/test.dart';
 
@@ -7,6 +9,24 @@ Uint8List _blob(String source) => encodeLibraryBlob(parseLibraryFile(source));
 
 void main() {
   group('preview-only RFW reservation', () {
+    test('core reserves its installed library while allowing catalog metadata',
+        () {
+      final core = hostInstalledRfwLibrary('restage.core')!;
+      expect(core.constructors, {kBuilderContinuationWidgetName});
+      expect(core.reservesCatalogNamespace, isFalse);
+      expect(
+          kPreviewInstrumentationRfwLibrary.reservesCatalogNamespace, isTrue);
+      expect(
+          kMeasurementPresentationRfwLibrary.reservesCatalogNamespace, isTrue);
+      expect(
+        () => validateRfwBlobForPublish(_blob('''
+import restage.core;
+widget $kBuilderContinuationWidgetName = Text(text: "shadow");
+''')),
+        throwsFormatException,
+      );
+    });
+
     test('accepts an ordinary custom marker and unrelated imports', () {
       expect(
         () => validateRfwBlobForPublish(

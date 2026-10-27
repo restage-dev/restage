@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/widgets.dart'
-    show BuildContext, Color, Icon, IconData, Widget;
+    show BuildContext, Color, Icon, IconData, Key, TextDirection, Widget;
 
 import '../widgets/delivered_icon_fonts.dart';
 import '../widgets/restage_delivered_icon.dart';
@@ -223,12 +223,14 @@ IconData resolveInstalledIcon(
 /// neither carries it.
 Widget restageIcon(
   BuildContext context, {
+  Key? key,
   required int codePoint,
   String? fontFamily,
   bool matchTextDirection = false,
   double? size,
   Color? color,
   String? semanticLabel,
+  TextDirection? textDirection,
 }) {
   final family = fontFamily ?? RestageIconTable.materialIconsFamily;
   final installed = InstalledIconTable.current.lookUp(
@@ -239,10 +241,21 @@ Widget restageIcon(
   if (installed != null) {
     return Icon(
       installed,
+      key: key,
       size: size,
       color: color,
       semanticLabel: semanticLabel,
+      textDirection: textDirection,
     );
+  }
+  if (key != null) {
+    // Delivered fonts use a different widget type and cannot retain Icon's
+    // native key owner. Use the existing unavailable-icon fallback boundary.
+    throw RestageIconUnavailableError(
+        fontFamily: family,
+        codePoint: codePoint,
+        matchTextDirection: matchTextDirection,
+        requiresNativeIcon: true);
   }
   final delivered = DeliveredIconFonts.lookUp(context, family);
   if (delivered != null && delivered.codePoints.contains(codePoint)) {
@@ -253,6 +266,7 @@ Widget restageIcon(
       size: size,
       color: color,
       semanticLabel: semanticLabel,
+      textDirection: textDirection,
     );
   }
   throw RestageIconUnavailableError(
@@ -275,7 +289,11 @@ final class RestageIconUnavailableError extends Error {
     required this.fontFamily,
     required this.codePoint,
     this.matchTextDirection = false,
+    this.requiresNativeIcon = false,
   });
+
+  /// Whether a native key requires an actual Icon owner.
+  final bool requiresNativeIcon;
 
   /// The icon font family the surface named.
   final String fontFamily;
@@ -288,15 +306,18 @@ final class RestageIconUnavailableError extends Error {
 
   /// Names the missing code point, its font family and variant, and the fix.
   String get message =>
+      (requiresNativeIcon
+          ? 'A native key requires the original Icon owner. '
+          : '') +
       'Icon code point 0x${codePoint.toRadixString(16)} in font family '
-      '$fontFamily with matchTextDirection: $matchTextDirection is not in the '
-      'installed icon table. One code point can name both a glyph that mirrors '
-      'in a right-to-left locale and one that does not, and the two are looked '
-      'up separately. Generated surface code installs the icons its own '
-      'surface draws, so check that the surface is mounted through its '
-      'generated reference. A preview or authoring tool that renders content '
-      'it cannot know ahead of time passes a wider RestageIconTable to '
-      'InstalledIconTable.install().';
+          '$fontFamily with matchTextDirection: $matchTextDirection is not in the '
+          'installed icon table. One code point can name both a glyph that mirrors '
+          'in a right-to-left locale and one that does not, and the two are looked '
+          'up separately. Generated surface code installs the icons its own '
+          'surface draws, so check that the surface is mounted through its '
+          'generated reference. A preview or authoring tool that renders content '
+          'it cannot know ahead of time passes a wider RestageIconTable to '
+          'InstalledIconTable.install().';
 
   @override
   String toString() => message;

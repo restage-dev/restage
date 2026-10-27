@@ -48,6 +48,8 @@ export 'src/walker/record_shape_resolver.dart'
         RecordExcluded,
         RecordLabel,
         classifyRecordType;
+export 'src/walker/scalar_callback_contract.dart'
+    show scalarCallbackContractFor;
 export 'src/walker/structured_description_resolver.dart'
     show
         StructuredDescriptionConflict,
@@ -74,5 +76,6 @@ export 'src/walker/walker_issue_codes.dart'
         structuredFactoryUnsupportedParam,
         unionMemberInvalid,
         unionMemberUnresolved;
+export 'src/walker/widget_builder_contract.dart' show widgetBuilderContractFor;
 export 'src/wire_ids/wire_id_backfill.dart';
 export 'src/wire_ids/wire_ids.dart';

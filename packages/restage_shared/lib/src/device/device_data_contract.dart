@@ -10,7 +10,9 @@ library;
 /// Every in-contract path in the `data.device.*` namespace. `countryCode` is
 /// omitted when the ambient locale carries no country. The `safeArea*` paths
 /// carry `MediaQueryData.padding`, the `viewPadding*` paths carry
-/// `MediaQueryData.viewPadding`, both at the surface's mount point.
+/// `MediaQueryData.viewPadding`, and `viewInsets*` carries
+/// `MediaQueryData.viewInsets`, all at the surface's mount point. Accessibility
+/// flags retain their native boolean values.
 const Set<String> kDeviceContractPaths = {
   'locale',
   'languageCode',
@@ -30,6 +32,14 @@ const Set<String> kDeviceContractPaths = {
   'viewPaddingBottom',
   'viewPaddingLeft',
   'viewPaddingRight',
+  'viewInsetsTop',
+  'viewInsetsBottom',
+  'viewInsetsLeft',
+  'viewInsetsRight',
+  'boldText',
+  'disableAnimations',
+  'accessibleNavigation',
+  'highContrast',
 };
 
 /// The wire-value kind a device contract path publishes, paired with every
@@ -41,6 +51,9 @@ enum DeviceContractValueKind {
   /// A string token — a locale subtag, a platform identifier, an
   /// orientation.
   token,
+
+  /// A native accessibility flag.
+  boolean,
 }
 
 /// Every in-contract path mapped to the [DeviceContractValueKind] it
@@ -65,4 +78,12 @@ final Map<String, DeviceContractValueKind> kDeviceContractPathKinds =
   'viewPaddingBottom': DeviceContractValueKind.size,
   'viewPaddingLeft': DeviceContractValueKind.size,
   'viewPaddingRight': DeviceContractValueKind.size,
+  'viewInsetsTop': DeviceContractValueKind.size,
+  'viewInsetsBottom': DeviceContractValueKind.size,
+  'viewInsetsLeft': DeviceContractValueKind.size,
+  'viewInsetsRight': DeviceContractValueKind.size,
+  'boldText': DeviceContractValueKind.boolean,
+  'disableAnimations': DeviceContractValueKind.boolean,
+  'accessibleNavigation': DeviceContractValueKind.boolean,
+  'highContrast': DeviceContractValueKind.boolean,
 });

@@ -94,8 +94,8 @@ void main() {
     expect(
       nullableFlat,
       contains(
-        "regions: source.isList(const <Object>['regions']) ? "
-        "RestageDecoders.widgetList(source, const <Object>['regions']) : null,",
+        "regions: RestageDecoders.isWidgetList(source, const <Object>['regions']) ? "
+        "RestageDecoders.widgetList(source, const <Object>['regions'], context: context, bindings: builderBindings) : null,",
       ),
       reason: 'missing and explicit-null inputs must remain null, while both '
           'empty and non-empty authored lists must retain childList lowering',
@@ -105,7 +105,7 @@ void main() {
       isNot(
         contains(
           'regions: RestageDecoders.widgetList(source, '
-          "const <Object>['regions'])",
+          "const <Object>['regions'], context: context, bindings: builderBindings)",
         ),
       ),
       reason: 'the direct childList read collapses missing/null to an empty '
@@ -121,8 +121,9 @@ void main() {
       final flat = factory.replaceAll(RegExp(r'\s+'), ' ');
       expect(flat, contains('if (restagePresenceRegions.supplied)'));
       expect(
-        flat,
-        contains('source.isList(restagePresenceRegions.valuePath)'),
+        flat.replaceAll(' ', ''),
+        contains(
+            'RestageDecoders.isWidgetList(source,restagePresenceRegions.valuePath)'),
         reason: 'authored empty and non-empty lists must stay on the list '
             'decoder path',
       );
@@ -214,8 +215,9 @@ void main() {
         reason: 'absence must omit the trailing optional positional slot',
       );
       expect(
-        flat,
-        contains('source.isList(restagePresenceRegions.valuePath)'),
+        flat.replaceAll(' ', ''),
+        contains(
+            'RestageDecoders.isWidgetList(source,restagePresenceRegions.valuePath)'),
         reason: 'a supplied value must retain list-shape validation',
       );
       expect(

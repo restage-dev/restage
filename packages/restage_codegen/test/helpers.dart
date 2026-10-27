@@ -190,6 +190,60 @@ PropertyEntry prop(
       positional: positional,
     );
 
+/// The built-in core catalog plus an allocated `Probe` widget with
+/// [properties]; [structured] maps a property to its structured type name.
+Catalog nativeProbeCatalog(
+  List<(String, PropertyType)> properties, {
+  bool Function(WidgetEntry) keep = _keepAll,
+  Set<String> required = const {},
+  Map<String, String> structured = const {},
+}) {
+  final native = decodeCatalog(File(
+          Directory('packages/restage_core').existsSync()
+              ? 'packages/restage_core/lib/src/widget_catalog/catalog.json'
+              : '../restage_core/lib/src/widget_catalog/catalog.json')
+      .readAsStringSync());
+  WireIdRef? refTo(String? type) {
+    if (type == null) return null;
+    final entry =
+        native.structuredTypes.firstWhere((entry) => entry.name == type);
+    return WireIdRef(library: entry.library.namespace, wireId: entry.wireId);
+  }
+
+  return Catalog(
+    schemaVersion: native.schemaVersion,
+    generatedAt: native.generatedAt,
+    libraries: native.libraries,
+    structuredTypes: native.structuredTypes,
+    unions: native.unions,
+    widgets: [
+      ...native.widgets.where(keep),
+      WidgetEntry(
+        wireId: WireId('w9999'),
+        name: 'Probe',
+        library: WidgetLibrary.core,
+        category: WidgetCategory.layout,
+        description: '',
+        flutterType: 'package:apps_examples/_expr_probe.dart#Probe',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          for (final (index, (name, type)) in properties.indexed)
+            PropertyEntry(
+              wireId: WireId('p${9991 + index}'),
+              name: name,
+              type: type,
+              description: '',
+              required: required.contains(name),
+              structuredRef: refTo(structured[name]),
+            ),
+        ],
+      ),
+    ],
+  );
+}
+
+bool _keepAll(WidgetEntry _) => true;
+
 /// Builds a single-library [Catalog] containing `widgets`. Defaults to
 /// the `restage.core` library because most tests focus on a single
 /// library; cross-library tests pass `library` explicitly.
@@ -811,7 +865,9 @@ Future<Expression> parseExpressionForTest(String expression) {
 Future<Expression> parseExpressionFromSourceForTest(
   String source, {
   String rootPackage = _kRootPackage,
+  String functionName = 'x',
   String? enclosingClassName,
+  String libraryPath = 'lib/_expr_probe.dart',
 
   /// Further sources, keyed by a path in [rootPackage] or a `package|path`.
   Map<String, String> otherFiles = const {},
@@ -821,7 +877,7 @@ Future<Expression> parseExpressionFromSourceForTest(
     includeFlutter: _importsFlutter([source, ...otherFiles.values]),
     includeIntl: _importsIntl([source, ...otherFiles.values]),
   );
-  final assetKey = '$rootPackage|lib/_expr_probe.dart';
+  final assetKey = '$rootPackage|$libraryPath';
   readerWriter.testing.writeString(AssetId.parse(assetKey), source);
   String otherKey(String path) =>
       path.contains('|') ? path : '$rootPackage|$path';
@@ -834,7 +890,8 @@ Future<Expression> parseExpressionFromSourceForTest(
     _CapturingBuilder(
       (library, assetId) async {
         final executable = enclosingClassName == null
-            ? library.topLevelFunctions.firstWhere((f) => f.name == 'x')
+            ? library.topLevelFunctions
+                .firstWhere((f) => f.name == functionName)
             : library.classes
                 .firstWhere((c) => c.name == enclosingClassName)
                 .methods

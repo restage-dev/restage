@@ -17,6 +17,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0184",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0001",
           "name": "color",
           "type": "color",
@@ -87,12 +103,32 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0185",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0004",
           "name": "child",
           "type": "widget",
           "description": "The widget below this widget in the tree.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0005",
@@ -164,12 +200,32 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0186",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0009",
           "name": "child",
           "type": "widget",
           "description": "The widget below this widget in the tree.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0010",
@@ -240,25 +296,57 @@
       "childrenSlot": "list",
       "properties": [
         {
+          "wireId": "p0187",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0014",
           "name": "children",
           "type": "widgetList",
           "description": "The list of rows in the section. Usually a list of [CupertinoListTile]s.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "widgetList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "widget"
+            }
+          }
         },
         {
           "wireId": "p0015",
           "name": "header",
           "type": "widget",
           "description": "Sets the form section header. The section header lies above the [children] rows. Usually a [Text] widget.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0016",
           "name": "footer",
           "type": "widget",
           "description": "Sets the form section footer. The section footer lies below the [children] rows. Usually a [Text] widget.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0154",
@@ -299,25 +387,57 @@
       "childrenSlot": "list",
       "properties": [
         {
+          "wireId": "p0188",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0017",
           "name": "children",
           "type": "widgetList",
           "description": "The list of rows in the section. Usually a list of [CupertinoListTile]s.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "widgetList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "widget"
+            }
+          }
         },
         {
           "wireId": "p0018",
           "name": "header",
           "type": "widget",
           "description": "Sets the form section header. The section header lies above the [children] rows. Usually a [Text] widget.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0019",
           "name": "footer",
           "type": "widget",
           "description": "Sets the form section footer. The section footer lies below the [children] rows. Usually a [Text] widget.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0155",
@@ -357,33 +477,65 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0189",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0020",
           "name": "title",
           "type": "widget",
           "description": "A [title] is used to convey the central information. Usually a [Text].",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0021",
           "name": "subtitle",
           "type": "widget",
           "description": "A [subtitle] is used to display additional information. It is located below [title]. Usually a [Text] widget.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0022",
           "name": "leading",
           "type": "widget",
           "description": "A widget displayed at the start of the [CupertinoListTile]. This is typically an `Icon` or an `Image`.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0023",
           "name": "trailing",
           "type": "widget",
           "description": "A widget displayed at the end of the [CupertinoListTile]. This is usually a right chevron icon (e.g. `CupertinoListTileChevron`), or an `Icon`.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0024",
@@ -428,11 +580,31 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0190",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0026",
           "name": "leading",
           "type": "widget",
           "description": "{@template flutter.cupertino.CupertinoNavigationBar.leading} Widget to place at the start of the navigation bar. Normally a back button for a normal page or a cancel button for full page dialogs.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0173",
@@ -492,14 +664,22 @@
           "name": "middle",
           "type": "widget",
           "description": "The navigation bar's default title.",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0028",
           "name": "trailing",
           "type": "widget",
           "description": "{@template flutter.cupertino.CupertinoNavigationBar.trailing} Widget to place at the end of the navigation bar. Normally additional actions taken on the page such as a search or edit function. {@endtemplate}",
-          "constructorNullable": true
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0029",
@@ -588,6 +768,22 @@
       "childrenSlot": "single",
       "properties": [
         {
+          "wireId": "p0191",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0030",
           "name": "backgroundColor",
           "type": "color",
@@ -609,7 +805,11 @@
           "type": "widget",
           "description": "Widget to show in the main content area.",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widget"
+          }
         },
         {
           "wireId": "p0164",
@@ -629,6 +829,22 @@
       "flutterType": "package:flutter/src/cupertino/switch.dart#CupertinoSwitch",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0192",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0032",
           "name": "value",
@@ -688,6 +904,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0193",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0035",
           "name": "placeholder",
           "type": "string",
@@ -717,6 +949,23 @@
               "symbolName": "TextInputAction"
             }
           }
+        },
+        {
+          "wireId": "p0182",
+          "name": "textDirection",
+          "type": "enumValue",
+          "description": "{@macro flutter.widgets.editableText.textDirection}",
+          "enumType": "TextDirection",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "TextDirection"
+            }
+          },
+          "sinceVersion": 17
         },
         {
           "wireId": "p0036",
@@ -846,6 +1095,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0194",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0041",
           "name": "value",
           "type": "real",
@@ -956,6 +1221,22 @@
       "flutterType": "package:flutter/src/cupertino/date_picker.dart#CupertinoDatePicker",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0195",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0047",
           "name": "mode",
@@ -1179,6 +1460,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0196",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
+        {
           "wireId": "p0059",
           "name": "mode",
           "type": "enumValue",
@@ -1333,6 +1630,22 @@
       "flutterType": "package:flutter/src/cupertino/picker.dart#CupertinoPicker",
       "childrenSlot": "list",
       "properties": [
+        {
+          "wireId": "p0197",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0067",
           "name": "diameterRatio",
@@ -1492,7 +1805,15 @@
           "type": "widgetList",
           "description": "",
           "required": true,
-          "priority": "primary"
+          "priority": "primary",
+          "valueShape": {
+            "kind": "list",
+            "propertyType": "widgetList",
+            "itemShape": {
+              "kind": "scalar",
+              "propertyType": "widget"
+            }
+          }
         },
         {
           "wireId": "p0077",
@@ -1530,6 +1851,22 @@
       "flutterType": "package:flutter/src/cupertino/search_field.dart#CupertinoSearchTextField",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0198",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0078",
           "name": "onChanged",
@@ -1615,6 +1952,22 @@
       "flutterType": "package:flutter/src/cupertino/checkbox.dart#CupertinoCheckbox",
       "childrenSlot": "none",
       "properties": [
+        {
+          "wireId": "p0199",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0012"
+            }
+          },
+          "sinceVersion": 24
+        },
         {
           "wireId": "p0083",
           "name": "value",
@@ -1718,6 +2071,16 @@
     }
   ],
   "structuredTypes": [
+    {
+      "wireId": "s0012",
+      "name": "Key",
+      "library": "restage.cupertino",
+      "description": "Closed native data value.",
+      "sourceType": "package:flutter/src/foundation/key.dart#Key",
+      "fields": [],
+      "variants": [],
+      "stability": "volatile"
+    },
     {
       "wireId": "s0001",
       "name": "BoxDecoration",
@@ -2421,6 +2784,46 @@
           "sourceKind": "constValue",
           "staticAccessor": "zero",
           "description": "A radius with [x] and [y] values set to zero."
+        }
+      ],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0011",
+      "name": "ScrollPhysics",
+      "library": "restage.cupertino",
+      "description": "Determines the physics of a [Scrollable] widget.",
+      "sourceType": "package:flutter/src/widgets/scroll_physics.dart#ScrollPhysics",
+      "fields": [
+        {
+          "wireId": "p0183",
+          "name": "parent",
+          "type": "structured",
+          "description": "If non-null, determines the default behavior for each method.",
+          "structuredRef": {
+            "library": "restage.cupertino",
+            "wireId": "s0011"
+          },
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.cupertino",
+              "wireId": "s0011"
+            }
+          }
+        }
+      ],
+      "variants": [
+        {
+          "wireId": "v0027",
+          "sourceKind": "constructor",
+          "argMappings": {
+            "parent": [
+              "p0183"
+            ]
+          },
+          "description": "Creates an object with the default scroll physics."
         }
       ],
       "stability": "volatile"

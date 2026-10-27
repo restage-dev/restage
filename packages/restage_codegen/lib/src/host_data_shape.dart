@@ -50,6 +50,15 @@ enum HostDataScalarKind {
   string
 }
 
+/// A core DateTime encoded without losing microseconds or its UTC flag.
+@immutable
+final class HostDataDateTimeShape extends HostDataShape {
+  const HostDataDateTimeShape(super.type);
+
+  @override
+  bool get requiresEncoding => true;
+}
+
 /// A recursively shaped core List.
 @immutable
 final class HostDataListShape extends HostDataShape {
@@ -174,6 +183,10 @@ final class _HostDataShapeDeriver {
   HostDataShapeFact derive(DartType type, String path) {
     if (type is! InterfaceType) {
       return _refused(path, 'the type is not a supported interface value');
+    }
+    if (type.element.name == 'DateTime' &&
+        type.element.library.identifier == 'dart:core') {
+      return HostDataShapeFact.admitted(HostDataDateTimeShape(type));
     }
     final arguments = type.typeArguments;
     if (arguments.isEmpty) {

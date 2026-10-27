@@ -1,3 +1,8 @@
+import 'package:restage_codegen/src/scalar_callback_lowering.dart';
+import 'package:restage_codegen/src/grid_value_recipes.dart';
+import 'package:restage_codegen/src/builder_expression_lowering.dart';
+import 'package:restage_codegen/src/widget_builder_lowering.dart';
+import 'package:restage_codegen/src/widget_collection_lowering.dart';
 import 'dart:math' as math;
 
 import 'package:analyzer/dart/ast/ast.dart';
@@ -32,13 +37,21 @@ import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/installed_native_call.dart';
+import 'package:restage_codegen/src/installed_native_provenance.dart'
+    show installedNativeConstantValue;
+import 'package:restage_codegen/src/intl_format_recognition.dart';
 import 'package:restage_codegen/src/lowering_targets.dart';
 import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
+import 'package:restage_codegen/src/native_binding_routes.dart';
+import 'package:restage_codegen/src/runtime_realization.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/navigation_recognition.dart';
 import 'package:restage_codegen/src/number_format_recognition.dart';
+import 'package:restage_codegen/src/optional_native_value_emitter.dart';
+import 'package:restage_codegen/src/optional_native_values.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/paywall_completion.dart';
 import 'package:restage_codegen/src/preferred_heights.dart';
@@ -53,6 +66,7 @@ import 'package:restage_codegen/src/structured_value_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/synthetic_property.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
+import 'package:restage_codegen/src/text_span_recognizer.dart';
 import 'package:restage_codegen/src/toggle_buttons_recognition.dart';
 import 'package:restage_codegen/src/translator_recipe.dart';
 import 'package:restage_codegen/src/type_inference.dart';
@@ -61,6 +75,16 @@ import 'package:restage_codegen/src/widget_classification.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
+        BuilderResult,
+        NativeBindingContract,
+        kNativeVoidCallbackType,
+        kTextSpanRecognizerDetailCallbacks,
+        SurfaceScreenHostDataNativeBindingShapeV1,
+        builderContextValueType,
+        colorValueType,
+        ValueNode,
+        ValueOperation,
+        ValueType,
         DeviceContractValueKind,
         ThemeContractValueKind,
         kCapturedEventValueKey,
@@ -100,6 +124,8 @@ const Set<String> _kTranslatedTypedListFrameworkItems = {
   'AssetImage',
   'Border',
   'BorderRadius',
+  'BorderRadiusDirectional',
+  'EdgeInsetsDirectional',
   'BorderSide',
   'BoxShadow',
   'DecorationImage',
@@ -186,6 +212,10 @@ const Map<String, String> _kBorderRadiusCornerProperty = {
   'topRight': 'borderRadiusTopRight',
   'bottomLeft': 'borderRadiusBottomLeft',
   'bottomRight': 'borderRadiusBottomRight',
+  'topStart': 'borderRadiusTopStart',
+  'topEnd': 'borderRadiusTopEnd',
+  'bottomStart': 'borderRadiusBottomStart',
+  'bottomEnd': 'borderRadiusBottomEnd',
 };
 
 /// Result of translating a single Dart `Expression` AST node into an RFW
@@ -289,6 +319,10 @@ final class TranslationResult {
 
   /// Values the generated mount computes, ordered by key.
   final List<HoistedValue> hoisted;
+
+  /// The validation registry for this translation's installed declarations.
+  Map<String, ValueOperation> get valueOperations =>
+      installedNativeCallOperations(hoisted);
 
   /// Whether the surface needs the client floor for these features.
   bool get requiresSurfaceFeatureFloor =>
@@ -496,10 +530,10 @@ final class ExpressionTranslator {
     'text',
     'style',
     'children',
+    'recognizer',
   };
 
   static const Set<String> _kDeferredTextSpanProps = {
-    'recognizer',
     'semanticsLabel',
     'locale',
     'spellOut',
@@ -813,6 +847,7 @@ final class ExpressionTranslator {
         forcedCustomWidgetFactoryRoutes,
   }) {
     final saved = _walk;
+    _builderScopeCounter = 0;
     final savedHoist = _hoist;
     final hoistLibrary = switch (expr.root) {
       CompilationUnit(:final declaredFragment?) => declaredFragment.element,
@@ -825,6 +860,9 @@ final class ExpressionTranslator {
               rootContext: buildContextParameter,
               isStateWidget: _isStateWidgetGetter,
               rootParamFor: _rootParamForElement,
+              isDeclaredCallable: (reference) => _borrowedNativeRoot(
+                      _resolveBoundIdentifier(_stripParens(reference)))
+                  ?.type is FunctionType,
               bindingFor: (element) =>
                   _walk.paramBindings[element] ??
                   _walk.inlined.localBindings[element],
@@ -1231,11 +1269,13 @@ final class ExpressionTranslator {
 
   String _translate(Expression expr, List<Issue> issues) {
     final before = issues.length;
-    final dsl = _hoisted(
-          expr,
-          issues,
-          (scratch) => _translateExpression(expr, scratch),
-        ) ??
+    final dsl = (_activeWidgetBuilder == null
+            ? _hoisted(
+                expr,
+                issues,
+                (scratch) => _translateExpression(expr, scratch),
+              )
+            : null) ??
         _translateExpression(expr, issues);
     _explainAppOnlyFailure(expr, issues, before);
     _recordEmission(expr, dsl);
@@ -1301,10 +1341,43 @@ final class ExpressionTranslator {
     if (hoist == null || hoist.speculating) return null;
     final stripped = _stripParens(expr);
     if (stripped is Literal) return null;
+    if (containsInstalledIntlTranslation(stripped,
+        helpers: _walk.inlined.helpers)) return null;
     final verdict = classifyHoistType(stripped.staticType);
     if (verdict is! HoistCrosses) return null;
+    if (verdict.kind == HoistValueKind.color) {
+      final source = _rootColorSource(stripped);
+      final borrowed = _nativeBindingRead(source, type: 'flutter.Color');
+      if (borrowed != null) return borrowed;
+      if (_installedColorExpression(source) case final installed?) {
+        try {
+          final native =
+              _tryNativeCallValue(installed, issues, type: 'flutter.Color');
+          if (native != null) return native;
+        } on BuilderLoweringException catch (error) {
+          issues.add(Issue(
+              code: IssueCode.propertyValueTypeMismatch,
+              message: error.reason,
+              location: _locationOf(error.node)));
+          return '';
+        }
+      }
+    }
     final analysis = hoist.analyzer.analyze(stripped);
     if (analysis is! HoistEvaluable) return null;
+    if (verdict.kind == HoistValueKind.textScaler) {
+      final native = _nativeBindingRead(stripped, type: 'flutter.TextScaler');
+      if (native != null) return native;
+    }
+    // Per-item native objects need an explicit item scope before they can cross.
+    if (verdict.kind == HoistValueKind.textScaler && analysis.item != null) {
+      return null;
+    }
+    if (verdict.kind == HoistValueKind.scalar &&
+        _readsKeyboardOrAccessibility(stripped)) {
+      return _hoistedRead(hoist.add(
+          analysis.value(verdict, stripped.staticType!, expression: stripped)));
+    }
     final scratch = <Issue>[];
     final String dsl;
     hoist.speculating = true;
@@ -1317,6 +1390,27 @@ final class ExpressionTranslator {
       issues.addAll(scratch);
       return dsl;
     }
+    // A Color crosses as the native object; ARGB would drop its subtype.
+    if (verdict.kind == HoistValueKind.color) {
+      if (isInstalledNativeConstant(stripped)) {
+        try {
+          final native =
+              _tryNativeCallValue(stripped, issues, type: 'flutter.Color');
+          if (native != null) return native;
+        } on BuilderLoweringException catch (error) {
+          issues.add(Issue(
+              code: IssueCode.propertyValueTypeMismatch,
+              message: error.reason,
+              location: _locationOf(error.node)));
+          return '';
+        }
+      }
+      final native =
+          _nativeBindingRead(stripped, type: 'flutter.Color', computed: true);
+      if (native != null) return native;
+      issues.addAll(scratch);
+      return '';
+    }
     return _hoistedRead(
       hoist.add(
         analysis.value(
@@ -1326,6 +1420,198 @@ final class ExpressionTranslator {
         ),
       ),
     );
+  }
+
+  bool _readsKeyboardOrAccessibility(AstNode node, [Set<AstNode>? visited]) {
+    final seen = visited ?? Set<AstNode>.identity();
+    if (!seen.add(node)) return false;
+    if (node is Expression) {
+      final resolved = _resolveBoundIdentifier(node);
+      if (!identical(resolved, node)) {
+        return _readsKeyboardOrAccessibility(resolved, seen);
+      }
+      if (_kKeyboardAndAccessibilityPaths
+          .contains(_recognizeDeviceRead(node)?.path)) {
+        return true;
+      }
+      if (node is MethodInvocation) {
+        final helper = _walk.inlined.helpers[node.methodName.element];
+        if (helper != null) {
+          // Check caller arguments before binding the body. A negative visit
+          // can then be reused when that body is reached through another call.
+          for (final argument in node.argumentList.arguments) {
+            final expression = argument is NamedArgument
+                ? argument.argumentExpression
+                : argument as Expression;
+            if (_readsKeyboardOrAccessibility(expression, seen)) return true;
+          }
+          return _inHelperBody(
+            helper,
+            node,
+            <Issue>[],
+            (body) => _readsKeyboardOrAccessibility(body, seen),
+            refused: false,
+          );
+        }
+      }
+    }
+    return node.childEntities.whereType<AstNode>().any(
+          (child) => _readsKeyboardOrAccessibility(child, seen),
+        );
+  }
+
+  RootContextParam? _borrowedNativeRoot(Expression expression) {
+    final root = _rootParamRead(_stripParens(expression));
+    final field = root?.field;
+    if (field == null ||
+        !field.isFinal ||
+        field.isLate ||
+        !field.isOriginDeclaration ||
+        field.isAbstract ||
+        field.isExternal) return null;
+    return root;
+  }
+
+  bool _isInertNativeSelection(Expression expression) =>
+      isInertNativeSelection(expression,
+          isBorrowedRead: (value) => _borrowedNativeRoot(value) != null);
+
+  /// Binds an exact constructor input, or with [computed] a value the mount
+  /// evaluates; expressions with invocation timing stay local.
+  String? _nativeBindingRead(Expression expression,
+      {required String type, bool computed = false}) {
+    final hoist = _hoist;
+    if (hoist == null || hoist.speculating) return null;
+    final expr = _resolveBoundIdentifier(_stripParens(expression));
+    final root = _borrowedNativeRoot(expr);
+    if (root == null &&
+        (!computed ||
+            (_InstalledNativeConstruction(_resolveBoundIdentifier)..visit(expr))
+                .found)) return null;
+    final analysis = hoist.analyzer.analyze(expr);
+    // A computed value read per list item binds once per item.
+    if (analysis is! HoistEvaluable || (analysis.item != null && !computed)) {
+      return null;
+    }
+    final valueType = root?.type ?? expr.staticType!;
+    final contract = NativeBindingContract(
+      type: type,
+      nullable: valueType.nullabilitySuffix == NullabilitySuffix.question,
+    );
+    return _hoistedRead(hoist.add(analysis.value(
+      HoistCrosses(HoistValueKind.nativeBinding,
+          SurfaceScreenHostDataNativeBindingShapeV1(contract)),
+      valueType,
+      expression: expr,
+      nativeContract: contract,
+      computed: root == null,
+    )));
+  }
+
+  PropertyEntry? _nativeKeyProperty(WidgetEntry entry) =>
+      entry.properties.firstWhereOrNull((property) {
+        if (property.name != 'key' || property.type != PropertyType.structured)
+          return false;
+        final shape = property.valueShape;
+        final ref = property.structuredRef ??
+            (shape is StructuredShape ? shape.structuredRef : null);
+        final structured =
+            ref == null ? null : _nativeCatalogIndex.structuredByRef(ref);
+        return structured != null &&
+            nativeBindingRoute(structured.sourceType)?.contractType ==
+                'flutter.Key';
+      });
+
+  String? _catalogNativeKey(
+      WidgetEntry entry, Expression expression, List<Issue> issues) {
+    final property = _nativeKeyProperty(entry);
+    final resolved = _resolveBoundIdentifier(expression);
+    final isNull = resolved is NullLiteral ||
+        installedNativeConstantValue(resolved)?.isNull == true;
+    final legacy = isNull || isLegacyScalarWidgetKey(resolved);
+    if (runtimeRealizationFor(entry) != null && !legacy) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message:
+              'A native key requires the original ${entry.name} owner; its guarded runtime replacement cannot retain that owner.',
+          location: _locationOf(expression)));
+      return null;
+    }
+    if (property == null && !legacy) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message:
+              'A native key requires the original widget constructor key slot in the catalog.',
+          location: _locationOf(expression)));
+      return null;
+    }
+    if (isNull) {
+      return property != null &&
+              RfwConstructorPresenceProtocol.appliesTo(property)
+          ? RfwConstructorPresenceEncoder.encode(property, 'null')
+          : null;
+    }
+    final before = issues.length;
+    final reference = _nativeKeyReference(expression, issues);
+    if (reference == null &&
+        issues.length == before &&
+        (!legacy ||
+            property != null &&
+                RfwConstructorPresenceProtocol.appliesTo(property))) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message:
+              'This key requires an installed native Key binding; omitting it cannot preserve its owner or constructor default.',
+          location: _locationOf(expression)));
+    }
+    return reference == null || property == null
+        ? reference
+        : RfwConstructorPresenceEncoder.encode(property, reference);
+  }
+
+  String? _nativeKeyReference(Expression expression, List<Issue> issues) {
+    final active = _activeWidgetBuilder;
+    if (active != null && active.hasNativeKeyValue(expression)) {
+      return active.value(expression);
+    }
+    final borrowed = _nativeBindingRead(expression, type: 'flutter.Key');
+    if (borrowed != null) return borrowed;
+    final resolved = _resolveBoundIdentifier(_stripParens(expression));
+    final hoist = _hoist;
+    if (hoist != null &&
+        !hoist.speculating &&
+        installedNativeConstantType(resolved) == 'flutter.Key') {
+      try {
+        return _hoistedRead(hoist.add(installedNativeConstant(resolved,
+            type: 'flutter.Key',
+            emissionLibrary: hoist.analyzer.namespace.library)));
+      } on BuilderLoweringException catch (error) {
+        issues.add(Issue(
+            code: IssueCode.propertyValueTypeMismatch,
+            message: error.toString(),
+            location: _locationOf(error.node)));
+        return null;
+      }
+    }
+    final constant = installedNativeConstantValue(resolved);
+    final scalarValueKey = resolved is InstanceCreationExpression &&
+        resolved.constructorName.element?.enclosingElement.name == 'ValueKey' &&
+        resolved.constructorName.element?.enclosingElement.library.identifier ==
+            'package:flutter/src/foundation/key.dart';
+    if (constant != null && !constant.isNull && !scalarValueKey) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: 'This constant Key family has no installed native route.',
+          location: _locationOf(expression)));
+      return null;
+    }
+    if (installedNativeConstructorType(resolved) != 'flutter.Key') return null;
+    issues.add(Issue(
+        code: IssueCode.propertyValueTypeMismatch,
+        message:
+            'A fresh native key requires an explicit callback or helper prelude initializer.',
+        location: _locationOf(expression)));
+    return null;
   }
 
   /// The payload's read of a mount-computed [value].
@@ -1351,7 +1637,675 @@ final class ExpressionTranslator {
     );
   }
 
+  bool _containsIntlFormatting(Expression expression) =>
+      containsIntlFormatting(expression, helpers: _walk.inlined.helpers);
+
+  Map<String, ValueOperation> get _installedValueOperations =>
+      installedNativeCallOperations(_hoist?.values.values ?? const []);
+
+  int _lowerNativeCall(Expression value, BuilderExpressionLowering lowering,
+      {required ValueType resultType,
+      Map<Expression, String?> constantStrings = const {}}) {
+    while (value is ParenthesizedExpression) {
+      value = value.expression;
+    }
+    final active = _activeWidgetBuilder;
+    if (value is! FunctionExpression &&
+        (active == null || active.isProjectingBody) &&
+        !_isInertNativeSelection(value)) {
+      throw BuilderLoweringException(value,
+          'Native evaluation requires an explicit callback or helper prelude initializer');
+    }
+    final hoist = _hoist;
+    if (hoist == null || hoist.speculating) {
+      throw BuilderLoweringException(
+          value, 'Native calls require an installed source declaration');
+    }
+    return lowering.lowerInstalledNativeCall(value,
+        resultType: resultType,
+        constantStrings: constantStrings,
+        isBorrowedCallable: (reference) {
+          final expr = _resolveBoundIdentifier(_stripParens(reference));
+          final root = _borrowedNativeRoot(expr);
+          if (root?.type is! FunctionType) return false;
+          final analysis = hoist.analyzer.analyze(expr);
+          return analysis is HoistEvaluable && analysis.item == null;
+        },
+        emissionLibrary: hoist.analyzer.namespace.library,
+        borrow: (identifier) {
+          final root = _rootParamRead(identifier);
+          if (root == null) return null;
+          final String nominalType;
+          try {
+            nominalType = installedNativeTypeId(root.type);
+          } on ArgumentError {
+            throw BuilderLoweringException(identifier,
+                'The native input type cannot be declared in this frame');
+          }
+          final type = ValueType.native(nominalType,
+              nullable:
+                  root.type.nullabilitySuffix == NullabilitySuffix.question);
+          final dsl = _nativeBindingRead(identifier, type: type.nativeType!);
+          if (dsl == null) return null;
+          final name = 'c${lowering.captureTypes.length}';
+          lowering.captureTypes[name] = type;
+          lowering.captureDsl[name] = dsl;
+          return InstalledNativeInput(
+              lowering.add(ValueNode('capture', type, name: name)), type);
+        },
+        install: (plan) => hoist.add(plan.binding));
+  }
+
+  String? _tryNativeCallValue(Expression expression, List<Issue> issues,
+      {required String type}) {
+    if (_hoist == null || _hoist!.speculating) return null;
+    while (expression is ParenthesizedExpression) {
+      expression = expression.expression;
+    }
+    final active = _activeWidgetBuilder;
+    if (isInstalledNativeConstant(expression)) {
+      final value = _hoist!.add(installedNativeConstant(expression,
+          type: type, emissionLibrary: _hoist!.analyzer.namespace.library));
+      final reference = _hoistedRead(value);
+      if (active == null) return reference;
+      return active.nativeValue(expression, (_, lowering) {
+        final name = 'c${lowering.captureTypes.length}';
+        final shape =
+            ValueType.native(type, nullable: value.nativeContract!.nullable);
+        lowering.captureTypes[name] = shape;
+        lowering.captureDsl[name] = reference;
+        return lowering.add(ValueNode('capture', shape, name: name));
+      });
+    }
+    if (active != null) {
+      return active.nativeValue(
+          expression,
+          (value, lowering) => _lowerNativeCall(value, lowering,
+              resultType: ValueType.native(type,
+                  nullable: value.staticType?.nullabilitySuffix ==
+                      NullabilitySuffix.question)));
+    }
+    if (expression is! FunctionExpression &&
+        !_isInertNativeSelection(expression)) {
+      throw BuilderLoweringException(expression,
+          'Native evaluation requires an explicit callback or helper prelude initializer');
+    }
+    // Root native inputs retain only proven borrowed constructor fields.
+    final values = BuilderExpressionLowering(
+        operations: _installedValueOperations,
+        capture: (value) => _translate(value, issues));
+    final root = _lowerNativeCall(expression, values,
+        resultType: ValueType.native(type,
+            nullable: expression.staticType?.nullabilitySuffix ==
+                NullabilitySuffix.question));
+    return _encodeScalarValueProgram(values, root);
+  }
+
+  int? _lowerInstalledValue(
+      Expression value, BuilderExpressionLowering lowering) {
+    if (isInstalledIntlTranslation(value)) {
+      return _lowerNativeCall(value, lowering, resultType: ValueType.string);
+    }
+    final optional = optionalNativeInitializerType(value);
+    if (optional != null && value is SimpleIdentifier) {
+      final node = lowering.bindings[value.element];
+      if (node != null) {
+        final type = lowering.nodes[node].type;
+        if (type.kind == 'native' && type.nativeType == optional) return node;
+        throw BuilderLoweringException(
+            value, 'A native SVG alias requires its original installed value');
+      }
+    }
+    final native = optional ?? installedNativeConstructorType(value);
+    if (native != null) {
+      return _lowerNativeCall(value, lowering,
+          resultType: ValueType.native(native,
+              nullable: value.staticType?.nullabilitySuffix ==
+                      NullabilitySuffix.question ||
+                  value.staticType?.isDartCoreNull == true));
+    }
+    return lowerIntlValue(value, lowering, resolve: _resolveBoundIdentifier);
+  }
+
+  void _checkValueProgramBinding(Expression value, Expression bound) {
+    if (isNativeIntlFormatterType(value.staticType) ||
+        _containsIntlFormatting(bound)) {
+      throw BuilderLoweringException(
+          value, 'A captured formatter requires a native prelude binding');
+    }
+  }
+
+  String? _tryIntlFormattingValue(Expression expression, List<Issue> issues) {
+    final resolved = _resolveBoundIdentifier(expression);
+    if (resolved.staticType?.isDartCoreString != true ||
+        !_containsIntlFormatting(resolved)) return null;
+    return _tryScalarValueProgram(expression, issues);
+  }
+
+  String? _tryScalarValueProgram(Expression expression, List<Issue> issues,
+      {bool asDouble = false, WidgetBuilderLowering? parentBuilder}) {
+    final resolved = _resolveBoundIdentifier(expression);
+    final type = resolved.staticType;
+    if (type == null ||
+        !(type.isDartCoreString ||
+            type.isDartCoreBool ||
+            type.isDartCoreInt ||
+            type.isDartCoreDouble ||
+            type.isDartCoreNum)) return null;
+    if (!identical(resolved, expression) &&
+        expression is SimpleIdentifier &&
+        _walk.inlined.localBindings.containsKey(expression.element)) {
+      issues.add(Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message:
+              'An eagerly computed local requires a native prelude binding',
+          location: _locationOf(expression)));
+      return '';
+    }
+    late final BuilderExpressionLowering values;
+    values = BuilderExpressionLowering(
+      operations: _installedValueOperations,
+      parent: parentBuilder?.expressions,
+      capture: (value) {
+        if (parentBuilder != null && values.referencesOuter(value)) {
+          return parentBuilder.captureValue(value);
+        }
+        final saved = _activeWidgetBuilder;
+        if (parentBuilder != null) _activeWidgetBuilder = null;
+        try {
+          return _translate(value, issues);
+        } finally {
+          _activeWidgetBuilder = saved;
+        }
+      },
+      extension: (value, lowering) {
+        if (value is SimpleIdentifier &&
+            !lowering.bindings.containsKey(value.element)) {
+          final bound = _resolveBoundIdentifier(value);
+          if (!identical(bound, value)) {
+            _checkValueProgramBinding(value, bound);
+            return lowering.lower(bound);
+          }
+        }
+        final root = _rootParamAccess(value);
+        if (root != null && root.shape != null && !root.isRefused) {
+          final name = 'c${lowering.captureTypes.length}';
+          final type = valueTypeFor(value.staticType, value);
+          lowering.captureTypes[name] = type;
+          lowering.captureDsl[name] = _translate(value, issues);
+          return lowering.add(ValueNode('capture', type, name: name));
+        }
+        if (value is MethodInvocation) {
+          final helper = _walk.inlined.helpers[value.methodName.element] ??
+              pureBuilderHelperFor(value, value.methodName.element);
+          if (helper != null) {
+            return lowering.lowerHelper(helper, value);
+          }
+        }
+        return _lowerInstalledValue(value, lowering);
+      },
+    );
+    try {
+      var root = values.lower(resolved);
+      // Ordinary values use the rendered constructor's context; authored context
+      // reads require mount hoisting or a native callback's lexical binding.
+      if (values.parameters.keys.any(
+        (name) =>
+            name != 'context:device:defaultTargetPlatform' &&
+            builderContextValueType(name) != null,
+      )) {
+        throw BuilderLoweringException(
+          expression,
+          'An ambient context read requires an admitted native context binding',
+        );
+      }
+      if (asDouble && values.nodes[root].type.kind == 'int') {
+        root =
+            values.add(ValueNode('toDouble', ValueType.real, inputs: [root]));
+      }
+      return _encodeScalarValueProgram(values, root);
+    } on BuilderLoweringException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message: error.reason,
+          location: _locationOf(error.node)));
+      return '';
+    } on FormatException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message: error.message,
+          location: _locationOf(expression)));
+      return '';
+    }
+  }
+
+  String _encodeScalarValueProgram(BuilderExpressionLowering values, int root) {
+    final program = values.program(root);
+    program.validate(operations: _installedValueOperations);
+    return '{ version: 1, program: ${_stringLiteral(program.encode())}, captures: {'
+        '${values.captureDsl.entries.map((e) => '${e.key}: ${e.value}').join(', ')} } }';
+  }
+
+  WidgetBuilderLowering? _activeWidgetBuilder;
+  bool _inSpanCollection = false;
+  bool _inSpanRecognizerCallback = false;
+
+  String _spanCollectionBuilderValue(Expression expression, List<Issue> issues,
+      {bool asDouble = false}) {
+    final resolved = _resolveBoundIdentifier(expression);
+    final reference = _runtimeLoopReference(resolved);
+    if (reference != null &&
+        !reference.isRefused &&
+        !(asDouble && resolved.staticType?.isDartCoreInt == true)) {
+      return reference.dsl(_rfwPathPart);
+    }
+    var usesLoop = false;
+    for (final loop in _walk.runtimeLoops) {
+      resolved.accept(
+          _ElementReferenceVisitor(loop.element, () => usesLoop = true));
+    }
+    if (!usesLoop)
+      return _activeWidgetBuilder!.value(expression, asDouble: asDouble);
+    if (_inSpanRecognizerCallback) {
+      issues.add(Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message:
+              'A computed loop event argument requires an installed native callback binding.',
+          location: _locationOf(expression)));
+      return '';
+    }
+    return _tryScalarValueProgram(expression, issues,
+            asDouble: asDouble, parentBuilder: _activeWidgetBuilder) ??
+        '';
+  }
+
+  bool _customNativeValueBoundary = false;
+
+  T _withinNativeValueBoundary<T>(bool custom, T Function() translate) {
+    final previous = _customNativeValueBoundary;
+    _customNativeValueBoundary = custom;
+    try {
+      return translate();
+    } finally {
+      _customNativeValueBoundary = previous;
+    }
+  }
+
+  int _builderScopeCounter = 0;
+  final Set<HelperDef> _activeBuilderHelpers = {};
+  int _nativePhysicsDepth = 0;
+
+  String _translateScalarCallback(Expression expression,
+      ScalarCallbackContract contract, List<Issue> issues) {
+    if (contract.parameters.singleOrNull == ScalarCallbackParameter.valueKey &&
+        contract.nullableResult) {
+      final borrowed =
+          _nativeBindingRead(expression, type: 'flutter.ChildIndexGetter');
+      if (borrowed != null) {
+        return _nativeKeyIndexReference(borrowed,
+            nullable: expression.staticType?.nullabilitySuffix ==
+                NullabilitySuffix.question);
+      }
+    }
+    final scalarIssues = <Issue>[];
+    final scalar =
+        _translatePureScalarCallback(expression, contract, scalarIssues);
+    if (scalarIssues.isEmpty) return scalar;
+    final resolved = _resolveBoundIdentifier(expression);
+    if (contract.parameters.singleOrNull == ScalarCallbackParameter.valueKey &&
+        contract.nullableResult &&
+        resolved is FunctionExpression) {
+      try {
+        final native = _tryNativeCallValue(resolved, issues,
+            type: 'flutter.ChildIndexGetter');
+        if (native != null)
+          return _activeWidgetBuilder == null
+              ? '{nativeKeyIndex: $native}'
+              : _nativeKeyIndexReference(native);
+      } on BuilderLoweringException catch (error) {
+        issues.add(Issue(
+            code: IssueCode.propertyValueTypeMismatch,
+            message: error.toString(),
+            location: _locationOf(error.node)));
+        return '';
+      }
+    }
+    issues.addAll(scalarIssues);
+    return '';
+  }
+
+  String _nativeKeyIndexReference(String reference, {bool nullable = false}) {
+    final values = BuilderExpressionLowering(
+        operations: _installedValueOperations, capture: (_) => reference);
+    final type =
+        ValueType.native('flutter.ChildIndexGetter', nullable: nullable);
+    values.captureTypes['c0'] = type;
+    values.captureDsl['c0'] = reference;
+    final root = values.add(ValueNode('capture', type, name: 'c0'));
+    return '{nativeKeyIndex: ${_encodeScalarValueProgram(values, root)}}';
+  }
+
+  String _translatePureScalarCallback(Expression expression,
+      ScalarCallbackContract contract, List<Issue> issues) {
+    final callback = _resolveBoundIdentifier(expression);
+    final definition = callback is SimpleIdentifier
+        ? pureBuilderCallbackFor(callback, callback.element)
+        : null;
+    final helper = callback is SimpleIdentifier
+        ? _walk.inlined.helpers[callback.element] ??
+            pureBuilderHelperFor(callback, callback.element)
+        : null;
+    if (callback is! FunctionExpression &&
+        definition == null &&
+        helper == null) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: 'A scalar callback requires an analyzed pure closure.',
+          location: _locationOf(expression)));
+      return '';
+    }
+    final previous = _activeWidgetBuilder;
+    late final ScalarCallbackLowering lowering;
+    try {
+      lowering = ScalarCallbackLowering(
+          parent: previous?.expressions,
+          operations: _installedValueOperations,
+          valueExtension: _lowerInstalledValue,
+          capture: (value) {
+            final outer = lowering.expressions.referencesOuter(value);
+            _activeWidgetBuilder = outer ? previous : null;
+            try {
+              return outer && previous != null
+                  ? previous.captureValue(value)
+                  : _translate(_resolveBoundIdentifier(value), issues);
+            } finally {
+              _activeWidgetBuilder = previous;
+            }
+          },
+          resolve: _resolveBoundIdentifier,
+          contract: contract,
+          helperFor: (call) =>
+              _walk.inlined.helpers[call.methodName.element] ??
+              pureBuilderHelperFor(call, call.methodName.element));
+      return definition != null
+          ? lowering.lowerBody(definition.body, definition.parameters)
+          : callback is FunctionExpression
+              ? lowering.lower(callback)
+              : lowering.lowerDefinition(helper!);
+    } on BuilderLoweringException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: error.toString(),
+          location: _locationOf(error.node)));
+      return '';
+    } on FormatException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: error.message,
+          location: _locationOf(expression)));
+      return '';
+    } finally {
+      _activeWidgetBuilder = previous;
+    }
+  }
+
+  HelperDef? _admittedBuilderHelper(MethodInvocation call,
+          {bool allowDynamicReturn = false}) =>
+      isArtifactHelperInvocation(call,
+              admittedHelperPackages: _admittedHelperPackages,
+              allowDynamicReturn: allowDynamicReturn)
+          ? _walk.inlined.helpers[call.methodName.element] ??
+              pureBuilderHelperFor(call, call.methodName.element)
+          : null;
+
+  String _translateWidgetBuilder(
+      Expression expression, PropertyEntry property, List<Issue> issues) {
+    final resolved = _resolveBoundIdentifier(expression);
+    final contract = property.builderContract;
+    final definition = resolved is SimpleIdentifier
+        ? (_walk.inlined.helpers[resolved.element] ??
+            pureBuilderHelperFor(resolved, resolved.element))
+        : null;
+    final callback = resolved is SimpleIdentifier
+        ? pureBuilderCallbackFor(resolved, resolved.element)
+        : null;
+    if (resolved is NullLiteral && property.constructorNullable) return 'null';
+    if ((resolved is! FunctionExpression &&
+            definition == null &&
+            callback == null) ||
+        contract == null) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: 'A widget builder requires an analyzed pure closure.',
+          location: _locationOf(expression)));
+      return '';
+    }
+    final previous = _activeWidgetBuilder;
+    late final WidgetBuilderLowering current;
+    late final BuilderExpressionLowering values;
+    values = BuilderExpressionLowering(
+        operations: _installedValueOperations,
+        parent: previous?.expressions,
+        extension: (value, lowering) {
+          if (value is SimpleIdentifier &&
+              !lowering.bindings.containsKey(value.element)) {
+            final resolved = _resolveBoundIdentifier(value);
+            if (!identical(resolved, value)) {
+              if (isNativeIntlFormatterType(value.staticType) ||
+                  _containsIntlFormatting(resolved)) {
+                throw BuilderLoweringException(value,
+                    'A captured formatter requires a native prelude binding');
+              }
+              return lowering.lower(resolved);
+            }
+          }
+          if (value is MethodInvocation) {
+            final helper =
+                _admittedBuilderHelper(value, allowDynamicReturn: true);
+            if (helper != null) return lowering.lowerHelper(helper, value);
+          }
+          return _lowerInstalledValue(value, lowering);
+        },
+        capture: (value) {
+          final isOuter = values.referencesOuter(value);
+          _activeWidgetBuilder = isOuter ? previous : null;
+          try {
+            return isOuter && previous != null
+                ? previous.captureValue(value)
+                : _translate(_resolveBoundIdentifier(value), issues);
+          } finally {
+            _activeWidgetBuilder = current;
+          }
+        });
+    current = WidgetBuilderLowering(
+        expressions: values,
+        resolve: _resolveBoundIdentifier,
+        withConditionalBranch: _inConditionalBranch,
+        withHelperBody: (helper, call, lower) => _inHelperBody(
+            helper, call, issues, (_) => lower(),
+            refused: const BuilderResult.nullResult()),
+        nativeKey: (expression) => _nativeKeyReference(expression, issues),
+        contract: contract,
+        scope: 'builder${_builderScopeCounter++}',
+        translateBody: (body) => _translate(body, issues),
+        helperFor: _admittedBuilderHelper);
+    _activeWidgetBuilder = current;
+    try {
+      return callback != null
+          ? current.lowerCallbackBody(callback.body, callback.parameters)
+          : definition != null
+              ? current.lowerDefinition(definition)
+              : current.lower(resolved as FunctionExpression);
+    } on BuilderLoweringException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: error.toString(),
+          location: _locationOf(error.node)));
+      return '';
+    } on FormatException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: error.message,
+          location: _locationOf(expression)));
+      return '';
+    } finally {
+      _activeWidgetBuilder = previous;
+    }
+  }
+
+  String _translateBuilderCollection(Expression list, List<Issue> issues) {
+    final previous = _activeWidgetBuilder;
+    late final WidgetBuilderLowering current;
+    late final BuilderExpressionLowering values;
+    values = BuilderExpressionLowering(
+      operations: _installedValueOperations,
+      parent: previous?.expressions,
+      extension: (value, lowering) {
+        if (value is SimpleIdentifier &&
+            !lowering.bindings.containsKey(value.element)) {
+          final resolved = _resolveBoundIdentifier(value);
+          if (!identical(resolved, value)) return lowering.lower(resolved);
+        }
+        if (value is MethodInvocation) {
+          final helper =
+              _admittedBuilderHelper(value, allowDynamicReturn: true);
+          if (helper != null) return lowering.lowerHelper(helper, value);
+        }
+        return _lowerInstalledValue(value, lowering);
+      },
+      capture: (value) {
+        final outer = previous != null && values.referencesOuter(value);
+        _activeWidgetBuilder = outer ? previous : null;
+        try {
+          return outer
+              ? previous.captureValue(value)
+              : _translate(_resolveBoundIdentifier(value), issues);
+        } finally {
+          _activeWidgetBuilder = current;
+        }
+      },
+    );
+    current = WidgetBuilderLowering(
+        expressions: values,
+        resolve: _resolveBoundIdentifier,
+        withConditionalBranch: _inConditionalBranch,
+        withHelperBody: (helper, call, lower) => _inHelperBody(
+            helper, call, issues, (_) => lower(),
+            refused: const BuilderResult.nullResult()),
+        nativeKey: (expression) => _nativeKeyReference(expression, issues),
+        contract: const WidgetBuilderContract(
+            parameters: [WidgetBuilderParameter.buildContext]),
+        scope: 'builder${_builderScopeCounter++}',
+        translateBody: (body) => _translate(body, issues),
+        helperFor: _admittedBuilderHelper);
+    _activeWidgetBuilder = current;
+    try {
+      final semantics = _collectionSemanticProbe();
+      final budget = CollectionUnrollBudget();
+      final result = WidgetCollectionLowering(
+          expressions: values,
+          resultFor: current.resultFor,
+          withResolvedSpread: (source, lower) {
+            final resolved = semantics.resolve(
+                _resolveBoundIdentifier(source), const {}, budget,
+                stopAtConditionals: true, preserveHelpers: true);
+            if (resolved.workLimitExceeded || resolved.cycleDetected) {
+              throw BuilderLoweringException(source,
+                  'Widget spread resolution is recursive or exceeds its work limit');
+            }
+            return _translateWithBindings(
+                resolved.expression, resolved.bindings, issues,
+                (expression, _) {
+              if (expression is MethodInvocation &&
+                  isArtifactHelperInvocation(expression,
+                      admittedHelperPackages: _admittedHelperPackages)) {
+                final helper =
+                    _walk.inlined.helpers[expression.methodName.element] ??
+                        _collectionHelpers[expression.methodName.element];
+                if (helper != null) {
+                  return current.withHelperResult(helper, expression, lower);
+                }
+              }
+              return lower(expression);
+            });
+          }).lowerSource(list);
+      return current.encodeResult(result, collection: true);
+    } on BuilderLoweringException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: error.toString(),
+          location: _locationOf(error.node)));
+      return '';
+    } on FormatException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: error.message,
+          location: _locationOf(list)));
+      return '';
+    } finally {
+      _activeWidgetBuilder = previous;
+    }
+  }
+
   String _translateExpression(Expression expr, List<Issue> issues) {
+    final builder = _activeWidgetBuilder;
+    if (builder != null && expr is MethodInvocation) {
+      final type = expr.staticType;
+      if (type is InterfaceType &&
+          [type, ...type.allSupertypes].any((type) =>
+              type.element.name == 'Widget' &&
+              type.element.library.identifier.startsWith('package:flutter/'))) {
+        final helper = _admittedBuilderHelper(expr);
+        if (helper != null) return builder.translateHelper(helper, expr);
+      }
+    }
+    if (builder != null &&
+        (themeReadSegments(expr) != null ||
+            _recognizeDeviceRead(expr) != null)) {
+      return builder.value(expr,
+          requireNativeBaseType: _customNativeValueBoundary);
+    }
+    final primitive = expr.staticType;
+    if (builder != null &&
+        primitive != null &&
+        (primitive.isDartCoreBool ||
+            primitive.isDartCoreInt ||
+            primitive.isDartCoreDouble ||
+            primitive.isDartCoreNum ||
+            primitive.isDartCoreString)) {
+      try {
+        if (_inSpanCollection && _walk.runtimeLoops.isNotEmpty) {
+          return _spanCollectionBuilderValue(expr, issues);
+        }
+        return builder.value(expr,
+            requireNativeBaseType: _customNativeValueBoundary);
+      } on BuilderLoweringException catch (error) {
+        issues.add(Issue(
+            code: IssueCode.propertyValueTypeMismatch,
+            message: error.toString(),
+            location: _locationOf(error.node)));
+        return '';
+      }
+    }
+
+    if (_activeWidgetBuilder == null &&
+        expr is MethodInvocation &&
+        classifyHoistType(expr.staticType) is HoistIsWidget) {
+      final helper = _walk.inlined.helpers[expr.methodName.element];
+      if (helper != null &&
+          (helper.roots.any(_containsIntlFormatting) ||
+              expr.argumentList.arguments.any((a) => _containsIntlFormatting(
+                  _resolveBoundIdentifier(a.argumentExpression))))) {
+        issues.add(Issue(
+            code: IssueCode.unrecognizedMethodCall,
+            message:
+                'A widget helper that evaluates formatting requires an installed native widget binding',
+            location: _locationOf(expr)));
+        return '';
+      }
+    }
+    final formatting = _tryIntlFormattingValue(expr, issues);
+    if (formatting != null) return formatting;
     // Parenthesis is semantically transparent — unwrap it uniformly so every
     // type-dispatch below (and at the slot/param entry points that pre-resolve
     // before dispatching) sees through it. A PARTIAL unwrap would be a new
@@ -1549,7 +2503,7 @@ final class ExpressionTranslator {
         issues.add(_nonFiniteNumericIssue(expr));
         return '';
       }
-      return expr.value.toString();
+      return _foldedLiteral(expr.value);
     }
     // Unary minus on a numeric literal. The analyzer parses `-1.5` as
     // `PrefixExpression('-', DoubleLiteral(1.5))`, so the negative
@@ -1606,6 +2560,8 @@ final class ExpressionTranslator {
       issues.add(_constObjectFieldUnresolvedIssue(expr));
       return '';
     }
+    final scalerRecipe = _textScalerRecipe(expr, issues);
+    if (scalerRecipe != null) return scalerRecipe;
     if (expr is PrefixedIdentifier) {
       return _prefixedIdentifier(expr, issues);
     }
@@ -1885,6 +2841,7 @@ final class ExpressionTranslator {
   /// as an RFW DSL literal fragment.
   String _foldedLiteral(Object value) {
     if (value is String) return _stringLiteral(value);
+    if (value is num) return rfwNumberLiteral(value);
     return value.toString();
   }
 
@@ -1999,6 +2956,13 @@ final class ExpressionTranslator {
     }
     if (expr is PropertyAccess) {
       final target = expr.target;
+      if (target is ThisExpression && !_walk.rootStateContext) {
+        final param =
+            _rootParamForElement(identifierElement(expr.propertyName));
+        return param == null
+            ? null
+            : _RootParamAccess.root(param: param, stateful: false);
+      }
       if (target != null) {
         return _rootParamAccess(target)
             ?.append(identifierElement(expr.propertyName));
@@ -2101,7 +3065,9 @@ final class ExpressionTranslator {
   /// Whether Text's [text] needs inline spans: an interpolation of several
   /// parts, directly or in any arm of a conditional.
   bool _needsTextSpans(Expression text) {
+    if (_activeWidgetBuilder != null) return false;
     final value = _resolveBoundIdentifier(text);
+    if (_containsIntlFormatting(value)) return false;
     if (value is MethodInvocation) {
       final helper = _walk.inlined.helpers[value.methodName.element];
       if (helper == null) return false;
@@ -2346,23 +3312,19 @@ final class ExpressionTranslator {
     ListLiteral expr,
     List<Issue> issues, {
     PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
+    CollectionUnrollBudget? budget,
   }) {
     final parts = <String>[];
-    var ordinal = 0;
+    final ordinals = MeasurementCollectionOrdinals();
     final traversal = traverseCollectionList(
       expr,
       semantics: _collectionSemanticProbe(),
       session: _collectionSession,
+      budget: budget,
     );
-    String? previousIteration;
     for (final entry in traversal.entries) {
-      final iteration = switch (entry) {
-        CollectionListElement(:final occurrence) =>
-          measurementStaticIterationKey(occurrence),
-        CollectionListRefusal() => null,
-      };
-      if (iteration != null && iteration == previousIteration) ordinal--;
-      previousIteration = iteration;
+      final ordinal = ordinals.next(entry);
       switch (entry) {
         case CollectionListElement(:final occurrence):
           parts.add(
@@ -2370,13 +3332,14 @@ final class ExpressionTranslator {
               occurrence,
               issues,
               itemType: itemType,
+              emitLeaf: emitLeaf,
+              ordinal: ordinal,
               measurementScope: _walk.measurementWidgetList?.element(
                 ordinal,
                 collectionOccurrence: occurrence,
               ),
             ),
           );
-          ordinal++;
         case CollectionListRefusal(:final refusal):
           final runtimeIf = refusal.runtimeIf;
           if (runtimeIf != null) {
@@ -2386,9 +3349,9 @@ final class ExpressionTranslator {
               issues,
               ordinal: ordinal,
               itemType: itemType,
+              emitLeaf: emitLeaf,
             );
             if (emitted != null) parts.add(emitted);
-            ordinal++;
             continue;
           }
           final runtimeLoop = refusal.runtimeLoop;
@@ -2401,10 +3364,10 @@ final class ExpressionTranslator {
             refusal,
             issues,
             itemType: itemType,
+            emitLeaf: emitLeaf,
             ordinal: ordinal,
           );
           if (emitted != null) parts.add(emitted);
-          ordinal++;
       }
     }
     return '[${parts.join(', ')}]';
@@ -2417,6 +3380,7 @@ final class ExpressionTranslator {
     List<Issue> issues, {
     required int ordinal,
     PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     final before = issues.length;
     final emitted = _emitRuntimeIfCandidate(
@@ -2424,6 +3388,7 @@ final class ExpressionTranslator {
       issues,
       ordinal: ordinal,
       itemType: itemType,
+      emitLeaf: emitLeaf,
     );
     if (emitted == null) {
       if (issues.length == before) _recordCollectionRefusal(refusal, issues);
@@ -2437,6 +3402,7 @@ final class ExpressionTranslator {
     List<Issue> issues, {
     required int ordinal,
     PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     // Guarded loops omit absent elements and keep each callback in one
     // emitted branch when composed conditions repeat their selector text.
@@ -2446,6 +3412,7 @@ final class ExpressionTranslator {
         issues,
         ordinal: ordinal,
         itemType: itemType,
+        emitLeaf: emitLeaf,
       );
     }
     final elements = <String>[];
@@ -2456,6 +3423,7 @@ final class ExpressionTranslator {
       issues,
       ordinal: ordinal,
       itemType: itemType,
+      emitLeaf: emitLeaf,
     );
     if (refused) return null;
     return elements.join(', ');
@@ -2470,9 +3438,11 @@ final class ExpressionTranslator {
     List<Issue> issues, {
     required int ordinal,
     PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     final conditionIssues = <Issue>[];
-    final lowering = _lowerCondition(candidate.condition, conditionIssues);
+    final lowering = _withTranslationBindings(candidate.bindings,
+        () => _lowerCondition(candidate.condition, conditionIssues));
     if (lowering == null) return true;
     issues.addAll(conditionIssues);
     final thenGuard = _ConditionLowering(
@@ -2485,6 +3455,7 @@ final class ExpressionTranslator {
       issues,
       ordinal: ordinal,
       itemType: itemType,
+      emitLeaf: emitLeaf,
     )) {
       return true;
     }
@@ -2500,6 +3471,7 @@ final class ExpressionTranslator {
       issues,
       ordinal: ordinal,
       itemType: itemType,
+      emitLeaf: emitLeaf,
     );
   }
 
@@ -2510,6 +3482,7 @@ final class ExpressionTranslator {
     List<Issue> issues, {
     required int ordinal,
     PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     switch (branch) {
       case CollectionRuntimeConditional(:final candidate):
@@ -2520,7 +3493,20 @@ final class ExpressionTranslator {
           issues,
           ordinal: ordinal,
           itemType: itemType,
+          emitLeaf: emitLeaf,
         );
+      case CollectionRuntimeIteration(:final candidate, :final refusal):
+        if (itemType != PropertyType.widget &&
+            itemType != PropertyType.inlineSpan) {
+          _recordCollectionRefusal(refusal, issues);
+          return true;
+        }
+        final loop = _emitRuntimeLoop(candidate, refusal, issues,
+            ordinal: ordinal, itemType: itemType, emitLeaf: emitLeaf);
+        if (loop == null) return true;
+        elements.add('...for ${_absentLoopIdentifier()} in '
+            '${guard(_kPresentSelector, _kAbsentSelector)}: [$loop]');
+        return false;
       case CollectionRuntimeGroup(:final members):
         for (final member in members) {
           if (_emitGuardedBranch(
@@ -2530,6 +3516,7 @@ final class ExpressionTranslator {
             issues,
             ordinal: ordinal,
             itemType: itemType,
+            emitLeaf: emitLeaf,
           )) {
             return true;
           }
@@ -2541,6 +3528,7 @@ final class ExpressionTranslator {
           issues,
           ordinal: ordinal,
           itemType: itemType,
+          emitLeaf: emitLeaf,
         );
         if (dsl == null) return true;
         elements.add(
@@ -2556,9 +3544,11 @@ final class ExpressionTranslator {
     List<Issue> issues, {
     required int ordinal,
     PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     final conditionIssues = <Issue>[];
-    final lowering = _lowerCondition(candidate.condition, conditionIssues);
+    final lowering = _withTranslationBindings(candidate.bindings,
+        () => _lowerCondition(candidate.condition, conditionIssues));
     if (lowering == null) return null;
     issues.addAll(conditionIssues);
     final thenDsl = _emitRuntimeIfBranch(
@@ -2566,6 +3556,7 @@ final class ExpressionTranslator {
       issues,
       ordinal: ordinal,
       itemType: itemType,
+      emitLeaf: emitLeaf,
     );
     if (thenDsl == null) return null;
     final elseDsl = _emitRuntimeIfBranch(
@@ -2573,6 +3564,7 @@ final class ExpressionTranslator {
       issues,
       ordinal: ordinal,
       itemType: itemType,
+      emitLeaf: emitLeaf,
     );
     if (elseDsl == null) return null;
     return lowering(thenDsl, elseDsl);
@@ -2580,11 +3572,13 @@ final class ExpressionTranslator {
 
   /// Whether a switch can select one element without copying a branch.
   bool _runtimeIfHasSingleEmission(CollectionRuntimeIfCandidate candidate) {
-    final otherwise = candidate.elseBranch;
-    return otherwise != null &&
-        !_conditionCopiesBranch(candidate.condition) &&
-        _branchHasSingleEmission(candidate.thenBranch) &&
-        _branchHasSingleEmission(otherwise);
+    return _withTranslationBindings(candidate.bindings, () {
+      final otherwise = candidate.elseBranch;
+      return otherwise != null &&
+          !_conditionCopiesBranch(candidate.condition) &&
+          _branchHasSingleEmission(candidate.thenBranch) &&
+          _branchHasSingleEmission(otherwise);
+    });
   }
 
   bool _conditionCopiesBranch(Expression expression) {
@@ -2603,7 +3597,7 @@ final class ExpressionTranslator {
       switch (branch) {
         CollectionRuntimeLeaf() => true,
         // A spread yields its own element count, so it is guarded per element.
-        CollectionRuntimeGroup() => false,
+        CollectionRuntimeGroup() || CollectionRuntimeIteration() => false,
         CollectionRuntimeConditional(:final candidate) =>
           _runtimeIfHasSingleEmission(candidate),
       };
@@ -2613,6 +3607,7 @@ final class ExpressionTranslator {
     List<Issue> issues, {
     required int ordinal,
     PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     switch (branch) {
       case CollectionRuntimeConditional(:final candidate):
@@ -2621,6 +3616,7 @@ final class ExpressionTranslator {
           issues,
           ordinal: ordinal,
           itemType: itemType,
+          emitLeaf: emitLeaf,
         );
       case CollectionRuntimeLeaf(:final occurrence):
         final before = issues.length;
@@ -2628,6 +3624,8 @@ final class ExpressionTranslator {
           occurrence,
           issues,
           itemType: itemType,
+          emitLeaf: emitLeaf,
+          ordinal: ordinal,
           measurementScope: _walk.measurementWidgetList?.element(
             ordinal,
             collectionOccurrence: occurrence,
@@ -2635,7 +3633,7 @@ final class ExpressionTranslator {
         );
         if (dsl.isEmpty || issues.length != before) return null;
         return dsl;
-      case CollectionRuntimeGroup():
+      case CollectionRuntimeGroup() || CollectionRuntimeIteration():
         throw StateError('A spread branch is emitted as guarded elements');
     }
   }
@@ -2660,6 +3658,20 @@ final class ExpressionTranslator {
     List<Issue> issues, {
     required int ordinal,
     PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
+  }) =>
+      _withTranslationBindings(
+          candidate.bindings,
+          () => _emitBoundRuntimeLoop(candidate, refusal, issues,
+              ordinal: ordinal, itemType: itemType, emitLeaf: emitLeaf));
+
+  String? _emitBoundRuntimeLoop(
+    CollectionRuntimeLoopCandidate candidate,
+    CollectionUnrollRefused refusal,
+    List<Issue> issues, {
+    required int ordinal,
+    PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     final identifier = candidate.identifier;
     if (!isRfwIdentifier(identifier) ||
@@ -2699,8 +3711,10 @@ final class ExpressionTranslator {
           issues,
           ordinal: ordinal,
           itemType: itemType,
+          emitLeaf: emitLeaf,
         );
-      } else if (itemType == PropertyType.widget) {
+      } else if (itemType == PropertyType.widget ||
+          itemType == PropertyType.inlineSpan) {
         final elements = <String>[];
         if (!_emitGuardedBranch(
           candidate.template,
@@ -2709,6 +3723,7 @@ final class ExpressionTranslator {
           issues,
           ordinal: ordinal,
           itemType: itemType,
+          emitLeaf: emitLeaf,
         )) {
           template = '[${elements.join(', ')}]';
         }
@@ -2955,8 +3970,11 @@ final class ExpressionTranslator {
     CollectionSemanticOccurrence occurrence,
     List<Issue> issues, {
     PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
+    int ordinal = 0,
     MeasurementOccurrenceScope? measurementScope,
   }) {
+    if (emitLeaf != null) return emitLeaf(occurrence, ordinal) ?? '';
     if (itemType != null) {
       return _translateSlotElement(
         occurrence.terminalExpression,
@@ -3002,11 +4020,19 @@ final class ExpressionTranslator {
         measurementScope: measurementScope,
       );
 
-  String _translateWithBindings(
+  T _translateWithBindings<T>(
     Expression expression,
     Map<Element, Expression> bindings,
     List<Issue> issues,
-    TranslateCallback translate, {
+    T Function(Expression, List<Issue>) translate, {
+    MeasurementOccurrenceScope? measurementScope,
+  }) =>
+      _withTranslationBindings(bindings, () => translate(expression, issues),
+          measurementScope: measurementScope);
+
+  T _withTranslationBindings<T>(
+    Map<Element, Expression> bindings,
+    T Function() translate, {
     MeasurementOccurrenceScope? measurementScope,
   }) {
     final saved = _walk;
@@ -3026,7 +4052,7 @@ final class ExpressionTranslator {
           !entersMeasurementScope ? _walk.measurementWidgetList : null,
     );
     try {
-      return translate(expression, issues);
+      return translate();
     } finally {
       _walk = saved;
     }
@@ -3249,14 +4275,18 @@ final class ExpressionTranslator {
       if (!_frameworkOrUnresolved(identifierElement(expr.prefix))) {
         return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
       }
-      return '[0.0, 0.0, 0.0, 0.0]';
+      return prefix == 'EdgeInsetsDirectional'
+          ? '{start: 0.0, top: 0.0, end: 0.0, bottom: 0.0}'
+          : '{left: 0.0, top: 0.0, right: 0.0, bottom: 0.0}';
     }
     if ((prefix == 'BorderRadius' || prefix == 'BorderRadiusDirectional') &&
         identifier == 'zero') {
       if (!_frameworkOrUnresolved(identifierElement(expr.prefix))) {
         return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
       }
-      return '0';
+      return prefix == 'BorderRadiusDirectional'
+          ? '${_kBorderRadiusCornerSentinel}topStart: 0.0, topEnd: 0.0, bottomStart: 0.0, bottomEnd: 0.0)'
+          : '0';
     }
     // `Offset.zero` lowers to the same `{x, y}` map the `Offset(0, 0)` ctor
     // produces — without this it falls through to the bare-name path and
@@ -3746,6 +4776,38 @@ final class ExpressionTranslator {
     return ctorClass != null && !_isFrameworkValueType(ctorClass);
   }
 
+  String? _textScalerRecipe(Expression expr, List<Issue> issues) {
+    Element? member;
+    String? name;
+    NodeList<Argument>? arguments;
+    if (expr is PrefixedIdentifier) {
+      member = expr.identifier.element;
+      name = expr.identifier.name;
+    } else if (expr is PropertyAccess) {
+      member = expr.propertyName.element;
+      name = expr.propertyName.name;
+    } else if (expr is InstanceCreationExpression) {
+      member = expr.constructorName.element;
+      name = expr.constructorName.name?.name;
+      arguments = expr.argumentList.arguments;
+    } else if (expr is MethodInvocation) {
+      member = expr.methodName.element;
+      name = expr.methodName.name;
+      arguments = expr.argumentList.arguments;
+    }
+    if (member == null ||
+        !libraryIsFlutter(member) ||
+        member.enclosingElement?.name != 'TextScaler') return null;
+    if (name == 'noScaling' && arguments == null) return '{kind: "none"}';
+    if (name == 'linear' &&
+        arguments != null &&
+        arguments.length == 1 &&
+        arguments.single is! NamedArgument) {
+      return '{kind: "linear", factor: ${_translate(arguments.single as Expression, issues)}}';
+    }
+    return null;
+  }
+
   /// Shared hand-authored value-type routing for the rows that are byte-
   /// identical across the constructor (`_instanceCreation`) and static-call
   /// (`_methodInvocation`) AST shapes. Both ladders normalize their shape to a
@@ -3831,13 +4893,17 @@ final class ExpressionTranslator {
             ? _structured.borderSide(args, issues, loc)
             : null;
       case 'EdgeInsets':
+      case 'EdgeInsetsDirectional':
         return variant == null
             ? null
-            : _structured.edgeInsets(variant, args.toList(), issues, loc);
+            : _structured.edgeInsets(variant, args.toList(), issues, loc,
+                directional: type == 'EdgeInsetsDirectional');
       case 'BorderRadius':
+      case 'BorderRadiusDirectional':
         return variant == null
             ? null
-            : _structured.borderRadius(variant, args.toList(), issues, loc);
+            : _structured.borderRadius(variant, args.toList(), issues, loc,
+                directional: type == 'BorderRadiusDirectional');
       case 'Size':
         // Only the height factory lowers here; `Size(width, height)` is a
         // structured value handled by its own recipe.
@@ -3898,10 +4964,347 @@ final class ExpressionTranslator {
     return value;
   }
 
+  String? _nativeChildDelegate(
+      InstanceCreationExpression expression, List<Issue> issues) {
+    final constructor = constructionConstructor(expression);
+    final owner = constructor?.enclosingElement;
+    if (owner?.library.identifier !=
+        'package:flutter/src/widgets/scroll_delegate.dart') return null;
+    final name = owner?.name;
+    if (name != 'SliverChildBuilderDelegate' &&
+        name != 'SliverChildListDelegate') return null;
+    final variant = constructor?.name;
+    if (variant != 'new' &&
+        !(name == 'SliverChildListDelegate' && variant == 'fixed')) {
+      return null;
+    }
+    final values = <String>['_s: ${_stringLiteral(name!)}'];
+    if (variant == 'fixed') values.add('fixed: true');
+    final builder = name == 'SliverChildBuilderDelegate';
+    for (final argument in expression.argumentList.arguments) {
+      if (argument is! NamedArgument) {
+        final value = builder
+            ? _translateWidgetBuilder(
+                argument.argumentExpression,
+                const PropertyEntry(
+                    wireId: WireId.unallocatedProperty,
+                    name: 'builder',
+                    type: PropertyType.widgetBuilder,
+                    description: '',
+                    builderContract: WidgetBuilderContract(parameters: [
+                      WidgetBuilderParameter.buildContext,
+                      WidgetBuilderParameter.itemIndex
+                    ], nullableResult: true)),
+                issues)
+            : _translateSlotValue(
+                argument.argumentExpression, PropertyType.widgetList, issues);
+        values.add('${builder ? 'builder' : 'children'}: $value');
+      } else {
+        final name = argument.name.lexeme;
+        final scalar = switch (name) {
+          'semanticIndexCallback' => const ScalarCallbackContract(parameters: [
+              ScalarCallbackParameter.widget,
+              ScalarCallbackParameter.itemIndex
+            ]),
+          'findChildIndexCallback' => const ScalarCallbackContract(
+              parameters: [ScalarCallbackParameter.valueKey]),
+          _ => null,
+        };
+        final parameter = constructor!.formalParameters
+            .where((p) => p.name == name)
+            .firstOrNull;
+        final type =
+            parameter == null ? null : inferPropertyType(parameter.type);
+        if (parameter == null || type == null) {
+          issues.add(Issue(
+              code: IssueCode.propertyValueTypeMismatch,
+              message: 'Unsupported native delegate argument: $name.',
+              location: _locationOf(argument)));
+          return '{}';
+        }
+        final property = PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: name,
+            type: type,
+            description: '',
+            scalarContract: scalar,
+            constructorNullable:
+                parameter.type.nullabilitySuffix == NullabilitySuffix.question);
+        final value = _translateSlotValue(
+            argument.argumentExpression, type, issues,
+            property: property);
+        values.add('$name: $value');
+      }
+    }
+    return '{${values.join(', ')}}';
+  }
+
+  String? _nativeGridValue(
+      InstanceCreationExpression expression, List<Issue> issues) {
+    final constructor = constructionConstructor(expression);
+    final name = constructor?.enclosingElement.name;
+    if (!kGridValueRecipes.any((recipe) => recipe.typeName == name))
+      return null;
+    if (!isGridValueConstructor(constructor)) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message:
+              'This native value requires its declared Flutter constructor.',
+          location: _locationOf(expression)));
+      return '{}';
+    }
+    final physics = name!.endsWith('ScrollPhysics');
+    if (physics && _nativePhysicsDepth >= 64) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: 'Scroll physics parent chain exceeds its structural limit.',
+          location: _locationOf(expression)));
+      return '{}';
+    }
+    if (physics) _nativePhysicsDepth++;
+    try {
+      return _tryValueOrRecipe(
+          name,
+          constructor!.name == 'new' ? null : constructor.name,
+          expression.argumentList.arguments,
+          issues,
+          _locationOf(expression),
+          fromConstructor: true);
+    } finally {
+      if (physics) _nativePhysicsDepth--;
+    }
+  }
+
+  /// Removes only wrappers whose evaluation cannot change the selected value
+  /// or throw. Other result shapes must pass normal exact Color translation.
+  Expression _rootColorSource(Expression expression) {
+    if (_activeWidgetBuilder != null || constValueAnchor(expression) != null) {
+      return expression;
+    }
+    var current = expression;
+    final seen = <Expression>{};
+    while (seen.add(current)) {
+      final resolved = _resolveBoundIdentifier(current);
+      if (!identical(resolved, current)) {
+        current = resolved;
+        continue;
+      }
+      if (current is ConditionalExpression) {
+        final selected =
+            installedNativeConstantValue(current.condition)?.toBoolValue();
+        if (selected != null) {
+          current = selected ? current.thenExpression : current.elseExpression;
+          continue;
+        }
+      }
+      if (current is AsExpression) {
+        final target = current.type.type;
+        final source = current.expression.staticType;
+        if (target is InterfaceType &&
+            source is InterfaceType &&
+            target.element.name == 'Color' &&
+            target.element.library.identifier == 'dart:ui' &&
+            (source.nullabilitySuffix != NullabilitySuffix.question ||
+                target.nullabilitySuffix == NullabilitySuffix.question) &&
+            [source, ...source.allSupertypes]
+                .any((type) => type.element == target.element)) {
+          current = current.expression;
+          continue;
+        }
+      }
+      break;
+    }
+    return current;
+  }
+
+  Expression? _installedColorExpression(Expression expression) {
+    final source = constValueAnchor(expression) ?? _stripParens(expression);
+    if (installedNativeConstructorType(source) == 'flutter.Color')
+      return source;
+    var resolved = _resolveBoundIdentifier(source);
+    final seen = <Element>{};
+    while (true) {
+      final local = constDeclarationElement(resolved);
+      if (local is! LocalVariableElement) break;
+      if (!seen.add(local)) return null;
+      final initializer = resolveConstDeclarationInitializer(resolved);
+      if (initializer == null) return null;
+      resolved = _resolveBoundIdentifier(initializer);
+    }
+    final type = resolved.staticType;
+    if (type is! InterfaceType ||
+        ![type, ...type.allSupertypes].any((type) =>
+            type.element.name == 'Color' &&
+            type.element.library.identifier == 'dart:ui')) return null;
+    if (!isInstalledNativeConstant(resolved) &&
+        _isInertNativeSelection(resolved)) return resolved;
+    if (resolved is InstanceCreationExpression &&
+        resolved.isConst &&
+        !identical(source, resolved)) {
+      return resolved;
+    }
+    final accessor =
+        resolved is PropertyAccess ? resolved.propertyName.element : null;
+    final declaration = constDeclarationElement(resolved) ??
+        (accessor is PropertyAccessorElement &&
+                accessor.isStatic &&
+                accessor.variable.isConst
+            ? accessor.variable
+            : null);
+    if (declaration == null ||
+        declaration.library?.identifier ==
+            'package:flutter/src/material/colors.dart') return null;
+    return resolved;
+  }
+
+  String _optionalNativeColor(Expression value, List<Issue> issues) {
+    value = _rootColorSource(value);
+    try {
+      if (value.staticType?.nullabilitySuffix == NullabilitySuffix.question ||
+          value.staticType?.isDartCoreNull == true ||
+          _isNullLiteral(_resolveBoundIdentifier(value))) {
+        throw BuilderLoweringException(
+            value, 'This native Color destination requires a non-null value.');
+      }
+      final borrowed = _nativeBindingRead(value, type: 'flutter.Color');
+      if (borrowed != null) return borrowed;
+      if (_installedColorExpression(value) case final expression?) {
+        final native =
+            _tryNativeCallValue(expression, issues, type: 'flutter.Color');
+        if (native != null) return native;
+      }
+      if (_activeWidgetBuilder case final builder?) {
+        return builder.value(value,
+            requireNativeBaseType: true,
+            requireNonNull: true,
+            nativeDestination: 'Color');
+      }
+      if (constValueAnchor(value) != null &&
+          value is InstanceCreationExpression) {
+        final constant = constantConstructionValue(value);
+        final constantType = constant?.type;
+        final owner = constantType is InterfaceType
+            ? constantType.element
+            : constructionConstructor(value)?.enclosingElement;
+        if ((owner?.name != 'Color' ||
+                owner?.library.identifier != 'dart:ui') &&
+            (constant == null || exactColorConstant(constant) == null)) {
+          throw BuilderLoweringException(value,
+              'Color cannot cross a custom constructor boundary without proof of its native base runtime subtype.');
+        }
+        final encoded =
+            constant == null ? null : encodeFrameworkConst(constant);
+        return encoded?.dsl ??
+            _translateSlotValue(value, PropertyType.color, issues);
+      }
+      final values = BuilderExpressionLowering(
+          operations: _installedValueOperations,
+          capture: (expression) => _translate(expression, issues),
+          extension: (expression, lowering) {
+            final resolved = _resolveBoundIdentifier(expression);
+            return identical(resolved, expression)
+                ? null
+                : lowering.lower(resolved);
+          });
+      final node = values.lower(value);
+      if (!values.provesNativeBase(node, 'Color')) {
+        throw BuilderLoweringException(value,
+            'Color cannot cross a custom constructor boundary without proof of its native base runtime subtype.');
+      }
+      if (values.nodes[node].type.nullable) {
+        throw BuilderLoweringException(
+            value, 'This native Color destination requires a non-null value.');
+      }
+      final lowered = values.nodes[node];
+      if (lowered.op == 'literal' && lowered.value is Map<String, Object?>) {
+        return exactColorLiteral(lowered.value! as Map<String, Object?>);
+      }
+      // Color(int) already denotes the exact ARGB representation.
+      if (lowered.op == 'argbColor') {
+        return _translateSlotValue(value, PropertyType.color, issues);
+      }
+      // The native Color graph is already proven. Project its exact fields
+      // through the same scalar envelopes used by ordinary native arguments.
+      return '{${colorValueType.fields.entries.map((field) {
+        final token =
+            field.key == 'material' ? values.materialColorToken(node) : null;
+        if (token != null) return 'material: ${_stringLiteral(token)}';
+        final projection = values.add(
+            ValueNode('field', field.value, inputs: [node], name: field.key));
+        return '${field.key}: ${_encodeScalarValueProgram(values, projection)}';
+      }).join(', ')}}';
+    } on BuilderLoweringException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: error.toString(),
+          location: _locationOf(error.node)));
+      return '';
+    }
+  }
+
+  String? _optionalNativeValue(Expression expr, List<Issue> issues,
+      {String? expected}) {
+    final before = issues.length;
+    try {
+      final value = emitOptionalNativeValue(expr,
+          translateBinding: (value, type) {
+            if (_hoist == null || _hoist!.speculating) return null;
+            if (constValueAnchor(value) != null) return null;
+            final borrowed = _nativeBindingRead(value, type: type);
+            if (borrowed != null) return borrowed;
+            final expression = _stripParens(value);
+            final active = _activeWidgetBuilder;
+            if (active != null && expression is SimpleIdentifier) {
+              var native = active.expressions.localFor(expression.element)?.$2;
+              for (BuilderExpressionLowering? scope = active.expressions;
+                  native == null && scope != null;
+                  scope = scope.lexicalParent ?? scope.parent) {
+                final node = scope.bindings[expression.element];
+                if (node != null) native = scope.nodes[node].type;
+              }
+              if (native?.kind == 'native' && native?.nativeType == type) {
+                return active.nativeValue(
+                    expression, (value, lowering) => lowering.lower(value));
+              }
+            }
+            if (active != null && !active.isProjectingBody ||
+                expression is FunctionExpression ||
+                isInstalledNativeConstant(expression) ||
+                _isInertNativeSelection(expression)) {
+              return _tryNativeCallValue(expression, issues, type: type);
+            }
+            return null;
+          },
+          translate: (value) => _translate(value, issues),
+          translateColor: (value) => _optionalNativeColor(value, issues),
+          resolve: _resolveBoundIdentifier,
+          translateConstant: (value, lower) => _translateConstIdentifier(
+              value, issues, IssueCode.unrecognizedMethodCall, lower),
+          expected: expected);
+      return issues.skip(before).any((issue) => !issue.code.isInformational)
+          ? ''
+          : value;
+    } on BuilderLoweringException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: error.toString(),
+          location: _locationOf(error.node)));
+      return '';
+    } on FormatException catch (error) {
+      issues.add(Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message: error.message,
+          location: _locationOf(expr)));
+      return '';
+    }
+  }
+
   String _instanceCreation(
     InstanceCreationExpression expr,
     List<Issue> issues,
   ) {
+    final optional = _optionalNativeValue(expr, issues);
+    if (optional != null) return optional;
     final constructor = constructionConstructor(expr);
     final styleClass = constructor?.enclosingElement;
     if (isIconThemeDataClass(styleClass)) return _iconThemeData(expr, issues);
@@ -3917,6 +5320,8 @@ final class ExpressionTranslator {
     }
     final typeName = expr.constructorName.type.name.lexeme;
     final constructorName = expr.constructorName.name?.name;
+    final gridValue = _nativeGridValue(expr, issues);
+    if (gridValue != null) return gridValue;
     // In analyzer 10+, `const SomeClass.namedFactory(...)` shifts the
     // class name onto `importPrefix` and lifts the factory name onto
     // `typeName`. Cache the prefix once for the dispatchers below.
@@ -3930,7 +5335,12 @@ final class ExpressionTranslator {
     // RestageFormattedNumber catalog widget. Placed ahead of the
     // value-substitution gate below, which would otherwise route `Text`
     // straight to widget construction. Returns null when this is not the idiom.
-    final substituted = _tryNumberFormatSubstitution(expr, issues);
+    final formattedText =
+        expr.argumentList.arguments.firstOrNull?.argumentExpression;
+    final substituted =
+        formattedText != null && _containsIntlFormatting(formattedText)
+            ? null
+            : _tryNumberFormatSubstitution(expr, issues);
     if (substituted != null) return substituted;
 
     // Value-substitution gate. The framework-value recognition below (the
@@ -3966,6 +5376,9 @@ final class ExpressionTranslator {
         constructorName: constructorName,
       );
     }
+
+    final nativeDelegate = _nativeChildDelegate(expr, issues);
+    if (nativeDelegate != null) return nativeDelegate;
 
     // Value-type routing — the registered recipe table (Color / Offset /
     // Alignment) then the shared hand-authored table ([_tryValueType]), both
@@ -4212,7 +5625,10 @@ final class ExpressionTranslator {
     final carried = <NamedArgument>[];
     for (final a in args.whereType<NamedArgument>()) {
       final name = a.name.lexeme;
-      if (isDiscardedWidgetKeyArgument(a)) continue;
+      if (isDiscardedWidgetKeyArgument(a)) {
+        _activeWidgetBuilder?.observeKey(a.argumentExpression);
+        continue;
+      }
       if (!kRestageFormattedTextProps.contains(name)) {
         return defer(
           'the Text `$name:` property is not reproduced by $adoptTarget (the '
@@ -4346,6 +5762,7 @@ final class ExpressionTranslator {
       anchor: expr,
       flutterType: _flutterTypeOfClassOrNull(cls, constructorName: 'rich'),
       issues: issues,
+      widgetClass: cls,
     );
   }
 
@@ -4376,6 +5793,7 @@ final class ExpressionTranslator {
       anchor: expr,
       flutterType: _flutterTypeOfClassOrNull(cls, constructorName: 'rich'),
       issues: issues,
+      widgetClass: cls,
     );
   }
 
@@ -4384,7 +5802,28 @@ final class ExpressionTranslator {
     required Expression anchor,
     required String? flutterType,
     required List<Issue> issues,
+    ClassElement? widgetClass,
+    bool occurrenceScoped = false,
   }) {
+    final scope = _walk.measurementScope;
+    if (scope != null && !occurrenceScoped && widgetClass != null) {
+      final saved = _walk;
+      _walk = _walk.copyWith(
+          measurementScope: null,
+          measurementWidget: scope.widget(widgetClass),
+          measurementWidgetList: null);
+      try {
+        return _textRich(
+            args: args,
+            anchor: anchor,
+            flutterType: flutterType,
+            issues: issues,
+            widgetClass: widgetClass,
+            occurrenceScoped: true);
+      } finally {
+        _walk = saved;
+      }
+    }
     final entry = _textRichEntry(flutterType);
     if (entry == null) {
       issues.add(
@@ -4437,7 +5876,12 @@ final class ExpressionTranslator {
     final emitted = <String>['${_rfwMapKey(textSpanProp.name)}: $span'];
     for (final arg in args.whereType<NamedArgument>()) {
       final name = arg.name.lexeme;
-      if (isDiscardedWidgetKeyArgument(arg)) continue;
+      if (isDiscardedWidgetKeyArgument(arg)) {
+        final key = _catalogNativeKey(entry, arg.argumentExpression, issues);
+        if (key != null) emitted.add('key: $key');
+        _activeWidgetBuilder?.observeKey(arg.argumentExpression);
+        continue;
+      }
 
       final before = issues.length;
       final decomposed =
@@ -4493,8 +5937,12 @@ final class ExpressionTranslator {
     Expression expr,
     List<Issue> issues, {
     required int depth,
+    List<Object> spanPath = const ['textSpan'],
+    Map<Expression, List<List<Object>>>? recognizerSources,
+    List<CollectionSemanticOccurrence> collectionOccurrences = const [],
   }) {
-    final stripped = _stripParens(expr);
+    recognizerSources ??= <Expression, List<List<Object>>>{};
+    final stripped = _resolveBoundIdentifier(expr);
     if (depth > kMaxInlineSpanDepth) {
       issues.add(
         Issue(
@@ -4524,6 +5972,11 @@ final class ExpressionTranslator {
     final spanArgs = _textSpanArguments(stripped, issues);
     if (spanArgs == null) return null;
 
+    final spanClass = stripped is InstanceCreationExpression
+        ? _classOfInstanceCreation(stripped)
+        : stripped is MethodInvocation
+            ? _classOfMethodInvocation(stripped)
+            : null;
     final parts = <String>[];
     for (final positional in spanArgs.whereType<Expression>()) {
       issues.add(
@@ -4562,11 +6015,19 @@ final class ExpressionTranslator {
           if (style == null) return null;
           parts.add('style: $style');
         case 'children':
-          if (arg.argumentExpression is NullLiteral) continue;
-          final children =
-              _textSpanChildren(arg.argumentExpression, issues, depth);
+          if (_resolveBoundIdentifier(arg.argumentExpression) is NullLiteral)
+            continue;
+          final children = _textSpanChildren(arg.argumentExpression, issues,
+              depth, spanPath, recognizerSources, collectionOccurrences);
           if (children == null) return null;
           parts.add('children: $children');
+        case 'recognizer':
+          if (_resolveBoundIdentifier(arg.argumentExpression) is NullLiteral)
+            continue;
+          final value = _textSpanRecognizerMap(arg.argumentExpression, issues,
+              spanPath, recognizerSources, spanClass, collectionOccurrences);
+          if (value == null) return null;
+          parts.add('recognizer: $value');
       }
     }
 
@@ -4578,8 +6039,13 @@ final class ExpressionTranslator {
     List<Issue> issues,
   ) {
     if (expr is InstanceCreationExpression) {
-      if (instanceCreationTypeName(expr) != 'TextSpan' ||
-          instanceCreationMemberName(expr) != null) {
+      final constructor = expr.constructorName.element;
+      final name =
+          constructor?.enclosingElement.name ?? instanceCreationTypeName(expr);
+      final unnamed = constructor == null
+          ? instanceCreationMemberName(expr) == null
+          : constructor == constructor.enclosingElement.unnamedConstructor;
+      if (name != 'TextSpan' || !unnamed) {
         _addTextSpanExpectedIssue(expr, issues);
         return null;
       }
@@ -4648,58 +6114,244 @@ final class ExpressionTranslator {
     Expression expr,
     List<Issue> issues,
     int depth,
+    List<Object> spanPath,
+    Map<Expression, List<List<Object>>> recognizerSources,
+    List<CollectionSemanticOccurrence> collectionOccurrences,
   ) {
-    final inspection = inspectTypedList(
-      expr,
-      resolveExpression: _resolveBoundIdentifier,
-      semanticProbe: _collectionSemanticProbe(),
-    );
-    switch (inspection) {
-      case CollectionTypedListElement(:final offending):
-        issues.add(
-          Issue(
-            code: IssueCode.unsupportedCollectionFlow,
-            message: 'TextSpan.children does not support spread, '
-                'collection-if, or collection-for. Use a static list of '
-                'TextSpan nodes.',
-            location: _locationOf(offending),
-          ),
-        );
-        return null;
-      case CollectionTypedListWorkLimitExceeded():
-        issues.add(
-          Issue(
-            code: IssueCode.unsupportedCollectionFlow,
-            message: 'Static inspection of TextSpan.children exceeded the '
-                'supported limit. Simplify the list expression.',
-            location: _locationOf(expr),
-          ),
-        );
-        return null;
-      case CollectionTypedListPlain():
-      case CollectionTypedListTerminal():
-        break;
+    final budget = CollectionUnrollBudget();
+    final resolution =
+        _collectionSemanticProbe().resolve(expr, const {}, budget);
+    if (resolution.workLimitExceeded) {
+      _recordCollectionRefusal(budget.workRefusal(expr), issues);
+      return null;
     }
-    final stripped = _resolveBoundIdentifier(expr);
-    if (stripped is! ListLiteral) {
+    if (resolution.expression is NullLiteral) return 'null';
+    if (resolution.expression is! ListLiteral) {
+      issues.add(Issue(
+        code: IssueCode.unsupportedCollectionFlow,
+        message:
+            'TextSpan.children requires an admitted bounded list expression.',
+        location: _locationOf(expr),
+      ));
+      return null;
+    }
+    final before = issues.length;
+    final saved = _inSpanCollection;
+    _inSpanCollection = true;
+    try {
+      final result = _translateWithBindings(
+        resolution.expression,
+        resolution.bindings,
+        issues,
+        (list, sink) => _listLiteral(
+          list as ListLiteral,
+          sink,
+          itemType: PropertyType.inlineSpan,
+          budget: budget,
+          emitLeaf: (occurrence, ordinal) => _translateWithBindings(
+            occurrence.terminalExpression,
+            occurrence.bindings,
+            sink,
+            (child, childIssues) =>
+                _textSpanMap(
+                  child,
+                  childIssues,
+                  depth: depth + 1,
+                  spanPath: [...spanPath, 'children', ordinal],
+                  recognizerSources: recognizerSources,
+                  collectionOccurrences: [...collectionOccurrences, occurrence],
+                ) ??
+                '',
+          ),
+        ),
+      );
+      return issues.length == before ? result : null;
+    } finally {
+      _inSpanCollection = saved;
+    }
+  }
+
+  String? _textSpanRecognizerMap(
+      Expression expression,
+      List<Issue> issues,
+      List<Object> spanPath,
+      Map<Expression, List<List<Object>>> recognizerSources,
+      InterfaceElement? spanClass,
+      List<CollectionSemanticOccurrence> collectionOccurrences) {
+    try {
+      final resolved = _resolveBoundIdentifier(expression);
+      if (isBorrowedTextSpanRecognizer(resolved)) {
+        final reference =
+            _nativeBindingRead(expression, type: 'flutter.GestureRecognizer') ??
+                _tryNativeCallValue(
+                  resolved,
+                  issues,
+                  type: 'flutter.GestureRecognizer',
+                );
+        if (reference == null)
+          throw ArgumentError(
+            'A borrowed recognizer requires an installed binding.',
+          );
+        return '{ borrowed: $reference }';
+      }
+      final recipe = readTextSpanRecognizer(expression,
+          resolve: _resolveBoundIdentifier,
+          bindings: [
+            ..._walk.paramBindings.values,
+            ..._walk.inlined.localBindings.values
+          ]);
+      final evaluation = <Object>[
+        for (final occurrence in collectionOccurrences) ...[
+          for (final step in occurrence.structuralPath)
+            (step.node, step.kind, step.ordinal),
+          for (final step in occurrence.identitySourceProvenance)
+            (step.source, step.kind),
+        ],
+      ];
+      final previous =
+          recognizerSources.putIfAbsent(recipe.constructor, () => []);
+      if (previous
+          .any((key) => const ListEquality<Object>().equals(key, evaluation))) {
+        throw ArgumentError(
+          'Sharing a recognizer between spans requires installed ownership.',
+        );
+      }
+      previous.add(evaluation);
+      final parts = <String>['kind: ${_stringLiteral(recipe.kind)}'];
+      for (final entry in recipe.configuration.entries) {
+        final value = _resolveBoundIdentifier(entry.value);
+        if (entry.key == 'supportedDevices') {
+          if (value is NullLiteral) {
+            parts.add('supportedDevices: null');
+            continue;
+          }
+          if (value is! SetOrMapLiteral || value.isMap)
+            throw ArgumentError(
+              'supportedDevices requires a static native PointerDeviceKind set.',
+            );
+          final names = <String>[];
+          for (final item in value.elements) {
+            if (item is! Expression)
+              throw ArgumentError(
+                'supportedDevices requires static enum members.',
+              );
+            final member = _resolveBoundIdentifier(item);
+            final field = _unwrapPropertyAccessor(_enumMemberElement(member));
+            final owner = field?.enclosingElement;
+            final name = _enumMemberName(member);
+            if (name == null ||
+                !const {
+                  'touch',
+                  'mouse',
+                  'stylus',
+                  'invertedStylus',
+                  'trackpad',
+                  'unknown',
+                }.contains(name) ||
+                (owner != null &&
+                    (owner is! EnumElement ||
+                        owner.name != 'PointerDeviceKind' ||
+                        owner.library.identifier != 'dart:ui'))) {
+              throw ArgumentError(
+                'supportedDevices requires exact native PointerDeviceKind members.',
+              );
+            }
+            names.add(_stringLiteral(name));
+          }
+          parts.add('supportedDevices: [${names.join(', ')}]');
+        } else {
+          final before = issues.length;
+          final lowered = _translateSlotValue(
+            value,
+            entry.key == 'duration' ? PropertyType.duration : PropertyType.real,
+            issues,
+          );
+          if (lowered.isEmpty || issues.length > before) return null;
+          parts.add(
+            '${entry.key}: ${entry.key.endsWith('SlopTolerance') ? RfwConstructorPresenceEncoder.supplied(lowered) : lowered}',
+          );
+        }
+      }
+      for (final entry in recipe.callbacks.entries) {
+        final element = recipe.callbackElements[entry.key];
+        var scope = _walk.measurementWidget?.nestedValue(spanPath);
+        for (final occurrence in collectionOccurrences) {
+          scope = scope?.enterCollectionOccurrence(occurrence);
+        }
+        final occurrence = element == null || spanClass == null
+            ? null
+            : scope?.widget(spanClass).event(element);
+        final marker = occurrence == null
+            ? null
+            : measurementRouteEmissionPlan?.markerFor(occurrence);
+        final detailType =
+            kTextSpanRecognizerDetailCallbacks[recipe.kind]?[entry.key];
+        if (detailType != null) {
+          if (_resolveBoundIdentifier(entry.value) is NullLiteral) continue;
+          final callback = _nativeBindingRead(entry.value, type: detailType) ??
+              _tryNativeCallValue(entry.value, issues, type: detailType);
+          if (callback == null)
+            throw ArgumentError(
+              'A detail callback requires an installed typed binding.',
+            );
+          parts.add('${entry.key}: $callback');
+          if (marker != null) {
+            final measurement =
+                _measurementTapEvent(marker, occurrence!, entry.value, issues);
+            if (measurement.isEmpty) return null;
+            parts.add('${entry.key}Measurement: $measurement');
+          }
+          continue;
+        }
+        if (marker != null && _handlerArms(entry.value) > 1)
+          throw ArgumentError('A measured span callback requires one handler.');
+        final saved = _measuredEventOccurrence;
+        final savedCallback = _inSpanRecognizerCallback;
+        _inSpanRecognizerCallback = true;
+        _measuredEventOccurrence = occurrence ?? saved;
+        final String lowered;
+        try {
+          lowered = _translateSlotValue(
+            entry.value,
+            PropertyType.event,
+            issues,
+          );
+        } finally {
+          _inSpanRecognizerCallback = savedCallback;
+          _measuredEventOccurrence = saved;
+        }
+        if (lowered.isEmpty) return null;
+        final emitted = marker == null
+            ? lowered
+            : _measuredEventHandler(
+                lowered,
+                marker,
+                occurrence!,
+                entry.value,
+                issues,
+              );
+        parts.add('${entry.key}: $emitted');
+      }
+      return '{ ${parts.join(', ')} }';
+    } on BuilderLoweringException catch (error) {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'TextSpan.children must be a static list of TextSpan nodes.',
-          location: _locationOf(stripped),
+          message: 'TextSpan.recognizer: ${error.reason}',
+          location: _locationOf(error.node),
+        ),
+      );
+      return null;
+    } on ArgumentError catch (error) {
+      issues.add(
+        Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message: 'TextSpan.recognizer: ${error.message}',
+          location: _locationOf(expression),
         ),
       );
       return null;
     }
-
-    final children = <String>[];
-    for (final element in stripped.elements) {
-      if (element is! Expression) return null;
-      final child = _textSpanMap(element, issues, depth: depth + 1);
-      if (child == null) return null;
-      children.add(child);
-    }
-    return '[${children.join(', ')}]';
   }
 
   void _addTextSpanUncarriedPropIssue(
@@ -4806,6 +6458,26 @@ final class ExpressionTranslator {
       if (eventName != null) {
         issues.add(unsupportedCommerceEventIssue(eventName, _locationOf(expr)));
         return '';
+      }
+    }
+
+    final callable = expr.methodName.element;
+    final owner = callable?.enclosingElement;
+    if (callable is MethodElement &&
+        callable.isStatic &&
+        owner is ClassElement) {
+      final identity =
+          _flutterTypeOfClass(owner, constructorName: callable.name);
+      if (catalog.widgets.any((entry) => entry.flutterType == identity)) {
+        return _catalogWidgetConstruction(
+          widgetName: owner.name!,
+          flutterType: identity,
+          widgetClass: owner,
+          constructorName: callable.name,
+          args: args,
+          issues: issues,
+          anchor: expr,
+        );
       }
     }
 
@@ -5136,13 +6808,15 @@ final class ExpressionTranslator {
     }
     // A custom widget reads its OWN context, which sits below whatever the
     // screen composes it under, so the mount-point inset is not its value.
-    if (_walk.classKey != null && _kInsetPaths.contains(path)) {
+    if (_kContextDependentDevicePaths.contains(path) &&
+        (_walk.classKey != null ||
+            (_hoist != null &&
+                _hoist!.analyzer.analyze(expr) is! HoistEvaluable))) {
       issues.add(
         Issue(
           code: IssueCode.themeReadOutOfContract,
-          message: "The inset '${expr.toSource()}' is read inside a custom "
-              'widget, whose context is decided by the call sites that compose '
-              'it. Read it in the screen and pass the value down.',
+          message: "The device read '${expr.toSource()}' needs the screen's "
+              'root context. Read it in the screen and pass the value down.',
           location: _locationOf(expr),
         ),
       );
@@ -5151,8 +6825,19 @@ final class ExpressionTranslator {
     return 'data.device.$path';
   }
 
-  /// The published inset paths — the reads a custom widget cannot answer.
-  static const Set<String> _kInsetPaths = {
+  /// Context-dependent snapshot reads that require the authored root context.
+  static const Set<String> _kKeyboardAndAccessibilityPaths = {
+    'viewInsetsTop',
+    'viewInsetsBottom',
+    'viewInsetsLeft',
+    'viewInsetsRight',
+    'boldText',
+    'disableAnimations',
+    'accessibleNavigation',
+    'highContrast',
+  };
+
+  static const Set<String> _kContextDependentDevicePaths = {
     'safeAreaTop',
     'safeAreaBottom',
     'safeAreaLeft',
@@ -5161,6 +6846,7 @@ final class ExpressionTranslator {
     'viewPaddingBottom',
     'viewPaddingLeft',
     'viewPaddingRight',
+    ..._kKeyboardAndAccessibilityPaths,
   };
 
   Issue _deviceReadOutOfContractIssue(Expression expr) => Issue(
@@ -5171,6 +6857,8 @@ final class ExpressionTranslator {
             'longestSide`, '
             '`MediaQuery.paddingOf(context).top|bottom|left|right`, '
             '`MediaQuery.viewPaddingOf(context).top|bottom|left|right`, '
+            '`MediaQuery.viewInsetsOf(context).top|bottom|left|right`, '
+            'the accessibility flag helpers, '
             '`MediaQuery.devicePixelRatioOf(context)`, '
             '`MediaQuery.orientationOf(context)` (and the equivalent '
             '`MediaQuery.of(context)` chains), '
@@ -6117,7 +7805,13 @@ final class ExpressionTranslator {
         return '';
       }
       final name = arg.name.lexeme;
-      if (isDiscardedWidgetKeyArgument(arg)) continue;
+      if (isDiscardedWidgetKeyArgument(arg)) {
+        if (!isLegacyScalarWidgetKey(arg.argumentExpression)) {
+          defer('the native key requires the original PageView owner');
+          return '';
+        }
+        continue;
+      }
       switch (name) {
         case 'children':
           childrenExpr = arg.argumentExpression;
@@ -7423,10 +9117,15 @@ final class ExpressionTranslator {
       }
     }
 
-    // Named args map by name; runtime widget keys are not serialized.
+    // Native keys cross as declared references to their installed objects.
     for (final a in args.whereType<NamedArgument>()) {
       final name = a.name.lexeme;
-      if (isDiscardedWidgetKeyArgument(a)) continue;
+      if (isDiscardedWidgetKeyArgument(a)) {
+        final key = _catalogNativeKey(entry, a.argumentExpression, issues);
+        if (key != null) emitted.add('key: $key');
+        _activeWidgetBuilder?.observeKey(a.argumentExpression);
+        continue;
+      }
       if (entry.name == 'Text' &&
           name == 'text' &&
           _needsTextSpans(a.argumentExpression)) {
@@ -7464,8 +9163,10 @@ final class ExpressionTranslator {
       // entry's native recipes, hoist mapped structured fields to flat
       // properties on the outer widget. Inner values route back through
       // `_translate`, so per-type value translators compose recursively.
-      final decomposed =
-          _tryDecompose(entry, name, a.argumentExpression, issues);
+      final decomposed = _withinNativeValueBoundary(
+          !entry.flutterType.startsWith('package:flutter/') &&
+              !entry.flutterType.startsWith('dart:ui#'),
+          () => _tryDecompose(entry!, name, a.argumentExpression, issues));
       if (decomposed != null) {
         emitted.addAll(decomposed);
         continue;
@@ -7489,15 +9190,24 @@ final class ExpressionTranslator {
       final before = issues.length;
       final isIconSlot = prop.synthetic == _kIconDataSynthetic;
       if (isIconSlot) _resetResolvedIcon();
-      final value = _joinsStringParts(prop, a.argumentExpression)
-          ? _joinedStringValue(a.argumentExpression, issues)
-          : _translateSlotValue(
-              a.argumentExpression,
-              prop.type,
-              issues,
-              property: prop,
-              sourceParameter: sourceParameters[a.argumentExpression],
-            );
+      final value = _withinNativeValueBoundary(
+          !entry.flutterType.startsWith('package:flutter/') &&
+              !entry.flutterType.startsWith('dart:ui#') &&
+              !const {
+                PropertyType.widget,
+                PropertyType.widgetList,
+                PropertyType.widgetBuilder,
+                PropertyType.event
+              }.contains(prop.type),
+          () => _joinsStringParts(prop, a.argumentExpression)
+              ? _joinedStringValue(a.argumentExpression, issues)
+              : _translateSlotValue(
+                  a.argumentExpression,
+                  prop.type,
+                  issues,
+                  property: prop,
+                  sourceParameter: sourceParameters[a.argumentExpression],
+                ));
       if (value.isEmpty && issues.length > before) return '';
       // An asymmetric `BorderRadius` value (a direct `borderRadius:` arg, e.g.
       // ClipRRect) fans out onto the per-corner slots instead of the uniform
@@ -8207,7 +9917,7 @@ final class ExpressionTranslator {
       MethodInvocation() => anchor.methodName.element,
       _ => null,
     };
-    if (constructor is! ConstructorElement) {
+    if (constructor is! ExecutableElement) {
       return const <Expression, FormalParameterElement>{};
     }
     final positional = constructor.formalParameters
@@ -8380,11 +10090,21 @@ final class ExpressionTranslator {
     T Function(Expression body) visit, {
     required T refused,
   }) {
+    final guardBuilder = _activeWidgetBuilder != null;
+    if (guardBuilder && !_activeBuilderHelpers.add(helper)) {
+      throw BuilderLoweringException(
+          call, 'Recursive helper is unsupported in a pure callback');
+    }
     final binding = bindHelperArguments(
       helper.params,
       call.argumentList.arguments.toList(),
     );
     if (binding == null) {
+      if (guardBuilder) {
+        _activeBuilderHelpers.remove(helper);
+        throw BuilderLoweringException(
+            call, 'Pure helper arguments must bind exactly');
+      }
       issues.add(
         Issue(
           code: IssueCode.customWidgetInliningDeferred,
@@ -8414,6 +10134,7 @@ final class ExpressionTranslator {
     try {
       return visit(helper.body);
     } finally {
+      if (guardBuilder) _activeBuilderHelpers.remove(helper);
       _walk = saved;
     }
   }
@@ -8437,6 +10158,16 @@ final class ExpressionTranslator {
     WidgetEntry? catalogEntry,
   }) {
     if (classification is! ComposableWidget) return null;
+    if (args.any((argument) => _containsIntlFormatting(
+        _resolveBoundIdentifier(argument.argumentExpression)))) {
+      if (catalogEntry != null) return null;
+      issues.add(Issue(
+          code: IssueCode.customWidgetInliningDeferred,
+          message:
+              'Formatting constructor arguments require an installed native widget binding',
+          location: _locationOf(anchor)));
+      return '';
+    }
     final unmet =
         classification.requiredMechanisms.difference(_kImplementedMechanisms);
     if (unmet.isNotEmpty) return null;
@@ -8588,7 +10319,8 @@ final class ExpressionTranslator {
   /// supplied at the call site (a named argument by label, a positional
   /// argument by formal index), or the parameter's constructor default when
   /// the call site omits it. A numeric parameter's value is coerced to a
-  /// double literal; the `key:` argument is dropped.
+  /// double literal. Native keys require a factory route because inlining
+  /// cannot retain the original widget owner.
   ///
   /// A matched catalog entry supplies the exact decoder type after resolved
   /// formal identity and named-or-positional correspondence agree.
@@ -8611,7 +10343,17 @@ final class ExpressionTranslator {
       CustomWidgetParam? param;
       if (arg is NamedArgument) {
         final argName = arg.name.lexeme;
-        if (isDiscardedWidgetKeyArgument(arg)) continue;
+        if (isDiscardedWidgetKeyArgument(arg)) {
+          if (!isLegacyScalarWidgetKey(arg.argumentExpression)) {
+            issues.add(Issue(
+                code: IssueCode.customWidgetUnsupportedReducible,
+                message:
+                    'A native key requires the original custom widget owner; '
+                    'this widget has no matching native factory key slot.',
+                location: _locationOf(arg)));
+          }
+          continue;
+        }
         if (!parameterNames.contains(argName)) {
           issues.add(
             Issue(
@@ -8958,8 +10700,12 @@ final class ExpressionTranslator {
     Expression expression,
     List<Issue> issues,
   ) {
-    final item = _measurementItem(occurrence, expression);
     final handler = value.trimLeft();
+    if (handler.startsWith('{nativeEvent: ')) {
+      final tap = _measurementTapEvent(marker, occurrence, expression, issues);
+      if (tap.isEmpty) return '';
+      return '${value.substring(0, value.length - 1)}, measurement: $tap}';
+    }
     final localSet =
         handler.startsWith('event ${_stringLiteral(kLocalValueSetEventName)}');
     if (handler.startsWith('event ') && !localSet) {
@@ -8968,7 +10714,7 @@ final class ExpressionTranslator {
         marker,
         expression,
         issues,
-        item: item,
+        item: _measurementItem(occurrence, expression),
       );
     }
     if (!handler.startsWith('set ') && !localSet) {
@@ -8983,16 +10729,24 @@ final class ExpressionTranslator {
       );
       return '';
     }
-    final tap = _attachMeasurementRouteMarker(
-      'event ${_stringLiteral(kMeasurementPublicationTapEventNameV1)} {}',
-      marker,
-      expression,
-      issues,
-      item: item,
-    );
+    final tap = _measurementTapEvent(marker, occurrence, expression, issues);
     if (tap.isEmpty) return '';
     return '[$value, $tap]';
   }
+
+  String _measurementTapEvent(
+    String marker,
+    MeasurementEventOccurrence occurrence,
+    Expression expression,
+    List<Issue> issues,
+  ) =>
+      _attachMeasurementRouteMarker(
+        'event ${_stringLiteral(kMeasurementPublicationTapEventNameV1)} {}',
+        marker,
+        expression,
+        issues,
+        item: _measurementItem(occurrence, expression),
+      );
 
   Set<String> _localValueFields(
     Expression root,
@@ -9364,6 +11118,15 @@ final class ExpressionTranslator {
           value,
           () => translateBranch(value),
         );
+    final builder = _activeWidgetBuilder;
+    if (builder != null) {
+      final condition = builder.value(expr.condition);
+      final yes = builder.guarded(
+          expr.condition, true, () => branch(expr.thenExpression));
+      final no = builder.guarded(
+          expr.condition, false, () => branch(expr.elseExpression));
+      return _switchDsl(condition, [('true', yes), ('false', no)]);
+    }
     final brightnessSwitch = _tryBrightnessSwitch(expr, issues, branch);
     if (brightnessSwitch != null) return brightnessSwitch;
     final intSwitch = _tryIntStateEqualitySwitch(expr, issues, branch);
@@ -9394,10 +11157,10 @@ final class ExpressionTranslator {
 
   /// Translates [branch] with the measurement scope qualified by its path from
   /// [root] through the enclosing conditionals, as source discovery keys it.
-  String _inConditionalBranch(
+  T _inConditionalBranch<T>(
     ConditionalExpression root,
     Expression branch,
-    String Function() translate,
+    T Function() translate,
   ) {
     final scope = _walk.measurementScope;
     final list = _walk.measurementWidgetList;
@@ -9834,8 +11597,7 @@ final class ExpressionTranslator {
     );
   }
 
-  /// An equality against a literal whose other operand resolves to a
-  /// conditional, such as a helper parameter bound to `a ? x : ''`.
+  /// An equality whose operand resolves to a conditional or a bound literal.
   ({Expression operand, Expression literal, bool negated})?
       _distributedEquality(Expression cond) {
     if (cond is! BinaryExpression) return null;
@@ -9846,7 +11608,9 @@ final class ExpressionTranslator {
       (cond.rightOperand, cond.leftOperand),
     ]) {
       if (_equalityLiteral(literal) == null) continue;
-      if (_resolveBoundIdentifier(operand) is ConditionalExpression) {
+      final resolved = _resolveBoundIdentifier(operand);
+      if (resolved is ConditionalExpression ||
+          _equalityLiteral(resolved) != null) {
         return (operand: operand, literal: literal, negated: op == '!=');
       }
     }
@@ -10384,6 +12148,38 @@ final class ExpressionTranslator {
     FormalParameterElement? sourceParameter,
     bool coerce = true,
   }) {
+    final ref = property?.structuredRef ??
+        (property?.valueShape is StructuredShape
+            ? (property!.valueShape as StructuredShape).structuredRef
+            : null);
+    final structured =
+        ref == null ? null : _nativeCatalogIndex.structuredByRef(ref);
+    final native =
+        structured == null ? null : nativeBindingRoute(structured.sourceType);
+    if (native != null) {
+      final resolved = _resolveBoundIdentifier(_stripParens(expr));
+      if (_isNullLiteral(resolved) && property?.constructorNullable == true)
+        return 'null';
+      final binding = _nativeBindingRead(resolved, type: native.contractType);
+      if (binding != null) return binding;
+      issues.add(
+        Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message:
+              'A native ${native.dartType} requires an exact constructor-supplied binding.',
+          location: _locationOf(expr),
+        ),
+      );
+      return '';
+    }
+    if (structured != null &&
+        optionalNativeDecoder(structured.sourceType,
+                namespace: structured.library.namespace) !=
+            null) {
+      return _optionalNativeValue(expr, issues,
+              expected: structured.sourceType) ??
+          '';
+    }
     final before = issues.length;
     final dsl = _translateSlotValueUnrecorded(
       expr,
@@ -10408,6 +12204,192 @@ final class ExpressionTranslator {
     FormalParameterElement? sourceParameter,
     bool coerce = true,
   }) {
+    if (type == PropertyType.color) {
+      expr = _rootColorSource(expr);
+      final borrowed = _nativeBindingRead(expr, type: 'flutter.Color');
+      if (borrowed != null) return borrowed;
+    }
+    final colorExpression =
+        type == PropertyType.color ? _installedColorExpression(expr) : null;
+    if (colorExpression != null) {
+      try {
+        final native =
+            _tryNativeCallValue(colorExpression, issues, type: 'flutter.Color');
+        if (native != null) return native;
+      } on BuilderLoweringException catch (error) {
+        issues.add(Issue(
+            code: IssueCode.propertyValueTypeMismatch,
+            message: error.reason,
+            location: _locationOf(error.node)));
+        return '';
+      }
+    }
+    final beforeValidation = issues.length;
+    _validateDataRefForSlot(expr, type, issues, property: property);
+    if (issues.length > beforeValidation) return '';
+    final staticType = expr.staticType;
+    final verdict = classifyHoistType(staticType);
+    if (staticType != null &&
+        verdict is HoistCrosses &&
+        verdict.kind == HoistValueKind.scalar &&
+        _readsKeyboardOrAccessibility(expr) &&
+        !_propertyTypeAcceptsHostDataType(type, staticType)) {
+      issues.add(Issue(
+        code: IssueCode.propertyValueTypeMismatch,
+        message:
+            "The device expression '${expr.toSource()}' cannot be assigned "
+            "to a '${type.name}' property type at this site.",
+        location: _locationOf(expr),
+      ));
+      return '';
+    }
+    if (type == PropertyType.scalarCallback &&
+        property?.constructorNullable == true &&
+        _isNullLiteral(_resolveBoundIdentifier(expr))) return 'null';
+    if (type == PropertyType.scalarCallback &&
+        property?.scalarContract != null) {
+      return _translateScalarCallback(expr, property!.scalarContract!, issues);
+    }
+    if (type == PropertyType.widgetBuilder && property != null) {
+      return _translateWidgetBuilder(expr, property, issues);
+    }
+    bool hasKey(AstNode node) {
+      if (node is FunctionExpression) return false;
+      if (node is NamedArgument && isDiscardedWidgetKeyArgument(node)) {
+        return true;
+      }
+      return node.childEntities.whereType<AstNode>().any(hasKey);
+    }
+
+    final keySemantics = _collectionSemanticProbe();
+    final keyBudget = CollectionUnrollBudget();
+    final activeKeyNodes = <AstNode>{};
+    var keySearchExhausted = false;
+    bool hasNativeKey(AstNode node,
+        [Map<Element, Expression> bindings = const {}]) {
+      if (node is FunctionExpression ||
+          keySearchExhausted ||
+          !activeKeyNodes.add(node)) return false;
+      try {
+        if (!keyBudget.tryChargeWork()) {
+          keySearchExhausted = true;
+          _recordCollectionRefusal(keyBudget.workRefusal(node), issues);
+          return false;
+        }
+        if (node is Expression) {
+          final resolved = keySemantics.resolve(node, bindings, keyBudget,
+              stopAtConditionals: true);
+          if (resolved.workLimitExceeded) {
+            keySearchExhausted = true;
+            _recordCollectionRefusal(keyBudget.workRefusal(node), issues);
+            return false;
+          }
+          if (!identical(resolved.expression, node)) {
+            return hasNativeKey(resolved.expression, resolved.bindings);
+          }
+          bindings = resolved.bindings;
+        }
+        if (node is NamedArgument && isDiscardedWidgetKeyArgument(node)) {
+          final resolved = keySemantics.resolve(
+              node.argumentExpression, bindings, keyBudget,
+              stopAtConditionals: true);
+          if (resolved.workLimitExceeded) {
+            keySearchExhausted = true;
+            _recordCollectionRefusal(keyBudget.workRefusal(node), issues);
+            return false;
+          }
+          final key = _resolveBoundIdentifier(resolved.expression);
+          return _rootParamRead(key) != null ||
+              installedNativeConstantType(key) == 'flutter.Key';
+        }
+        return node.childEntities
+            .whereType<AstNode>()
+            .any((child) => hasNativeKey(child, bindings));
+      } finally {
+        activeKeyNodes.remove(node);
+      }
+    }
+
+    final list = type == PropertyType.widgetList
+        ? _resolveBoundIdentifier(_stripParens(expr))
+        : null;
+    FormalParameterElement? resolvedParameter() {
+      AstNode? node = expr;
+      while (node is Expression || node is NamedArgument) {
+        if (node is Argument && node.correspondingParameter != null) {
+          return node.correspondingParameter;
+        }
+        node = node?.parent;
+      }
+      return null;
+    }
+
+    final parameter = sourceParameter ?? resolvedParameter();
+    final constructor = parameter?.enclosingElement;
+    final owner =
+        constructor is ConstructorElement ? constructor.enclosingElement : null;
+    // Borrowed keys and native delegates retain child identity through frames.
+    final nativeKeyedChildren = parameter?.name == 'children' &&
+        ((owner?.name == 'GridView' &&
+                owner?.library.identifier ==
+                    'package:flutter/src/widgets/scroll_view.dart') ||
+            (owner?.name == 'SliverChildListDelegate' &&
+                owner?.library.identifier ==
+                    'package:flutter/src/widgets/scroll_delegate.dart'));
+    if (list != null &&
+        ((list is ListLiteral &&
+                (_activeWidgetBuilder != null ||
+                    (nativeKeyedChildren && hasKey(list)))) ||
+            hasNativeKey(list))) {
+      return _translateBuilderCollection(list, issues);
+    }
+    if (_activeWidgetBuilder != null &&
+        (const {
+          PropertyType.fontWeight,
+          PropertyType.boolean,
+          PropertyType.integer,
+          PropertyType.real,
+          PropertyType.length,
+          PropertyType.string,
+          PropertyType.enumValue,
+          PropertyType.color
+        }.contains(type))) {
+      try {
+        final scalar = expr.staticType;
+        if (_inSpanCollection &&
+            _walk.runtimeLoops.isNotEmpty &&
+            scalar != null &&
+            (scalar.isDartCoreString ||
+                scalar.isDartCoreBool ||
+                scalar.isDartCoreNum ||
+                scalar.isDartCoreInt ||
+                scalar.isDartCoreDouble)) {
+          return _spanCollectionBuilderValue(expr, issues,
+              asDouble:
+                  type == PropertyType.real || type == PropertyType.length);
+        }
+        return _activeWidgetBuilder!.value(expr,
+            asDouble: type == PropertyType.real || type == PropertyType.length,
+            requireNativeBaseType: _customNativeValueBoundary,
+            nativeDestination: switch (type) {
+              PropertyType.color => 'Color',
+              PropertyType.fontWeight => 'FontWeight',
+              _ => null,
+            });
+      } on BuilderLoweringException catch (error) {
+        issues.add(Issue(
+            code: IssueCode.propertyValueTypeMismatch,
+            message: error.toString(),
+            location: _locationOf(error.node)));
+        return '';
+      }
+    }
+    if (_activeWidgetBuilder != null &&
+        (themeReadSegments(expr) != null ||
+            _recognizeDeviceRead(expr) != null)) {
+      return _activeWidgetBuilder!
+          .value(expr, requireNativeBaseType: _customNativeValueBoundary);
+    }
     if (type != PropertyType.event && type != PropertyType.widget) {
       final hoisted = _hoisted(
         expr,
@@ -10423,9 +12405,6 @@ final class ExpressionTranslator {
       );
       if (hoisted != null) return hoisted;
     }
-    final beforeValidation = issues.length;
-    _validateDataRefForSlot(expr, type, issues, property: property);
-    if (issues.length > beforeValidation) return '';
     final widgetOccurrence = _walk.measurementWidget;
     final eventOccurrence = type == PropertyType.event &&
             widgetOccurrence != null &&
@@ -10544,12 +12523,128 @@ final class ExpressionTranslator {
   }
 
   String _translateSlotValueCore(
+      Expression rawExpr, PropertyType type, List<Issue> issues,
+      {PropertyEntry? property, bool coerce = true}) {
+    if (type == PropertyType.event && property?.callbackSignature == null) {
+      final scratch = <Issue>[];
+      final legacy = _translateSlotValueLegacy(
+        rawExpr,
+        type,
+        scratch,
+        property: property,
+        coerce: coerce,
+      );
+      // A completed declarative translation may intentionally emit no handler.
+      // Navigation refusals also retain their diagnostic and context boundary.
+      if (!scratch.any((issue) => !issue.code.isBuildNotice) ||
+          scratch.any(
+              (issue) => issue.code == IssueCode.navigationFormUnsupported)) {
+        issues.addAll(scratch);
+        return legacy;
+      }
+      final expression = _resolveBoundIdentifier(_stripParens(rawExpr));
+      final callback = expression.staticType;
+      if (callback is FunctionType && callback.formalParameters.isEmpty) {
+        try {
+          final reference =
+              _nativeBindingRead(expression, type: kNativeVoidCallbackType) ??
+                  (expression is FunctionExpression
+                      ? _tryNativeCallValue(
+                          expression,
+                          issues,
+                          type: kNativeVoidCallbackType,
+                        )
+                      : null);
+          if (reference != null) return '{nativeEvent: $reference}';
+        } on BuilderLoweringException catch (error) {
+          issues.add(
+            Issue(
+              code: IssueCode.propertyValueTypeMismatch,
+              message: error.reason,
+              location: _locationOf(error.node),
+            ),
+          );
+          return '';
+        }
+      }
+      issues.addAll(scratch);
+      return legacy;
+    }
+    bool nativeBoundary(Expression value) {
+      final owner = value.thisOrAncestorOfType<ArgumentList>()?.parent;
+      return owner is InstanceCreationExpression &&
+          _isFrameworkValueType(_classOfInstanceCreation(owner));
+    }
+
+    final nativeConstructor = nativeBoundary(rawExpr) &&
+        nativeBoundary(_resolveBoundIdentifier(rawExpr));
+    final eligible = nativeConstructor &&
+        const {
+          PropertyType.boolean,
+          PropertyType.integer,
+          PropertyType.real,
+          PropertyType.length,
+        }.contains(type);
+    if (!eligible)
+      return _translateSlotValueLegacy(rawExpr, type, issues,
+          property: property, coerce: coerce);
+    final scratch = <Issue>[];
+    final old = _translateSlotValueLegacy(rawExpr, type, scratch,
+        property: property, coerce: coerce);
+    if (!scratch.any((issue) => !issue.code.isBuildNotice)) {
+      issues.addAll(scratch);
+      return old;
+    }
+    final programIssues = <Issue>[];
+    final program = _tryScalarValueProgram(rawExpr, programIssues,
+        asDouble: coerce &&
+            (type == PropertyType.real || type == PropertyType.length));
+    if (program != null &&
+        program.isNotEmpty &&
+        !programIssues.any((issue) => !issue.code.isBuildNotice)) {
+      issues.addAll(programIssues);
+      return program;
+    }
+    issues.addAll(scratch);
+    return old;
+  }
+
+  String _translateSlotValueLegacy(
     Expression rawExpr,
     PropertyType type,
     List<Issue> issues, {
     PropertyEntry? property,
     bool coerce = true,
   }) {
+    if (type == PropertyType.event && _containsIntlFormatting(rawExpr)) {
+      final modalSheet = _walk.modalSheet;
+      final activeModalTrigger = modalSheet != null &&
+          switch (recogniseModalSheetTrigger(rawExpr)) {
+            ModalSheetRecognised(:final sheet) =>
+              identical(sheet.call, modalSheet.sheet.call) &&
+                  sheet.call.argumentList.arguments.every((argument) =>
+                      argument is NamedArgument &&
+                      switch (kModalSheetArgumentDispositions[sheet.function]
+                          ?[argument.name.lexeme]) {
+                        ModalSheetArgumentDisposition.animationStyle ||
+                        ModalSheetArgumentDisposition.builder ||
+                        ModalSheetArgumentDisposition.pageBuilder =>
+                          true,
+                        _ =>
+                          !_containsIntlFormatting(argument.argumentExpression),
+                      }),
+            _ => false,
+          };
+      // Sheet bodies and animation styles are validated when the sheet lowers.
+      if (!activeModalTrigger) {
+        issues.add(Issue(
+            code: IssueCode.unrecognizedMethodCall,
+            message:
+                'Formatting in an event callback requires an installed native callback binding',
+            location: _locationOf(rawExpr)));
+        return '';
+      }
+    }
     if (type == PropertyType.event && _walk.rootStateContext) {
       final local = recogniseLocalValueWrite(rawExpr);
       if (local != null && _currentLocalFields.contains(local)) {
@@ -11012,7 +13107,15 @@ final class ExpressionTranslator {
       if (current is SimpleIdentifier) {
         final element = current.element;
         if (element == null || !seen.add(element)) break;
-        final bound = _walk.paramBindings[element] ??
+        Expression? local;
+        for (var scope = _activeWidgetBuilder?.expressions;
+            scope != null;
+            scope = scope.parent) {
+          local = scope.localInitializers[element];
+          if (local != null) break;
+        }
+        final bound = local ??
+            _walk.paramBindings[element] ??
             _walk.inlined.localBindings[element];
         if (bound == null) break;
         current = bound;
@@ -11294,7 +13397,15 @@ final class ExpressionTranslator {
       }
       if (current is SimpleIdentifier) {
         final element = current.element;
-        final bound = _walk.paramBindings[element] ??
+        Expression? local;
+        for (var scope = _activeWidgetBuilder?.expressions;
+            scope != null;
+            scope = scope.parent) {
+          local = scope.localInitializers[element];
+          if (local != null) break;
+        }
+        final bound = local ??
+            _walk.paramBindings[element] ??
             _walk.inlined.localBindings[element];
         if (bound != null) {
           if (element != null && !seen.add(element)) {
@@ -11825,8 +13936,9 @@ final class ExpressionTranslator {
     } else {
       return false;
     }
-    return className == 'BorderRadius' &&
-        _kAsymmetricBorderRadiusCtors.contains(ctorName);
+    return className == 'BorderRadiusDirectional' ||
+        (className == 'BorderRadius' &&
+            _kAsymmetricBorderRadiusCtors.contains(ctorName));
   }
 
   /// Fans a per-corner BorderRadius [value] out onto [entry]'s per-corner
@@ -11866,11 +13978,21 @@ final class ExpressionTranslator {
     // Membership keyed on the `borderRadiusCorner` synthetic + the property
     // name — the same discovery the reconstruction side uses (factory_emitter
     // `_borderRadiusCornersOf`), so the two halves can't drift apart.
-    final hasAllCorners = _kBorderRadiusCornerProperty.values.every(
-      (name) => entry.properties.any(
-        (p) => p.name == name && p.synthetic == _kBorderRadiusCornerSynthetic,
-      ),
-    );
+    final directionalCorners = value.contains('topStart:') ||
+        value.contains('topEnd:') ||
+        value.contains('bottomStart:') ||
+        value.contains('bottomEnd:');
+    final hasAllCorners = _kBorderRadiusCornerProperty.entries
+        .where((e) =>
+            (e.key.endsWith('Start') || e.key.endsWith('End')) ==
+            directionalCorners)
+        .map((e) => e.value)
+        .every(
+          (name) => entry.properties.any(
+            (p) =>
+                p.name == name && p.synthetic == _kBorderRadiusCornerSynthetic,
+          ),
+        );
     if (!hasAllCorners) {
       issues.add(
         Issue(
@@ -12239,6 +14361,20 @@ final class ExpressionTranslator {
       return const [];
     }
 
+    final resolved = _resolveBoundIdentifier(expr);
+    final declaration = constDeclarationElement(resolved);
+    final constantNull = declaration is VariableElement &&
+        !dependsOnBuildEnvironment(declaration) &&
+        declaration.computeConstantValue()?.isNull == true;
+    if (resolved is NullLiteral || constantNull) {
+      final argument = expr.parent;
+      if (argument is NamedArgument &&
+          argument.correspondingParameter?.type.nullabilitySuffix ==
+              NullabilitySuffix.question) {
+        return const [];
+      }
+    }
+
     final index = _nativeCatalogIndex;
     final constant = _constantConstruction(expr);
     for (final recipe in candidateRecipes) {
@@ -12274,14 +14410,19 @@ final class ExpressionTranslator {
       final mappedFields = recipe.fieldMappings.map((m) => m.fieldRef).toSet();
       final mappedArguments = <String>{};
       for (final mapping in recipe.fieldMappings) {
-        final sourceExpr = match.fieldExpressions[mapping.fieldRef];
+        var sourceExpr = match.fieldExpressions[mapping.fieldRef];
         if (sourceExpr == null) continue;
         final destProp =
             index.widgetProperty(_widgetRef(entry), mapping.propertyRef);
         if (destProp == null) continue;
-        // Route asymmetric, `.all` and framework-constant BorderRadius values through
-        // per-corner recognition before the circular-only transform rejects them.
-        // Keep `.circular` on the existing transform to preserve its output bytes.
+        if (destProp.synthetic == _kBorderRadiusCircularSynthetic) {
+          sourceExpr = _resolveBoundIdentifier(sourceExpr);
+          final constant = _constantConstruction(sourceExpr);
+          if (constant != null && constant.overrides.isEmpty) {
+            sourceExpr = constant.base;
+          }
+        }
+        // Inspect bindings before choosing the circular-only radius transform.
         if (destProp.synthetic == _kBorderRadiusCircularSynthetic &&
             (_isAsymmetricBorderRadiusCtor(sourceExpr) ||
                 _frameworkConstValue(_stripParens(sourceExpr))?.kind ==
@@ -12860,7 +15001,7 @@ final class ExpressionTranslator {
   String? _literalNativeBindingValue(Object? value) {
     if (value == null) return 'null';
     if (value is String) return _stringLiteral(value);
-    if (value is num || value is bool) return value.toString();
+    if (value is num || value is bool) return _foldedLiteral(value);
     return null;
   }
 
@@ -13470,6 +15611,8 @@ bool propertyTypeAcceptsThemeKind(
       PropertyType.booleanList ||
       PropertyType.integerList ||
       PropertyType.realList ||
+      PropertyType.scalarCallback ||
+      PropertyType.widgetBuilder ||
       PropertyType.event ||
       PropertyType.dataReference ||
       PropertyType.gradient ||
@@ -13520,6 +15663,7 @@ bool propertyTypeAcceptsDeviceKind(
       PropertyType.string ||
       PropertyType.enumValue =>
         kind == DeviceContractValueKind.token,
+      PropertyType.boolean => kind == DeviceContractValueKind.boolean,
       PropertyType.color ||
       PropertyType.fontWeight ||
       PropertyType.widget ||
@@ -13530,12 +15674,13 @@ bool propertyTypeAcceptsDeviceKind(
       PropertyType.offset ||
       PropertyType.duration ||
       PropertyType.curve ||
-      PropertyType.boolean ||
       PropertyType.integer ||
       PropertyType.stringList ||
       PropertyType.booleanList ||
       PropertyType.integerList ||
       PropertyType.realList ||
+      PropertyType.scalarCallback ||
+      PropertyType.widgetBuilder ||
       PropertyType.event ||
       PropertyType.dataReference ||
       PropertyType.gradient ||
@@ -14008,6 +16153,32 @@ final class _ConditionLowering {
 /// The public analyzer interface name of [node], for diagnostics.
 String _nodeKind(AstNode node) =>
     '${node.runtimeType}'.replaceFirst(RegExp(r'Impl$'), '');
+
+/// Finds a non-constant installed native construction, through locals; those
+/// need the surface's ordered evaluation frame, so the mount cannot compute them.
+final class _InstalledNativeConstruction extends RecursiveAstVisitor<void> {
+  _InstalledNativeConstruction(this._resolve);
+  final Expression Function(Expression) _resolve;
+  final _seen = <AstNode>{};
+  var found = false;
+
+  void visit(Expression expression) => expression.accept(this);
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    if (!node.isConst && installedNativeConstructorType(node) != null) {
+      found = true;
+    }
+    super.visitInstanceCreationExpression(node);
+  }
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    final resolved = _resolve(node);
+    if (!identical(resolved, node) && _seen.add(resolved))
+      resolved.accept(this);
+  }
+}
 
 /// Calls [onFound] for each reference to [element].
 final class _ElementReferenceVisitor extends RecursiveAstVisitor<void> {

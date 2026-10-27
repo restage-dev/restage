@@ -226,7 +226,7 @@ class PriceTag extends StatelessWidget {
       flattenOutput: true,
       outputs: {
         'apps_examples|assets/paywalls/price_tag.rfwtxt':
-            decodedMatches(contains('RestagePrice(')),
+            decodedMatches(contains('intl.number.format')),
         'apps_examples|assets/paywalls/price_tag.rfw': isNotEmpty,
         'apps_examples|assets/paywalls/price_tag.capability.json': anything,
         'apps_examples|assets/paywalls/screens/paywall_price_tag.rfw': anything,
@@ -238,7 +238,7 @@ class PriceTag extends StatelessWidget {
     final idiomNotices = logs
         .where((message) => message.contains('[idiomAutoSubstituted]'))
         .toList();
-    expect(idiomNotices, hasLength(1), reason: logs.join('\n'));
+    expect(idiomNotices, isEmpty, reason: logs.join('\n'));
 
     final packageReader = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
@@ -298,7 +298,7 @@ class PriceTag extends StatelessWidget {
     final completeIdiomNotices = logs
         .where((message) => message.contains('[idiomAutoSubstituted]'))
         .toList();
-    expect(completeIdiomNotices, hasLength(1), reason: logs.join('\n'));
+    expect(completeIdiomNotices, isEmpty, reason: logs.join('\n'));
     expect(packageResult.succeeded, isTrue, reason: logs.join('\n'));
   });
 

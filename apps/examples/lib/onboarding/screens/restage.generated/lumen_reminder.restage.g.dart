@@ -6,7 +6,7 @@ const lumenReminderScreenRef = NeutralFlowScreenRef(
   id: 'lumen_reminder',
   artifactPath: 'lumen_reminder.rfw',
   version: 1,
-  minClient: 12,
+  minClient: 17,
 );
 
 @Deprecated('Use lumenReminderScreenRef')

@@ -16,6 +16,7 @@ import 'package:rfw/rfw.dart' show RemoteWidget;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../flow/flow_test_support.dart';
+import '../support/pump_until.dart';
 
 Uint8List _blob(String text) {
   final source = '''
@@ -693,12 +694,14 @@ void main() {
       ..version = 2;
 
     await Restage.reloadSurfaces();
-    Object? escaped;
-    for (var pump = 0; pump < 100 && !nestedRefreshDone.isCompleted; pump++) {
-      await tester.pump(const Duration(milliseconds: 1));
-      escaped ??= tester.takeException();
-    }
-    if (nestedRefreshDone.isCompleted) await nestedRefreshDone.future;
+    await pumpUntil(
+      tester,
+      () => nestedRefreshDone.isCompleted,
+      reason: 'the nested refresh',
+      step: const Duration(milliseconds: 1),
+    );
+    final escaped = tester.takeException();
+    await nestedRefreshDone.future;
     await tester.pumpAndSettle();
 
     final flowB = find.text('Flow B').evaluate().length;

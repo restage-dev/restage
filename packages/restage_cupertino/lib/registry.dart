@@ -2,15 +2,15 @@
 // Generated from lib/registry_curation.dart by the catalog generator.
 //
 // Edit the curation file and re-run build_runner; do not
-// edit this file directly. The runtime, codegen, and editor
-// all consume `kRegistry` from here.
+// edit this file directly. Runtime and authoring tools
+// consume `kRegistry` from here.
 
 library;
 
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Registry for the `restage.cupertino` library.
-/// Read by codegen, the editor, and the runtime SDK.
+/// Read by codegen, authoring tools, and the runtime SDK.
 final Catalog kRegistry = Catalog(
   schemaVersion: 5,
   generatedAt: '1970-01-01T00:00:00Z',
@@ -28,6 +28,18 @@ final Catalog kRegistry = Catalog(
           'package:flutter/src/cupertino/activity_indicator.dart#CupertinoActivityIndicator',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0184'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0001'),
           name: 'color',
@@ -82,12 +94,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0185'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0004'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0005'),
@@ -152,12 +177,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0186'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0009'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0010'),
@@ -222,12 +260,27 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.list,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0187'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0014'),
           name: 'children',
           type: PropertyType.widgetList,
           description:
               'The list of rows in the section. Usually a list of [CupertinoListTile]s.',
           constructorNullable: true,
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0015'),
@@ -236,6 +289,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Sets the form section header. The section header lies above the [children] rows. Usually a [Text] widget.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0016'),
@@ -244,6 +298,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Sets the form section footer. The section footer lies below the [children] rows. Usually a [Text] widget.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0154'),
@@ -277,12 +332,27 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.list,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0188'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0017'),
           name: 'children',
           type: PropertyType.widgetList,
           description:
               'The list of rows in the section. Usually a list of [CupertinoListTile]s.',
           constructorNullable: true,
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0018'),
@@ -291,6 +361,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Sets the form section header. The section header lies above the [children] rows. Usually a [Text] widget.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0019'),
@@ -299,6 +370,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Sets the form section footer. The section footer lies below the [children] rows. Usually a [Text] widget.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0155'),
@@ -331,6 +403,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0189'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0020'),
           name: 'title',
           type: PropertyType.widget,
@@ -338,6 +422,7 @@ final Catalog kRegistry = Catalog(
               'A [title] is used to convey the central information. Usually a [Text].',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0021'),
@@ -346,6 +431,7 @@ final Catalog kRegistry = Catalog(
           description:
               'A [subtitle] is used to display additional information. It is located below [title]. Usually a [Text] widget.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0022'),
@@ -354,6 +440,7 @@ final Catalog kRegistry = Catalog(
           description:
               'A widget displayed at the start of the [CupertinoListTile]. This is typically an `Icon` or an `Image`.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0023'),
@@ -362,6 +449,7 @@ final Catalog kRegistry = Catalog(
           description:
               'A widget displayed at the end of the [CupertinoListTile]. This is usually a right chevron icon (e.g. `CupertinoListTileChevron`), or an `Icon`.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0024'),
@@ -405,12 +493,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0190'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0026'),
           name: 'leading',
           type: PropertyType.widget,
           description:
               '{@template flutter.cupertino.CupertinoNavigationBar.leading} Widget to place at the start of the navigation bar. Normally a back button for a normal page or a cancel button for full page dialogs.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0173'),
@@ -456,6 +557,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The navigation bar\'s default title.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0028'),
@@ -464,6 +566,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.cupertino.CupertinoNavigationBar.trailing} Widget to place at the end of the navigation bar. Normally additional actions taken on the page such as a search or edit function. {@endtemplate}',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0029'),
@@ -536,6 +639,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0191'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0030'),
           name: 'backgroundColor',
           type: PropertyType.color,
@@ -556,6 +671,7 @@ final Catalog kRegistry = Catalog(
           description: 'Widget to show in the main content area.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0164'),
@@ -575,6 +691,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/cupertino/switch.dart#CupertinoSwitch',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0192'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0032'),
           name: 'value',
@@ -628,6 +756,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0193'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0035'),
           name: 'placeholder',
           type: PropertyType.string,
@@ -651,6 +791,19 @@ final Catalog kRegistry = Catalog(
               enumRef: DartTypeRef(
                   libraryUri: 'package:flutter/src/services/text_input.dart',
                   symbolName: 'TextInputAction')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0182'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: '{@macro flutter.widgets.editableText.textDirection}',
+          sinceVersion: 17,
+          enumType: 'TextDirection',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
         ),
         PropertyEntry(
           wireId: WireId('p0036'),
@@ -755,6 +908,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0194'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0041'),
           name: 'value',
           type: PropertyType.real,
@@ -843,6 +1008,18 @@ final Catalog kRegistry = Catalog(
           'package:flutter/src/cupertino/date_picker.dart#CupertinoDatePicker',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0195'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0047'),
           name: 'mode',
@@ -1013,6 +1190,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0196'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0059'),
           name: 'mode',
           type: PropertyType.enumValue,
@@ -1129,6 +1318,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/cupertino/picker.dart#CupertinoPicker',
       childrenSlot: ChildrenSlot.list,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0197'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0067'),
           name: 'diameterRatio',
@@ -1248,6 +1449,9 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0077'),
@@ -1280,6 +1484,18 @@ final Catalog kRegistry = Catalog(
           'package:flutter/src/cupertino/search_field.dart#CupertinoSearchTextField',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0198'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0078'),
           name: 'onChanged',
@@ -1354,6 +1570,18 @@ final Catalog kRegistry = Catalog(
           'package:flutter/src/cupertino/checkbox.dart#CupertinoCheckbox',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0199'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0012'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0083'),
           name: 'value',
@@ -1438,6 +1666,15 @@ final Catalog kRegistry = Catalog(
     ),
   ],
   structuredTypes: [
+    StructuredEntry(
+      wireId: WireId('s0012'),
+      name: 'Key',
+      library: WidgetLibrary.cupertino,
+      description: 'Closed native data value.',
+      sourceType: 'package:flutter/src/foundation/key.dart#Key',
+      fields: [],
+      variants: [],
+    ),
     StructuredEntry(
       wireId: WireId('s0001'),
       name: 'BoxDecoration',
@@ -1976,6 +2213,38 @@ final Catalog kRegistry = Catalog(
       ],
     ),
     StructuredEntry(
+      wireId: WireId('s0011'),
+      name: 'ScrollPhysics',
+      library: WidgetLibrary.cupertino,
+      description: 'Determines the physics of a [Scrollable] widget.',
+      sourceType:
+          'package:flutter/src/widgets/scroll_physics.dart#ScrollPhysics',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0183'),
+          name: 'parent',
+          type: PropertyType.structured,
+          description:
+              'If non-null, determines the default behavior for each method.',
+          structuredRef:
+              WireIdRef(library: 'restage.cupertino', wireId: WireId('s0011')),
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.cupertino', wireId: WireId('s0011'))),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0027'),
+          argMappings: {
+            'parent': ArgMapping(targetFields: [WireId('p0183')]),
+          },
+          description: 'Creates an object with the default scroll physics.',
+        ),
+      ],
+    ),
+    StructuredEntry(
       wireId: WireId('s0006'),
       name: 'BorderRadius',
       library: WidgetLibrary.cupertino,
@@ -2405,4 +2674,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.cupertino` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kCupertinoCatalogContentVersion = 9;
+const int kCupertinoCatalogContentVersion = 24;

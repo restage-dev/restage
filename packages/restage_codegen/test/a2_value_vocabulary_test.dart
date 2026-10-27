@@ -557,6 +557,53 @@ class MysteryBox extends StatelessWidget {
     });
   });
 
+  test(
+      'native physics in a custom widget body is composable '
+      'without catalog value types', () async {
+    final catalog = Catalog(
+      schemaVersion: 1,
+      generatedAt: 'test',
+      libraries: {WidgetLibrary.core: const LibraryInfo(version: '0.1.0')},
+      widgets: [
+        entry(
+          name: 'ListView',
+          properties: [prop('physics', PropertyType.structured)],
+          flutterType: 'package:flutter/src/widgets/scroll_view.dart#ListView',
+        ),
+      ],
+    );
+    expect(catalog.structuredTypes, isEmpty);
+    final result = await classifyFixture(
+      {
+        'lib/physics_list.dart': '''
+import 'package:flutter/widgets.dart' as native;
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@RestageWidget(
+  name: 'PhysicsList',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'A scrollable list.',
+)
+class PhysicsList extends native.StatelessWidget {
+  const PhysicsList();
+  @override
+  native.Widget build(native.BuildContext context) => native.ListView(
+    physics: const native.BouncingScrollPhysics(
+      parent: native.AlwaysScrollableScrollPhysics(),
+    ),
+    children: const <native.Widget>[],
+  );
+}
+''',
+      },
+      inputPath: 'lib/physics_list.dart',
+      widgetName: 'PhysicsList',
+      catalog: catalog,
+    );
+    expect(result, isA<ComposableWidget>());
+  });
+
   group('A2 — drift guard', () {
     test('every hand-authored recipe value type is in the classifier base set',
         () {

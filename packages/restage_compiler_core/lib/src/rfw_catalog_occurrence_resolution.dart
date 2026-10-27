@@ -3,6 +3,13 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
+import 'package:restage_compiler_core/src/rfw_program_envelope.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show
+        ValueOperation,
+        kCollectionValueOperations,
+        kGridValueOperations,
+        kIntlValueOperations;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:restage_shared/rfw_formats.dart'
     show
@@ -230,7 +237,18 @@ final class ResolvedRfwCatalogOccurrenceSet {
   factory ResolvedRfwCatalogOccurrenceSet.resolve({
     required fmt.RemoteWidgetLibrary parsedLibrary,
     required RfwCatalogOccurrenceResolutionInput input,
+    Map<String, ValueOperation> operations = const {
+      ...kCollectionValueOperations,
+      ...kGridValueOperations,
+      ...kIntlValueOperations
+    },
   }) {
+    final programScope = RfwProgramScope([
+      for (final widget in parsedLibrary.widgets) ...[
+        widget.initialState,
+        widget.root
+      ]
+    ], operations: operations);
     final widgetsByName = <String, fmt.WidgetDeclaration>{
       for (final widget in parsedLibrary.widgets) widget.name: widget,
     };
@@ -331,6 +349,8 @@ final class ResolvedRfwCatalogOccurrenceSet {
     }) {
       switch (value) {
         case final fmt.ConstructorCall call:
+          decodeRfwProgramEnvelope(call,
+              operations: operations, scope: programScope);
           final location = _callLocation(renderEntryName, callPath);
           final reachable = _ReachableRfwCall(
             location: location,
@@ -478,6 +498,8 @@ final class ResolvedRfwCatalogOccurrenceSet {
             );
           }
         case final Map<Object?, Object?> map:
+          decodeRfwProgramEnvelope(map,
+              operations: operations, scope: programScope);
           final entries = map.entries.toList()
             ..sort((left, right) => '${left.key}'.compareTo('${right.key}'));
           for (final entry in entries) {
@@ -555,6 +577,7 @@ final class ResolvedRfwCatalogOccurrenceSet {
     return ResolvedRfwCatalogOccurrenceSet._(
       parsedLibrary: parsedLibrary,
       input: input,
+      operations: operations,
       occurrences: occurrences,
       occurrencesByCall: occurrencesByCall,
       occurrencesByHandle: occurrencesByHandle,
@@ -573,6 +596,7 @@ final class ResolvedRfwCatalogOccurrenceSet {
   ResolvedRfwCatalogOccurrenceSet._({
     required this.parsedLibrary,
     required this.input,
+    required Map<String, ValueOperation> operations,
     required Iterable<RfwCatalogOccurrence> occurrences,
     required Map<fmt.ConstructorCall, RfwCatalogOccurrence> occurrencesByCall,
     required Map<RfwCatalogOccurrenceHandle, RfwCatalogOccurrence>
@@ -581,7 +605,8 @@ final class ResolvedRfwCatalogOccurrenceSet {
     required Map<String, _ReachableRfwCall> reachableCallsByLocation,
     required Iterable<RfwCatalogOccurrenceLocalDeclarationAnchor>
         localDeclarationAnchors,
-  })  : occurrences = List.unmodifiable(occurrences),
+  })  : _operations = Map.unmodifiable(operations),
+        occurrences = List.unmodifiable(occurrences),
         _occurrencesByCall = UnmodifiableMapView(occurrencesByCall),
         _occurrencesByHandle = UnmodifiableMapView(occurrencesByHandle),
         _occurrenceLocations = UnmodifiableMapView(occurrenceLocations),
@@ -594,6 +619,8 @@ final class ResolvedRfwCatalogOccurrenceSet {
 
   /// Closed resolution evidence used exactly once for [parsedLibrary].
   final RfwCatalogOccurrenceResolutionInput input;
+
+  final Map<String, ValueOperation> _operations;
 
   /// Every resolved catalog occurrence reachable from an explicit render root.
   final List<RfwCatalogOccurrence> occurrences;
@@ -641,6 +668,7 @@ final class ResolvedRfwCatalogOccurrenceSet {
       finalLibrary,
       input,
       includeGeneratedLocalBodies: true,
+      operations: _operations,
       onValue: (value) {
         if (value is fmt.EventHandler) events.add(value);
         if (value is fmt.DataReference) references.add(value);
@@ -662,7 +690,8 @@ final class ResolvedRfwCatalogOccurrenceSet {
         'Final RFW import closure does not match the frozen occurrence set',
       );
     }
-    final finalCalls = _reachableCalls(finalLibrary, input);
+    final finalCalls =
+        _reachableCalls(finalLibrary, input, operations: _operations);
     if (finalCalls.length != _reachableCallsByLocation.length ||
         !finalCalls.keys.toSet().containsAll(_reachableCallsByLocation.keys) ||
         !_reachableCallsByLocation.keys.toSet().containsAll(finalCalls.keys)) {
@@ -734,8 +763,16 @@ Map<String, _ReachableRfwCall> _reachableCalls(
   fmt.RemoteWidgetLibrary library,
   RfwCatalogOccurrenceResolutionInput input, {
   bool includeGeneratedLocalBodies = false,
+  Map<String, ValueOperation> operations = const {
+    ...kCollectionValueOperations,
+    ...kGridValueOperations,
+    ...kIntlValueOperations
+  },
   void Function(Object? value)? onValue,
 }) {
+  final programScope = RfwProgramScope([
+    for (final widget in library.widgets) ...[widget.initialState, widget.root]
+  ], operations: operations);
   final widgetsByName = <String, fmt.WidgetDeclaration>{
     for (final widget in library.widgets) widget.name: widget,
   };
@@ -760,6 +797,8 @@ Map<String, _ReachableRfwCall> _reachableCalls(
     onValue?.call(value);
     switch (value) {
       case final fmt.ConstructorCall call:
+        decodeRfwProgramEnvelope(call,
+            operations: operations, scope: programScope);
         final location = _callLocation(renderEntryName, callPath);
         final reachable = _ReachableRfwCall(
           location: location,
@@ -836,6 +875,8 @@ Map<String, _ReachableRfwCall> _reachableCalls(
           );
         }
       case final Map<Object?, Object?> map:
+        decodeRfwProgramEnvelope(map,
+            operations: operations, scope: programScope);
         final entries = map.entries.toList()
           ..sort((left, right) => '${left.key}'.compareTo('${right.key}'));
         for (final entry in entries) {

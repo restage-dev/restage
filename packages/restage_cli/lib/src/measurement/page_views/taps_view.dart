@@ -20,7 +20,7 @@ void renderSurfaceTapsPage(
   for (final version in versions) {
     out.writeln(
       'v${plainFigure(version, ['revisionOrdinal'])}  '
-      '${countFigure(version, ['rootCounts', 'presented'], floor)} views',
+      '${viewsText(countFigure(version, ['rootCounts', 'presented'], floor))}',
     );
     final taps = figureList(version, ['taps']).toList()
       ..sort((a, b) => _reach(b).compareTo(_reach(a)));

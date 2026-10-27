@@ -17,11 +17,15 @@ import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
+import 'package:restage_codegen/src/native_binding_routes.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
+import 'package:restage_codegen/src/optional_native_values.dart';
 import 'package:restage_codegen/src/rfw_callback_signature.dart';
+import 'package:restage_codegen/src/runtime_realization.dart';
 import 'package:restage_codegen/src/rfw_constructor_presence_protocol.dart';
 import 'package:restage_codegen/src/synthetic_property.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+import 'package:restage_shared/restage_shared.dart' show callbackParameterName;
 
 /// Emits a `LocalWidgetBuilder` for [entry], or `null` if unsupported.
 ///
@@ -389,7 +393,10 @@ String? emitFactoryFunction(
         kAppBarToolbarHeightSyntheticStrategy,
       ),
     );
-    argLines.add('    ${p.name}: $decoded,');
+    final value = p.name == 'key' && runtimeRealizationFor(entry) != null
+        ? 'RestageDecoders.guardReplacementKey($decoded, ${dartStringLiteral(entry.name)})'
+        : decoded;
+    argLines.add('    ${p.name}: $value,');
   }
 
   if (canonicalChild != null && !canonicalChild.positional) {
@@ -424,13 +431,29 @@ String? emitFactoryFunction(
   final preambleLines = <String>[
     if (gatingDeclaration != null) gatingDeclaration,
     ...presencePlans.values.map((plan) => plan.declaration),
+    for (final property in entry.properties)
+      if ((property.type == PropertyType.widgetBuilder ||
+              property.type == PropertyType.scalarCallback) &&
+          !consumedByRecipes.contains(property.name))
+        ..._builderBindingDeclarations(
+          property,
+          presence: presencePlans[property.name],
+        ),
     ...hoistedChildListSlots.map(
       (slot) => '  final $slot = RestageDecoders.widgetList(source, '
-          '${_sourcePath(slot)});',
+          '${_sourcePath(slot)}, context: context, bindings: builderBindings);',
     ),
   ];
   final preamble =
       preambleLines.isEmpty ? '' : '${preambleLines.join('\n')}\n\n';
+  String emitBody(String invocation) => '''
+${signatureDoc}Widget $functionName(BuildContext context, DataSource source) {
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+$preamble  return ${_withResourceOwner(entry, invocation)};
+  });
+}
+''';
 
   if (omissionConditions.isNotEmpty) {
     if (positionalArguments.any(
@@ -449,11 +472,7 @@ String? emitFactoryFunction(
       positionalArguments,
       customAliases,
     );
-    return '''
-${signatureDoc}Widget $functionName(BuildContext context, DataSource source) {
-$preamble  return $invocation;
-}
-''';
+    return emitBody(invocation);
   }
 
   final iconData = positionalArguments.firstWhereOrNull(
@@ -469,31 +488,79 @@ $preamble  return $invocation;
         );
       }
     }
-    return '''
-${signatureDoc}Widget $functionName(BuildContext context, DataSource source) {
-$preamble  return restageIcon(
+    return emitBody('''restageIcon(
     context,
     ${iconData.value},
 ${named.join('\n')}
-  );
-}
-''';
+  )''');
   }
 
-  return '''
-${signatureDoc}Widget $functionName(BuildContext context, DataSource source) {
-$preamble  return $ctor(
+  return emitBody('''$ctor(
 ${argLines.join('\n')}
-  );
+  )''');
 }
-''';
+
+String _builderBindingName(PropertyEntry property) =>
+    'restageBuilderBinding${property.name}';
+
+bool _nullableBuilderBinding(PropertyEntry property) =>
+    property.constructorNullable ||
+    (!property.required && property.constructorDefault == null);
+
+Iterable<String> _builderBindingDeclarations(
+  PropertyEntry property, {
+  RfwConstructorPresenceFactoryPlan? presence,
+}) sync* {
+  final name = _builderBindingName(property);
+  final path = presence?.valuePathExpression ??
+      _directSourcePath(property.name, _sourcePath(property.name));
+  if (property.type == PropertyType.scalarCallback &&
+      property.scalarContract!.parameters.singleOrNull ==
+          ScalarCallbackParameter.valueKey &&
+      property.scalarContract!.nullableResult) {
+    yield '  final $name = RestageDecoders.keyIndexCallback(context, source, $path, bindings: builderBindings);';
+    return;
+  }
+  final constructor = _nullableBuilderBinding(property)
+      ? 'RestageBuilderBinding.optional'
+      : 'RestageBuilderBinding';
+  final String contractCode;
+  if (property.type == PropertyType.scalarCallback) {
+    final contract = property.scalarContract!;
+    final parameters = contract.parameters
+        .map((parameter) => 'ScalarCallbackParameter.${parameter.name}')
+        .join(', ');
+    contractCode = 'scalarContract: const '
+        'ScalarCallbackContract(parameters: [$parameters], '
+        'nullableResult: ${contract.nullableResult})';
+  } else {
+    final contract = property.builderContract!;
+    final parameters = contract.parameters
+        .map((parameter) => 'WidgetBuilderParameter.${parameter.name}')
+        .join(', ');
+    contractCode = 'contract: const '
+        'WidgetBuilderContract(parameters: [$parameters], '
+        'nullableResult: ${contract.nullableResult})';
+  }
+  yield '  final $name = $constructor(source, $path, $contractCode);';
+  yield _nullableBuilderBinding(property)
+      ? '  if ($name != null) builderBindings.add($name);'
+      : '  builderBindings.add($name);';
+}
+
+String _withResourceOwner(WidgetEntry entry, String invocation) {
+  if (!entry.properties.any((p) => p.type == PropertyType.inlineSpan))
+    return invocation;
+  return 'RestageResourceBuilder(builder: (resources) => $invocation)';
 }
 
 /// The named parameters `restageIcon` takes beside the glyph.
 const Set<String> _kRestageIconNamedArguments = {
+  'key',
   'size',
   'color',
   'semanticLabel',
+  'textDirection',
 };
 
 String _presenceAwareInvocation(
@@ -621,7 +688,7 @@ String _presenceAwareCanonicalChildrenValue(
 
   final path = presence.valuePathExpression;
   final requiredMessage = "'${entry.name}.${property.name} is required.'";
-  final guarded = 'source.isList($path) ? $decoded '
+  final guarded = 'RestageDecoders.isWidgetList(source, $path) ? $decoded '
       ': (throw ArgumentError($requiredMessage))';
   return _presenceAwareValue(
     presence: presence,
@@ -795,9 +862,41 @@ String _nativeRecipeEmit(
   );
   final repaired = repair == null ? expression : '$repair($expression)';
   final normalize = _kStructuredNormalizers[structured.sourceType];
-  return normalize == null
-      ? '$targetArg: $repaired'
-      : '$targetArg: $normalize($repaired)';
+  final normalized = normalize == null ? repaired : '$normalize($repaired)';
+  final absentRequiredFields = <String>[];
+  for (final parameter in factoryVariantCallableFields(variant).parameters) {
+    if (parameter.nullable ||
+        parameter.defaultPolicy !=
+            FactoryParameterDefaultPolicy.requiredValue) {
+      continue;
+    }
+    final fieldIds = _targetFieldsForParameter(variant, parameter);
+    final propertyRef = recipe.parameterMappings
+            .firstWhereOrNull(
+              (mapping) => mapping.parameterRef == parameter.wireId,
+            )
+            ?.propertyRef ??
+        recipe.fieldMappings
+            .firstWhereOrNull((mapping) => fieldIds.contains(mapping.fieldRef))
+            ?.propertyRef;
+    if (propertyRef == null) continue;
+    final property = _propertyByWireId(entry, propertyRef)!;
+    if (!property.required && property.defaultSource == null) {
+      final decoded = _decodeExpression(
+        property,
+        entry.name,
+        index: index,
+        widgetLibrary: entry.library,
+        widgetFlutterType: entry.flutterType,
+      );
+      absentRequiredFields.add('$decoded == null');
+    }
+  }
+  // Optional required fields represent absence of the whole native value.
+  final value = absentRequiredFields.isEmpty
+      ? normalized
+      : '(${absentRequiredFields.join(' || ')}) ? null : $normalized';
+  return '$targetArg: $value';
 }
 
 String _nativeFactoryInvocationExpression({
@@ -987,6 +1086,12 @@ String _applyParameterDefaultFallback(
   required PropertyEntry property,
   required DecompositionValueTransform transform,
 }) {
+  if (!parameter.nullable &&
+      parameter.defaultPolicy == FactoryParameterDefaultPolicy.requiredValue &&
+      !property.required &&
+      property.defaultSource == null) {
+    return '($expression)!';
+  }
   if (parameter.nullable || parameter.defaultValue == null) return expression;
   // For an identity transform the decoded property expression already carries
   // the property's own default fallback. When that property default is a
@@ -1319,13 +1424,7 @@ String _wrappedValueFor(
   }
 }
 
-/// The four corner reals declared on [entry] via the
-/// [_borderRadiusCornerSynthetic] strategy, keyed by the corner name. An
-/// entry either declares none of them (uniform-only) or — by curation
-/// convention — all four; the helper returns whatever subset is present.
-/// A partial subset is rejected loudly at emission (see
-/// [_borderRadiusEmitWithCorners]) rather than silently defaulting the
-/// missing corner(s) to `Radius.zero`.
+/// Finds synthetic physical and directional corner slots.
 Map<String, PropertyEntry> _borderRadiusCornersOf(WidgetEntry entry) {
   final corners = <String, PropertyEntry>{};
   for (final corner in _kBorderRadiusCorners) {
@@ -1339,24 +1438,8 @@ Map<String, PropertyEntry> _borderRadiusCornersOf(WidgetEntry entry) {
   return corners;
 }
 
-/// Wraps [uniformExpression] (the existing `BorderRadius.circular(...)` /
-/// nullable-collapse output for the uniform `borderRadius` slot) in the
-/// per-corner conditional when [entry] declares the corner siblings.
-///
-/// With no corner siblings the uniform expression is returned verbatim —
-/// the emission is byte-identical to the pre-per-corner output. With
-/// corners present, the emission is a single ternary:
-///
-/// ```text
-/// (<topLeft> ?? <topRight> ?? <bottomLeft> ?? <bottomRight>) != null
-///   ? BorderRadius.only(
-///       topLeft: Radius.circular(<topLeft> ?? 0.0), ...)
-///   : <uniformExpression>
-/// ```
-///
-/// so ANY corner present on the wire selects `BorderRadius.only(...)`
-/// (each omitted corner coalescing to `0.0` ≡ `Radius.zero`) and an
-/// all-corners-absent wire falls through to the uniform path — never both.
+/// Reconstructs physical or directional corners when supplied, falling back
+/// to the uniform radius expression when no corner is present.
 String _borderRadiusEmitWithCorners(
   String uniformExpression,
   WidgetEntry entry, {
@@ -1369,7 +1452,10 @@ String _borderRadiusEmitWithCorners(
   // corner to `Radius.zero` instead of failing loud, because every
   // `BorderRadius.only` named arg is optional. Refuse to emit so the slip
   // surfaces at build time rather than as a silent wrong-render.
-  if (corners.length != _kBorderRadiusCorners.length) {
+  if (corners.length != _kBorderRadiusCorners.length &&
+      !(corners.length == 4 &&
+          const ['topLeft', 'topRight', 'bottomLeft', 'bottomRight']
+              .every(corners.containsKey))) {
     throw StateError(
       "Catalog entry '${entry.name}' declares ${corners.length} of "
       '${_kBorderRadiusCorners.length} borderRadius corner synthetics. The '
@@ -1384,18 +1470,27 @@ String _borderRadiusEmitWithCorners(
 
   final presence = corners.values.map(read).join(' ?? ');
   final onlyArgs = <String>[];
+  final directionalArgs = <String>[];
+  final directionalReads = <String>[];
   for (final corner in _kBorderRadiusCorners) {
     final prop = corners[corner.corner];
     if (prop == null) continue;
-    onlyArgs.add(
-      '${corner.corner}: Radius.circular(${read(prop)} ?? 0.0)',
-    );
+    final directional =
+        corner.corner.endsWith('Start') || corner.corner.endsWith('End');
+    if (directional) directionalReads.add(read(prop));
+    (directional ? directionalArgs : onlyArgs)
+        .add('${corner.corner}: Radius.circular(${read(prop)} ?? 0.0)');
   }
-  final only = 'BorderRadius.only(${onlyArgs.join(', ')})';
+  final physical = 'BorderRadius.only(${onlyArgs.join(', ')})';
+  final directional =
+      'BorderRadiusDirectional.only(${directionalArgs.join(', ')})';
+  final only = directionalReads.isEmpty
+      ? physical
+      : '(${directionalReads.join(' ?? ')}) != null ? $directional : $physical';
   // Parenthesize the uniform fall-through arm: the recipe-hoisted uniform
   // expression is itself a `cond ? null : circular(...)` ternary, and an
   // unparenthesized nested ternary in the `else` position binds ambiguously.
-  return '($presence) != null ? $only : ($uniformExpression)';
+  return '($presence) != null ? ($only) : ($uniformExpression)';
 }
 
 /// Strategy identifier for `PropertyEntry.synthetic`: resolve the
@@ -1520,13 +1615,16 @@ const String _preferredSizeHeightSynthetic =
 /// property's decoded `double` as `Size.fromHeight(<value>)`.
 const String _sizeFromHeightSynthetic = kSizeFromHeightSyntheticStrategy;
 
-/// The four corner property names, in Flutter `BorderRadius.only` ctor
-/// order, paired with the `Radius` ctor parameter each one feeds.
+/// Physical and logical corner slots used by geometry reconstruction.
 const List<({String property, String corner})> _kBorderRadiusCorners = [
   (property: 'borderRadiusTopLeft', corner: 'topLeft'),
   (property: 'borderRadiusTopRight', corner: 'topRight'),
   (property: 'borderRadiusBottomLeft', corner: 'bottomLeft'),
   (property: 'borderRadiusBottomRight', corner: 'bottomRight'),
+  (property: 'borderRadiusTopStart', corner: 'topStart'),
+  (property: 'borderRadiusTopEnd', corner: 'topEnd'),
+  (property: 'borderRadiusBottomStart', corner: 'bottomStart'),
+  (property: 'borderRadiusBottomEnd', corner: 'bottomEnd'),
 ];
 
 /// The synthetic emit strategies the factory emitter knows how to lower.
@@ -1738,7 +1836,7 @@ bool _isMechanicallyEmittable(
       // renderable + has a reconstruction plan, so an admitted custom slot is
       // emittable here. (No 'admitted-but-skip' path: an admitted slot the
       // reconstructor can't handle is a predicate gap, excluded upstream.)
-      if (_structuredRefOf(prop) == null) {
+      if (_structuredRefOf(prop) == null && prop.valueShape is! UnionShape) {
         throw StateError(
           "Catalog entry '${entry.name}' property '${prop.name}' is a "
           'PropertyType.structured widget property with no structuredRef; a '
@@ -2193,6 +2291,10 @@ bool _isEmittableProperty(
       // dispatched through `_canonicalChildPropertyOf`, and any other named
       // list reads its own `RestageDecoders.widgetList` path.
       return true;
+    case PropertyType.scalarCallback:
+      return prop.scalarContract?.isSupported ?? false;
+    case PropertyType.widgetBuilder:
+      return prop.builderContract?.isSupported ?? false;
     case PropertyType.event:
     case PropertyType.dataReference:
       return false;
@@ -2224,12 +2326,8 @@ String _ctorExpressionFor(
   WidgetEntry entry, {
   Map<String, String> aliases = const {},
 }) {
-  final runtimeRealization = _runtimeRealizationByWidget[entry.name];
-  if (runtimeRealization != null &&
-      runtimeRealization.namespace == entry.library.namespace &&
-      runtimeRealization.flutterType == entry.flutterType) {
-    return runtimeRealization.className;
-  }
+  final runtimeRealization = runtimeRealizationFor(entry);
+  if (runtimeRealization != null) return runtimeRealization;
 
   final hashIndex = entry.flutterType.indexOf('#');
   if (hashIndex < 0 || hashIndex == entry.flutterType.length - 1) {
@@ -2297,7 +2395,7 @@ String _decodeExpression(
   if (prop.type == PropertyType.widgetList &&
       prop.constructorNullable &&
       prop.constructorDefault == null) {
-    return 'source.isList($directPath) ? $decoded : null';
+    return 'RestageDecoders.isWidgetList(source, $directPath) ? $decoded : null';
   }
   // Literal defaults take precedence. Required scalar and structured decoders
   // throw on missing values. Custom widget parameters follow constructor
@@ -2307,7 +2405,8 @@ String _decodeExpression(
       applyDefault ? _defaultExpressionFor(prop, aliases: aliases) : null;
   if (defaultExpr != null) {
     if (prop.type == PropertyType.widgetList) {
-      return 'source.isList($directPath) ? $decoded : $defaultExpr';
+      return 'RestageDecoders.isWidgetList(source, $directPath) '
+          '? $decoded : $defaultExpr';
     }
     return '$decoded ?? $defaultExpr';
   }
@@ -2406,6 +2505,8 @@ bool _decoderReturnsNullable(PropertyType type) {
       return true;
     case PropertyType.widget:
     case PropertyType.widgetList:
+    case PropertyType.scalarCallback:
+    case PropertyType.widgetBuilder:
     case PropertyType.event:
     case PropertyType.dataReference:
       return false;
@@ -2467,12 +2568,20 @@ PropertyEntry? _propertyByWireId(WidgetEntry entry, WireId wireId) =>
 /// [_structuredRefDecoderFor]; an authored-but-unregistered structured slot
 /// reaches [_decoderCallFor]'s loud throw rather than being silently dropped.
 const Map<String, String> kStructuredRefDecoders = {
+  'SliverGridDelegate': 'RestageGridValues.gridDelegate',
+  'SliverChildDelegate': 'RestageGridChildren.delegate',
+  'ScrollPhysics': 'RestageGridValues.physics',
+  'ScrollCacheExtent': 'RestageGridValues.cacheExtent',
   'Size': 'RestageDecoders.size',
   'BorderSide': 'RestageDecoders.borderSide',
   'TextStyle': 'RestageDecoders.textStyle',
+  'TextScaler': 'RestageDecoders.textScaler',
   'SystemUiOverlayStyle': 'RestageDecoders.systemUiOverlayStyle',
   'IconThemeData': 'RestageDecoders.iconThemeData',
 };
+
+/// Structured decoders that also read the local inherited scope.
+const kContextualStructuredDecoders = {'RestageDecoders.textScaler'};
 
 /// Resolves the runtime decoder expression registered for [prop]'s structured
 /// reference, or `null` when [prop] is not a structured slot, carries no
@@ -2489,13 +2598,28 @@ const Map<String, String> kStructuredRefDecoders = {
 /// is not emittable through the structured-ref path.
 String? _structuredRefDecoderFor(
   PropertyEntry prop,
-  NativeCatalogIndex? index,
-) {
+  NativeCatalogIndex? index, {
+  Map<String, String> aliases = const {},
+}) {
   if (prop.type != PropertyType.structured) return null;
   final ref = _structuredRefOf(prop);
-  if (ref == null || index == null) return null;
+  if (index == null) return null;
+  if (prop.valueShape case UnionShape(:final unionRef)) {
+    final union = index.unionByRef(unionRef);
+    return union == null ? null : kStructuredRefDecoders[union.name];
+  }
+  if (ref == null) return null;
   final structured = index.structuredByRef(ref);
   if (structured == null) return null;
+  final native = nativeBindingRoute(structured.sourceType);
+  if (native != null)
+    return 'RestageDecoders.nativeBinding<${native.dartType}>';
+  final optional = optionalNativeDecoder(structured.sourceType,
+      namespace: structured.library.namespace);
+  if (optional != null) {
+    final prefix = aliases['package:restage_svg/src/native_values.dart'];
+    return '${prefix == null ? '' : '$prefix.'}SvgNativeValues.$optional';
+  }
   return kStructuredRefDecoders[structured.name];
 }
 
@@ -2634,7 +2758,10 @@ String _customMapTerminalType(
     case PropertyType.color:
       return 'Color';
     case PropertyType.edgeInsets:
-      return 'EdgeInsets';
+      final shape = plan.valueShape;
+      return shape is ScalarShape
+          ? shape.dartTypeRef?.symbolName ?? 'EdgeInsetsGeometry'
+          : 'EdgeInsetsGeometry';
     case PropertyType.alignment:
       return 'AlignmentGeometry';
     case PropertyType.alignmentXY:
@@ -2681,6 +2808,8 @@ String _customMapTerminalType(
       return 'List<double>';
     case PropertyType.widget:
     case PropertyType.widgetList:
+    case PropertyType.scalarCallback:
+    case PropertyType.widgetBuilder:
     case PropertyType.event:
     case PropertyType.dataReference:
     case PropertyType.unknown:
@@ -3384,110 +3513,6 @@ WireIdRef? _structuredRefOf(PropertyEntry prop) {
   return shape is StructuredShape ? shape.structuredRef : null;
 }
 
-typedef _RuntimeRealization = ({
-  String className,
-  String flutterType,
-  String namespace,
-});
-
-/// Runtime classes for built-ins that need guarded framework behavior, matched
-/// by namespace, widget name, and source type.
-const Map<String, _RuntimeRealization> _runtimeRealizationByWidget = {
-  'Align': (
-    className: 'RestageAlign',
-    flutterType: 'package:flutter/src/widgets/basic.dart#Align',
-    namespace: 'restage.core',
-  ),
-  'AnimatedAlign': (
-    className: 'RestageAnimatedAlign',
-    flutterType:
-        'package:flutter/src/widgets/implicit_animations.dart#AnimatedAlign',
-    namespace: 'restage.core',
-  ),
-  'AnimatedPadding': (
-    className: 'RestageAnimatedPadding',
-    flutterType:
-        'package:flutter/src/widgets/implicit_animations.dart#AnimatedPadding',
-    namespace: 'restage.core',
-  ),
-  'AnimatedSize': (
-    className: 'RestageAnimatedSize',
-    flutterType: 'package:flutter/src/widgets/animated_size.dart#AnimatedSize',
-    namespace: 'restage.core',
-  ),
-  'AspectRatio': (
-    className: 'RestageAspectRatio',
-    flutterType: 'package:flutter/src/widgets/basic.dart#AspectRatio',
-    namespace: 'restage.core',
-  ),
-  'Center': (
-    className: 'RestageCenter',
-    flutterType: 'package:flutter/src/widgets/basic.dart#Center',
-    namespace: 'restage.core',
-  ),
-  'Column': (
-    className: 'RestageColumn',
-    flutterType: 'package:flutter/src/widgets/basic.dart#Column',
-    namespace: 'restage.core',
-  ),
-  'FittedBox': (
-    className: 'RestageFittedBox',
-    flutterType: 'package:flutter/src/widgets/basic.dart#FittedBox',
-    namespace: 'restage.core',
-  ),
-  'FadeInImageAssetNetwork': (
-    className: 'RestageFadeInImage.assetNetwork',
-    flutterType:
-        'package:flutter/src/widgets/fade_in_image.dart#FadeInImage.assetNetwork',
-    namespace: 'restage.core',
-  ),
-  'FractionallySizedBox': (
-    className: 'RestageFractionallySizedBox',
-    flutterType: 'package:flutter/src/widgets/basic.dart#FractionallySizedBox',
-    namespace: 'restage.core',
-  ),
-  'IntrinsicWidth': (
-    className: 'RestageIntrinsicWidth',
-    flutterType: 'package:flutter/src/widgets/basic.dart#IntrinsicWidth',
-    namespace: 'restage.core',
-  ),
-  'ListView': (
-    className: 'RestageListView',
-    flutterType: 'package:flutter/src/widgets/scroll_view.dart#ListView',
-    namespace: 'restage.core',
-  ),
-  'Image': (
-    className: 'RestageImage.network',
-    flutterType: 'package:flutter/src/widgets/image.dart#Image.network',
-    namespace: 'restage.core',
-  ),
-  'ImageAsset': (
-    className: 'RestageImage.asset',
-    flutterType: 'package:flutter/src/widgets/image.dart#Image.asset',
-    namespace: 'restage.core',
-  ),
-  'Padding': (
-    className: 'RestagePadding',
-    flutterType: 'package:flutter/src/widgets/basic.dart#Padding',
-    namespace: 'restage.core',
-  ),
-  'Row': (
-    className: 'RestageRow',
-    flutterType: 'package:flutter/src/widgets/basic.dart#Row',
-    namespace: 'restage.core',
-  ),
-  'Stack': (
-    className: 'RestageStack',
-    flutterType: 'package:flutter/src/widgets/basic.dart#Stack',
-    namespace: 'restage.core',
-  ),
-  'Wrap': (
-    className: 'RestageWrap',
-    flutterType: 'package:flutter/src/widgets/basic.dart#Wrap',
-    namespace: 'restage.core',
-  ),
-};
-
 /// How one scalar slot is routed: the decoder to call, whether that decoder
 /// returns a non-null value, and whether it enforces a strictly-positive
 /// domain.
@@ -3716,10 +3741,9 @@ const String _typeLevelAlignmentXyRepairReason =
     'repaired by the shared concrete-alignment decoder, which every slot of '
     'that type is emitted through, so each component is already finite before '
     'it reaches layout';
-const String _typeLevelEdgeInsetsRepairReason =
-    'repaired by the shared inset decoder, which every inset slot is emitted '
-    'through, so each component is already finite and non-negative and an '
-    'overflowing axis collapses before it reaches layout';
+const String _typeLevelEdgeInsetsDecodeReason =
+    'decoded by the shared inset decoder; explicit physical and directional '
+    'maps preserve native components, while legacy lists retain their repairs';
 const String _borderRadiusPaintReason =
     'BoxDecoration layout padding comes from border dimensions; border radius '
     'bypasses that mechanism and reaches decoration painting only';
@@ -3768,6 +3792,12 @@ const String _pickerProjectionLayoutReason =
     'paint projection only, without qualifying paint behavior';
 const String _rosterTailDeferredReason =
     'inferred constraint scalar — verify then route';
+const String _nativeGridLayoutDeferredReason =
+    'decoded by the shared scalar value reader and passed directly to native '
+    'grid layout; finite-domain and derived-product repair is deferred';
+const String _nativeTextScaleLayoutDeferredReason =
+    'decoded by the shared scalar value reader and passed directly to native '
+    'text scaling; finite-domain and derived-font-size repair is deferred';
 const Map<(String, String), String> _scalarDecoderExemptions = {
   ('AnimatedSlide', 'offset'): _typeLevelOffsetRepairReason,
   ('RestageFadeIn', 'fromOffset'): _typeLevelOffsetRepairReason,
@@ -3794,50 +3824,67 @@ const Map<(String, String), String> _scalarDecoderExemptions = {
   ('AnimatedScale', 'alignment'): _typeLevelAlignmentXyRepairReason,
   ('Image', 'alignment'): _typeLevelAlignmentXyRepairReason,
   ('ImageAsset', 'alignment'): _typeLevelAlignmentXyRepairReason,
-  ('AppBar', 'actionsPadding'): _typeLevelEdgeInsetsRepairReason,
-  ('ActionChip', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('AnimatedContainer', 'margin'): _typeLevelEdgeInsetsRepairReason,
-  ('AnimatedContainer', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('AnimatedPadding', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('Badge', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('Card', 'margin'): _typeLevelEdgeInsetsRepairReason,
-  ('CardFilled', 'margin'): _typeLevelEdgeInsetsRepairReason,
-  ('CardOutlined', 'margin'): _typeLevelEdgeInsetsRepairReason,
-  ('Chip', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('ChoiceChip', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('Container', 'margin'): _typeLevelEdgeInsetsRepairReason,
-  ('Container', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('CupertinoButton', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('CupertinoButtonFilled', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('ElevatedButton', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('FilledButton', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('FilledButtonTonal', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('FilterChip', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('ListView', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('OutlinedButton', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('OutlinedButtonIcon', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('Padding', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('SingleChildScrollView', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('Tab', 'iconMargin'): _typeLevelEdgeInsetsRepairReason,
-  ('TextButton', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('TextButtonIcon', 'padding'): _typeLevelEdgeInsetsRepairReason,
-  ('Tooltip', 'margin'): _typeLevelEdgeInsetsRepairReason,
-  ('Tooltip', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('AppBar', 'actionsPadding'): _typeLevelEdgeInsetsDecodeReason,
+  ('ActionChip', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('AnimatedContainer', 'margin'): _typeLevelEdgeInsetsDecodeReason,
+  ('AnimatedContainer', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('AnimatedPadding', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('Badge', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('Card', 'margin'): _typeLevelEdgeInsetsDecodeReason,
+  ('CardFilled', 'margin'): _typeLevelEdgeInsetsDecodeReason,
+  ('CardOutlined', 'margin'): _typeLevelEdgeInsetsDecodeReason,
+  ('Chip', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('ChoiceChip', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('Container', 'margin'): _typeLevelEdgeInsetsDecodeReason,
+  ('Container', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('CupertinoButton', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('CupertinoButtonFilled', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('ElevatedButton', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('FilledButton', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('FilledButtonTonal', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('FilterChip', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('GridView', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('GridViewCount', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('GridViewExtent', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('GridViewBuilder', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('GridViewCustom', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('ListView', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('OutlinedButton', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('OutlinedButtonIcon', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('Padding', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('SingleChildScrollView', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('Tab', 'iconMargin'): _typeLevelEdgeInsetsDecodeReason,
+  ('TextButton', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('TextButtonIcon', 'padding'): _typeLevelEdgeInsetsDecodeReason,
+  ('Tooltip', 'margin'): _typeLevelEdgeInsetsDecodeReason,
+  ('Tooltip', 'padding'): _typeLevelEdgeInsetsDecodeReason,
   ('AnimatedContainer', 'borderRadius'): _borderRadiusPaintReason,
   ('AnimatedContainer', 'borderRadiusTopLeft'): _borderRadiusPaintReason,
   ('AnimatedContainer', 'borderRadiusTopRight'): _borderRadiusPaintReason,
   ('AnimatedContainer', 'borderRadiusBottomLeft'): _borderRadiusPaintReason,
   ('AnimatedContainer', 'borderRadiusBottomRight'): _borderRadiusPaintReason,
+  ('AnimatedContainer', 'borderRadiusTopStart'): _borderRadiusPaintReason,
+  ('AnimatedContainer', 'borderRadiusTopEnd'): _borderRadiusPaintReason,
+  ('AnimatedContainer', 'borderRadiusBottomStart'): _borderRadiusPaintReason,
+  ('AnimatedContainer', 'borderRadiusBottomEnd'): _borderRadiusPaintReason,
   ('ClipRRect', 'borderRadius'): _clipRadiusPaintReason,
   ('ClipRRect', 'borderRadiusTopLeft'): _clipRadiusPaintReason,
   ('ClipRRect', 'borderRadiusTopRight'): _clipRadiusPaintReason,
   ('ClipRRect', 'borderRadiusBottomLeft'): _clipRadiusPaintReason,
   ('ClipRRect', 'borderRadiusBottomRight'): _clipRadiusPaintReason,
+  ('ClipRRect', 'borderRadiusTopStart'): _clipRadiusPaintReason,
+  ('ClipRRect', 'borderRadiusTopEnd'): _clipRadiusPaintReason,
+  ('ClipRRect', 'borderRadiusBottomStart'): _clipRadiusPaintReason,
+  ('ClipRRect', 'borderRadiusBottomEnd'): _clipRadiusPaintReason,
   ('Container', 'borderRadius'): _borderRadiusPaintReason,
   ('Container', 'borderRadiusTopLeft'): _borderRadiusPaintReason,
   ('Container', 'borderRadiusTopRight'): _borderRadiusPaintReason,
   ('Container', 'borderRadiusBottomLeft'): _borderRadiusPaintReason,
   ('Container', 'borderRadiusBottomRight'): _borderRadiusPaintReason,
+  ('Container', 'borderRadiusTopStart'): _borderRadiusPaintReason,
+  ('Container', 'borderRadiusTopEnd'): _borderRadiusPaintReason,
+  ('Container', 'borderRadiusBottomStart'): _borderRadiusPaintReason,
+  ('Container', 'borderRadiusBottomEnd'): _borderRadiusPaintReason,
   ('AnimatedContainer', 'minWidth'): _assembledConstraintReason,
   ('AnimatedContainer', 'maxWidth'): _assembledConstraintReason,
   ('AnimatedContainer', 'minHeight'): _assembledConstraintReason,
@@ -3900,6 +3947,22 @@ const Map<(String, String), String> _scalarDecoderExemptions = {
 };
 
 const Map<(String, String), String> _scalarDecoderDeferred = {
+  ('GridView', 'cacheExtent'): _nativeGridLayoutDeferredReason,
+  ('GridViewCount', 'mainAxisSpacing'): _nativeGridLayoutDeferredReason,
+  ('GridViewCount', 'crossAxisSpacing'): _nativeGridLayoutDeferredReason,
+  ('GridViewCount', 'childAspectRatio'): _nativeGridLayoutDeferredReason,
+  ('GridViewCount', 'mainAxisExtent'): _nativeGridLayoutDeferredReason,
+  ('GridViewCount', 'cacheExtent'): _nativeGridLayoutDeferredReason,
+  ('GridViewExtent', 'maxCrossAxisExtent'): _nativeGridLayoutDeferredReason,
+  ('GridViewExtent', 'mainAxisSpacing'): _nativeGridLayoutDeferredReason,
+  ('GridViewExtent', 'crossAxisSpacing'): _nativeGridLayoutDeferredReason,
+  ('GridViewExtent', 'childAspectRatio'): _nativeGridLayoutDeferredReason,
+  ('GridViewExtent', 'mainAxisExtent'): _nativeGridLayoutDeferredReason,
+  ('GridViewExtent', 'cacheExtent'): _nativeGridLayoutDeferredReason,
+  ('GridViewBuilder', 'cacheExtent'): _nativeGridLayoutDeferredReason,
+  ('GridViewCustom', 'cacheExtent'): _nativeGridLayoutDeferredReason,
+  ('Text', 'textScaleFactor'): _nativeTextScaleLayoutDeferredReason,
+  ('TextRich', 'textScaleFactor'): _nativeTextScaleLayoutDeferredReason,
   ('AppBar', 'titleSpacing'): _rosterTailDeferredReason,
   ('AppBar', 'bottomHeight'): _rosterTailDeferredReason,
   ('Scaffold', 'appBarHeight'): _rosterTailDeferredReason,
@@ -3986,9 +4049,9 @@ String _decoderCallFor(
           : 'source.v<double>($preferredSizeHeightPath)';
   switch (prop.type) {
     case PropertyType.boolean:
-      return 'source.v<bool>($directPath)';
+      return 'RestageValueBinding.read<bool>(source, $directPath, context)';
     case PropertyType.integer:
-      return 'source.v<int>($directPath)';
+      return 'RestageValueBinding.read<int>(source, $directPath, context)';
     case PropertyType.real:
     case PropertyType.length:
       final derivedRoute = widgetName == null
@@ -4030,10 +4093,10 @@ String _decoderCallFor(
       // value, far too late to recover a number that was dropped here.
       return tolerantNumbers
           ? 'RestageDecoders.number(source, $path)'
-          : 'source.v<double>($directPath)';
+          : 'RestageValueBinding.read<double>(source, $directPath, context)';
     case PropertyType.string:
       // A list of strings is joined, so a surface can build text from parts.
-      return 'RestageDecoders.string(source, $path)';
+      return 'RestageDecoders.string(source, $path, context: context)';
     case PropertyType.stringList:
       // Fail-safe: a present-but-degenerate list (a non-string element on a
       // corrupt / tamper wire) DROPS the bad element rather than throwing,
@@ -4042,7 +4105,7 @@ String _decoderCallFor(
       // Absent → null (the required-slot contract still applies upstream).
       return 'RestageDecoders.stringList(source, $path)';
     case PropertyType.color:
-      return 'ArgumentDecoders.color(source, $path)';
+      return 'RestageDecoders.color(source, $path)';
     case PropertyType.edgeInsets:
       // An inset is layout-bearing: it is subtracted from the space a box or a
       // sliver has to give its child, and the widgets that consume one check it
@@ -4051,8 +4114,28 @@ String _decoderCallFor(
       // straight through, would land the failure inside `performLayout`, where
       // nothing catches it and no error boundary can see it. Decode through the
       // repair instead.
+      final shape = prop.valueShape;
+      final ref = shape is ScalarShape ? shape.dartTypeRef : null;
+      if (ref?.libraryUri == 'package:flutter/src/painting/edge_insets.dart') {
+        if (ref?.symbolName == 'EdgeInsets') {
+          return 'RestageDecoders.physicalEdgeInsets(source, $path)';
+        }
+        if (ref?.symbolName == 'EdgeInsetsDirectional') {
+          return 'RestageDecoders.directionalEdgeInsets(source, $path)';
+        }
+      }
       return 'RestageDecoders.edgeInsets(source, $path)';
     case PropertyType.alignment:
+      final shape = prop.valueShape;
+      final ref = shape is ScalarShape ? shape.dartTypeRef : null;
+      if (ref?.libraryUri == 'package:flutter/src/painting/alignment.dart') {
+        if (ref?.symbolName == 'Alignment') {
+          return 'RestageDecoders.alignmentXY(source, $path)';
+        }
+        if (ref?.symbolName == 'AlignmentDirectional') {
+          return 'RestageDecoders.directionalAlignment(source, $path)';
+        }
+      }
       return 'RestageDecoders.alignment(source, $path)';
     case PropertyType.alignmentXY:
       return 'RestageDecoders.alignmentXY(source, $path)';
@@ -4061,14 +4144,13 @@ String _decoderCallFor(
     case PropertyType.fontWeight:
       // FontWeight is a class with static const instances, not an enum, so it
       // cannot use the Enum.name-based decoder's `T extends Enum` bound.
-      return 'ArgumentDecoders.enumValue<FontWeight>('
-          'FontWeight.values, source, $path)';
+      return 'RestageDecoders.fontWeight(source, $path)';
     case PropertyType.duration:
       return 'RestageDecoders.duration(source, $path)';
     case PropertyType.curve:
       return 'RestageDecoders.curve(source, $path)';
     case PropertyType.gradient:
-      return 'ArgumentDecoders.gradient(source, $path)';
+      return 'RestageDecoders.gradient(source, $path)';
     case PropertyType.border:
       return 'RestageDecoders.border(source, $path)';
     case PropertyType.boxShadowList:
@@ -4077,11 +4159,11 @@ String _decoderCallFor(
       // `List<BoxShadow>?`. Empty list ≡ no shadows (Flutter's own
       // BoxDecoration default treats the missing slot as no shadows).
       return 'ArgumentDecoders.list<BoxShadow>(source, $path, '
-          'ArgumentDecoders.boxShadow)';
+          'RestageDecoders.boxShadow)';
     case PropertyType.locale:
       return 'ArgumentDecoders.locale(source, $path)';
     case PropertyType.paint:
-      return 'ArgumentDecoders.paint(source, $path)';
+      return 'RestageDecoders.paint(source, $path)';
     case PropertyType.shadowList:
       return 'RestageDecoders.shadows(source, $path)';
     case PropertyType.fontFeatureList:
@@ -4095,7 +4177,7 @@ String _decoderCallFor(
     case PropertyType.inlineSpan:
       // A recursive span map (Text.rich / TextSpan), decoded into a real
       // `InlineSpan?` by the bespoke depth-bounded decoder.
-      return 'RestageDecoders.inlineSpan(source, $path)';
+      return 'RestageDecoders.inlineSpan(source, $path, context: context, resources: resources)';
     case PropertyType.decorationImage:
       // A self-describing image map (DecorationImage), decoded into a real
       // `DecorationImage?` by the bespoke image decoder.
@@ -4148,7 +4230,8 @@ String _decoderCallFor(
           ? '$base as ${prop.widgetType}?'
           : '$base as ${prop.widgetType}';
     case PropertyType.widgetList:
-      return 'RestageDecoders.widgetList(source, $directPath)';
+      return 'RestageDecoders.widgetList(source, $directPath, '
+          'context: context, bindings: builderBindings)';
     case PropertyType.enumValue:
       final t = _enumDartTypeName(prop);
       if (t == null) {
@@ -4166,6 +4249,69 @@ String _decoderCallFor(
       // stays bare (it comes through the `widgets.dart` re-exports).
       final e = _qualifyName(t, _enumLibraryUri(prop), aliases);
       return 'RestageDecoders.enumByName<$e>($e.values, source, $path)';
+    case PropertyType.scalarCallback:
+      final contract = prop.scalarContract!;
+      if (contract.parameters.singleOrNull ==
+              ScalarCallbackParameter.valueKey &&
+          contract.nullableResult) {
+        final binding = _builderBindingName(prop);
+        return _nullableBuilderBinding(prop) ? binding : '$binding!';
+      }
+      final arguments = <String>[];
+      final values = <String>[];
+      for (var i = 0; i < contract.parameters.length; i++) {
+        final name = callbackParameterName(i);
+        arguments.add(name);
+        switch (contract.parameters[i]) {
+          case ScalarCallbackParameter.valueKey:
+            break;
+          case ScalarCallbackParameter.itemIndex:
+            values.add("'$name': $name");
+          case ScalarCallbackParameter.widget:
+            break;
+        }
+      }
+      final resultType = contract.nullableResult ? 'int?' : 'int';
+      final binding = _builderBindingName(prop);
+      final invocation =
+          contract.parameters.singleOrNull == ScalarCallbackParameter.valueKey
+              ? '$binding.evaluateKey(context, ${callbackParameterName(0)})'
+              : '$binding.evaluate(context, {${values.join(', ')}})';
+      final callback =
+          '(${arguments.join(', ')}) => $invocation as $resultType';
+      return _nullableBuilderBinding(prop)
+          ? '$binding == null ? null : $callback'
+          : callback;
+    case PropertyType.widgetBuilder:
+      final contract = prop.builderContract!;
+      final arguments = <String>[];
+      final projections = <String>[];
+      for (var i = 0; i < contract.parameters.length; i++) {
+        final kind = contract.parameters[i];
+        final name = callbackParameterName(i);
+        final type = switch (kind) {
+          WidgetBuilderParameter.buildContext => 'BuildContext',
+          WidgetBuilderParameter.boxConstraints => 'BoxConstraints',
+          WidgetBuilderParameter.orientation => 'Orientation',
+          WidgetBuilderParameter.itemIndex => 'int',
+        };
+        arguments.add('$type $name');
+        final projected = switch (kind) {
+          WidgetBuilderParameter.buildContext => null,
+          WidgetBuilderParameter.boxConstraints =>
+            'RestageBuilderBinding.constraints($name)',
+          WidgetBuilderParameter.orientation => '$name.name',
+          WidgetBuilderParameter.itemIndex => name,
+        };
+        if (projected != null) projections.add("'$name': $projected");
+      }
+      final method = contract.nullableResult ? 'buildNullable' : 'build';
+      final binding = _builderBindingName(prop);
+      final callback = '(${arguments.join(', ')}) => '
+          '$binding.$method(${callbackParameterName(0)}, {${projections.join(', ')}})';
+      return _nullableBuilderBinding(prop)
+          ? '$binding == null ? null : $callback'
+          : callback;
     case PropertyType.event:
       final signature = prop.callbackSignature;
       if (signature == null) {
@@ -4185,8 +4331,24 @@ String _decoderCallFor(
       // no registered decoder — has no emission path and surfaces loudly so
       // an authored-but-unsupported structured slot fails the build rather
       // than being silently dropped or defaulted.
-      final decoder = _structuredRefDecoderFor(prop, index);
-      if (decoder != null) return '$decoder(source, $path)';
+      final decoder = _structuredRefDecoderFor(prop, index, aliases: aliases);
+      if (decoder != null &&
+          decoder.startsWith('RestageDecoders.nativeBinding<')) {
+        final structured = index!.structuredByRef(_structuredRefOf(prop)!)!;
+        final native = nativeBindingRoute(structured.sourceType)!;
+        return "$decoder(context, source, $path, type: '${native.contractType}')";
+      }
+      if (decoder == 'RestageGridChildren.delegate') {
+        return '$decoder(source, $path, context: context, bindings: builderBindings)';
+      }
+      if (decoder != null) {
+        final arguments = (kContextualStructuredDecoders.contains(decoder) ||
+                optionalContextualNativeDecoders.any(
+                    (method) => decoder.endsWith('SvgNativeValues.$method')))
+            ? 'context, source, $path'
+            : 'source, $path';
+        return '$decoder($arguments)';
+      }
       throw StateError(
         'PropertyType.structured slot has no registered decoder. A '
         'structured property must carry a structuredRef resolving to a '
@@ -4326,6 +4488,20 @@ String? _defaultExpressionFor(
       if (shapeDefault != null) return shapeDefault;
     }
     return dartStringLiteral(value);
+  }
+  if (value is Map && prop.type == PropertyType.edgeInsets) {
+    final directional = value.containsKey('start') || value.containsKey('end');
+    final keys = directional
+        ? ['start', 'top', 'end', 'bottom']
+        : ['left', 'top', 'right', 'bottom'];
+    if (value.length != 4 || !keys.every((key) => value[key] is num)) {
+      throw StateError("Invalid inset default for '${prop.name}': $value.");
+    }
+    final args =
+        keys.map((key) => '${(value[key] as num).toDouble()}').join(', ');
+    return directional
+        ? 'const EdgeInsetsDirectional.fromSTEB($args)'
+        : 'const EdgeInsets.fromLTRB($args)';
   }
   if (value is List && prop.type == PropertyType.edgeInsets) {
     // Catalog encodes EdgeInsets defaults as a 4-element [L, T, R, B]

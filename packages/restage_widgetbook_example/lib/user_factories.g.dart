@@ -101,8 +101,8 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
     kRestageAppVocabulary.addToInstalled(explicitSelection: true);
     Restage.registerWidgetLibrary(
       WidgetLibrary.custom('restage_widgetbook_example.widgets'),
-      capabilityVersion: 3,
-      generatedVersion: 2,
+      capabilityVersion: 4,
+      generatedVersion: 3,
       widgets: const <RestageWidgetFactory>[
         RestageWidgetFactory(
           name: 'BareCatalogCard',
@@ -141,312 +141,446 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
 void registerRestageCustomerWidgets() => registerRestageWidgets();
 
 Widget _buildBareCatalogCard(BuildContext context, DataSource source) {
-  final restagePresenceLabel = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['label'],
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final restagePresenceLabel = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['label'],
+    );
 
-  return Function.apply(s0.BareCatalogCard.new, <Object?>[], <Symbol, Object?>{
-        if (restagePresenceLabel.supplied)
-          #label: RestageDecoders.string(
-            source,
-            restagePresenceLabel.valuePath,
-          ),
-      })
-      as Widget;
+    return Function.apply(
+          s0.BareCatalogCard.new,
+          <Object?>[],
+          <Symbol, Object?>{
+            #key: RestageDecoders.nativeBinding<Key>(context, source, <Object>[
+              'key',
+            ], type: 'flutter.Key'),
+            if (restagePresenceLabel.supplied)
+              #label: RestageDecoders.string(
+                source,
+                restagePresenceLabel.valuePath,
+                context: context,
+              ),
+          },
+        )
+        as Widget;
+  });
 }
 
 Widget _buildCatalogShowcase(BuildContext context, DataSource source) {
-  final restagePresenceEnabled = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['enabled'],
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final restagePresenceEnabled = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['enabled'],
+    );
 
-  return Function.apply(s7.CatalogShowcase.new, <Object?>[], <Symbol, Object?>{
-        #title:
-            RestageDecoders.string(source, <Object>['title']) ??
-            (throw ArgumentError('CatalogShowcase.title is required.')),
-        if (restagePresenceEnabled.supplied)
-          #enabled: source.v<bool>(restagePresenceEnabled.valuePath),
-        #status:
-            RestageDecoders.enumByName<s7.CatalogShowcaseStatus>(
-              s7.CatalogShowcaseStatus.values,
+    return Function.apply(
+          s7.CatalogShowcase.new,
+          <Object?>[],
+          <Symbol, Object?>{
+            #key: RestageDecoders.nativeBinding<Key>(context, source, <Object>[
+              'key',
+            ], type: 'flutter.Key'),
+            #title:
+                RestageDecoders.string(source, <Object>[
+                  'title',
+                ], context: context) ??
+                (throw ArgumentError('CatalogShowcase.title is required.')),
+            if (restagePresenceEnabled.supplied)
+              #enabled: RestageValueBinding.read<bool>(
+                source,
+                restagePresenceEnabled.valuePath,
+                context,
+              ),
+            #status:
+                RestageDecoders.enumByName<s7.CatalogShowcaseStatus>(
+                  s7.CatalogShowcaseStatus.values,
+                  source,
+                  <Object>['status'],
+                ) ??
+                (throw ArgumentError('CatalogShowcase.status is required.')),
+            #onChanged:
+                RestageDecoders.valueChanged<bool>(source, const <Object>[
+                  'onChanged',
+                ]) ??
+                (bool _) {},
+            #hero: source.child(const <Object>['hero']),
+            #details: RestageDecoders.widgetList(
               source,
-              <Object>['status'],
-            ) ??
-            (throw ArgumentError('CatalogShowcase.status is required.')),
-        #onChanged:
-            RestageDecoders.valueChanged<bool>(source, const <Object>[
-              'onChanged',
-            ]) ??
-            (bool _) {},
-        #hero: source.child(const <Object>['hero']),
-        #details: RestageDecoders.widgetList(source, const <Object>['details']),
-        #footer: source.optionalChild(const <Object>['footer']),
-        #data: source.isMap(<Object>['data'])
-            ? s7.CatalogShowcaseData(
-                note:
-                    RestageDecoders.string(source, <Object>['data', 'note']) ??
-                    (throw ArgumentError(
-                      'CatalogShowcaseData.note is required.',
-                    )),
-                count:
-                    source.v<int>(<Object>['data', 'count']) ??
-                    (throw ArgumentError(
-                      'CatalogShowcaseData.count is required.',
-                    )),
-              )
-            : (throw ArgumentError('CatalogShowcase.data is required.')),
-      })
-      as Widget;
+              const <Object>['details'],
+              context: context,
+              bindings: builderBindings,
+            ),
+            #footer: source.optionalChild(const <Object>['footer']),
+            #data: source.isMap(<Object>['data'])
+                ? s7.CatalogShowcaseData(
+                    note:
+                        RestageDecoders.string(source, <Object>[
+                          'data',
+                          'note',
+                        ], context: context) ??
+                        (throw ArgumentError(
+                          'CatalogShowcaseData.note is required.',
+                        )),
+                    count:
+                        RestageValueBinding.read<int>(source, <Object>[
+                          'data',
+                          'count',
+                        ], context) ??
+                        (throw ArgumentError(
+                          'CatalogShowcaseData.count is required.',
+                        )),
+                  )
+                : (throw ArgumentError('CatalogShowcase.data is required.')),
+          },
+        )
+        as Widget;
+  });
 }
 
 Widget _buildConstructorFidelityCorpus(
   BuildContext context,
   DataSource source,
 ) {
-  final restagePresenceNullableText = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['nullableText'],
-  );
-  final restagePresenceNullableSeed = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['nullableSeed'],
-  );
-  final restagePresenceEnabled = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['enabled'],
-  );
-  final restagePresenceCount = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['count'],
-  );
-  final restagePresenceMode = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['mode'],
-  );
-  final restagePresenceDirectColor = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['directColor'],
-  );
-  final restagePresencePublicColor = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['publicColor'],
-  );
-  final restagePresenceData = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['data'],
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final restagePresenceNullableText = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['nullableText'],
+    );
+    final restagePresenceNullableSeed = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['nullableSeed'],
+    );
+    final restagePresenceEnabled = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['enabled'],
+    );
+    final restagePresenceCount = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['count'],
+    );
+    final restagePresenceMode = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['mode'],
+    );
+    final restagePresenceDirectColor = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['directColor'],
+    );
+    final restagePresencePublicColor = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['publicColor'],
+    );
+    final restagePresenceData = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['data'],
+    );
 
-  return Function.apply(s1.ConstructorFidelityCorpus.new, <Object?>[], <
-        Symbol,
-        Object?
-      >{
-        #value:
-            RestageDecoders.string(source, <Object>['value']) ??
-            (throw ArgumentError(
-              'ConstructorFidelityCorpus.value is required.',
-            )),
-        #ordinaryLabel:
-            RestageDecoders.string(source, <Object>['ordinaryLabel']) ??
-            (throw ArgumentError(
-              'ConstructorFidelityCorpus.ordinaryLabel is required.',
-            )),
-        #requiredNamed:
-            RestageDecoders.string(source, <Object>['requiredNamed']) ??
-            (throw ArgumentError(
-              'ConstructorFidelityCorpus.requiredNamed is required.',
-            )),
-        if (restagePresenceNullableText.supplied)
-          #nullableText: RestageDecoders.string(
-            source,
-            restagePresenceNullableText.valuePath,
-          ),
-        if (restagePresenceNullableSeed.supplied)
-          #nullableSeed: RestageDecoders.string(
-            source,
-            restagePresenceNullableSeed.valuePath,
-          ),
-        if (restagePresenceEnabled.supplied)
-          #enabled: source.v<bool>(restagePresenceEnabled.valuePath),
-        if (restagePresenceCount.supplied)
-          #count: source.v<int>(restagePresenceCount.valuePath),
-        if (restagePresenceMode.supplied)
-          #mode: RestageDecoders.enumByName<s1.ConstructorCorpusMode>(
-            s1.ConstructorCorpusMode.values,
-            source,
-            restagePresenceMode.valuePath,
-          ),
-        if (restagePresenceDirectColor.supplied)
-          #directColor: ArgumentDecoders.color(
-            source,
-            restagePresenceDirectColor.valuePath,
-          ),
-        if (restagePresencePublicColor.supplied)
-          #publicColor: ArgumentDecoders.color(
-            source,
-            restagePresencePublicColor.valuePath,
-          ),
-        if (restagePresenceData.supplied)
-          #data: restagePresenceData.hasValue
-              ? (source.isMap(<Object>[...restagePresenceData.valuePath])
-                    ? s1.ConstructorCorpusData(
-                        nested:
-                            source.isMap(<Object>[
-                              ...restagePresenceData.valuePath,
-                              'nested',
-                            ])
-                            ? s1.ConstructorCorpusNestedData(
-                                label:
-                                    RestageDecoders.string(source, <Object>[
-                                      ...restagePresenceData.valuePath,
-                                      'nested',
-                                      'label',
-                                    ]) ??
-                                    (throw ArgumentError(
-                                      'ConstructorCorpusNestedData.label is required.',
-                                    )),
-                              )
-                            : (throw ArgumentError(
-                                'ConstructorCorpusData.nested is required.',
+    return Function.apply(s1.ConstructorFidelityCorpus.new, <Object?>[], <
+          Symbol,
+          Object?
+        >{
+          #key: RestageDecoders.nativeBinding<Key>(context, source, <Object>[
+            'key',
+          ], type: 'flutter.Key'),
+          #value:
+              RestageDecoders.string(source, <Object>[
+                'value',
+              ], context: context) ??
+              (throw ArgumentError(
+                'ConstructorFidelityCorpus.value is required.',
+              )),
+          #ordinaryLabel:
+              RestageDecoders.string(source, <Object>[
+                'ordinaryLabel',
+              ], context: context) ??
+              (throw ArgumentError(
+                'ConstructorFidelityCorpus.ordinaryLabel is required.',
+              )),
+          #requiredNamed:
+              RestageDecoders.string(source, <Object>[
+                'requiredNamed',
+              ], context: context) ??
+              (throw ArgumentError(
+                'ConstructorFidelityCorpus.requiredNamed is required.',
+              )),
+          if (restagePresenceNullableText.supplied)
+            #nullableText: RestageDecoders.string(
+              source,
+              restagePresenceNullableText.valuePath,
+              context: context,
+            ),
+          if (restagePresenceNullableSeed.supplied)
+            #nullableSeed: RestageDecoders.string(
+              source,
+              restagePresenceNullableSeed.valuePath,
+              context: context,
+            ),
+          if (restagePresenceEnabled.supplied)
+            #enabled: RestageValueBinding.read<bool>(
+              source,
+              restagePresenceEnabled.valuePath,
+              context,
+            ),
+          if (restagePresenceCount.supplied)
+            #count: RestageValueBinding.read<int>(
+              source,
+              restagePresenceCount.valuePath,
+              context,
+            ),
+          if (restagePresenceMode.supplied)
+            #mode: RestageDecoders.enumByName<s1.ConstructorCorpusMode>(
+              s1.ConstructorCorpusMode.values,
+              source,
+              restagePresenceMode.valuePath,
+            ),
+          if (restagePresenceDirectColor.supplied)
+            #directColor: RestageDecoders.color(
+              source,
+              restagePresenceDirectColor.valuePath,
+            ),
+          if (restagePresencePublicColor.supplied)
+            #publicColor: RestageDecoders.color(
+              source,
+              restagePresencePublicColor.valuePath,
+            ),
+          if (restagePresenceData.supplied)
+            #data: restagePresenceData.hasValue
+                ? (source.isMap(<Object>[...restagePresenceData.valuePath])
+                      ? s1.ConstructorCorpusData(
+                          nested:
+                              source.isMap(<Object>[
+                                ...restagePresenceData.valuePath,
+                                'nested',
+                              ])
+                              ? s1.ConstructorCorpusNestedData(
+                                  label:
+                                      RestageDecoders.string(source, <Object>[
+                                        ...restagePresenceData.valuePath,
+                                        'nested',
+                                        'label',
+                                      ], context: context) ??
+                                      (throw ArgumentError(
+                                        'ConstructorCorpusNestedData.label is required.',
+                                      )),
+                                )
+                              : (throw ArgumentError(
+                                  'ConstructorCorpusData.nested is required.',
+                                )),
+                          count:
+                              RestageValueBinding.read<int>(source, <Object>[
+                                ...restagePresenceData.valuePath,
+                                'count',
+                              ], context) ??
+                              (throw ArgumentError(
+                                'ConstructorCorpusData.count is required.',
                               )),
-                        count:
-                            source.v<int>(<Object>[
-                              ...restagePresenceData.valuePath,
-                              'count',
-                            ]) ??
-                            (throw ArgumentError(
-                              'ConstructorCorpusData.count is required.',
-                            )),
-                      )
-                    : (throw ArgumentError(
-                        'ConstructorFidelityCorpus.data is required.',
-                      )))
-              : (throw ArgumentError(
-                  'ConstructorFidelityCorpus.data is required.',
-                )),
-        #resetProof: source.voidHandler(const <Object>['resetProof']) ?? () {},
-        #whenEnabledChanges:
-            RestageDecoders.valueChanged<bool>(source, const <Object>[
-              'whenEnabledChanges',
-            ]) ??
-            (bool _) {},
-        #reportCount:
-            RestageDecoders.valueChanged<int>(source, const <Object>[
-              'reportCount',
-            ]) ??
-            (int _) {},
-      })
-      as Widget;
+                        )
+                      : (throw ArgumentError(
+                          'ConstructorFidelityCorpus.data is required.',
+                        )))
+                : (throw ArgumentError(
+                    'ConstructorFidelityCorpus.data is required.',
+                  )),
+          #resetProof:
+              source.voidHandler(const <Object>['resetProof']) ?? () {},
+          #whenEnabledChanges:
+              RestageDecoders.valueChanged<bool>(source, const <Object>[
+                'whenEnabledChanges',
+              ]) ??
+              (bool _) {},
+          #reportCount:
+              RestageDecoders.valueChanged<int>(source, const <Object>[
+                'reportCount',
+              ]) ??
+              (int _) {},
+        })
+        as Widget;
+  });
 }
 
 Widget _buildConstructorFidelityProof(BuildContext context, DataSource source) {
-  final restagePresenceEnabled = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['enabled'],
-  );
-  final restagePresenceOptionalText = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['optionalText'],
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final restagePresenceEnabled = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['enabled'],
+    );
+    final restagePresenceOptionalText = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['optionalText'],
+    );
 
-  return Function.apply(
-        s2.ConstructorFidelityProof.new,
-        <Object?>[
-          RestageDecoders.string(source, <Object>['label']) ??
-              (throw ArgumentError(
-                'ConstructorFidelityProof.label is required.',
-              )),
-        ],
-        <Symbol, Object?>{
-          if (restagePresenceEnabled.supplied)
-            #enabled: source.v<bool>(restagePresenceEnabled.valuePath),
-          if (restagePresenceOptionalText.supplied)
-            #optionalText: RestageDecoders.string(
-              source,
-              restagePresenceOptionalText.valuePath,
-            ),
-          #onChanged:
-              RestageDecoders.valueChanged<bool>(source, const <Object>[
-                'onChanged',
-              ]) ??
-              (bool _) {},
-        },
-      )
-      as Widget;
+    return Function.apply(
+          s2.ConstructorFidelityProof.new,
+          <Object?>[
+            RestageDecoders.string(source, <Object>[
+                  'label',
+                ], context: context) ??
+                (throw ArgumentError(
+                  'ConstructorFidelityProof.label is required.',
+                )),
+          ],
+          <Symbol, Object?>{
+            #key: RestageDecoders.nativeBinding<Key>(context, source, <Object>[
+              'key',
+            ], type: 'flutter.Key'),
+            if (restagePresenceEnabled.supplied)
+              #enabled: RestageValueBinding.read<bool>(
+                source,
+                restagePresenceEnabled.valuePath,
+                context,
+              ),
+            if (restagePresenceOptionalText.supplied)
+              #optionalText: RestageDecoders.string(
+                source,
+                restagePresenceOptionalText.valuePath,
+                context: context,
+              ),
+            #onChanged:
+                RestageDecoders.valueChanged<bool>(source, const <Object>[
+                  'onChanged',
+                ]) ??
+                (bool _) {},
+          },
+        )
+        as Widget;
+  });
 }
 
 Widget _buildConstructorPositionalCorpus(
   BuildContext context,
   DataSource source,
 ) {
-  final restagePresenceLeading = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['leading'],
-  );
-  final restagePresenceTrailing = RestageRfwConstructorPresence.read(
-    source,
-    <Object>['trailing'],
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final restagePresenceLeading = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['leading'],
+    );
+    final restagePresenceTrailing = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['trailing'],
+    );
 
-  return Function.apply(s1.ConstructorPositionalCorpus.new, <Object?>[
-        RestageDecoders.string(source, <Object>['requiredLabel']) ??
-            (throw ArgumentError(
-              'ConstructorPositionalCorpus.requiredLabel is required.',
-            )),
-        if (restagePresenceLeading.supplied || restagePresenceTrailing.supplied)
+    return Function.apply(s1.ConstructorPositionalCorpus.new, <Object?>[
+          RestageDecoders.string(source, <Object>[
+                'requiredLabel',
+              ], context: context) ??
+              (throw ArgumentError(
+                'ConstructorPositionalCorpus.requiredLabel is required.',
+              )),
           restagePresenceLeading.supplied
               ? (RestageDecoders.string(
                   source,
                   restagePresenceLeading.valuePath,
+                  context: context,
                 ))
               : 'leading-default',
-        if (restagePresenceTrailing.supplied)
-          RestageDecoders.string(source, restagePresenceTrailing.valuePath),
-      ], <Symbol, Object?>{})
-      as Widget;
+          restagePresenceTrailing.supplied
+              ? (RestageDecoders.string(
+                  source,
+                  restagePresenceTrailing.valuePath,
+                  context: context,
+                ))
+              : 'trailing-default',
+          RestageDecoders.nativeBinding<Key>(context, source, <Object>[
+            'key',
+          ], type: 'flutter.Key'),
+        ], <Symbol, Object?>{})
+        as Widget;
+  });
 }
 
 Widget _buildFeaturePanel(BuildContext context, DataSource source) {
-  return s3.FeaturePanel(
-    header: source.optionalChild(const <Object>['header']),
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s3.FeaturePanel(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>[
+        'key',
+      ], type: 'flutter.Key'),
+      header: source.optionalChild(const <Object>['header']),
+      children: RestageDecoders.widgetList(
+        source,
+        const <Object>['children'],
+        context: context,
+        bindings: builderBindings,
+      ),
+    );
+  });
 }
 
 Widget _buildFeatureRow(BuildContext context, DataSource source) {
-  return s4.FeatureRow(
-    title:
-        RestageDecoders.string(source, <Object>['title']) ??
-        'Unlimited projects',
-    subtitle:
-        RestageDecoders.string(source, <Object>['subtitle']) ??
-        'No caps on what you ship.',
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s4.FeatureRow(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>[
+        'key',
+      ], type: 'flutter.Key'),
+      title:
+          RestageDecoders.string(source, <Object>['title'], context: context) ??
+          'Unlimited projects',
+      subtitle:
+          RestageDecoders.string(source, <Object>[
+            'subtitle',
+          ], context: context) ??
+          'No caps on what you ship.',
+    );
+  });
 }
 
 Widget _buildPriceBadge(BuildContext context, DataSource source) {
-  return s5.PriceBadge(
-    price: RestageDecoders.string(source, <Object>['price']) ?? '\$9.99',
-    period: RestageDecoders.string(source, <Object>['period']) ?? 'mo',
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s5.PriceBadge(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>[
+        'key',
+      ], type: 'flutter.Key'),
+      price:
+          RestageDecoders.string(source, <Object>['price'], context: context) ??
+          '\$9.99',
+      period:
+          RestageDecoders.string(source, <Object>[
+            'period',
+          ], context: context) ??
+          'mo',
+    );
+  });
 }
 
 Widget _buildRequiredNullableWidgetProof(
   BuildContext context,
   DataSource source,
 ) {
-  return s1.RequiredNullableWidgetProof(
-    source.optionalChild(const <Object>['positionalNullable']),
-    source.child(const <Object>['positionalControl']),
-    namedNullable: source.optionalChild(const <Object>['namedNullable']),
-    namedControl: source.child(const <Object>['namedControl']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s1.RequiredNullableWidgetProof(
+      source.optionalChild(const <Object>['positionalNullable']),
+      source.child(const <Object>['positionalControl']),
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>[
+        'key',
+      ], type: 'flutter.Key'),
+      namedNullable: source.optionalChild(const <Object>['namedNullable']),
+      namedControl: source.child(const <Object>['namedControl']),
+    );
+  });
 }
 
 Widget _buildStatTile(BuildContext context, DataSource source) {
-  return s6.StatTile(
-    label: RestageDecoders.string(source, <Object>['label']) ?? 'Active users',
-    value: RestageDecoders.string(source, <Object>['value']) ?? '1,204',
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s6.StatTile(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>[
+        'key',
+      ], type: 'flutter.Key'),
+      label:
+          RestageDecoders.string(source, <Object>['label'], context: context) ??
+          'Active users',
+      value:
+          RestageDecoders.string(source, <Object>['value'], context: context) ??
+          '1,204',
+    );
+  });
 }

@@ -558,9 +558,8 @@ class PriceLabel extends StatelessWidget {
       expect(blocker.detail, isNot(contains('RestagePrice')));
     });
 
-    test(
-        'a real intl NumberFormat.format() names the catalog adopt-target on '
-        'its dartCall deferral', () async {
+    test('a real intl NumberFormat.format() is a composable native value',
+        () async {
       final result = await classifyFixture(
         {
           'lib/price.dart': '''
@@ -580,8 +579,8 @@ class Text extends StatelessWidget {
   description: 'price',
 )
 class PriceLabel extends StatelessWidget {
-  const PriceLabel({this.amount});
-  final num? amount;
+  const PriceLabel({this.amount = 0});
+  final num amount;
   Widget build(BuildContext context) =>
       Text(NumberFormat.currency(locale: 'en_US', symbol: 'USD').format(amount));
 }
@@ -592,12 +591,7 @@ class PriceLabel extends StatelessWidget {
         catalog: _stubCatalog(file: 'price.dart'),
       );
 
-      expect(result, isA<ImperativeWidget>());
-      final blocker = (result as ImperativeWidget).blockers.first;
-      expect(blocker.kind, BlockerKind.dartCall);
-      // The same single-sourced adopt-target the direct-paywall translator
-      // names — reducible deferral, pointed at the catalog widget.
-      expect(blocker.detail, contains('RestagePrice'));
+      expect(result, isA<ComposableWidget>());
     });
   });
 

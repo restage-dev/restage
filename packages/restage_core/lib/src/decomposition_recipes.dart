@@ -316,6 +316,34 @@ const PropertyEntry kBorderRadiusCircularSynthetic = PropertyEntry(
 /// flat properties.
 const List<PropertyEntry> kBorderRadiusPerCornerSynthetics = [
   PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: 'borderRadiusTopStart',
+      type: PropertyType.real,
+      description: 'Directional corner radius.',
+      synthetic: 'borderRadiusCorner',
+      sinceVersion: 17),
+  PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: 'borderRadiusTopEnd',
+      type: PropertyType.real,
+      description: 'Directional corner radius.',
+      synthetic: 'borderRadiusCorner',
+      sinceVersion: 17),
+  PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: 'borderRadiusBottomStart',
+      type: PropertyType.real,
+      description: 'Directional corner radius.',
+      synthetic: 'borderRadiusCorner',
+      sinceVersion: 17),
+  PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: 'borderRadiusBottomEnd',
+      type: PropertyType.real,
+      description: 'Directional corner radius.',
+      synthetic: 'borderRadiusCorner',
+      sinceVersion: 17),
+  PropertyEntry(
     wireId: WireId.unallocatedProperty,
     name: 'borderRadiusTopLeft',
     type: PropertyType.real,
@@ -401,7 +429,7 @@ const NativeDecompositionCuration kBoxDecorationFillNativeDecompose =
 /// Flat `gradient` slot consumed by BoxDecoration native decomposition. The wire
 /// format is the rfw gradient map (`{type: 'linear', begin: {x, y},
 /// end: {x, y}, colors: [...], stops: [...]?}`); the SDK reconstructs
-/// via `ArgumentDecoders.gradient(source, path)` at runtime.
+/// via `RestageDecoders.gradient(source, path)` at runtime.
 const PropertyEntry kGradientSynthetic = PropertyEntry(
   wireId: WireId.unallocatedProperty,
   name: 'gradient',
@@ -595,19 +623,8 @@ const PropertyOverride kOffsetZeroOverride = PropertyOverride(
 // Excludes
 // ---------------------------------------------------------------------------
 
-/// `Row` / `Column` strip directional knobs the catalog surface doesn't
-/// need. Authors set semantic alignment via `mainAxisAlignment` /
-/// `crossAxisAlignment` instead.
-///
-/// `textBaseline` is surfaced; `crossAxisAlignment: baseline` needs it.
-/// `textDirection` and `verticalDirection` are excluded here explicitly —
-/// their types are enum-valued and are legitimately surfaced by `Wrap`, so
-/// they cannot be added to the global denylist.
-///
-/// `spacing` is surfaced — the modern Flex gap idiom, a `length`/`real`
-/// slot reusing the existing decoder (`Wrap` already surfaces it).
+/// Vertical direction remains outside the curated Flex surface.
 const List<String> kFlexExcludes = [
-  'textDirection',
   'verticalDirection',
 ];
 
@@ -641,9 +658,9 @@ const List<String> kContainerCoreExcludes = [
 /// Viewport cache controls are added as per-entry exclusions because their
 /// availability varies by scroll-view constructor.
 ///
-/// `controller` (`ScrollController`), `dragStartBehavior`
-/// (`DragStartBehavior`), and `physics` (`ScrollPhysics`) are excluded via
-/// the centralized type denylist; a scroll view's `hitTestBehavior` keeps its
+/// `controller` borrows an installed native `ScrollController`.
+/// `dragStartBehavior` (`DragStartBehavior`) and `physics` (`ScrollPhysics`)
+/// are excluded via the centralized type denylist; `hitTestBehavior` keeps its
 /// default. `keyboardDismissBehavior`
 /// (`ScrollViewKeyboardDismissBehavior`) is a clean 2-member enum, so it
 /// is surfaced, not excluded. `clipBehavior` (the `Clip` enum) is likewise
@@ -724,3 +741,37 @@ const Map<String, PropertyOverride> kWidthHeightLengthOverrides = {
   'width': PropertyOverride(type: PropertyType.length),
   'height': PropertyOverride(type: PropertyType.length),
 };
+
+/// Declarative fields for Flutter's native shape clipper.
+const List<PropertyEntry> kShapeBorderClipperSynthetics = [
+  PropertyEntry(
+    wireId: WireId.unallocatedProperty,
+    name: 'shape',
+    type: PropertyType.shapeBorder,
+    description: 'Shape used to obtain the clip path.',
+    sinceVersion: 21,
+  ),
+  PropertyEntry(
+    wireId: WireId.unallocatedProperty,
+    name: 'clipperTextDirection',
+    type: PropertyType.enumValue,
+    enumType: 'TextDirection',
+    description: 'Explicit nullable direction used by the shape clipper.',
+    sinceVersion: 21,
+  ),
+];
+
+/// Reconstructs a native clipper without ambient direction substitution.
+const NativeDecompositionCuration kShapeBorderClipperNativeDecompose =
+    NativeDecompositionCuration(
+  structuredType: 'ShapeBorderClipper',
+  targetArg: 'clipper',
+  construction: NativeFactoryCuration.constructor(),
+  fieldMappings: [
+    NativeFieldMappingCuration(field: 'shape', property: 'shape'),
+    NativeFieldMappingCuration(
+      field: 'textDirection',
+      property: 'clipperTextDirection',
+    ),
+  ],
+);

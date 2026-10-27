@@ -88,8 +88,18 @@ Widget build(BuildContext context) {
 }
 ```
 
-The build compiles the `build()` tree, state reads, and events. If it finds code it
-can't compile, the build stops with an error. It never produces a partial surface.
+The build compiles the `build()` tree, state reads, and events. Native responsive
+builders, lazy grids, directional geometry, and clipped shapes use their ordinary
+Flutter syntax; see the [Widget catalog](/authoring/widget-catalog). For exact native
+text scaling, keyboard/accessibility reads, dates, and localized text, see
+[Host data](/authoring/host-data). Interactive text uses
+[native TextSpan recognizers](/authoring/interactive-surfaces#interactive-text-spans),
+and SVG uses the optional `restage_svg` package.
+
+If the build finds code it can't compile, it stops with an error. It never produces
+a partial surface. These constructs require matching generated factories in the
+installed app; regenerate with `dart run build_runner build` and ship that app before
+publishing content that uses newly installed capabilities.
 
 ## Choose the annotation and category
 

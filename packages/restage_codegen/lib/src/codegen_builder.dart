@@ -30,6 +30,7 @@ import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
+import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_compiler_core/restage_compiler_core.dart';
@@ -453,6 +454,7 @@ _CompiledPaywallForm? _compilePaywallForm({
   }
   final occurrenceSet = frozenOccurrenceSet ??
       ResolvedRfwCatalogOccurrenceSet.resolve(
+        operations: translation.valueOperations,
         parsedLibrary: parsedLibrary,
         input: translation.rfwCatalogOccurrenceResolutionInput(
           artifactProvenance: _rfwOccurrenceSetKey(
@@ -483,6 +485,9 @@ _CompiledPaywallForm? _compilePaywallForm({
     library,
     catalog,
     rootLabels: {rootWidgetName: source.className},
+    operations: translation.valueOperations,
+    hostDataContract:
+        hostDataContractOf(const [], hoisted: translation.hoisted),
   );
   if (validationIssues.isNotEmpty) {
     issues.addAll(validationIssues);
@@ -492,6 +497,7 @@ _CompiledPaywallForm? _compilePaywallForm({
     library,
     catalog,
     requiresSurfaceFeatureFloor: translation.requiresSurfaceFeatureFloor,
+    hoisted: translation.hoisted,
   );
   if (derivation.issues.isNotEmpty) {
     issues.addAll(derivation.issues);
@@ -821,6 +827,9 @@ final class RestageCodegenBuilder implements Builder {
             rfwLibrary,
             catalog,
             rootLabels: {paywallRootWidgetName: src.className},
+            operations: standaloneTranslation.valueOperations,
+            hostDataContract: hostDataContractOf(const [],
+                hoisted: standaloneTranslation.hoisted),
           );
           if (validationIssues.isEmpty) {
             final derivation = deriveCapabilityManifest(
@@ -828,6 +837,7 @@ final class RestageCodegenBuilder implements Builder {
               catalog,
               requiresSurfaceFeatureFloor:
                   standaloneTranslation.requiresSurfaceFeatureFloor,
+              hoisted: standaloneTranslation.hoisted,
             );
             if (derivation.issues.isNotEmpty) {
               // A surface referencing a custom library that declares no
@@ -907,11 +917,15 @@ final class RestageCodegenBuilder implements Builder {
             flowScreenLibrary,
             catalog,
             rootLabels: {onboardingScreenRootWidgetName: src.className},
+            operations: adapterTranslation.valueOperations,
+            hostDataContract: hostDataContractOf(const [],
+                hoisted: adapterTranslation.hoisted),
           );
           if (validationIssues.isEmpty) {
             final derivation = deriveCapabilityManifest(
               flowScreenLibrary,
               catalog,
+              hoisted: adapterTranslation.hoisted,
             );
             if (derivation.issues.isNotEmpty) {
               // A screen referencing a custom library that declares no
@@ -1063,6 +1077,7 @@ final class RestageCodegenBuilder implements Builder {
       );
       final declarationIdentity = '$sourceLibraryIdentity#${src.className}';
       final occurrenceSet = ResolvedRfwCatalogOccurrenceSet.resolve(
+        operations: translation.valueOperations,
         parsedLibrary: parsed,
         input: translation.rfwCatalogOccurrenceResolutionInput(
           artifactProvenance: _rfwOccurrenceSetKey(

@@ -12,10 +12,11 @@ topics:
   - flutter
 environment:
   sdk: ^3.5.0
-  # >=3.41: the SDK is built and verified against current stable Flutter.
+  # >=3.44: native grid factories require ScrollCacheExtent; native text
+  # style projections require TextDecoration.maskValue.
   # The theme channel relies on recent dart:ui APIs (Color.toARGB32, the
   # modern FontWeight value/constructor) absent from older stable lines.
-  flutter: ">=3.41.0"
+  flutter: ">=3.44.0"
 
 resolution: workspace
 

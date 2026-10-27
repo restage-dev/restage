@@ -1063,6 +1063,71 @@ GestureDetector(
       expect(standalone.navigation, isNull);
     });
 
+    test('mount navigation pop preserves suppression and adapter context',
+        () async {
+      final source = _paywallSourceWithRoot('''
+GestureDetector(
+  onTap: () => Navigator.pop(context),
+  child: const Text('Back'),
+)
+''');
+      final standalone = await _translateEntry(source, hoistInMount: true);
+      expect(standalone.dsl, isEmpty);
+      expect(standalone.suppressed, isTrue);
+      expect(standalone.issues.map((issue) => issue.code),
+          [IssueCode.navigationStandaloneArtifactSkipped]);
+      expect(standalone.hoisted.where((value) => value.nativeCall != null),
+          isEmpty);
+      final adapter = await _translateEntry(source,
+          flowScreenContext: true, hoistInMount: true);
+      expect(adapter.issues, isEmpty);
+      expect(adapter.dsl, contains('event "back" {}'));
+      expect(adapter.suppressed, isFalse);
+      expect(
+          adapter.hoisted.where((value) => value.nativeCall != null), isEmpty);
+    });
+
+    test('mount navigation pop keeps non-build context refusal', () async {
+      final translation = await _translateEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+Object x(BuildContext context, BuildContext rootContext) => GestureDetector(
+  onTap: () => Navigator.pop(rootContext),
+  child: const Text('Back'),
+);
+''', flowScreenContext: true, hoistInMount: true);
+      expect(translation.dsl, isEmpty);
+      expect(translation.suppressed, isFalse);
+      expect(translation.issues.map((issue) => issue.code),
+          [IssueCode.navigationFormUnsupported]);
+      expect(translation.issues.single.message,
+          contains('non-build-context targets a different navigator'));
+      expect(translation.hoisted.where((value) => value.nativeCall != null),
+          isEmpty);
+    });
+
+    test('mount navigation does not authorize independent root native context',
+        () async {
+      final translation = await _translateEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+Object x(BuildContext context) => GestureDetector(
+  onTap: () => FocusScope.of(context).unfocus(),
+  child: const Text('Unfocus'),
+);
+''', hoistInMount: true);
+      expect(translation.dsl, isEmpty);
+      expect(translation.suppressed, isFalse);
+      expect(translation.issues.map((issue) => issue.code),
+          [IssueCode.propertyValueTypeMismatch]);
+      expect(
+          translation.issues.single.message,
+          contains(
+              'Native inputs require an existing callback or helper frame'));
+      expect(translation.hoisted.where((value) => value.nativeCall != null),
+          isEmpty);
+    });
+
     test('const-authored events are skipped when minting navigation events',
         () async {
       final translation = await _translateEntry('''
@@ -1212,6 +1277,7 @@ Column(
         final translation = await _translateEntry(
           source,
           flowScreenContext: flowScreenContext,
+          hoistInMount: true,
         );
         expect(
           translation.issues.map((issue) => issue.code),
@@ -1224,6 +1290,8 @@ Column(
           contains("paywallEvent('skip')"),
         );
         expect(translation.dsl, isNot(contains('event "back"')));
+        expect(translation.hoisted.where((value) => value.nativeCall != null),
+            isEmpty);
       }
     });
 
@@ -1571,6 +1639,7 @@ class NavButton extends StatelessWidget {
 Future<TranslationResult> _translateEntry(
   String source, {
   bool flowScreenContext = false,
+  bool hoistInMount = false,
   String? Function(ClassElement declaration)? canonicalPaywallIdFor,
 }) async {
   final parsed = await _parseEntryRoot(source);
@@ -1583,6 +1652,7 @@ Future<TranslationResult> _translateEntry(
     entryId: 'entry',
     buildContextParameter: parsed.buildContextParameter,
     flowScreenContext: flowScreenContext,
+    hoistInMount: hoistInMount,
   );
 }
 

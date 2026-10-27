@@ -2,15 +2,15 @@
 // Generated from lib/registry_curation.dart by the catalog generator.
 //
 // Edit the curation file and re-run build_runner; do not
-// edit this file directly. The runtime, codegen, and editor
-// all consume `kRegistry` from here.
+// edit this file directly. Runtime and authoring tools
+// consume `kRegistry` from here.
 
 library;
 
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Registry for the `restage.material` library.
-/// Read by codegen, the editor, and the runtime SDK.
+/// Read by codegen, authoring tools, and the runtime SDK.
 final Catalog kRegistry = Catalog(
   schemaVersion: 5,
   generatedAt: '1970-01-01T00:00:00Z',
@@ -28,11 +28,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0541'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0001'),
           name: 'avatar',
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0002'),
@@ -41,6 +54,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0003'),
@@ -105,12 +119,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0542'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0459'),
           name: 'leading',
           type: PropertyType.widget,
           description:
               '{@template flutter.material.appbar.leading} A widget to display before the toolbar\'s [title].',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0460'),
@@ -132,6 +159,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.appbar.title} The primary widget displayed in the app bar.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0461'),
@@ -140,6 +168,9 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.appbar.actions} A list of Widgets to display in a row after the [title] widget.',
           constructorNullable: true,
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0502'),
@@ -160,6 +191,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.appbar.flexibleSpace} This widget is stacked behind the toolbar and the tab bar. Its height will be the same as the app bar\'s overall height.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0473'),
@@ -224,6 +256,11 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.appbar.shape} The shape of the app bar\'s [Material] as well as its shadow.',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0008'),
@@ -492,6 +529,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0543'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0011'),
           name: 'backgroundColor',
           type: PropertyType.color,
@@ -561,6 +610,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The badge\'s content, typically a [Text] widget that contains 1 to 4 characters.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0016'),
@@ -579,6 +629,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The widget that the badge is stacked on top of.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0416'),
@@ -599,6 +650,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/material/card.dart#Card',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0544'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0018'),
           name: 'color',
@@ -631,6 +694,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description: 'The shape of the card\'s [Material].',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0020'),
@@ -661,6 +729,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0417'),
@@ -681,6 +750,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/material/card.dart#Card.filled',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0545'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0022'),
           name: 'color',
@@ -713,6 +794,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description: 'The shape of the card\'s [Material].',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0024'),
@@ -743,6 +829,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0418'),
@@ -763,6 +850,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/material/card.dart#Card.outlined',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0546'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0026'),
           name: 'color',
@@ -795,6 +894,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description: 'The shape of the card\'s [Material].',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0028'),
@@ -825,6 +929,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0419'),
@@ -844,6 +949,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/material/checkbox.dart#Checkbox',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0547'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0030'),
           name: 'value',
@@ -901,6 +1018,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0548'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0033'),
           name: 'value',
           type: PropertyType.boolean,
@@ -942,6 +1071,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description: '{@macro flutter.material.ListTile.shape}',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0036'),
@@ -949,6 +1083,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The primary content of the list tile.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0037'),
@@ -956,6 +1091,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'Additional content displayed below the title.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0038'),
@@ -964,6 +1100,7 @@ final Catalog kRegistry = Catalog(
           description:
               'A widget to display on the opposite side of the tile from the checkbox.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0039'),
@@ -995,11 +1132,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0549'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0040'),
           name: 'avatar',
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0041'),
@@ -1008,6 +1158,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0354'),
@@ -1064,11 +1215,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0550'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0044'),
           name: 'avatar',
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0045'),
@@ -1077,6 +1241,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0046'),
@@ -1141,6 +1306,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description: '',
           defaultSource: LiteralDefault('circle'),
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0423'),
@@ -1162,6 +1332,18 @@ final Catalog kRegistry = Catalog(
           'package:flutter/src/material/progress_indicator.dart#CircularProgressIndicator',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0551'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0050'),
           name: 'value',
@@ -1216,6 +1398,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/material/divider.dart#Divider',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0552'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0053'),
           name: 'height',
@@ -1274,6 +1468,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0553'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0056'),
           name: 'onPressed',
           type: PropertyType.event,
@@ -1302,6 +1508,7 @@ final Catalog kRegistry = Catalog(
           required: true,
           constructorNullable: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0058'),
@@ -1490,11 +1697,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.list,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0554'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0063'),
           name: 'leading',
           type: PropertyType.widget,
           description: 'A widget to display before the title.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0064'),
@@ -1503,6 +1723,7 @@ final Catalog kRegistry = Catalog(
           description: 'The primary content of the list item.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0065'),
@@ -1510,6 +1731,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'Additional content displayed below the title.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0066'),
@@ -1525,6 +1747,9 @@ final Catalog kRegistry = Catalog(
           name: 'children',
           type: PropertyType.widgetList,
           description: 'The widgets that are displayed when the tile expands.',
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0068'),
@@ -1532,6 +1757,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'A widget to display after the title.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0069'),
@@ -1551,6 +1777,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description: 'The tile\'s border shape when the sublist is expanded.',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0268'),
@@ -1559,6 +1790,11 @@ final Catalog kRegistry = Catalog(
           description:
               'The tile\'s border shape when the sublist is collapsed.',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0357'),
@@ -1591,6 +1827,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0555'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0073'),
           name: 'onPressed',
           type: PropertyType.event,
@@ -1620,6 +1868,7 @@ final Catalog kRegistry = Catalog(
           required: true,
           constructorNullable: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0075'),
@@ -1808,6 +2057,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0556'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0080'),
           name: 'onPressed',
           type: PropertyType.event,
@@ -1837,6 +2098,7 @@ final Catalog kRegistry = Catalog(
           required: true,
           constructorNullable: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0082'),
@@ -2007,11 +2269,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0557'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0086'),
           name: 'avatar',
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0087'),
@@ -2020,6 +2295,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0088'),
@@ -2083,6 +2359,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description: '',
           defaultSource: LiteralDefault('circle'),
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0431'),
@@ -2104,11 +2385,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0558'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0092'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0093'),
@@ -2188,6 +2482,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description: 'The shape of the button\'s [Material].',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0361'),
@@ -2220,6 +2519,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0559'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0099'),
           name: 'size',
           type: PropertyType.length,
@@ -2245,6 +2556,19 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.color,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0538'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: 'The text direction to use for rendering the icon.',
+          sinceVersion: 17,
+          enumType: 'TextDirection',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
         ),
         PropertyEntry(
           wireId: WireId('p0101'),
@@ -2294,6 +2618,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/material/icon_button.dart#IconButton',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0560'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0102'),
           name: 'iconSize',
@@ -2349,6 +2685,7 @@ final Catalog kRegistry = Catalog(
           description: 'The icon to display inside the button.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0434'),
@@ -2369,11 +2706,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0561'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0107'),
           name: 'child',
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0108'),
@@ -2389,6 +2739,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description: '',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0435'),
@@ -2410,6 +2765,18 @@ final Catalog kRegistry = Catalog(
           'package:flutter/src/material/progress_indicator.dart#LinearProgressIndicator',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0562'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0109'),
           name: 'value',
@@ -2478,11 +2845,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0563'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0112'),
           name: 'leading',
           type: PropertyType.widget,
           description: 'A widget to display before the title.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0113'),
@@ -2490,6 +2870,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The primary content of the list tile.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0114'),
@@ -2497,6 +2878,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'Additional content displayed below the title.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0115'),
@@ -2504,6 +2886,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'A widget to display after the title.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0274'),
@@ -2512,6 +2895,11 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.ListTile.shape} Defines the tile\'s [InkWell.customBorder] and [Ink.decoration] shape. {@endtemplate}',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0116'),
@@ -2540,11 +2928,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0564'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0117'),
           name: 'home',
           type: PropertyType.widget,
           description: '{@macro flutter.widgets.widgetsApp.home}',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0118'),
@@ -2579,6 +2980,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0565'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0316'),
           name: 'open',
           type: PropertyType.boolean,
@@ -2598,6 +3011,7 @@ final Catalog kRegistry = Catalog(
           description: 'The sheet body.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0318'),
@@ -2704,6 +3118,11 @@ final Catalog kRegistry = Catalog(
           description:
               'The sheet\'s shape. Null defers to the theme default (rounded top corners under Material 3).',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0327'),
@@ -2836,6 +3255,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The surface shown *beneath* the sheet, owned by this widget. When non-null and the platform is iOS/macOS, it scales down and rounds as the sheet rises (the iOS card-sheet look); on other platforms it renders plain behind the sheet. Null (the default) is a pure overlay — the sheet floats over whatever is already behind it, with no owned surface and no scale-down.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0332'),
@@ -2867,12 +3287,27 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.list,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0566'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0119'),
           name: 'children',
           type: PropertyType.widgetList,
           description: 'Pages displayed in order. Must be non-empty.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0120'),
@@ -2956,6 +3391,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0567'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0399'),
           name: 'items',
           type: PropertyType.selectionOptionList,
@@ -3009,6 +3456,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0568'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0402'),
           name: 'items',
           type: PropertyType.selectionOptionList,
@@ -3061,6 +3520,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.list,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0569'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0405'),
           name: 'children',
           type: PropertyType.widgetList,
@@ -3068,6 +3539,9 @@ final Catalog kRegistry = Catalog(
               'The per-button labels, in display order. Each becomes one toggle button. An empty list renders nothing.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0406'),
@@ -3116,6 +3590,18 @@ final Catalog kRegistry = Catalog(
           'package:restage_material/src/widgets/restage_segmented_button.dart#RestageSegmentedButton<String>',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0570'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0408'),
           name: 'items',
@@ -3208,6 +3694,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0571'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0339'),
           name: 'child',
           type: PropertyType.widget,
@@ -3215,6 +3713,7 @@ final Catalog kRegistry = Catalog(
               'The sheet body. Wrapped in a [SingleChildScrollView] bound to the sheet\'s drag controller, so the whole sheet is draggable and the body scrolls once the sheet is fully expanded.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0340'),
@@ -3346,6 +3845,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0572'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0125'),
           name: 'onPressed',
           type: PropertyType.event,
@@ -3374,6 +3885,7 @@ final Catalog kRegistry = Catalog(
           required: true,
           constructorNullable: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0127'),
@@ -3529,6 +4041,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0573'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0130'),
           name: 'onPressed',
           type: PropertyType.event,
@@ -3557,6 +4081,7 @@ final Catalog kRegistry = Catalog(
           required: true,
           constructorNullable: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0132'),
@@ -3565,6 +4090,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0133'),
@@ -3719,6 +4245,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0574'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0471'),
           name: 'appBar',
           type: PropertyType.widget,
@@ -3732,6 +4270,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The primary content of the scaffold.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0139'),
@@ -3788,12 +4327,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0575'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0140'),
           name: 'child',
           type: PropertyType.widget,
           description: '{@macro flutter.widgets.Scrollbar.child}',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0141'),
@@ -3858,6 +4410,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/material/slider.dart#Slider',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0576'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0145'),
           name: 'value',
@@ -3957,6 +4521,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0577'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0152'),
           name: 'value',
           type: PropertyType.boolean,
@@ -4013,6 +4589,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0578'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0155'),
           name: 'value',
           type: PropertyType.boolean,
@@ -4053,6 +4641,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The primary content of the list tile.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0159'),
@@ -4060,6 +4649,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'Additional content displayed below the title.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0160'),
@@ -4068,6 +4658,7 @@ final Catalog kRegistry = Catalog(
           description:
               'A widget to display on the opposite side of the tile from the switch.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0277'),
@@ -4075,6 +4666,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description: '{@macro flutter.material.ListTile.shape}',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
         ),
         PropertyEntry(
           wireId: WireId('p0453'),
@@ -4094,6 +4690,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/material/text_button.dart#TextButton',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0579'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0161'),
           name: 'onPressed',
@@ -4122,6 +4730,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0163'),
@@ -4277,6 +4886,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0580'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0166'),
           name: 'onPressed',
           type: PropertyType.event,
@@ -4306,6 +4927,7 @@ final Catalog kRegistry = Catalog(
           required: true,
           constructorNullable: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0168'),
@@ -4314,6 +4936,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0169'),
@@ -4468,12 +5091,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0581'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0475'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0476'),
@@ -4505,6 +5141,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0582'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0478'),
           name: 'length',
           type: PropertyType.integer,
@@ -4534,6 +5182,7 @@ final Catalog kRegistry = Catalog(
           description: 'The widget below this widget in the tree.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0481'),
@@ -4555,12 +5204,39 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.list,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0583'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0532'),
           name: 'children',
           type: PropertyType.widgetList,
           description: 'One widget per tab.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0584'),
+          name: 'controller',
+          type: PropertyType.structured,
+          description: 'This widget\'s selection and animation state.',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0030'))),
         ),
         PropertyEntry(
           wireId: WireId('p0533'),
@@ -4617,12 +5293,39 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0585'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0482'),
           name: 'tabs',
           type: PropertyType.widgetList,
           description: 'Typically a list of two or more [Tab] widgets.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0586'),
+          name: 'controller',
+          type: PropertyType.structured,
+          description: 'This widget\'s selection and animation state.',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0030'))),
         ),
         PropertyEntry(
           wireId: WireId('p0483'),
@@ -4698,6 +5401,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0587'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0172'),
           name: 'text',
           type: PropertyType.string,
@@ -4714,6 +5429,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'An icon to display as the tab\'s label.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0174'),
@@ -4744,6 +5460,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The widget to be used as the tab\'s label.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0456'),
@@ -4764,6 +5481,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0588'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0491'),
           name: 'textInputAction',
           type: PropertyType.enumValue,
@@ -4776,6 +5505,19 @@ final Catalog kRegistry = Catalog(
               enumRef: DartTypeRef(
                   libraryUri: 'package:flutter/src/services/text_input.dart',
                   symbolName: 'TextInputAction')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0539'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: '{@macro flutter.widgets.editableText.textDirection}',
+          sinceVersion: 17,
+          enumType: 'TextDirection',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
         ),
         PropertyEntry(
           wireId: WireId('p0177'),
@@ -4937,6 +5679,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0589'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0182'),
           name: 'message',
           type: PropertyType.string,
@@ -4992,6 +5746,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0458'),
@@ -5004,6 +5759,15 @@ final Catalog kRegistry = Catalog(
     ),
   ],
   structuredTypes: [
+    StructuredEntry(
+      wireId: WireId('s0029'),
+      name: 'Key',
+      library: WidgetLibrary.material,
+      description: 'Closed native data value.',
+      sourceType: 'package:flutter/src/foundation/key.dart#Key',
+      fields: [],
+      variants: [],
+    ),
     StructuredEntry(
       wireId: WireId('s0002'),
       name: 'TextStyle',
@@ -6021,6 +6785,48 @@ final Catalog kRegistry = Catalog(
       ],
     ),
     StructuredEntry(
+      wireId: WireId('s0030'),
+      name: 'TabController',
+      library: WidgetLibrary.material,
+      description: 'Closed native data value.',
+      sourceType:
+          'package:flutter/src/material/tab_controller.dart#TabController',
+      fields: [],
+      variants: [],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0028'),
+      name: 'ScrollPhysics',
+      library: WidgetLibrary.material,
+      description: 'Determines the physics of a [Scrollable] widget.',
+      sourceType:
+          'package:flutter/src/widgets/scroll_physics.dart#ScrollPhysics',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0540'),
+          name: 'parent',
+          type: PropertyType.structured,
+          description:
+              'If non-null, determines the default behavior for each method.',
+          structuredRef:
+              WireIdRef(library: 'restage.material', wireId: WireId('s0028')),
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage.material', wireId: WireId('s0028'))),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0061'),
+          argMappings: {
+            'parent': ArgMapping(targetFields: [WireId('p0540')]),
+          },
+          description: 'Creates an object with the default scroll physics.',
+        ),
+      ],
+    ),
+    StructuredEntry(
       wireId: WireId('s0008'),
       name: 'Decoration',
       library: WidgetLibrary.material,
@@ -6971,4 +7777,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.material` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kMaterialCatalogContentVersion = 15;
+const int kMaterialCatalogContentVersion = 24;

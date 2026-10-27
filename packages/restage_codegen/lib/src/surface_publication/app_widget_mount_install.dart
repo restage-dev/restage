@@ -7,8 +7,11 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/catalog_loader.dart'
     show customCatalogPackages;
+import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
+import 'package:restage_codegen/src/native_catalog_index.dart';
+import 'package:restage_codegen/src/optional_native_values.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/user_factory_emitter.dart';
@@ -61,10 +64,25 @@ Future<AppWidgetMountFactories> loadAppWidgetFactories(
 final class AppWidgetMountFactories {
   AppWidgetMountFactories._(
     this._factories,
-    this._uriByAlias,
+    Map<String, String> uriByAlias,
     this._versions,
     this._compatibleSince,
-  );
+  ) : _uriByAlias = _usedImports(_factories, uriByAlias);
+
+  // Keeps only the prefixed imports some factory spells.
+  static Map<String, String> _usedImports(
+      Map<String, _Factory> factories, Map<String, String> uriByAlias) {
+    final aliases = uriByAlias.keys.toSet();
+    final used = {
+      for (final factory in factories.values)
+        for (final use in factory.names(aliases).uses)
+          if (use.alias case final alias?) alias,
+    };
+    return {
+      for (final entry in uriByAlias.entries)
+        if (used.contains(entry.key)) entry.key: entry.value,
+    };
+  }
 
   /// Builds the factories of every admitted widget in [collection].
   factory AppWidgetMountFactories.fromCollection(
@@ -120,6 +138,56 @@ final class AppWidgetMountFactories {
       collection.stampedCapabilityVersions,
       collection.compatibleSinceVersions,
     );
+  }
+
+  /// Builds factories from an allocated, curated custom catalog.
+  factory AppWidgetMountFactories.fromCatalog(Catalog catalog) {
+    final planner = DartImportPlanner(
+      libraryUris: {
+        ...referencedAppWidgetLibraryUris(
+          catalog.widgets,
+          structuredTypes: catalog.structuredTypes
+              .where((entry) =>
+                  optionalNativeDecoder(entry.sourceType,
+                      namespace: entry.library.namespace) ==
+                  null)
+              .toList(),
+          slotTargets: const {},
+          mapPlans: const {},
+          recordPlans: const {},
+        ),
+        if (catalog.structuredTypes.any((entry) =>
+            optionalNativeDecoder(entry.sourceType,
+                namespace: entry.library.namespace) !=
+            null))
+          'package:restage_svg/src/native_values.dart',
+      },
+      prefixStem: 'restageLibrary',
+    );
+    final aliases = planner.prefixesBySourceUri;
+    final index = NativeCatalogIndex(catalog);
+    final factories = <String, _Factory>{};
+    for (final widget in catalog.widgets) {
+      final body =
+          emitFactoryFunction(widget, nativeIndex: index, aliases: aliases);
+      if (body == null) {
+        throw StateError('No native factory for ${widget.name}.');
+      }
+      factories[WidgetVocabulary.qualifiedName(
+        widget.library.namespace,
+        widget.name,
+      )] = _Factory(functionNameFor(widget), body);
+    }
+    return AppWidgetMountFactories._(factories, {
+      for (final entry in aliases.entries) entry.value: entry.key,
+    }, {
+      for (final entry in catalog.libraries.entries)
+        if (entry.value.capabilityVersion case final version?)
+          entry.key.namespace: version,
+    }, {
+      for (final entry in catalog.libraries.entries)
+        entry.key.namespace: entry.value.compatibleSince,
+    });
   }
 
   /// Reads the factories [toJson] wrote.
@@ -199,6 +267,47 @@ final class AppWidgetMountFactories {
       versions,
       compatibleSince,
     );
+  }
+
+  /// Emits the same factories as a directly importable native widget library.
+  String curatedLibrarySource() {
+    final aliases = _uriByAlias.keys.toSet();
+    final uses = _factories.values
+        .expand((factory) => factory.names(aliases).uses)
+        .toList();
+    final output = StringBuffer()
+      ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
+      ..writeln('// ignore_for_file: type=lint')
+      ..writeln("import 'package:flutter/widgets.dart';")
+      ..writeln("import 'package:restage_core/restage_core.dart';")
+      ..writeln("import 'package:rfw/rfw.dart';");
+    for (final (contract, parameter) in const [
+      ('WidgetBuilderContract', 'WidgetBuilderParameter'),
+      ('ScalarCallbackContract', 'ScalarCallbackParameter'),
+    ]) {
+      if (uses.any((use) => use.name == contract)) {
+        output.writeln(
+          "import 'package:rfw_catalog_schema/rfw_catalog_schema.dart' "
+          'show $contract, $parameter;',
+        );
+      }
+    }
+    for (final entry in _uriByAlias.entries) {
+      output
+          .writeln('import ${dartStringLiteral(entry.value)} as ${entry.key};');
+    }
+    for (final factory in _factories.values) {
+      output.writeln(factory.source);
+    }
+    output.writeln(
+      'LocalWidgetLibrary buildCuratedWidgetLibrary() => LocalWidgetLibrary({',
+    );
+    for (final entry in _factories.entries) {
+      final name = entry.key.substring(entry.key.lastIndexOf(':') + 1);
+      output.writeln('${dartStringLiteral(name)}: ${entry.value.function},');
+    }
+    output.writeln('});');
+    return formatGeneratedDart(output.toString());
   }
 
   /// Standalone factory declarations and custom registrations for startup.

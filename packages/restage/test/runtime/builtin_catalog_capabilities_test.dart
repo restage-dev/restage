@@ -5,7 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 // ignore: implementation_imports
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show Catalog, decodeCatalog, kBaselineCatalogVersion;
+    show
+        Catalog,
+        decodeCatalog,
+        kBaselineCatalogVersion,
+        kFormattingExpressionClientFloor;
 
 /// Keeps installed capabilities aligned with committed built-in catalogs.
 void main() {
@@ -31,18 +35,23 @@ void main() {
     'restage_cupertino',
   ];
 
-  test('currentVersion == max content version over the committed catalogs', () {
+  test('currentVersion includes native operations and committed catalogs', () {
     final core = committedContentVersion('restage_core');
     final material = committedContentVersion('restage_material');
     final cupertino = committedContentVersion('restage_cupertino');
-    final expected =
-        [core, material, cupertino].reduce((a, b) => a > b ? a : b);
+    final expected = [
+      core,
+      material,
+      cupertino,
+      kFormattingExpressionClientFloor
+    ].reduce((a, b) => a > b ? a : b);
 
     expect(RestageBuiltInCatalogCapabilities.currentVersion, expected);
   });
 
-  test('pointer wrappers raise the global ceiling to 16', () {
-    expect(RestageBuiltInCatalogCapabilities.currentVersion, 16);
+  test('pointer wrappers retain their original capability floor', () {
+    expect(RestageBuiltInCatalogCapabilities.currentVersion,
+        greaterThanOrEqualTo(23));
     final core = committedCatalog('restage_core');
     for (final (name, version) in [
       ('TransformTranslate', 13),

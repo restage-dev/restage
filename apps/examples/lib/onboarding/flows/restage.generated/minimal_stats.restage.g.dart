@@ -6,20 +6,20 @@ const minimalStatsFlowRef = SurfaceFlowRef<
     MinimalStatsResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_stats',
   version: 1,
-  minClient: 12,
+  minClient: 17,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMinimalStatsFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"minimal_stats","initial":"starter_stats","minClient":12,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_stats":{"contentHash":"sha256:0ff825c1ea2f3b09bae935cf8836b72aba67883ece829a5af1e9303377129c03","minClient":12,"path":"starter_stats.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_stats":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"starter_stats"}},"version":1}',
+        '{"flow":"minimal_stats","initial":"starter_stats","minClient":17,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_stats":{"contentHash":"sha256:b368abcfbedcfedf3d6853bb8409d05f1907b0d126c7e669d24252a50f1039a9","minClient":17,"path":"starter_stats.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_stats":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"starter_stats"}},"version":1}',
     screens: {
       'starter_stats': StarterStatsScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '63c3c80b36d983524abd4117cd384c42c2e517431978d80d630a5b3f75856435',
+      'c4d2b8e797058a9cb6fbf3b3556f106e4b4672e5c4de4b0a9c51f53f0e574f2a',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

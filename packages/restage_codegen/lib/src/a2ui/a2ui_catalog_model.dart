@@ -100,14 +100,10 @@ final class A2uiLibraryCapability {
 /// per-library version field), so Restage carries the capability metadata in a
 /// sidecar. The stamp mirrors the format-general `CapabilityManifest`'s **two
 /// axes**, describing what the installed catalog PROVIDES:
-///  * [catalogContentVersion] — the built-in content version (the available
-///    counterpart to `CapabilityManifest.builtInFloor`). The adapter derives
-///    this from the catalog's built-in widgets via the single canonical
-///    `contentVersionOf` formula, **not** by reading the runtime SDK's
-///    `RestageBuiltInCatalogCapabilities.currentVersion` — the build-time
-///    toolchain must not import the runtime SDK (a layering + two-tier
-///    licensing boundary). Both derive from the same committed catalog, so they
-///    are equal by construction (`max-over-union == max-of-per-library-maxes`).
+///  * [catalogContentVersion] — built-in catalog availability, derived by
+///    `contentVersionOf` from the A2UI-emittable built-in widgets. The runtime
+///    SDK combines catalog availability with installed operation requirements;
+///    this build-time stamp is derived without importing the SDK.
 ///  * [availableLibraries] — the present custom libraries with their capability
 ///    versions (the available counterpart to
 ///    `CapabilityManifest.requiredLibraries`). A one-axis stamp would fail open

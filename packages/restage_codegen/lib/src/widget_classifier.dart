@@ -1,3 +1,5 @@
+import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
+    show widgetBuilderContractFor;
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
@@ -14,6 +16,7 @@ import 'package:restage_codegen/src/device_recognition.dart';
 import 'package:restage_codegen/src/framework_const_values.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/intl_format_recognition.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_codegen/src/motion_recognition.dart';
 import 'package:restage_codegen/src/navigation_recognition.dart';
@@ -119,26 +122,37 @@ bool _isVoidCallbackType(DartType type) =>
 const Set<String> kStructuredValueTypeNames = {
   'Alignment',
   'AlignmentDirectional',
+  'AlwaysScrollableScrollPhysics',
   'AssetImage',
   'Border',
   'BorderRadius',
   'BorderRadiusDirectional',
   'BorderSide',
+  'BouncingScrollPhysics',
   'BoxDecoration',
   'BoxShadow',
+  'ClampingScrollPhysics',
   'Color',
   'DecorationImage',
   'EdgeInsets',
   'EdgeInsetsDirectional',
-  'LinearGradient',
+  'FixedExtentScrollPhysics',
   'IconThemeData',
+  'LinearGradient',
   'Locale',
   'NetworkImage',
+  'NeverScrollableScrollPhysics',
   'Offset',
+  'PageScrollPhysics',
   'Paint',
   'RadialGradient',
   'Radius',
+  'RangeMaintainingScrollPhysics',
+  'ScrollCacheExtent',
+  'ScrollPhysics',
   'Size',
+  'SliverGridDelegateWithFixedCrossAxisCount',
+  'SliverGridDelegateWithMaxCrossAxisExtent',
   'SweepGradient',
   'SystemUiOverlayStyle',
   'TextStyle',
@@ -763,6 +777,45 @@ class _Walk {
 
   Future<void> _classifyExpression(Expression? expr) async {
     if (expr == null) return;
+    if (isIntlValueExpression(expr)) {
+      Future<void> value(Expression value) async {
+        if (value is SetOrMapLiteral) {
+          for (final element in value.elements) {
+            if (element is MapLiteralEntry) {
+              await classify(element.key);
+              await classify(element.value);
+            } else if (element is SpreadElement) {
+              await classify(element.expression);
+            }
+          }
+        } else {
+          await classify(value);
+        }
+      }
+
+      if (expr is InstanceCreationExpression) {
+        for (final argument in expr.argumentList.arguments)
+          await value(argument.argumentExpression);
+      } else if (expr is MethodInvocation) {
+        final target = expr.target;
+        if (target != null && isIntlValueExpression(target))
+          await classify(target);
+        for (final argument in expr.argumentList.arguments)
+          await value(argument.argumentExpression);
+      } else if (expr is CascadeExpression) {
+        await classify(expr.target);
+        for (final section in expr.cascadeSections) {
+          if (section is MethodInvocation) {
+            for (final argument in section.argumentList.arguments)
+              await value(argument.argumentExpression);
+          } else if (section is AssignmentExpression) {
+            await value(section.rightHandSide);
+          }
+        }
+      }
+      return;
+    }
+
     // Resolve through the active element-keyed binding before classifying.
     if (expr is SimpleIdentifier) {
       final binding = _activeBindingFor(expr.element);
@@ -883,6 +936,8 @@ class _Walk {
       return;
     }
     if (expr is FunctionExpression) {
+      if (expr.staticType != null &&
+          widgetBuilderContractFor(expr.staticType!) != null) return;
       _unclassifiable(
         'an inline closure Restage does not analyse yet: '
         '${_truncateSource(expr)}',
@@ -1088,6 +1143,17 @@ class _Walk {
   }
 
   Future<void> _methodInvocation(MethodInvocation expr) async {
+    final method = expr.methodName.element;
+    final owner = method?.enclosingElement;
+    if (method is MethodElement &&
+        method.isStatic &&
+        owner is ClassElement &&
+        _classifier.isCatalogWidget(owner, constructorName: method.name)) {
+      for (final argument in expr.argumentList.arguments) {
+        await classify(argument);
+      }
+      return;
+    }
     final copyWith = (isSystemUiOverlayStyleCopyWith(expr) ||
             isIconThemeDataCopyWith(expr)) &&
         expr.target != null;
@@ -1348,14 +1414,22 @@ class _Walk {
   Future<bool> _classifyRuntimeIf(
     CollectionRuntimeIfCandidate candidate,
   ) async {
-    if (!await _tryClassifyCondition(candidate.condition)) return false;
-    if (!await _classifyRuntimeIfBranch(candidate.thenBranch)) return false;
-    final otherwise = candidate.elseBranch;
-    if (otherwise != null && !await _classifyRuntimeIfBranch(otherwise)) {
-      return false;
+    final saved = Map<Element, Expression>.of(_collectionBindings);
+    _collectionBindings.addAll(candidate.bindings);
+    try {
+      if (!await _tryClassifyCondition(candidate.condition)) return false;
+      if (!await _classifyRuntimeIfBranch(candidate.thenBranch)) return false;
+      final otherwise = candidate.elseBranch;
+      if (otherwise != null && !await _classifyRuntimeIfBranch(otherwise)) {
+        return false;
+      }
+      _mechanisms.add(InliningMechanism.conditionalElement);
+      return true;
+    } finally {
+      _collectionBindings
+        ..clear()
+        ..addAll(saved);
     }
-    _mechanisms.add(InliningMechanism.conditionalElement);
-    return true;
   }
 
   Future<bool> _classifyRuntimeIfBranch(
@@ -1370,6 +1444,8 @@ class _Walk {
           return true;
         });
         return !verdict.recorded;
+      case CollectionRuntimeIteration():
+        return false;
       case CollectionRuntimeGroup(:final members):
         for (final member in members) {
           if (!await _classifyRuntimeIfBranch(member)) return false;

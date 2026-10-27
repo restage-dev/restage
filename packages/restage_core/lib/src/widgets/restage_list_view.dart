@@ -10,6 +10,7 @@ class RestageListView extends ListView {
     super.key,
     super.scrollDirection,
     super.reverse,
+    super.controller,
     super.shrinkWrap,
     super.padding,
     super.keyboardDismissBehavior,

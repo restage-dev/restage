@@ -1,5 +1,24 @@
+import 'dart:math' as math;
+
+import 'canonical_colors.dart';
+
 import 'dart:ui'
-    show Brightness, Color, FontFeature, FontVariation, Offset, Radius, Size;
+    show
+        BlendMode,
+        Brightness,
+        Color,
+        ColorFilter,
+        ColorSpace,
+        FontFeature,
+        FontVariation,
+        Offset,
+        Paint,
+        Radius,
+        Size;
+
+import 'package:flutter/gestures.dart';
+import 'package:restage_core/src/runtime/resource_builder.dart';
+import 'package:restage_core/src/runtime/rfw_constructor_presence.dart';
 
 import 'package:flutter/animation.dart' show Curve, Curves;
 import 'package:flutter/painting.dart'
@@ -12,59 +31,75 @@ import 'package:flutter/painting.dart'
         BorderDirectional,
         BorderRadius,
         BorderRadiusGeometry,
+        BorderRadiusDirectional,
         BorderSide,
         BorderStyle,
         BoxBorder,
         BoxFit,
+        BoxShadow,
         CircleBorder,
         ContinuousRectangleBorder,
         DecorationImage,
+        EdgeInsets,
         EdgeInsetsDirectional,
         EdgeInsetsGeometry,
+        TileMode,
         FontStyle,
         FontWeight,
+        Gradient,
         ImageProvider,
         ImageRepeat,
         InlineSpan,
         LinearBorder,
         LinearBorderEdge,
+        LinearGradient,
         NetworkImage,
+        RadialGradient,
         RoundedRectangleBorder,
         RoundedSuperellipseBorder,
         Shadow,
         ShapeBorder,
         StadiumBorder,
         StarBorder,
+        SweepGradient,
         TextBaseline,
         TextDecoration,
         TextDecorationStyle,
         TextLeadingDistribution,
         TextOverflow,
         TextSpan,
-        TextStyle;
+        TextStyle,
+        TextScaler;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/rendering.dart' show BoxConstraints;
 import 'package:flutter/services.dart' show SystemUiOverlayStyle, TextInputType;
 import 'package:flutter/widgets.dart'
     show
+        BuildContext,
         IconThemeData,
+        Key,
         PreferredSizeWidget,
         ScrollNotificationPredicate,
         Widget,
         defaultScrollNotificationPredicate;
 import 'package:restage_core/src/runtime/preferred_size_slot.dart';
+import 'package:restage_core/src/runtime/builder_binding.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
+        ScalarCallbackContract,
+        ScalarCallbackParameter,
         kIconThemeDataFallbackKey,
         kIconThemeDataLerpKey,
         kMaxInlineSpanDepth,
         kMaxStructuredCopyWithLayers,
-        kStructuredCopyWithKey;
+        kStructuredCopyWithKey,
+        kTextSpanRecognizerDetailCallbacks;
 import 'package:rfw/rfw.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
     show RfwConstructorPresenceProtocol;
 
 import '../widgets/restage_padding.dart';
+import 'native_values.dart';
 
 /// Decoders for property types that aren't covered by rfw's built-in
 /// [ArgumentDecoders].
@@ -79,17 +114,222 @@ import '../widgets/restage_padding.dart';
 /// any custom library generated via `@RestageWidget` can call into a
 /// single canonical implementation.
 abstract final class RestageDecoders {
+  static const _spanCollectionGroupDepthLimit = 8000;
+
+  /// Reads an installed object or native expression; absent inputs stay null.
+  static T? nativeBinding<T extends Object>(
+    BuildContext context,
+    DataSource source,
+    List<Object> path, {
+    required String type,
+  }) {
+    if (source.v<String>([...path, 'program']) == null &&
+        !source.isMap(path) &&
+        !source.isList(path) &&
+        source.v<String>(path) == null &&
+        source.v<int>(path) == null &&
+        source.v<double>(path) == null &&
+        source.v<bool>(path) == null) return null;
+    return RestageNativeValues.read<T>(context, source, path, type: type);
+  }
+
+  /// Resolves a borrowed key for the actual native widget constructor.
+  static Key? nativeKey(
+    BuildContext context,
+    DataSource source,
+    List<Object> path,
+  ) =>
+      nativeBinding<Key>(context, source, path, type: 'flutter.Key');
+
+  /// Rejects a key whose original widget owner a guarded replacement erases.
+  ///
+  /// Null retains the replacement's normal unkeyed behavior. Decode the native
+  /// key before this check so malformed references still fail at their reader.
+  static Key? guardReplacementKey(Key? key, String widget) {
+    if (key != null) {
+      throw UnsupportedError(
+          'A native key requires the original $widget owner; its guarded runtime replacement cannot retain that owner.');
+    }
+    return null;
+  }
+
+  /// Resolves the fixed native child-index callback or its scalar program.
+  static int? Function(Key)? keyIndexCallback(
+      BuildContext context, DataSource source, List<Object> path,
+      {required List<RestageBuilderBinding> bindings}) {
+    if (source.v<String>([...path, 'nativeKeyIndex', 'program']) != null ||
+        source.isMap([...path, 'nativeKeyIndex'])) {
+      final callback = RestageNativeValues.read<int? Function(Key)>(
+          context, source, [...path, 'nativeKeyIndex'],
+          type: 'flutter.ChildIndexGetter');
+      return callback == null
+          ? null
+          : (key) => callback(RestageBuilderBinding.originalKey(key));
+    }
+    final binding = RestageBuilderBinding.optional(source, path,
+        context: context,
+        scalarContract: const ScalarCallbackContract(
+            parameters: [ScalarCallbackParameter.valueKey]));
+    if (binding == null) return null;
+    bindings.add(binding);
+    return (key) => binding.evaluateKey(context, key) as int?;
+  }
+
+  /// Decodes a native scaler value or a none/linear Flutter recipe.
+  static TextScaler? textScaler(
+    BuildContext context,
+    DataSource source,
+    List<Object> path,
+  ) {
+    if (RestageValueBinding.isNativeValue(source, path)) {
+      return RestageNativeValues.read<TextScaler>(context, source, path,
+          type: 'flutter.TextScaler');
+    }
+    if (!source.isMap(path)) {
+      if (source.isList(path) ||
+          source.v<String>(path) != null ||
+          source.v<double>(path) != null ||
+          source.v<int>(path) != null ||
+          source.v<bool>(path) != null) {
+        throw FormatException('Expected a TextScaler recipe at $path.');
+      }
+      return null;
+    }
+    final kind = source.v<String>([...path, 'kind']);
+    switch (kind) {
+      case 'none':
+        return TextScaler.noScaling;
+      case 'linear':
+        final factor = source.v<double>([...path, 'factor']) ??
+            source.v<int>([...path, 'factor']);
+        if (factor == null || factor.isNaN || factor < 0) {
+          throw FormatException('Invalid TextScaler factor at $path.');
+        }
+        return TextScaler.linear(factor.toDouble());
+      case 'nativeBinding':
+        return RestageNativeValues.read<TextScaler>(context, source, path,
+            type: 'flutter.TextScaler');
+      case 'native':
+        final key = source.v<String>([...path, 'key']);
+        if (key == null) {
+          throw FormatException(
+              'Native TextScaler binding is unavailable at $path.');
+        }
+        return RestageNativeValues.textScalerOf(context, key);
+      default:
+        throw FormatException('Unknown TextScaler recipe at $path.');
+    }
+  }
+
+  /// Decodes ARGB integers or exact floating color components.
+  static Color? color(DataSource source, List<Object> path) {
+    if (RestageValueBinding.isNativeValue(source, path)) {
+      return RestageValueBinding.readNativeFromSource<Color>(source, path,
+          type: 'flutter.Color');
+    }
+    if (!source.isMap(path)) return ArgumentDecoders.color(source, path);
+    final materialPath = [...path, 'material'];
+    final material = source.v<String>(materialPath);
+    if (material == null &&
+        (source.v<int>(materialPath) != null ||
+            source.v<double>(materialPath) != null ||
+            source.v<bool>(materialPath) != null ||
+            source.isMap(materialPath) ||
+            source.isList(materialPath)))
+      throw const FormatException('Invalid Material color token');
+    if (material is String && material.isNotEmpty) {
+      final color = canonicalMaterialColors[material];
+      if (color == null) throw const FormatException('Unknown Material color');
+      return color;
+    }
+    final alpha = number(source, [...path, 'a']);
+    final red = number(source, [...path, 'r']);
+    final green = number(source, [...path, 'g']);
+    final blue = number(source, [...path, 'b']);
+    final space =
+        enumByName(ColorSpace.values, source, [...path, 'colorSpace']);
+    if (alpha == null ||
+        red == null ||
+        green == null ||
+        blue == null ||
+        space == null) {
+      throw const FormatException('Invalid color components');
+    }
+    return Color.from(
+        alpha: alpha, red: red, green: green, blue: blue, colorSpace: space);
+  }
+
+  /// Decodes exact native weights or standard weight tokens.
+  static FontWeight? fontWeight(DataSource source, List<Object> path) {
+    final value = source.v<int>(path);
+    if (value == null) {
+      return ArgumentDecoders.enumValue(FontWeight.values, source, path);
+    }
+    if (value < 1 || value > 1000) {
+      throw const FormatException('Font weight must be between 1 and 1000');
+    }
+    return FontWeight(value);
+  }
+
+  /// Decodes a paint with exact color and mode-filter components.
+  static Paint? paint(DataSource source, List<Object> path) {
+    final result = ArgumentDecoders.paint(source, path);
+    if (result == null) return null;
+    final paintColor = color(source, [...path, 'color']);
+    if (paintColor != null) result.color = paintColor;
+    final filterPath = [...path, 'colorFilter'];
+    if (source.v<String>([...filterPath, 'type']) == 'mode') {
+      result.colorFilter = colorFilter(source, filterPath);
+    }
+    return result;
+  }
+
+  /// Decodes mode-filter colors without converting to eight-bit channels.
+  static ColorFilter? colorFilter(DataSource source, List<Object> path) {
+    if (source.v<String>([...path, 'type']) != 'mode') {
+      return ArgumentDecoders.colorFilter(source, path);
+    }
+    return ColorFilter.mode(
+      color(source, [...path, 'color']) ?? const Color(0xFF000000),
+      ArgumentDecoders.enumValue(
+              BlendMode.values, source, [...path, 'blendMode']) ??
+          BlendMode.srcOver,
+    );
+  }
+
+  /// Decodes a box shadow, retaining its exact color.
+  static BoxShadow boxShadow(DataSource source, List<Object> path) {
+    final result = ArgumentDecoders.boxShadow(source, path);
+    final shadowColor = color(source, [...path, 'color']);
+    return shadowColor == null ? result : result.copyWith(color: shadowColor);
+  }
+
   /// Decodes widget children, flattening lists emitted by collection elements.
   ///
   /// Empty nested lists contribute no children. Each widget keeps its original
   /// source path so loop values and event arguments remain bound to that item.
-  static List<Widget> widgetList(DataSource source, List<Object> path) {
-    if (!source.isList(path)) return source.childList(path);
+  static bool isWidgetList(DataSource source, List<Object> path) =>
+      source.isList(path) || source.optionalChild(path) != null;
+
+  static List<Widget> widgetList(DataSource source, List<Object> path,
+      {BuildContext? context, List<RestageBuilderBinding>? bindings}) {
+    if (!source.isList(path)) {
+      // Anything but a builder continuation keeps RFW's own list errors.
+      if (context == null ||
+          bindings == null ||
+          source.optionalChild(path) == null) {
+        return source.childList(path);
+      }
+      final binding = RestageBuilderBinding.optional(source, path)!;
+      bindings.add(binding);
+      return binding.buildList(context, const {});
+    }
     final children = <Widget>[];
     for (var index = 0; index < source.length(path); index++) {
       final childPath = <Object>[...path, index];
       if (source.isList(childPath)) {
-        children.addAll(widgetList(source, childPath));
+        children.addAll(widgetList(source, childPath,
+            context: context, bindings: bindings));
       } else {
         children.add(source.child(childPath));
       }
@@ -179,62 +419,22 @@ abstract final class RestageDecoders {
     return value < min ? min : value;
   }
 
-  /// Decodes a layout-bearing inset at [path], repairing any component that
-  /// layout cannot use into one it can.
-  ///
-  /// An inset is *subtracted* from the space a box or a sliver has to give its
-  /// child, and the widgets that consume one check it with an `assert` — which
-  /// is stripped from release *and* profile builds. So a corrupt component
-  /// reaches `performLayout`, where the rendering pipeline catches the throw and
-  /// merely reports it: a broken frame, no signal, and nothing the build-time
-  /// error boundary can intercept, because layout runs long after the build that
-  /// would have caught it. The repair therefore happens here, on the way in.
-  ///
-  /// Exactly what it does, and nothing more:
-  ///
-  /// * A component that is NaN, infinite, or negative becomes `0.0` — the
-  ///   identity inset, which subtracts nothing and always lays out.
-  /// * An axis (`start + end`, or `top + bottom`) whose two finite components
-  ///   nevertheless **sum to infinity** collapses to `0.0` on both — see below.
-  /// * **Every other finite component passes through exactly as authored, at
-  ///   any magnitude.** There is no ceiling. A large inset is a legal layout —
-  ///   a horizontally scrolling view with a 2,000,000px inset and a 10px child
-  ///   has a content width of 4,000,010px, and that is the width it must get.
-  ///   Silently shrinking it would be a wrong render of a valid surface, which
-  ///   is worse than the corruption this repair exists to catch.
-  ///
-  /// **Why the axis sum needs its own arm.** What layout subtracts is not a
-  /// component but a *sum* — `EdgeInsetsGeometry.horizontal` and `.vertical` —
-  /// and two merely finite components can sum to infinity
-  /// (`1.7e308 + 1.7e308`). Subtract that from an unbounded axis and the result
-  /// is `Infinity - Infinity`, i.e. `NaN`, handed to the child during layout.
-  /// Per-component finiteness does not prevent it; the pair has to be checked.
-  ///
-  /// Collapsing that axis to zero is the disposition, and it is a choice, not a
-  /// derivation: the pair has no representable sum, so there is no layout in it
-  /// to preserve — no rescaling of the two components is more truthful than any
-  /// other, and zero is the one value guaranteed to lay out.
-  ///
-  /// What makes that cheap is *not* that the value cannot be authored. It can:
-  /// an axis overflows only when a component sits within a rounding step of the
-  /// largest finite double (~1.8e308), and such a value is **finite**, so the
-  /// build-time toolchain accepts it like any other real. Nothing upstream
-  /// rejects it. What makes it cheap is that no layout anyone means to write is
-  /// within hundreds of orders of magnitude of that number — a screen is on the
-  /// order of a thousand logical pixels — so collapsing the axis discards a
-  /// quantity that was never a layout, while every inset that *is* one passes
-  /// through untouched at any magnitude.
-  ///
-  /// The horizontal and vertical axes are decided independently: a vertical
-  /// overflow does not disturb a legal horizontal inset.
-  ///
-  /// Returns `null` when the slot is absent, so the caller's contract — a
-  /// required slot's throw, an optional slot's literal default — applies.
-  ///
-  /// The wire shape is the catalog's four-real list, read as
-  /// `[start, top, end, bottom]` with each component falling back the way CSS
-  /// shorthand does.
+  /// Decodes physical or directional maps without changing native components.
+  /// Legacy lists retain directional shorthand and layout repairs.
   static EdgeInsetsGeometry? edgeInsets(DataSource source, List<Object> path) {
+    if (source.isMap(path)) {
+      final directional = _number(source, [...path, 'start']) != null ||
+          _number(source, [...path, 'end']) != null;
+      final leftOrStart =
+          _number(source, [...path, directional ? 'start' : 'left']) ?? 0.0;
+      final top = _number(source, [...path, 'top']) ?? 0.0;
+      final rightOrEnd =
+          _number(source, [...path, directional ? 'end' : 'right']) ?? 0.0;
+      final bottom = _number(source, [...path, 'bottom']) ?? 0.0;
+      return directional
+          ? EdgeInsetsDirectional.fromSTEB(leftOrStart, top, rightOrEnd, bottom)
+          : EdgeInsets.fromLTRB(leftOrStart, top, rightOrEnd, bottom);
+    }
     final start = source.v<double>([...path, 0]);
     if (start == null) return null;
     final top = source.v<double>([...path, 1]);
@@ -248,6 +448,71 @@ abstract final class RestageDecoders {
       horizontal.$2,
       vertical.$2,
     );
+  }
+
+  /// Decodes an inset for a concrete physical Flutter slot.
+  static EdgeInsets? physicalEdgeInsets(DataSource source, List<Object> path) {
+    final value = edgeInsets(source, path);
+    return value is EdgeInsets ? value : null;
+  }
+
+  /// Decodes an inset for a concrete directional Flutter slot.
+  static EdgeInsetsDirectional? directionalEdgeInsets(
+      DataSource source, List<Object> path) {
+    final value = edgeInsets(source, path);
+    return value is EdgeInsetsDirectional ? value : null;
+  }
+
+  /// Decodes an alignment for a concrete directional Flutter slot.
+  static AlignmentDirectional? directionalAlignment(
+      DataSource source, List<Object> path) {
+    final value = alignment(source, path);
+    return value is AlignmentDirectional ? value : null;
+  }
+
+  /// Decodes exact colors while retaining directional gradient alignments.
+  static Gradient? gradient(DataSource source, List<Object> path) {
+    final type = source.v<String>([...path, 'type']);
+    if (type != 'linear' && type != 'radial' && type != 'sweep') {
+      return ArgumentDecoders.gradient(source, path);
+    }
+    final colors = ArgumentDecoders.list<Color>(source, [...path, 'colors'],
+            (source, path) => color(source, path) ?? const Color(0xFF000000)) ??
+        const [Color(0xFF000000), Color(0xFFFFFFFF)];
+    final stops = ArgumentDecoders.list<double>(
+        source, [...path, 'stops'], ArgumentDecoders.doubleOrZero);
+    final tileMode =
+        enumByName(TileMode.values, source, [...path, 'tileMode']) ??
+            TileMode.clamp;
+    switch (type) {
+      case 'linear':
+        return LinearGradient(
+            begin:
+                alignment(source, [...path, 'begin']) ?? Alignment.centerLeft,
+            end: alignment(source, [...path, 'end']) ?? Alignment.centerRight,
+            colors: colors,
+            stops: stops,
+            tileMode: tileMode);
+      case 'radial':
+        return RadialGradient(
+            center: alignment(source, [...path, 'center']) ?? Alignment.center,
+            radius: _number(source, [...path, 'radius']) ?? 0.5,
+            focal: alignment(source, [...path, 'focal']),
+            focalRadius: _number(source, [...path, 'focalRadius']) ?? 0.0,
+            colors: colors,
+            stops: stops,
+            tileMode: tileMode);
+      case 'sweep':
+        return SweepGradient(
+            center: alignment(source, [...path, 'center']) ?? Alignment.center,
+            startAngle: _number(source, [...path, 'startAngle']) ?? 0.0,
+            endAngle: _number(source, [...path, 'endAngle']) ?? math.pi * 2,
+            colors: colors,
+            stops: stops,
+            tileMode: tileMode);
+      default:
+        return ArgumentDecoders.gradient(source, path);
+    }
   }
 
   /// Decodes a `Duration` from a flat integer count of milliseconds at
@@ -519,8 +784,7 @@ abstract final class RestageDecoders {
     List<Object> path,
   ) {
     return SystemUiOverlayStyle(
-      statusBarColor:
-          ArgumentDecoders.color(source, [...path, 'statusBarColor']),
+      statusBarColor: color(source, [...path, 'statusBarColor']),
       statusBarBrightness: enumByName(
           Brightness.values, source, [...path, 'statusBarBrightness']),
       statusBarIconBrightness: enumByName(
@@ -529,8 +793,8 @@ abstract final class RestageDecoders {
         [...path, 'statusBarIconBrightness'],
       ),
       systemNavigationBarColor:
-          ArgumentDecoders.color(source, [...path, 'systemNavigationBarColor']),
-      systemNavigationBarDividerColor: ArgumentDecoders.color(
+          color(source, [...path, 'systemNavigationBarColor']),
+      systemNavigationBarDividerColor: color(
         source,
         [...path, 'systemNavigationBarDividerColor'],
       ),
@@ -605,7 +869,7 @@ abstract final class RestageDecoders {
     }) build,
   ) =>
       build(
-        color: ArgumentDecoders.color(source, [...path, 'color']),
+        color: color(source, [...path, 'color']),
         size: number(source, [...path, 'size']),
         opacity: number(source, [...path, 'opacity']),
         fill: number(source, [...path, 'fill']),
@@ -642,7 +906,24 @@ abstract final class RestageDecoders {
 
   /// Decodes a nullable `TextDecoration`.
   static TextDecoration? textDecoration(DataSource source, List<Object> path) {
-    if (!source.isList(path) && source.v<String>(path) == null) return null;
+    final mask = source.v<int>(path);
+    if (mask != null) {
+      if (mask < 0 || mask > 7) {
+        throw const FormatException('Invalid text decoration mask');
+      }
+      return TextDecoration.combine([
+        if (mask & 1 != 0) TextDecoration.underline,
+        if (mask & 2 != 0) TextDecoration.overline,
+        if (mask & 4 != 0) TextDecoration.lineThrough,
+      ]);
+    }
+    if (source.isList(path)) {
+      return TextDecoration.combine([
+        for (var index = 0; index < source.length(path); index++)
+          textDecoration(source, [...path, index]) ?? TextDecoration.none,
+      ]);
+    }
+    if (source.v<String>(path) == null) return null;
     return ArgumentDecoders.textDecoration(source, path);
   }
 
@@ -653,7 +934,7 @@ abstract final class RestageDecoders {
       List<Shadow>.generate(source.length(path), (index) {
         final shadowPath = <Object>[...path, index];
         return Shadow(
-          color: ArgumentDecoders.color(source, [...shadowPath, 'color']) ??
+          color: color(source, [...shadowPath, 'color']) ??
               const Color(0xFF000000),
           offset: Offset(
             number(source, [...shadowPath, 'offset', 'x']) ?? 0,
@@ -671,9 +952,11 @@ abstract final class RestageDecoders {
   /// generated factory enforce required-slot contracts. Malformed child
   /// elements decode to empty terminal spans so one hostile list item cannot
   /// throw out the whole tree.
-  static InlineSpan? inlineSpan(DataSource source, List<Object> path) {
+  static InlineSpan? inlineSpan(DataSource source, List<Object> path,
+      {BuildContext? context, RestageResources? resources}) {
     if (!source.isMap(path)) return null;
-    return _inlineSpan(source, path, depth: 0);
+    return _inlineSpan(source, path,
+        depth: 0, context: context, resources: resources);
   }
 
   /// Decodes Restage's `DecorationImage` wire shape into a real
@@ -694,6 +977,7 @@ abstract final class RestageDecoders {
     if (!source.isMap(path)) return null;
     final provider = _imageProvider(source, [...path, 'image']);
     if (provider == null) return null;
+    final imageAlignment = alignment(source, [...path, 'alignment']);
     return DecorationImage(
       image: provider,
       fit: RestageDecoders.enumByName<BoxFit>(
@@ -701,8 +985,11 @@ abstract final class RestageDecoders {
         source,
         [...path, 'fit'],
       ),
-      alignment:
-          alignmentXY(source, [...path, 'alignment']) ?? Alignment.center,
+      // Preserve the original physical decoder's integer components. Only a
+      // successfully decoded directional pair selects the new geometry path.
+      alignment: imageAlignment is AlignmentDirectional
+          ? imageAlignment
+          : alignmentXY(source, [...path, 'alignment']) ?? Alignment.center,
       repeat: RestageDecoders.enumByName<ImageRepeat>(
             ImageRepeat.values,
             source,
@@ -837,6 +1124,16 @@ abstract final class RestageDecoders {
     if (source.isMap(path)) {
       Radius corner(String name) =>
           Radius.circular(_number(source, [...path, name]) ?? 0.0);
+      if (['topStart', 'topEnd', 'bottomStart', 'bottomEnd'].any(
+        (name) => _number(source, [...path, name]) != null,
+      )) {
+        return BorderRadiusDirectional.only(
+          topStart: corner('topStart'),
+          topEnd: corner('topEnd'),
+          bottomStart: corner('bottomStart'),
+          bottomEnd: corner('bottomEnd'),
+        );
+      }
       return BorderRadius.only(
         topLeft: corner('topLeft'),
         topRight: corner('topRight'),
@@ -873,8 +1170,7 @@ abstract final class RestageDecoders {
     final width =
         decodedWidth.isFinite && decodedWidth >= 0.0 ? decodedWidth : 0.0;
     return BorderSide(
-      color: ArgumentDecoders.color(source, [...path, 'color']) ??
-          const Color(0xFF000000),
+      color: color(source, [...path, 'color']) ?? const Color(0xFF000000),
       width: width,
       style: ArgumentDecoders.enumValue<BorderStyle>(
             BorderStyle.values,
@@ -889,34 +1185,299 @@ abstract final class RestageDecoders {
     DataSource source,
     List<Object> path, {
     required int depth,
+    RestageResources? resources,
+    BuildContext? context,
   }) {
     if (depth > kMaxInlineSpanDepth || !source.isMap(path)) {
       return const TextSpan();
     }
     return TextSpan(
-      text: source.v<String>([...path, 'text']),
+      text: string(source, [...path, 'text'], context: context),
+      recognizer:
+          _spanRecognizer(source, [...path, 'recognizer'], resources, context),
       style: _textStyle(source, [...path, 'style']),
-      children: ArgumentDecoders.list<InlineSpan>(
-        source,
-        [...path, 'children'],
-        (source, childPath) => _inlineSpan(source, childPath, depth: depth + 1),
-      ),
+      children: _inlineSpanChildren(source, [...path, 'children'],
+          depth: depth + 1, context: context, resources: resources),
     );
+  }
+
+  static List<InlineSpan>? _inlineSpanChildren(
+    DataSource source,
+    List<Object> path, {
+    required int depth,
+    RestageResources? resources,
+    BuildContext? context,
+  }) {
+    if (!source.isList(path)) return null;
+    final children = <InlineSpan>[];
+    final pending = <({List<Object> path, int index, int groups})>[
+      (path: path, index: 0, groups: 0)
+    ];
+    while (pending.isNotEmpty) {
+      final frame = pending.removeLast();
+      if (frame.index >= source.length(frame.path)) continue;
+      pending.add(
+          (path: frame.path, index: frame.index + 1, groups: frame.groups));
+      final childPath = [...frame.path, frame.index];
+      if (source.isList(childPath)) {
+        if (frame.groups < _spanCollectionGroupDepthLimit) {
+          pending.add((path: childPath, index: 0, groups: frame.groups + 1));
+        }
+      } else {
+        children.add(_inlineSpan(source, childPath,
+            depth: depth, context: context, resources: resources));
+      }
+    }
+    return children;
+  }
+
+  static GestureRecognizer? _spanRecognizer(
+    DataSource source,
+    List<Object> path,
+    RestageResources? resources,
+    BuildContext? context,
+  ) {
+    if (!source.isMap(path)) return null;
+    if (source.v<String>([...path, 'borrowed', 'program']) != null ||
+        source.isMap([...path, 'borrowed'])) {
+      if (context == null)
+        throw StateError('A borrowed recognizer requires its native context.');
+      return RestageValueBinding.readNative<GestureRecognizer>(
+        source,
+        [...path, 'borrowed'],
+        context,
+        type: 'flutter.GestureRecognizer',
+      );
+    }
+    final kind = source.v<String>([...path, 'kind']);
+    void Function(D)? callback<D extends Object>(String name) {
+      if (source.v<String>([...path, name, 'program']) == null &&
+          !source.isMap([...path, name])) return null;
+      if (context == null)
+        throw StateError('A native gesture callback requires its context.');
+      final native = RestageValueBinding.readNative<void Function(D)>(
+        source,
+        [...path, name],
+        context,
+        type: kTextSpanRecognizerDetailCallbacks[kind]![name]!,
+      );
+      final measure = source.voidHandler([...path, '${name}Measurement']);
+      if (native == null || measure == null) return native;
+      return (details) {
+        native(details);
+        measure();
+      };
+    }
+
+    if (resources == null)
+      throw StateError(
+        'Interactive spans require a RestageResourceBuilder owner.',
+      );
+    final devicesPath = [...path, 'supportedDevices'];
+    final devices = source.isList(devicesPath)
+        ? <PointerDeviceKind>{
+            for (var index = 0; index < source.length(devicesPath); index++)
+              PointerDeviceKind.values.byName(
+                source.v<String>([...devicesPath, index])!,
+              ),
+          }
+        : null;
+    final slopArguments = <Symbol, Object?>{};
+    for (final (name, symbol) in const [
+      ('preAcceptSlopTolerance', #preAcceptSlopTolerance),
+      ('postAcceptSlopTolerance', #postAcceptSlopTolerance),
+    ]) {
+      final presence = RestageRfwConstructorPresence.read(source, [
+        ...path,
+        name,
+      ]);
+      if (presence.supplied)
+        slopArguments[symbol] = number(source, presence.valuePath);
+    }
+    switch (kind) {
+      case 'tap':
+        final recognizer = Function.apply(TapGestureRecognizer.new, const [], {
+          #supportedDevices: devices,
+          ...slopArguments,
+        }) as TapGestureRecognizer;
+        final handle = resources.manage<TapGestureRecognizer>(
+          recognizer,
+          dispose: (value) {
+            value.onTapDown = null;
+            value.onSecondaryTapDown = null;
+            value.onTertiaryTapDown = null;
+            value.onTapUp = null;
+            value.onSecondaryTapUp = null;
+            value.onTertiaryTapUp = null;
+            value.onTapMove = null;
+            value.onTap = null;
+            value.onTapCancel = null;
+            value.onSecondaryTap = null;
+            value.onSecondaryTapCancel = null;
+            value.onTertiaryTapCancel = null;
+            value.dispose();
+          },
+        );
+        recognizer.onTapDown = callback<TapDownDetails>('onTapDown');
+        recognizer.onSecondaryTapDown =
+            callback<TapDownDetails>('onSecondaryTapDown');
+        recognizer.onTertiaryTapDown =
+            callback<TapDownDetails>('onTertiaryTapDown');
+        recognizer.onTapUp = callback<TapUpDetails>('onTapUp');
+        recognizer.onSecondaryTapUp =
+            callback<TapUpDetails>('onSecondaryTapUp');
+        recognizer.onTertiaryTapUp = callback<TapUpDetails>('onTertiaryTapUp');
+        recognizer.onTapMove = callback<TapMoveDetails>('onTapMove');
+        recognizer.onTap = source.voidHandler([...path, 'onTap']);
+        recognizer.onTapCancel = source.voidHandler([...path, 'onTapCancel']);
+        recognizer.onSecondaryTap = source.voidHandler([
+          ...path,
+          'onSecondaryTap',
+        ]);
+        recognizer.onSecondaryTapCancel = source.voidHandler([
+          ...path,
+          'onSecondaryTapCancel',
+        ]);
+        recognizer.onTertiaryTapCancel = source.voidHandler([
+          ...path,
+          'onTertiaryTapCancel',
+        ]);
+        recognizer.team = _ResourceArenaTeam(handle.retain, handle.settle);
+        return recognizer;
+      case 'doubleTap':
+        final recognizer = DoubleTapGestureRecognizer(
+          supportedDevices: devices,
+        );
+        resources.own<DoubleTapGestureRecognizer>(
+          recognizer,
+          dispose: (value) {
+            value.onDoubleTapDown = null;
+            value.onDoubleTap = null;
+            value.onDoubleTapCancel = null;
+            value.dispose();
+          },
+          settleDelay: kDoubleTapTimeout,
+        );
+        recognizer.onDoubleTapDown =
+            callback<TapDownDetails>('onDoubleTapDown');
+        recognizer.onDoubleTap = source.voidHandler([...path, 'onDoubleTap']);
+        recognizer.onDoubleTapCancel = source.voidHandler([
+          ...path,
+          'onDoubleTapCancel',
+        ]);
+        return recognizer;
+      case 'longPress':
+        if (slopArguments.containsKey(#preAcceptSlopTolerance))
+          throw StateError(
+            'Long press has no pre-accept slop constructor argument.',
+          );
+        final recognizer =
+            Function.apply(LongPressGestureRecognizer.new, const [], {
+          #supportedDevices: devices,
+          #duration: duration(source, [...path, 'duration']),
+          ...slopArguments,
+        }) as LongPressGestureRecognizer;
+        final handle = resources.manage<LongPressGestureRecognizer>(
+          recognizer,
+          dispose: (value) {
+            value.onLongPressDown = null;
+            value.onLongPressStart = null;
+            value.onLongPressMoveUpdate = null;
+            value.onLongPressEnd = null;
+            value.onSecondaryLongPressDown = null;
+            value.onSecondaryLongPressStart = null;
+            value.onSecondaryLongPressMoveUpdate = null;
+            value.onSecondaryLongPressEnd = null;
+            value.onTertiaryLongPressDown = null;
+            value.onTertiaryLongPressStart = null;
+            value.onTertiaryLongPressMoveUpdate = null;
+            value.onTertiaryLongPressEnd = null;
+            value.onLongPress = null;
+            value.onLongPressUp = null;
+            value.onLongPressCancel = null;
+            value.onSecondaryLongPress = null;
+            value.onSecondaryLongPressUp = null;
+            value.onSecondaryLongPressCancel = null;
+            value.onTertiaryLongPress = null;
+            value.onTertiaryLongPressUp = null;
+            value.onTertiaryLongPressCancel = null;
+            value.dispose();
+          },
+        );
+        recognizer.onLongPressDown =
+            callback<LongPressDownDetails>('onLongPressDown');
+        recognizer.onLongPressStart =
+            callback<LongPressStartDetails>('onLongPressStart');
+        recognizer.onLongPressMoveUpdate =
+            callback<LongPressMoveUpdateDetails>('onLongPressMoveUpdate');
+        recognizer.onLongPressEnd =
+            callback<LongPressEndDetails>('onLongPressEnd');
+        recognizer.onSecondaryLongPressDown =
+            callback<LongPressDownDetails>('onSecondaryLongPressDown');
+        recognizer.onSecondaryLongPressStart =
+            callback<LongPressStartDetails>('onSecondaryLongPressStart');
+        recognizer.onSecondaryLongPressMoveUpdate =
+            callback<LongPressMoveUpdateDetails>(
+                'onSecondaryLongPressMoveUpdate');
+        recognizer.onSecondaryLongPressEnd =
+            callback<LongPressEndDetails>('onSecondaryLongPressEnd');
+        recognizer.onTertiaryLongPressDown =
+            callback<LongPressDownDetails>('onTertiaryLongPressDown');
+        recognizer.onTertiaryLongPressStart =
+            callback<LongPressStartDetails>('onTertiaryLongPressStart');
+        recognizer.onTertiaryLongPressMoveUpdate =
+            callback<LongPressMoveUpdateDetails>(
+                'onTertiaryLongPressMoveUpdate');
+        recognizer.onTertiaryLongPressEnd =
+            callback<LongPressEndDetails>('onTertiaryLongPressEnd');
+        recognizer.onLongPress = source.voidHandler([...path, 'onLongPress']);
+        recognizer.onLongPressUp = source.voidHandler([
+          ...path,
+          'onLongPressUp',
+        ]);
+        recognizer.onLongPressCancel = source.voidHandler([
+          ...path,
+          'onLongPressCancel',
+        ]);
+        recognizer.onSecondaryLongPress = source.voidHandler([
+          ...path,
+          'onSecondaryLongPress',
+        ]);
+        recognizer.onSecondaryLongPressUp = source.voidHandler([
+          ...path,
+          'onSecondaryLongPressUp',
+        ]);
+        recognizer.onSecondaryLongPressCancel = source.voidHandler([
+          ...path,
+          'onSecondaryLongPressCancel',
+        ]);
+        recognizer.onTertiaryLongPress = source.voidHandler([
+          ...path,
+          'onTertiaryLongPress',
+        ]);
+        recognizer.onTertiaryLongPressUp = source.voidHandler([
+          ...path,
+          'onTertiaryLongPressUp',
+        ]);
+        recognizer.onTertiaryLongPressCancel = source.voidHandler([
+          ...path,
+          'onTertiaryLongPressCancel',
+        ]);
+        recognizer.team = _ResourceArenaTeam(handle.retain, handle.settle);
+        return recognizer;
+      default:
+        throw StateError('Unsupported native span recognizer: $kind');
+    }
   }
 
   static TextStyle? _textStyle(DataSource source, List<Object> path) {
     if (!source.isMap(path)) return null;
     return packagedFont(TextStyle(
       inherit: source.v<bool>([...path, 'inherit']) ?? true,
-      color: ArgumentDecoders.color(source, [...path, 'color']),
-      backgroundColor:
-          ArgumentDecoders.color(source, [...path, 'backgroundColor']),
+      color: color(source, [...path, 'color']),
+      backgroundColor: color(source, [...path, 'backgroundColor']),
       fontSize: _finiteNumber(source, [...path, 'fontSize']),
-      fontWeight: ArgumentDecoders.enumValue<FontWeight>(
-        FontWeight.values,
-        source,
-        [...path, 'fontWeight'],
-      ),
+      fontWeight: fontWeight(source, [...path, 'fontWeight']),
       fontStyle: RestageDecoders.enumByName<FontStyle>(
         FontStyle.values,
         source,
@@ -936,14 +1497,13 @@ abstract final class RestageDecoders {
         [...path, 'leadingDistribution'],
       ),
       locale: ArgumentDecoders.locale(source, [...path, 'locale']),
-      foreground: ArgumentDecoders.paint(source, [...path, 'foreground']),
-      background: ArgumentDecoders.paint(source, [...path, 'background']),
+      foreground: paint(source, [...path, 'foreground']),
+      background: paint(source, [...path, 'background']),
       shadows: shadows(source, [...path, 'shadows']),
       fontFeatures: fontFeatures(source, [...path, 'fontFeatures']),
       fontVariations: fontVariations(source, [...path, 'fontVariations']),
       decoration: textDecoration(source, [...path, 'decoration']),
-      decorationColor:
-          ArgumentDecoders.color(source, [...path, 'decorationColor']),
+      decorationColor: color(source, [...path, 'decorationColor']),
       decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(
         TextDecorationStyle.values,
         source,
@@ -1121,13 +1681,17 @@ abstract final class RestageDecoders {
 
   /// Decodes a `String` slot: a string, or a list of strings joined in order.
   /// A non-string part reads as empty. Absent → null.
-  static String? string(DataSource source, List<Object> path) {
+  static String? string(DataSource source, List<Object> path,
+      {BuildContext? context}) {
+    if (source.isMap(path) && source.v<String>([...path, 'program']) != null) {
+      return RestageValueBinding.read<String>(source, path, context);
+    }
     final value = source.v<String>(path);
     if (value != null || !source.isList(path)) return value;
-    final count = source.length(path);
     return [
-      for (var index = 0; index < count; index++)
-        source.v<String>([...path, index]) ?? '',
+      for (var index = 0; index < source.length(path); index++)
+        RestageValueBinding.read<String>(source, [...path, index], context) ??
+            '',
     ].join();
   }
 
@@ -1306,3 +1870,41 @@ const Map<String, Curve> _supportedCurvesByName = {
   'elasticOut': Curves.elasticOut,
   'elasticInOut': Curves.elasticInOut,
 };
+
+// Observes the native arena entry without adding a competing member.
+final class _ResourceArenaTeam extends GestureArenaTeam {
+  _ResourceArenaTeam(this.retain, this.settle);
+  final void Function(int) retain;
+  final void Function(int) settle;
+
+  @override
+  GestureArenaEntry add(int pointer, GestureArenaMember member) {
+    retain(pointer);
+    return GestureBinding.instance.gestureArena
+        .add(pointer, _ResourceArenaMember(member, settle));
+  }
+}
+
+final class _ResourceArenaMember implements GestureArenaMember {
+  _ResourceArenaMember(this.member, this.settle);
+  final GestureArenaMember member;
+  final void Function(int) settle;
+
+  @override
+  void acceptGesture(int pointer) {
+    try {
+      member.acceptGesture(pointer);
+    } finally {
+      settle(pointer);
+    }
+  }
+
+  @override
+  void rejectGesture(int pointer) {
+    try {
+      member.rejectGesture(pointer);
+    } finally {
+      settle(pointer);
+    }
+  }
+}

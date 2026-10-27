@@ -14,6 +14,7 @@ import 'package:restage_shared/restage_shared.dart';
 import '../fixtures/compiled_surfaces/native_flow.dart';
 import '../flow/flow_test_support.dart' as flows;
 import '../surface_screen/surface_screen_test_support.dart';
+import '../support/pump_until.dart';
 
 const _baseUrl = 'https://surfaces.example.com';
 const _apiKey = 'rs_pk_test_fetch';
@@ -54,12 +55,7 @@ void main() {
   tearDown(Restage.debugReset);
 
   Future<void> settle(WidgetTester tester, bool Function() done) async {
-    for (var i = 0; i < 200 && !done(); i += 1) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 5)),
-      );
-      await tester.pump();
-    }
+    await pumpUntil(tester, done, reason: 'hosted fetch condition');
   }
 
   Future<void> passDeadline(WidgetTester tester) async {

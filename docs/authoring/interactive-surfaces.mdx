@@ -51,6 +51,36 @@ as [host data](/authoring/host-data). Make sure the price the user sees and the 
 the event reports belong together. [Products and purchases](/paywalls/products-and-purchases)
 shows the app side of a paywall purchase.
 
+## Interactive text spans
+
+Use a static list for `TextSpan.children`; collection expansion is not supported.
+Use native recognizer construction inside `TextSpan`, with the same surface event
+callbacks used by buttons:
+
+```dart
+import 'package:flutter/gestures.dart';
+
+Text.rich(TextSpan(children: [
+  const TextSpan(text: 'Read the '),
+  TextSpan(
+    text: 'guide',
+    recognizer: TapGestureRecognizer()..onTap = surfaceEvent(openGuide),
+  ),
+]))
+```
+
+`TapGestureRecognizer`, `DoubleTapGestureRecognizer`, and
+`LongPressGestureRecognizer` support recognized zero-argument callbacks and native
+configuration such as supported devices and slop/duration values. Flutter performs
+span hit testing; a parent's recognizer does not apply to its child spans.
+
+The runtime owns created recognizers and settles pending gestures before disposing
+retired resources. As in native Flutter, an in-flight gesture can finish its old
+callback after the text is replaced or removed. Construct recognizers at each use;
+sharing one recognizer between spans or surfaces is refused. Custom recognizers,
+manual lifecycle methods, and unsupported detail-bearing callbacks receive source
+diagnostics.
+
 ## Gestures and animation
 
 Gesture and animation code lives in widgets compiled into your app: a sheet you drag to

@@ -22,6 +22,7 @@ PropertyType? abstractStructuredFallback(DartType type) {
       ? displayName.substring(0, displayName.length - 1)
       : displayName;
   return switch (stripped) {
+    'SliverGridDelegate' || 'SliverChildDelegate' => PropertyType.structured,
     'Gradient' => PropertyType.gradient,
     'BoxBorder' => PropertyType.border,
     'ShapeBorder' => PropertyType.shapeBorder,

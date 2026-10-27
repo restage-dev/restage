@@ -5,10 +5,12 @@ description: Answers about publishing, offline use, hosting, surface types, data
 
 ## What can a published update change?
 
-What ships is data the app renders. Your widgets carry the logic, as Dart compiled into
-your app. A published version composes and configures them: copy, layout, styling, flow
-routing, and which of your registered events and actions a control uses. New behavior
-still ships as an app release. The [App Store compliance](/app-store-compliance) page
+What ships is a description your app's widgets draw, in a small closed language the
+compiler checks. A published version composes and configures them: copy, layout, styling,
+flow routing, simple logic like conditions over data your app supplies, and which of your
+registered events and actions a control uses. Gestures, drawing, network calls and native
+work stay in Dart compiled into your app. New kinds of behavior still ship as an app
+release. The [App Store compliance](/app-store-compliance) page
 covers the boundary.
 
 ## Does local development need an account?

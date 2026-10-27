@@ -27,9 +27,10 @@ build stops and points at the line. It doesn't guess.
 
 ## Your app owns the behavior
 
-What ships is data the app renders. Your widgets carry the logic, as Dart compiled into
-your app. A published version composes and configures them. New behavior still ships as
-an app release.
+What ships is a description your app's widgets draw, in a small closed language the
+compiler checks. It can carry simple logic, like conditions over data your app supplies.
+Gestures, drawing, network calls and native work stay in Dart compiled into your app. New
+kinds of behavior still ship as an app release.
 
 A surface can arrange catalog widgets, fire the events and actions your app registered,
 and set a flow's data and routing. Widget implementations, network access, and action

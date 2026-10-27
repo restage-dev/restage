@@ -1,0 +1,14 @@
+import 'package:flutter/widgets.dart';
+Widget x()=>GridView.builder(
+ primary:false,
+ gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2),
+ itemBuilder:(_,i)=>null,
+ findChildIndexCallback:(key) {
+   final alias=key;
+   final number=alias as ValueKey<num>;
+   if(number.value<0) {
+     final narrowed=number as ValueKey<int>;
+     return 0;
+   }
+   return 1;
+ });

@@ -575,7 +575,8 @@ void main() {
         flat,
         contains(
           RegExp(
-            r"source\.v<int>\(<Object>\['heading', 'step'\]\) \?\? "
+            r'RestageValueBinding\.read<int>\(\s*source,\s*'
+            r"<Object>\['heading', 'step'\],\s*context\) \?\? "
             r'\(throw ArgumentError\(\s*'
             r"'SectionHeader\.heading\.step is required\.'\)\)",
           ),
@@ -585,7 +586,8 @@ void main() {
         flat,
         contains(
           RegExp(
-            r"RestageDecoders\.string\(\s*source,\s*<Object>\['heading', 'title'\]\) \?\? "
+            r'RestageDecoders\.string\(\s*source,\s*'
+            r"<Object>\['heading', 'title'\],\s*context:\s*context\) \?\? "
             r'\(throw ArgumentError\(\s*'
             r"'SectionHeader\.heading\.title is required\.'\)\)",
           ),
@@ -643,8 +645,8 @@ void main() {
         flat,
         contains(
           RegExp(
-            r'source\s*\.v<int>\('
-            r"<Object>\['entry', 'meta', 'step'\]\) \?\?",
+            r'RestageValueBinding\.read<int>\(\s*source,\s*'
+            r"<Object>\['entry', 'meta', 'step'\],\s*context\) \?\?",
           ),
         ),
       );
@@ -662,7 +664,7 @@ void main() {
         contains(
           RegExp(
             r'RestageDecoders\.string\(\s*source,\s*'
-            r"<Object>\['entry', 'meta', 'title'\]\) \?\?",
+            r"<Object>\['entry', 'meta', 'title'\],\s*context:\s*context\) \?\?",
           ),
         ),
       );

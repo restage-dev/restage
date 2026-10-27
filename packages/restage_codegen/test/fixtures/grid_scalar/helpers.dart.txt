@@ -1,0 +1,14 @@
+import 'package:flutter/widgets.dart';
+int readKey(Key key) {
+ final number=key as ValueKey<num>;
+ return number.value<0 ? (number as ValueKey<int>).value : 1;
+}
+int forward(Key key) {
+ final alias=key;
+ return readKey(alias);
+}
+Widget x()=>GridView.builder(
+ primary:false,
+ gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2),
+ itemBuilder:(_,index)=>null,
+ findChildIndexCallback:(key)=>forward(key));

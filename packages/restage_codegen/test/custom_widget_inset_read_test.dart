@@ -94,7 +94,8 @@ void main() {
       '$_package|lib/paywalls/custom_inset.dart': _screen,
     });
 
-    expect(log, contains('read inside a custom widget'));
+    expect(log, contains('[themeReadOutOfContract]'));
+    expect(log, contains("needs the screen's root context"));
   });
 
   test('a screen read under a SafeArea keeps the published inset', () async {
@@ -113,5 +114,18 @@ void main() {
           .readString(AssetId(_package, 'assets/paywalls/screen_inset.rfwtxt')),
       contains('data.device.safeAreaTop'),
     );
+  });
+
+  test('a custom widget read above its own SafeArea still refuses', () async {
+    final log = await _refusalLog({
+      '$_package|lib/widgets/inset_spacer.dart': _customWidget.replaceFirst(
+        'SizedBox(height: MediaQuery.paddingOf(context).top);',
+        'SafeArea(child: '
+            'SizedBox(height: MediaQuery.paddingOf(context).top));',
+      ),
+      '$_package|lib/paywalls/custom_inset.dart': _screen,
+    });
+    expect(log, contains('[themeReadOutOfContract]'));
+    expect(log, contains("needs the screen's root context"));
   });
 }

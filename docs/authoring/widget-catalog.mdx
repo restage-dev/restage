@@ -3,8 +3,8 @@ title: Widget catalog
 description: The built-in Flutter widgets a surface can use, and how to add your own.
 ---
 
-The catalog is the set of widgets a surface can use. The current source has 124 built-in
-widgets in three libraries, and your app can add its own.
+The catalog is the set of widgets a surface can use. Built-in widgets come from
+three libraries; optional packages and your app can add more.
 
 You don't need to look widgets up before you write a surface. You write the Flutter
 widgets you already know, and the build finds them in the catalog. The catalog matters
@@ -12,11 +12,11 @@ when you want to know what's covered, or when you want to add a widget.
 
 ## The three libraries
 
-| Library | Widgets | Covers |
-|---|---|---|
-| [`restage_core`](https://pub.dev/packages/restage_core) | 61 | Layout, structure, and decoration: `Container`, `Column`, `Row`, `Stack`, `SizedBox`, `Padding`, `Center`, `Text`, `Image`, the implicit animations, and more. |
-| [`restage_material`](https://pub.dev/packages/restage_material) | 47 | Material widgets: buttons, `Scaffold`, `AppBar`, `Card`, `ListTile`, chips, tabs, text fields, selection controls, and the interactive widgets below. |
-| [`restage_cupertino`](https://pub.dev/packages/restage_cupertino) | 16 | iOS-style widgets: `CupertinoButton`, navigation bar and page scaffold, list sections, switches, sliders, pickers, and text fields. |
+| Library | Covers |
+|---|---|
+| [`restage_core`](https://pub.dev/packages/restage_core) | Layout, structure, and decoration: `Container`, `Column`, `Row`, `Stack`, `Text`, `Image`, `Directionality`, responsive builders, native grids, clipped shapes, and implicit animations. |
+| [`restage_material`](https://pub.dev/packages/restage_material) | Material widgets: buttons, `Scaffold`, `AppBar`, `Card`, `ListTile`, chips, tabs, text fields, selection controls, and the interactive widgets below. |
+| [`restage_cupertino`](https://pub.dev/packages/restage_cupertino) | iOS-style widgets: `CupertinoButton`, navigation bar and page scaffold, list sections, switches, sliders, pickers, and text fields. |
 
 ## You write ordinary Flutter
 
@@ -53,6 +53,114 @@ Transform.scale(
 
 Origin, alignment, filtering, and hit testing follow Flutter. Omitting alignment
 uses the native center default; passing `alignment: null` preserves null.
+
+### Responsive layouts and grids
+
+Use native builders for layout decisions that depend on the space their parent gives
+this widget:
+
+```dart
+LayoutBuilder(builder: (context, constraints) {
+  final width = constraints.hasBoundedWidth ? constraints.maxWidth / 2 : 80.0;
+  return SizedBox(
+    width: width,
+    child: Text(width >= 200 ? 'Wide' : 'Compact'),
+  );
+})
+```
+
+`LayoutBuilder` reads local constraints. `OrientationBuilder` derives orientation
+from its local space. Supported `Theme` and `MediaQuery` reads inside callbacks use
+that callback's context. Pure callbacks can use immutable locals, conditions,
+helper functions, typed captures, and finite child collections; see
+[Builder callbacks](/authoring/constraints#builder-callbacks).
+
+`GridView`, `.count`, `.extent`, `.builder`, and `.custom` use native standard grid
+and child delegates. A builder requests items lazily and may return null, including
+when `itemCount` is omitted. For a typed `habits` input:
+
+```dart
+GridView.builder(
+  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: 2,
+  ),
+  itemBuilder: (_, index) {
+    if (index >= habits.length) return null;
+    return Text(habits[index].name, key: ValueKey<String>(habits[index].id));
+  },
+  findChildIndexCallback: (key) {
+    final id = (key as ValueKey<String>).value;
+    final index = habits.indexWhere((habit) => habit.id == id);
+    return index < 0 ? null : index;
+  },
+)
+```
+
+For reordered data, use stable scalar `ValueKey` values on returned roots and a
+matching native key-to-index callback. Standard physics parent chains, native
+cache values, and delegate flags retain their normal behavior. Explicit controller
+objects and custom physics/delegates require installed application code.
+
+### Direction and clipped shapes
+
+Use `Directionality` and native `textDirection` arguments where Flutter exposes
+them. `EdgeInsets.only(left: ...)` stays physical; `EdgeInsetsDirectional.only(start: ...)` follows direction. Directional alignment, corner radii, gradients, and
+`DecorationImage` alignment resolve when Flutter renders them. A slot typed as
+concrete `Alignment` or `EdgeInsets` still requires that concrete type.
+
+```dart
+Directionality(
+  textDirection: TextDirection.rtl,
+  child: ClipPath.shape(
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadiusDirectional.only(topStart: Radius.circular(16)),
+    ),
+    child: const Padding(
+      padding: EdgeInsetsDirectional.only(start: 12),
+      child: Text('Welcome'),
+    ),
+  ),
+)
+```
+
+Plain `ClipPath` and direct `ShapeBorderClipper` construction also work. The static
+`ClipPath.shape` method reads ambient direction; a direct `ShapeBorderClipper`
+keeps its supplied nullable `textDirection`. Arbitrary `CustomClipper` methods
+must live in installed application code. Directional radius recipes accept circular
+corners; unsupported elliptical corners receive a diagnostic.
+
+### Optional SVG
+
+Add `restage_svg` and `flutter_svg` to your app's dependencies, then use the native
+package APIs:
+
+```dart
+import 'package:flutter_svg/flutter_svg.dart';
+
+SvgPicture.asset(
+  'assets/illustration.svg',
+  width: 160,
+  semanticsLabel: 'Getting started',
+)
+```
+
+`SvgPicture.network`, `.string`, `.memory`, and the unnamed constructor with a
+supported `SvgAssetLoader`, `SvgNetworkLoader`, `SvgStringLoader`, or
+`SvgBytesLoader` also work. Declare bundled assets in `pubspec.yaml` as usual. Package asset keys, network headers, byte data, `SvgTheme`, `ColorFilter`,
+RTL mirroring, and declarative nullable `placeholderBuilder` callbacks retain
+native behavior. Byte lists contain integers from 0 through 255 and are limited
+to 1 MiB. Custom bundles, clients, color mappers, file loaders, arbitrary loader
+subclasses, and unsupported error/image callbacks receive authoring diagnostics.
+`SvgTheme.currentColor` and the color passed to `ColorFilter.mode` must be
+non-null, proven base `Color` values. Subtypes such as `Colors.red`
+(`MaterialColor`) are diagnosed, including through typed, dynamic, or imported
+constant aliases. This applies both inside and outside callbacks. Ordinary
+Flutter paint properties continue to accept their supported MaterialColor values.
+Supported base Color constants retain their exact components and color space.
+Placeholder callbacks read their native local context; a captured outer context
+continues to refer to its original ancestor scope.
+
+The SVG dependency is optional for apps that do not use this catalog.
 
 ### AppBar
 

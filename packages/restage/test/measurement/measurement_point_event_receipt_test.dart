@@ -14,6 +14,7 @@ import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
 
 import 'admitted_bundled_publication_fixture.dart';
 import 'measurement_host_construction_test_support.dart';
+import '../support/pump_until.dart';
 
 const _token = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 const _assignment = SurfaceAssignment(
@@ -337,12 +338,11 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isA<StateError>());
-    for (var i = 0; i < 80 && harness.worker.discardCalls == 0; i += 1) {
-      await tester.pump();
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 10)),
-      );
-    }
+    await pumpUntil(
+      tester,
+      () => harness.worker.discardCalls > 0,
+      reason: 'the worker discard',
+    );
     final failureReplacementCount = find.text('failed').evaluate().length;
     await tester.pumpWidget(const SizedBox());
     await tester.pump();

@@ -12,11 +12,12 @@ topics:
   - flutter
 environment:
   sdk: ^3.5.0
-  flutter: ">=3.41.0"
+  flutter: ">=3.44.0"
 
 resolution: workspace
 
 dependencies:
+  intl: ^0.20.2
   flutter:
     sdk: flutter
   meta: ^1.15.0

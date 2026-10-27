@@ -21,6 +21,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../flow/flow_test_support.dart';
 import '../support/hosted_artifact_delivery.dart';
 import '../surface_screen/surface_screen_test_support.dart';
+import '../support/pump_until.dart';
 
 const _baseUrl = 'https://surfaces.example.com';
 const _apiKey = 'rs_pk_test_abc123';
@@ -106,7 +107,8 @@ void main() {
         httpClient: server.client,
       );
       await tester.pumpWidget(_host(resolver));
-      await _waitFor(() => server.requests.isNotEmpty);
+      await waitUntil(() => server.requests.isNotEmpty,
+          reason: 'server.requests.isNotEmpty');
       server.respondJson(
           0, _contentBody(_envelope(document, {'welcome': bytes})));
       await tester.pumpAndSettle();
@@ -209,7 +211,8 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
       ));
-      await _waitFor(() => server.requests.isNotEmpty);
+      await waitUntil(() => server.requests.isNotEmpty,
+          reason: 'server.requests.isNotEmpty');
       server.respondJson(0, _contentBody(envelope));
       await tester.pumpAndSettle();
       expect(find.text('Hosted paywall'), findsOneWidget);
@@ -265,7 +268,8 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
       ));
-      await _waitFor(() => server.requests.isNotEmpty);
+      await waitUntil(() => server.requests.isNotEmpty,
+          reason: 'server.requests.isNotEmpty');
       server.respondNotFound(0);
       await tester.pumpAndSettle();
       expect(find.text('Paywall flow'), findsOneWidget);
@@ -510,14 +514,6 @@ Map<String, Uint8List> _bundleAssets({
     for (final entry in screenAssets.entries)
       'assets/$surface/screens/${entry.key}': entry.value,
   };
-}
-
-Future<void> _waitFor(bool Function() predicate) async {
-  for (var attempt = 0; attempt < 100; attempt += 1) {
-    if (predicate()) return;
-    await Future<void>.value();
-  }
-  fail('Controlled test boundary did not become ready.');
 }
 
 final class _ControlledServer {

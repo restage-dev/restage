@@ -675,6 +675,9 @@ String _coverageReasonHint(A2uiDartCoverageReason reason, String? fieldName) {
       return 'the callback signature has no declarative lowering (supported: '
           'a zero-argument void callback, or a one-argument void callback '
           'over a scalar or a list of scalars).';
+    case A2uiDartCoverageReason.unsupportedScalarCallback:
+      return 'the callback returns a native integer value that has no '
+          'declarative A2UI projection.';
     case A2uiDartCoverageReason.ambiguousWritePairing:
       return 'the write-back callback cannot be paired unambiguously with a '
           'value property (more than one write-back callback, or more than '

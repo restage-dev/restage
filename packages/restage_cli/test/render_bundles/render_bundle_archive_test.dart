@@ -5,7 +5,12 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show renderBundleMaxCapabilityManifestNodes;
+    show
+        kBuilderContinuationWidgetName,
+        kReservedPreviewConstructorName,
+        kReservedPreviewLibraryName,
+        kMeasurementPresentationLibraryName,
+        renderBundleMaxCapabilityManifestNodes;
 import 'package:test/test.dart';
 
 void main() {
@@ -23,6 +28,82 @@ void main() {
     ),
     'index.html': Uint8List.fromList(utf8.encode('<!doctype html>')),
   };
+
+  Map<String, Object?> catalog(String library, List<String> widgets) => {
+    'libraries': <String, Object?>{
+      library: {'capabilityVersion': 23},
+    },
+    'widgets': <Object?>[
+      for (final name in widgets) {'library': library, 'name': name},
+    ],
+  };
+
+  void expectCatalogRefusal(Map<String, Object?> catalog, String reason) {
+    final rejects = throwsA(
+      isA<RenderBundleArchiveException>().having(
+        (error) => error.reason,
+        'reason',
+        reason,
+      ),
+    );
+    expect(
+      () => createRenderBundleCapabilityManifest(jsonEncode(catalog)),
+      rejects,
+    );
+    expect(
+      () => encodeRenderBundleArchive(
+        validFiles()
+          ..['restage_bundle_manifest.json'] = Uint8List.fromList(
+            utf8.encode(jsonEncode({'formatVersion': 1, 'catalog': catalog})),
+          ),
+      ),
+      rejects,
+    );
+  }
+
+  test('catalog reservation admits ordinary core metadata', () {
+    final metadata = catalog('restage.core', ['Text', 'Column']);
+    (metadata['libraries']! as Map<String, Object?>)['app'] =
+        <String, Object?>{};
+    (metadata['widgets']! as List<Object?>).addAll([
+      {'library': 'app', 'name': 'Banner'},
+      {'library': 'app', 'name': '${kBuilderContinuationWidgetName}User'},
+    ]);
+    final manifest = createRenderBundleCapabilityManifest(jsonEncode(metadata));
+    expect(
+      (jsonDecode(utf8.decode(manifest)) as Map<String, Object?>)['catalog'],
+      metadata,
+    );
+    expect(
+      encodeRenderBundleArchive(
+        validFiles()..['restage_bundle_manifest.json'] = manifest,
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('catalog reservation rejects hidden constructor metadata globally', () {
+    for (final library in ['app', 'restage.core']) {
+      for (final name in [
+        kBuilderContinuationWidgetName,
+        kReservedPreviewConstructorName,
+      ]) {
+        expectCatalogRefusal(
+          catalog(library, [name]),
+          'catalog_reserved_widget',
+        );
+      }
+    }
+  });
+
+  test('catalog reservation retains preview and measurement namespaces', () {
+    for (final library in [
+      kReservedPreviewLibraryName,
+      kMeasurementPresentationLibraryName,
+    ]) {
+      expectCatalogRefusal(catalog(library, []), 'catalog_reserved_library');
+    }
+  });
 
   test('encodes the canonical sorted container byte-identically', () {
     final first = encodeRenderBundleArchive(validFiles());
@@ -44,6 +125,37 @@ void main() {
         (entry) => (entry as Map<String, dynamic>)['path'],
       ),
       <String>['index.html', 'restage_bundle_manifest.json'],
+    );
+  });
+
+  test('enforces the 2 MiB capability manifest byte boundary', () {
+    const byteLimit = 2 * 1024 * 1024;
+    final source = validFiles()[renderBundleCapabilityManifestPath]!;
+    Uint8List paddedManifest(int length) => Uint8List(length)
+      ..fillRange(0, length, 0x20)
+      ..setRange(0, source.length, source);
+
+    expect(
+      encodeRenderBundleArchive(
+        validFiles()
+          ..[renderBundleCapabilityManifestPath] = paddedManifest(byteLimit),
+      ),
+      isNotEmpty,
+    );
+    expect(
+      () => encodeRenderBundleArchive(
+        validFiles()
+          ..[renderBundleCapabilityManifestPath] = paddedManifest(
+            byteLimit + 1,
+          ),
+      ),
+      throwsA(
+        isA<RenderBundleArchiveException>().having(
+          (error) => error.reason,
+          'reason',
+          'capability_manifest_too_large',
+        ),
+      ),
     );
   });
 

@@ -10,6 +10,9 @@ String countText(int? exact, {required int floor, int? approx}) => exact != null
     ? '≈${groupedCount(approx)}'
     : heldCountText(floor);
 
+/// A shown count followed by "view" or "views".
+String viewsText(String count) => '$count ${count == '1' ? 'view' : 'views'}';
+
 /// [value] with thousands separated by commas.
 String groupedCount(int value) {
   final digits = value.abs().toString();

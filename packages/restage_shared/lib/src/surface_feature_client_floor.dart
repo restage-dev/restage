@@ -11,3 +11,6 @@ const int kJoinedStringClientFloor = 16;
 /// The minimum client capability for flow host-action results matched by
 /// `always` or `matches` predicates.
 const int kActionResultMatchClientFloor = 16;
+
+/// The minimum client capability for typed locale formatting expressions.
+const int kFormattingExpressionClientFloor = 23;

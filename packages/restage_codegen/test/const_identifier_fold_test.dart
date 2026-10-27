@@ -316,8 +316,11 @@ String _parenthesizedStops(int count) =>
     '${List.filled(count, '(').join()}[0, 1]'
     '${List.filled(count, ')').join()}';
 
+const _canonicalRedDsl =
+    '{colorSpace: "sRGB", material: "red", a: 1.0, r: 0.9568627450980393, g: 0.2627450980392157, b: 0.21176470588235294}';
+
 String _gradientDsl(String wireType) =>
-    '{type: "$wireType", colors: [0xFFF44336, 0xFFF44336], '
+    '{type: "$wireType", colors: [$_canonicalRedDsl, $_canonicalRedDsl], '
     'stops: [0.0, 1.0]}';
 
 void _translatorGroups() {
@@ -467,12 +470,16 @@ void _translatorGroups() {
   group('framework constants use curated translations', () {
     test('framework constants emit their documented values', () async {
       const cases = <({String expr, String? dsl, IssueCode? code})>[
-        (expr: 'Colors.red', dsl: '0xFFF44336', code: null),
+        (expr: 'Colors.red', dsl: _canonicalRedDsl, code: null),
         (expr: 'Icons.add', dsl: '57415', code: null),
         (expr: 'Alignment.center', dsl: '{x: 0.0, y: 0.0}', code: null),
         (expr: 'Duration.zero', dsl: '0', code: null),
         (expr: 'FontWeight.bold', dsl: '"w700"', code: null),
-        (expr: 'EdgeInsets.zero', dsl: '[0.0, 0.0, 0.0, 0.0]', code: null),
+        (
+          expr: 'EdgeInsets.zero',
+          dsl: '{left: 0.0, top: 0.0, right: 0.0, bottom: 0.0}',
+          code: null
+        ),
         (
           expr: 'double.infinity',
           dsl: '',
@@ -827,8 +834,7 @@ void _translatorGroups() {
       expect(r.dsl, contains('begin: {x: 1.0, y: -1.0}'));
     });
 
-    test('a framework const outside the Alignment set keeps usable advice',
-        () async {
+    test('a directional gradient const preserves start coordinates', () async {
       final r = await _result(translator, '''
         $_flutterImport
         import 'package:flutter/material.dart' show AlignmentDirectional;
@@ -837,9 +843,8 @@ void _translatorGroups() {
           begin: AlignmentDirectional.centerStart,
         );
       ''');
-      expect(r.issues, isNotEmpty);
-      expect(r.issues.first.message, contains('Alignment(x, y)'));
-      expect(r.issues.first.message, isNot(contains('another file')));
+      expect(r.issues, isEmpty);
+      expect(r.dsl, contains('begin: {start: -1.0, y: 0.0}'));
     });
   });
 
@@ -984,7 +989,7 @@ void _translatorGroups() {
       expect(ordinary.issues, isEmpty);
       expect(
         ordinary.dsl,
-        '{type: "linear", colors: [0xFFF44336, 0xFFF44336], '
+        '{type: "linear", colors: [$_canonicalRedDsl, $_canonicalRedDsl], '
         'stops: [0.0, 1.0]}',
       );
       expect(explicitConst.issues, isEmpty);
@@ -1009,7 +1014,7 @@ void _translatorGroups() {
       expect(ordinary.issues, isEmpty);
       expect(
         ordinary.dsl,
-        '{type: "radial", colors: [0xFFF44336, 0xFFF44336], '
+        '{type: "radial", colors: [$_canonicalRedDsl, $_canonicalRedDsl], '
         'stops: [0.0, 1.0]}',
       );
       expect(explicitConst.issues, isEmpty);

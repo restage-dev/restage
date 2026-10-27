@@ -1,18 +1,61 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw/rfw.dart';
 
 void main() {
+  test('native text scalers retain exact objects and nullable results', () {
+    const scaler = TextScaler.linear(1.8);
+    final values = restageNativeObjects<TextScaler?>({
+      'exact': ('scaler', () => scaler),
+      'nullable': ('optionalScaler', () => null),
+    });
+    expect(values['exact'], same(scaler));
+    expect(values.containsKey('nullable'), isTrue);
+    expect(values['nullable'], isNull);
+    expect(() => restageHostValue(scaler), throwsArgumentError);
+  });
+
+  test('native objects keep exact values and leave out throwing ones', () {
+    const color = CupertinoDynamicColor.withBrightness(
+        color: Color(0xff000000), darkColor: Color(0xffffffff));
+    final values = restageNativeObjects<Color>({
+      'exact': ('color', () => color),
+      'throws': ('Palette.of(context).ink', () => throw StateError('none')),
+    });
+    expect(values['exact'], same(color));
+    expect(values.containsKey('throws'), isFalse);
+  });
+
+  test('nested dates retain epoch microseconds and UTC identity', () {
+    final utc = DateTime.utc(2024, 2, 29, 17, 26, 34, 123, 456);
+    final local = utc.toLocal();
+    expect(
+        restageHostValue({
+          'dates': [utc, local]
+        }),
+        {
+          'dates': [
+            {
+              'microsecondsSinceEpoch': utc.microsecondsSinceEpoch,
+              'isUtc': true
+            },
+            {
+              'microsecondsSinceEpoch': utc.microsecondsSinceEpoch,
+              'isUtc': false
+            },
+          ],
+        });
+  });
   test('writes app values in the shape a surface reads', () {
     expect(restageHostValue(const Color(0xFF112233)), 0xFF112233);
     expect(
       restageHostValue(const EdgeInsets.fromLTRB(1, 2, 3, 4)),
-      [1.0, 2.0, 3.0, 4.0],
+      {'left': 1.0, 'top': 2.0, 'right': 3.0, 'bottom': 4.0},
     );
     expect(
       restageHostValue(const EdgeInsetsDirectional.fromSTEB(5, 6, 7, 8)),
-      [5.0, 6.0, 7.0, 8.0],
+      {'start': 5.0, 'top': 6.0, 'end': 7.0, 'bottom': 8.0},
     );
     expect(restageHostValue(TextAlign.end), 'end');
     expect(
@@ -100,8 +143,7 @@ void main() {
     });
     expect(logged, [
       "[restage] 'Store.instance.offer!.title' threw while computing in the "
-          'app, so the surface reads it as missing: Null check operator used '
-          'on a null value',
+          'app: Null check operator used on a null value',
     ]);
     title = 'Pro';
     expect(

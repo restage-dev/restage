@@ -1,20 +1,26 @@
 import 'package:restage_codegen/src/translator_recipe.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// Translator recipes for the gradient value types and the `Alignment`
-/// type they lean on.
-///
-/// The RFW gradient decoder reads a `{type, ...}` map and reapplies
-/// Flutter's own constructor defaults for any omitted key, so each recipe
-/// emits only the keys the author set — the `omitWhenArgUnset` entries drop
-/// out when the corresponding named argument is absent.
-///
-/// `begin` / `end` / `center` / `focal` are alignment-typed. The RFW
-/// decoder reads them as `{x, y}` maps, so a member reference such as
-/// `Alignment.topLeft` resolves through the member table to its coordinate
-/// pair, and an `Alignment(x, y)` constructor call falls through to the
-/// `Alignment` recipe via the member table's fallback.
+/// Gradient recipes preserve alignment geometry for Flutter to resolve.
 const List<TranslatorRecipe> kGradientRecipes = [
+  TranslatorRecipe(
+    typeName: 'AlignmentDirectional',
+    failureDsl: '{start: 0.0, y: 0.0}',
+    validations: [
+      RecipeValidation(
+        check: ArityExact(2),
+        issueCode: 'unrecognizedMethodCall',
+        message: 'AlignmentDirectional requires two arguments.',
+      ),
+    ],
+    emit: EmitFragmentMap([
+      EmitMapEntry(
+        'start',
+        EmitFragmentArg(ArgRef.positional(0), asLength: true),
+      ),
+      EmitMapEntry('y', EmitFragmentArg(ArgRef.positional(1), asLength: true)),
+    ]),
+  ),
   // Alignment(x, y) -> {x: <x>, y: <y>}
   TranslatorRecipe(
     typeName: 'Alignment',
@@ -126,54 +132,23 @@ const List<TranslatorRecipe> kGradientRecipes = [
   ),
 ];
 
-/// The `center` alignment argument fragment shared by the radial and sweep
-/// recipes. A member reference (`Alignment.X`) resolves through the member
-/// table to its `{x, y}` coordinate pair; an `Alignment(x, y)` constructor
-/// call misses the table and falls through to the `Alignment` recipe via
-/// the recursive-translation fallback.
-const EmitFragment _kCenterAlignmentArg = EmitFragmentMemberTable(
+/// Geometry shared by the radial and sweep centers.
+const EmitFragment _kCenterAlignmentArg = EmitFragmentArg(
   ArgRef.named('center'),
-  _kAlignmentMemberFragments,
-  fallback: EmitFragmentArg(
-    ArgRef.named('center'),
-    propertyType: PropertyType.alignmentXY,
-  ),
+  propertyType: PropertyType.alignment,
 );
 
-/// The `focal` alignment argument fragment for the radial recipe; same
-/// member-table-with-constructor-fallback shape as [_kCenterAlignmentArg].
-const EmitFragment _kFocalAlignmentArg = EmitFragmentMemberTable(
+/// Radial focal alignment retains its authored geometry.
+const EmitFragment _kFocalAlignmentArg = EmitFragmentArg(
   ArgRef.named('focal'),
-  _kAlignmentMemberFragments,
-  fallback: EmitFragmentArg(
-    ArgRef.named('focal'),
-    propertyType: PropertyType.alignmentXY,
-  ),
+  propertyType: PropertyType.alignment,
 );
-
-/// Coordinate-pair fragments for Flutter's nine `Alignment` constants, in
-/// the `{x, y}` shape the RFW alignment decoder reads.
-///
-/// `AlignmentDirectional` constants are intentionally absent: the RFW gradient
-/// decoder requires resolved `{x, y}` coordinates, and directional members
-/// (e.g. `AlignmentDirectional.centerStart`) carry no concrete x value until
-/// layout-time text direction is known. They fall through to the recipe's
-/// `fallback` path and surface a translation diagnostic.
-const Map<String, EmitFragment> _kAlignmentMemberFragments = {
-  'topLeft': EmitFragmentLiteral('{x: -1.0, y: -1.0}'),
-  'topCenter': EmitFragmentLiteral('{x: 0.0, y: -1.0}'),
-  'topRight': EmitFragmentLiteral('{x: 1.0, y: -1.0}'),
-  'centerLeft': EmitFragmentLiteral('{x: -1.0, y: 0.0}'),
-  'center': EmitFragmentLiteral('{x: 0.0, y: 0.0}'),
-  'centerRight': EmitFragmentLiteral('{x: 1.0, y: 0.0}'),
-  'bottomLeft': EmitFragmentLiteral('{x: -1.0, y: 1.0}'),
-  'bottomCenter': EmitFragmentLiteral('{x: 0.0, y: 1.0}'),
-  'bottomRight': EmitFragmentLiteral('{x: 1.0, y: 1.0}'),
-};
 
 const _kTileModeEntry = EmitMapEntry(
   'tileMode',
-  EmitFragmentArg(ArgRef.named('tileMode'),
-      propertyType: PropertyType.enumValue),
+  EmitFragmentArg(
+    ArgRef.named('tileMode'),
+    propertyType: PropertyType.enumValue,
+  ),
   omitWhenArgUnset: true,
 );

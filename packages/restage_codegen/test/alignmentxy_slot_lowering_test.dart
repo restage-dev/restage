@@ -174,7 +174,11 @@ void main() {
         'alignment: AlignmentDirectional.centerStart, child: SizedBox())',
       );
       expect(r.issues, isNotEmpty);
-      expect(r.issues.first.code, IssueCode.unrecognizedMethodCall);
+      expect(r.issues.first.code, IssueCode.propertyValueTypeMismatch);
+      expect(
+        r.issues.first.message,
+        'A concrete Alignment slot cannot accept AlignmentDirectional.',
+      );
       // Never lowers a directional member to a bare string the floor would
       // then have to catch.
       expect(r.dsl, isNot(contains('"centerStart"')));

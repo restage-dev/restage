@@ -2716,6 +2716,14 @@ Future<void> _compilePaywalls(
             await mergedCatalog(),
             location: entry.value.assetId.path,
             issues: issues,
+            hoistedByBlob: {
+              for (final entry in compiledById.entries) ...{
+                'assets/paywalls/${entry.key}.rfw':
+                    entry.value.artifacts.hoisted,
+                'assets/paywalls/screens/paywall_${entry.key}.rfw':
+                    entry.value.artifacts.hoisted,
+              },
+            },
           ),
           rfwText: compiled.standaloneText == null
               ? null
@@ -2751,6 +2759,7 @@ List<String> _paywallWidgetNames(
   Catalog catalog, {
   required String location,
   required List<Issue> issues,
+  Map<String, List<HoistedValue>> hoistedByBlob = const {},
 }) {
   final names = <String>{};
   for (final screen in <PaywallScreenArtifactFacts>[
@@ -2772,7 +2781,8 @@ List<String> _paywallWidgetNames(
       );
       continue;
     }
-    final derivation = deriveCapabilityManifest(library, catalog);
+    final derivation = deriveCapabilityManifest(library, catalog,
+        hoisted: hoistedByBlob[screen.blob.path] ?? const []);
     if (derivation.issues.isNotEmpty) {
       issues.addAll(derivation.issues);
       continue;

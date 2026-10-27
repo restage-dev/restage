@@ -53,13 +53,10 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// Each widget becomes one A2UI component keyed by its catalog name, and the
 /// returned catalog carries a Restage capability stamp with **both** capability
 /// axes (mirroring the format-general `CapabilityManifest`):
-///  * `catalogContentVersion` — the built-in content version, derived from the
-///    catalog's built-in widgets via the single canonical [contentVersionOf]
-///    formula. This equals the runtime SDK's
-///    `RestageBuiltInCatalogCapabilities.currentVersion` by construction (both
-///    derive from the same committed catalog), but the build-time toolchain
-///    **must not** import the runtime SDK to read it (a layering +
-///    two-tier-licensing boundary), so it is computed from the catalog here.
+///  * `catalogContentVersion` — built-in catalog availability, derived by
+///    [contentVersionOf] from the A2UI-emittable built-in widgets. The runtime
+///    SDK combines catalog availability with installed operation requirements;
+///    this build-time stamp is derived without importing the SDK.
 ///  * `availableLibraries` — the present custom libraries with their declared
 ///    capability versions. Carrying this second axis is what keeps the app-side
 ///    check from failing open for custom libraries.

@@ -35,275 +35,408 @@ const Map<String, LocalWidgetBuilder> kCupertinoLibraryFactories =
 /// Builds the catalog's `CupertinoActivityIndicator` widget from [source].
 Widget buildCupertinoActivityIndicator(
     BuildContext context, DataSource source) {
-  return CupertinoActivityIndicator(
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    animating: source.v<bool>(const <Object>['animating']) ?? true,
-    radius: RestageDecoders.positiveLayoutScalar(source, <Object>['radius']) ??
-        10.0,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoActivityIndicator(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      color: RestageDecoders.color(source, <Object>['color']),
+      animating: RestageValueBinding.read<bool>(
+              source, const <Object>['animating'], context) ??
+          true,
+      radius:
+          RestageDecoders.positiveLayoutScalar(source, <Object>['radius']) ??
+              10.0,
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoButton` widget from [source].
 Widget buildCupertinoButton(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
-  return CupertinoButton(
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    onPressed:
-        disabled ? null : source.voidHandler(const <Object>['onPressed']),
-    child: source.child(const <Object>['child']),
-  );
+    return CupertinoButton(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      color: RestageDecoders.color(source, <Object>['color']),
+      onPressed:
+          disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoButtonFilled` widget from [source].
 Widget buildCupertinoButtonFilled(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
-  return CupertinoButton.filled(
-    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    color: ArgumentDecoders.color(source, <Object>['color']),
-    onPressed:
-        disabled ? null : source.voidHandler(const <Object>['onPressed']),
-    child: source.child(const <Object>['child']),
-  );
+    return CupertinoButton.filled(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+      color: RestageDecoders.color(source, <Object>['color']),
+      onPressed:
+          disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoListSection` widget from [source].
 Widget buildCupertinoListSection(BuildContext context, DataSource source) {
-  return CupertinoListSection(
-    header: source.optionalChild(const <Object>['header']),
-    footer: source.optionalChild(const <Object>['footer']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.none,
-    children: source.isList(const <Object>['children'])
-        ? RestageDecoders.widgetList(source, const <Object>['children'])
-        : null,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoListSection(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      header: source.optionalChild(const <Object>['header']),
+      footer: source.optionalChild(const <Object>['footer']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.none,
+      children: RestageDecoders.isWidgetList(source, const <Object>['children'])
+          ? RestageDecoders.widgetList(source, const <Object>['children'],
+              context: context, bindings: builderBindings)
+          : null,
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoListSectionInsetGrouped` widget from [source].
 Widget buildCupertinoListSectionInsetGrouped(
     BuildContext context, DataSource source) {
-  return CupertinoListSection.insetGrouped(
-    header: source.optionalChild(const <Object>['header']),
-    footer: source.optionalChild(const <Object>['footer']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.hardEdge,
-    children: source.isList(const <Object>['children'])
-        ? RestageDecoders.widgetList(source, const <Object>['children'])
-        : null,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoListSection.insetGrouped(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      header: source.optionalChild(const <Object>['header']),
+      footer: source.optionalChild(const <Object>['footer']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      children: RestageDecoders.isWidgetList(source, const <Object>['children'])
+          ? RestageDecoders.widgetList(source, const <Object>['children'],
+              context: context, bindings: builderBindings)
+          : null,
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoListTile` widget from [source].
 Widget buildCupertinoListTile(BuildContext context, DataSource source) {
-  return CupertinoListTile(
-    title: source.child(const <Object>['title']),
-    subtitle: source.optionalChild(const <Object>['subtitle']),
-    leading: source.optionalChild(const <Object>['leading']),
-    trailing: source.optionalChild(const <Object>['trailing']),
-    onTap: source.voidHandler(const <Object>['onTap']),
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoListTile(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      title: source.child(const <Object>['title']),
+      subtitle: source.optionalChild(const <Object>['subtitle']),
+      leading: source.optionalChild(const <Object>['leading']),
+      trailing: source.optionalChild(const <Object>['trailing']),
+      onTap: source.voidHandler(const <Object>['onTap']),
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoNavigationBar` widget from [source].
 Widget buildCupertinoNavigationBar(BuildContext context, DataSource source) {
-  return CupertinoNavigationBar(
-    leading: source.optionalChild(const <Object>['leading']),
-    automaticallyImplyLeading:
-        source.v<bool>(const <Object>['automaticallyImplyLeading']) ?? true,
-    automaticallyImplyMiddle:
-        source.v<bool>(const <Object>['automaticallyImplyMiddle']) ?? true,
-    previousPageTitle:
-        RestageDecoders.string(source, <Object>['previousPageTitle']),
-    middle: source.optionalChild(const <Object>['middle']),
-    trailing: source.optionalChild(const <Object>['trailing']),
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    automaticBackgroundVisibility:
-        source.v<bool>(const <Object>['automaticBackgroundVisibility']) ?? true,
-    enableBackgroundFilterBlur:
-        source.v<bool>(const <Object>['enableBackgroundFilterBlur']) ?? true,
-    brightness: RestageDecoders.enumByName<Brightness>(
-        Brightness.values, source, <Object>['brightness']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoNavigationBar(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      leading: source.optionalChild(const <Object>['leading']),
+      automaticallyImplyLeading: RestageValueBinding.read<bool>(
+              source, const <Object>['automaticallyImplyLeading'], context) ??
+          true,
+      automaticallyImplyMiddle: RestageValueBinding.read<bool>(
+              source, const <Object>['automaticallyImplyMiddle'], context) ??
+          true,
+      previousPageTitle: RestageDecoders.string(
+          source, <Object>['previousPageTitle'],
+          context: context),
+      middle: source.optionalChild(const <Object>['middle']),
+      trailing: source.optionalChild(const <Object>['trailing']),
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      automaticBackgroundVisibility: RestageValueBinding.read<bool>(source,
+              const <Object>['automaticBackgroundVisibility'], context) ??
+          true,
+      enableBackgroundFilterBlur: RestageValueBinding.read<bool>(
+              source, const <Object>['enableBackgroundFilterBlur'], context) ??
+          true,
+      brightness: RestageDecoders.enumByName<Brightness>(
+          Brightness.values, source, <Object>['brightness']),
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoPageScaffold` widget from [source].
 Widget buildCupertinoPageScaffold(BuildContext context, DataSource source) {
-  return CupertinoPageScaffold(
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    child: source.child(const <Object>['child']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoPageScaffold(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      child: source.child(const <Object>['child']),
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoSwitch` widget from [source].
 Widget buildCupertinoSwitch(BuildContext context, DataSource source) {
-  return CupertinoSwitch(
-    value: source.v<bool>(const <Object>['value']) ??
-        (throw ArgumentError('CupertinoSwitch.value is required.')),
-    onChanged:
-        RestageDecoders.valueChanged<bool>(source, const <Object>['onChanged']),
-    activeTrackColor:
-        ArgumentDecoders.color(source, <Object>['activeTrackColor']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoSwitch(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<bool>(
+              source, const <Object>['value'], context) ??
+          (throw ArgumentError('CupertinoSwitch.value is required.')),
+      onChanged: RestageDecoders.valueChanged<bool>(
+          source, const <Object>['onChanged']),
+      activeTrackColor:
+          RestageDecoders.color(source, <Object>['activeTrackColor']),
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoTextField` widget from [source].
 Widget buildCupertinoTextField(BuildContext context, DataSource source) {
-  return CupertinoTextField(
-    placeholder: RestageDecoders.string(source, <Object>['placeholder']),
-    textInputAction: RestageDecoders.enumByName<TextInputAction>(
-        TextInputAction.values, source, <Object>['textInputAction']),
-    obscureText: source.v<bool>(const <Object>['obscureText']) ?? false,
-    maxLines: source.v<int>(const <Object>['maxLines']) ?? 1,
-    maxLength: source.v<int>(const <Object>['maxLength']),
-    onChanged: RestageDecoders.valueChanged<String>(
-        source, const <Object>['onChanged']),
-    onSubmitted: RestageDecoders.valueChanged<String>(
-        source, const <Object>['onSubmitted']),
-    clipBehavior: RestageDecoders.enumByName<Clip>(
-            Clip.values, source, <Object>['clipBehavior']) ??
-        Clip.hardEdge,
-    keyboardType:
-        RestageDecoders.textInputType(source, const <Object>['keyboardType']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoTextField(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      placeholder: RestageDecoders.string(source, <Object>['placeholder'],
+          context: context),
+      textInputAction: RestageDecoders.enumByName<TextInputAction>(
+          TextInputAction.values, source, <Object>['textInputAction']),
+      textDirection: RestageDecoders.enumByName<TextDirection>(
+          TextDirection.values, source, <Object>['textDirection']),
+      obscureText: RestageValueBinding.read<bool>(
+              source, const <Object>['obscureText'], context) ??
+          false,
+      maxLines: RestageValueBinding.read<int>(
+              source, const <Object>['maxLines'], context) ??
+          1,
+      maxLength: RestageValueBinding.read<int>(
+          source, const <Object>['maxLength'], context),
+      onChanged: RestageDecoders.valueChanged<String>(
+          source, const <Object>['onChanged']),
+      onSubmitted: RestageDecoders.valueChanged<String>(
+          source, const <Object>['onSubmitted']),
+      clipBehavior: RestageDecoders.enumByName<Clip>(
+              Clip.values, source, <Object>['clipBehavior']) ??
+          Clip.hardEdge,
+      keyboardType:
+          RestageDecoders.textInputType(source, const <Object>['keyboardType']),
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoSlider` widget from [source].
 Widget buildCupertinoSlider(BuildContext context, DataSource source) {
-  return CupertinoSlider(
-    value: source.v<double>(const <Object>['value']) ??
-        (throw ArgumentError('CupertinoSlider.value is required.')),
-    onChanged: RestageDecoders.valueChanged<double>(
-        source, const <Object>['onChanged']),
-    min: source.v<double>(const <Object>['min']) ?? 0.0,
-    max: source.v<double>(const <Object>['max']) ?? 1.0,
-    divisions: source.v<int>(const <Object>['divisions']),
-    activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoSlider(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<double>(
+              source, const <Object>['value'], context) ??
+          (throw ArgumentError('CupertinoSlider.value is required.')),
+      onChanged: RestageDecoders.valueChanged<double>(
+          source, const <Object>['onChanged']),
+      min: RestageValueBinding.read<double>(
+              source, const <Object>['min'], context) ??
+          0.0,
+      max: RestageValueBinding.read<double>(
+              source, const <Object>['max'], context) ??
+          1.0,
+      divisions: RestageValueBinding.read<int>(
+          source, const <Object>['divisions'], context),
+      activeColor: RestageDecoders.color(source, <Object>['activeColor']),
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoDatePicker` widget from [source].
 Widget buildCupertinoDatePicker(BuildContext context, DataSource source) {
-  return CupertinoDatePicker(
-    mode: RestageDecoders.enumByName<CupertinoDatePickerMode>(
-            CupertinoDatePickerMode.values, source, <Object>['mode']) ??
-        CupertinoDatePickerMode.dateAndTime,
-    onDateTimeChanged: RestageDecoders.valueChanged<DateTime>(
-            source, const <Object>['onDateTimeChanged']) ??
-        (DateTime _) {},
-    minimumYear: source.v<int>(const <Object>['minimumYear']) ?? 1,
-    maximumYear: source.v<int>(const <Object>['maximumYear']),
-    minuteInterval: source.v<int>(const <Object>['minuteInterval']) ?? 1,
-    use24hFormat: source.v<bool>(const <Object>['use24hFormat']) ?? false,
-    dateOrder: RestageDecoders.enumByName<DatePickerDateOrder>(
-        DatePickerDateOrder.values, source, <Object>['dateOrder']),
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    showDayOfWeek: source.v<bool>(const <Object>['showDayOfWeek']) ?? false,
-    showTimeSeparator:
-        source.v<bool>(const <Object>['showTimeSeparator']) ?? false,
-    itemExtent:
-        RestageDecoders.positiveLayoutScalar(source, <Object>['itemExtent']) ??
-            32.0,
-    changeReportingBehavior:
-        RestageDecoders.enumByName<ChangeReportingBehavior>(
-                ChangeReportingBehavior.values,
-                source,
-                <Object>['changeReportingBehavior']) ??
-            ChangeReportingBehavior.onScrollUpdate,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoDatePicker(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      mode: RestageDecoders.enumByName<CupertinoDatePickerMode>(
+              CupertinoDatePickerMode.values, source, <Object>['mode']) ??
+          CupertinoDatePickerMode.dateAndTime,
+      onDateTimeChanged: RestageDecoders.valueChanged<DateTime>(
+              source, const <Object>['onDateTimeChanged']) ??
+          (DateTime _) {},
+      minimumYear: RestageValueBinding.read<int>(
+              source, const <Object>['minimumYear'], context) ??
+          1,
+      maximumYear: RestageValueBinding.read<int>(
+          source, const <Object>['maximumYear'], context),
+      minuteInterval: RestageValueBinding.read<int>(
+              source, const <Object>['minuteInterval'], context) ??
+          1,
+      use24hFormat: RestageValueBinding.read<bool>(
+              source, const <Object>['use24hFormat'], context) ??
+          false,
+      dateOrder: RestageDecoders.enumByName<DatePickerDateOrder>(
+          DatePickerDateOrder.values, source, <Object>['dateOrder']),
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      showDayOfWeek: RestageValueBinding.read<bool>(
+              source, const <Object>['showDayOfWeek'], context) ??
+          false,
+      showTimeSeparator: RestageValueBinding.read<bool>(
+              source, const <Object>['showTimeSeparator'], context) ??
+          false,
+      itemExtent: RestageDecoders.positiveLayoutScalar(
+              source, <Object>['itemExtent']) ??
+          32.0,
+      changeReportingBehavior:
+          RestageDecoders.enumByName<ChangeReportingBehavior>(
+                  ChangeReportingBehavior.values,
+                  source,
+                  <Object>['changeReportingBehavior']) ??
+              ChangeReportingBehavior.onScrollUpdate,
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoTimerPicker` widget from [source].
 Widget buildCupertinoTimerPicker(BuildContext context, DataSource source) {
-  return CupertinoTimerPicker(
-    mode: RestageDecoders.enumByName<CupertinoTimerPickerMode>(
-            CupertinoTimerPickerMode.values, source, <Object>['mode']) ??
-        CupertinoTimerPickerMode.hms,
-    minuteInterval: source.v<int>(const <Object>['minuteInterval']) ?? 1,
-    secondInterval: source.v<int>(const <Object>['secondInterval']) ?? 1,
-    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-        AlignmentDirectional.center,
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    itemExtent:
-        RestageDecoders.positiveLayoutScalar(source, <Object>['itemExtent']) ??
-            32.0,
-    onTimerDurationChanged: RestageDecoders.valueChanged<Duration>(
-            source, const <Object>['onTimerDurationChanged']) ??
-        (Duration _) {},
-    changeReportingBehavior:
-        RestageDecoders.enumByName<ChangeReportingBehavior>(
-                ChangeReportingBehavior.values,
-                source,
-                <Object>['changeReportingBehavior']) ??
-            ChangeReportingBehavior.onScrollUpdate,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoTimerPicker(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      mode: RestageDecoders.enumByName<CupertinoTimerPickerMode>(
+              CupertinoTimerPickerMode.values, source, <Object>['mode']) ??
+          CupertinoTimerPickerMode.hms,
+      minuteInterval: RestageValueBinding.read<int>(
+              source, const <Object>['minuteInterval'], context) ??
+          1,
+      secondInterval: RestageValueBinding.read<int>(
+              source, const <Object>['secondInterval'], context) ??
+          1,
+      alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
+          AlignmentDirectional.center,
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      itemExtent: RestageDecoders.positiveLayoutScalar(
+              source, <Object>['itemExtent']) ??
+          32.0,
+      onTimerDurationChanged: RestageDecoders.valueChanged<Duration>(
+              source, const <Object>['onTimerDurationChanged']) ??
+          (Duration _) {},
+      changeReportingBehavior:
+          RestageDecoders.enumByName<ChangeReportingBehavior>(
+                  ChangeReportingBehavior.values,
+                  source,
+                  <Object>['changeReportingBehavior']) ??
+              ChangeReportingBehavior.onScrollUpdate,
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoPicker` widget from [source].
 Widget buildCupertinoPicker(BuildContext context, DataSource source) {
-  return CupertinoPicker(
-    diameterRatio: source.v<double>(const <Object>['diameterRatio']) ?? 1.07,
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    offAxisFraction: source.v<double>(const <Object>['offAxisFraction']) ?? 0.0,
-    useMagnifier: source.v<bool>(const <Object>['useMagnifier']) ?? false,
-    magnification: RestageDecoders.positiveLayoutScalar(
-            source, <Object>['magnification']) ??
-        1.0,
-    squeeze:
-        RestageDecoders.positiveLayoutScalar(source, <Object>['squeeze']) ??
-            1.45,
-    changeReportingBehavior:
-        RestageDecoders.enumByName<ChangeReportingBehavior>(
-                ChangeReportingBehavior.values,
-                source,
-                <Object>['changeReportingBehavior']) ??
-            ChangeReportingBehavior.onScrollUpdate,
-    itemExtent: RestageDecoders.requiredLayoutScalar(
-        source, <Object>['itemExtent'],
-        slot: 'CupertinoPicker.itemExtent', mustBePositive: true),
-    onSelectedItemChanged: RestageDecoders.valueChanged<int>(
-        source, const <Object>['onSelectedItemChanged']),
-    looping: source.v<bool>(const <Object>['looping']) ?? false,
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoPicker(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      diameterRatio: RestageValueBinding.read<double>(
+              source, const <Object>['diameterRatio'], context) ??
+          1.07,
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      offAxisFraction: RestageValueBinding.read<double>(
+              source, const <Object>['offAxisFraction'], context) ??
+          0.0,
+      useMagnifier: RestageValueBinding.read<bool>(
+              source, const <Object>['useMagnifier'], context) ??
+          false,
+      magnification: RestageDecoders.positiveLayoutScalar(
+              source, <Object>['magnification']) ??
+          1.0,
+      squeeze:
+          RestageDecoders.positiveLayoutScalar(source, <Object>['squeeze']) ??
+              1.45,
+      changeReportingBehavior:
+          RestageDecoders.enumByName<ChangeReportingBehavior>(
+                  ChangeReportingBehavior.values,
+                  source,
+                  <Object>['changeReportingBehavior']) ??
+              ChangeReportingBehavior.onScrollUpdate,
+      itemExtent: RestageDecoders.requiredLayoutScalar(
+          source, <Object>['itemExtent'],
+          slot: 'CupertinoPicker.itemExtent', mustBePositive: true),
+      onSelectedItemChanged: RestageDecoders.valueChanged<int>(
+          source, const <Object>['onSelectedItemChanged']),
+      looping: RestageValueBinding.read<bool>(
+              source, const <Object>['looping'], context) ??
+          false,
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoSearchTextField` widget from [source].
 Widget buildCupertinoSearchTextField(BuildContext context, DataSource source) {
-  return CupertinoSearchTextField(
-    onChanged: RestageDecoders.valueChanged<String>(
-        source, const <Object>['onChanged']),
-    onSubmitted: RestageDecoders.valueChanged<String>(
-        source, const <Object>['onSubmitted']),
-    placeholder: RestageDecoders.string(source, <Object>['placeholder']),
-    backgroundColor:
-        ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    itemSize:
-        RestageDecoders.layoutFactor(source, <Object>['itemSize']) ?? 20.0,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoSearchTextField(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      onChanged: RestageDecoders.valueChanged<String>(
+          source, const <Object>['onChanged']),
+      onSubmitted: RestageDecoders.valueChanged<String>(
+          source, const <Object>['onSubmitted']),
+      placeholder: RestageDecoders.string(source, <Object>['placeholder'],
+          context: context),
+      backgroundColor:
+          RestageDecoders.color(source, <Object>['backgroundColor']),
+      itemSize:
+          RestageDecoders.layoutFactor(source, <Object>['itemSize']) ?? 20.0,
+    );
+  });
 }
 
 /// Builds the catalog's `CupertinoCheckbox` widget from [source].
 Widget buildCupertinoCheckbox(BuildContext context, DataSource source) {
-  return CupertinoCheckbox(
-    value: source.v<bool>(const <Object>['value']) ??
-        (throw ArgumentError('CupertinoCheckbox.value is required.')),
-    tristate: source.v<bool>(const <Object>['tristate']) ?? false,
-    onChanged: RestageDecoders.valueChanged<bool?>(
-        source, const <Object>['onChanged']),
-    activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
-    checkColor: ArgumentDecoders.color(source, <Object>['checkColor']),
-    semanticLabel: RestageDecoders.string(source, <Object>['semanticLabel']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return CupertinoCheckbox(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      value: RestageValueBinding.read<bool>(
+              source, const <Object>['value'], context) ??
+          (throw ArgumentError('CupertinoCheckbox.value is required.')),
+      tristate: RestageValueBinding.read<bool>(
+              source, const <Object>['tristate'], context) ??
+          false,
+      onChanged: RestageDecoders.valueChanged<bool?>(
+          source, const <Object>['onChanged']),
+      activeColor: RestageDecoders.color(source, <Object>['activeColor']),
+      checkColor: RestageDecoders.color(source, <Object>['checkColor']),
+      semanticLabel: RestageDecoders.string(source, <Object>['semanticLabel'],
+          context: context),
+    );
+  });
 }

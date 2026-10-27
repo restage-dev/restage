@@ -1,5 +1,6 @@
 import 'package:restage_codegen/src/decoration_image_recipes.dart';
 import 'package:restage_codegen/src/gradient_recipes.dart';
+import 'package:restage_codegen/src/grid_value_recipes.dart';
 import 'package:restage_codegen/src/translator_recipe.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -9,6 +10,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// derive. The emit stage serializes them into `translator_tables.g.dart`.
 const List<TranslatorRecipe> kHandAuthoredRecipes = [
   ..._kValueTypeRecipes,
+  ...kGridValueRecipes,
   ...kGradientRecipes,
   ...kDecorationImageRecipes,
 ];

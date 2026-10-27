@@ -367,6 +367,48 @@ final class ChecklistScreen extends StatelessWidget {
       );
     }
 
+    test(
+      'native declarations are app values with no fabricated JSON sample',
+      () async {
+        const native = SurfaceScreenHostDataNativeBindingShapeV1(
+          NativeBindingContract(type: 'flutter.TextScaler', nullable: true),
+          label: 'scaler',
+        );
+        final schema = SurfaceScreenHostDataSchema({
+          'nested': SurfaceScreenHostDataObjectShapeV1(const {
+            'binding': native,
+          }),
+        });
+        expect(hostDataHasAppValues(schema), isTrue);
+        expect(hostDataAppValueLabels(schema), ['scaler']);
+        expect(
+          () => sampleSurfaceCaptureContext(schema),
+          throwsA(
+            isA<SurfaceCaptureSourceException>().having(
+              (error) => error.reason,
+              'reason',
+              contains('native bindings require an installed host'),
+            ),
+          ),
+        );
+        final entry = await seedGeneratedPaywall(
+          app,
+          surface: Surface.general,
+          hostDataContract: schema,
+        );
+        expect(
+          () => surfaceContextTestSource(
+            projectRoot: app,
+            appName: 'demo',
+            entry: entry,
+            name: 'paywall.pro_upgrade',
+            sample: const {},
+          ),
+          throwsA(isA<SurfaceCaptureSourceException>()),
+        );
+      },
+    );
+
     test('records them through the generated widget', () async {
       final text = await contextSource(withAppValue);
       expect(text, contains('restage_capture.captureContext('));

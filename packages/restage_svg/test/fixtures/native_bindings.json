@@ -1,0 +1,266 @@
+{
+  "asset": {
+    "dsl": "SvgPictureAsset(assetName: \"tiny.svg\", bundle: data.context._h9a3d242c6f, colorMapper: data.context._h58bdc4320d, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h58bdc4320d": {
+        "source": "mapper",
+        "type": "flutter_svg.ColorMapper",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h9a3d242c6f": {
+        "source": "bundle",
+        "type": "flutter.AssetBundle",
+        "nullable": false
+      }
+    }
+  },
+  "network": {
+    "dsl": "SvgPictureNetwork(url: \"https://svg.test/picture.svg\", httpClient: data.context._hca44a8837d, headers: data.context._h455a35fd93, colorMapper: data.context._h58bdc4320d, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h455a35fd93": {
+        "source": "const {'X-Svg': 'bound'}",
+        "type": "dart:core#Map<dart:core#String,dart:core#String>",
+        "nullable": false
+      },
+      "_h58bdc4320d": {
+        "source": "mapper",
+        "type": "flutter_svg.ColorMapper",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_hca44a8837d": {
+        "source": "client",
+        "type": "http.Client",
+        "nullable": false
+      }
+    }
+  },
+  "string": {
+    "dsl": "SvgPictureString(string: \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"10\\\" height=\\\"10\\\"><path fill=\\\"#ff0000\\\" d=\\\"M0 0h10v10H0z\\\"/></svg>\", colorMapper: data.context._h58bdc4320d, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h58bdc4320d": {
+        "source": "mapper",
+        "type": "flutter_svg.ColorMapper",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      }
+    }
+  },
+  "memory": {
+    "dsl": "SvgPictureMemory(bytes: [60, 115, 118, 103, 32, 120, 109, 108, 110, 115, 61, 34, 104, 116, 116, 112, 58, 47, 47, 119, 119, 119, 46, 119, 51, 46, 111, 114, 103, 47, 50, 48, 48, 48, 47, 115, 118, 103, 34, 32, 119, 105, 100, 116, 104, 61, 34, 49, 48, 34, 32, 104, 101, 105, 103, 104, 116, 61, 34, 49, 48, 34, 62, 60, 112, 97, 116, 104, 32, 102, 105, 108, 108, 61, 34, 35, 102, 102, 48, 48, 48, 48, 34, 32, 100, 61, 34, 77, 48, 32, 48, 104, 49, 48, 118, 49, 48, 72, 48, 122, 34, 47, 62, 60, 47, 115, 118, 103, 62], colorMapper: data.context._h58bdc4320d, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h58bdc4320d": {
+        "source": "mapper",
+        "type": "flutter_svg.ColorMapper",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      }
+    }
+  },
+  "file": {
+    "dsl": "SvgPictureFile(file: data.context._h9874a1eab9, colorMapper: data.context._h58bdc4320d, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h58bdc4320d": {
+        "source": "mapper",
+        "type": "flutter_svg.ColorMapper",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h9874a1eab9": {
+        "source": "file",
+        "type": "dart.io.File",
+        "nullable": false
+      }
+    }
+  },
+  "boundLoader": {
+    "dsl": "SvgPicture(bytesLoader: data.context._h80b7849ed7, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h80b7849ed7": {
+        "source": "loader",
+        "type": "vector_graphics.BytesLoader",
+        "nullable": false
+      }
+    }
+  },
+  "stringLoader": {
+    "dsl": "SvgPicture(bytesLoader: {kind: \"SvgStringLoader\", value: \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"10\\\" height=\\\"10\\\"><path fill=\\\"#ff0000\\\" d=\\\"M0 0h10v10H0z\\\"/></svg>\", colorMapper: data.context._h58bdc4320d}, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h58bdc4320d": {
+        "source": "mapper",
+        "type": "flutter_svg.ColorMapper",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      }
+    }
+  },
+  "bytesLoader": {
+    "dsl": "SvgPicture(bytesLoader: {kind: \"SvgBytesLoader\", value: [60, 115, 118, 103, 32, 120, 109, 108, 110, 115, 61, 34, 104, 116, 116, 112, 58, 47, 47, 119, 119, 119, 46, 119, 51, 46, 111, 114, 103, 47, 50, 48, 48, 48, 47, 115, 118, 103, 34, 32, 119, 105, 100, 116, 104, 61, 34, 49, 48, 34, 32, 104, 101, 105, 103, 104, 116, 61, 34, 49, 48, 34, 62, 60, 112, 97, 116, 104, 32, 102, 105, 108, 108, 61, 34, 35, 102, 102, 48, 48, 48, 48, 34, 32, 100, 61, 34, 77, 48, 32, 48, 104, 49, 48, 118, 49, 48, 72, 48, 122, 34, 47, 62, 60, 47, 115, 118, 103, 62], colorMapper: data.context._h58bdc4320d}, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h58bdc4320d": {
+        "source": "mapper",
+        "type": "flutter_svg.ColorMapper",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      }
+    }
+  },
+  "assetLoader": {
+    "dsl": "SvgPicture(bytesLoader: {kind: \"SvgAssetLoader\", value: \"tiny.svg\", assetBundle: data.context._h9a3d242c6f, colorMapper: data.context._h58bdc4320d}, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h58bdc4320d": {
+        "source": "mapper",
+        "type": "flutter_svg.ColorMapper",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h9a3d242c6f": {
+        "source": "bundle",
+        "type": "flutter.AssetBundle",
+        "nullable": false
+      }
+    }
+  },
+  "networkLoader": {
+    "dsl": "SvgPicture(bytesLoader: {kind: \"SvgNetworkLoader\", value: \"https://svg.test/picture.svg\", httpClient: data.context._hca44a8837d, headers: data.context._h455a35fd93, colorMapper: data.context._h58bdc4320d}, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h455a35fd93": {
+        "source": "const {'X-Svg': 'bound'}",
+        "type": "dart:core#Map<dart:core#String,dart:core#String>",
+        "nullable": false
+      },
+      "_h58bdc4320d": {
+        "source": "mapper",
+        "type": "flutter_svg.ColorMapper",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_hca44a8837d": {
+        "source": "client",
+        "type": "http.Client",
+        "nullable": false
+      }
+    }
+  },
+  "fileLoader": {
+    "dsl": "SvgPicture(bytesLoader: {kind: \"SvgFileLoader\", value: data.context._h9874a1eab9, colorMapper: data.context._h58bdc4320d}, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "bindings": {
+      "_h316773bcc2": {
+        "source": "errorBuilder",
+        "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h58bdc4320d": {
+        "source": "mapper",
+        "type": "flutter_svg.ColorMapper",
+        "nullable": false
+      },
+      "_h62d5c9958a": {
+        "source": "imageBuilder",
+        "type": "flutter_svg.SvgImageWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,package:flutter/src/widgets/framework.dart#Widget)->package:flutter/src/widgets/framework.dart#Widget",
+        "nullable": false
+      },
+      "_h9874a1eab9": {
+        "source": "file",
+        "type": "dart.io.File",
+        "nullable": false
+      }
+    }
+  },
+  "defaultAsset": {
+    "dsl": "SvgPictureAsset(assetName: \"tiny.svg\")",
+    "bindings": {}
+  }
+}

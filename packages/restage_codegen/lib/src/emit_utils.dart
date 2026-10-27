@@ -10,6 +10,10 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 String conventionalOutputStem(String inputPath, String sourceDir) =>
     p.posix.withoutExtension(p.posix.relative(inputPath, from: sourceDir));
 
+/// Writes an actual numeric token in the exponent grammar accepted by RFW.
+/// String literals must retain their original spelling.
+String rfwNumberLiteral(num value) => value.toString().replaceFirst('e+', 'e');
+
 final Map<Version, DartFormatter> _formatters = {};
 
 /// Formats [source] as `dart format` does for code at [languageVersion], so

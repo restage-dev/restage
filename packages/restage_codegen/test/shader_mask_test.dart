@@ -13,6 +13,15 @@ import 'package:test/test.dart';
 
 import 'helpers.dart';
 
+const _canonicalRed = <String, Object?>{
+  'colorSpace': 'sRGB',
+  'material': 'red',
+  'a': 1.0,
+  'r': 244 / 255,
+  'g': 67 / 255,
+  'b': 54 / 255,
+};
+
 void main() {
   final catalog = decodeCatalog(File(
     '../restage_core/lib/src/widget_catalog/catalog.json',
@@ -74,7 +83,7 @@ Widget x() => $body;
             example.key == 'static const rotation' ? 0.5 : 0.25);
       }
       if (example.key == 'color filter') {
-        expect(root.arguments['color'], 0xFFF44336);
+        expect(root.arguments['color'], _canonicalRed);
         expect(root.arguments['blendMode'], 'modulate');
       }
     });

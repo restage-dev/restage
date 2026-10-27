@@ -109,7 +109,7 @@ final class MeasuredScreen extends StatelessWidget {
           InlineAction(onPressed: surfaceEvent(activate)),
           OpaqueAction(onPressed: surfaceEvent(activate)),
           FilledButton(
-            key: UniqueKey(),
+            key: const ValueKey<String>('repeated-a'),
             onPressed: surfaceEvent(activate),
             child: const Text('Repeated A'),
           ),

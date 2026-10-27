@@ -2,15 +2,15 @@
 // Generated from lib/registry_curation.dart by the catalog generator.
 //
 // Edit the curation file and re-run build_runner; do not
-// edit this file directly. The runtime, codegen, and editor
-// all consume `kRegistry` from here.
+// edit this file directly. Runtime and authoring tools
+// consume `kRegistry` from here.
 
 library;
 
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Registry for the `restage.core` library.
-/// Read by codegen, the editor, and the runtime SDK.
+/// Read by codegen, authoring tools, and the runtime SDK.
 final Catalog kRegistry = Catalog(
   schemaVersion: 5,
   generatedAt: '1970-01-01T00:00:00Z',
@@ -18,6 +18,61 @@ final Catalog kRegistry = Catalog(
     WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
   },
   widgets: [
+    WidgetEntry(
+      wireId: WireId('w0064'),
+      name: 'Directionality',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description:
+          'A widget that determines the ambient directionality of text and text-direction-sensitive render objects.',
+      flutterType: 'package:flutter/src/widgets/basic.dart#Directionality',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0886'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0714'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: 'The text direction for this subtree.',
+          sinceVersion: 17,
+          required: true,
+          enumType: 'TextDirection',
+          priority: PropertyPriority.primary,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0715'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+          required: true,
+          priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0716'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 17,
+    ),
     WidgetEntry(
       wireId: WireId('w0062'),
       name: 'AbsorbPointer',
@@ -27,6 +82,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#AbsorbPointer',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0887'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0707'),
           name: 'absorbing',
@@ -45,6 +112,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0709'),
@@ -57,6 +125,107 @@ final Catalog kRegistry = Catalog(
       sinceVersion: 16,
     ),
     WidgetEntry(
+      wireId: WireId('w0065'),
+      name: 'LayoutBuilder',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description:
+          'Builds a widget tree that can depend on the parent widget\'s size.',
+      flutterType:
+          'package:flutter/src/widgets/layout_builder.dart#LayoutBuilder',
+      childrenSlot: ChildrenSlot.none,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0888'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0739'),
+          name: 'builder',
+          type: PropertyType.widgetBuilder,
+          description: '',
+          sinceVersion: 19,
+          required: true,
+          builderContract: WidgetBuilderContract(
+            parameters: [
+              WidgetBuilderParameter.buildContext,
+              WidgetBuilderParameter.boxConstraints
+            ],
+            nullableResult: false,
+          ),
+          priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widgetBuilder),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0740'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 19,
+    ),
+    WidgetEntry(
+      wireId: WireId('w0066'),
+      name: 'OrientationBuilder',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description:
+          'Builds a widget tree that can depend on the parent widget\'s orientation (distinct from the device orientation).',
+      flutterType:
+          'package:flutter/src/widgets/orientation_builder.dart#OrientationBuilder',
+      childrenSlot: ChildrenSlot.none,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0889'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0741'),
+          name: 'builder',
+          type: PropertyType.widgetBuilder,
+          description:
+              'Builds the widgets below this widget given this widget\'s orientation.',
+          sinceVersion: 19,
+          required: true,
+          builderContract: WidgetBuilderContract(
+            parameters: [
+              WidgetBuilderParameter.buildContext,
+              WidgetBuilderParameter.orientation
+            ],
+            nullableResult: false,
+          ),
+          priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widgetBuilder),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0742'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 19,
+    ),
+    WidgetEntry(
       wireId: WireId('w0001'),
       name: 'Align',
       library: WidgetLibrary.core,
@@ -66,6 +235,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#Align',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0890'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0001'),
           name: 'alignment',
@@ -109,6 +290,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0589'),
@@ -131,6 +313,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0891'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0313'),
           name: 'alignment',
           type: PropertyType.alignment,
@@ -151,6 +345,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0315'),
@@ -228,6 +423,18 @@ final Catalog kRegistry = Catalog(
           'package:flutter/src/widgets/implicit_animations.dart#AnimatedContainer',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0892'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0005'),
           name: 'alignment',
@@ -307,6 +514,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The [child] contained by the container.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0529'),
@@ -358,6 +566,38 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description: 'Uniform corner radius applied to all four corners.',
           synthetic: 'borderRadiusCircular',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0717'),
+          name: 'borderRadiusTopStart',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0718'),
+          name: 'borderRadiusTopEnd',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0719'),
+          name: 'borderRadiusBottomStart',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0720'),
+          name: 'borderRadiusBottomEnd',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
         ),
         PropertyEntry(
           wireId: WireId('p0565'),
@@ -606,12 +846,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0893'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0318'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0319'),
@@ -1145,11 +1398,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0894'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0350'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0351'),
@@ -1228,6 +1494,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0895'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0354'),
           name: 'padding',
           type: PropertyType.edgeInsets,
@@ -1246,6 +1524,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0393'),
@@ -1300,12 +1579,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0896'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0357'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0358'),
@@ -1430,11 +1722,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0897'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0365'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0366'),
@@ -1515,11 +1820,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0898'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0368'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0369'),
@@ -1600,11 +1918,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0899'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0373'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0374'),
@@ -1698,11 +2029,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0900'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0403'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0404'),
@@ -1770,6 +2114,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0901'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0018'),
           name: 'aspectRatio',
           type: PropertyType.real,
@@ -1787,6 +2143,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0600'),
@@ -1808,11 +2165,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0902'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0020'),
           name: 'child',
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0021'),
@@ -1874,6 +2244,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0903'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0025'),
           name: 'widthFactor',
           type: PropertyType.real,
@@ -1901,6 +2283,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0602'),
@@ -1921,6 +2304,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0904'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0028'),
           name: 'clipBehavior',
           type: PropertyType.enumValue,
@@ -1937,6 +2332,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0603'),
@@ -1948,6 +2344,167 @@ final Catalog kRegistry = Catalog(
       ],
     ),
     WidgetEntry(
+      wireId: WireId('w0072'),
+      name: 'ClipPath',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.decoration,
+      description: 'A widget that clips its child using a path.',
+      flutterType: 'package:flutter/src/widgets/basic.dart#ClipPath',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0905'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0875'),
+          name: 'clipBehavior',
+          type: PropertyType.enumValue,
+          description: '{@macro flutter.rendering.ClipRectLayer.clipBehavior}',
+          enumType: 'Clip',
+          defaultSource: LiteralDefault('antiAlias'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0876'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0877'),
+          name: 'shape',
+          type: PropertyType.shapeBorder,
+          description: 'Shape used to obtain the clip path.',
+          sinceVersion: 21,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0878'),
+          name: 'clipperTextDirection',
+          type: PropertyType.enumValue,
+          description: 'Explicit nullable direction used by the shape clipper.',
+          sinceVersion: 21,
+          enumType: 'TextDirection',
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0879'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      decomposes: [
+        DecompositionRecipe(
+          structuredRef:
+              WireIdRef(library: 'restage.core', wireId: WireId('s0036')),
+          flatProperties: <WireId, WireId>{},
+          targetArg: 'clipper',
+          construction: FactoryInvocation(
+              variantRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('v0066')),
+              receiver: ResultStructuredTypeReceiver()),
+          fieldMappings: [
+            DecompositionFieldMapping(
+              fieldRef: WireId('p0884'),
+              propertyRef: WireId('p0877'),
+              transform: IdentityTransform(),
+            ),
+            DecompositionFieldMapping(
+              fieldRef: WireId('p0885'),
+              propertyRef: WireId('p0878'),
+              transform: IdentityTransform(),
+            ),
+          ],
+        ),
+      ],
+      sinceVersion: 21,
+    ),
+    WidgetEntry(
+      wireId: WireId('w0073'),
+      name: 'ClipPathShape',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.decoration,
+      description: 'A widget that clips its child using a path.',
+      flutterType: 'package:flutter/src/widgets/basic.dart#ClipPath.shape',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0906'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0880'),
+          name: 'shape',
+          type: PropertyType.shapeBorder,
+          description: '',
+          required: true,
+          priority: PropertyPriority.primary,
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0881'),
+          name: 'clipBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Clip',
+          defaultSource: LiteralDefault('antiAlias'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0882'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0883'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 21,
+    ),
+    WidgetEntry(
       wireId: WireId('w0007'),
       name: 'ClipRRect',
       library: WidgetLibrary.core,
@@ -1957,6 +2514,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#ClipRRect',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0907'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0030'),
           name: 'clipBehavior',
@@ -1974,6 +2543,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0032'),
@@ -1981,6 +2551,38 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description: 'Uniform corner radius applied to all four corners.',
           synthetic: 'borderRadiusCircular',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0721'),
+          name: 'borderRadiusTopStart',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0722'),
+          name: 'borderRadiusTopEnd',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0723'),
+          name: 'borderRadiusBottomStart',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0724'),
+          name: 'borderRadiusBottomEnd',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
         ),
         PropertyEntry(
           wireId: WireId('p0569'),
@@ -2029,6 +2631,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0908'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0033'),
           name: 'clipBehavior',
           type: PropertyType.enumValue,
@@ -2045,6 +2659,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0605'),
@@ -2083,6 +2698,19 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0909'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
         ),
         PropertyEntry(
           wireId: WireId('p0606'),
@@ -2103,6 +2731,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#Column',
       childrenSlot: ChildrenSlot.list,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0910'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0035'),
           name: 'mainAxisAlignment',
@@ -2145,6 +2785,19 @@ final Catalog kRegistry = Catalog(
                   symbolName: 'CrossAxisAlignment')),
         ),
         PropertyEntry(
+          wireId: WireId('p0725'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: '',
+          sinceVersion: 17,
+          enumType: 'TextDirection',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0670'),
           name: 'textBaseline',
           type: PropertyType.enumValue,
@@ -2172,6 +2825,9 @@ final Catalog kRegistry = Catalog(
           name: 'children',
           type: PropertyType.widgetList,
           description: '',
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0607'),
@@ -2193,11 +2849,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0911'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0582'),
           name: 'child',
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0583'),
@@ -2294,6 +2963,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0912'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0039'),
           name: 'alignment',
           type: PropertyType.alignment,
@@ -2372,6 +3053,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The [child] contained by the container.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0530'),
@@ -2391,6 +3073,38 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description: 'Uniform corner radius applied to all four corners.',
           synthetic: 'borderRadiusCircular',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0726'),
+          name: 'borderRadiusTopStart',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0727'),
+          name: 'borderRadiusTopEnd',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0728'),
+          name: 'borderRadiusBottomStart',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0729'),
+          name: 'borderRadiusBottomEnd',
+          type: PropertyType.real,
+          description: 'Directional corner radius.',
+          sinceVersion: 17,
+          synthetic: 'borderRadiusCorner',
         ),
         PropertyEntry(
           wireId: WireId('p0573'),
@@ -2638,6 +3352,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0913'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0051'),
           name: 'position',
           type: PropertyType.enumValue,
@@ -2657,6 +3383,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0053'),
@@ -2725,6 +3452,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/text.dart#DefaultTextStyle',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0914'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0054'),
           name: 'textAlign',
@@ -2797,6 +3536,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0241'),
@@ -3233,6 +3973,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0915'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0063'),
           name: 'flex',
           type: PropertyType.integer,
@@ -3250,6 +4002,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0612'),
@@ -3272,6 +4025,18 @@ final Catalog kRegistry = Catalog(
           'package:flutter/src/widgets/fade_in_image.dart#FadeInImage.assetNetwork',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0916'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0065'),
           name: 'placeholder',
@@ -3389,6 +4154,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0917'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0073'),
           name: 'fit',
           type: PropertyType.enumValue,
@@ -3432,6 +4209,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0614'),
@@ -3452,6 +4230,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#Flexible',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0918'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0077'),
           name: 'flex',
@@ -3484,6 +4274,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0615'),
@@ -3505,6 +4296,18 @@ final Catalog kRegistry = Catalog(
           'package:flutter/src/widgets/basic.dart#FractionallySizedBox',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0919'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0377'),
           name: 'alignment',
@@ -3549,6 +4352,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0616'),
@@ -3570,11 +4374,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0920'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0080'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0081'),
@@ -3636,6 +4453,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0921'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0711'),
           name: 'ignoring',
           type: PropertyType.boolean,
@@ -3652,6 +4481,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0713'),
@@ -3684,6 +4514,18 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.string,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0922'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
         ),
         PropertyEntry(
           wireId: WireId('p0085'),
@@ -3834,6 +4676,18 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
         ),
         PropertyEntry(
+          wireId: WireId('p0923'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0090'),
           name: 'semanticLabel',
           type: PropertyType.string,
@@ -3969,11 +4823,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0924'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0381'),
           name: 'child',
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0620'),
@@ -3994,6 +4861,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#IntrinsicWidth',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0925'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0382'),
           name: 'stepWidth',
@@ -4024,6 +4903,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0621'),
@@ -4043,6 +4923,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#LimitedBox',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0926'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0094'),
           name: 'maxWidth',
@@ -4075,6 +4967,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0622'),
@@ -4086,6 +4979,1428 @@ final Catalog kRegistry = Catalog(
       ],
     ),
     WidgetEntry(
+      wireId: WireId('w0067'),
+      name: 'GridView',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description: 'A scrollable, 2D array of widgets.',
+      flutterType: 'package:flutter/src/widgets/scroll_view.dart#GridView',
+      childrenSlot: ChildrenSlot.list,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0927'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0743'),
+          name: 'scrollDirection',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Axis',
+          defaultSource: LiteralDefault('vertical'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/basic_types.dart',
+                  symbolName: 'Axis')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0744'),
+          name: 'reverse',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0928'),
+          name: 'controller',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0038'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0745'),
+          name: 'primary',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0746'),
+          name: 'physics',
+          type: PropertyType.structured,
+          description: '',
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0030'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0747'),
+          name: 'shrinkWrap',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0748'),
+          name: 'padding',
+          type: PropertyType.edgeInsets,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.edgeInsets,
+              dartTypeRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/edge_insets.dart',
+                  symbolName: 'EdgeInsetsGeometry')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0749'),
+          name: 'gridDelegate',
+          type: PropertyType.structured,
+          description:
+              'A delegate that controls the layout of the children within the [GridView].',
+          required: true,
+          priority: PropertyPriority.primary,
+          valueShape: UnionShape(
+              propertyType: PropertyType.structured,
+              unionRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('u0006'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0750'),
+          name: 'addAutomaticKeepAlives',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0751'),
+          name: 'addRepaintBoundaries',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0752'),
+          name: 'addSemanticIndexes',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0753'),
+          name: 'cacheExtent',
+          type: PropertyType.real,
+          description: '',
+          constructorNullable: true,
+          deprecated: DeprecationInfo(
+              source: SourceDeprecationInfo(
+                  message:
+                      'Use scrollCacheExtent instead. This feature was deprecated after v3.41.0-0.0.pre.')),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0754'),
+          name: 'scrollCacheExtent',
+          type: PropertyType.structured,
+          description: '',
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0031'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0755'),
+          name: 'children',
+          type: PropertyType.widgetList,
+          description: '',
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0756'),
+          name: 'semanticChildCount',
+          type: PropertyType.integer,
+          description: '',
+          constructorNullable: true,
+          category: PropertyCategory.accessibility,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0757'),
+          name: 'dragStartBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'DragStartBehavior',
+          defaultSource: LiteralDefault('start'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/gestures/recognizer.dart',
+                  symbolName: 'DragStartBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0758'),
+          name: 'clipBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Clip',
+          defaultSource: LiteralDefault('hardEdge'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0759'),
+          name: 'keyboardDismissBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'ScrollViewKeyboardDismissBehavior',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/widgets/scroll_view.dart',
+                  symbolName: 'ScrollViewKeyboardDismissBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0760'),
+          name: 'restorationId',
+          type: PropertyType.string,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0761'),
+          name: 'hitTestBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'HitTestBehavior',
+          defaultSource: LiteralDefault('opaque'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/rendering/proxy_box.dart',
+                  symbolName: 'HitTestBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0762'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 20,
+    ),
+    WidgetEntry(
+      wireId: WireId('w0068'),
+      name: 'GridViewCount',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description: 'A scrollable, 2D array of widgets.',
+      flutterType:
+          'package:flutter/src/widgets/scroll_view.dart#GridView.count',
+      childrenSlot: ChildrenSlot.list,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0929'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0763'),
+          name: 'scrollDirection',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Axis',
+          defaultSource: LiteralDefault('vertical'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/basic_types.dart',
+                  symbolName: 'Axis')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0764'),
+          name: 'reverse',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0930'),
+          name: 'controller',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0038'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0765'),
+          name: 'primary',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0766'),
+          name: 'physics',
+          type: PropertyType.structured,
+          description: '',
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0030'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0767'),
+          name: 'shrinkWrap',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0768'),
+          name: 'padding',
+          type: PropertyType.edgeInsets,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.edgeInsets,
+              dartTypeRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/edge_insets.dart',
+                  symbolName: 'EdgeInsetsGeometry')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0769'),
+          name: 'crossAxisCount',
+          type: PropertyType.integer,
+          description: '',
+          required: true,
+          priority: PropertyPriority.primary,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0770'),
+          name: 'mainAxisSpacing',
+          type: PropertyType.real,
+          description: '',
+          defaultSource: LiteralDefault(0.0),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0771'),
+          name: 'crossAxisSpacing',
+          type: PropertyType.real,
+          description: '',
+          defaultSource: LiteralDefault(0.0),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0772'),
+          name: 'childAspectRatio',
+          type: PropertyType.real,
+          description: '',
+          defaultSource: LiteralDefault(1.0),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0773'),
+          name: 'mainAxisExtent',
+          type: PropertyType.real,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0774'),
+          name: 'addAutomaticKeepAlives',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0775'),
+          name: 'addRepaintBoundaries',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0776'),
+          name: 'addSemanticIndexes',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0777'),
+          name: 'cacheExtent',
+          type: PropertyType.real,
+          description: '',
+          constructorNullable: true,
+          deprecated: DeprecationInfo(
+              source: SourceDeprecationInfo(
+                  message:
+                      'Use scrollCacheExtent instead. This feature was deprecated after v3.41.0-0.0.pre.')),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0778'),
+          name: 'scrollCacheExtent',
+          type: PropertyType.structured,
+          description: '',
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0031'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0779'),
+          name: 'children',
+          type: PropertyType.widgetList,
+          description: '',
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0780'),
+          name: 'semanticChildCount',
+          type: PropertyType.integer,
+          description: '',
+          constructorNullable: true,
+          category: PropertyCategory.accessibility,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0781'),
+          name: 'dragStartBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'DragStartBehavior',
+          defaultSource: LiteralDefault('start'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/gestures/recognizer.dart',
+                  symbolName: 'DragStartBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0782'),
+          name: 'keyboardDismissBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'ScrollViewKeyboardDismissBehavior',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/widgets/scroll_view.dart',
+                  symbolName: 'ScrollViewKeyboardDismissBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0783'),
+          name: 'restorationId',
+          type: PropertyType.string,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0784'),
+          name: 'clipBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Clip',
+          defaultSource: LiteralDefault('hardEdge'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0785'),
+          name: 'hitTestBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'HitTestBehavior',
+          defaultSource: LiteralDefault('opaque'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/rendering/proxy_box.dart',
+                  symbolName: 'HitTestBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0786'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 20,
+    ),
+    WidgetEntry(
+      wireId: WireId('w0069'),
+      name: 'GridViewExtent',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description: 'A scrollable, 2D array of widgets.',
+      flutterType:
+          'package:flutter/src/widgets/scroll_view.dart#GridView.extent',
+      childrenSlot: ChildrenSlot.list,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0931'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0787'),
+          name: 'scrollDirection',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Axis',
+          defaultSource: LiteralDefault('vertical'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/basic_types.dart',
+                  symbolName: 'Axis')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0788'),
+          name: 'reverse',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0932'),
+          name: 'controller',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0038'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0789'),
+          name: 'primary',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0790'),
+          name: 'physics',
+          type: PropertyType.structured,
+          description: '',
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0030'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0791'),
+          name: 'shrinkWrap',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0792'),
+          name: 'padding',
+          type: PropertyType.edgeInsets,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.edgeInsets,
+              dartTypeRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/edge_insets.dart',
+                  symbolName: 'EdgeInsetsGeometry')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0793'),
+          name: 'maxCrossAxisExtent',
+          type: PropertyType.real,
+          description: '',
+          required: true,
+          priority: PropertyPriority.primary,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0794'),
+          name: 'mainAxisSpacing',
+          type: PropertyType.real,
+          description: '',
+          defaultSource: LiteralDefault(0.0),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0795'),
+          name: 'crossAxisSpacing',
+          type: PropertyType.real,
+          description: '',
+          defaultSource: LiteralDefault(0.0),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0796'),
+          name: 'childAspectRatio',
+          type: PropertyType.real,
+          description: '',
+          defaultSource: LiteralDefault(1.0),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0797'),
+          name: 'mainAxisExtent',
+          type: PropertyType.real,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0798'),
+          name: 'addAutomaticKeepAlives',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0799'),
+          name: 'addRepaintBoundaries',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0800'),
+          name: 'addSemanticIndexes',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0801'),
+          name: 'cacheExtent',
+          type: PropertyType.real,
+          description: '',
+          constructorNullable: true,
+          deprecated: DeprecationInfo(
+              source: SourceDeprecationInfo(
+                  message:
+                      'Use scrollCacheExtent instead. This feature was deprecated after v3.41.0-0.0.pre.')),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0802'),
+          name: 'scrollCacheExtent',
+          type: PropertyType.structured,
+          description: '',
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0031'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0803'),
+          name: 'children',
+          type: PropertyType.widgetList,
+          description: '',
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0804'),
+          name: 'semanticChildCount',
+          type: PropertyType.integer,
+          description: '',
+          constructorNullable: true,
+          category: PropertyCategory.accessibility,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0805'),
+          name: 'dragStartBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'DragStartBehavior',
+          defaultSource: LiteralDefault('start'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/gestures/recognizer.dart',
+                  symbolName: 'DragStartBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0806'),
+          name: 'keyboardDismissBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'ScrollViewKeyboardDismissBehavior',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/widgets/scroll_view.dart',
+                  symbolName: 'ScrollViewKeyboardDismissBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0807'),
+          name: 'restorationId',
+          type: PropertyType.string,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0808'),
+          name: 'clipBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Clip',
+          defaultSource: LiteralDefault('hardEdge'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0809'),
+          name: 'hitTestBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'HitTestBehavior',
+          defaultSource: LiteralDefault('opaque'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/rendering/proxy_box.dart',
+                  symbolName: 'HitTestBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0810'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 20,
+    ),
+    WidgetEntry(
+      wireId: WireId('w0070'),
+      name: 'GridViewBuilder',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description: 'A scrollable, 2D array of widgets.',
+      flutterType:
+          'package:flutter/src/widgets/scroll_view.dart#GridView.builder',
+      childrenSlot: ChildrenSlot.none,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0933'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0811'),
+          name: 'scrollDirection',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Axis',
+          defaultSource: LiteralDefault('vertical'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/basic_types.dart',
+                  symbolName: 'Axis')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0812'),
+          name: 'reverse',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0934'),
+          name: 'controller',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0038'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0813'),
+          name: 'primary',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0814'),
+          name: 'physics',
+          type: PropertyType.structured,
+          description: '',
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0030'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0815'),
+          name: 'shrinkWrap',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0816'),
+          name: 'padding',
+          type: PropertyType.edgeInsets,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.edgeInsets,
+              dartTypeRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/edge_insets.dart',
+                  symbolName: 'EdgeInsetsGeometry')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0817'),
+          name: 'gridDelegate',
+          type: PropertyType.structured,
+          description:
+              'A delegate that controls the layout of the children within the [GridView].',
+          required: true,
+          priority: PropertyPriority.primary,
+          valueShape: UnionShape(
+              propertyType: PropertyType.structured,
+              unionRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('u0006'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0818'),
+          name: 'itemBuilder',
+          type: PropertyType.widgetBuilder,
+          description: '',
+          sinceVersion: 20,
+          required: true,
+          builderContract: WidgetBuilderContract(
+            parameters: [
+              WidgetBuilderParameter.buildContext,
+              WidgetBuilderParameter.itemIndex
+            ],
+            nullableResult: true,
+          ),
+          priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widgetBuilder),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0819'),
+          name: 'findChildIndexCallback',
+          type: PropertyType.scalarCallback,
+          description: '',
+          scalarContract: ScalarCallbackContract(
+            parameters: [ScalarCallbackParameter.valueKey],
+            nullableResult: true,
+          ),
+          constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.scalarCallback),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0820'),
+          name: 'itemCount',
+          type: PropertyType.integer,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0821'),
+          name: 'addAutomaticKeepAlives',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0822'),
+          name: 'addRepaintBoundaries',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0823'),
+          name: 'addSemanticIndexes',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0824'),
+          name: 'cacheExtent',
+          type: PropertyType.real,
+          description: '',
+          constructorNullable: true,
+          deprecated: DeprecationInfo(
+              source: SourceDeprecationInfo(
+                  message:
+                      'Use scrollCacheExtent instead. This feature was deprecated after v3.41.0-0.0.pre.')),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0825'),
+          name: 'scrollCacheExtent',
+          type: PropertyType.structured,
+          description: '',
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0031'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0826'),
+          name: 'semanticChildCount',
+          type: PropertyType.integer,
+          description: '',
+          constructorNullable: true,
+          category: PropertyCategory.accessibility,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0827'),
+          name: 'dragStartBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'DragStartBehavior',
+          defaultSource: LiteralDefault('start'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/gestures/recognizer.dart',
+                  symbolName: 'DragStartBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0828'),
+          name: 'keyboardDismissBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'ScrollViewKeyboardDismissBehavior',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/widgets/scroll_view.dart',
+                  symbolName: 'ScrollViewKeyboardDismissBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0829'),
+          name: 'restorationId',
+          type: PropertyType.string,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0830'),
+          name: 'clipBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Clip',
+          defaultSource: LiteralDefault('hardEdge'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0831'),
+          name: 'hitTestBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'HitTestBehavior',
+          defaultSource: LiteralDefault('opaque'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/rendering/proxy_box.dart',
+                  symbolName: 'HitTestBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0832'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 20,
+    ),
+    WidgetEntry(
+      wireId: WireId('w0071'),
+      name: 'GridViewCustom',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description: 'A scrollable, 2D array of widgets.',
+      flutterType:
+          'package:flutter/src/widgets/scroll_view.dart#GridView.custom',
+      childrenSlot: ChildrenSlot.none,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0935'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0833'),
+          name: 'scrollDirection',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Axis',
+          defaultSource: LiteralDefault('vertical'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/basic_types.dart',
+                  symbolName: 'Axis')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0834'),
+          name: 'reverse',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0936'),
+          name: 'controller',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0038'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0835'),
+          name: 'primary',
+          type: PropertyType.boolean,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0836'),
+          name: 'physics',
+          type: PropertyType.structured,
+          description: '',
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0030'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0837'),
+          name: 'shrinkWrap',
+          type: PropertyType.boolean,
+          description: '',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0838'),
+          name: 'padding',
+          type: PropertyType.edgeInsets,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.edgeInsets,
+              dartTypeRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/edge_insets.dart',
+                  symbolName: 'EdgeInsetsGeometry')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0839'),
+          name: 'gridDelegate',
+          type: PropertyType.structured,
+          description:
+              'A delegate that controls the layout of the children within the [GridView].',
+          required: true,
+          priority: PropertyPriority.primary,
+          valueShape: UnionShape(
+              propertyType: PropertyType.structured,
+              unionRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('u0006'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0840'),
+          name: 'childrenDelegate',
+          type: PropertyType.structured,
+          description:
+              'A delegate that provides the children for the [GridView].',
+          required: true,
+          priority: PropertyPriority.primary,
+          valueShape: UnionShape(
+              propertyType: PropertyType.structured,
+              unionRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('u0005'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0841'),
+          name: 'cacheExtent',
+          type: PropertyType.real,
+          description: '',
+          constructorNullable: true,
+          deprecated: DeprecationInfo(
+              source: SourceDeprecationInfo(
+                  message:
+                      'Use scrollCacheExtent instead. This feature was deprecated after v3.41.0-0.0.pre.')),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0842'),
+          name: 'scrollCacheExtent',
+          type: PropertyType.structured,
+          description: '',
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0031'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0843'),
+          name: 'semanticChildCount',
+          type: PropertyType.integer,
+          description: '',
+          constructorNullable: true,
+          category: PropertyCategory.accessibility,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0844'),
+          name: 'dragStartBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'DragStartBehavior',
+          defaultSource: LiteralDefault('start'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/gestures/recognizer.dart',
+                  symbolName: 'DragStartBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0845'),
+          name: 'keyboardDismissBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'ScrollViewKeyboardDismissBehavior',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/widgets/scroll_view.dart',
+                  symbolName: 'ScrollViewKeyboardDismissBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0846'),
+          name: 'restorationId',
+          type: PropertyType.string,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0847'),
+          name: 'clipBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'Clip',
+          defaultSource: LiteralDefault('hardEdge'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0848'),
+          name: 'hitTestBehavior',
+          type: PropertyType.enumValue,
+          description: '',
+          enumType: 'HitTestBehavior',
+          defaultSource: LiteralDefault('opaque'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/rendering/proxy_box.dart',
+                  symbolName: 'HitTestBehavior')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0849'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 20,
+    ),
+    WidgetEntry(
       wireId: WireId('w0021'),
       name: 'ListView',
       library: WidgetLibrary.core,
@@ -4094,6 +6409,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/scroll_view.dart#ListView',
       childrenSlot: ChildrenSlot.list,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0937'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0097'),
           name: 'scrollDirection',
@@ -4117,6 +6444,18 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.boolean,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0938'),
+          name: 'controller',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0038'))),
         ),
         PropertyEntry(
           wireId: WireId('p0099'),
@@ -4146,6 +6485,9 @@ final Catalog kRegistry = Catalog(
           name: 'children',
           type: PropertyType.widgetList,
           description: '',
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0498'),
@@ -4192,12 +6534,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0939'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0471'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget that fades in.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0472'),
@@ -4287,6 +6642,18 @@ final Catalog kRegistry = Catalog(
           'package:restage_core/src/widgets/restage_formatted_number.dart#RestageFormattedNumber',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0940'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0409'),
           name: 'value',
@@ -4779,12 +7146,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0941'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0478'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget that springs into place.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0479'),
@@ -4901,6 +7281,18 @@ final Catalog kRegistry = Catalog(
           'package:restage_core/src/widgets/restage_formatted_number.dart#RestagePrice',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0942'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0439'),
           name: 'value',
@@ -5418,12 +7810,25 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0943'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0487'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget that pulses.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0488'),
@@ -5499,6 +7904,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: 'The content to mask.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0650'),
@@ -5506,6 +7912,11 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.gradient,
           description: 'The gradient evaluated in the child\'s bounds.',
           constructorNullable: true,
+          valueShape: UnionShape(
+              propertyType: PropertyType.gradient,
+              unionRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('u0003')),
+              wireCodec: CatalogWireCodec.rfwGradient),
         ),
         PropertyEntry(
           wireId: WireId('p0651'),
@@ -5543,6 +7954,18 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:ui', symbolName: 'BlendMode')),
         ),
         PropertyEntry(
+          wireId: WireId('p0944'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0654'),
           name: 'analyticsId',
           type: PropertyType.string,
@@ -5563,12 +7986,27 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.list,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0945'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0492'),
           name: 'children',
           type: PropertyType.widgetList,
           description: 'The children revealed in order, top to bottom.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0493'),
@@ -5652,6 +8090,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0946'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0587'),
           name: 'offstage',
           type: PropertyType.boolean,
@@ -5669,6 +8119,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0630'),
@@ -5689,6 +8140,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#Opacity',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0947'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0102'),
           name: 'opacity',
@@ -5719,6 +8182,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0631'),
@@ -5739,6 +8203,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0948'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0105'),
           name: 'padding',
           type: PropertyType.edgeInsets,
@@ -5757,6 +8233,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0632'),
@@ -5777,6 +8254,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#Positioned',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0949'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0107'),
           name: 'left',
@@ -5854,6 +8343,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0633'),
@@ -5873,6 +8363,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#Row',
       childrenSlot: ChildrenSlot.list,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0950'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0114'),
           name: 'mainAxisAlignment',
@@ -5915,6 +8417,19 @@ final Catalog kRegistry = Catalog(
                   symbolName: 'CrossAxisAlignment')),
         ),
         PropertyEntry(
+          wireId: WireId('p0730'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: '',
+          sinceVersion: 17,
+          enumType: 'TextDirection',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0671'),
           name: 'textBaseline',
           type: PropertyType.enumValue,
@@ -5942,6 +8457,9 @@ final Catalog kRegistry = Catalog(
           name: 'children',
           type: PropertyType.widgetList,
           description: '',
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0634'),
@@ -5964,6 +8482,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0951'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0118'),
           name: 'quarterTurns',
           type: PropertyType.integer,
@@ -5982,6 +8512,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0635'),
@@ -6002,6 +8533,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/safe_area.dart#SafeArea',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0952'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0120'),
           name: 'left',
@@ -6068,6 +8611,7 @@ final Catalog kRegistry = Catalog(
           description: 'The widget below this widget in the tree.',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0636'),
@@ -6088,6 +8632,18 @@ final Catalog kRegistry = Catalog(
           'package:flutter/src/widgets/single_child_scroll_view.dart#SingleChildScrollView',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0953'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0126'),
           name: 'scrollDirection',
@@ -6126,11 +8682,25 @@ final Catalog kRegistry = Catalog(
                   symbolName: 'EdgeInsetsGeometry')),
         ),
         PropertyEntry(
+          wireId: WireId('p0954'),
+          name: 'controller',
+          type: PropertyType.structured,
+          description:
+              'An object that can be used to control the position to which this scroll view is scrolled.',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0038'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0129'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget that scrolls.',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0551'),
@@ -6177,11 +8747,24 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0955'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0646'),
           name: 'child',
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0672'),
@@ -6580,6 +9163,19 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
         ),
         PropertyEntry(
+          wireId: WireId('p0731'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: '',
+          sinceVersion: 17,
+          enumType: 'TextDirection',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0648'),
           name: 'analyticsId',
           type: PropertyType.string,
@@ -6598,6 +9194,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0956'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0130'),
           name: 'width',
@@ -6628,6 +9236,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0638'),
@@ -6648,6 +9257,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/spacer.dart#Spacer',
       childrenSlot: ChildrenSlot.none,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0957'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0133'),
           name: 'flex',
@@ -6680,6 +9301,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.list,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0958'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0134'),
           name: 'alignment',
           type: PropertyType.alignment,
@@ -6692,6 +9325,19 @@ final Catalog kRegistry = Catalog(
               dartTypeRef: DartTypeRef(
                   libraryUri: 'package:flutter/src/painting/alignment.dart',
                   symbolName: 'AlignmentGeometry')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0732'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: 'The text direction with which to resolve [alignment].',
+          sinceVersion: 17,
+          enumType: 'TextDirection',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
         ),
         PropertyEntry(
           wireId: WireId('p0135'),
@@ -6722,6 +9368,9 @@ final Catalog kRegistry = Catalog(
           name: 'children',
           type: PropertyType.widgetList,
           description: '',
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0640'),
@@ -6755,6 +9404,18 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
         ),
         PropertyEntry(
+          wireId: WireId('p0959'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0138'),
           name: 'textAlign',
           type: PropertyType.enumValue,
@@ -6767,6 +9428,19 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:ui', symbolName: 'TextAlign')),
         ),
         PropertyEntry(
+          wireId: WireId('p0733'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: 'The directionality of the text.',
+          sinceVersion: 17,
+          enumType: 'TextDirection',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0543'),
           name: 'softWrap',
           type: PropertyType.boolean,
@@ -6777,6 +9451,23 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.boolean,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0735'),
+          name: 'textScaleFactor',
+          type: PropertyType.real,
+          description:
+              'Deprecated. Will be removed in a future version of Flutter. Use [textScaler] instead.',
+          sinceVersion: 18,
+          constructorNullable: true,
+          deprecated: DeprecationInfo(
+              source: SourceDeprecationInfo(
+                  message:
+                      'Use textScaler instead. Use of textScaleFactor was deprecated in preparation for the upcoming nonlinear text scaling support. This feature was deprecated after v3.12.0-2.0.pre.')),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
         ),
         PropertyEntry(
           wireId: WireId('p0139'),
@@ -7099,6 +9790,18 @@ final Catalog kRegistry = Catalog(
                   symbolName: 'TextOverflow')),
         ),
         PropertyEntry(
+          wireId: WireId('p0736'),
+          name: 'textScaler',
+          type: PropertyType.structured,
+          description: 'Explicit native text scaling.',
+          sinceVersion: 18,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0641'),
           name: 'analyticsId',
           type: PropertyType.string,
@@ -7278,6 +9981,18 @@ final Catalog kRegistry = Catalog(
           priority: PropertyPriority.primary,
         ),
         PropertyEntry(
+          wireId: WireId('p0960'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0501'),
           name: 'textAlign',
           type: PropertyType.enumValue,
@@ -7290,6 +10005,19 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:ui', symbolName: 'TextAlign')),
         ),
         PropertyEntry(
+          wireId: WireId('p0734'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: 'The directionality of the text.',
+          sinceVersion: 17,
+          enumType: 'TextDirection',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0546'),
           name: 'softWrap',
           type: PropertyType.boolean,
@@ -7300,6 +10028,23 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.boolean,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0737'),
+          name: 'textScaleFactor',
+          type: PropertyType.real,
+          description:
+              'Deprecated. Will be removed in a future version of Flutter. Use [textScaler] instead.',
+          sinceVersion: 18,
+          constructorNullable: true,
+          deprecated: DeprecationInfo(
+              source: SourceDeprecationInfo(
+                  message:
+                      'Use textScaler instead. Use of textScaleFactor was deprecated in preparation for the upcoming nonlinear text scaling support. This feature was deprecated after v3.12.0-2.0.pre.')),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
         ),
         PropertyEntry(
           wireId: WireId('p0502'),
@@ -7622,6 +10367,18 @@ final Catalog kRegistry = Catalog(
                   symbolName: 'TextOverflow')),
         ),
         PropertyEntry(
+          wireId: WireId('p0738'),
+          name: 'textScaler',
+          type: PropertyType.structured,
+          description: 'Explicit native text scaling.',
+          sinceVersion: 18,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0029'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0642'),
           name: 'analyticsId',
           type: PropertyType.string,
@@ -7792,6 +10549,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0961'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0143'),
           name: 'angle',
           type: PropertyType.real,
@@ -7862,6 +10631,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0643'),
@@ -7883,6 +10653,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#Transform.translate',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0962'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0656'),
           name: 'offset',
@@ -7927,6 +10709,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0660'),
@@ -7949,6 +10732,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#Transform.scale',
       childrenSlot: ChildrenSlot.single,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0963'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0661'),
           name: 'scale',
@@ -8045,6 +10840,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0669'),
@@ -8066,6 +10862,18 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0964'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
+        PropertyEntry(
           wireId: WireId('p0148'),
           name: 'child',
           type: PropertyType.widget,
@@ -8073,6 +10881,7 @@ final Catalog kRegistry = Catalog(
               'The widget to show or hide, as controlled by [visible].',
           required: true,
           priority: PropertyPriority.primary,
+          valueShape: ScalarShape(propertyType: PropertyType.widget),
         ),
         PropertyEntry(
           wireId: WireId('p0149'),
@@ -8116,6 +10925,18 @@ final Catalog kRegistry = Catalog(
       flutterType: 'package:flutter/src/widgets/basic.dart#Wrap',
       childrenSlot: ChildrenSlot.list,
       properties: [
+        PropertyEntry(
+          wireId: WireId('p0965'),
+          name: 'key',
+          type: PropertyType.structured,
+          description: '',
+          sinceVersion: 24,
+          constructorNullable: true,
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
+        ),
         PropertyEntry(
           wireId: WireId('p0151'),
           name: 'direction',
@@ -8240,6 +11061,9 @@ final Catalog kRegistry = Catalog(
           name: 'children',
           type: PropertyType.widgetList,
           description: '',
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
         ),
         PropertyEntry(
           wireId: WireId('p0645'),
@@ -8252,6 +11076,15 @@ final Catalog kRegistry = Catalog(
     ),
   ],
   structuredTypes: [
+    StructuredEntry(
+      wireId: WireId('s0037'),
+      name: 'Key',
+      library: WidgetLibrary.core,
+      description: 'Closed native data value.',
+      sourceType: 'package:flutter/src/foundation/key.dart#Key',
+      fields: [],
+      variants: [],
+    ),
     StructuredEntry(
       wireId: WireId('s0009'),
       name: 'Decoration',
@@ -9336,6 +12169,1102 @@ final Catalog kRegistry = Catalog(
       variants: [],
     ),
     StructuredEntry(
+      wireId: WireId('s0036'),
+      name: 'ShapeBorderClipper',
+      library: WidgetLibrary.core,
+      description: 'ShapeBorderClipper value.',
+      sourceType:
+          'package:flutter/src/rendering/proxy_box.dart#ShapeBorderClipper',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0884'),
+          name: 'shape',
+          type: PropertyType.shapeBorder,
+          description: 'Shape used to obtain the clip path.',
+          unionRef: WireIdRef(library: 'restage.core', wireId: WireId('u0002')),
+          valueShape: UnionShape(
+              propertyType: PropertyType.shapeBorder,
+              unionRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('u0002')),
+              wireCodec: CatalogWireCodec.rfwShapeBorder),
+        ),
+        StructuredField(
+          wireId: WireId('p0885'),
+          name: 'textDirection',
+          type: PropertyType.enumValue,
+          description: 'Explicit nullable direction used by the shape clipper.',
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'dart:ui', symbolName: 'TextDirection')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0066'),
+          argMappings: {
+            'shape': ArgMapping(targetFields: [WireId('p0884')]),
+            'textDirection': ArgMapping(targetFields: [WireId('p0885')]),
+          },
+          parameters: [
+            FactoryParameter(
+              wireId: WireId('a0059'),
+              name: 'shape',
+              kind: FactoryParameterKind.named,
+              required: true,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.requiredValue,
+              valueShape: UnionShape(
+                  propertyType: PropertyType.shapeBorder,
+                  unionRef: WireIdRef(
+                      library: 'restage.core', wireId: WireId('u0002')),
+                  wireCodec: CatalogWireCodec.rfwShapeBorder),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0060'),
+              name: 'textDirection',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: true,
+              defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
+              valueShape: EnumShape(
+                  propertyType: PropertyType.enumValue,
+                  enumRef: DartTypeRef(
+                      libraryUri: 'dart:ui', symbolName: 'TextDirection')),
+            ),
+          ],
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0038'),
+      name: 'ScrollController',
+      library: WidgetLibrary.core,
+      description: 'Closed native data value.',
+      sourceType:
+          'package:flutter/src/widgets/scroll_controller.dart#ScrollController',
+      fields: [],
+      variants: [],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0030'),
+      name: 'ScrollPhysics',
+      library: WidgetLibrary.core,
+      description: 'Determines the physics of a [Scrollable] widget.',
+      sourceType:
+          'package:flutter/src/widgets/scroll_physics.dart#ScrollPhysics',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0850'),
+          name: 'parent',
+          type: PropertyType.structured,
+          description:
+              'If non-null, determines the default behavior for each method.',
+          structuredRef:
+              WireIdRef(library: 'restage.core', wireId: WireId('s0030')),
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0030'))),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0060'),
+          argMappings: {
+            'parent': ArgMapping(targetFields: [WireId('p0850')]),
+          },
+          description: 'Creates an object with the default scroll physics.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0031'),
+      name: 'ScrollCacheExtent',
+      library: WidgetLibrary.core,
+      description:
+          'The amount of additional content to display and lay out around the viewport.',
+      sourceType:
+          'package:flutter/src/rendering/viewport.dart#ScrollCacheExtent',
+      fields: [],
+      variants: [],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0029'),
+      name: 'TextScaler',
+      library: WidgetLibrary.core,
+      description:
+          'A class that describes how textual contents should be scaled for better readability.',
+      sourceType: 'package:flutter/src/painting/text_scaler.dart#TextScaler',
+      fields: [],
+      variants: [],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0032'),
+      name: 'SliverChildListDelegate',
+      library: WidgetLibrary.core,
+      description:
+          'A delegate that supplies children for slivers using an explicit list.',
+      sourceType:
+          'package:flutter/src/widgets/scroll_delegate.dart#SliverChildListDelegate',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0851'),
+          name: 'addAutomaticKeepAlives',
+          type: PropertyType.boolean,
+          description:
+              '{@macro flutter.widgets.SliverChildBuilderDelegate.addAutomaticKeepAlives}',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        StructuredField(
+          wireId: WireId('p0852'),
+          name: 'addRepaintBoundaries',
+          type: PropertyType.boolean,
+          description:
+              '{@macro flutter.widgets.SliverChildBuilderDelegate.addRepaintBoundaries}',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        StructuredField(
+          wireId: WireId('p0853'),
+          name: 'addSemanticIndexes',
+          type: PropertyType.boolean,
+          description:
+              '{@macro flutter.widgets.SliverChildBuilderDelegate.addSemanticIndexes}',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        StructuredField(
+          wireId: WireId('p0854'),
+          name: 'semanticIndexOffset',
+          type: PropertyType.integer,
+          description:
+              '{@macro flutter.widgets.SliverChildBuilderDelegate.semanticIndexOffset}',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        StructuredField(
+          wireId: WireId('p0855'),
+          name: 'semanticIndexCallback',
+          type: PropertyType.scalarCallback,
+          description:
+              '{@macro flutter.widgets.SliverChildBuilderDelegate.semanticIndexCallback}',
+          scalarContract: ScalarCallbackContract(
+            parameters: [
+              ScalarCallbackParameter.widget,
+              ScalarCallbackParameter.itemIndex
+            ],
+            nullableResult: true,
+          ),
+          valueShape: ScalarShape(propertyType: PropertyType.scalarCallback),
+        ),
+        StructuredField(
+          wireId: WireId('p0856'),
+          name: 'children',
+          type: PropertyType.widgetList,
+          description: 'The widgets to display.',
+          valueShape: ListShape(
+              propertyType: PropertyType.widgetList,
+              itemShape: ScalarShape(propertyType: PropertyType.widget)),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0061'),
+          argMappings: {
+            'addAutomaticKeepAlives':
+                ArgMapping(targetFields: [WireId('p0851')]),
+            'addRepaintBoundaries': ArgMapping(targetFields: [WireId('p0852')]),
+            'addSemanticIndexes': ArgMapping(targetFields: [WireId('p0853')]),
+            'children': ArgMapping(targetFields: [WireId('p0856')]),
+            'semanticIndexCallback':
+                ArgMapping(targetFields: [WireId('p0855')]),
+            'semanticIndexOffset': ArgMapping(targetFields: [WireId('p0854')]),
+          },
+          parameters: [
+            FactoryParameter(
+              wireId: WireId('a0039'),
+              position: 0,
+              kind: FactoryParameterKind.positional,
+              required: true,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.requiredValue,
+              valueShape: ListShape(
+                  propertyType: PropertyType.widgetList,
+                  itemShape: ScalarShape(propertyType: PropertyType.widget)),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0040'),
+              name: 'addAutomaticKeepAlives',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(true),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.boolean,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0041'),
+              name: 'addRepaintBoundaries',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(true),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.boolean,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0042'),
+              name: 'addSemanticIndexes',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(true),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.boolean,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0043'),
+              name: 'semanticIndexCallback',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              valueShape:
+                  ScalarShape(propertyType: PropertyType.scalarCallback),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0044'),
+              name: 'semanticIndexOffset',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(0),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.integer,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+            ),
+          ],
+          description:
+              'Creates a delegate that supplies children for slivers using the given list.',
+        ),
+        ConstructorVariant(
+          wireId: WireId('v0062'),
+          namedConstructor: 'fixed',
+          argMappings: {
+            'addAutomaticKeepAlives':
+                ArgMapping(targetFields: [WireId('p0851')]),
+            'addRepaintBoundaries': ArgMapping(targetFields: [WireId('p0852')]),
+            'addSemanticIndexes': ArgMapping(targetFields: [WireId('p0853')]),
+            'children': ArgMapping(targetFields: [WireId('p0856')]),
+            'semanticIndexCallback':
+                ArgMapping(targetFields: [WireId('p0855')]),
+            'semanticIndexOffset': ArgMapping(targetFields: [WireId('p0854')]),
+          },
+          parameters: [
+            FactoryParameter(
+              wireId: WireId('a0045'),
+              position: 0,
+              kind: FactoryParameterKind.positional,
+              required: true,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.requiredValue,
+              valueShape: ListShape(
+                  propertyType: PropertyType.widgetList,
+                  itemShape: ScalarShape(propertyType: PropertyType.widget)),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0046'),
+              name: 'addAutomaticKeepAlives',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(true),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.boolean,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0047'),
+              name: 'addRepaintBoundaries',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(true),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.boolean,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0048'),
+              name: 'addSemanticIndexes',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(true),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.boolean,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0049'),
+              name: 'semanticIndexCallback',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              valueShape:
+                  ScalarShape(propertyType: PropertyType.scalarCallback),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0050'),
+              name: 'semanticIndexOffset',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(0),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.integer,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+            ),
+          ],
+          description:
+              'Creates a constant version of the delegate that supplies children for slivers using the given list.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0033'),
+      name: 'SliverChildBuilderDelegate',
+      library: WidgetLibrary.core,
+      description:
+          'A delegate that supplies children for slivers using a builder callback.',
+      sourceType:
+          'package:flutter/src/widgets/scroll_delegate.dart#SliverChildBuilderDelegate',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0857'),
+          name: 'builder',
+          type: PropertyType.widgetBuilder,
+          description: 'Called to build children for the sliver.',
+          builderContract: WidgetBuilderContract(
+            parameters: [
+              WidgetBuilderParameter.buildContext,
+              WidgetBuilderParameter.itemIndex
+            ],
+            nullableResult: true,
+          ),
+          valueShape: ScalarShape(propertyType: PropertyType.widgetBuilder),
+        ),
+        StructuredField(
+          wireId: WireId('p0858'),
+          name: 'childCount',
+          type: PropertyType.integer,
+          description:
+              'The total number of children this delegate can provide.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        StructuredField(
+          wireId: WireId('p0859'),
+          name: 'addAutomaticKeepAlives',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.widgets.SliverChildBuilderDelegate.addAutomaticKeepAlives} Whether to wrap each child in an [AutomaticKeepAlive].',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        StructuredField(
+          wireId: WireId('p0860'),
+          name: 'addRepaintBoundaries',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.widgets.SliverChildBuilderDelegate.addRepaintBoundaries} Whether to wrap each child in a [RepaintBoundary].',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        StructuredField(
+          wireId: WireId('p0861'),
+          name: 'addSemanticIndexes',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.widgets.SliverChildBuilderDelegate.addSemanticIndexes} Whether to wrap each child in an [IndexedSemantics].',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        StructuredField(
+          wireId: WireId('p0862'),
+          name: 'semanticIndexOffset',
+          type: PropertyType.integer,
+          description:
+              '{@template flutter.widgets.SliverChildBuilderDelegate.semanticIndexOffset} An initial offset to add to the semantic indexes generated by this widget.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        StructuredField(
+          wireId: WireId('p0863'),
+          name: 'semanticIndexCallback',
+          type: PropertyType.scalarCallback,
+          description:
+              '{@template flutter.widgets.SliverChildBuilderDelegate.semanticIndexCallback} A [SemanticIndexCallback] which is used when [addSemanticIndexes] is true.',
+          scalarContract: ScalarCallbackContract(
+            parameters: [
+              ScalarCallbackParameter.widget,
+              ScalarCallbackParameter.itemIndex
+            ],
+            nullableResult: true,
+          ),
+          valueShape: ScalarShape(propertyType: PropertyType.scalarCallback),
+        ),
+        StructuredField(
+          wireId: WireId('p0864'),
+          name: 'findChildIndexCallback',
+          type: PropertyType.scalarCallback,
+          description:
+              '{@template flutter.widgets.SliverChildBuilderDelegate.findChildIndexCallback} Called to find the new index of a child based on its key in case of reordering.',
+          scalarContract: ScalarCallbackContract(
+            parameters: [ScalarCallbackParameter.valueKey],
+            nullableResult: true,
+          ),
+          valueShape: ScalarShape(propertyType: PropertyType.scalarCallback),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0063'),
+          argMappings: {
+            'addAutomaticKeepAlives':
+                ArgMapping(targetFields: [WireId('p0859')]),
+            'addRepaintBoundaries': ArgMapping(targetFields: [WireId('p0860')]),
+            'addSemanticIndexes': ArgMapping(targetFields: [WireId('p0861')]),
+            'builder': ArgMapping(targetFields: [WireId('p0857')]),
+            'childCount': ArgMapping(targetFields: [WireId('p0858')]),
+            'findChildIndexCallback':
+                ArgMapping(targetFields: [WireId('p0864')]),
+            'semanticIndexCallback':
+                ArgMapping(targetFields: [WireId('p0863')]),
+            'semanticIndexOffset': ArgMapping(targetFields: [WireId('p0862')]),
+          },
+          parameters: [
+            FactoryParameter(
+              wireId: WireId('a0051'),
+              position: 0,
+              kind: FactoryParameterKind.positional,
+              required: true,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.requiredValue,
+              valueShape: ScalarShape(propertyType: PropertyType.widgetBuilder),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0052'),
+              name: 'findChildIndexCallback',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: true,
+              defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
+              valueShape:
+                  ScalarShape(propertyType: PropertyType.scalarCallback),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0053'),
+              name: 'childCount',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: true,
+              defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.integer,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0054'),
+              name: 'addAutomaticKeepAlives',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(true),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.boolean,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0055'),
+              name: 'addRepaintBoundaries',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(true),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.boolean,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0056'),
+              name: 'addSemanticIndexes',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(true),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.boolean,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0057'),
+              name: 'semanticIndexCallback',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              valueShape:
+                  ScalarShape(propertyType: PropertyType.scalarCallback),
+            ),
+            FactoryParameter(
+              wireId: WireId('a0058'),
+              name: 'semanticIndexOffset',
+              kind: FactoryParameterKind.named,
+              required: false,
+              nullable: false,
+              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+              defaultValue: LiteralParameterDefault(0),
+              valueShape: ScalarShape(
+                  propertyType: PropertyType.integer,
+                  dartTypeRef:
+                      DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+            ),
+          ],
+          description:
+              'Creates a delegate that supplies children for slivers using the given builder callback.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0034'),
+      name: 'SliverGridDelegateWithFixedCrossAxisCount',
+      library: WidgetLibrary.core,
+      description:
+          'Creates grid layouts with a fixed number of tiles in the cross axis.',
+      sourceType:
+          'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegateWithFixedCrossAxisCount',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0865'),
+          name: 'crossAxisCount',
+          type: PropertyType.integer,
+          description: 'The number of children in the cross axis.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        StructuredField(
+          wireId: WireId('p0866'),
+          name: 'mainAxisSpacing',
+          type: PropertyType.real,
+          description:
+              'The number of logical pixels between each child along the main axis.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0867'),
+          name: 'crossAxisSpacing',
+          type: PropertyType.real,
+          description:
+              'The number of logical pixels between each child along the cross axis.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0868'),
+          name: 'childAspectRatio',
+          type: PropertyType.real,
+          description:
+              'The ratio of the cross-axis to the main-axis extent of each child.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0869'),
+          name: 'mainAxisExtent',
+          type: PropertyType.real,
+          description:
+              'The extent of each tile in the main axis. If provided it would define the logical pixels taken by each tile in the main-axis.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0064'),
+          argMappings: {
+            'childAspectRatio': ArgMapping(targetFields: [WireId('p0868')]),
+            'crossAxisCount': ArgMapping(targetFields: [WireId('p0865')]),
+            'crossAxisSpacing': ArgMapping(targetFields: [WireId('p0867')]),
+            'mainAxisExtent': ArgMapping(targetFields: [WireId('p0869')]),
+            'mainAxisSpacing': ArgMapping(targetFields: [WireId('p0866')]),
+          },
+          description:
+              'Creates a delegate that makes grid layouts with a fixed number of tiles in the cross axis.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0035'),
+      name: 'SliverGridDelegateWithMaxCrossAxisExtent',
+      library: WidgetLibrary.core,
+      description:
+          'Creates grid layouts with tiles that each have a maximum cross-axis extent.',
+      sourceType:
+          'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegateWithMaxCrossAxisExtent',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0870'),
+          name: 'maxCrossAxisExtent',
+          type: PropertyType.real,
+          description: 'The maximum extent of tiles in the cross axis.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0871'),
+          name: 'mainAxisSpacing',
+          type: PropertyType.real,
+          description:
+              'The number of logical pixels between each child along the main axis.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0872'),
+          name: 'crossAxisSpacing',
+          type: PropertyType.real,
+          description:
+              'The number of logical pixels between each child along the cross axis.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0873'),
+          name: 'childAspectRatio',
+          type: PropertyType.real,
+          description:
+              'The ratio of the cross-axis to the main-axis extent of each child.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0874'),
+          name: 'mainAxisExtent',
+          type: PropertyType.real,
+          description:
+              'The extent of each tile in the main axis. If provided it would define the logical pixels taken by each tile in the main-axis.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0065'),
+          argMappings: {
+            'childAspectRatio': ArgMapping(targetFields: [WireId('p0873')]),
+            'crossAxisSpacing': ArgMapping(targetFields: [WireId('p0872')]),
+            'mainAxisExtent': ArgMapping(targetFields: [WireId('p0874')]),
+            'mainAxisSpacing': ArgMapping(targetFields: [WireId('p0871')]),
+            'maxCrossAxisExtent': ArgMapping(targetFields: [WireId('p0870')]),
+          },
+          description:
+              'Creates a delegate that makes grid layouts with tiles that have a maximum cross-axis extent.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0012'),
+      name: 'RoundedRectangleBorder',
+      library: WidgetLibrary.core,
+      description: 'A rectangular border with rounded corners.',
+      sourceType:
+          'package:flutter/src/painting/rounded_rectangle_border.dart#RoundedRectangleBorder',
+      fields: [],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0025'),
+          description: 'Creates a rounded rectangle border.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0024'),
+      name: 'RoundedSuperellipseBorder',
+      library: WidgetLibrary.core,
+      description:
+          'A rectangular border with rounded corners following the shape of an [RSuperellipse].',
+      sourceType:
+          'package:flutter/src/painting/rounded_rectangle_border.dart#RoundedSuperellipseBorder',
+      fields: [],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0042'),
+          description: 'Creates a rounded rectangle border.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0013'),
+      name: 'CircleBorder',
+      library: WidgetLibrary.core,
+      description: 'A border that fits a circle within the available space.',
+      sourceType:
+          'package:flutter/src/painting/circle_border.dart#CircleBorder',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0215'),
+          name: 'eccentricity',
+          type: PropertyType.real,
+          description:
+              'Defines the ratio (0.0-1.0) from which the border will deform to fit a rectangle. When 0.0, it draws a circle touching at least two sides of the rectangle. When 1.0, it draws an oval touching all sides of the rectangle.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0026'),
+          argMappings: {
+            'eccentricity': ArgMapping(targetFields: [WireId('p0215')]),
+          },
+          description: 'Create a circle border.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0014'),
+      name: 'StadiumBorder',
+      library: WidgetLibrary.core,
+      description:
+          'A border that fits a stadium-shaped border (a box with semicircles on the ends) within the rectangle of the widget it is applied to.',
+      sourceType:
+          'package:flutter/src/painting/stadium_border.dart#StadiumBorder',
+      fields: [],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0027'),
+          description: 'Create a stadium border.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0015'),
+      name: 'ContinuousRectangleBorder',
+      library: WidgetLibrary.core,
+      description:
+          'A rectangular border with smooth continuous transitions between the straight sides and the rounded corners.',
+      sourceType:
+          'package:flutter/src/painting/continuous_rectangle_border.dart#ContinuousRectangleBorder',
+      fields: [],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0028'),
+          description: 'Creates a [ContinuousRectangleBorder].',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0016'),
+      name: 'BeveledRectangleBorder',
+      library: WidgetLibrary.core,
+      description: 'A rectangular border with flattened or "beveled" corners.',
+      sourceType:
+          'package:flutter/src/painting/beveled_rectangle_border.dart#BeveledRectangleBorder',
+      fields: [],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0029'),
+          description:
+              'Creates a border like a [RoundedRectangleBorder] except that the corners are joined by straight lines instead of arcs.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0025'),
+      name: 'LinearBorder',
+      library: WidgetLibrary.core,
+      description:
+          'An [OutlinedBorder] like [BoxBorder] that allows one to define a rectangular (box) border in terms of zero to four [LinearBorderEdge]s, each of which is rendered as a single line.',
+      sourceType:
+          'package:flutter/src/painting/linear_border.dart#LinearBorder',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0296'),
+          name: 'start',
+          type: PropertyType.structured,
+          description:
+              'Defines the left edge for [TextDirection.ltr] or the right for [TextDirection.rtl].',
+          structuredRef:
+              WireIdRef(library: 'restage.core', wireId: WireId('s0027')),
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0027'))),
+        ),
+        StructuredField(
+          wireId: WireId('p0297'),
+          name: 'end',
+          type: PropertyType.structured,
+          description:
+              'Defines the right edge for [TextDirection.ltr] or the left for [TextDirection.rtl].',
+          structuredRef:
+              WireIdRef(library: 'restage.core', wireId: WireId('s0027')),
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0027'))),
+        ),
+        StructuredField(
+          wireId: WireId('p0298'),
+          name: 'top',
+          type: PropertyType.structured,
+          description: 'Defines the top edge.',
+          structuredRef:
+              WireIdRef(library: 'restage.core', wireId: WireId('s0027')),
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0027'))),
+        ),
+        StructuredField(
+          wireId: WireId('p0299'),
+          name: 'bottom',
+          type: PropertyType.structured,
+          description: 'Defines the bottom edge.',
+          structuredRef:
+              WireIdRef(library: 'restage.core', wireId: WireId('s0027')),
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('s0027'))),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0043'),
+          argMappings: {
+            'bottom': ArgMapping(targetFields: [WireId('p0299')]),
+            'end': ArgMapping(targetFields: [WireId('p0297')]),
+            'start': ArgMapping(targetFields: [WireId('p0296')]),
+            'top': ArgMapping(targetFields: [WireId('p0298')]),
+          },
+          description:
+              'Creates a rectangular box border that\'s rendered as zero to four lines.',
+        ),
+        ConstructorVariant(
+          wireId: WireId('v0044'),
+          namedConstructor: 'bottom',
+          description:
+              'Creates a rectangular box border with an edge on the bottom.',
+        ),
+        ConstructorVariant(
+          wireId: WireId('v0045'),
+          namedConstructor: 'end',
+          description:
+              'Creates a rectangular box border with an edge on the right for [TextDirection.ltr] or on the left for [TextDirection.rtl].',
+        ),
+        ConstructorVariant(
+          wireId: WireId('v0046'),
+          namedConstructor: 'start',
+          description:
+              'Creates a rectangular box border with an edge on the left for [TextDirection.ltr] or on the right for [TextDirection.rtl].',
+        ),
+        ConstructorVariant(
+          wireId: WireId('v0047'),
+          namedConstructor: 'top',
+          description:
+              'Creates a rectangular box border with an edge on the top.',
+        ),
+        ConstValueVariant(
+          wireId: WireId('v0049'),
+          staticAccessor: 'none',
+          description: 'No border.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0026'),
+      name: 'StarBorder',
+      library: WidgetLibrary.core,
+      description:
+          'A border that fits a star or polygon-shaped border within the rectangle of the widget it is applied to.',
+      sourceType: 'package:flutter/src/painting/star_border.dart#StarBorder',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0300'),
+          name: 'points',
+          type: PropertyType.real,
+          description:
+              'The number of points in this star, or sides on a polygon.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0301'),
+          name: 'innerRadiusRatio',
+          type: PropertyType.real,
+          description: '',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0302'),
+          name: 'pointRounding',
+          type: PropertyType.real,
+          description:
+              'The amount of rounding on the points of stars, or the corners of polygons.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0303'),
+          name: 'valleyRounding',
+          type: PropertyType.real,
+          description:
+              'The amount of rounding of the interior corners of stars.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0304'),
+          name: 'rotation',
+          type: PropertyType.real,
+          description: '',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        StructuredField(
+          wireId: WireId('p0305'),
+          name: 'squash',
+          type: PropertyType.real,
+          description:
+              'How much of the aspect ratio of the attached widget to take on.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0050'),
+          argMappings: {
+            'innerRadiusRatio': ArgMapping(targetFields: [WireId('p0301')]),
+            'pointRounding': ArgMapping(targetFields: [WireId('p0302')]),
+            'points': ArgMapping(targetFields: [WireId('p0300')]),
+            'rotation': ArgMapping(targetFields: [WireId('p0304')]),
+            'squash': ArgMapping(targetFields: [WireId('p0305')]),
+            'valleyRounding': ArgMapping(targetFields: [WireId('p0303')]),
+          },
+          description:
+              'Create a const star-shaped border with the given number [points] on the star.',
+        ),
+        ConstructorVariant(
+          wireId: WireId('v0051'),
+          namedConstructor: 'polygon',
+          argMappings: {
+            'pointRounding': ArgMapping(targetFields: [WireId('p0302')]),
+            'rotation': ArgMapping(targetFields: [WireId('p0304')]),
+            'squash': ArgMapping(targetFields: [WireId('p0305')]),
+          },
+          description:
+              'Create a const polygon border with the given number of [sides].',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0027'),
+      name: 'LinearBorderEdge',
+      library: WidgetLibrary.core,
+      description:
+          'Defines the relative size and alignment of one [LinearBorder] edge.',
+      sourceType:
+          'package:flutter/src/painting/linear_border.dart#LinearBorderEdge',
+      fields: [],
+      variants: [],
+    ),
+    StructuredEntry(
       wireId: WireId('s0005'),
       name: 'Border',
       library: WidgetLibrary.core,
@@ -9815,331 +13744,86 @@ final Catalog kRegistry = Catalog(
         ),
       ],
     ),
-    StructuredEntry(
-      wireId: WireId('s0012'),
-      name: 'RoundedRectangleBorder',
-      library: WidgetLibrary.core,
-      description: 'A rectangular border with rounded corners.',
-      sourceType:
-          'package:flutter/src/painting/rounded_rectangle_border.dart#RoundedRectangleBorder',
-      fields: [],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v0025'),
-          description: 'Creates a rounded rectangle border.',
-        ),
-      ],
-    ),
-    StructuredEntry(
-      wireId: WireId('s0024'),
-      name: 'RoundedSuperellipseBorder',
-      library: WidgetLibrary.core,
-      description:
-          'A rectangular border with rounded corners following the shape of an [RSuperellipse].',
-      sourceType:
-          'package:flutter/src/painting/rounded_rectangle_border.dart#RoundedSuperellipseBorder',
-      fields: [],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v0042'),
-          description: 'Creates a rounded rectangle border.',
-        ),
-      ],
-    ),
-    StructuredEntry(
-      wireId: WireId('s0013'),
-      name: 'CircleBorder',
-      library: WidgetLibrary.core,
-      description: 'A border that fits a circle within the available space.',
-      sourceType:
-          'package:flutter/src/painting/circle_border.dart#CircleBorder',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0215'),
-          name: 'eccentricity',
-          type: PropertyType.real,
-          description:
-              'Defines the ratio (0.0-1.0) from which the border will deform to fit a rectangle. When 0.0, it draws a circle touching at least two sides of the rectangle. When 1.0, it draws an oval touching all sides of the rectangle.',
-          valueShape: ScalarShape(
-              propertyType: PropertyType.real,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
-        ),
-      ],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v0026'),
-          argMappings: {
-            'eccentricity': ArgMapping(targetFields: [WireId('p0215')]),
-          },
-          description: 'Create a circle border.',
-        ),
-      ],
-    ),
-    StructuredEntry(
-      wireId: WireId('s0014'),
-      name: 'StadiumBorder',
-      library: WidgetLibrary.core,
-      description:
-          'A border that fits a stadium-shaped border (a box with semicircles on the ends) within the rectangle of the widget it is applied to.',
-      sourceType:
-          'package:flutter/src/painting/stadium_border.dart#StadiumBorder',
-      fields: [],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v0027'),
-          description: 'Create a stadium border.',
-        ),
-      ],
-    ),
-    StructuredEntry(
-      wireId: WireId('s0015'),
-      name: 'ContinuousRectangleBorder',
-      library: WidgetLibrary.core,
-      description:
-          'A rectangular border with smooth continuous transitions between the straight sides and the rounded corners.',
-      sourceType:
-          'package:flutter/src/painting/continuous_rectangle_border.dart#ContinuousRectangleBorder',
-      fields: [],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v0028'),
-          description: 'Creates a [ContinuousRectangleBorder].',
-        ),
-      ],
-    ),
-    StructuredEntry(
-      wireId: WireId('s0016'),
-      name: 'BeveledRectangleBorder',
-      library: WidgetLibrary.core,
-      description: 'A rectangular border with flattened or "beveled" corners.',
-      sourceType:
-          'package:flutter/src/painting/beveled_rectangle_border.dart#BeveledRectangleBorder',
-      fields: [],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v0029'),
-          description:
-              'Creates a border like a [RoundedRectangleBorder] except that the corners are joined by straight lines instead of arcs.',
-        ),
-      ],
-    ),
-    StructuredEntry(
-      wireId: WireId('s0025'),
-      name: 'LinearBorder',
-      library: WidgetLibrary.core,
-      description:
-          'An [OutlinedBorder] like [BoxBorder] that allows one to define a rectangular (box) border in terms of zero to four [LinearBorderEdge]s, each of which is rendered as a single line.',
-      sourceType:
-          'package:flutter/src/painting/linear_border.dart#LinearBorder',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0296'),
-          name: 'start',
-          type: PropertyType.structured,
-          description:
-              'Defines the left edge for [TextDirection.ltr] or the right for [TextDirection.rtl].',
-          structuredRef:
-              WireIdRef(library: 'restage.core', wireId: WireId('s0027')),
-          valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef:
-                  WireIdRef(library: 'restage.core', wireId: WireId('s0027'))),
-        ),
-        StructuredField(
-          wireId: WireId('p0297'),
-          name: 'end',
-          type: PropertyType.structured,
-          description:
-              'Defines the right edge for [TextDirection.ltr] or the left for [TextDirection.rtl].',
-          structuredRef:
-              WireIdRef(library: 'restage.core', wireId: WireId('s0027')),
-          valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef:
-                  WireIdRef(library: 'restage.core', wireId: WireId('s0027'))),
-        ),
-        StructuredField(
-          wireId: WireId('p0298'),
-          name: 'top',
-          type: PropertyType.structured,
-          description: 'Defines the top edge.',
-          structuredRef:
-              WireIdRef(library: 'restage.core', wireId: WireId('s0027')),
-          valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef:
-                  WireIdRef(library: 'restage.core', wireId: WireId('s0027'))),
-        ),
-        StructuredField(
-          wireId: WireId('p0299'),
-          name: 'bottom',
-          type: PropertyType.structured,
-          description: 'Defines the bottom edge.',
-          structuredRef:
-              WireIdRef(library: 'restage.core', wireId: WireId('s0027')),
-          valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef:
-                  WireIdRef(library: 'restage.core', wireId: WireId('s0027'))),
-        ),
-      ],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v0043'),
-          argMappings: {
-            'bottom': ArgMapping(targetFields: [WireId('p0299')]),
-            'end': ArgMapping(targetFields: [WireId('p0297')]),
-            'start': ArgMapping(targetFields: [WireId('p0296')]),
-            'top': ArgMapping(targetFields: [WireId('p0298')]),
-          },
-          description:
-              'Creates a rectangular box border that\'s rendered as zero to four lines.',
-        ),
-        ConstructorVariant(
-          wireId: WireId('v0044'),
-          namedConstructor: 'bottom',
-          description:
-              'Creates a rectangular box border with an edge on the bottom.',
-        ),
-        ConstructorVariant(
-          wireId: WireId('v0045'),
-          namedConstructor: 'end',
-          description:
-              'Creates a rectangular box border with an edge on the right for [TextDirection.ltr] or on the left for [TextDirection.rtl].',
-        ),
-        ConstructorVariant(
-          wireId: WireId('v0046'),
-          namedConstructor: 'start',
-          description:
-              'Creates a rectangular box border with an edge on the left for [TextDirection.ltr] or on the right for [TextDirection.rtl].',
-        ),
-        ConstructorVariant(
-          wireId: WireId('v0047'),
-          namedConstructor: 'top',
-          description:
-              'Creates a rectangular box border with an edge on the top.',
-        ),
-        ConstValueVariant(
-          wireId: WireId('v0049'),
-          staticAccessor: 'none',
-          description: 'No border.',
-        ),
-      ],
-    ),
-    StructuredEntry(
-      wireId: WireId('s0026'),
-      name: 'StarBorder',
-      library: WidgetLibrary.core,
-      description:
-          'A border that fits a star or polygon-shaped border within the rectangle of the widget it is applied to.',
-      sourceType: 'package:flutter/src/painting/star_border.dart#StarBorder',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0300'),
-          name: 'points',
-          type: PropertyType.real,
-          description:
-              'The number of points in this star, or sides on a polygon.',
-          valueShape: ScalarShape(
-              propertyType: PropertyType.real,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
-        ),
-        StructuredField(
-          wireId: WireId('p0301'),
-          name: 'innerRadiusRatio',
-          type: PropertyType.real,
-          description: '',
-          valueShape: ScalarShape(
-              propertyType: PropertyType.real,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
-        ),
-        StructuredField(
-          wireId: WireId('p0302'),
-          name: 'pointRounding',
-          type: PropertyType.real,
-          description:
-              'The amount of rounding on the points of stars, or the corners of polygons.',
-          valueShape: ScalarShape(
-              propertyType: PropertyType.real,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
-        ),
-        StructuredField(
-          wireId: WireId('p0303'),
-          name: 'valleyRounding',
-          type: PropertyType.real,
-          description:
-              'The amount of rounding of the interior corners of stars.',
-          valueShape: ScalarShape(
-              propertyType: PropertyType.real,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
-        ),
-        StructuredField(
-          wireId: WireId('p0304'),
-          name: 'rotation',
-          type: PropertyType.real,
-          description: '',
-          valueShape: ScalarShape(
-              propertyType: PropertyType.real,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
-        ),
-        StructuredField(
-          wireId: WireId('p0305'),
-          name: 'squash',
-          type: PropertyType.real,
-          description:
-              'How much of the aspect ratio of the attached widget to take on.',
-          valueShape: ScalarShape(
-              propertyType: PropertyType.real,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
-        ),
-      ],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v0050'),
-          argMappings: {
-            'innerRadiusRatio': ArgMapping(targetFields: [WireId('p0301')]),
-            'pointRounding': ArgMapping(targetFields: [WireId('p0302')]),
-            'points': ArgMapping(targetFields: [WireId('p0300')]),
-            'rotation': ArgMapping(targetFields: [WireId('p0304')]),
-            'squash': ArgMapping(targetFields: [WireId('p0305')]),
-            'valleyRounding': ArgMapping(targetFields: [WireId('p0303')]),
-          },
-          description:
-              'Create a const star-shaped border with the given number [points] on the star.',
-        ),
-        ConstructorVariant(
-          wireId: WireId('v0051'),
-          namedConstructor: 'polygon',
-          argMappings: {
-            'pointRounding': ArgMapping(targetFields: [WireId('p0302')]),
-            'rotation': ArgMapping(targetFields: [WireId('p0304')]),
-            'squash': ArgMapping(targetFields: [WireId('p0305')]),
-          },
-          description:
-              'Create a const polygon border with the given number of [sides].',
-        ),
-      ],
-    ),
-    StructuredEntry(
-      wireId: WireId('s0027'),
-      name: 'LinearBorderEdge',
-      library: WidgetLibrary.core,
-      description:
-          'Defines the relative size and alignment of one [LinearBorder] edge.',
-      sourceType:
-          'package:flutter/src/painting/linear_border.dart#LinearBorderEdge',
-      fields: [],
-      variants: [],
-    ),
   ],
   unions: [
+    UnionEntry(
+      wireId: WireId('u0005'),
+      name: 'SliverChildDelegate',
+      library: WidgetLibrary.core,
+      description: 'A native list or lazily built child delegate.',
+      sourceType:
+          'package:flutter/src/widgets/scroll_delegate.dart#SliverChildDelegate',
+      memberSourceTypes: [
+        'package:flutter/src/widgets/scroll_delegate.dart#SliverChildListDelegate',
+        'package:flutter/src/widgets/scroll_delegate.dart#SliverChildBuilderDelegate'
+      ],
+      discriminator: DiscriminatorSpec(field: '_s', values: [
+        WireIdRef(library: 'restage.core', wireId: WireId('s0032')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0033'))
+      ]),
+      members: [
+        WireIdRef(library: 'restage.core', wireId: WireId('s0032')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0033'))
+      ],
+    ),
+    UnionEntry(
+      wireId: WireId('u0006'),
+      name: 'SliverGridDelegate',
+      library: WidgetLibrary.core,
+      description: 'A fixed-count or maximum-extent grid layout.',
+      sourceType:
+          'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegate',
+      memberSourceTypes: [
+        'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegateWithFixedCrossAxisCount',
+        'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegateWithMaxCrossAxisExtent'
+      ],
+      discriminator: DiscriminatorSpec(field: '_s', values: [
+        WireIdRef(library: 'restage.core', wireId: WireId('s0034')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0035'))
+      ]),
+      members: [
+        WireIdRef(library: 'restage.core', wireId: WireId('s0034')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0035'))
+      ],
+    ),
+    UnionEntry(
+      wireId: WireId('u0002'),
+      name: 'ShapeBorder',
+      library: WidgetLibrary.core,
+      description:
+          'A shape border: rounded, superellipse, circle, stadium, continuous, beveled, linear, or star.',
+      sourceType: 'package:flutter/src/painting/borders.dart#ShapeBorder',
+      memberSourceTypes: [
+        'package:flutter/src/painting/rounded_rectangle_border.dart#RoundedRectangleBorder',
+        'package:flutter/src/painting/rounded_rectangle_border.dart#RoundedSuperellipseBorder',
+        'package:flutter/src/painting/circle_border.dart#CircleBorder',
+        'package:flutter/src/painting/stadium_border.dart#StadiumBorder',
+        'package:flutter/src/painting/continuous_rectangle_border.dart#ContinuousRectangleBorder',
+        'package:flutter/src/painting/beveled_rectangle_border.dart#BeveledRectangleBorder',
+        'package:flutter/src/painting/linear_border.dart#LinearBorder',
+        'package:flutter/src/painting/star_border.dart#StarBorder'
+      ],
+      discriminator: DiscriminatorSpec(field: '_s', values: [
+        WireIdRef(library: 'restage.core', wireId: WireId('s0012')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0024')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0013')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0014')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0015')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0016')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0025')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0026'))
+      ]),
+      members: [
+        WireIdRef(library: 'restage.core', wireId: WireId('s0012')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0024')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0013')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0014')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0015')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0016')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0025')),
+        WireIdRef(library: 'restage.core', wireId: WireId('s0026'))
+      ],
+    ),
     UnionEntry(
       wireId: WireId('u0004'),
       name: 'BoxBorder',
@@ -10201,48 +13885,10 @@ final Catalog kRegistry = Catalog(
         WireIdRef(library: 'restage.core', wireId: WireId('s0011'))
       ],
     ),
-    UnionEntry(
-      wireId: WireId('u0002'),
-      name: 'ShapeBorder',
-      library: WidgetLibrary.core,
-      description:
-          'A shape border: rounded, superellipse, circle, stadium, continuous, beveled, linear, or star.',
-      sourceType: 'package:flutter/src/painting/borders.dart#ShapeBorder',
-      memberSourceTypes: [
-        'package:flutter/src/painting/rounded_rectangle_border.dart#RoundedRectangleBorder',
-        'package:flutter/src/painting/rounded_rectangle_border.dart#RoundedSuperellipseBorder',
-        'package:flutter/src/painting/circle_border.dart#CircleBorder',
-        'package:flutter/src/painting/stadium_border.dart#StadiumBorder',
-        'package:flutter/src/painting/continuous_rectangle_border.dart#ContinuousRectangleBorder',
-        'package:flutter/src/painting/beveled_rectangle_border.dart#BeveledRectangleBorder',
-        'package:flutter/src/painting/linear_border.dart#LinearBorder',
-        'package:flutter/src/painting/star_border.dart#StarBorder'
-      ],
-      discriminator: DiscriminatorSpec(field: '_s', values: [
-        WireIdRef(library: 'restage.core', wireId: WireId('s0012')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0024')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0013')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0014')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0015')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0016')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0025')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0026'))
-      ]),
-      members: [
-        WireIdRef(library: 'restage.core', wireId: WireId('s0012')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0024')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0013')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0014')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0015')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0016')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0025')),
-        WireIdRef(library: 'restage.core', wireId: WireId('s0026'))
-      ],
-    ),
   ],
 );
 
 /// The content version of the `restage.core` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kCoreCatalogContentVersion = 16;
+const int kCoreCatalogContentVersion = 24;

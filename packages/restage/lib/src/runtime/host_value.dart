@@ -6,28 +6,32 @@ import 'package:flutter/painting.dart';
 /// computation throws is left out, so the surface reads it as missing.
 Map<String, Object?> restageHostValues(
   Map<String, (String, Object? Function())> values,
+) =>
+    restageNativeObjects(values)
+        .map((key, value) => MapEntry(key, restageHostValue(value)));
+
+/// Computes the objects a mount build passes to its surface, keyed as the
+/// surface reads them. An object whose computation throws is left out.
+Map<String, T> restageNativeObjects<T>(
+  Map<String, (String, T Function())> values,
 ) {
-  final encoded = <String, Object?>{};
+  final objects = <String, T>{};
   for (final MapEntry(key: key, value: (expression, compute))
       in values.entries) {
-    final Object? computed;
     try {
-      computed = compute();
+      objects[key] = compute();
     } on Object catch (error) {
       assert(() {
         if (_reportedThrows.add(expression)) {
           debugPrint(
-            "[restage] '$expression' threw while computing in the app, so "
-            'the surface reads it as missing: $error',
-          );
+              "[restage] '$expression' threw while computing in the app: "
+              '$error');
         }
         return true;
       }());
-      continue;
     }
-    encoded[key] = restageHostValue(computed);
   }
-  return encoded;
+  return objects;
 }
 
 /// Expressions already reported as throwing, so each is logged once.
@@ -35,25 +39,28 @@ final Set<String> _reportedThrows = {};
 
 /// Encodes an app value a generated mount passes to its surface.
 ///
-/// Colors become ARGB integers, edge insets `[start, top, end, bottom]`
-/// (left and right are read as start and end, as for a written inset), text
-/// styles the map a surface's text style reads, and enums their names.
+/// Colors become ARGB integers, insets retain physical or directional keys,
+/// text styles become field maps, and enums become their names.
 /// Lists and string-keyed maps are encoded element by element.
 Object? restageHostValue(Object? value) => switch (value) {
       null || bool() || num() || String() => value,
+      DateTime() => <String, Object?>{
+          'microsecondsSinceEpoch': value.microsecondsSinceEpoch,
+          'isUtc': value.isUtc,
+        },
       Color() => value.toARGB32(),
-      EdgeInsets() => <Object?>[
-          value.left,
-          value.top,
-          value.right,
-          value.bottom,
-        ],
-      EdgeInsetsDirectional() => <Object?>[
-          value.start,
-          value.top,
-          value.end,
-          value.bottom,
-        ],
+      EdgeInsets() => <String, Object?>{
+          'left': value.left,
+          'top': value.top,
+          'right': value.right,
+          'bottom': value.bottom,
+        },
+      EdgeInsetsDirectional() => <String, Object?>{
+          'start': value.start,
+          'top': value.top,
+          'end': value.end,
+          'bottom': value.bottom,
+        },
       TextStyle() => _textStyle(value),
       Enum() => value.name,
       List<Object?>() => <Object?>[

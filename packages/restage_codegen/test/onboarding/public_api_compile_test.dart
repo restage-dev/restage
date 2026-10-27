@@ -1,6 +1,9 @@
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
 import 'package:logging/logging.dart';
@@ -87,12 +90,68 @@ void main() {
       final content = file.readAsStringSync();
       for (final pattern in banned) {
         expect(
-          content,
+          _sourceForWordingPattern(
+            file.path.substring(root.path.length + 1),
+            content,
+            pattern,
+          ),
           isNot(contains(pattern)),
           reason: '${file.path} contains disallowed source wording $pattern',
         );
       }
     }
+  });
+
+  test('source wording slot exception accepts exact quoted map keys', () {
+    final pattern = RegExp(r'\bv0\b');
+    for (final source in [
+      "const slots = {'v0': 1, 'v1': 2};",
+      'const slots = {"v0": 1};',
+    ]) {
+      expect(
+        _sourceForWordingPattern(_builderAuthoringTest, source, pattern),
+        isNot(contains(pattern)),
+      );
+    }
+  });
+
+  test('source wording slot exception retains prose and non-key uses', () {
+    final pattern = RegExp(r'\bv0\b');
+    for (final source in [
+      '// v0 implementation',
+      "// The 'v0' implementation",
+      "const message = 'v0 implementation';",
+      "const slots = {'value': 'v0'};",
+      'final v0 = 1;',
+    ]) {
+      expect(
+        _sourceForWordingPattern(_builderAuthoringTest, source, pattern),
+        contains(pattern),
+      );
+    }
+  });
+
+  test('source wording slot exception stays on the exact file', () {
+    final pattern = RegExp(r'\bv0\b');
+    for (final path in [
+      'packages/restage_codegen/test/another_test.dart',
+      'packages/restage_codegen/test/nested/widget_builder_authoring_test.dart',
+      'packages/restage_codegen/lib/widget_builder_authoring_test.dart',
+    ]) {
+      expect(
+        _sourceForWordingPattern(path, "const slots = {'v0': 1};", pattern),
+        contains(pattern),
+      );
+    }
+  });
+
+  test('source wording slot exception retains all other banned patterns', () {
+    const source = "const slots = {'v0': 1, 'Pre-implementation': 2};";
+    const pattern = 'Pre-implementation';
+    expect(
+      _sourceForWordingPattern(_builderAuthoringTest, source, pattern),
+      contains(pattern),
+    );
   });
 
   test('public onboarding usage snippet compiles through SDK exports',
@@ -1333,6 +1392,47 @@ Future<void> _assertGeneratedFixtureAnalyzes(
     resolverFor: 'apps_examples|lib/onboarding/flows/first_run.dart',
     rootPackage: 'apps_examples',
   );
+}
+
+const _builderAuthoringTest =
+    'packages/restage_codegen/test/widget_builder_authoring_test.dart';
+
+String _sourceForWordingPattern(
+  String relativePath,
+  String source,
+  Pattern pattern,
+) {
+  if (relativePath != _builderAuthoringTest ||
+      pattern is! RegExp ||
+      pattern.pattern != r'\bv0\b') {
+    return source;
+  }
+  final keys = _BuilderSlotKeys(source);
+  parseString(content: source).unit.accept(keys);
+  var result = source;
+  for (final (start, end) in keys.ranges.reversed) {
+    result = result.replaceRange(start, end, ' ' * (end - start));
+  }
+  return result;
+}
+
+final class _BuilderSlotKeys extends RecursiveAstVisitor<void> {
+  _BuilderSlotKeys(this.source);
+
+  final String source;
+  final ranges = <(int, int)>[];
+
+  @override
+  void visitMapLiteralEntry(MapLiteralEntry node) {
+    final key = node.key;
+    if (key is SimpleStringLiteral) {
+      final literal = source.substring(key.offset, key.end);
+      if (literal == "'v0'" || literal == '"v0"') {
+        ranges.add((key.offset, key.end));
+      }
+    }
+    super.visitMapLiteralEntry(node);
+  }
 }
 
 String _readFlutterSdkReadme() {

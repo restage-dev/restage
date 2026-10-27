@@ -124,9 +124,11 @@ flow. If a file produced more than one surface, the CLI lists them and asks;
 - **It has a catalog of 121 widgets** across `restage_core`,
   `restage_material`, and `restage_cupertino`. Add your own widgets with
   `@RestageWidget`.
-- **Your app owns the implementation.** What ships is data the app renders.
-  Your widgets carry the logic as Dart compiled into your app, and the surface
-  composes and configures them. New behavior needs an app release.
+- **Your app owns the implementation.** What ships is a description your app's
+  widgets draw, in a small closed language the compiler checks. It can carry
+  simple logic, like conditions over data your app supplies. Gestures, drawing,
+  network calls and native work stay in Dart compiled into your app. New kinds
+  of behavior need an app release.
 - **It measures every version (beta).** Views, taps, and completions are captured
   automatically for each version, with no tracking calls to add. With Restage
   Cloud, A/B tests show which version moves your main metric.

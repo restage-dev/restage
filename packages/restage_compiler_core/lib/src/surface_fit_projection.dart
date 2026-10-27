@@ -1,4 +1,6 @@
 import 'package:restage_compiler_core/src/rfw_catalog_occurrence_resolution.dart';
+import 'package:restage_compiler_core/src/rfw_program_envelope.dart';
+import 'package:restage_compiler_core/src/surface_capability_derivation.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/flow_experiment.dart' as flow;
 import 'package:restage_shared/restage_shared.dart';
@@ -12,6 +14,11 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
   /// closure owner validates descendant identity and hashes before aggregation.
   SurfaceFitRequirementV1 projectFitRequirement({
     List<SurfacePublicationArtifactClosure> subflows = const [],
+    Map<String, ValueOperation> operations = const {
+      ...kCollectionValueOperations,
+      ...kGridValueOperations,
+      ...kIntlValueOperations
+    },
   }) {
     final nodes = [this, ...subflows];
     final rootDocument = flowDocument;
@@ -88,9 +95,48 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
           );
         }
         final library = rfw.decodeLibraryBlob(entry.value);
+        final screenOperations =
+            nativeCallOperations(contract.context, operations);
+        final nativeScope = RfwProgramScope([
+          for (final widget in library.widgets) ...[
+            widget.initialState,
+            widget.root
+          ]
+        ], operations: screenOperations);
+        validateRfwNativeReferences(library, contract.catalog,
+            scope: nativeScope);
+        for (final entry in nativeScope.nativeBindings.entries) {
+          final declared = contract.context.inputs[entry.key];
+          if (declared is! SurfaceScreenHostDataNativeBindingShapeV1 ||
+              declared.contract != entry.value) {
+            throw FormatException(
+                'Undeclared or incompatible native binding "${entry.key}".');
+          }
+          final shape = SurfaceScreenHostDataNativeBindingShapeV1(entry.value);
+          final prior = context[entry.key];
+          if (prior != null &&
+              !sameCanonicalJson(prior.toJson(), shape.toJson())) {
+            throw FormatException(
+                'Conflicting native call declaration "${entry.key}".');
+          }
+          context[entry.key] = shape;
+        }
+        final actualCapability = deriveSurfaceCapability(
+          library,
+          contract.catalog,
+          operations: screenOperations,
+          hostDataContract: contract.context,
+        );
+        if (node.sidecarCapabilities[entry.key]!.builtInFloor <
+            actualCapability.builtInFloor) {
+          throw const FormatException(
+            'Capability sidecar understates screen features.',
+          );
+        }
         final resolved = ResolvedRfwCatalogOccurrenceSet.resolve(
           parsedLibrary: library,
           input: contract.catalogResolution,
+          operations: screenOperations,
         );
         final body = resolved.inspectFinalBody(library);
         final imports =
@@ -199,10 +245,23 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
         final local = node.localSeeds[
                 node.flowDocument == null ? renderRoot : entry.key] ??
             const <String, Object>{};
-        final sites = _eventSites(library);
+        _validateRfwNativeHostContract(
+            library, contract.catalog, contract.context,
+            scope: nativeScope, localValues: local);
+        final sites = _eventSites(
+          library,
+          operations: screenOperations,
+          onCapture: (value, type) {
+            _validateProgramCapture(value, type, contract.context, local);
+          },
+        );
         for (final raw in body.events) {
           final site = sites[raw];
-          final emitted = _withoutLoopReferences(raw, site?.loops ?? const []);
+          final emitted = _withoutLoopReferences(
+            raw,
+            site?.loops ?? const [],
+            frames: site?.frames ?? const {},
+          );
           if (kScreenEventNamesOutsideContract.contains(emitted.eventName)) {
             continue;
           }
@@ -334,44 +393,102 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
 
 /// Where one emitted event sits: the loops around it, outermost first, and
 /// the constructor argument that holds it.
-typedef _EventSite = ({List<Object> loops, String? call, String? argument});
+typedef _BuilderFrames = Map<String, Map<String, List<ValueType>>>;
+typedef _EventSite = ({
+  List<Object> loops,
+  _BuilderFrames frames,
+  String? call,
+  String? argument
+});
 
 /// The site of every event in [library].
-Map<rfw.EventHandler, _EventSite> _eventSites(rfw.RemoteWidgetLibrary library) {
+Map<rfw.EventHandler, _EventSite> _eventSites(
+  rfw.RemoteWidgetLibrary library, {
+  Map<String, ValueOperation> operations = const {
+    ...kCollectionValueOperations,
+    ...kGridValueOperations,
+    ...kIntlValueOperations
+  },
+  void Function(Object? value, ValueType type)? onCapture,
+}) {
+  final programScope = RfwProgramScope([
+    for (final widget in library.widgets) ...[widget.initialState, widget.root]
+  ], operations: operations);
   final sites = Map<rfw.EventHandler, _EventSite>.identity();
   void visit(
     Object? value,
     List<Object> loops, {
     String? call,
     String? argument,
+    _BuilderFrames frames = const {},
   }) {
     switch (value) {
       case rfw.Loop(:final input, :final output):
-        visit(input, loops);
-        visit(output, [...loops, input]);
+        visit(input, loops, frames: frames);
+        visit(output, [...loops, input], frames: frames);
       case rfw.EventHandler(:final eventArguments):
-        sites[value] = (loops: loops, call: call, argument: argument);
-        visit(eventArguments, loops);
+        sites[value] =
+            (loops: loops, frames: frames, call: call, argument: argument);
+        visit(eventArguments, loops, frames: frames);
       case rfw.ConstructorCall(:final name, :final arguments):
+        if (name == kBuilderContinuationWidgetName) {
+          visit(arguments, loops, frames: frames);
+          return;
+        }
         for (final entry in arguments.entries) {
-          visit(entry.value, loops, call: name, argument: entry.key);
+          visit(
+            entry.value,
+            loops,
+            call: name,
+            argument: entry.key,
+            frames: frames,
+          );
         }
       case rfw.Switch(:final input, :final outputs):
-        visit(input, loops);
-        for (final output in outputs.values) {
-          visit(output, loops, call: call, argument: argument);
+        visit(input, loops, frames: frames);
+        for (final output in outputs.entries) {
+          visit(
+            output.value,
+            loops,
+            call: call,
+            argument: argument,
+            frames: _framesForSwitchCase(input, output.key, outputs, frames),
+          );
         }
       case rfw.SetStateHandler(:final value):
-        visit(value, loops);
+        visit(value, loops, frames: frames);
       case rfw.WidgetBuilderDeclaration(:final widget):
-        visit(widget, loops);
+        visit(widget, loops, frames: frames);
       case final Map<Object?, Object?> map:
+        final envelope = decodeRfwProgramEnvelope(map,
+            operations: operations, scope: programScope);
+        if (envelope != null) {
+          for (final capture in envelope.captures.entries) {
+            onCapture?.call(
+              _rewriteScopedValue(capture.value, loops, frames),
+              envelope.values.captures[capture.key]!,
+            );
+            visit(capture.value, loops, frames: frames);
+          }
+          for (var index = 0; index < envelope.bodies.length; index++) {
+            final body = envelope.bodies[index];
+            visit(
+              body.widget,
+              loops,
+              frames: {
+                ...frames,
+                body.argumentName: envelope.frameTypes(index),
+              },
+            );
+          }
+          return;
+        }
         for (final item in map.values) {
-          visit(item, loops);
+          visit(item, loops, frames: frames);
         }
       case final List<Object?> list:
         for (final item in list) {
-          visit(item, loops);
+          visit(item, loops, frames: frames);
         }
     }
   }
@@ -380,6 +497,40 @@ Map<rfw.EventHandler, _EventSite> _eventSites(rfw.RemoteWidgetLibrary library) {
     visit(declaration.root, const []);
   }
   return sites;
+}
+
+bool _isFrameNullDiscriminator(Object input, _BuilderFrames frames) =>
+    input is rfw.WidgetBuilderArgReference &&
+    input.parts.length == 2 &&
+    input.parts.first == 'nulls' &&
+    frames[input.argumentName]?[input.parts[1]] != null;
+
+// Only the matching false null discriminator proves a frame value exists.
+_BuilderFrames _framesForSwitchCase(
+  Object input,
+  Object? key,
+  Map<Object?, Object> outputs,
+  _BuilderFrames frames,
+) {
+  if (!_isFrameNullDiscriminator(input, frames) ||
+      !(key == false ||
+          key == null &&
+              outputs.containsKey(true) &&
+              !outputs.containsKey(false))) {
+    return frames;
+  }
+  final reference = input as rfw.WidgetBuilderArgReference;
+  final fields = frames[reference.argumentName]!;
+  final name = reference.parts[1] as String;
+  return {
+    ...frames,
+    reference.argumentName: {
+      ...fields,
+      name: fields[name]!
+          .map((type) => type.kind == 'Null' ? type : type.nonNull)
+          .toList(),
+    },
+  };
 }
 
 /// The shape of the value a `ValueChanged<T>` [signature] passes, or null
@@ -413,40 +564,234 @@ SurfaceScreenEventShape? _callbackValueShape(String? signature) {
 /// data, so its arguments validate against the declared context.
 rfw.EventHandler _withoutLoopReferences(
   rfw.EventHandler event,
-  List<Object> loops,
-) {
-  if (loops.isEmpty) return event;
-  Object? rewrite(Object? value, List<Object> scope) {
-    switch (value) {
-      case rfw.LoopReference(:final loop, :final parts):
-        final index = scope.length - 1 - loop;
-        if (index < 0) return value;
-        final input = rewrite(scope[index], scope.sublist(0, index));
-        return input is rfw.DataReference
-            ? rfw.DataReference([...input.parts, _loopItem, ...parts])
-            : value;
-      case rfw.Switch(:final input, :final outputs):
-        return rfw.Switch(
-          rewrite(input, scope)!,
-          {
-            for (final entry in outputs.entries)
-              entry.key: rewrite(entry.value, scope)!,
-          },
-        );
-      case final Map<String, Object?> map:
-        return <String, Object?>{
-          for (final entry in map.entries)
-            entry.key: rewrite(entry.value, scope),
-        };
-      case final List<Object?> list:
-        return [for (final item in list) rewrite(item, scope)];
-    }
-    return value;
-  }
+  List<Object> loops, {
+  _BuilderFrames frames = const {},
+}) =>
+    rfw.EventHandler(
+      event.eventName,
+      _rewriteScopedValue(event.eventArguments, loops, frames)!
+          as rfw.DynamicMap,
+    );
 
-  return rfw.EventHandler(
-    event.eventName,
-    rewrite(event.eventArguments, loops)! as rfw.DynamicMap,
+Object? _rewriteScopedValue(
+  Object? value,
+  List<Object> scope,
+  _BuilderFrames frames,
+) {
+  switch (value) {
+    case rfw.LoopReference(:final loop, :final parts):
+      final index = scope.length - 1 - loop;
+      if (index < 0) return value;
+      final input =
+          _rewriteScopedValue(scope[index], scope.sublist(0, index), frames);
+      return input is rfw.DataReference
+          ? rfw.DataReference([...input.parts, _loopItem, ...parts])
+          : value;
+    case rfw.WidgetBuilderArgReference(:final argumentName, :final parts):
+      final fields = frames[argumentName];
+      if (fields != null && parts.length == 2 && parts[1] is String) {
+        final types = fields[parts[1]];
+        if (types != null && parts[0] == 'values') {
+          return _BuilderFrameValue(types);
+        }
+        if (types != null && parts[0] == 'nulls') {
+          return const _BuilderFrameValue([ValueType.boolean]);
+        }
+      }
+      return value;
+    case rfw.Switch(:final input, :final outputs):
+      return rfw.Switch(
+        _rewriteScopedValue(input, scope, frames)!,
+        {
+          for (final entry in outputs.entries)
+            entry.key: _rewriteScopedValue(
+              entry.value,
+              scope,
+              _framesForSwitchCase(input, entry.key, outputs, frames),
+            )!,
+          if (_isFrameNullDiscriminator(input, frames) &&
+              !outputs.containsKey(null))
+            for (final key in [true, false])
+              if (!outputs.containsKey(key)) key: rfw.missing,
+        },
+      );
+    case final Map<String, Object?> map:
+      return <String, Object?>{
+        for (final entry in map.entries)
+          entry.key: _rewriteScopedValue(entry.value, scope, frames),
+      };
+    case final List<Object?> list:
+      return [
+        for (final item in list) _rewriteScopedValue(item, scope, frames),
+      ];
+  }
+  return value;
+}
+
+final class _BuilderFrameValue {
+  const _BuilderFrameValue(this.types);
+  final List<ValueType> types;
+}
+
+SurfaceScreenHostDataShape _valueHostShape(ValueType type) {
+  final shape = switch (type.kind) {
+    'native' => SurfaceScreenHostDataNativeBindingShapeV1(
+        NativeBindingContract(type: type.nativeType!, nullable: type.nullable)),
+    'list' => SurfaceScreenHostDataListShapeV1(_valueHostShape(type.item!)),
+    'record' => SurfaceScreenHostDataObjectShapeV1({
+        for (final field in type.fields.entries)
+          field.key: _valueHostShape(field.value),
+      }),
+    _ => SurfaceScreenHostDataScalarShapeV1(
+        switch (type.kind) {
+          'bool' => SurfaceScreenHostDataScalarKind.boolean,
+          'int' => SurfaceScreenHostDataScalarKind.integer,
+          'double' => SurfaceScreenHostDataScalarKind.doubleValue,
+          'num' => SurfaceScreenHostDataScalarKind.number,
+          'String' => SurfaceScreenHostDataScalarKind.string,
+          _ =>
+            throw const FormatException('Unknown builder frame value shape.'),
+        },
+      ),
+  };
+  return type.nullable ? SurfaceScreenHostDataNullableShapeV1(shape) : shape;
+}
+
+/// Checks catalog-linked native values against the installed host contract.
+void _validateRfwNativeHostContract(
+  rfw.RemoteWidgetLibrary library,
+  Catalog catalog,
+  SurfaceScreenHostDataSchema context, {
+  required RfwProgramScope scope,
+  Map<String, Object> localValues = const {},
+}) {
+  validateRfwNativeReferences(library, catalog, scope: scope,
+      onReference: (value, expected, nativeOnly) {
+    if (decodeRfwProgramEnvelope(value,
+            operations: scope.operations, scope: scope) !=
+        null) return;
+    if (value is Map && value['kind'] == 'nativeLocal') return;
+    if (!nativeOnly && value is rfw.Reference) {
+      if (value is! rfw.DataReference ||
+          value.parts.length < 2 ||
+          value.parts.first != 'context') return;
+      final root = context.inputs[value.parts[1]];
+      if (root == null ||
+          _isJsonHostShape(_fitContextShape(value.parts.skip(2), root))) return;
+    }
+    _validateProgramCapture(value, expected, context, localValues);
+  });
+}
+
+bool _captureShapeFits(ValueType expected, SurfaceScreenHostDataShape actual) {
+  if (actual is SurfaceScreenHostDataNullableShapeV1) {
+    return expected.nullable &&
+        _captureShapeFits(expected.nonNull, actual.value);
+  }
+  return switch (actual) {
+    SurfaceScreenHostDataNativeBindingShapeV1(:final contract) =>
+      contract.call == null &&
+          expected.accepts(
+              ValueType.native(contract.type, nullable: contract.nullable)),
+    SurfaceScreenHostDataScalarShapeV1(
+      kind: SurfaceScreenHostDataScalarKind.jsonValue
+    ) =>
+      false,
+    SurfaceScreenHostDataScalarShapeV1(:final kind) => expected.accepts(
+        ValueType(
+          switch (kind) {
+            SurfaceScreenHostDataScalarKind.boolean => 'bool',
+            SurfaceScreenHostDataScalarKind.integer => 'int',
+            SurfaceScreenHostDataScalarKind.doubleValue => 'double',
+            SurfaceScreenHostDataScalarKind.number => 'num',
+            SurfaceScreenHostDataScalarKind.string => 'String',
+            SurfaceScreenHostDataScalarKind.jsonValue =>
+              throw const FormatException('Untyped expression capture.'),
+          },
+        ),
+      ),
+    SurfaceScreenHostDataListShapeV1(:final items) =>
+      expected.kind == 'list' && _captureShapeFits(expected.item!, items),
+    SurfaceScreenHostDataObjectShapeV1(:final fields) =>
+      expected.kind == 'record' &&
+          expected.fields.entries.every(
+            (field) =>
+                fields[field.key] != null &&
+                _captureShapeFits(field.value, fields[field.key]!),
+          ),
+    _ => false,
+  };
+}
+
+void _validateProgramCapture(
+  Object? value,
+  ValueType type,
+  SurfaceScreenHostDataSchema context,
+  Map<String, Object> local,
+) {
+  if (value is _BuilderFrameValue) {
+    if (value.types.every(type.accepts)) return;
+  } else if (value is rfw.DataReference) {
+    if (value.parts.length >= 2 && value.parts.first == 'context') {
+      final source = context.inputs[value.parts[1]];
+      if (source != null &&
+          _captureShapeFits(
+            type,
+            _fitContextShape(value.parts.skip(2), source),
+          )) {
+        return;
+      }
+    } else if (value.parts.length == 2 &&
+        value.parts.first == _localValuesDataKey &&
+        local.containsKey(value.parts[1])) {
+      _validateProgramCapture(local[value.parts[1]], type, context, local);
+      return;
+    }
+  } else if (value is rfw.Switch) {
+    for (final output in value.outputs.values) {
+      _validateProgramCapture(output, type, context, local);
+    }
+    return;
+  } else if ((value == null || identical(value, rfw.missing)) &&
+      type.nullable) {
+    return;
+  } else if (type.kind == 'native' && value is Map) {
+    if (value['kind'] == 'nativeLocal' &&
+        value['type'] == type.nativeType &&
+        value['nullable'] == type.nullable) return;
+    if (value['kind'] == 'nativeBinding' && value['key'] is String) {
+      final shape = context.inputs[value['key']];
+      if (shape is SurfaceScreenHostDataNativeBindingShapeV1 &&
+          shape.contract.call == null &&
+          value['type'] == shape.contract.type &&
+          value['nullable'] == shape.contract.nullable &&
+          _captureShapeFits(type, shape)) return;
+    }
+  } else if (type.kind == 'record' && value is Map) {
+    for (final field in type.fields.entries) {
+      if (!value.containsKey(field.key)) {
+        throw const FormatException('Missing typed expression capture field.');
+      }
+      _validateProgramCapture(value[field.key], field.value, context, local);
+    }
+    return;
+  } else if (type.kind == 'list' && value is List) {
+    for (final item in value) {
+      _validateProgramCapture(item, type.item!, context, local);
+    }
+    return;
+  } else if (switch (type.kind) {
+    'bool' => value is bool,
+    'int' => value is int,
+    'double' => value is double,
+    'num' => value is num,
+    'String' => value is String,
+    _ => false,
+  }) {
+    return;
+  }
+  throw const FormatException(
+    'Expression capture differs from its declared type.',
   );
 }
 
@@ -582,6 +927,20 @@ void _validateFitEventValue(
   SurfaceScreenHostDataSchema context,
   Map<String, Object> local,
 ) {
+  if (identical(value, rfw.missing)) {
+    throw const FormatException('Missing builder event value.');
+  }
+  if (value is _BuilderFrameValue) {
+    if (!value.types.every(
+      (type) =>
+          !type.nullable && _contextValueFits(shape, _valueHostShape(type)),
+    )) {
+      throw const FormatException(
+        'Builder event value differs from its schema.',
+      );
+    }
+    return;
+  }
   if (value is rfw.DataReference &&
       value.parts.length == 2 &&
       value.parts.first == _localValuesDataKey) {
@@ -653,7 +1012,7 @@ bool _contextValueFits(
         ),
         _
       ) =>
-        true,
+        _isJsonHostShape(actual),
       (
         SurfaceScreenEventNullableShapeV1(:final value),
         SurfaceScreenHostDataNullableShapeV1(value: final inner),
@@ -677,6 +1036,18 @@ bool _contextValueFits(
       ) =>
         _contextValueFits(values, provided),
       _ => false,
+    };
+
+bool _isJsonHostShape(SurfaceScreenHostDataShape shape) => switch (shape) {
+      SurfaceScreenHostDataNativeBindingShapeV1() => false,
+      SurfaceScreenHostDataNullableShapeV1(:final value) =>
+        _isJsonHostShape(value),
+      SurfaceScreenHostDataListShapeV1(:final items) => _isJsonHostShape(items),
+      SurfaceScreenHostDataMapShapeV1(:final values) =>
+        _isJsonHostShape(values),
+      SurfaceScreenHostDataObjectShapeV1(:final fields) =>
+        fields.values.every(_isJsonHostShape),
+      SurfaceScreenHostDataScalarShapeV1() => true,
     };
 
 void _validateFitOutboundEventValue(
@@ -722,10 +1093,22 @@ List<SurfaceScreenContractGap> surfaceScreenContractGaps(
   required SurfaceScreenEventSchema events,
   required SurfaceScreenHostDataSchema context,
   Map<String, Object> localValues = const {},
+  Map<String, ValueOperation> operations = const {
+    ...kCollectionValueOperations,
+    ...kGridValueOperations,
+    ...kIntlValueOperations
+  },
 }) {
+  operations = nativeCallOperations(context, operations);
   final typedEvents = {for (final event in events.events) event.id: event};
   final gaps = <SurfaceScreenContractGap>{};
-  final sites = _eventSites(library);
+  final sites = _eventSites(
+    library,
+    operations: operations,
+    onCapture: (value, type) {
+      _validateProgramCapture(value, type, context, localValues);
+    },
+  );
   void visit(Object? value) {
     switch (value) {
       case rfw.DataReference()
@@ -738,8 +1121,11 @@ List<SurfaceScreenContractGap> surfaceScreenContractGaps(
           if (typed == null) {
             gaps.add(SurfaceScreenContractGap.event(eventName));
           } else {
-            final emitted =
-                _withoutLoopReferences(value, sites[value]?.loops ?? const []);
+            final emitted = _withoutLoopReferences(
+              value,
+              sites[value]?.loops ?? const [],
+              frames: sites[value]?.frames ?? const {},
+            );
             gaps.addAll(
               _typedEventGaps(emitted, typed, context, localValues),
             );

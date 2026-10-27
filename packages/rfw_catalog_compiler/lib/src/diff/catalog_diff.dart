@@ -165,6 +165,8 @@ Iterable<CatalogChange> _propertyPair(
     if (before.widgetType != after.widgetType) 'widgetType',
     if (before.callbackSignature != after.callbackSignature)
       'callbackSignature',
+    if (before.builderContract != after.builderContract) 'builderContract',
+    if (before.scalarContract != after.scalarContract) 'scalarContract',
     if (before.structuredRef != after.structuredRef) 'structuredRef',
     if (before.unionRef != after.unionRef) 'unionRef',
     if (before.valueShape != after.valueShape) 'valueShape',
@@ -214,6 +216,8 @@ final class _PropertyView {
         enumType = property.enumType,
         widgetType = property.widgetType,
         callbackSignature = property.callbackSignature,
+        builderContract = property.builderContract,
+        scalarContract = property.scalarContract,
         structuredRef = property.structuredRef,
         unionRef = null,
         valueShape = property.valueShape;
@@ -231,6 +235,8 @@ final class _PropertyView {
         enumType = null,
         widgetType = null,
         callbackSignature = null,
+        builderContract = field.builderContract,
+        scalarContract = field.scalarContract,
         structuredRef = field.structuredRef,
         unionRef = field.unionRef,
         valueShape = field.valueShape;
@@ -247,6 +253,8 @@ final class _PropertyView {
   final String? enumType;
   final String? widgetType;
   final String? callbackSignature;
+  final WidgetBuilderContract? builderContract;
+  final ScalarCallbackContract? scalarContract;
   final WireIdRef? structuredRef;
   final WireIdRef? unionRef;
   final CatalogValueShape? valueShape;

@@ -68,6 +68,9 @@ enum A2uiDartCoverageReason {
   /// closed loud rather than being mis-lowered or silently dropped.
   unsupportedInteractiveCallback,
 
+  /// A native callback returns an integer the target cannot project.
+  unsupportedScalarCallback,
+
   /// An explicit `@a2ui.Config.writeBackValue('propertyName')` pairing that
   /// does not validate — the named value property does not exist, is not a
   /// matching-type bindable leaf, or two callbacks name the same value
@@ -3614,6 +3617,8 @@ String _numberArgumentExpression(
     case PropertyType.boolean:
     case PropertyType.string:
     case PropertyType.stringList:
+    case PropertyType.widgetBuilder:
+    case PropertyType.scalarCallback:
     case PropertyType.event:
     case PropertyType.dataReference:
     case PropertyType.enumValue:
@@ -3695,6 +3700,8 @@ String _defaultFor(PropertyEntry property, Map<String, String> prefixes) {
     case PropertyType.alignment:
     case PropertyType.alignmentXY:
     case PropertyType.offset:
+    case PropertyType.widgetBuilder:
+    case PropertyType.scalarCallback:
     case PropertyType.event:
     case PropertyType.dataReference:
     case PropertyType.gradient:
@@ -4125,7 +4132,11 @@ bool _isBindableLeaf(
   A2uiRichShapes? richShapes,
 ) {
   if (_childSlot(property) != null) return false;
-  if (property.type == PropertyType.event) return false;
+  if (property.type == PropertyType.event ||
+      property.type == PropertyType.widgetBuilder ||
+      property.type == PropertyType.scalarCallback) {
+    return false;
+  }
   if (property.defaultSource is ThemeBindingDefault) return false;
   if (property.synthetic != null) return false;
   final node = _bindableLeafNode(widgetName, property, richShapes);
@@ -4188,6 +4199,16 @@ _FieldClassification _classifyField(
   bool prefixesCustomLibs, {
   required bool usesPropsNamespace,
 }) {
+  if (property.type == PropertyType.scalarCallback) {
+    _rejectA2uiConstraintsWithoutDataNode(entry, property, 'scalar callback');
+    return _DropWidget(
+      A2uiDartWidgetDrop(
+        widgetName: entry.name,
+        fieldName: property.name,
+        reason: A2uiDartCoverageReason.unsupportedScalarCallback,
+      ),
+    );
+  }
   if (!usesPropsNamespace &&
       isReservedA2uiComponentEnvelopeField(property.name)) {
     _rejectA2uiConstraintOmission(
@@ -4698,6 +4719,8 @@ A2uiSchemaNode? _dataNode(
       );
     case PropertyType.widget:
     case PropertyType.widgetList:
+    case PropertyType.widgetBuilder:
+    case PropertyType.scalarCallback:
     case PropertyType.event:
     case PropertyType.dataReference:
     case PropertyType.gradient:

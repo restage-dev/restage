@@ -139,11 +139,38 @@ bool _appValue(String name, SurfaceScreenHostDataShape shape) =>
     _appValueKey.hasMatch(name) || _holdsAppValue(shape);
 
 bool _holdsAppValue(SurfaceScreenHostDataShape shape) => switch (shape) {
+  SurfaceScreenHostDataNativeBindingShapeV1() => true,
   SurfaceScreenHostDataNullableShapeV1(:final value) => _holdsAppValue(value),
   SurfaceScreenHostDataListShapeV1(:final items) => _holdsAppValue(items),
   SurfaceScreenHostDataMapShapeV1(:final values) => _holdsAppValue(values),
   SurfaceScreenHostDataObjectShapeV1(:final fields) => fields.entries.any(
     (field) => _appValue(field.key, field.value),
+  ),
+  _ => false,
+};
+
+/// Samples ordinary host data and refuses native values requiring an installed host.
+Map<String, Object?> sampleSurfaceCaptureContext(
+  SurfaceScreenHostDataSchema? schema,
+) {
+  if (schema == null) return const {};
+  if (schema.inputs.values.any(_holdsNativeBinding)) {
+    throw const SurfaceCaptureSourceException(
+      'its native bindings require an installed host and cannot be captured as JSON',
+    );
+  }
+  return sampleHostContext(schema);
+}
+
+bool _holdsNativeBinding(SurfaceScreenHostDataShape shape) => switch (shape) {
+  SurfaceScreenHostDataNativeBindingShapeV1() => true,
+  SurfaceScreenHostDataNullableShapeV1(:final value) => _holdsNativeBinding(
+    value,
+  ),
+  SurfaceScreenHostDataListShapeV1(:final items) => _holdsNativeBinding(items),
+  SurfaceScreenHostDataMapShapeV1(:final values) => _holdsNativeBinding(values),
+  SurfaceScreenHostDataObjectShapeV1(:final fields) => fields.values.any(
+    _holdsNativeBinding,
   ),
   _ => false,
 };
@@ -154,7 +181,10 @@ final _appValueKey = RegExp(r'^_h[0-9a-f]{10}$');
 List<String> hostDataAppValueLabels(SurfaceScreenHostDataSchema schema) {
   final labels = <String>{};
   void visit(String name, SurfaceScreenHostDataShape shape) {
-    if (_appValueKey.hasMatch(name)) labels.add(shape.label ?? name);
+    if (_appValueKey.hasMatch(name) ||
+        shape is SurfaceScreenHostDataNativeBindingShapeV1) {
+      labels.add(shape.label ?? name);
+    }
     switch (shape) {
       case SurfaceScreenHostDataNullableShapeV1(:final value):
         visit('', value);
@@ -186,6 +216,7 @@ String? surfaceContextTestSource({
   final publication = entry.publication;
   final schema = publication.hostDataContract;
   if (schema == null || !hostDataHasAppValues(schema)) return null;
+  sampleSurfaceCaptureContext(schema);
   final sources = _libSources(projectRoot, entry.sources);
   final widget = _authoredClass(
     sources,

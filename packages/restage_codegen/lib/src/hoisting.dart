@@ -10,6 +10,10 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/builder_expression_lowering.dart'
+    show BuilderLoweringException;
+import 'package:restage_codegen/src/installed_native_provenance.dart';
+import 'package:restage_codegen/src/installed_native_call.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -25,17 +29,26 @@ enum HoistValueKind {
   /// `bool`, `int`, `double`, `num` or `String`, as is.
   scalar,
 
+  /// A DateTime, as its epoch microseconds and UTC flag.
+  dateTime,
+
   /// A color, as its ARGB integer.
   color,
 
   /// An enum value, as its name.
   enumName,
 
-  /// Edge insets, as `[left, top, right, bottom]`.
+  /// Edge insets, preserving physical or directional field names.
   edgeInsets,
 
   /// A text style, as the map a published theme style uses.
   textStyle,
+
+  /// An exact native TextScaler stored in this mount.
+  textScaler,
+
+  /// An exact borrowed native value or callback.
+  nativeBinding,
 
   /// A list of crossing values.
   list,
@@ -118,6 +131,17 @@ HoistTypeVerdict _classifyNonNull(InterfaceType type) {
       scalar(SurfaceScreenHostDataScalarKind.string),
     );
   }
+  if (type.element.name == 'DateTime' &&
+      type.element.library.identifier == 'dart:core') {
+    return HoistCrosses(
+      HoistValueKind.dateTime,
+      SurfaceScreenHostDataObjectShapeV1({
+        'microsecondsSinceEpoch':
+            scalar(SurfaceScreenHostDataScalarKind.integer),
+        'isUtc': scalar(SurfaceScreenHostDataScalarKind.boolean),
+      }),
+    );
+  }
   if (type.element is EnumElement) {
     return HoistCrosses(
       HoistValueKind.enumName,
@@ -136,13 +160,26 @@ HoistTypeVerdict _classifyNonNull(InterfaceType type) {
   )) {
     return HoistCrosses(
       HoistValueKind.edgeInsets,
-      SurfaceScreenHostDataListShapeV1(
-        scalar(SurfaceScreenHostDataScalarKind.doubleValue),
-      ),
+      SurfaceScreenHostDataObjectShapeV1({
+        for (final key in type.element.name == 'EdgeInsetsDirectional'
+            ? ['start', 'top', 'end', 'bottom']
+            : ['left', 'top', 'right', 'bottom'])
+          key: scalar(SurfaceScreenHostDataScalarKind.doubleValue),
+      }),
     );
+  }
+  if (_isFramework(type, const {'TextScaler'})) {
+    return HoistCrosses(
+        HoistValueKind.textScaler,
+        SurfaceScreenHostDataObjectShapeV1(
+            const {'kind': _string, 'key': _string}));
   }
   if (_isFramework(type, const {'TextStyle'})) {
     return HoistCrosses(HoistValueKind.textStyle, _textStyleShape);
+  }
+  if ((type.isDartCoreList || type.isDartCoreMap) &&
+      type.typeArguments.any(_containsNativeScaler)) {
+    return const HoistDoesNotCross();
   }
   if (type.isDartCoreList && type.typeArguments.length == 1) {
     final item = classifyHoistType(type.typeArguments.single);
@@ -168,6 +205,11 @@ HoistTypeVerdict _classifyNonNull(InterfaceType type) {
   if (_isFramework(type, const {'Widget'})) return const HoistIsWidget();
   return const HoistDoesNotCross();
 }
+
+bool _containsNativeScaler(DartType type) =>
+    type is InterfaceType &&
+    (_isFramework(type, const {'TextScaler'}) ||
+        type.typeArguments.any(_containsNativeScaler));
 
 const _int = SurfaceScreenHostDataScalarShapeV1(
   SurfaceScreenHostDataScalarKind.integer,
@@ -264,6 +306,10 @@ final class HoistedValue {
     required this.shape,
     required String template,
     this.item,
+    this.nativeContract,
+    this.nativeCall,
+    this.nativeConstant,
+    this.computed = false,
     this.paints = const [],
   }) : _template = template;
 
@@ -275,6 +321,18 @@ final class HoistedValue {
 
   /// How the value is written.
   final HoistValueKind kind;
+
+  /// The installed native declaration, when this is a borrowed binding.
+  final NativeBindingContract? nativeContract;
+
+  /// A lazy installed implementation, rather than a mount-time computation.
+  final InstalledNativeCallPlan? nativeCall;
+
+  /// A canonical compiled constant emitted in its library scope.
+  final InstalledNativeCallPlan? nativeConstant;
+
+  /// Whether the mount computes this native object rather than borrowing it.
+  final bool computed;
 
   /// The host-data shape the mount publishes.
   final SurfaceScreenHostDataShape shape;
@@ -344,15 +402,20 @@ final class HoistEvaluable extends HoistAnalysis {
     HoistCrosses verdict,
     DartType type, {
     Expression? expression,
+    NativeBindingContract? nativeContract,
+    bool computed = false,
   }) {
     final typeName = type.getDisplayString();
     final digest = crypto.sha256.convert(
-      utf8.encode('${_canonicalSource(template)}\n$typeName\n${item ?? ''}'),
+      utf8.encode('${_canonicalSource(template)}\n$typeName\n${item ?? ''}'
+          '${nativeContract == null ? '' : '\nnative:${jsonEncode(nativeContract.toJson())}'}'),
     );
     return HoistedValue(
       key: '$kHoistedKeyPrefix${digest.toString().substring(0, 10)}',
       label: label,
       kind: verdict.kind,
+      nativeContract: nativeContract,
+      computed: computed,
       shape: verdict.shape.withLabel(label),
       template: template,
       item: item,
@@ -458,6 +521,7 @@ final class HoistAnalyzer {
     required this.isStateWidget,
     this.rootContext,
     this.buildArgumentFor = _noBuildArgument,
+    this.isDeclaredCallable = _noDeclaredCallable,
   });
 
   /// The screen build's `BuildContext` parameter; only it is the mount's.
@@ -483,6 +547,10 @@ final class HoistAnalyzer {
   /// after its context, if it has one.
   final String? Function(Element element) buildArgumentFor;
 
+  /// Whether a callable reference is an existing typed constructor input.
+  final bool Function(Expression reference) isDeclaredCallable;
+
+  static bool _noDeclaredCallable(Expression reference) => false;
   static String? _noBuildArgument(Element element) => null;
 
   /// Analyzes [expression].
@@ -515,6 +583,18 @@ final class _HoistWriter {
   String? itemName;
 
   String? render(Expression node, List<Element> active) {
+    // Every eager host computation shares the installed callable boundary.
+    try {
+      final calls = qualifyInstalledNativeCallables(node,
+          isDeclaredCallable: analyzer.isDeclaredCallable);
+      if (calls.any((call) => installedIntlLookupFamily(call.target) != null)) {
+        failed = true;
+        return null;
+      }
+    } on BuilderLoweringException {
+      failed = true;
+      return null;
+    }
     final unit = node.root;
     final contents = unit is CompilationUnit
         ? unit.declaredFragment?.source.contents.data
@@ -623,7 +703,8 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
   @override
   void visitPropertyAccess(PropertyAccess node) {
     final target = node.target;
-    if (target is SimpleIdentifier && _isStateWidget(target.element)) {
+    if (target is ThisExpression ||
+        (target is SimpleIdentifier && _isStateWidget(target.element))) {
       final param = analyzer.rootParamFor(node.propertyName.element);
       if (param != null) {
         _replace(node, '\u0000${param.name}\u0000');

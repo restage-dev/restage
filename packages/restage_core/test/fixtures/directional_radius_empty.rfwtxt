@@ -1,0 +1,9 @@
+import restage.core;
+widget Directonly = ClipRRect(borderRadiusTopStart: 0.0, borderRadiusTopEnd: 0.0, borderRadiusBottomStart: 0.0, borderRadiusBottomEnd: 0.0, child: SizedBox(width: 40.0, height: 30.0));
+widget Nestedonly = Container(borderRadiusTopStart: 0.0, borderRadiusTopEnd: 0.0, borderRadiusBottomStart: 0.0, borderRadiusBottomEnd: 0.0, child: SizedBox(width: 40.0, height: 30.0));
+widget Directvertical = ClipRRect(borderRadiusTopStart: 0.0, borderRadiusTopEnd: 0.0, borderRadiusBottomStart: 0.0, borderRadiusBottomEnd: 0.0, child: SizedBox(width: 40.0, height: 30.0));
+widget Nestedvertical = Container(borderRadiusTopStart: 0.0, borderRadiusTopEnd: 0.0, borderRadiusBottomStart: 0.0, borderRadiusBottomEnd: 0.0, child: SizedBox(width: 40.0, height: 30.0));
+widget Directhorizontal = ClipRRect(borderRadiusTopStart: 0.0, borderRadiusTopEnd: 0.0, borderRadiusBottomStart: 0.0, borderRadiusBottomEnd: 0.0, child: SizedBox(width: 40.0, height: 30.0));
+widget Nestedhorizontal = Container(borderRadiusTopStart: 0.0, borderRadiusTopEnd: 0.0, borderRadiusBottomStart: 0.0, borderRadiusBottomEnd: 0.0, child: SizedBox(width: 40.0, height: 30.0));
+widget Directzero = ClipRRect(borderRadiusTopStart: 0.0, borderRadiusTopEnd: 0.0, borderRadiusBottomStart: 0.0, borderRadiusBottomEnd: 0.0, child: SizedBox(width: 40.0, height: 30.0));
+widget Nestedzero = Container(borderRadiusTopStart: 0.0, borderRadiusTopEnd: 0.0, borderRadiusBottomStart: 0.0, borderRadiusBottomEnd: 0.0, child: SizedBox(width: 40.0, height: 30.0));

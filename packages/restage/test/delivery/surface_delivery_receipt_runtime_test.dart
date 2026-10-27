@@ -20,6 +20,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../fixtures/compiled_surfaces/native_flow.dart';
 import '../flow/flow_test_support.dart';
 import '../support/hosted_artifact_delivery.dart';
+import '../support/pump_until.dart';
 
 const String _baseUrl = 'https://example.com';
 const String _apiKey = 'rs_pk_test';
@@ -106,12 +107,13 @@ Future<void> _mount(WidgetTester tester, String id, Finder ready) async {
         ),
       ),
     );
-    for (var attempt = 0; attempt < 100; attempt += 1) {
-      await tester.pump();
-      if (ready.evaluate().isNotEmpty) return;
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-    }
   });
+  await pumpUntil(
+    tester,
+    () => ready.evaluate().isNotEmpty,
+    reason: 'the mounted paywall',
+    realDelay: const Duration(milliseconds: 20),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -122,13 +124,9 @@ Future<void> _unmount(WidgetTester tester) async {
 
 /// Pauses the app and lets the flush post over real I/O.
 Future<void> _pause(WidgetTester tester, List<http.Request> posts) async {
-  final before = posts.length;
   await tester.runAsync(() async {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    for (var attempt = 0; attempt < 100; attempt += 1) {
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      if (posts.length > before) break;
-    }
+    await SurfaceDeliveryReceiptUploader.instance.flush();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
   });
   await tester.pumpAndSettle();

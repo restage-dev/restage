@@ -89,6 +89,18 @@ SurfaceScreenHostDataSchema hostDataContractOf(
           ),
       for (final value in hoisted)
         if (value.item == null) value.key: value.shape,
+      // Derivation passes no root params; per-item values still need their list.
+      for (final item in {
+        for (final value in hoisted)
+          if (value.item case final item?
+              when !rootParams.any((param) => param.name == item))
+            item,
+      })
+        item: SurfaceScreenHostDataListShapeV1(
+            SurfaceScreenHostDataObjectShapeV1({
+          for (final value in hoisted)
+            if (value.item == item) value.key: value.shape,
+        })),
     });
 
 /// [shape] with [values] added to each item of the list it describes.
@@ -122,6 +134,14 @@ SurfaceScreenHostDataShape hostDataContractShapeOf(HostDataShape shape) {
 
 SurfaceScreenHostDataShape _nonNullContractShapeOf(HostDataShape shape) =>
     switch (shape) {
+      HostDataDateTimeShape() => SurfaceScreenHostDataObjectShapeV1({
+          'microsecondsSinceEpoch': const SurfaceScreenHostDataScalarShapeV1(
+            SurfaceScreenHostDataScalarKind.integer,
+          ),
+          'isUtc': const SurfaceScreenHostDataScalarShapeV1(
+            SurfaceScreenHostDataScalarKind.boolean,
+          ),
+        }),
       HostDataScalarShape(:final kind) =>
         SurfaceScreenHostDataScalarShapeV1(_scalarKindOf(kind)),
       HostDataListShape(:final elementShape) =>

@@ -6,7 +6,7 @@ const starterDoneExploreScreenRef = NeutralFlowScreenRef(
   id: 'starter_done_explore',
   artifactPath: 'starter_done_explore.rfw',
   version: 1,
-  minClient: 12,
+  minClient: 17,
 );
 
 @Deprecated('Use starterDoneExploreScreenRef')

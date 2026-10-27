@@ -7,6 +7,8 @@ import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
 import 'package:crypto/crypto.dart';
 import 'package:restage_codegen/src/onboarding/screen_builder.dart';
+import 'package:restage_codegen/src/hoisting.dart';
+import 'package:restage_codegen/src/installed_native_call.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -30,6 +32,40 @@ const _multiContractFingerprint = 'sha256:'
 
 void main() {
   group('standalone screen contract/reference emitter', () {
+    test(
+        'installs prefixed typed native adapters without evaluating their body',
+        () async {
+      final expression = await parseExpressionFromSourceForTest('''
+import 'package:flutter/material.dart' as f;
+f.MaterialColor x() => f.MaterialColor(0xff102030, <int, f.Color>{500: const f.Color(0xff102030)});
+''', rootPackage: 'apps_examples', libraryPath: 'lib/maintenance_notice.dart');
+      final plan = planInstalledNativeCall(expression,
+          resultType: const ValueType.native('flutter.Color'),
+          captureFor: (_) => null,
+          inputFor: (_) => null);
+      const source = '''
+import 'package:flutter/material.dart' as f;
+import 'package:restage/restage.dart' as r;
+part 'restage.generated/maintenance_notice.restage.g.dart';
+@r.Screen(id: 'maintenance_notice', surface: r.Surface.general)
+class MaintenanceNotice extends f.StatelessWidget {
+  const MaintenanceNotice({super.key});
+  @override
+  f.Widget build(f.BuildContext context) => const f.SizedBox();
+}
+''';
+      final inspection = await _inspect(source, hoisted: [plan.binding]);
+      expect(inspection.issues, isEmpty);
+      expect(inspection.contract!.mountOmissionMessage, isNull);
+      final emitted = inspection.contract!.emitReferenceDart();
+      expect(emitted, contains('r.NativeCallAdapter _restage'));
+      expect(emitted, contains('value: _restage'));
+      expect(emitted, isNot(contains('value: r.NativeCallAdapter(')));
+      expect(emitted, contains('final f.MaterialColor _restageResult'));
+      expect(emitted, contains('<String, Object?>{}'));
+      expect(emitted, isNot(contains('value: f.MaterialColor(')));
+      await _assertGeneratedPartAnalyzes(source, emitted);
+    });
     test('pins the shared event-hash and fingerprint vectors', () {
       final empty = SurfaceScreenEventSchema(events: const []);
       expect(
@@ -5248,6 +5284,7 @@ Future<StandaloneScreenContractInspection> _inspect(
   int contractVersion = 1,
   CapabilityManifest? capabilities,
   Map<String, String> additionalSources = const {},
+  List<HoistedValue> hoisted = const [],
 }) async {
   final assetId = AssetId('apps_examples', 'lib/maintenance_notice.dart');
   final readerWriter = await readerWriterWithFilesystemSources(
@@ -5282,6 +5319,7 @@ Future<StandaloneScreenContractInspection> _inspect(
           rootParams: screenInput.build.rootParams,
           constructorParams: screenInput.build.constructorParams,
           mountConstructorProblem: screenInput.build.mountConstructorProblem,
+          hoisted: hoisted,
         ),
       );
     }),

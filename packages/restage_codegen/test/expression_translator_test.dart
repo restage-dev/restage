@@ -613,8 +613,9 @@ Object x() => Curves.$member;
       }
     });
 
-    test('real-flutter Colors.red → curated 0xAARRGGBB integer', () async {
-      // Element-resolved to package:flutter → the curated table lowers it.
+    test('real-flutter Colors.red retains its canonical Material identity',
+        () async {
+      // The resolved Flutter declaration retains its canonical swatch token.
       final r = translator.translate(
         await parseExpressionFromSourceForTest(
           '''
@@ -624,7 +625,8 @@ Object x() => Curves.$member;
           rootPackage: 'apps_examples',
         ),
       );
-      expect(r.dsl, '0xFFF44336');
+      expect(r.dsl,
+          '{colorSpace: "sRGB", material: "red", a: 1.0, r: 0.9568627450980393, g: 0.2627450980392157, b: 0.21176470588235294}');
       expect(r.issues, isEmpty);
     });
 
@@ -654,7 +656,8 @@ Object x() => Curves.$member;
         ),
       );
       expect(r.issues, isEmpty);
-      expect(r.dsl, '0xFF009688');
+      expect(r.dsl,
+          '{colorSpace: "sRGB", material: "teal", a: 1.0, r: 0.0, g: 0.5882352941176471, b: 0.5333333333333333}');
     });
 
     test(
@@ -2057,7 +2060,7 @@ SegmentedButton<String>(
         ),
       );
       expect(r.issues, isEmpty);
-      expect(r.dsl, '[8.0, 8.0, 8.0, 8.0]');
+      expect(r.dsl, '{left: 8.0, top: 8.0, right: 8.0, bottom: 8.0}');
     });
 
     // -- BorderRadius (package:flutter/) — InstanceCreation factory --
@@ -2319,7 +2322,7 @@ SegmentedButton<String>(
           rootPackage: 'apps_examples',
         ),
       );
-      expect(r.dsl, '[0.0, 0.0, 0.0, 0.0]');
+      expect(r.dsl, '{left: 0.0, top: 0.0, right: 0.0, bottom: 0.0}');
       expect(r.issues, isEmpty);
     });
     test('real-flutter BorderRadius.zero still lowers to its zero value',
@@ -2352,7 +2355,7 @@ SegmentedButton<String>(
         await parseExpressionForTest('EdgeInsets.all(12)'),
       );
       expect(r.issues, isEmpty);
-      expect(r.dsl, '[12.0, 12.0, 12.0, 12.0]');
+      expect(r.dsl, '{left: 12.0, top: 12.0, right: 12.0, bottom: 12.0}');
     });
   });
 
@@ -2482,7 +2485,7 @@ SegmentedButton<String>(
       final r = translator.translate(
         await parseExpressionForTest('EdgeInsets.all(12)'),
       );
-      expect(r.dsl, '[12.0, 12.0, 12.0, 12.0]');
+      expect(r.dsl, '{left: 12.0, top: 12.0, right: 12.0, bottom: 12.0}');
       expect(r.issues, isEmpty);
     });
 
@@ -2492,7 +2495,7 @@ SegmentedButton<String>(
           'EdgeInsets.symmetric(horizontal: 8, vertical: 4)',
         ),
       );
-      expect(r.dsl, '[8.0, 4.0, 8.0, 4.0]');
+      expect(r.dsl, '{left: 8.0, top: 4.0, right: 8.0, bottom: 4.0}');
     });
 
     test('EdgeInsets.symmetric(horizontal: 8) defaults vertical to 0',
@@ -2500,28 +2503,28 @@ SegmentedButton<String>(
       final r = translator.translate(
         await parseExpressionForTest('EdgeInsets.symmetric(horizontal: 8)'),
       );
-      expect(r.dsl, '[8.0, 0.0, 8.0, 0.0]');
+      expect(r.dsl, '{left: 8.0, top: 0.0, right: 8.0, bottom: 0.0}');
     });
 
     test('EdgeInsets.fromLTRB(1, 2, 3, 4)', () async {
       final r = translator.translate(
         await parseExpressionForTest('EdgeInsets.fromLTRB(1, 2, 3, 4)'),
       );
-      expect(r.dsl, '[1.0, 2.0, 3.0, 4.0]');
+      expect(r.dsl, '{left: 1.0, top: 2.0, right: 3.0, bottom: 4.0}');
     });
 
     test('EdgeInsets.only(left: 5)', () async {
       final r = translator.translate(
         await parseExpressionForTest('EdgeInsets.only(left: 5)'),
       );
-      expect(r.dsl, '[5.0, 0.0, 0.0, 0.0]');
+      expect(r.dsl, '{left: 5.0, top: 0.0, right: 0.0, bottom: 0.0}');
     });
 
     test('EdgeInsets.only(top: 1, right: 2)', () async {
       final r = translator.translate(
         await parseExpressionForTest('EdgeInsets.only(top: 1, right: 2)'),
       );
-      expect(r.dsl, '[0.0, 1.0, 2.0, 0.0]');
+      expect(r.dsl, '{left: 0.0, top: 1.0, right: 2.0, bottom: 0.0}');
     });
 
     test('unknown EdgeInsets factory emits unrecognizedMethodCall', () async {
@@ -2571,13 +2574,15 @@ SegmentedButton<String>(
 
     test(
         'EdgeInsetsDirectional.zero lowers to the same value as '
-        'EdgeInsets.all(0)', () async {
+        'EdgeInsetsDirectional.all(0)', () async {
       final zero = translator.translate(
         await parseExpressionForTest('EdgeInsetsDirectional.zero'),
       );
-      final explicit = translator
-          .translate(await parseExpressionForTest('EdgeInsets.all(0)'));
+      final explicit = translator.translate(
+        await parseExpressionForTest('EdgeInsetsDirectional.all(0)'),
+      );
       expect(zero.issues, isEmpty);
+      expect(zero.dsl, '{start: 0.0, top: 0.0, end: 0.0, bottom: 0.0}');
       expect(zero.dsl, explicit.dsl);
     });
 
@@ -3141,10 +3146,12 @@ SegmentedButton<String>(
   group('RadialGradient translation', () {
     test('emits the rfw radial gradient map shape', () async {
       final r = translator.translate(
-        await parseExpressionForTest(
-          'RadialGradient('
+        await parseExpressionFromSourceForTest(
+          "import 'package:flutter/painting.dart'; "
+          'Object x() => RadialGradient( '
           'colors: [Color(0xFF112233), Color(0xFF445566)], '
-          'center: Alignment.topLeft, radius: 0.75)',
+          'center: Alignment.topLeft, radius: 0.75);',
+          rootPackage: 'apps_examples',
         ),
       );
       expect(r.issues, isEmpty);
@@ -3171,11 +3178,13 @@ SegmentedButton<String>(
 
     test('threads focal/focalRadius and an Alignment(x, y) center', () async {
       final r = translator.translate(
-        await parseExpressionForTest(
-          'RadialGradient('
+        await parseExpressionFromSourceForTest(
+          "import 'package:flutter/painting.dart'; "
+          'Object x() => RadialGradient( '
           'colors: [Color(0xFF000000), Color(0xFFFFFFFF)], '
           'center: Alignment(0.25, -0.5), '
-          'focal: Alignment.bottomRight, focalRadius: 0.1)',
+          'focal: Alignment.bottomRight, focalRadius: 0.1);',
+          rootPackage: 'apps_examples',
         ),
       );
       expect(r.issues, isEmpty);
@@ -3201,11 +3210,13 @@ SegmentedButton<String>(
 
     test('threads center/startAngle/endAngle and stops', () async {
       final r = translator.translate(
-        await parseExpressionForTest(
-          'SweepGradient('
+        await parseExpressionFromSourceForTest(
+          "import 'package:flutter/painting.dart'; "
+          'Object x() => SweepGradient( '
           'colors: [Color(0xFF000000), Color(0xFFFFFFFF)], '
           'center: Alignment.center, startAngle: 0.0, endAngle: 3.14, '
-          'stops: [0.0, 1.0])',
+          'stops: [0.0, 1.0]);',
+          rootPackage: 'apps_examples',
         ),
       );
       expect(r.issues, isEmpty);
@@ -6426,7 +6437,10 @@ Object x() => Switch(
         '''
 import 'package:flutter/material.dart';
 
-bool unsupportedCondition() => true;
+bool unsupportedCondition() {
+  print('condition side effect');
+  return true;
+}
 
 Object x() => Switch(
   value: false,
@@ -6441,7 +6455,13 @@ Object x() => Switch(
 
       expect(
         result.issues.map((issue) => issue.code),
-        contains(IssueCode.unknownWidget),
+        contains(IssueCode.customWidgetInliningDeferred),
+      );
+      expect(
+        result.issues.single.message,
+        "The helper 'unsupportedCondition' cannot be inlined: "
+        'its body must be one returned expression, optionally preceded by '
+        'initialized final or const locals.',
       );
       expect(result.dsl, isEmpty);
       expect(result.dsl, isNot(contains('switch  {')));
@@ -7507,7 +7527,7 @@ GestureDetector(
       );
     });
 
-    test('TextSpan.children refuses wrapped collection elements', () async {
+    test('TextSpan.children expands wrapped collection elements', () async {
       const source = '''
 import 'package:flutter/material.dart';
 Object x() => Text.rich(
@@ -7527,17 +7547,12 @@ Object x() => Text.rich(
         lineInfo: LineInfo.fromContent(source),
       );
 
-      expect(r.dsl, isEmpty);
-      expect(r.issues, hasLength(1));
-      expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(r.issues, isEmpty);
       expect(
-        r.issues.single.location,
-        startsWith('lib/text_span_collection.dart:5:'),
-      );
+          r.dsl, contains('children: [{ text: "first" }, { text: "second" }]'));
     });
 
-    test('TextSpan(recognizer:) defers loud instead of dropping the prop',
-        () async {
+    test('TextSpan(recognizer:) carries an empty native constructor', () async {
       final expr = await parseExpressionForTest('''
         Text.rich(
           TextSpan(
@@ -7549,15 +7564,117 @@ Object x() => Text.rich(
 
       final r = textRichTranslator.translate(expr);
 
-      expect(r.dsl, isEmpty);
+      expect(r.dsl, contains('kind: "tap"'));
+      expect(r.issues.where((issue) => !issue.code.isInformational), isEmpty);
+    });
+
+    test(
+        'an immutable local recognizer is admitted once and shared aliases refuse',
+        () async {
+      const imports =
+          "import 'package:flutter/widgets.dart'; import 'package:flutter/gestures.dart';";
+      final admitted = await _translateResolvedBody(textRichTranslator,
+          declaration: imports,
+          prelude: 'final recognizer = TapGestureRecognizer();',
+          expression:
+              "Text.rich(TextSpan(text: 'Tap', recognizer: recognizer))");
+      expect(admitted.issues.where((issue) => !issue.code.isInformational),
+          isEmpty);
+      expect(admitted.dsl, contains('kind: "tap"'));
+      final shared = await _translateResolvedBody(textRichTranslator,
+          declaration: imports,
+          prelude: 'final recognizer = TapGestureRecognizer();',
+          expression:
+              "Text.rich(TextSpan(children: [TextSpan(text: 'One', recognizer: recognizer), TextSpan(text: 'Two', recognizer: recognizer)]))");
+      expect(shared.dsl, isEmpty);
+      expect(shared.issues.where((issue) => !issue.code.isInformational),
+          isNotEmpty);
+      final acrossWidgets = await _translateResolvedBody(
+          ExpressionTranslator(
+              helpers: HelperRegistry(),
+              catalog: catalogWith([
+                ..._textRichCatalog().widgets,
+                entry(
+                    name: 'Column',
+                    properties: [prop('children', PropertyType.widgetList)],
+                    childrenSlot: ChildrenSlot.list),
+              ])),
+          declaration: imports,
+          prelude: 'final recognizer = TapGestureRecognizer();',
+          expression:
+              "Column(children: [Text.rich(TextSpan(text: 'One', recognizer: recognizer)), Text.rich(TextSpan(text: 'Two', recognizer: recognizer))])");
+      expect(acrossWidgets.issues.map((issue) => issue.message).join('\n'),
+          contains('shared'));
+    });
+
+    test(
+        'recognizer ownership follows aliases and containing span or list locals',
+        () async {
+      final translator = ExpressionTranslator(
+          helpers: HelperRegistry()..registerAll(_testHelpers),
+          catalog: catalogWith([
+            ..._textRichCatalog().widgets,
+            entry(
+                name: 'Column',
+                properties: [prop('children', PropertyType.widgetList)],
+                childrenSlot: ChildrenSlot.list),
+          ]));
+      const declaration =
+          "import 'package:flutter/widgets.dart'; import 'package:flutter/gestures.dart'; VoidCallback paywallEvent(String name) => () {};";
+      final admissions = <(bool, int)>[];
+      for (final (prelude, span) in [
+        (
+          "final r = DoubleTapGestureRecognizer(); final alias = r; final next = alias;",
+          "TextSpan(text: 'Tap', recognizer: next)"
+        ),
+        (
+          "final span = TextSpan(text: 'Tap', recognizer: DoubleTapGestureRecognizer()); final alias = span;",
+          'alias'
+        ),
+        (
+          "final spans = [TextSpan(text: 'Tap', recognizer: DoubleTapGestureRecognizer())]; final alias = spans;",
+          'TextSpan(children: alias)'
+        ),
+      ]) {
+        final result = await _translateResolvedBody(translator,
+            declaration: declaration,
+            prelude: prelude,
+            expression:
+                'Column(children: [Text.rich($span), Text.rich($span)])');
+        admissions.add((
+          result.issues.any((issue) => !issue.code.isInformational),
+          'kind: "doubleTap"'.allMatches(result.dsl).length,
+        ));
+      }
+      expect(admissions, [(true, 0), (true, 0), (true, 0)]);
+      final single = await _translateResolvedBody(translator,
+          declaration: declaration,
+          prelude:
+              "final r = DoubleTapGestureRecognizer(); final alias = r; final span = TextSpan(text: 'Tap', recognizer: alias); final spans = [span];",
+          expression: 'Text.rich(TextSpan(children: spans))');
       expect(
-        r.issues.where((issue) => !issue.code.isInformational),
-        isNotEmpty,
-      );
+          single.issues.where((issue) => !issue.code.isInformational), isEmpty);
+      expect(single.dsl, contains('kind: "doubleTap"'));
+      final repeated = await _translateResolvedBody(translator,
+          declaration: declaration,
+          prelude:
+              "final span = TextSpan(text: 'Tap', recognizer: DoubleTapGestureRecognizer());",
+          expression:
+              'Column(children: [for (final item in [1, 2]) Text.rich(span)])');
+      expect((
+        repeated.issues.any((issue) => !issue.code.isInformational),
+        'kind: "doubleTap"'.allMatches(repeated.dsl).length,
+      ), (
+        true,
+        0
+      ));
+      final fresh = await _translateResolvedBody(translator,
+          declaration: declaration,
+          expression:
+              "Column(children: [for (final item in [1, 2]) Text.rich(TextSpan(text: 'Tap', recognizer: DoubleTapGestureRecognizer()))])");
       expect(
-        r.issues.map((issue) => issue.message).join('\n'),
-        contains('recognizer'),
-      );
+          fresh.issues.where((issue) => !issue.code.isInformational), isEmpty);
+      expect('kind: "doubleTap"'.allMatches(fresh.dsl), hasLength(2));
     });
 
     test('custom TextSpan look-alike defers instead of emitting', () async {
@@ -8029,7 +8146,7 @@ Object x() => Text.rich(
       expect(
         r.dsl,
         'FilledButton(backgroundColor: 0xFF112233, '
-        'padding: [8.0, 8.0, 8.0, 8.0])',
+        'padding: {left: 8.0, top: 8.0, right: 8.0, bottom: 8.0})',
       );
     });
 
@@ -8041,13 +8158,13 @@ Object x() => Text.rich(
             borderRadius: BorderRadius.circular(14),
           )
         ''': 'FilledButton(shape: {type: "rounded", '
-                'side: {color: 0xFFAA0000, width: 2.0}, borderRadius: 14.0})',
+                'side: {color: 0xFFAA0000, width: 2.0}, borderRadius: 14})',
         '''
           RoundedSuperellipseBorder(
             borderRadius: BorderRadius.circular(16),
           )
         ''': 'FilledButton(shape: {type: "roundedSuperellipse", '
-                'borderRadius: 16.0})',
+                'borderRadius: 16})',
         'CircleBorder(eccentricity: 0.5)':
             'FilledButton(shape: {type: "circle", eccentricity: 0.5})',
         'StadiumBorder()': 'FilledButton(shape: {type: "stadium"})',
@@ -8055,7 +8172,7 @@ Object x() => Text.rich(
           ContinuousRectangleBorder(
             borderRadius: BorderRadius.circular(4),
           )
-        ''': 'FilledButton(shape: {type: "continuous", borderRadius: 4.0})',
+        ''': 'FilledButton(shape: {type: "continuous", borderRadius: 4})',
         '''
           BeveledRectangleBorder(
             side: BorderSide(style: BorderStyle.none),

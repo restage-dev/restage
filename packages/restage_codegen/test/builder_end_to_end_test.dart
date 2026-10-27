@@ -4,6 +4,8 @@ import 'package:build/build.dart';
 import 'package:collection/collection.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
+import 'package:restage_shared/restage_shared.dart'
+    show ValueProgram, kIntlValueOperations;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -480,7 +482,8 @@ widget Paywall = AcmeBanner();
               contains('shadowColor: 0xFF101010'),
               contains('surfaceTintColor: 0xFF202020'),
               contains('forceMaterialTransparency: true'),
-              contains('actionsPadding: [0.0, 0.0, 12.0, 0.0]'),
+              contains('actionsPadding: '
+                  '{left: 0.0, top: 0.0, right: 12.0, bottom: 0.0}'),
             ]),
           ),
           'apps_examples|assets/paywalls/chrome_bar.rfw': isNotEmpty,
@@ -1058,13 +1061,8 @@ widget Paywall = AcmeBanner();
 
     test(
         'Text(NumberFormat.currency(...).format(v), style, textAlign) '
-        'auto-substitutes to a RestagePrice node, style carried, byte-stable',
+        'retains Text with a native value program, style carried, byte-stable',
         () async {
-      // The faithful end-to-end: the real merged catalog (RestagePrice
-      // present), the real Flutter Text + TextStyle/TextAlign, and the real
-      // intl NumberFormat. The recognised idiom rewrites to a RestagePrice node
-      // whose `style` decomposes to the same flat props a hand-authored
-      // RestagePrice would, and the emitted .rfw round-trips via the decoder.
       const source = '''
         import 'package:flutter/material.dart';
         import 'package:intl/intl.dart' show NumberFormat;
@@ -1101,11 +1099,9 @@ widget Paywall = AcmeBanner();
           'apps_examples|assets/paywalls/price_tag.capability.json': anything,
           'apps_examples|assets/paywalls/price_tag.rfwtxt': decodedMatches(
             allOf(
-              contains('RestagePrice('),
-              contains('value: 9.99'),
-              contains('decimalDigits: 2'),
-              // `style` decomposed onto the widget, exactly as a hand-authored
-              // RestagePrice would (the shared TextStyle recipe).
+              contains('Text('),
+              contains('intl.number.format'),
+              contains('decimalDigits'),
               contains('fontSize: 24'),
               contains('textAlign:'),
               // The imperative formatting call is gone from the blob.
@@ -1113,11 +1109,8 @@ widget Paywall = AcmeBanner();
               isNot(contains('.format(')),
             ),
           ),
-          // Byte proof: the emitted BINARY blob decodes to a Paywall whose
-          // body root is a RestagePrice carrying the statically-extracted
-          // config — the substitution survives the encode/decode round-trip.
           'apps_examples|assets/paywalls/price_tag.rfw':
-              const _SubstitutedPriceMatcher(),
+              const _NativeNumberValueMatcher(),
           'apps_examples|assets/paywalls/screens/paywall_price_tag.capability.json':
               anything,
           'apps_examples|assets/paywalls/screens/paywall_price_tag.rfw':
@@ -1831,10 +1824,9 @@ widget Paywall = AcmeBanner();
               anything,
           'apps_examples|assets/paywalls/mixed_shapes.rfwtxt': decodedMatches(
             allOf(
-              // EdgeInsets factory emits the array shape with double
-              // literals (rfw's edge-insets decoder strict-casts the
-              // values via source.v<double>).
-              contains('padding: [12.0, 12.0, 12.0, 12.0]'),
+              // Physical insets retain physical component names.
+              contains(
+                  'padding: {left: 12.0, top: 12.0, right: 12.0, bottom: 12.0}'),
               // Color literal still emits 0xAARRGGBB.
               contains('color: 0xFF112233'),
               // Alignment members still resolve to {x, y} maps inside
@@ -2511,12 +2503,9 @@ class _StatefulRootMatcher extends Matcher {
   }
 }
 
-/// Asserts the emitted paywall binary decodes to a `Paywall` whose body root is
-/// a `RestagePrice` carrying the config statically extracted from the original
-/// `NumberFormat.currency('en_US', r'$', 2).format(9.99)` idiom — the byte proof
-/// that the #2 auto-substitution survives the encode/decode round-trip.
-class _SubstitutedPriceMatcher extends Matcher {
-  const _SubstitutedPriceMatcher();
+/// Pins native formatting values through the binary round trip.
+class _NativeNumberValueMatcher extends Matcher {
+  const _NativeNumberValueMatcher();
 
   @override
   bool matches(dynamic item, Map<dynamic, dynamic> matchState) {
@@ -2533,30 +2522,25 @@ class _SubstitutedPriceMatcher extends Matcher {
       return false;
     }
     final root = decoded.widgets.single.root;
-    if (root is! fmt.ConstructorCall || root.name != 'RestagePrice') {
-      matchState['shape'] = 'expected body root RestagePrice, got $root';
+    if (root is! fmt.ConstructorCall || root.name != 'Text') {
+      matchState['shape'] = 'expected body root Text, got $root';
       return false;
     }
-    final expected = <String, Object?>{
-      'value': 9.99,
-      'numberLocale': 'en_US',
-      'symbol': r'$',
-      'decimalDigits': 2,
-    };
-    for (final e in expected.entries) {
-      if (root.arguments[e.key] != e.value) {
-        matchState['shape'] = 'expected RestagePrice.${e.key} == ${e.value}, '
-            'got ${root.arguments[e.key]}';
-        return false;
-      }
-    }
+    final text = root.arguments['text'];
+    if (text is! Map<String, Object?> || text['program'] is! String)
+      return false;
+    final program = ValueProgram.decode(text['program']! as String,
+        operations: kIntlValueOperations);
+    if (program.nodes[program.root].op != 'intl.number.format') return false;
+    final literals =
+        program.nodes.where((n) => n.op == 'literal').map((n) => n.value);
+    if (!literals.toSet().containsAll({'en_US', r'$', 2, 9.99})) return false;
     return true;
   }
 
   @override
   Description describe(Description description) => description.add(
-        'a .rfw blob whose body root is a RestagePrice with the extracted '
-        'currency config',
+        'a .rfw blob whose Text contains the native currency value program',
       );
 
   @override
@@ -2575,7 +2559,7 @@ class _SubstitutedPriceMatcher extends Matcher {
       return mismatchDescription.add(matchState['shape'] as String);
     }
     return mismatchDescription
-        .add('did not carry the substituted RestagePrice');
+        .add('did not carry the native currency value program');
   }
 }
 

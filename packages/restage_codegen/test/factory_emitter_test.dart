@@ -6,10 +6,12 @@ import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
-String _radiusCircularSource(String property) => <String>[
-      'Radius.circular(source.v<double>(const <Object>[',
-      "'$property']) ?? 0.0)",
-    ].join();
+String _radiusCircularSource(String property) => property == 'borderRadius'
+    ? "Radius.circular(RestageValueBinding.read<double>(source, const <Object>['borderRadius'], context) ?? 0.0)"
+    : <String>[
+        'Radius.circular(source.v<double>(const <Object>[',
+        "'$property']) ?? 0.0)",
+      ].join();
 
 void main() {
   group('emitFactoryFunction', () {
@@ -76,7 +78,7 @@ void main() {
       // own theme resolution provides the runtime value).
       expect(
         source,
-        contains("ArgumentDecoders.color(source, <Object>['color'])"),
+        contains("RestageDecoders.color(source, <Object>['color'])"),
       );
       expect(source, isNot(contains('?? null')));
     });
@@ -168,17 +170,34 @@ void main() {
 
       final source = emitFactoryFunction(entry);
       expect(source, isNotNull);
-      expect(source, contains("source.v<bool>(const <Object>['flag'])"));
-      expect(source, contains("source.v<int>(const <Object>['count'])"));
-      expect(source, contains("source.v<double>(const <Object>['ratio'])"));
-      expect(source, contains("source.v<double>(const <Object>['size'])"));
+      expect(
+          source,
+          contains(
+              'source = RestageValueBinding.dataSource(source, context);'));
+      expect(
+          source,
+          contains(
+              "RestageValueBinding.read<bool>(source, const <Object>['flag'], context)"));
+      expect(
+          source,
+          contains(
+              "RestageValueBinding.read<int>(source, const <Object>['count'], context)"));
+      expect(
+          source,
+          contains(
+              "RestageValueBinding.read<double>(source, const <Object>['ratio'], context)"));
+      expect(
+          source,
+          contains(
+              "RestageValueBinding.read<double>(source, const <Object>['size'], context)"));
       expect(
         source,
-        contains("RestageDecoders.string(source, <Object>['label'])"),
+        contains(
+            "RestageDecoders.string(source, <Object>['label'], context: context)"),
       );
       expect(
         source,
-        contains("ArgumentDecoders.color(source, <Object>['tint'])"),
+        contains("RestageDecoders.color(source, <Object>['tint'])"),
       );
       // An inset decodes through the repair, never rfw's raw decoder — a
       // layout-bearing value that reaches `performLayout` corrupt fails where
@@ -202,8 +221,7 @@ void main() {
       expect(
         source,
         contains(
-          'ArgumentDecoders.enumValue<FontWeight>('
-          "FontWeight.values, source, <Object>['weight'])",
+          "RestageDecoders.fontWeight(source, <Object>['weight'])",
         ),
       );
       expect(
@@ -280,7 +298,8 @@ void main() {
       expect(source, isNotNull);
       expect(
         source,
-        contains("RestageDecoders.string(source, <Object>['label'])"),
+        contains(
+            "RestageDecoders.string(source, <Object>['label'], context: context)"),
       );
       expect(source, isNot(contains('analyticsId:')));
       expect(source, isNot(contains("['analyticsId']")));
@@ -500,7 +519,7 @@ void main() {
         source,
         contains(
           'children: RestageDecoders.widgetList(source, '
-          "const <Object>['children'])",
+          "const <Object>['children'], context: context, bindings: builderBindings)",
         ),
       );
     });
@@ -540,16 +559,16 @@ void main() {
       expect(
         flat,
         contains(
-          "actions: source.isList(const <Object>['actions']) "
+          "actions: RestageDecoders.isWidgetList(source, const <Object>['actions']) "
           '? RestageDecoders.widgetList(source, '
-          "const <Object>['actions']) : null",
+          "const <Object>['actions'], context: context, bindings: builderBindings) : null",
         ),
       );
       expect(
         flat,
         contains(
           'children: RestageDecoders.widgetList(source, '
-          "const <Object>['children'])",
+          "const <Object>['children'], context: context, bindings: builderBindings)",
         ),
       );
     });
@@ -580,7 +599,7 @@ void main() {
         source,
         contains(
           'actions: RestageDecoders.widgetList(source, '
-          "const <Object>['actions'])",
+          "const <Object>['actions'], context: context, bindings: builderBindings)",
         ),
       );
       expect(source, isNot(contains('isList')));
@@ -1622,7 +1641,7 @@ void main() {
         expect(
           source,
           contains(
-            "RestageDecoders.string(source, <Object>['url']) ?? "
+            "RestageDecoders.string(source, <Object>['url'], context: context) ?? "
             '(throw ArgumentError(',
           ),
         );
@@ -1665,10 +1684,10 @@ void main() {
         );
         final source = emitFactoryFunction(entry);
         expect(source, isNotNull);
-        final positionalIndex = source!
-            .indexOf("RestageDecoders.string(source, <Object>['src']) ??");
-        final namedIndex = source
-            .indexOf("extent: source.v<double>(const <Object>['extent'])");
+        final positionalIndex = source!.indexOf(
+            "RestageDecoders.string(source, <Object>['src'], context: context) ??");
+        final namedIndex = source.indexOf(
+            "extent: RestageValueBinding.read<double>(source, const <Object>['extent'], context)");
         expect(positionalIndex, greaterThanOrEqualTo(0));
         expect(namedIndex, greaterThan(positionalIndex));
       },
@@ -1994,7 +2013,7 @@ void main() {
           source,
           stringContainsInOrder([
             'borderRadius: BorderRadius.circular(',
-            "source.v<double>(const <Object>['borderRadius']) ?? 0.0)",
+            "RestageValueBinding.read<double>(source, const <Object>['borderRadius'], context) ?? 0.0)",
           ]),
         );
       },
@@ -2039,7 +2058,7 @@ void main() {
           source,
           stringContainsInOrder([
             'borderRadius: BorderRadius.circular(',
-            "source.v<double>(const <Object>['borderRadius']) ?? 4.0)",
+            "RestageValueBinding.read<double>(source, const <Object>['borderRadius'], context) ?? 4.0)",
           ]),
         );
         // Defensive: no double-`??` chain.
@@ -2474,7 +2493,8 @@ void main() {
       expect(source, contains('return Image.network('));
       expect(
         source,
-        contains("RestageDecoders.string(source, <Object>['url'])"),
+        contains(
+            "RestageDecoders.string(source, <Object>['url'], context: context)"),
       );
     });
 
@@ -2563,7 +2583,8 @@ void main() {
       expect(source, isNotNull);
       expect(
         source,
-        contains("RestageDecoders.string(source, <Object>['label'])"),
+        contains(
+            "RestageDecoders.string(source, <Object>['label'], context: context)"),
       );
       expect(source, isNot(contains('?? ')));
     });
@@ -2665,7 +2686,7 @@ void main() {
       expect(
         source,
         contains(
-          "ArgumentDecoders.color(source, <Object>['color']) ?? "
+          "RestageDecoders.color(source, <Object>['color']) ?? "
           "resolveThemeBinding(context, path: 'iconTheme.color') as Color?",
         ),
       );
@@ -2700,7 +2721,7 @@ void main() {
       expect(source, isNotNull);
       expect(
         source,
-        contains("ArgumentDecoders.color(source, <Object>['color'])"),
+        contains("RestageDecoders.color(source, <Object>['color'])"),
       );
       expect(source, isNot(contains('?? ')));
     });
@@ -2787,15 +2808,15 @@ void main() {
           matches(
             RegExp(
               r'style:\s*TextStyle\(\s*'
-              r"fontSize:\s*source\.v<double>\(const <Object>\['fontSize'\]\)"
+              r"fontSize:\s*RestageValueBinding\.read<double>\(source, const <Object>\['fontSize'\], context\)"
               r' \?\? 14\.0,\s*'
-              r"color:\s*ArgumentDecoders\.color\(source, <Object>\['color'\]\)"
+              r"color:\s*RestageDecoders\.color\(source, <Object>\['color'\]\)"
               r'\s*\)',
             ),
           ),
         );
         expect(source, isNot(contains('    fontSize: source')));
-        expect(source, isNot(contains('    color: ArgumentDecoders')));
+        expect(source, isNot(contains('    color: RestageDecoders')));
       });
 
       test('constructVariant error policy emits a required-throw fallback', () {
@@ -3568,7 +3589,7 @@ void main() {
           matches(
             RegExp(
               r'style:\s*GeneratedButton\.styleFrom\(\s*'
-              r'backgroundColor:\s*ArgumentDecoders\.color\(source, '
+              r'backgroundColor:\s*RestageDecoders\.color\(source, '
               r"<Object>\['backgroundColor'\]\),\s*"
               // An inset decodes through the repair even inside a decomposed
               // style — the value reaches layout the same way wherever it was
@@ -3929,7 +3950,7 @@ void main() {
             source,
             stringContainsInOrder([
               'borderRadius: ',
-              "source.v<double>(const <Object>['borderRadius']) == null",
+              "RestageValueBinding.read<double>(source, const <Object>['borderRadius'], context) == null",
               '? null',
               ': BorderRadius.circular(',
             ]),
@@ -3950,7 +3971,7 @@ void main() {
             contains(
               [
                 'boxShadow: ArgumentDecoders.list<BoxShadow>(',
-                "source, <Object>['boxShadow'], ArgumentDecoders.boxShadow)",
+                "source, <Object>['boxShadow'], RestageDecoders.boxShadow)",
               ].join(),
             ),
           );
@@ -3958,7 +3979,7 @@ void main() {
             source,
             contains(
               [
-                'gradient: ArgumentDecoders.gradient(',
+                'gradient: RestageDecoders.gradient(',
                 "source, <Object>['gradient'])",
               ].join(),
             ),
@@ -4061,14 +4082,14 @@ void main() {
           expect(
             source,
             contains(
-              "inherit: source.v<bool>(const <Object>['inherit']) ?? true",
+              "inherit: RestageValueBinding.read<bool>(source, const <Object>['inherit'], context) ?? true",
             ),
           );
           expect(
             source,
             contains(
               'package: RestageDecoders.string(source, '
-              "<Object>['fontPackage'])",
+              "<Object>['fontPackage'], context: context)",
             ),
           );
           expect(source, isNot(contains('color:')));

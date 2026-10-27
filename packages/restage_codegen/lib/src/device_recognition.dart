@@ -18,8 +18,7 @@ const Map<String, String> _kSizeMembers = {
   'longestSide': 'longestSide',
 };
 
-// An inset read resolves at the screen's build context, above any consumer the
-// screen authors, so the published inset is Flutter's answer at every position.
+// Inset members in the mount-point device snapshot.
 const Map<String, String> _kPaddingMembers = {
   'top': 'safeAreaTop',
   'bottom': 'safeAreaBottom',
@@ -32,6 +31,20 @@ const Map<String, String> _kViewPaddingMembers = {
   'bottom': 'viewPaddingBottom',
   'left': 'viewPaddingLeft',
   'right': 'viewPaddingRight',
+};
+
+const Map<String, String> _kViewInsetsMembers = {
+  'top': 'viewInsetsTop',
+  'bottom': 'viewInsetsBottom',
+  'left': 'viewInsetsLeft',
+  'right': 'viewInsetsRight',
+};
+
+const Set<String> _kAccessibilityMembers = {
+  'boldText',
+  'disableAnimations',
+  'accessibleNavigation',
+  'highContrast',
 };
 
 const Set<String> _kLocaleSubtags = {'languageCode', 'countryCode'};
@@ -136,11 +149,17 @@ bool isFlutterTopLevelValue(SimpleIdentifier identifier, String name) {
 }
 
 String? _mediaQueryPath(String method, List<String> segments) {
+  if (method.endsWith('Of') && segments.isEmpty) {
+    final member = method.substring(0, method.length - 2);
+    if (_kAccessibilityMembers.contains(member)) return member;
+  }
   switch (method) {
     case 'sizeOf':
       return segments.length == 1 ? _kSizeMembers[segments.first] : null;
     case 'paddingOf':
       return segments.length == 1 ? _kPaddingMembers[segments.first] : null;
+    case 'viewInsetsOf':
+      return segments.length == 1 ? _kViewInsetsMembers[segments.first] : null;
     case 'viewPaddingOf':
       return segments.length == 1 ? _kViewPaddingMembers[segments.first] : null;
     case 'devicePixelRatioOf':
@@ -148,6 +167,10 @@ String? _mediaQueryPath(String method, List<String> segments) {
     case 'orientationOf':
       return segments.isEmpty ? 'orientation' : null;
     case 'of':
+      if (segments.length == 1 &&
+          _kAccessibilityMembers.contains(segments.first)) {
+        return segments.first;
+      }
       if (segments.length == 1 && segments.first == 'devicePixelRatio') {
         return 'pixelRatio';
       }
@@ -159,6 +182,7 @@ String? _mediaQueryPath(String method, List<String> segments) {
         'size' => _kSizeMembers[segments[1]],
         'padding' => _kPaddingMembers[segments[1]],
         'viewPadding' => _kViewPaddingMembers[segments[1]],
+        'viewInsets' => _kViewInsetsMembers[segments[1]],
         _ => null,
       };
     default:

@@ -6,6 +6,108 @@ import 'package:rfw/rfw.dart';
 
 void main() {
   group('RestageDecoders.inlineSpan', () {
+    test('interactive decoding without an owner refuses before allocation', () {
+      final source = _MapDataSource({
+        'span': {
+          'text': 'Tap',
+          'recognizer': {'kind': 'tap'}
+        }
+      });
+      expect(() => RestageDecoders.inlineSpan(source, const ['span']),
+          throwsStateError);
+    });
+
+    test('depth truncation never allocates hidden recognizers', () {
+      Map<String, Object?> span = {
+        'recognizer': {'kind': 'tap'}
+      };
+      for (var depth = 0; depth <= kMaxInlineSpanDepth; depth++) {
+        span = {
+          'children': [span]
+        };
+      }
+      final source = _MapDataSource({'span': span});
+      expect(() => RestageDecoders.inlineSpan(source, const ['span']),
+          returnsNormally);
+    });
+
+    test('span fragments flatten while empty children remain present', () {
+      final source = _MapDataSource({
+        'span': {
+          'children': [
+            {'text': 'start'},
+            [
+              {'text': 'a'},
+              [
+                {'text': '|'}
+              ]
+            ],
+            [],
+            {'text': 'end', 'children': []},
+          ]
+        },
+      });
+      final actual = RestageDecoders.inlineSpan(source, ['span'])! as TextSpan;
+      expect(actual.children!.map((span) => (span as TextSpan).text),
+          ['start', 'a', '|', 'end']);
+      expect((actual.children!.last as TextSpan).children, isEmpty);
+      expect((actual.children!.first as TextSpan).children, isNull);
+      final empty = RestageDecoders.inlineSpan(
+          _MapDataSource({
+            'span': {
+              'children': [
+                [],
+                [[]]
+              ]
+            }
+          }),
+          ['span'])! as TextSpan;
+      expect(empty.children, isEmpty);
+    });
+
+    test('runtime collection size does not consume static expansion budgets',
+        () {
+      final source = _MapDataSource({
+        'span': {
+          'children': [
+            for (var i = 0; i < 1001; i++)
+              [
+                {'text': '$i'}
+              ],
+          ]
+        }
+      });
+      final actual = RestageDecoders.inlineSpan(source, ['span'])! as TextSpan;
+      expect(actual.children, hasLength(1001));
+      expect((actual.children!.last as TextSpan).text, '1000');
+    });
+
+    test('fragment nesting has a separate bounded traversal', () {
+      Object fragment = {'text': 'deep'};
+      for (var i = 0; i < kMaxInlineSpanDepth + 10; i++) {
+        fragment = [fragment];
+      }
+      final actual = RestageDecoders.inlineSpan(
+          _MapDataSource({
+            'span': {
+              'children': [fragment]
+            }
+          }),
+          ['span'])! as TextSpan;
+      expect((actual.children!.single as TextSpan).text, 'deep');
+      for (var i = 0; i < 8001; i++) {
+        fragment = [fragment];
+      }
+      final bounded = RestageDecoders.inlineSpan(
+          _MapDataSource({
+            'span': {
+              'children': [fragment]
+            }
+          }),
+          ['span'])! as TextSpan;
+      expect(bounded.children, isEmpty);
+    });
+
     test('decodes a flat two-child styled span tree', () {
       final source = _MapDataSource({
         'span': {

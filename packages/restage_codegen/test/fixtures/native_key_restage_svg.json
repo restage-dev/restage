@@ -1,0 +1,467 @@
+{
+  "schemaVersion": 5,
+  "generatedAt": "1970-01-01T00:00:00Z",
+  "libraries": {
+    "restage.svg": {
+      "version": "0.1.0",
+      "capabilityVersion": 2
+    }
+  },
+  "widgets": [
+    {
+      "wireId": "w0001",
+      "name": "SvgPictureString",
+      "library": "restage.svg",
+      "category": "decoration",
+      "description": "A widget that will parse SVG data for rendering on screen.",
+      "flutterType": "package:flutter_svg/svg.dart#SvgPicture.string",
+      "childrenSlot": "none",
+      "properties": [
+        {
+          "wireId": "p0001",
+          "name": "string",
+          "type": "string",
+          "description": "",
+          "required": true,
+          "positional": true,
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
+          "wireId": "p0002",
+          "name": "key",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.svg",
+              "wireId": "s0001"
+            }
+          },
+          "sinceVersion": 2
+        },
+        {
+          "wireId": "p0003",
+          "name": "width",
+          "type": "length",
+          "description": "If specified, the width to use for the SVG.  If unspecified, the SVG will take the width of its parent.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0004",
+          "name": "height",
+          "type": "length",
+          "description": "If specified, the height to use for the SVG.  If unspecified, the SVG will take the height of its parent.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0005",
+          "name": "fit",
+          "type": "enumValue",
+          "description": "How to inscribe the picture into the space allocated during layout. The default is [BoxFit.contain].",
+          "enumType": "BoxFit",
+          "defaultSource": {
+            "kind": "literal",
+            "value": "contain"
+          },
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "package:flutter/src/painting/box_fit.dart",
+              "symbolName": "BoxFit"
+            }
+          }
+        },
+        {
+          "wireId": "p0006",
+          "name": "alignment",
+          "type": "alignment",
+          "description": "How to align the picture within its parent widget.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": "center"
+          },
+          "constructorDefault": {
+            "kind": "reference",
+            "libraryUri": "package:flutter/src/painting/alignment.dart",
+            "owner": "Alignment",
+            "member": "center"
+          },
+          "category": "layout",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "alignment",
+            "dartTypeRef": {
+              "libraryUri": "package:flutter/src/painting/alignment.dart",
+              "symbolName": "AlignmentGeometry"
+            }
+          }
+        },
+        {
+          "wireId": "p0007",
+          "name": "matchTextDirection",
+          "type": "boolean",
+          "description": "If true, will horizontally flip the picture in [TextDirection.rtl] contexts.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0008",
+          "name": "allowDrawingOutsideViewBox",
+          "type": "boolean",
+          "description": "If true, will allow the SVG to be drawn outside of the clip boundary of its viewBox.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0009",
+          "name": "placeholderBuilder",
+          "type": "widgetBuilder",
+          "description": "The placeholder to use while fetching, decoding, and parsing the SVG data.",
+          "builderContract": {
+            "parameters": [
+              "buildContext"
+            ],
+            "nullableResult": false
+          },
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "widgetBuilder"
+          }
+        },
+        {
+          "wireId": "p0010",
+          "name": "colorFilter",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.svg",
+              "wireId": "s0002"
+            }
+          }
+        },
+        {
+          "wireId": "p0011",
+          "name": "color",
+          "type": "color",
+          "description": "",
+          "constructorNullable": true,
+          "category": "style",
+          "deprecated": {
+            "source": {
+              "message": "Use colorFilter instead."
+            }
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0012",
+          "name": "colorBlendMode",
+          "type": "enumValue",
+          "description": "",
+          "enumType": "BlendMode",
+          "defaultSource": {
+            "kind": "literal",
+            "value": "srcIn"
+          },
+          "deprecated": {
+            "source": {
+              "message": "Use colorFilter instead."
+            }
+          },
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "BlendMode"
+            }
+          }
+        },
+        {
+          "wireId": "p0013",
+          "name": "semanticsLabel",
+          "type": "string",
+          "description": "The [Semantics.label] for this picture.",
+          "constructorNullable": true,
+          "category": "accessibility",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
+          "wireId": "p0014",
+          "name": "excludeFromSemantics",
+          "type": "boolean",
+          "description": "Whether to exclude this picture from semantics.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0015",
+          "name": "clipBehavior",
+          "type": "enumValue",
+          "description": "The content will be clipped (or not) according to this option.",
+          "enumType": "Clip",
+          "defaultSource": {
+            "kind": "literal",
+            "value": "hardEdge"
+          },
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Clip"
+            }
+          }
+        },
+        {
+          "wireId": "p0016",
+          "name": "errorBuilder",
+          "type": "structured",
+          "description": "Widget displayed while the target image failed loading.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.svg",
+              "wireId": "s0003"
+            }
+          }
+        },
+        {
+          "wireId": "p0017",
+          "name": "imageBuilder",
+          "type": "structured",
+          "description": "A builder that wraps the successfully loaded SVG widget.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.svg",
+              "wireId": "s0004"
+            }
+          }
+        },
+        {
+          "wireId": "p0018",
+          "name": "theme",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.svg",
+              "wireId": "s0005"
+            }
+          }
+        },
+        {
+          "wireId": "p0019",
+          "name": "colorMapper",
+          "type": "structured",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage.svg",
+              "wireId": "s0006"
+            }
+          }
+        },
+        {
+          "wireId": "p0020",
+          "name": "cacheColorFilter",
+          "type": "boolean",
+          "description": "",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
+          "deprecated": {
+            "source": {
+              "message": "This no longer does anything."
+            }
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0021",
+          "name": "renderingStrategy",
+          "type": "enumValue",
+          "description": "Widget rendering strategy used to balance flexibility and performance.",
+          "enumType": "RenderingStrategy",
+          "defaultSource": {
+            "kind": "literal",
+            "value": "picture"
+          },
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "package:vector_graphics/src/vector_graphics.dart",
+              "symbolName": "RenderingStrategy"
+            }
+          }
+        },
+        {
+          "wireId": "p0022",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ]
+    }
+  ],
+  "structuredTypes": [
+    {
+      "wireId": "s0001",
+      "name": "Key",
+      "library": "restage.svg",
+      "description": "Closed native data value.",
+      "sourceType": "package:flutter/src/foundation/key.dart#Key",
+      "fields": [],
+      "variants": [],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0002",
+      "name": "ColorFilter",
+      "library": "restage.svg",
+      "description": "Closed native data value.",
+      "sourceType": "dart:ui#ColorFilter",
+      "fields": [],
+      "variants": [],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0003",
+      "name": "SvgErrorWidgetBuilder",
+      "library": "restage.svg",
+      "description": "Closed native data value.",
+      "sourceType": "package:flutter_svg/svg.dart#SvgErrorWidgetBuilder",
+      "fields": [],
+      "variants": [],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0004",
+      "name": "SvgImageWidgetBuilder",
+      "library": "restage.svg",
+      "description": "Closed native data value.",
+      "sourceType": "package:flutter_svg/svg.dart#SvgImageWidgetBuilder",
+      "fields": [],
+      "variants": [],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0005",
+      "name": "SvgTheme",
+      "library": "restage.svg",
+      "description": "Closed native data value.",
+      "sourceType": "package:flutter_svg/src/loaders.dart#SvgTheme",
+      "fields": [],
+      "variants": [],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0006",
+      "name": "ColorMapper",
+      "library": "restage.svg",
+      "description": "Closed native data value.",
+      "sourceType": "package:flutter_svg/src/loaders.dart#ColorMapper",
+      "fields": [],
+      "variants": [],
+      "stability": "volatile"
+    }
+  ]
+}

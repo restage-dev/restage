@@ -522,8 +522,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _lastThemeTextStyle = defaultTextStyle;
       _lastThemeTextTheme = textTheme;
     }
-    // Republish `data.device.*` on a rotation or resize, not on every
-    // unrelated MediaQuery change.
+    // Republish when a published MediaQuery field changes.
     final mediaQuery = MediaQuery.maybeOf(context);
     final deviceChanged =
         mediaQuery != null && !_publishesSameDevice(mediaQuery);
@@ -561,7 +560,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
         last.size == mediaQuery.size &&
         last.devicePixelRatio == mediaQuery.devicePixelRatio &&
         last.padding == mediaQuery.padding &&
-        last.viewPadding == mediaQuery.viewPadding;
+        last.viewPadding == mediaQuery.viewPadding &&
+        last.viewInsets == mediaQuery.viewInsets &&
+        last.boldText == mediaQuery.boldText &&
+        last.disableAnimations == mediaQuery.disableAnimations &&
+        last.accessibleNavigation == mediaQuery.accessibleNavigation &&
+        last.highContrast == mediaQuery.highContrast;
   }
 
   @override

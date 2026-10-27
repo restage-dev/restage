@@ -401,6 +401,76 @@ ElevatedButton(
       );
     });
 
+    test('recognized modal triggers retain strict animation argument checks',
+        () async {
+      for (final (style, reason) in [
+        (
+          'AnimationStyle(duration: Duration(milliseconds: DateTime.now().millisecond))',
+          'must be a const integer',
+        ),
+        (
+          'const AnimationStyle(duration: Duration(microseconds: 1))',
+          'Sub-millisecond Duration',
+        ),
+        (
+          'const AnimationStyle(duration: Duration(milliseconds: 300), curve: Cubic(0.1, 0.2, 0.3, 0.4))',
+          'must be a supported Curves.* value',
+        ),
+      ]) {
+        final result = _translateModalRoot(await _parseFlutterRoot('''
+ElevatedButton(
+  onPressed: () => showModalBottomSheet<void>(
+    context: context,
+    sheetAnimationStyle: $style,
+    builder: (_) => const Text('Sheet body'),
+  ),
+  child: const Text('Open'),
+)
+'''));
+        expect(result.dsl, isEmpty, reason: style);
+        expect(result.issues.map((issue) => issue.message).join('\n'),
+            contains(reason),
+            reason: style);
+      }
+    });
+
+    test('recognized sheets do not admit temporal event arguments', () async {
+      final result = _translateModalRoot(await _parseFlutterRoot(r'''
+ElevatedButton(
+  onPressed: () => showModalBottomSheet<void>(
+    context: context,
+    barrierLabel: '${DateTime.now().millisecond}',
+    sheetAnimationStyle: const AnimationStyle(
+      duration: Duration(milliseconds: 300),
+    ),
+    builder: (_) => const Text('Sheet body'),
+  ),
+  child: const Text('Open'),
+)
+'''));
+      expect(result.dsl, isEmpty);
+      expect(result.issues.map((issue) => issue.message).join('\n'),
+          contains('native callback binding'));
+    });
+
+    test('sheet bodies keep their own Duration-bearing widgets', () async {
+      final result = _translateModalRoot(await _parseFlutterRoot('''
+ElevatedButton(
+  onPressed: () => showModalBottomSheet<void>(
+    context: context,
+    builder: (_) => const AnimatedOpacity(
+      opacity: 1.0,
+      duration: Duration(milliseconds: 150),
+      child: Text('Sheet body'),
+    ),
+  ),
+  child: const Text('Open'),
+)
+'''));
+      expect(result.issues.map((issue) => issue.message).join('\n'),
+          isNot(contains('native callback binding')));
+    });
+
     test('defer-only material args fatal-defer loudly', () async {
       final result = _translateModalRoot(
         await _parseFlutterRoot('''

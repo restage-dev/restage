@@ -26,6 +26,8 @@ final class PropertyIR {
     this.enumType,
     this.widgetType,
     this.callbackSignature,
+    this.builderContract,
+    this.scalarContract,
     this.constructorNullable = false,
     this.constructorDefault,
     this.sinceVersion = kBaselineCatalogVersion,
@@ -78,6 +80,12 @@ final class PropertyIR {
 
   /// Event callback signature override.
   final String? callbackSignature;
+
+  /// Structural native widget callback contract.
+  final WidgetBuilderContract? builderContract;
+
+  /// Structural native integer callback signature.
+  final ScalarCallbackContract? scalarContract;
 
   /// Whether the constructor-effective input admits null.
   final bool constructorNullable;

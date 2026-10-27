@@ -6,7 +6,7 @@ const reelOfferScreenRef = NeutralFlowScreenRef(
   id: 'reel_offer',
   artifactPath: 'reel_offer.rfw',
   version: 1,
-  minClient: 12,
+  minClient: 17,
 );
 
 @Deprecated('Use reelOfferScreenRef')

@@ -1915,14 +1915,12 @@ Object x() => [if (showExtras) 1, 2];
     expect(result.dsl, '[1, 2, 3]');
   });
 
-  test('a null-aware spread reports its unsupported shape', () async {
+  test('a null-aware spread preserves resolved lists and omits null', () async {
     final result = _scalarTranslator().translate(
-      await parseExpressionForTest('[...?const [1]]'),
+      await parseExpressionForTest('[...?const [1], ...?null]'),
     );
-
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-    expect(result.issues.single.message, contains('...?'));
+    expect(result.issues, isEmpty);
+    expect(result.dsl, '[1]');
   });
 
   test('a C-style collection-for reports its unsupported shape', () async {

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'expressions/builder_program.dart';
 
 import 'package:restage_shared/src/rfw_formats.dart';
 
@@ -21,16 +22,23 @@ const String kMeasurementSourcePresentedConstructorName =
 
 /// An RFW library a Restage render host installs itself.
 ///
-/// Content may import it; an application or a widget bundle may not declare it.
+/// Content may import it; applications cannot replace the installed library.
 final class HostInstalledRfwLibrary {
   /// Declares [namespace] and the [constructors] the host installs under it.
-  const HostInstalledRfwLibrary(this.namespace, this.constructors);
+  const HostInstalledRfwLibrary(this.namespace, this.constructors,
+      {this.reservesCatalogNamespace = true});
 
   /// The dotted library namespace.
   final String namespace;
 
   /// Every constructor the host installs under [namespace].
   final Set<String> constructors;
+
+  /// Whether catalog metadata must also exclude the entire namespace.
+  ///
+  /// Core shares its namespace with ordinary catalog widgets. Its installed
+  /// library still cannot be replaced, but those widgets remain catalogable.
+  final bool reservesCatalogNamespace;
 }
 
 /// The preview instrumentation library.
@@ -55,6 +63,8 @@ const List<HostInstalledRfwLibrary> kHostInstalledRfwLibraries =
     <HostInstalledRfwLibrary>[
   kPreviewInstrumentationRfwLibrary,
   kMeasurementPresentationRfwLibrary,
+  HostInstalledRfwLibrary('restage.core', {kBuilderContinuationWidgetName},
+      reservesCatalogNamespace: false),
 ];
 
 /// The host-installed library named [namespace], or null.
@@ -87,6 +97,10 @@ void _validateLibrary(RemoteWidgetLibrary library) {
     }
   }
   for (final widget in library.widgets) {
+    if (widget.name == kBuilderContinuationWidgetName) {
+      throw const FormatException(
+          'RFW blobs must not declare the reserved builder continuation.');
+    }
     if (widget.name == kReservedPreviewConstructorName) {
       throw const FormatException(
         'RFW blobs must not declare the reserved preview constructor '

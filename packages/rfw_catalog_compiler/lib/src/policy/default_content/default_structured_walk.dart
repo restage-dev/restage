@@ -6,6 +6,12 @@
 /// whose constructor parameters round-trip cleanly through the
 /// catalog wire format.
 const Set<String> kBuiltInStructuredConcrete = {
+  'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegateWithFixedCrossAxisCount',
+  'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegateWithMaxCrossAxisExtent',
+  'package:flutter/src/widgets/scroll_delegate.dart#SliverChildListDelegate',
+  'package:flutter/src/widgets/scroll_delegate.dart#SliverChildBuilderDelegate',
+  'package:flutter/src/widgets/scroll_physics.dart#ScrollPhysics',
+  'package:flutter/src/rendering/viewport.dart#ScrollCacheExtent',
   'package:flutter/src/painting/box_decoration.dart#BoxDecoration',
   'package:flutter/src/rendering/box.dart#BoxConstraints',
   'package:flutter/src/painting/text_style.dart#TextStyle',
@@ -38,6 +44,9 @@ const Set<String> kBuiltInStructuredConcrete = {
 /// dispatch is handled by the union registry; the walker should not
 /// attempt to recurse INTO an abstract base's parameter surface.
 const Set<String> kBuiltInStructuredAbstract = {
+  'package:flutter/src/painting/text_scaler.dart#TextScaler',
+  'package:flutter/src/rendering/sliver_grid.dart#SliverGridDelegate',
+  'package:flutter/src/widgets/scroll_delegate.dart#SliverChildDelegate',
   'package:flutter/src/painting/gradient.dart#Gradient',
   'package:flutter/src/painting/decoration.dart#Decoration',
   'package:flutter/src/painting/borders.dart#ShapeBorder',

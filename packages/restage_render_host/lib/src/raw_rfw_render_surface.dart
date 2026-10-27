@@ -211,7 +211,10 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
     }
     // Host libraries are never placeholders, installed or not.
     for (final library in kHostInstalledRfwLibraries) {
-      installed[library.namespace] = library.constructors;
+      installed[library.namespace] = <String>{
+        ...?installed[library.namespace],
+        ...library.constructors,
+      };
     }
     for (final registration in widget.registrations) {
       if (hostInstalledRfwLibrary(registration.library.namespace) != null ||
@@ -387,6 +390,14 @@ Map<String, Object?> previewDeviceData(RenderEnv environment) {
     'viewPaddingBottom': 0.0,
     'viewPaddingLeft': 0.0,
     'viewPaddingRight': 0.0,
+    'viewInsetsTop': 0.0,
+    'viewInsetsBottom': 0.0,
+    'viewInsetsLeft': 0.0,
+    'viewInsetsRight': 0.0,
+    'boldText': false,
+    'disableAnimations': false,
+    'accessibleNavigation': false,
+    'highContrast': false,
   };
 }
 

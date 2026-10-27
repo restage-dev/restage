@@ -257,8 +257,8 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
     kRestageAppVocabulary.addToInstalled(explicitSelection: true);
     Restage.registerWidgetLibrary(
       WidgetLibrary.custom('restage_example.widgets'),
-      capabilityVersion: 4,
-      generatedVersion: 2,
+      capabilityVersion: 5,
+      generatedVersion: 3,
       widgets: const <RestageWidgetFactory>[
         RestageWidgetFactory(name: 'AcmeBorder', builder: _buildAcmeBorder),
         RestageWidgetFactory(name: 'AcmeStack', builder: _buildAcmeStack),
@@ -281,424 +281,523 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
 void registerRestageCustomerWidgets() => registerRestageWidgets();
 
 Widget _buildAcmeBorder(BuildContext context, DataSource source) {
-  return s0.AcmeBorder(
-    child: source.child(const <Object>['child']),
-    color: ArgumentDecoders.color(source, <Object>['color']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s0.AcmeBorder(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      child: source.child(const <Object>['child']),
+      color: RestageDecoders.color(source, <Object>['color']),
+    );
+  });
 }
 
 Widget _buildAcmeStack(BuildContext context, DataSource source) {
-  return s1.AcmeStack(
-    children: RestageDecoders.widgetList(source, const <Object>['children']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s1.AcmeStack(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      children: RestageDecoders.widgetList(source, const <Object>['children'],
+          context: context, bindings: builderBindings),
+    );
+  });
 }
 
 Widget _buildPlanBoard(BuildContext context, DataSource source) {
-  return s3.PlanBoard(
-    plans: source.isList(<Object>['plans'])
-        ? () {
-            final m0 = <String, s4.Plan>{};
-            final n0 = source.length(<Object>['plans']);
-            for (var i0 = 0; i0 < n0; i0++) {
-              if (!source.isMap(<Object>['plans', i0])) {
-                throw ArgumentError('PlanBoard.plans entry must be an object.');
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s3.PlanBoard(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      plans: source.isList(<Object>['plans'])
+          ? () {
+              final m0 = <String, s4.Plan>{};
+              final n0 = source.length(<Object>['plans']);
+              for (var i0 = 0; i0 < n0; i0++) {
+                if (!source.isMap(<Object>['plans', i0])) {
+                  throw ArgumentError(
+                      'PlanBoard.plans entry must be an object.');
+                }
+                final k0 = source.v<String>(<Object>['plans', i0, 'key']) ??
+                    (throw ArgumentError(
+                        'PlanBoard.plans entry key is required.'));
+                if (m0.containsKey(k0)) {
+                  throw ArgumentError('PlanBoard.plans has a duplicate key.');
+                }
+                m0[k0] = source.isMap(<Object>['plans', i0, 'value'])
+                    ? s4.Plan(
+                        name: RestageDecoders.string(
+                                source, <Object>['plans', i0, 'value', 'name'],
+                                context: context) ??
+                            (throw ArgumentError('Plan.name is required.')),
+                        price: source
+                                .isMap(<Object>['plans', i0, 'value', 'price'])
+                            ? (switch (source.v<String>(
+                                <Object>['plans', i0, 'value', 'price', '#constructor'])) {
+                                'free' => s4.Price.free(
+                                    currency: RestageDecoders.string(
+                                            source,
+                                            <Object>[
+                                              'plans',
+                                              i0,
+                                              'value',
+                                              'price',
+                                              'currency'
+                                            ],
+                                            context: context) ??
+                                        'USD'),
+                                null => s4.Price(
+                                    RestageValueBinding.read<int>(
+                                            source,
+                                            <Object>[
+                                              'plans',
+                                              i0,
+                                              'value',
+                                              'price',
+                                              'amount'
+                                            ],
+                                            context) ??
+                                        (throw ArgumentError(
+                                            'Price.amount is required.')),
+                                    currency: RestageDecoders.string(
+                                            source,
+                                            <Object>[
+                                              'plans',
+                                              i0,
+                                              'value',
+                                              'price',
+                                              'currency'
+                                            ],
+                                            context: context) ??
+                                        'USD'),
+                                final String name => throw ArgumentError(
+                                    "'Price' has no constructor named '$name'.")
+                              })
+                            : (throw ArgumentError('Plan.price is required.')),
+                        badge: RestageDecoders.string(
+                            source, <Object>['plans', i0, 'value', 'badge'],
+                            context: context),
+                        tier: RestageDecoders.enumByName<s4.PlanTier>(
+                                s4.PlanTier.values,
+                                source,
+                                <Object>['plans', i0, 'value', 'tier']) ??
+                            s4.PlanTier.starter)
+                    : (throw ArgumentError('PlanBoard.plans entry value is required.'));
               }
-              final k0 = source.v<String>(<Object>['plans', i0, 'key']) ??
-                  (throw ArgumentError(
-                      'PlanBoard.plans entry key is required.'));
-              if (m0.containsKey(k0)) {
-                throw ArgumentError('PlanBoard.plans has a duplicate key.');
+              return m0;
+            }()
+          : (throw ArgumentError('PlanBoard.plans is required.')),
+      highlights: source.isList(<Object>['highlights'])
+          ? () {
+              final m0 = <s4.PlanTier, s4.Plan>{};
+              final n0 = source.length(<Object>['highlights']);
+              for (var i0 = 0; i0 < n0; i0++) {
+                if (!source.isMap(<Object>['highlights', i0])) {
+                  throw ArgumentError(
+                      'PlanBoard.highlights entry must be an object.');
+                }
+                final k0 = RestageDecoders.enumByName<s4.PlanTier>(
+                        s4.PlanTier.values,
+                        source,
+                        <Object>['highlights', i0, 'key']) ??
+                    (throw ArgumentError(
+                        'PlanBoard.highlights entry key is not a known member.'));
+                if (m0.containsKey(k0)) {
+                  throw ArgumentError(
+                      'PlanBoard.highlights has a duplicate key.');
+                }
+                m0[k0] = source.isMap(<Object>['highlights', i0, 'value'])
+                    ? s4.Plan(
+                        name: RestageDecoders.string(
+                                source, <Object>['highlights', i0, 'value', 'name'],
+                                context: context) ??
+                            (throw ArgumentError('Plan.name is required.')),
+                        price: source.isMap(
+                                <Object>['highlights', i0, 'value', 'price'])
+                            ? (switch (source.v<String>(
+                                <Object>['highlights', i0, 'value', 'price', '#constructor'])) {
+                                'free' => s4.Price.free(
+                                    currency: RestageDecoders.string(
+                                            source,
+                                            <Object>[
+                                              'highlights',
+                                              i0,
+                                              'value',
+                                              'price',
+                                              'currency'
+                                            ],
+                                            context: context) ??
+                                        'USD'),
+                                null => s4.Price(
+                                    RestageValueBinding.read<int>(
+                                            source,
+                                            <Object>[
+                                              'highlights',
+                                              i0,
+                                              'value',
+                                              'price',
+                                              'amount'
+                                            ],
+                                            context) ??
+                                        (throw ArgumentError(
+                                            'Price.amount is required.')),
+                                    currency: RestageDecoders.string(
+                                            source,
+                                            <Object>[
+                                              'highlights',
+                                              i0,
+                                              'value',
+                                              'price',
+                                              'currency'
+                                            ],
+                                            context: context) ??
+                                        'USD'),
+                                final String name => throw ArgumentError(
+                                    "'Price' has no constructor named '$name'.")
+                              })
+                            : (throw ArgumentError('Plan.price is required.')),
+                        badge: RestageDecoders.string(
+                            source, <Object>['highlights', i0, 'value', 'badge'],
+                            context: context),
+                        tier: RestageDecoders.enumByName<s4.PlanTier>(
+                                s4.PlanTier.values,
+                                source,
+                                <Object>['highlights', i0, 'value', 'tier']) ??
+                            s4.PlanTier.starter)
+                    : (throw ArgumentError('PlanBoard.highlights entry value is required.'));
               }
-              m0[k0] = source.isMap(<Object>['plans', i0, 'value'])
-                  ? s4.Plan(
-                      name: RestageDecoders.string(
-                              source, <Object>['plans', i0, 'value', 'name']) ??
-                          (throw ArgumentError('Plan.name is required.')),
-                      price: source
-                              .isMap(<Object>['plans', i0, 'value', 'price'])
-                          ? (switch (source.v<String>(<Object>[
-                              'plans',
-                              i0,
-                              'value',
-                              'price',
-                              '#constructor'
-                            ])) {
-                              'free' => s4.Price.free(
-                                  currency: RestageDecoders.string(
-                                          source, <Object>[
-                                        'plans',
-                                        i0,
-                                        'value',
-                                        'price',
-                                        'currency'
-                                      ]) ??
-                                      'USD'),
-                              null => s4.Price(
-                                  source.v<int>(<Object>[
-                                        'plans',
-                                        i0,
-                                        'value',
-                                        'price',
-                                        'amount'
-                                      ]) ??
-                                      (throw ArgumentError(
-                                          'Price.amount is required.')),
-                                  currency: RestageDecoders.string(
-                                          source, <Object>[
-                                        'plans',
-                                        i0,
-                                        'value',
-                                        'price',
-                                        'currency'
-                                      ]) ??
-                                      'USD'),
-                              final String name => throw ArgumentError(
-                                  "'Price' has no constructor named '$name'.")
-                            })
-                          : (throw ArgumentError('Plan.price is required.')),
-                      badge: RestageDecoders.string(
-                          source, <Object>['plans', i0, 'value', 'badge']),
-                      tier: RestageDecoders.enumByName<s4.PlanTier>(
-                              s4.PlanTier.values,
-                              source,
-                              <Object>['plans', i0, 'value', 'tier']) ??
-                          s4.PlanTier.starter)
-                  : (throw ArgumentError(
-                      'PlanBoard.plans entry value is required.'));
-            }
-            return m0;
-          }()
-        : (throw ArgumentError('PlanBoard.plans is required.')),
-    highlights: source.isList(<Object>['highlights'])
-        ? () {
-            final m0 = <s4.PlanTier, s4.Plan>{};
-            final n0 = source.length(<Object>['highlights']);
-            for (var i0 = 0; i0 < n0; i0++) {
-              if (!source.isMap(<Object>['highlights', i0])) {
-                throw ArgumentError(
-                    'PlanBoard.highlights entry must be an object.');
-              }
-              final k0 = RestageDecoders.enumByName<s4.PlanTier>(
-                      s4.PlanTier.values,
-                      source,
-                      <Object>['highlights', i0, 'key']) ??
-                  (throw ArgumentError(
-                      'PlanBoard.highlights entry key is not a known member.'));
-              if (m0.containsKey(k0)) {
-                throw ArgumentError(
-                    'PlanBoard.highlights has a duplicate key.');
-              }
-              m0[k0] = source.isMap(<Object>['highlights', i0, 'value'])
-                  ? s4.Plan(
-                      name: RestageDecoders.string(source,
-                              <Object>['highlights', i0, 'value', 'name']) ??
-                          (throw ArgumentError('Plan.name is required.')),
-                      price: source.isMap(
-                              <Object>['highlights', i0, 'value', 'price'])
-                          ? (switch (source.v<String>(<Object>[
-                              'highlights',
-                              i0,
-                              'value',
-                              'price',
-                              '#constructor'
-                            ])) {
-                              'free' => s4.Price.free(
-                                  currency: RestageDecoders.string(
-                                          source, <Object>[
-                                        'highlights',
-                                        i0,
-                                        'value',
-                                        'price',
-                                        'currency'
-                                      ]) ??
-                                      'USD'),
-                              null => s4.Price(
-                                  source.v<int>(<Object>[
-                                        'highlights',
-                                        i0,
-                                        'value',
-                                        'price',
-                                        'amount'
-                                      ]) ??
-                                      (throw ArgumentError(
-                                          'Price.amount is required.')),
-                                  currency: RestageDecoders.string(
-                                          source, <Object>[
-                                        'highlights',
-                                        i0,
-                                        'value',
-                                        'price',
-                                        'currency'
-                                      ]) ??
-                                      'USD'),
-                              final String name => throw ArgumentError(
-                                  "'Price' has no constructor named '$name'.")
-                            })
-                          : (throw ArgumentError('Plan.price is required.')),
-                      badge: RestageDecoders.string(
-                          source, <Object>['highlights', i0, 'value', 'badge']),
-                      tier: RestageDecoders.enumByName<s4.PlanTier>(
-                              s4.PlanTier.values,
-                              source,
-                              <Object>['highlights', i0, 'value', 'tier']) ??
-                          s4.PlanTier.starter)
-                  : (throw ArgumentError(
-                      'PlanBoard.highlights entry value is required.'));
-            }
-            return m0;
-          }()
-        : (throw ArgumentError('PlanBoard.highlights is required.')),
-  );
+              return m0;
+            }()
+          : (throw ArgumentError('PlanBoard.highlights is required.')),
+    );
+  });
 }
 
 Widget _buildPricingCard(BuildContext context, DataSource source) {
-  return s4.PricingCard(
-    plan: source.isMap(<Object>['plan'])
-        ? s4.Plan(
-            name: RestageDecoders.string(source, <Object>['plan', 'name']) ??
-                (throw ArgumentError('Plan.name is required.')),
-            price: source.isMap(<Object>['plan', 'price'])
-                ? (switch (source
-                    .v<String>(<Object>['plan', 'price', '#constructor'])) {
-                    'free' => s4.Price.free(
-                        currency: RestageDecoders.string(source,
-                                <Object>['plan', 'price', 'currency']) ??
-                            'USD'),
-                    null => s4.Price(
-                        source.v<int>(<Object>['plan', 'price', 'amount']) ??
-                            (throw ArgumentError('Price.amount is required.')),
-                        currency: RestageDecoders.string(source,
-                                <Object>['plan', 'price', 'currency']) ??
-                            'USD'),
-                    final String name => throw ArgumentError(
-                        "'Price' has no constructor named '$name'.")
-                  })
-                : (throw ArgumentError('Plan.price is required.')),
-            badge: RestageDecoders.string(source, <Object>['plan', 'badge']),
-            tier: RestageDecoders.enumByName<s4.PlanTier>(
-                    s4.PlanTier.values, source, <Object>['plan', 'tier']) ??
-                s4.PlanTier.starter)
-        : (throw ArgumentError('PricingCard.plan is required.')),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s4.PricingCard(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      plan: source.isMap(<Object>['plan'])
+          ? s4.Plan(
+              name: RestageDecoders.string(source, <Object>['plan', 'name'],
+                      context: context) ??
+                  (throw ArgumentError('Plan.name is required.')),
+              price: source.isMap(<Object>['plan', 'price'])
+                  ? (switch (source
+                      .v<String>(<Object>['plan', 'price', '#constructor'])) {
+                      'free' => s4.Price.free(
+                          currency: RestageDecoders.string(
+                                  source, <Object>['plan', 'price', 'currency'],
+                                  context: context) ??
+                              'USD'),
+                      null => s4.Price(
+                          RestageValueBinding.read<int>(
+                                  source,
+                                  <Object>['plan', 'price', 'amount'],
+                                  context) ??
+                              (throw ArgumentError(
+                                  'Price.amount is required.')),
+                          currency: RestageDecoders.string(
+                                  source, <Object>['plan', 'price', 'currency'],
+                                  context: context) ??
+                              'USD'),
+                      final String name => throw ArgumentError(
+                          "'Price' has no constructor named '$name'.")
+                    })
+                  : (throw ArgumentError('Plan.price is required.')),
+              badge: RestageDecoders.string(source, <Object>['plan', 'badge'],
+                  context: context),
+              tier: RestageDecoders.enumByName<s4.PlanTier>(
+                      s4.PlanTier.values, source, <Object>['plan', 'tier']) ??
+                  s4.PlanTier.starter)
+          : (throw ArgumentError('PricingCard.plan is required.')),
+    );
+  });
 }
 
 Widget _buildPricingTable(BuildContext context, DataSource source) {
-  return s5.PricingTable(
-    plans: source.isList(<Object>['plans'])
-        ? [
-            for (var i0 = 0, n0 = source.length(<Object>['plans']);
-                i0 < n0;
-                i0++)
-              source.isMap(<Object>['plans', i0])
-                  ? s4.Plan(
-                      name: RestageDecoders.string(
-                              source, <Object>['plans', i0, 'name']) ??
-                          (throw ArgumentError('Plan.name is required.')),
-                      price: source.isMap(<Object>['plans', i0, 'price'])
-                          ? (switch (source.v<String>(
-                              <Object>['plans', i0, 'price', '#constructor'])) {
-                              'free' => s4.Price.free(
-                                  currency: RestageDecoders.string(
-                                          source, <Object>[
-                                        'plans',
-                                        i0,
-                                        'price',
-                                        'currency'
-                                      ]) ??
-                                      'USD'),
-                              null => s4.Price(
-                                  source.v<int>(<Object>[
-                                        'plans',
-                                        i0,
-                                        'price',
-                                        'amount'
-                                      ]) ??
-                                      (throw ArgumentError(
-                                          'Price.amount is required.')),
-                                  currency: RestageDecoders.string(
-                                          source, <Object>[
-                                        'plans',
-                                        i0,
-                                        'price',
-                                        'currency'
-                                      ]) ??
-                                      'USD'),
-                              final String name => throw ArgumentError(
-                                  "'Price' has no constructor named '$name'.")
-                            })
-                          : (throw ArgumentError('Plan.price is required.')),
-                      badge: RestageDecoders.string(
-                          source, <Object>['plans', i0, 'badge']),
-                      tier: RestageDecoders.enumByName<s4.PlanTier>(
-                              s4.PlanTier.values,
-                              source,
-                              <Object>['plans', i0, 'tier']) ??
-                          s4.PlanTier.starter)
-                  : (throw ArgumentError(
-                      'PricingTable.plans element must be an object.'))
-          ]
-        : (throw ArgumentError('PricingTable.plans is required.')),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s5.PricingTable(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      plans: source.isList(<Object>['plans'])
+          ? [
+              for (var i0 = 0, n0 = source.length(<Object>['plans']);
+                  i0 < n0;
+                  i0++)
+                source.isMap(<Object>['plans', i0])
+                    ? s4.Plan(
+                        name: RestageDecoders.string(
+                                source, <Object>['plans', i0, 'name'],
+                                context: context) ??
+                            (throw ArgumentError('Plan.name is required.')),
+                        price: source.isMap(<Object>['plans', i0, 'price'])
+                            ? (switch (source.v<String>(<Object>[
+                                'plans',
+                                i0,
+                                'price',
+                                '#constructor'
+                              ])) {
+                                'free' => s4.Price.free(
+                                    currency: RestageDecoders.string(
+                                            source,
+                                            <Object>[
+                                              'plans',
+                                              i0,
+                                              'price',
+                                              'currency'
+                                            ],
+                                            context: context) ??
+                                        'USD'),
+                                null => s4.Price(
+                                    RestageValueBinding.read<int>(
+                                            source,
+                                            <Object>[
+                                              'plans',
+                                              i0,
+                                              'price',
+                                              'amount'
+                                            ],
+                                            context) ??
+                                        (throw ArgumentError(
+                                            'Price.amount is required.')),
+                                    currency: RestageDecoders.string(
+                                            source,
+                                            <Object>[
+                                              'plans',
+                                              i0,
+                                              'price',
+                                              'currency'
+                                            ],
+                                            context: context) ??
+                                        'USD'),
+                                final String name => throw ArgumentError(
+                                    "'Price' has no constructor named '$name'.")
+                              })
+                            : (throw ArgumentError('Plan.price is required.')),
+                        badge: RestageDecoders.string(
+                            source, <Object>['plans', i0, 'badge'],
+                            context: context),
+                        tier: RestageDecoders.enumByName<s4.PlanTier>(
+                                s4.PlanTier.values,
+                                source,
+                                <Object>['plans', i0, 'tier']) ??
+                            s4.PlanTier.starter)
+                    : (throw ArgumentError('PricingTable.plans element must be an object.'))
+            ]
+          : (throw ArgumentError('PricingTable.plans is required.')),
+    );
+  });
 }
 
 Widget _buildPromoBadge(BuildContext context, DataSource source) {
-  return s6.PromoBadge(
-    label: RestageDecoders.string(source, <Object>['label']) ??
-        (throw ArgumentError('PromoBadge.label is required.')),
-    color: ArgumentDecoders.color(source, <Object>['color']),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s6.PromoBadge(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      label:
+          RestageDecoders.string(source, <Object>['label'], context: context) ??
+              (throw ArgumentError('PromoBadge.label is required.')),
+      color: RestageDecoders.color(source, <Object>['color']),
+    );
+  });
 }
 
 Widget _buildPulseBadge(BuildContext context, DataSource source) {
-  return s7.PulseBadge(
-    label: RestageDecoders.string(source, <Object>['label']) ??
-        (throw ArgumentError('PulseBadge.label is required.')),
-    count: source.v<int>(const <Object>['count']) ??
-        (throw ArgumentError('PulseBadge.count is required.')),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s7.PulseBadge(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      label:
+          RestageDecoders.string(source, <Object>['label'], context: context) ??
+              (throw ArgumentError('PulseBadge.label is required.')),
+      count: RestageValueBinding.read<int>(
+              source, const <Object>['count'], context) ??
+          (throw ArgumentError('PulseBadge.count is required.')),
+    );
+  });
 }
 
 Widget _buildSectionHeader(BuildContext context, DataSource source) {
-  return s8.SectionHeader(
-    heading: source.isMap(<Object>['heading'])
-        ? (
-            step: source.v<int>(<Object>['heading', 'step']) ??
-                (throw ArgumentError(
-                    'SectionHeader.heading.step is required.')),
-            title:
-                RestageDecoders.string(source, <Object>['heading', 'title']) ??
-                    (throw ArgumentError(
-                        'SectionHeader.heading.title is required.')),
-            tone: RestageDecoders.enumByName<s8.HeaderTone>(
-                    s8.HeaderTone.values,
-                    source,
-                    <Object>['heading', 'tone']) ??
-                (throw ArgumentError(
-                    'SectionHeader.heading.tone is required.')),
-          )
-        : (throw ArgumentError('SectionHeader.heading is required.')),
-    entry: source.isMap(<Object>['entry'])
-        ? s8.SectionEntry(
-            label: RestageDecoders.string(source, <Object>['entry', 'label']) ??
-                (throw ArgumentError('SectionEntry.label is required.')),
-            meta: source.isMap(<Object>['entry', 'meta'])
-                ? (
-                    order: source.v<int>(<Object>['entry', 'meta', 'order']) ??
-                        (throw ArgumentError(
-                            'SectionEntry.meta.order is required.')),
-                    pinned:
-                        source.v<bool>(<Object>['entry', 'meta', 'pinned']) ??
-                            (throw ArgumentError(
-                                'SectionEntry.meta.pinned is required.')),
-                  )
-                : (throw ArgumentError('SectionEntry.meta is required.')))
-        : (throw ArgumentError('SectionHeader.entry is required.')),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s8.SectionHeader(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      heading: source.isMap(<Object>['heading'])
+          ? (
+              step: RestageValueBinding.read<int>(
+                      source, <Object>['heading', 'step'], context) ??
+                  (throw ArgumentError(
+                      'SectionHeader.heading.step is required.')),
+              title: RestageDecoders.string(
+                      source, <Object>['heading', 'title'], context: context) ??
+                  (throw ArgumentError(
+                      'SectionHeader.heading.title is required.')),
+              tone: RestageDecoders.enumByName<s8.HeaderTone>(
+                      s8.HeaderTone.values,
+                      source,
+                      <Object>['heading', 'tone']) ??
+                  (throw ArgumentError(
+                      'SectionHeader.heading.tone is required.')),
+            )
+          : (throw ArgumentError('SectionHeader.heading is required.')),
+      entry: source.isMap(<Object>['entry'])
+          ? s8.SectionEntry(
+              label: RestageDecoders.string(source, <Object>['entry', 'label'],
+                      context: context) ??
+                  (throw ArgumentError('SectionEntry.label is required.')),
+              meta: source.isMap(<Object>['entry', 'meta'])
+                  ? (
+                      order: RestageValueBinding.read<int>(source,
+                              <Object>['entry', 'meta', 'order'], context) ??
+                          (throw ArgumentError(
+                              'SectionEntry.meta.order is required.')),
+                      pinned: RestageValueBinding.read<bool>(source,
+                              <Object>['entry', 'meta', 'pinned'], context) ??
+                          (throw ArgumentError(
+                              'SectionEntry.meta.pinned is required.')),
+                    )
+                  : (throw ArgumentError('SectionEntry.meta is required.')))
+          : (throw ArgumentError('SectionHeader.entry is required.')),
+    );
+  });
 }
 
 Widget _buildStatBadge(BuildContext context, DataSource source) {
-  return s2.StatBadge(
-    label: RestageDecoders.string(source, <Object>['label']) ??
-        (throw ArgumentError('StatBadge.label is required.')),
-    value: RestageDecoders.string(source, <Object>['value']) ??
-        (throw ArgumentError('StatBadge.value is required.')),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s2.StatBadge(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      label:
+          RestageDecoders.string(source, <Object>['label'], context: context) ??
+              (throw ArgumentError('StatBadge.label is required.')),
+      value:
+          RestageDecoders.string(source, <Object>['value'], context: context) ??
+              (throw ArgumentError('StatBadge.value is required.')),
+    );
+  });
 }
 
 Widget _buildStreakBadge(BuildContext context, DataSource source) {
-  return s9.StreakBadge(
-    label: RestageDecoders.string(source, <Object>['label']) ??
-        (throw ArgumentError('StreakBadge.label is required.')),
-    count: source.v<int>(const <Object>['count']) ??
-        (throw ArgumentError('StreakBadge.count is required.')),
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s9.StreakBadge(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      label:
+          RestageDecoders.string(source, <Object>['label'], context: context) ??
+              (throw ArgumentError('StreakBadge.label is required.')),
+      count: RestageValueBinding.read<int>(
+              source, const <Object>['count'], context) ??
+          (throw ArgumentError('StreakBadge.count is required.')),
+    );
+  });
 }
 
 Widget _buildTierBoard(BuildContext context, DataSource source) {
-  return s10.TierBoard(
-    tiers: source.isList(<Object>['tiers'])
-        ? [
-            for (var i0 = 0, n0 = source.length(<Object>['tiers']);
-                i0 < n0;
-                i0++)
-              source.isMap(<Object>['tiers', i0])
-                  ? s10.Tier(
-                      name: RestageDecoders.string(
-                              source, <Object>['tiers', i0, 'name']) ??
-                          (throw ArgumentError('Tier.name is required.')),
-                      features: source.isList(<Object>['tiers', i0, 'features'])
-                          ? [
-                              for (var i1 = 0,
-                                      n1 = source.length(
-                                          <Object>['tiers', i0, 'features']);
-                                  i1 < n1;
-                                  i1++)
-                                source.isMap(
-                                        <Object>['tiers', i0, 'features', i1])
-                                    ? s10.Feature(
-                                        label: RestageDecoders.string(
-                                                source, <Object>[
-                                              'tiers',
-                                              i0,
-                                              'features',
-                                              i1,
-                                              'label'
-                                            ]) ??
-                                            (throw ArgumentError(
-                                                'Feature.label is required.')))
-                                    : (throw ArgumentError(
-                                        'Tier.features element must be an object.'))
-                            ]
-                          : (throw ArgumentError('Tier.features is required.')))
-                  : (throw ArgumentError(
-                      'TierBoard.tiers element must be an object.'))
-          ]
-        : (throw ArgumentError('TierBoard.tiers is required.')),
-    bonusTiers: source.isList(<Object>['bonusTiers'])
-        ? [
-            for (var i0 = 0, n0 = source.length(<Object>['bonusTiers']);
-                i0 < n0;
-                i0++)
-              source.isMap(<Object>['bonusTiers', i0])
-                  ? s10.Tier(
-                      name: RestageDecoders.string(
-                              source, <Object>['bonusTiers', i0, 'name']) ??
-                          (throw ArgumentError('Tier.name is required.')),
-                      features: source
-                              .isList(<Object>['bonusTiers', i0, 'features'])
-                          ? [
-                              for (var i1 = 0,
-                                      n1 = source.length(<Object>[
-                                'bonusTiers',
-                                i0,
-                                'features'
-                              ]);
-                                  i1 < n1;
-                                  i1++)
-                                source.isMap(<Object>[
-                                  'bonusTiers',
-                                  i0,
-                                  'features',
-                                  i1
-                                ])
-                                    ? s10.Feature(
-                                        label: RestageDecoders.string(
-                                                source, <Object>[
-                                              'bonusTiers',
-                                              i0,
-                                              'features',
-                                              i1,
-                                              'label'
-                                            ]) ??
-                                            (throw ArgumentError(
-                                                'Feature.label is required.')))
-                                    : (throw ArgumentError(
-                                        'Tier.features element must be an object.'))
-                            ]
-                          : (throw ArgumentError('Tier.features is required.')))
-                  : (throw ArgumentError(
-                      'TierBoard.bonusTiers element must be an object.'))
-          ]
-        : null,
-  );
+  source = RestageValueBinding.dataSource(source, context);
+  return RestageBuilderBinding.construct((builderBindings) {
+    return s10.TierBoard(
+      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
+          type: 'flutter.Key'),
+      tiers: source.isList(<Object>['tiers'])
+          ? [
+              for (var i0 = 0, n0 = source.length(<Object>['tiers']);
+                  i0 < n0;
+                  i0++)
+                source.isMap(<Object>['tiers', i0])
+                    ? s10.Tier(
+                        name: RestageDecoders.string(
+                                source, <Object>['tiers', i0, 'name'],
+                                context: context) ??
+                            (throw ArgumentError('Tier.name is required.')),
+                        features: source
+                                .isList(<Object>['tiers', i0, 'features'])
+                            ? [
+                                for (var i1 = 0,
+                                        n1 = source.length(
+                                            <Object>['tiers', i0, 'features']);
+                                    i1 < n1;
+                                    i1++)
+                                  source.isMap(
+                                          <Object>['tiers', i0, 'features', i1])
+                                      ? s10.Feature(
+                                          label: RestageDecoders.string(
+                                                  source,
+                                                  <Object>[
+                                                    'tiers',
+                                                    i0,
+                                                    'features',
+                                                    i1,
+                                                    'label'
+                                                  ],
+                                                  context: context) ??
+                                              (throw ArgumentError(
+                                                  'Feature.label is required.')))
+                                      : (throw ArgumentError(
+                                          'Tier.features element must be an object.'))
+                              ]
+                            : (throw ArgumentError(
+                                'Tier.features is required.')))
+                    : (throw ArgumentError(
+                        'TierBoard.tiers element must be an object.'))
+            ]
+          : (throw ArgumentError('TierBoard.tiers is required.')),
+      bonusTiers: source.isList(<Object>['bonusTiers'])
+          ? [
+              for (var i0 = 0, n0 = source.length(<Object>['bonusTiers']);
+                  i0 < n0;
+                  i0++)
+                source.isMap(<Object>['bonusTiers', i0])
+                    ? s10.Tier(
+                        name: RestageDecoders.string(
+                                source, <Object>['bonusTiers', i0, 'name'],
+                                context: context) ??
+                            (throw ArgumentError('Tier.name is required.')),
+                        features: source
+                                .isList(<Object>['bonusTiers', i0, 'features'])
+                            ? [
+                                for (var i1 = 0,
+                                        n1 = source.length(
+                                            <Object>['bonusTiers', i0, 'features']);
+                                    i1 < n1;
+                                    i1++)
+                                  source.isMap(<Object>[
+                                    'bonusTiers',
+                                    i0,
+                                    'features',
+                                    i1
+                                  ])
+                                      ? s10.Feature(
+                                          label: RestageDecoders.string(
+                                                  source,
+                                                  <Object>[
+                                                    'bonusTiers',
+                                                    i0,
+                                                    'features',
+                                                    i1,
+                                                    'label'
+                                                  ],
+                                                  context: context) ??
+                                              (throw ArgumentError(
+                                                  'Feature.label is required.')))
+                                      : (throw ArgumentError(
+                                          'Tier.features element must be an object.'))
+                              ]
+                            : (throw ArgumentError(
+                                'Tier.features is required.')))
+                    : (throw ArgumentError(
+                        'TierBoard.bonusTiers element must be an object.'))
+            ]
+          : null,
+    );
+  });
 }

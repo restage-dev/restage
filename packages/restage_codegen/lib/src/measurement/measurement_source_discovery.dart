@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/paywall_completion.dart'
 import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_resolved_event.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
+import 'package:restage_codegen/src/text_span_recognizer.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The source-root authority that admitted a static widget expression.
@@ -511,6 +512,17 @@ final class _MeasurementSourceDiscovery {
       }
       return;
     }
+    if (expression is MethodInvocation) {
+      final method = expression.methodName.element;
+      final owner = method?.enclosingElement;
+      if (method is MethodElement &&
+          method.isStatic &&
+          owner is InterfaceElement &&
+          _isFlutterWidgetClass(owner)) {
+        _visitFlutterWidget(expression, owner, resolved.context);
+        return;
+      }
+    }
     if (expression is! InstanceCreationExpression) {
       throw ArgumentError(
         'A measurement widget occurrence must be a statically resolved '
@@ -542,7 +554,7 @@ final class _MeasurementSourceDiscovery {
   }
 
   void _visitFlutterWidget(
-    InstanceCreationExpression expression,
+    Expression expression,
     InterfaceElement widgetClass,
     _WidgetVisitContext context,
   ) {
@@ -572,6 +584,13 @@ final class _MeasurementSourceDiscovery {
           value: value,
           context: context,
         );
+        continue;
+      }
+      if (catalogEntry.properties.any((property) =>
+          property.name == parameterName &&
+          property.type == PropertyType.inlineSpan)) {
+        _visitInlineSpan(value,
+            node: node, context: context, path: [parameterName]);
         continue;
       }
       if (_isFlutterKeyType(parameter.type)) {
@@ -609,6 +628,109 @@ final class _MeasurementSourceDiscovery {
           'Dynamic Flutter widget builders are not a static measurement '
           'closure',
         );
+      }
+    }
+  }
+
+  void _visitInlineSpan(Expression source,
+      {required MeasurementDiscoveredNode node,
+      required _WidgetVisitContext context,
+      required List<Object> path,
+      List<CollectionSemanticOccurrence> collectionOccurrences = const []}) {
+    Expression resolve(Expression value) =>
+        _withoutParentheses(_resolvedWidgetSource(value, context).expression);
+    bool isNull(Expression source) {
+      final value = resolve(source);
+      if (value is NullLiteral || value.staticType?.isDartCoreNull == true) {
+        return true;
+      }
+      final element = _referencedElement(value);
+      final variable =
+          element is PropertyAccessorElement ? element.variable : element;
+      return variable is VariableElement &&
+          variable.isConst &&
+          variable.computeConstantValue()?.isNull == true;
+    }
+
+    final span = resolve(source);
+    if (span is NullLiteral) return;
+    if (span is! InstanceCreationExpression)
+      throw ArgumentError(
+          'A measured inline span requires a resolved native constructor.');
+    final spanClass = span.constructorName.type.element;
+    if (spanClass is! InterfaceElement ||
+        spanClass.name != 'TextSpan' ||
+        spanClass.library.identifier !=
+            'package:flutter/src/painting/text_span.dart')
+      throw ArgumentError('A measured inline span must be native TextSpan.');
+    var occurrence = node.occurrence.nestedValue(path);
+    for (final collection in collectionOccurrences) {
+      occurrence = occurrence.enterCollectionOccurrence(collection);
+    }
+    MeasurementDiscoveredNode? spanNode;
+    for (final argument
+        in span.argumentList.arguments.whereType<NamedArgument>()) {
+      final name = argument.name.lexeme;
+      if (name == 'recognizer' && !isNull(argument.argumentExpression)) {
+        if (isBorrowedTextSpanRecognizer(resolve(argument.argumentExpression)))
+          continue;
+        final recipe = readTextSpanRecognizer(argument.argumentExpression,
+            resolve: resolve, bindings: context.plainExpressionBindings.values);
+        final constructor = recipe.constructor;
+        final recognizerClass = constructor is InstanceCreationExpression
+            ? constructor.constructorName.type.element
+            : null;
+        if (recognizerClass is! InterfaceElement)
+          throw ArgumentError(
+              'A measured recognizer requires its native class.');
+        for (final callback in recipe.callbacks.entries) {
+          final eventElement = recipe.callbackElements[callback.key];
+          if (eventElement == null)
+            throw ArgumentError('A measured recognizer callback must resolve.');
+          final resolved = _resolvedEventSource(
+              node: node,
+              eventElement: eventElement,
+              value: callback.value,
+              context: context,
+              directOccurrence:
+                  occurrence.widget(spanClass).event(eventElement));
+          if (isNull(resolved.expression)) continue;
+          spanNode ??= _recordNode(
+              context: context.withOccurrenceScope(occurrence),
+              widgetClass: spanClass);
+          _recordResolvedEvent(
+              node: spanNode,
+              resolvedEvent:
+                  MeasurementResolvedFlutterEvent.fromResolvedElements(
+                      widgetClass: recognizerClass, eventElement: eventElement),
+              sourceExpression: resolved.expression,
+              emissionOccurrence: resolved.emissionOccurrence);
+        }
+      } else if (name == 'children') {
+        final budget = CollectionUnrollBudget();
+        final semantics = _collectionSemanticProbe(context);
+        final resolution = semantics.resolve(argument.argumentExpression,
+            context.plainExpressionBindings, budget);
+        if (resolution.workLimitExceeded) {
+          throw ArgumentError(budget.workRefusal(argument).detail);
+        }
+        final children = resolution.expression;
+        if (children is NullLiteral) continue;
+        if (children is! ListLiteral)
+          throw ArgumentError(
+              'Measured span children require an admitted bounded list.');
+        _visitCollectionElements(children,
+            context: context,
+            budget: budget,
+            bindings: resolution.bindings, visit: (child, ordinal) {
+          _visitInlineSpan(child.terminalExpression,
+              node: node,
+              context: context
+                  .withCollectionOccurrence(child)
+                  .withOccurrenceScope(context.occurrenceScope),
+              path: [...path, 'children', ordinal],
+              collectionOccurrences: [...collectionOccurrences, child]);
+        });
       }
     }
   }
@@ -659,23 +781,36 @@ final class _MeasurementSourceDiscovery {
         'A measurement widget list must be a static literal list',
       );
     }
-    var ordinal = 0;
+    _visitCollectionElements(expression,
+        context: resolved.context,
+        budget: budget,
+        bindings: resolution.bindings, visit: (occurrence, ordinal) {
+      _visitWidgetExpression(
+        occurrence.terminalExpression,
+        resolved.context
+            .child(parent: parent, slot: slot, ordinal: ordinal)
+            .withCollectionOccurrence(occurrence),
+      );
+    });
+  }
+
+  void _visitCollectionElements(
+    ListLiteral expression, {
+    required _WidgetVisitContext context,
+    required CollectionUnrollBudget budget,
+    required Map<Element, Expression> bindings,
+    required void Function(CollectionSemanticOccurrence, int) visit,
+  }) {
+    final ordinals = MeasurementCollectionOrdinals();
     final traversal = traverseCollectionList(
       expression,
-      semantics: semantics,
+      semantics: _collectionSemanticProbe(context),
       budget: budget,
       session: _collectionSession,
-      bindings: resolution.bindings,
+      bindings: bindings,
     );
-    String? previousIteration;
     for (final entry in traversal.entries) {
-      final iteration = switch (entry) {
-        CollectionListElement(:final occurrence) =>
-          measurementStaticIterationKey(occurrence),
-        CollectionListRefusal() => null,
-      };
-      if (iteration != null && iteration == previousIteration) ordinal--;
-      previousIteration = iteration;
+      final ordinal = ordinals.next(entry);
       // A run-time collection-`if` is one element built from several
       // branches, so every branch is visited at the same ordinal.
       final occurrences = switch (entry) {
@@ -687,14 +822,8 @@ final class _MeasurementSourceDiscovery {
           },
       };
       for (final occurrence in occurrences) {
-        _visitWidgetExpression(
-          occurrence.terminalExpression,
-          resolved.context
-              .child(parent: parent, slot: slot, ordinal: ordinal)
-              .withCollectionOccurrence(occurrence),
-        );
+        visit(occurrence, ordinal);
       }
-      ordinal++;
     }
   }
 
@@ -965,9 +1094,10 @@ final class _MeasurementSourceDiscovery {
     required Element eventElement,
     required Expression value,
     required _WidgetVisitContext context,
+    MeasurementEventOccurrence? directOccurrence,
   }) {
     var sourceExpression = value;
-    final directOccurrence = node.occurrence.event(eventElement);
+    directOccurrence ??= node.occurrence.event(eventElement);
     final forwardingOccurrences = <MeasurementEventOccurrence>[];
     final seenBindings = <Element>{};
     while (true) {
@@ -1075,11 +1205,15 @@ final class _MeasurementSourceDiscovery {
   }
 
   WidgetEntry _catalogEntryFor(
-    InstanceCreationExpression expression,
+    Expression expression,
     InterfaceElement widgetClass,
   ) {
     final widgetIdentity = _classIdentity(widgetClass);
-    final constructorName = expression.constructorName.name?.name;
+    final constructorName = switch (expression) {
+      InstanceCreationExpression() => expression.constructorName.name?.name,
+      MethodInvocation() => expression.methodName.name,
+      _ => throw ArgumentError('A catalog widget requires a resolved callable'),
+    };
     final suffix = constructorName == null || constructorName.isEmpty
         ? ''
         : '.$constructorName';
@@ -1122,22 +1256,33 @@ final class _MeasurementSourceDiscovery {
   }
 
   List<_ResolvedArgument> _resolvedArguments(
-    InstanceCreationExpression expression,
+    Expression expression,
     InterfaceElement widgetClass,
   ) {
-    final constructor = expression.constructorName.element;
-    if (constructor is! ConstructorElement ||
-        constructor.enclosingElement != widgetClass) {
+    final (callable, argumentList) = switch (expression) {
+      InstanceCreationExpression() => (
+          expression.constructorName.element,
+          expression.argumentList
+        ),
+      MethodInvocation() => (
+          expression.methodName.element,
+          expression.argumentList
+        ),
+      _ => throw ArgumentError('A widget requires a resolved callable'),
+    };
+    if (callable is! ExecutableElement ||
+        callable.enclosingElement != widgetClass ||
+        (callable is MethodElement && !callable.isStatic)) {
       throw ArgumentError(
-        'A measurement Flutter widget requires a resolved constructor element',
+        'A measurement Flutter widget requires a resolved callable element',
       );
     }
-    final positionalParameters = constructor.formalParameters
+    final positionalParameters = callable.formalParameters
         .where((parameter) => !parameter.isNamed)
         .toList(growable: false);
     var positionalIndex = 0;
     final arguments = <_ResolvedArgument>[];
-    for (final argument in expression.argumentList.arguments) {
+    for (final argument in argumentList.arguments) {
       if (argument case final NamedArgument named) {
         final parameter = named.correspondingParameter;
         if (parameter is! FormalParameterElement) {

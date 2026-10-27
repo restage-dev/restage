@@ -11,7 +11,7 @@ import 'package:restage/restage.dart';
 /// simple widgets needs no declaration.
 @RestageLibrary(
   library: WidgetLibrary.custom('restage_example.widgets'),
-  capabilityVersion: 4,
+  capabilityVersion: 5,
 )
 const restageExampleWidgetLibrary = 0;
 

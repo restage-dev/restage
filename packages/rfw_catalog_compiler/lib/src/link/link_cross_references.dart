@@ -131,6 +131,7 @@ Catalog linkCrossReferences(Catalog catalog, CrossRefResolutionIndex index) {
         _linkWidget(
           widget,
           index,
+          unionIdBySourceKey,
           structuredIdBySourceType,
           fieldIdByOwnerAndName,
           linkedStructuredByRef,
@@ -508,6 +509,7 @@ UnionEntry _linkUnion(
 WidgetEntry _linkWidget(
   WidgetEntry widget,
   CrossRefResolutionIndex index,
+  Map<String, WireId> unionIdBySourceKey,
   Map<String, WireId> structuredIdBySourceType,
   Map<(String, String), WireId> fieldIdByOwnerAndName,
   Map<(String, WireId), StructuredEntry> structuredByRef,
@@ -519,6 +521,7 @@ WidgetEntry _linkWidget(
   final properties = _linkWidgetPropertyValueShapes(
     widget: widget,
     index: index,
+    unionIdBySourceKey: unionIdBySourceKey,
     structuredIdBySourceType: structuredIdBySourceType,
     fieldIdByOwnerAndName: fieldIdByOwnerAndName,
     structuredByRef: structuredByRef,
@@ -577,6 +580,7 @@ WidgetEntry _linkWidget(
 List<PropertyEntry> _linkWidgetPropertyValueShapes({
   required WidgetEntry widget,
   required CrossRefResolutionIndex index,
+  required Map<String, WireId> unionIdBySourceKey,
   required Map<String, WireId> structuredIdBySourceType,
   required Map<(String, String), WireId> fieldIdByOwnerAndName,
   required Map<(String, WireId), StructuredEntry> structuredByRef,
@@ -588,6 +592,22 @@ List<PropertyEntry> _linkWidgetPropertyValueShapes({
   for (var i = 0; i < properties.length; i++) {
     final property = properties[i];
     final shape = property.valueShape;
+    if (shape is UnionShape &&
+        index.unionSourceKeyByField
+            .containsKey((widget.flutterType, property.name))) {
+      properties[i] = _copyPropertyWithValueShape(
+        property,
+        _linkStructuredFieldValueShape(
+          ownerSourceType: widget.flutterType,
+          fieldName: property.name,
+          shape: shape,
+          index: index,
+          structuredIdBySourceType: structuredIdBySourceType,
+          unionIdBySourceKey: unionIdBySourceKey,
+        )!,
+      );
+      continue;
+    }
     if (shape is! StructuredShape ||
         !shape.structuredRef.wireId.isUnallocated ||
         !index.structuredRefFqnByField
@@ -679,6 +699,8 @@ PropertyEntry _copyPropertyWithValueShape(
     enumType: base.enumType,
     widgetType: base.widgetType,
     callbackSignature: base.callbackSignature,
+    builderContract: base.builderContract,
+    scalarContract: base.scalarContract,
     defaultSource: base.defaultSource,
     constructorNullable: base.constructorNullable,
     constructorDefault: base.constructorDefault,
@@ -1322,6 +1344,8 @@ StructuredField _linkStructuredField({
     structuredRef: linkedStructuredRef,
     unionRef: linkedUnionRef,
     valueShape: linkedValueShape,
+    builderContract: field.builderContract,
+    scalarContract: field.scalarContract,
   );
 }
 

@@ -6,20 +6,20 @@ const planBoardShowcaseFlowRef = SurfaceFlowRef<
     PlanBoardShowcaseResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'plan_board_showcase',
   version: 1,
-  minClient: 12,
+  minClient: 17,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodePlanBoardShowcaseFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":12,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:37c26a351d495f03bbcc986bf6cdc60cffcea1e9296551bca916f40e93b67831","minClient":12,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
+        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":17,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:4b36d593059360f9199edd7ddc4a0dd7d7c9569a6c1861b65f2d33e46abf130f","minClient":17,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
     screens: {
       'plan_board_showcase': PlanBoardShowcaseScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '832959d0481961537d7544a99cffec165624010359ddc778e5d502329dcb34c8',
+      'abece91d2cf288ae1c840cd23982f06da781d57f33a7402ff0569ec9df0ff1c5',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
