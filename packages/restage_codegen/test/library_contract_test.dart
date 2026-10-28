@@ -369,6 +369,30 @@ void main() {
     );
   });
 
+  // A developer's forwarded key is contract growth; SDK synthetics are not.
+  for (final (added, passes) in [
+    (analyticsIdProperty(), true),
+    (_property('key'), false),
+  ]) {
+    for (final removed in [false, true]) {
+      final verb = removed ? 'removing' : 'adding';
+      test('$verb ${added.name} ${passes ? 'passes' : 'needs a bump'}', () {
+        final widened = [
+          _widget('PlanCard', [...planCard.single.properties, added]),
+        ];
+        enforce(
+          app.build(removed ? widened : planCard, capabilityVersion: 3),
+        );
+        bind(3);
+        void build() => enforce(
+              app.build(removed ? planCard : widened, capabilityVersion: 3),
+            );
+        if (passes) return build();
+        expect(build, throwsA(isA<LibraryContractException>()));
+      });
+    }
+  }
+
   test('an addition with a version bump drafts the next version', () {
     enforce(app.build(planCard, capabilityVersion: 3));
     bind(3);
