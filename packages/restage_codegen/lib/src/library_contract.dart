@@ -212,9 +212,14 @@ LibraryContractOutcome evaluateLibraryContract(
     );
   }
 
+  final synthesized = {
+    ..._synthesizedProperties(latest.catalog),
+    ..._synthesizedProperties(current.catalog),
+  };
   final changes = [
     for (final change in diffCatalogs(latest.catalog, current.catalog))
-      if (_isContractBearing(change)) change,
+      if (_isContractBearing(change) && !synthesized.contains(change.affected))
+        change,
     ..._enumMemberChanges(latest, current),
   ];
   final breaking = [
@@ -272,6 +277,18 @@ bool _isContractBearing(CatalogChange change) => switch (change) {
       TokenFallbackChanged() =>
         false,
       _ => true,
+    };
+
+// The SDK adds these to every widget of a generation, never depending on the
+// widget's own shape, and generated-code floors must gate their use.
+Set<WireIdRef> _synthesizedProperties(Catalog catalog) => {
+      for (final widget in catalog.widgets)
+        for (final property in widget.properties)
+          if (property.synthetic != null)
+            WireIdRef(
+              library: widget.library.namespace,
+              wireId: property.wireId,
+            ),
     };
 
 /// A removed or renamed enum member breaks every property that uses the enum.

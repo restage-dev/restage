@@ -323,6 +323,24 @@ void main() {
     expect(keyed.requiredLibraries.single.minGenerated, 3);
     expect(keyless.builtInFloor, 1);
     expect(keyless.requiredLibraries.single.minGenerated, 1);
+    // A keyed version needs generated code v3; older builds are refused.
+    for (final (generated, outcome) in [
+      (2, LibraryCompatibility.tooOld),
+      (3, LibraryCompatibility.satisfied),
+    ]) {
+      final installed = InstalledLibrary(
+        namespace: entry.library.namespace,
+        version: 1,
+        generated: generated,
+      );
+      expect(
+        LibraryCompatibility.evaluate(
+          installed,
+          keyed.requiredLibraries.single,
+        ),
+        outcome,
+      );
+    }
 
     final reorder = await resolveKeySource('$widgetSource\n'
         'class P extends StatelessWidget { const P({required this.itemKey, required this.otherKey, required this.reverse}); final Key itemKey; final Key otherKey; final bool reverse; Widget build(BuildContext context) => Row(children: reverse ? [NativeKeyWidget(key:otherKey), NativeKeyWidget(key:itemKey)] : [NativeKeyWidget(key:itemKey), NativeKeyWidget(key:otherKey)]); }');
