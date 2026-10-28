@@ -48,13 +48,16 @@ final class CommerceStore {
 
 /// A store product form that an adapter can purchase.
 ///
-/// The initial commerce loop supports subscriptions only. Unknown values are
-/// retained and must be declined until their fulfillment path is available.
+/// Unknown values are retained so adapters can decline unsupported forms.
 final class CommerceStoreProductKind {
   factory CommerceStoreProductKind(String value) {
     final code = _requireCommerceStoreCode(value);
     return switch (code) {
       'subscription' => subscription,
+      'consumable' => consumable,
+      'non_consumable' => nonConsumable,
+      'non_renewing_subscription' => nonRenewingSubscription,
+      'one_time' => oneTime,
       _ => CommerceStoreProductKind._(code, false),
     };
   }
@@ -72,6 +75,20 @@ final class CommerceStoreProductKind {
     'subscription',
     true,
   );
+
+  /// A consumable purchase.
+  static const consumable = CommerceStoreProductKind._('consumable', true);
+
+  /// A permanent purchase.
+  static const nonConsumable =
+      CommerceStoreProductKind._('non_consumable', true);
+
+  /// A purchase granting an independent time window.
+  static const nonRenewingSubscription =
+      CommerceStoreProductKind._('non_renewing_subscription', true);
+
+  /// A Play in-app product whose fulfillment form is configured by the server.
+  static const oneTime = CommerceStoreProductKind._('one_time', true);
 
   @override
   bool operator ==(Object other) =>
@@ -160,11 +177,15 @@ final class CommerceStorePurchasable {
     required this.product,
     required String applicationAccountToken,
     this.offerSignature,
+    this.fulfillmentForm,
   }) : applicationAccountToken = _requireApplicationAccountToken(
           applicationAccountToken,
         );
 
   final CommerceStoreProduct product;
+
+  /// Server-resolved fulfillment form for a one-time purchase.
+  final CommerceStoreProductKind? fulfillmentForm;
 
   /// The store account token or obfuscated account identifier.
   final String applicationAccountToken;
@@ -210,7 +231,7 @@ abstract interface class CommerceStoreTransaction {
 /// A provider-neutral bridge to one configured application store.
 ///
 /// Store adapters keep provider packages and provider-specific values outside
-/// the core SDK. The SDK starts a resolved subscription, persists each report
+/// the core SDK. The SDK starts a resolved purchase, persists each report
 /// before it sends it to the server, and calls [completeTransaction] only after
 /// a verified server result and only when [CommerceStoreTransaction]
 /// requests device completion.

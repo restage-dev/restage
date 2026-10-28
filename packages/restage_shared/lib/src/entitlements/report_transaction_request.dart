@@ -9,6 +9,7 @@ const _reportRequestFields = {
   'storeProductId',
   'storeTransactionId',
   'appAnonymousToken',
+  'restoreAppHistory',
   'paywallId',
   'paywallVariantSlug',
   'paywallPublishedVersion',
@@ -24,6 +25,7 @@ final class CommerceReportRequest {
     required String storeVerificationData,
     required String storeProductId,
     required String appAnonymousToken,
+    bool restoreAppHistory = false,
     String? intentId,
     String? storeTransactionId,
     String? paywallId,
@@ -60,6 +62,7 @@ final class CommerceReportRequest {
       storeProductId: storeProductId,
       storeTransactionId: storeTransactionId,
       appAnonymousToken: appAnonymousToken,
+      restoreAppHistory: restoreAppHistory,
       paywallId: paywallId,
       paywallVariantSlug: paywallVariantSlug,
       paywallPublishedVersion: paywallPublishedVersion,
@@ -74,6 +77,7 @@ final class CommerceReportRequest {
     required this.storeProductId,
     required this.storeTransactionId,
     required this.appAnonymousToken,
+    required this.restoreAppHistory,
     required this.paywallId,
     required this.paywallVariantSlug,
     required this.paywallPublishedVersion,
@@ -103,6 +107,7 @@ final class CommerceReportRequest {
         'appAnonymousToken',
         lowercase: false,
       ),
+      restoreAppHistory: _restoreAppHistoryFromJson(json),
       paywallId: optionalCommerceString(json, 'paywallId'),
       paywallVariantSlug: optionalCommerceString(json, 'paywallVariantSlug'),
       paywallPublishedVersion: optionalCommerceInt(
@@ -137,6 +142,10 @@ final class CommerceReportRequest {
   /// Anonymous application identity used for purchaser state.
   final String appAnonymousToken;
 
+  /// Whether this Apple receipt should anchor an explicit app-history restore.
+  /// Defaults to false for ordinary purchase and background reports.
+  final bool restoreAppHistory;
+
   /// Legacy paywall identifier associated with the purchase, when available.
   final String? paywallId;
 
@@ -156,6 +165,7 @@ final class CommerceReportRequest {
         if (storeTransactionId != null)
           'storeTransactionId': storeTransactionId,
         'appAnonymousToken': appAnonymousToken,
+        if (restoreAppHistory) 'restoreAppHistory': true,
         if (paywallId != null) 'paywallId': paywallId,
         if (paywallVariantSlug != null)
           'paywallVariantSlug': paywallVariantSlug,
@@ -174,6 +184,7 @@ final class CommerceReportRequest {
           other.storeProductId == storeProductId &&
           other.storeTransactionId == storeTransactionId &&
           other.appAnonymousToken == appAnonymousToken &&
+          other.restoreAppHistory == restoreAppHistory &&
           other.paywallId == paywallId &&
           other.paywallVariantSlug == paywallVariantSlug &&
           other.paywallPublishedVersion == paywallPublishedVersion;
@@ -187,6 +198,7 @@ final class CommerceReportRequest {
         storeProductId,
         storeTransactionId,
         appAnonymousToken,
+        restoreAppHistory,
         paywallId,
         paywallVariantSlug,
         paywallPublishedVersion,
@@ -201,4 +213,11 @@ void _requireString(String value, String key) {
 
 void _requireOptionalString(String? value, String key) {
   if (value != null) _requireString(value, key);
+}
+
+bool _restoreAppHistoryFromJson(Map<String, dynamic> json) {
+  if (!json.containsKey('restoreAppHistory')) return false;
+  final value = json['restoreAppHistory'];
+  if (value is bool) return value;
+  throw ArgumentError.value(value, 'restoreAppHistory', 'Expected a bool');
 }

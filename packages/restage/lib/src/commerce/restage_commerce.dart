@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:restage_shared/commerce.dart'
     show
+        CommerceFulfillmentSummary,
         CommerceIntentRequest,
         CommerceIntentResponse,
         CommercePurchaserStateRequest,
         CommercePurchaserStateResponse,
+        CommerceResolvedPurchasable,
         CommerceReportRequest,
         CommerceReportResponse,
+        CommerceVerifiedPurchase,
         EntitlementSummary,
         commerceVerificationIdentity;
 
@@ -429,14 +432,20 @@ final class CommercePurchaserState extends CommerceResponse {
   CommercePurchaserState._({
     required this.status,
     List<EntitlementSummary> entitlements = const <EntitlementSummary>[],
+    List<CommerceFulfillmentSummary> fulfillments = const [],
     this.hasProductionPurchaseHistory,
   })  : entitlements = List<EntitlementSummary>.unmodifiable(entitlements),
+        fulfillments =
+            List<CommerceFulfillmentSummary>.unmodifiable(fulfillments),
         super._();
 
   final CommercePurchaserStateStatusCode status;
 
   /// Entitlements last projected by the Restage authority.
   final List<EntitlementSummary> entitlements;
+
+  /// Active fulfillment lines projected by the Restage authority.
+  final List<CommerceFulfillmentSummary> fulfillments;
 
   /// Production purchase history for this app configuration and purchaser.
   /// Includes inactive purchases and purchases without a current entitlement.
@@ -449,11 +458,15 @@ final class CommercePurchaserState extends CommerceResponse {
     if (other is! CommercePurchaserState ||
         other.status != status ||
         other.hasProductionPurchaseHistory != hasProductionPurchaseHistory ||
-        other.entitlements.length != entitlements.length) {
+        other.entitlements.length != entitlements.length ||
+        other.fulfillments.length != fulfillments.length) {
       return false;
     }
     for (var index = 0; index < entitlements.length; index += 1) {
       if (other.entitlements[index] != entitlements[index]) return false;
+    }
+    for (var index = 0; index < fulfillments.length; index += 1) {
+      if (other.fulfillments[index] != fulfillments[index]) return false;
     }
     return true;
   }
@@ -462,6 +475,7 @@ final class CommercePurchaserState extends CommerceResponse {
   int get hashCode => Object.hash(
         status,
         Object.hashAll(entitlements),
+        Object.hashAll(fulfillments),
         hasProductionPurchaseHistory,
       );
 }
@@ -850,6 +864,10 @@ final class _OwnedQueryMember {
   CommerceStoreTransaction transaction;
   int? attemptGeneration;
   _PendingCommerceAdmission? completionAdmission;
+  _RetainedCommerceTransaction? completion;
+  CommercePurchaserStateResponse? verifiedState;
+  List<CommerceVerifiedPurchase>? verifiedPurchases;
+  CommerceVerifiedPurchase? occurrence;
 
   void retainCompletionTransaction(CommerceStoreTransaction candidate) {
     if (!transaction.requiresDeviceCompletion &&
@@ -857,6 +875,26 @@ final class _OwnedQueryMember {
       transaction = candidate;
     }
   }
+}
+
+final class _ReportedCommerceTransaction implements CommerceStoreTransaction {
+  const _ReportedCommerceTransaction(this.report);
+
+  final CommerceReportRecord report;
+
+  @override
+  CommerceStore get store => report.store;
+  @override
+  CommerceStoreTransactionStatus get status =>
+      CommerceStoreTransactionStatus.restored;
+  @override
+  String get storeProductId => report.storeProductId;
+  @override
+  String? get storeTransactionId => report.storeTransactionId;
+  @override
+  String get storeVerificationData => report.storeVerificationData;
+  @override
+  bool get requiresDeviceCompletion => false;
 }
 
 /// Bounds each commerce network or store attempt.
@@ -904,7 +942,6 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     _requestOwnedRecovery();
   }
 
-  static const String _subscriptionProductKind = 'autoRenewableSubscription';
   static const String _defaultConfigurationFingerprint =
       'unscoped-commerce-test-context';
 
@@ -941,13 +978,12 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
   CommerceRuntimeContext? _ownedSnapshotContext;
   String? _ownedSnapshotConfigurationFingerprint;
   String? _ownedSnapshotApplicationAnonymousToken;
-  List<EntitlementSummary> _ownedSnapshotEntitlements =
-      const <EntitlementSummary>[];
+  final Map<String, _OwnedQueryMember> _ownedSnapshotMembers = {};
   bool? _ownedSnapshotHasProductionPurchaseHistory;
   bool _hasObservedProductionPurchaseHistory = false;
   int _stateEpoch = 0;
   int _statePublicationRevision = 0;
-  DateTime? _lastPublishedPurchaserStateAt;
+  CommercePurchaserStateResponse? _latestCanonicalPurchaserState;
   late CommercePurchaserState _lastPublishedPurchaserState = _staleState();
   bool _disposed = false;
 
@@ -1029,7 +1065,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         return _failedAction(CommerceFailureCode.unsupportedResponse);
       }
       final resolved = response.resolved;
-      if (resolved.productKind != _subscriptionProductKind ||
+      if (_resolvedProductKind(resolved) == null ||
           resolved.offerSignature != null) {
         return _failedAction(CommerceFailureCode.unsupportedCapability);
       }
@@ -1046,6 +1082,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         CommerceStorePurchasable(
           product: product,
           applicationAccountToken: resolved.appAccountToken,
+          fulfillmentForm: _fulfillmentFormFor(resolved.fulfillmentForm),
         ),
       );
       return CommerceActionResult._(
@@ -1064,7 +1101,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
           return _unavailableAction(CommerceFailureCode.unsupportedCapability);
         }
         try {
-          final state = await _refresh();
+          final state = await _refresh(restoreAppHistory: true);
           if (state.status != CommercePurchaserStateStatusCode.available) {
             return _failedAction(CommerceFailureCode.unsupportedResponse);
           }
@@ -1077,14 +1114,16 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       });
 
   @override
-  Future<CommercePurchaserState> refresh() => _run(_refresh);
+  Future<CommercePurchaserState> refresh() =>
+      _run(() => _refresh(restoreAppHistory: true));
 
-  Future<CommercePurchaserState> _refresh() async {
+  Future<CommercePurchaserState> _refresh(
+      {bool restoreAppHistory = false}) async {
     if (_disposed) return _staleState();
     final epoch = _stateEpoch;
     final context = _currentContext();
     final queryGeneration = ++_ownedQueryGeneration;
-    _clearOwnedSnapshot();
+    _clearOwnedSnapshot(retainReceipts: true);
     _emit(_staleState());
     final publicationRevision = _statePublicationRevision;
     String? token;
@@ -1112,6 +1151,23 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         return _staleState();
       }
       final members = <String, _OwnedQueryMember>{};
+      if (_hasCurrentOwnedScope(context, token)) {
+        for (final retained in _ownedSnapshotMembers.values) {
+          final key = _transactionKey(
+            retained.transaction,
+            context.configurationFingerprint,
+            token,
+          );
+          final previous = members[key];
+          if (previous == null ||
+              !retained.verifiedState!.retrievedAt
+                  .isBefore(previous.verifiedState!.retrievedAt)) {
+            members[key] = _OwnedQueryMember(retained.transaction)
+              ..completion = retained.completion
+              ..verifiedState = retained.verifiedState;
+          }
+        }
+      }
       for (final transaction in queried) {
         if (!_isReportableTransaction(transaction)) {
           throw StateError('Owned transaction snapshot is incomplete');
@@ -1125,6 +1181,11 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
             .putIfAbsent(key, () => _OwnedQueryMember(transaction))
             .retainCompletionTransaction(transaction);
       }
+      final historyAnchor = restoreAppHistory &&
+              adapter.store == CommerceStore.appStore &&
+              members.isNotEmpty
+          ? members.values.first
+          : null;
       final reportResults = await Future.wait([
         for (final member in members.values)
           _verifyOwnedQueryMember(
@@ -1133,6 +1194,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
             applicationAnonymousToken: token,
             epoch: epoch,
             queryGeneration: queryGeneration,
+            restoreAppHistory: identical(member, historyAnchor),
           ),
       ]).within(_attemptDeadline);
       if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
@@ -1143,8 +1205,9 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       )) {
         throw StateError('Owned transaction attempt was not query-scoped');
       }
-      final scopedEntitlements = <EntitlementSummary>[];
       final reportedStates = <CommercePurchaserStateResponse>[];
+      var memberIndex = 0;
+      final verifiedMembers = members.values.toList(growable: false);
       for (final response in reportResults) {
         final verified = response?.verifiedPurchaseState;
         if (response?.outcome != 'verified' ||
@@ -1153,7 +1216,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
           throw StateError('Owned transaction was not freshly verified');
         }
         reportedStates.addAll([response!.purchaserState, verified]);
-        scopedEntitlements.addAll(verified.entitlements);
+        verifiedMembers[memberIndex++].verifiedState = verified;
         _rememberProductionPurchaseHistory([response.purchaserState, verified]);
       }
       final knownTransactionIds = await _knownTransactionIds(
@@ -1178,7 +1241,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         throw StateError('Canonical purchaser state is unavailable');
       }
       if (response.status != 'current') {
-        _clearOwnedSnapshot();
+        _clearOwnedSnapshot(retainReceipts: true);
         return _emitFreshState(
           response,
           context: context,
@@ -1187,19 +1250,21 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         );
       }
       _rememberProductionPurchaseHistory([response, ...reportedStates]);
-      final lastPublishedAt = _lastPublishedPurchaserStateAt;
-      if (lastPublishedAt != null &&
-          response.retrievedAt.isBefore(lastPublishedAt)) {
-        _clearOwnedSnapshot();
+      var receiptUpdates = false;
+      for (final member in verifiedMembers) {
+        receiptUpdates = _mergeVerifiedReceipt(member) || receiptUpdates;
+      }
+      final latest = _latestCanonicalPurchaserState;
+      if (latest != null &&
+          response.retrievedAt.isBefore(latest.retrievedAt) &&
+          !receiptUpdates) {
+        _clearOwnedSnapshot(retainReceipts: true);
         return _publishObservedProductionPurchaseHistory();
       }
       _ownedSnapshotCurrent = true;
       _ownedSnapshotContext = context;
       _ownedSnapshotConfigurationFingerprint = context.configurationFingerprint;
       _ownedSnapshotApplicationAnonymousToken = token;
-      _ownedSnapshotEntitlements = List<EntitlementSummary>.unmodifiable(
-        scopedEntitlements,
-      );
       _ownedSnapshotHasProductionPurchaseHistory = _mergeProductionHistory(
         reportedStates.map(_productionPurchaseHistory),
       );
@@ -1207,6 +1272,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         response,
         context: context,
         applicationAnonymousToken: token,
+        reprojectOwnedSnapshot: receiptUpdates,
       );
       _ownedRecoveryAttempt = 0;
       _nextOwnedRecoveryAt = null;
@@ -1215,7 +1281,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
         return _staleState();
       }
-      _clearOwnedSnapshot();
+      _clearOwnedSnapshot(retainReceipts: true);
       return _emitStaleIfUnchanged(publicationRevision);
     }
   }
@@ -1290,11 +1356,32 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       (product) =>
           product.store == adapter.store &&
           product.storeProductId == resolved.storeProductId &&
-          product.kind == CommerceStoreProductKind.subscription &&
+          product.kind == _resolvedProductKind(resolved) &&
           product.basePlanId == resolved.basePlanId &&
           product.storeOfferIdentifier == resolved.storeOfferIdentifier,
     );
     return matches.length == 1 ? matches.single : null;
+  }
+
+  CommerceStoreProductKind? _resolvedProductKind(
+    CommerceResolvedPurchasable resolved,
+  ) {
+    if (resolved.productKind == 'autoRenewableSubscription') {
+      return resolved.fulfillmentForm == null
+          ? CommerceStoreProductKind.subscription
+          : null;
+    }
+    final form = _fulfillmentFormFor(resolved.fulfillmentForm);
+    if (form == null) return null;
+    if (adapter.store == CommerceStore.appStore &&
+        resolved.productKind == resolved.fulfillmentForm) {
+      return form;
+    }
+    if (adapter.store == CommerceStore.playStore &&
+        resolved.productKind == 'oneTime') {
+      return CommerceStoreProductKind.oneTime;
+    }
+    return null;
   }
 
   void _recordTransactionFromStore(CommerceStoreTransaction transaction) {
@@ -1535,6 +1622,8 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         const <_RetainedCommerceTransaction>[]) {
       admission.observeCompletion(observed);
     }
+    final completion = member.completion;
+    if (completion != null) admission.observeCompletion(completion);
     member.completionAdmission = admission;
     _captureObservedCompletions(admission);
     _admit(admission);
@@ -1547,6 +1636,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     required String applicationAnonymousToken,
     required int epoch,
     required int queryGeneration,
+    required bool restoreAppHistory,
   }) async {
     String? reservedReportId;
     try {
@@ -1579,14 +1669,18 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         throw StateError('Owned transaction query context changed');
       }
       member.attemptGeneration = queryGeneration;
+      member.completion = _transactionsByReportId[record.reportId];
       _ownedQueryReservedReportIds.remove(record.reportId);
       reservedReportId = null;
-      return await _startReportAttempt(
+      final response = await _startReportAttempt(
         record,
         context: context,
         epoch: epoch,
         publishPurchaserState: false,
+        restoreAppHistory: restoreAppHistory,
       );
+      member.verifiedPurchases = response?.verifiedPurchases;
+      return response;
     } finally {
       member.completionAdmission = null;
       final reserved = reservedReportId;
@@ -1668,6 +1762,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     required int epoch,
     required bool publishPurchaserState,
     bool requireDurableDue = false,
+    bool restoreAppHistory = false,
   }) {
     final active = _reportAttemptsById[report.reportId];
     if (active != null) return active;
@@ -1678,6 +1773,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       epoch: epoch,
       publishPurchaserState: publishPurchaserState,
       requireDurableDue: requireDurableDue,
+      restoreAppHistory: restoreAppHistory,
     ).whenComplete(() {
       if (identical(_reportAttemptsById[report.reportId], attempt)) {
         _reportAttemptsById.remove(report.reportId);
@@ -1696,6 +1792,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     required int epoch,
     required bool publishPurchaserState,
     required bool requireDurableDue,
+    required bool restoreAppHistory,
   }) async {
     final queue = await _queue();
     var currentReport = report;
@@ -1734,6 +1831,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
               storeProductId: currentReport.storeProductId,
               storeTransactionId: currentReport.storeTransactionId,
               appAnonymousToken: currentReport.applicationAnonymousToken,
+              restoreAppHistory: restoreAppHistory,
             ),
           )
           .within(_attemptDeadline);
@@ -1803,6 +1901,19 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     final verified =
         response.outcome == 'verified' ? response.verifiedPurchaseState : null;
     final additionalPurchaseStates = [if (verified != null) verified];
+    var receiptUpdates = false;
+    if (publishPurchaserState &&
+        verified?.status == 'current' &&
+        response.verifiedPurchases != null) {
+      final completion = _transactionsByReportId[report.reportId];
+      receiptUpdates = _mergeVerifiedReceipt(_OwnedQueryMember(
+        completion?.transaction ?? _ReportedCommerceTransaction(report),
+      )
+        ..completion = completion
+        ..verifiedState = verified
+        ..verifiedPurchases = response.verifiedPurchases);
+      _ownedSnapshotCurrent = true;
+    }
     if (publishPurchaserState &&
         _hasCurrentOwnedSnapshot(context, report.applicationAnonymousToken)) {
       _emitFreshState(
@@ -1810,6 +1921,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         context: context,
         applicationAnonymousToken: report.applicationAnonymousToken,
         additionalPurchaseStates: additionalPurchaseStates,
+        reprojectOwnedSnapshot: receiptUpdates,
       );
     } else {
       _rememberProductionPurchaseHistory([
@@ -2032,9 +2144,12 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
   void _invalidateState({bool resetProductionHistory = true}) {
     _stateEpoch += 1;
     _ownedQueryGeneration += 1;
-    _clearOwnedSnapshot(clearScope: resetProductionHistory);
+    _clearOwnedSnapshot(
+      clearScope: resetProductionHistory,
+      retainReceipts: !resetProductionHistory,
+    );
     if (resetProductionHistory) _hasObservedProductionPurchaseHistory = false;
-    _lastPublishedPurchaserStateAt = null;
+    _latestCanonicalPurchaserState = null;
     _lastPublishedPurchaserState = _staleState();
     _emit(_lastPublishedPurchaserState);
   }
@@ -2045,21 +2160,22 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     required String applicationAnonymousToken,
     Iterable<CommercePurchaserStateResponse> additionalPurchaseStates =
         const [],
+    bool reprojectOwnedSnapshot = false,
   }) {
     _rememberProductionPurchaseHistory([response, ...additionalPurchaseStates]);
-    final last = _lastPublishedPurchaserStateAt;
-    if (last != null && response.retrievedAt.isBefore(last)) {
+    final canonical = _rememberCanonicalState(response);
+    if (response.retrievedAt.isBefore(canonical.retrievedAt) &&
+        !reprojectOwnedSnapshot) {
       return _publishObservedProductionPurchaseHistory();
     }
-    _lastPublishedPurchaserStateAt = response.retrievedAt;
     _lastPublishedPurchaserState = _project(
       _withOwnedSnapshot(
-        response,
+        canonical,
         context: context,
         applicationAnonymousToken: applicationAnonymousToken,
         hasProductionPurchaseHistory: _mergeProductionHistory([
           if (_hasObservedProductionPurchaseHistory) true,
-          _productionPurchaseHistory(response),
+          _productionPurchaseHistory(canonical),
           ...additionalPurchaseStates.map(_productionPurchaseHistory),
           if (_hasCurrentOwnedSnapshot(context, applicationAnonymousToken))
             _ownedSnapshotHasProductionPurchaseHistory,
@@ -2067,6 +2183,16 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       ),
     );
     return _emit(_lastPublishedPurchaserState);
+  }
+
+  CommercePurchaserStateResponse _rememberCanonicalState(
+    CommercePurchaserStateResponse response,
+  ) {
+    final latest = _latestCanonicalPurchaserState;
+    if (latest == null || !response.retrievedAt.isBefore(latest.retrievedAt)) {
+      _latestCanonicalPurchaserState = response;
+    }
+    return _latestCanonicalPurchaserState!;
   }
 
   bool _hasCurrentOwnedSnapshot(
@@ -2097,12 +2223,142 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       entitlements: _selectEntitlements([
         ...canonical.entitlements,
         if (_hasCurrentOwnedSnapshot(context, applicationAnonymousToken))
-          ..._ownedSnapshotEntitlements,
+          ..._snapshotEntitlements(),
+      ], hasProductionPurchaseHistory: hasProductionPurchaseHistory),
+      fulfillments: _selectFulfillments([
+        ...canonical.fulfillments,
+        if (_hasCurrentOwnedSnapshot(context, applicationAnonymousToken))
+          for (final member in _ownedSnapshotMembers.values)
+            if (!_occurrenceExpired(member))
+              ...member.verifiedState!.fulfillments,
       ], hasProductionPurchaseHistory: hasProductionPurchaseHistory),
       retrievedAt: canonical.retrievedAt,
       hasProductionPurchaseHistory: hasProductionPurchaseHistory,
     );
   }
+
+  String _snapshotTransactionKey(CommerceStoreTransaction transaction) {
+    final identity = transaction.store == CommerceStore.appStore
+        ? transaction.storeTransactionId!
+        : commerceVerificationIdentity(
+            transaction.store.value, transaction.storeVerificationData!);
+    return '${transaction.store.value}\u0000$identity';
+  }
+
+  bool _occurrenceExpired(_OwnedQueryMember member) {
+    final occurrence = member.occurrence;
+    return occurrence?.kind == 'oneTimePurchase' &&
+        occurrence!.outcome == 'granted' &&
+        occurrence.expiresAtMs != null &&
+        _now().millisecondsSinceEpoch >= occurrence.expiresAtMs!;
+  }
+
+  Iterable<EntitlementSummary> _snapshotEntitlements() sync* {
+    for (final member in _ownedSnapshotMembers.values) {
+      final expired = _occurrenceExpired(member);
+      for (final entitlement in member.verifiedState!.entitlements) {
+        if (expired && entitlement.status == 'active') {
+          yield EntitlementSummary(
+            entitlementId: entitlement.entitlementId,
+            status: 'expired',
+            productId: entitlement.productId,
+            source: entitlement.source,
+            providerEnvironment: entitlement.providerEnvironment,
+            expiresAtMs: entitlement.expiresAtMs,
+          );
+        } else {
+          yield entitlement;
+        }
+      }
+    }
+  }
+
+  bool _mergeVerifiedReceipt(_OwnedQueryMember member) {
+    final purchases = member.verifiedPurchases;
+    if (purchases == null) {
+      final sourceKey = _snapshotTransactionKey(member.transaction);
+      if (_ownedSnapshotMembers.values.any((retained) =>
+          retained.occurrence != null &&
+          _snapshotTransactionKey(retained.transaction) == sourceKey)) {
+        return false;
+      }
+      final state = member.verifiedState!;
+      return _replaceSnapshotMember(
+        'aggregate\u0000${_snapshotTransactionKey(member.transaction)}',
+        _OwnedQueryMember(member.transaction)
+          ..completion = member.completion
+          ..verifiedState = CommercePurchaserStateResponse(
+            status: state.status,
+            entitlements: state.entitlements,
+            retrievedAt: state.retrievedAt,
+            hasProductionPurchaseHistory: state.hasProductionPurchaseHistory,
+          ),
+      );
+    }
+    var updated = false;
+    if (purchases.isNotEmpty) {
+      updated = _ownedSnapshotMembers.remove(
+            'aggregate\u0000${_snapshotTransactionKey(member.transaction)}',
+          ) !=
+          null;
+    }
+    for (final purchase in purchases) {
+      final key =
+          '${member.transaction.store.value}\u0000${purchase.providerEnvironment}\u0000${purchase.storeTransactionId}';
+      final state = CommercePurchaserStateResponse(
+        status: 'current',
+        entitlements: purchase.entitlements,
+        fulfillments: purchase.fulfillments,
+        retrievedAt: member.verifiedState!.retrievedAt,
+        hasProductionPurchaseHistory:
+            member.verifiedState!.hasProductionPurchaseHistory,
+      );
+      if (purchase.providerEnvironment == 'production') {
+        _hasObservedProductionPurchaseHistory = true;
+      }
+      updated = _replaceSnapshotMember(
+              key,
+              _OwnedQueryMember(member.transaction)
+                ..completion = member.completion
+                ..verifiedState = state
+                ..occurrence = purchase) ||
+          updated;
+    }
+    return updated;
+  }
+
+  bool _replaceSnapshotMember(String key, _OwnedQueryMember member) {
+    final state = member.verifiedState!;
+    final previous = _ownedSnapshotMembers[key];
+    final occurrence = member.occurrence;
+    if (occurrence?.kind == 'oneTimePurchase') {
+      final retained = previous?.occurrence;
+      if (retained?.kind == 'oneTimePurchase') {
+        final order =
+            occurrence!.outcomeOrder!.compareTo(retained!.outcomeOrder!);
+        if (order < 0 ||
+            (order == 0 &&
+                _oneTimeOutcomePrecedence(occurrence.outcome) <
+                    _oneTimeOutcomePrecedence(retained.outcome))) {
+          return false;
+        }
+      }
+    } else if (previous != null &&
+        state.retrievedAt.isBefore(previous.verifiedState!.retrievedAt)) {
+      return false;
+    }
+    _rememberProductionPurchaseHistory([state]);
+    // Empty signed outcomes retain their proof and ordering, but grant nothing.
+    _ownedSnapshotMembers[key] = member;
+    return true;
+  }
+
+  int _oneTimeOutcomePrecedence(String outcome) => switch (outcome) {
+        'revoked' => 3,
+        'refunded' => 2,
+        'expired' => 1,
+        _ => 0,
+      };
 
   void _bindOwnedScope(CommerceRuntimeContext context, String token) {
     if (_ownedSnapshotConfigurationFingerprint != null &&
@@ -2110,6 +2366,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
                 context.configurationFingerprint ||
             _ownedSnapshotApplicationAnonymousToken != token)) {
       _clearOwnedSnapshot();
+      _latestCanonicalPurchaserState = null;
       _hasObservedProductionPurchaseHistory = false;
     }
     if (!_ownedSnapshotCurrent) _ownedSnapshotContext = context;
@@ -2117,14 +2374,15 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     _ownedSnapshotApplicationAnonymousToken = token;
   }
 
-  void _clearOwnedSnapshot({bool clearScope = false}) {
+  void _clearOwnedSnapshot(
+      {bool clearScope = false, bool retainReceipts = false}) {
     _ownedSnapshotCurrent = false;
     if (clearScope) {
       _ownedSnapshotContext = null;
       _ownedSnapshotConfigurationFingerprint = null;
       _ownedSnapshotApplicationAnonymousToken = null;
     }
-    _ownedSnapshotEntitlements = const <EntitlementSummary>[];
+    if (!retainReceipts) _ownedSnapshotMembers.clear();
     _ownedSnapshotHasProductionPurchaseHistory = null;
   }
 
@@ -2148,6 +2406,10 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         previous.entitlements,
         hasProductionPurchaseHistory: true,
       ),
+      fulfillments: _selectFulfillments(
+        previous.fulfillments,
+        hasProductionPurchaseHistory: true,
+      ),
       hasProductionPurchaseHistory: true,
     ));
   }
@@ -2167,6 +2429,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         _ => CommercePurchaserStateStatusCode.unknown,
       },
       entitlements: response.entitlements,
+      fulfillments: response.fulfillments,
       hasProductionPurchaseHistory: response.hasProductionPurchaseHistory,
     );
   }
@@ -2220,10 +2483,35 @@ List<EntitlementSummary> _selectEntitlements(
   return result;
 }
 
+List<CommerceFulfillmentSummary> _selectFulfillments(
+  Iterable<CommerceFulfillmentSummary> candidates, {
+  required bool? hasProductionPurchaseHistory,
+}) {
+  final selected = <String, CommerceFulfillmentSummary>{};
+  for (final candidate in candidates) {
+    if (candidate.providerEnvironment == 'sandbox' &&
+        hasProductionPurchaseHistory == true) continue;
+    selected.putIfAbsent(candidate.id, () => candidate);
+  }
+  return selected.values.toList(growable: false)
+    ..sort((left, right) => left.id.compareTo(right.id));
+}
+
+CommerceStoreProductKind? _fulfillmentFormFor(String? form) => switch (form) {
+      'consumable' => CommerceStoreProductKind.consumable,
+      'nonConsumable' => CommerceStoreProductKind.nonConsumable,
+      'nonRenewingSubscription' =>
+        CommerceStoreProductKind.nonRenewingSubscription,
+      _ => null,
+    };
+
 bool? _productionPurchaseHistory(CommercePurchaserStateResponse state) {
   if (state.hasProductionPurchaseHistory == true ||
       state.entitlements.any(
         (entitlement) => entitlement.providerEnvironment == 'production',
+      ) ||
+      state.fulfillments.any(
+        (fulfillment) => fulfillment.providerEnvironment == 'production',
       )) {
     return true;
   }

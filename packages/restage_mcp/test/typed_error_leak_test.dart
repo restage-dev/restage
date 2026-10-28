@@ -5,6 +5,7 @@ import 'package:dart_mcp/client.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage_cli/api.dart';
+import 'package:restage_mcp/src/api_runner.dart' show jsonResult;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -17,6 +18,30 @@ import '_support/harness.dart';
 /// catch does NOT catch it), so without a guard it reaches the MCP framework's
 /// catch-all and the Dart stack trace is forwarded to the client.
 void main() {
+  for (final count in <int?>[0, 7, null]) {
+    test('CLI to MCP preserves optional item count $count', () async {
+      final payload = <String, Object?>{
+        'name': 'Example',
+        if (count != null) 'itemCount': count,
+      };
+      final api = RestageApi(
+        endpoint: Uri.parse('https://api.test/'),
+        httpClient: MockClient(
+          (_) async => http.Response(jsonEncode(payload), 200),
+        ),
+      );
+      addTearDown(api.close);
+      final decoded = await api.call('example', 'getSummary', {'id': 1});
+      final result = jsonResult(Map<String, Object?>.from(decoded as Map));
+      expect(result.structuredContent, payload);
+      final roundTrip =
+          jsonDecode((result.content.single as TextContent).text) as Map;
+      expect(roundTrip, payload);
+      expect(roundTrip['itemCount'], count);
+      expect(roundTrip.containsKey('itemCount'), count != null);
+    });
+  }
+
   late Directory tempDir;
   late FileCredentialStore store;
 

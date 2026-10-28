@@ -24,4 +24,5 @@ export 'src/commerce/commerce_store_adapter.dart'
         CommerceStorePurchasable,
         CommerceStoreTransaction,
         CommerceStoreTransactionStatus;
-export 'package:restage_shared/commerce.dart' show EntitlementSummary;
+export 'package:restage_shared/commerce.dart'
+    show EntitlementSummary, CommerceFulfillmentSummary;

@@ -6,6 +6,43 @@ const _intentId = '550e8400-e29b-41d4-a716-446655440000';
 const _token = '550e8400-e29b-41d4-a716-446655440001';
 
 void main() {
+  test(
+      'resolved one-time fulfillment form is additive and preserves future values',
+      () {
+    for (final form in [
+      null,
+      'consumable',
+      'nonConsumable',
+      'nonRenewingSubscription',
+      'futureForm'
+    ]) {
+      final value = CommerceResolvedPurchasable(
+          storeProductId: 'store.product',
+          productKind: 'oneTime',
+          fulfillmentForm: form,
+          appAccountToken: '65f81e99-48e0-4acf-a532-12a27b6b119c');
+      final decoded = CommerceResolvedPurchasable.fromJson(value.toJson());
+      expect(decoded, value);
+      expect(decoded.hashCode, value.hashCode);
+      expect(decoded.fulfillmentForm, form);
+      expect(value.toJson().containsKey('fulfillmentForm'), form != null);
+    }
+    final json = CommerceResolvedPurchasable(
+            storeProductId: 'store.product',
+            productKind: 'oneTime',
+            appAccountToken: '65f81e99-48e0-4acf-a532-12a27b6b119c')
+        .toJson();
+    final configured = CommerceResolvedPurchasable.fromJson(
+        {...json, 'fulfillmentForm': 'consumable'});
+    expect(configured, isNot(CommerceResolvedPurchasable.fromJson(json)));
+    for (final value in ['', 1, false]) {
+      expect(
+          () => CommerceResolvedPurchasable.fromJson(
+              {...json, 'fulfillmentForm': value}),
+          throwsArgumentError);
+    }
+  });
+
   test('whole mount evidence is additive exact commerce transport', () {
     final local = MountSelectionAttributionV1(
         placementKey: PlacementKeyV1.generatedDefault(
