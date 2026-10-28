@@ -22,6 +22,16 @@ void main() {
     );
 
     expect(request.knownStoreTransactionIds, isEmpty);
+    final purchase = commerce.CommerceVerifiedPurchase(
+      storeTransactionId: 'receipt',
+      productId: 'product',
+      providerEnvironment: 'production',
+      kind: 'subscription',
+      outcome: 'unknown',
+      entitlements: const [],
+    );
+    expect(purchase.fulfillments, isEmpty);
+    expect(purchase.outcomeOrder, isNull);
   });
 }
 

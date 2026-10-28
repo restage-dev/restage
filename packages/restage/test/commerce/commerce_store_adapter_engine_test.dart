@@ -43,6 +43,1161 @@ void main() {
   setUp(Restage.debugReset);
   tearDown(Restage.debugReset);
 
+  test('delayed receipt grant uses newer canonical state before Apple finish',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final queue = CommerceFileReportQueue(directoryPath: directory.path);
+    final line = _fulfillment('delayed-receipt');
+    final refreshStarted = Completer<void>();
+    final releaseRefresh = Completer<http.Response>();
+    final reportStarted = Completer<CommerceReportRequest>();
+    final releaseReport = Completer<http.Response>();
+    final finishStarted = Completer<void>();
+    final releaseFinish = Completer<void>();
+    addTearDown(() {
+      if (!releaseRefresh.isCompleted)
+        releaseRefresh.complete(http.Response('', 503));
+      if (!releaseReport.isCompleted)
+        releaseReport.complete(_jsonResponse(_pendingState().toJson()));
+      if (!releaseFinish.isCompleted) releaseFinish.complete();
+    });
+    var canonicalCalls = 0;
+    final adapter = _TestStoreAdapter(
+      store: CommerceStore.appStore,
+      products: const [],
+      onComplete: (_) async {
+        finishStarted.complete();
+        expect(Restage.commerce.currentState.fulfillments, [line]);
+        expect(Restage.commerce.currentState.entitlements, isEmpty);
+        expect(await queue.open(), hasLength(1));
+        await releaseFinish.future;
+      },
+    );
+    addTearDown(adapter.close);
+    _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state')) {
+            canonicalCalls++;
+            if (canonicalCalls == 1)
+              return _jsonResponse(_purchaserState(
+                      entitlements: const [],
+                      retrievedAt: DateTime.utc(2026, 10, 20))
+                  .toJson());
+            refreshStarted.complete();
+            return releaseRefresh.future;
+          }
+          reportStarted.complete(CommerceReportRequest.fromJson(
+              jsonDecode(request.body) as Map<String, dynamic>));
+          return releaseReport.future;
+        }));
+    await _waitFor(() =>
+        Restage.commerce.currentState.status ==
+        CommercePurchaserStateStatusCode.available);
+    // The refresh observed no owned receipts before the native purchase arrived.
+    final refresh = Restage.commerce.refresh();
+    await refreshStarted.future.timeout(_progressTimeout);
+    adapter.emit(_appleReceipt('delayed', complete: true));
+    final report = await reportStarted.future.timeout(_progressTimeout);
+    releaseRefresh.complete(_jsonResponse(_purchaserState(
+            entitlements: const [], retrievedAt: DateTime.utc(2026, 10, 22))
+        .toJson()));
+    expect((await refresh).fulfillments, isEmpty);
+    releaseReport.complete(_jsonResponse(_scopedReport(
+      ordinaryEntitlements: [_entitlement('obsolete-canonical')],
+      scopedEntitlements: const [],
+      scopedFulfillments: [line],
+      verifiedPurchases: [
+        _verifiedOneTime('delayed', fulfillments: [line])
+      ],
+      retrievedAt: DateTime.utc(2026, 10, 21),
+    ).toJson()));
+    await finishStarted.future.timeout(_progressTimeout);
+    expect(Restage.commerce.currentState.fulfillments, [line]);
+    expect(Restage.commerce.currentState.entitlements, isEmpty);
+    expect(await queue.open(), hasLength(1));
+    expect(report.intentId, isNull);
+    expect(report.restoreAppHistory, isFalse);
+    expect(canonicalCalls, 2);
+    releaseFinish.complete();
+    await _waitFor(() async => (await queue.open()).isEmpty);
+    expect(adapter.completionCalls, 1);
+  });
+
+  test(
+      'receipt-only purchase publishes its grant before Apple finish and queue removal',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final queue = CommerceFileReportQueue(directoryPath: directory.path);
+    final line = _fulfillment('accepted-line', quantity: 3);
+    final finishStarted = Completer<void>();
+    final releaseFinish = Completer<void>();
+    addTearDown(() {
+      if (!releaseFinish.isCompleted) releaseFinish.complete();
+    });
+    final reports = <CommerceReportRequest>[];
+    final adapter = _TestStoreAdapter(
+        store: CommerceStore.appStore,
+        products: const [],
+        onComplete: (_) async {
+          finishStarted.complete();
+          expect(Restage.commerce.currentState.fulfillments, [line]);
+          expect(await queue.open(), hasLength(1));
+          await releaseFinish.future;
+        });
+    addTearDown(adapter.close);
+    _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state'))
+            return _jsonResponse(
+                _purchaserState(entitlements: const []).toJson());
+          reports.add(CommerceReportRequest.fromJson(
+              jsonDecode(request.body) as Map<String, dynamic>));
+          return _jsonResponse(
+              _scopedReport(scopedEntitlements: const [], scopedFulfillments: [
+            line
+          ], verifiedPurchases: [
+            _verifiedOneTime('receipt-only', fulfillments: [line])
+          ]).toJson());
+        }));
+    await _waitFor(() =>
+        Restage.commerce.currentState.status ==
+        CommercePurchaserStateStatusCode.available);
+    adapter.emit(const _TestTransaction(
+        store: CommerceStore.appStore,
+        status: CommerceStoreTransactionStatus.purchased,
+        storeProductId: 'store.product',
+        storeTransactionId: 'receipt-only',
+        storeVerificationData: 'receipt-only.signed.jws',
+        requiresDeviceCompletion: true));
+    await finishStarted.future.timeout(_progressTimeout);
+    expect(reports.single.intentId, isNull);
+    expect(reports.single.restoreAppHistory, isFalse);
+    expect(Restage.commerce.currentState.fulfillments, [line]);
+    releaseFinish.complete();
+    await _waitFor(() async => (await queue.open()).isEmpty);
+    final refreshed = await Restage.commerce.refresh();
+    expect(refreshed.fulfillments, [line]);
+    expect(adapter.completionCalls, 1);
+  });
+
+  test(
+      'receipt-only non-consumable restart rebuilds from signed owned evidence',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final queue = CommerceFileReportQueue(directoryPath: directory.path);
+    final line = _fulfillment('permanent-line');
+    final reports = <CommerceReportRequest>[];
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/purchaser-state'))
+        return _jsonResponse(_purchaserState(entitlements: const []).toJson());
+      reports.add(CommerceReportRequest.fromJson(
+          jsonDecode(request.body) as Map<String, dynamic>));
+      return _jsonResponse(
+          _scopedReport(scopedEntitlements: const [], scopedFulfillments: [
+        line
+      ], verifiedPurchases: [
+        _verifiedOneTime('permanent', fulfillments: [line])
+      ]).toJson());
+    });
+    final first =
+        _TestStoreAdapter(store: CommerceStore.appStore, products: const []);
+    addTearDown(first.close);
+    _activate(
+        adapter: first,
+        queueFactory: () async => queue,
+        usesPurchaserStateHandler: true,
+        client: client);
+    await _waitFor(() =>
+        Restage.commerce.currentState.status ==
+        CommercePurchaserStateStatusCode.available);
+    first.emit(const _TestTransaction(
+        store: CommerceStore.appStore,
+        status: CommerceStoreTransactionStatus.purchased,
+        storeProductId: 'store.product',
+        storeTransactionId: 'permanent',
+        storeVerificationData: 'permanent.signed.jws',
+        requiresDeviceCompletion: true));
+    await _waitFor(
+        () async => first.completionCalls == 1 && (await queue.open()).isEmpty);
+    expect(Restage.commerce.currentState.fulfillments, [line]);
+    await Restage.debugResetAndWait();
+    final restarted = _TestStoreAdapter(
+        store: CommerceStore.appStore,
+        products: const [],
+        ownedTransactions: const [
+          _TestTransaction(
+              store: CommerceStore.appStore,
+              status: CommerceStoreTransactionStatus.restored,
+              storeProductId: 'store.product',
+              storeTransactionId: 'permanent',
+              storeVerificationData: 'permanent.signed.jws',
+              requiresDeviceCompletion: false)
+        ]);
+    addTearDown(restarted.close);
+    _activate(
+        adapter: restarted,
+        journalPath: directory.path,
+        usesPurchaserStateHandler: true,
+        client: client);
+    await _waitFor(() =>
+        Restage.commerce.currentState.status ==
+        CommercePurchaserStateStatusCode.available);
+    expect(Restage.commerce.currentState.fulfillments, [line]);
+    expect(reports, hasLength(2));
+    expect(reports.map((report) => report.reportId).toSet(), hasLength(2));
+    expect(reports.every((report) => report.intentId == null), isTrue);
+    expect(restarted.completionCalls, 0);
+  });
+
+  for (final outcome in ['revoked', 'refunded']) {
+    test(
+        'signed $outcome replaces only its occurrence after same-product app history',
+        () async {
+      final directory =
+          await Directory.systemTemp.createTemp('restage-engine-');
+      addTearDown(() => _deleteAfterCommerceStops(directory));
+      final queue = CommerceFileReportQueue(directoryPath: directory.path);
+      final first = _fulfillment('same-product-first', quantity: 2);
+      final second = _fulfillment('same-product-second', quantity: 3);
+      final reports = <CommerceReportRequest>[];
+      final revokedFinishStarted = Completer<void>();
+      var revoked = false;
+      var queryFails = false;
+      late final _TestStoreAdapter adapter;
+      adapter = _TestStoreAdapter(
+        store: CommerceStore.appStore,
+        products: const [],
+        onQueryOwnedTransactions: () async {
+          if (queryFails) throw StateError('Owned query unavailable');
+          return adapter.ownedTransactions;
+        },
+        onComplete: (_) async {
+          revokedFinishStarted.complete();
+          expect(Restage.commerce.currentState.fulfillments, [second]);
+          expect(await queue.open(), hasLength(1));
+        },
+      );
+      addTearDown(adapter.close);
+      _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          final retrievedAt = DateTime.utc(2026, 10, revoked ? 21 : 20);
+          if (request.url.path.endsWith('/purchaser-state')) {
+            return _jsonResponse(_purchaserState(
+              entitlements: const [],
+              retrievedAt: retrievedAt,
+              hasProductionPurchaseHistory: false,
+            ).toJson());
+          }
+          final report = CommerceReportRequest.fromJson(
+              jsonDecode(request.body) as Map<String, dynamic>);
+          reports.add(report);
+          final purchases = [
+            _verifiedOneTime('occurrence-a',
+                // Product metadata changing cannot create another occurrence.
+                productId: revoked ? 'store.changed' : 'store.product',
+                outcome: revoked ? outcome : 'granted',
+                outcomeOrder: revoked ? 2 : 1,
+                fulfillments: revoked ? const [] : [first]),
+            if (report.restoreAppHistory)
+              _verifiedOneTime('occurrence-b', fulfillments: [second]),
+          ];
+          return _jsonResponse(_scopedReport(
+            scopedEntitlements: const [],
+            scopedFulfillments: [
+              if (!revoked) first,
+              if (report.restoreAppHistory) second,
+            ],
+            verifiedPurchases: purchases,
+            retrievedAt: retrievedAt,
+            scopedProductionPurchaseHistory: false,
+          ).toJson());
+        }),
+      );
+      await _waitFor(() =>
+          Restage.commerce.currentState.status ==
+          CommercePurchaserStateStatusCode.available);
+      // Supply one signed anchor for the explicit history walk.
+      adapter.ownedTransactions = [_appleReceipt('occurrence-a')];
+      expect((await Restage.commerce.restore()).status,
+          CommerceActionStatusCode.submittedForReconciliation);
+      expect(Restage.commerce.currentState.fulfillments, [first, second]);
+      expect(reports.where((report) => report.restoreAppHistory), hasLength(1));
+      revoked = true;
+      adapter.emit(_appleReceipt('occurrence-a',
+          productId: 'store.changed', proof: 'new.signed.jws', complete: true));
+      await revokedFinishStarted.future.timeout(_progressTimeout);
+      expect(Restage.commerce.currentState.fulfillments, [second]);
+      await _waitFor(() async =>
+          adapter.completionCalls == 1 && (await queue.open()).isEmpty);
+      expect(Restage.commerce.currentState.fulfillments, [second]);
+      expect(
+          Restage.commerce.currentState.hasProductionPurchaseHistory, isTrue);
+      expect(reports.last.restoreAppHistory, isFalse);
+      expect(reports.every((report) => report.intentId == null), isTrue);
+      adapter.ownedTransactions = const [];
+      queryFails = true;
+      expect((await Restage.commerce.refresh()).status,
+          CommercePurchaserStateStatusCode.stale);
+      expect(Restage.commerce.currentState.fulfillments, isEmpty);
+      queryFails = false;
+      final beforeRecovery = reports.length;
+      final recovered = await Restage.commerce.refresh();
+      expect(recovered.fulfillments, [second]);
+      expect(recovered.hasProductionPurchaseHistory, isTrue);
+      expect(adapter.completionCalls, 1);
+      expect(reports.last.storeTransactionId, 'occurrence-a');
+      expect(
+          reports
+              .skip(beforeRecovery)
+              .where((report) => report.restoreAppHistory),
+          hasLength(1));
+    });
+  }
+
+  test('older signed purchase cannot replace a newer empty occurrence',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final queue = CommerceFileReportQueue(directoryPath: directory.path);
+    final line = _fulfillment('ordered-line');
+    final oldStarted = Completer<void>();
+    final releaseOld = Completer<http.Response>();
+    addTearDown(() {
+      if (!releaseOld.isCompleted)
+        releaseOld.complete(_jsonResponse(_pendingState().toJson()));
+    });
+    var revoked = false;
+    var reportCalls = 0;
+    final adapter = _TestStoreAdapter(
+        store: CommerceStore.appStore,
+        products: const [],
+        ownedTransactions: [_appleReceipt('ordered')]);
+    addTearDown(adapter.close);
+    _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state')) {
+            return _jsonResponse(_purchaserState(
+                    entitlements: const [],
+                    retrievedAt: DateTime.utc(2026, 10, revoked ? 22 : 20))
+                .toJson());
+          }
+          reportCalls++;
+          final report = CommerceReportRequest.fromJson(
+              jsonDecode(request.body) as Map<String, dynamic>);
+          if (report.storeVerificationData == 'delayed.signed.jws') {
+            oldStarted.complete();
+            return releaseOld.future;
+          }
+          return _jsonResponse(_scopedReport(
+                  scopedEntitlements: const [],
+                  scopedFulfillments: revoked ? const [] : [line],
+                  verifiedPurchases: [
+                    _verifiedOneTime('ordered',
+                        outcome: revoked ? 'revoked' : 'granted',
+                        outcomeOrder: revoked ? 2 : 1,
+                        fulfillments: revoked ? const [] : [line])
+                  ],
+                  retrievedAt: DateTime.utc(2026, 10, revoked ? 22 : 20))
+              .toJson());
+        }));
+    await _waitFor(() => Restage.commerce.currentState.fulfillments.isNotEmpty);
+    adapter.emit(
+        _appleReceipt('ordered', proof: 'delayed.signed.jws', complete: true));
+    await oldStarted.future.timeout(_progressTimeout);
+    revoked = true;
+    expect((await Restage.commerce.refresh()).fulfillments, isEmpty);
+    releaseOld.complete(_jsonResponse(
+        _scopedReport(scopedEntitlements: const [], scopedFulfillments: [
+      line
+    ], verifiedPurchases: [
+      _verifiedOneTime('ordered', fulfillments: [line])
+    ], retrievedAt: DateTime.utc(2026, 10, 23))
+            .toJson()));
+    await _waitFor(() async => (await queue.open()).isEmpty);
+    expect(Restage.commerce.currentState.fulfillments, isEmpty);
+    adapter.ownedTransactions = const [];
+    final beforeRetry = reportCalls;
+    expect((await Restage.commerce.refresh()).fulfillments, isEmpty);
+    expect(reportCalls, beforeRetry + 1);
+    expect(adapter.completionCalls, 1);
+  });
+
+  for (final revokedFirst in [false, true]) {
+    test(
+        'equal occurrence order keeps revoked access independent of arrival: $revokedFirst',
+        () async {
+      final directory =
+          await Directory.systemTemp.createTemp('restage-engine-');
+      addTearDown(() => _deleteAfterCommerceStops(directory));
+      final queue = CommerceFileReportQueue(directoryPath: directory.path);
+      final line = _fulfillment('tied-line');
+      var reports = 0;
+      final adapter =
+          _TestStoreAdapter(store: CommerceStore.appStore, products: const []);
+      addTearDown(adapter.close);
+      _activate(
+          adapter: adapter,
+          queueFactory: () async => queue,
+          usesPurchaserStateHandler: true,
+          client: MockClient((request) async {
+            if (request.url.path.endsWith('/purchaser-state'))
+              return _jsonResponse(_purchaserState(
+                      entitlements: const [],
+                      retrievedAt: DateTime.utc(2026, 10, 20))
+                  .toJson());
+            reports++;
+            final revoked = (reports == 1) == revokedFirst;
+            return _jsonResponse(_scopedReport(
+              scopedEntitlements: const [],
+              scopedFulfillments: revoked ? const [] : [line],
+              verifiedPurchases: [
+                _verifiedOneTime('tied',
+                    outcomeOrder: 7,
+                    outcome: revoked ? 'revoked' : 'granted',
+                    fulfillments: revoked ? const [] : [line])
+              ],
+              retrievedAt: DateTime.utc(2026, 10, 20 + reports),
+            ).toJson());
+          }));
+      await _waitFor(() =>
+          Restage.commerce.currentState.status ==
+          CommercePurchaserStateStatusCode.available);
+      adapter.emit(_appleReceipt('tied', proof: 'first.signed.jws'));
+      await _waitFor(() async => reports == 1 && (await queue.open()).isEmpty);
+      expect(Restage.commerce.currentState.fulfillments,
+          revokedFirst ? isEmpty : [line]);
+      adapter.emit(_appleReceipt('tied', proof: 'second.signed.jws'));
+      await _waitFor(() async => reports == 2 && (await queue.open()).isEmpty);
+      expect(Restage.commerce.currentState.fulfillments, isEmpty);
+      expect(
+          Restage.commerce.currentState.hasProductionPurchaseHistory, isTrue);
+    });
+  }
+
+  test(
+      'grouped subscription replaces its legacy aggregate while omission grants no authority',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final queue = CommerceFileReportQueue(directoryPath: directory.path);
+    final legacy =
+        _entitlement('legacy-subscription', productId: 'store.product');
+    var grouped = false;
+    var revoke = false;
+    var reportCalls = 0;
+    final adapter = _TestStoreAdapter(
+        store: CommerceStore.appStore,
+        products: const [],
+        ownedTransactions: [_appleReceipt('legacy')]);
+    addTearDown(adapter.close);
+    _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state')) {
+            return _jsonResponse(
+                _purchaserState(entitlements: const []).toJson());
+          }
+          reportCalls++;
+          return _jsonResponse(_scopedReport(
+            scopedEntitlements: revoke ? const [] : [legacy],
+            verifiedPurchases: !grouped
+                ? null
+                : [
+                    if (revoke)
+                      CommerceVerifiedPurchase(
+                          storeTransactionId: 'legacy',
+                          productId: 'store.product',
+                          providerEnvironment: 'production',
+                          kind: 'subscription',
+                          outcome: 'expired',
+                          entitlements: const []),
+                  ],
+          ).toJson());
+        }));
+    await _waitFor(() => Restage.commerce.currentState.entitlements.isNotEmpty);
+    grouped = true;
+    adapter.emit(_appleReceipt('legacy', proof: 'empty-group.signed.jws'));
+    await _waitFor(
+        () async => reportCalls == 2 && (await queue.open()).isEmpty);
+    expect(Restage.commerce.currentState.entitlements, [legacy]);
+    revoke = true;
+    adapter.emit(_appleReceipt('legacy', proof: 'expired.signed.jws'));
+    await _waitFor(
+        () async => reportCalls == 3 && (await queue.open()).isEmpty);
+    expect(Restage.commerce.currentState.entitlements, isEmpty);
+    expect(Restage.commerce.currentState.hasProductionPurchaseHistory, isTrue);
+    grouped = false;
+    revoke = false;
+    expect((await Restage.commerce.refresh()).entitlements, isEmpty);
+  });
+
+  test(
+      'retained non-renewing occurrence expires without an entitlement mapping',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final line = _fulfillment('timed-line');
+    var now = DateTime.utc(2026, 10, 20);
+    final expiresAt = now.add(const Duration(hours: 1));
+    final adapter = _TestStoreAdapter(
+        store: CommerceStore.appStore,
+        products: const [],
+        ownedTransactions: [_appleReceipt('timed')]);
+    addTearDown(adapter.close);
+    _activate(
+        adapter: adapter,
+        journalPath: directory.path,
+        clock: () => now,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async => _jsonResponse(request.url.path
+                .endsWith('/purchaser-state')
+            ? _purchaserState(entitlements: const [], retrievedAt: now).toJson()
+            : _scopedReport(
+                scopedEntitlements: const [],
+                scopedFulfillments: [line],
+                retrievedAt: now,
+                verifiedPurchases: [
+                  _verifiedOneTime('timed',
+                      fulfillments: [line],
+                      expiresAtMs: expiresAt.millisecondsSinceEpoch)
+                ]).toJson())));
+    await _waitFor(() => Restage.commerce.currentState.fulfillments.isNotEmpty);
+    adapter.ownedTransactions = const [];
+    now = expiresAt;
+    expect((await Restage.commerce.refresh()).fulfillments, isEmpty);
+    expect(Restage.commerce.currentState.hasProductionPurchaseHistory, isTrue);
+  });
+
+  for (final store in [CommerceStore.appStore, CommerceStore.playStore]) {
+    test(
+        'app-history restore flags one Apple anchor per explicit cycle and no background reports: $store',
+        () async {
+      final directory =
+          await Directory.systemTemp.createTemp('restage-engine-');
+      addTearDown(() => _deleteAfterCommerceStops(directory));
+      final queue = CommerceFileReportQueue(directoryPath: directory.path);
+      final receipts = [
+        _ownedTransaction('first', store),
+        _ownedTransaction('second', store),
+        _ownedTransaction('third', store)
+      ];
+      final adapter = _TestStoreAdapter(
+          store: store, products: const [], ownedTransactions: receipts);
+      addTearDown(adapter.close);
+      final reports = <CommerceReportRequest>[];
+      _activate(
+          adapter: adapter,
+          queueFactory: () async => queue,
+          usesPurchaserStateHandler: true,
+          client: MockClient((request) async {
+            if (request.url.path.endsWith('/purchaser-state'))
+              return _jsonResponse(
+                  _purchaserState(entitlements: const []).toJson());
+            reports.add(CommerceReportRequest.fromJson(
+                jsonDecode(request.body) as Map<String, dynamic>));
+            return _jsonResponse(
+                _scopedReport(scopedEntitlements: const []).toJson());
+          }));
+      await _waitFor(() =>
+          Restage.commerce.currentState.status ==
+          CommercePurchaserStateStatusCode.available);
+      expect(reports, hasLength(3));
+      expect(reports.every((report) => !report.restoreAppHistory), isTrue);
+      reports.clear();
+      expect((await Restage.commerce.restore()).status,
+          CommerceActionStatusCode.submittedForReconciliation);
+      expect(reports, hasLength(3));
+      expect(reports.where((report) => report.restoreAppHistory),
+          hasLength(store == CommerceStore.appStore ? 1 : 0));
+      expect(reports.map((report) => report.storeTransactionId).toSet(),
+          receipts.map((receipt) => receipt.storeTransactionId).toSet());
+      reports.clear();
+      expect((await Restage.commerce.refresh()).status,
+          CommercePurchaserStateStatusCode.available);
+      expect(reports, hasLength(3));
+      expect(reports.where((report) => report.restoreAppHistory),
+          hasLength(store == CommerceStore.appStore ? 1 : 0));
+      reports.clear();
+      notifyRestageCommerceForegrounded();
+      await _waitFor(
+          () async => reports.length == 3 && (await queue.open()).isEmpty);
+      expect(reports.every((report) => !report.restoreAppHistory), isTrue);
+      await _waitFor(() =>
+          Restage.commerce.currentState.status ==
+          CommercePurchaserStateStatusCode.available);
+      reports.clear();
+      adapter.emit(_ownedTransaction('purchase', store));
+      await _waitFor(
+          () async => reports.length == 1 && (await queue.open()).isEmpty);
+      expect(reports.single.restoreAppHistory, isFalse);
+    });
+  }
+
+  test(
+      'app-history restore waits for an ordinary singleflight before sending its flagged anchor',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final admitted = Completer<CommerceReportRecord>();
+    final queue = _ObserveCompletedEnqueueQueue(
+        CommerceFileReportQueue(directoryPath: directory.path), 2, admitted);
+    final ordinaryStarted = Completer<CommerceReportRequest>();
+    final ordinaryRelease = Completer<http.Response>();
+    final flaggedStarted = Completer<CommerceReportRequest>();
+    final flaggedRelease = Completer<http.Response>();
+    addTearDown(() {
+      if (!ordinaryRelease.isCompleted)
+        ordinaryRelease.complete(_jsonResponse(_pendingState().toJson()));
+      if (!flaggedRelease.isCompleted)
+        flaggedRelease.complete(_jsonResponse(_pendingState().toJson()));
+    });
+    final adapter =
+        _TestStoreAdapter(store: CommerceStore.appStore, products: const []);
+    addTearDown(adapter.close);
+    final reports = <CommerceReportRequest>[];
+    _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state'))
+            return _jsonResponse(
+                _purchaserState(entitlements: const []).toJson());
+          final report = CommerceReportRequest.fromJson(
+              jsonDecode(request.body) as Map<String, dynamic>);
+          reports.add(report);
+          if (reports.length == 1) {
+            ordinaryStarted.complete(report);
+            return ordinaryRelease.future;
+          }
+          flaggedStarted.complete(report);
+          return flaggedRelease.future;
+        }));
+    await _waitFor(() =>
+        Restage.commerce.currentState.status ==
+        CommercePurchaserStateStatusCode.available);
+    adapter.emit(_applePendingTransaction);
+    final ordinary = await ordinaryStarted.future.timeout(_progressTimeout);
+    expect(ordinary.restoreAppHistory, isFalse);
+    adapter.ownedTransactions = const [_applePendingTransaction];
+    final restore = Restage.commerce.restore();
+    final colliding = await admitted.future.timeout(_progressTimeout);
+    expect(colliding.reportId, ordinary.reportId);
+    expect(reports, hasLength(1));
+    expect(adapter.completionCalls, 0);
+    ordinaryRelease.complete(_jsonResponse(
+        _scopedReport(scopedEntitlements: const [], scopedFulfillments: [
+      _fulfillment('exact')
+    ], verifiedPurchases: [
+      _verifiedOneTime(ordinary.storeTransactionId!,
+          fulfillments: [_fulfillment('exact')])
+    ]).toJson()));
+    final next = await Future.any([
+      restore.then((_) => 'restore completed'),
+      flaggedStarted.future.then((_) => 'flagged anchor sent'),
+    ]).timeout(_progressTimeout);
+    expect(next, 'flagged anchor sent');
+    final flagged = await flaggedStarted.future;
+    expect(flagged.restoreAppHistory, isTrue);
+    expect(flagged.reportId, isNot(ordinary.reportId));
+    expect(flagged.storeTransactionId, ordinary.storeTransactionId);
+    expect(reports, hasLength(2));
+    flaggedRelease.complete(_jsonResponse(
+        _scopedReport(scopedEntitlements: const [], scopedFulfillments: [
+      _fulfillment('exact'),
+      _fulfillment('history')
+    ], verifiedPurchases: [
+      _verifiedOneTime(flagged.storeTransactionId!,
+          fulfillments: [_fulfillment('exact')]),
+      _verifiedOneTime('history-transaction',
+          fulfillments: [_fulfillment('history')]),
+    ]).toJson()));
+    expect((await restore.timeout(_progressTimeout)).status,
+        CommerceActionStatusCode.submittedForReconciliation);
+    expect(Restage.commerce.currentState.fulfillments.map((line) => line.id),
+        ['exact', 'history']);
+    expect(adapter.completionCalls, 1);
+    expect(await queue.open(), isEmpty);
+  });
+
+  test(
+      'app-history restore replays the retained flagged anchor before finishing',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final clock = _HeldClock();
+    final queue = CommerceFileReportQueue(
+        directoryPath: directory.path, clock: clock.now);
+    final adapter =
+        _TestStoreAdapter(store: CommerceStore.appStore, products: const []);
+    addTearDown(adapter.close);
+    final reports = <CommerceReportRequest>[];
+    _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        clock: clock.now,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state'))
+            return _jsonResponse(
+                _purchaserState(entitlements: const []).toJson());
+          reports.add(CommerceReportRequest.fromJson(
+              jsonDecode(request.body) as Map<String, dynamic>));
+          if (reports.length == 1)
+            throw StateError('History request interrupted');
+          return _jsonResponse(
+              _scopedReport(scopedEntitlements: const []).toJson());
+        }));
+    await _waitFor(() =>
+        Restage.commerce.currentState.status ==
+        CommercePurchaserStateStatusCode.available);
+    adapter.ownedTransactions = [
+      _ownedTransaction('anchor', CommerceStore.appStore)
+    ];
+    expect((await Restage.commerce.restore()).status,
+        CommerceActionStatusCode.failed);
+    expect(adapter.completionCalls, 0);
+    expect((await queue.open()).single.reportId, reports.single.reportId);
+    expect((await Restage.commerce.restore()).status,
+        CommerceActionStatusCode.submittedForReconciliation);
+    expect(reports, hasLength(2));
+    expect(reports.every((report) => report.restoreAppHistory), isTrue);
+    expect(reports.map((report) => report.reportId).toSet(), hasLength(1));
+    expect(adapter.completionCalls, 1);
+    expect(await queue.open(), isEmpty);
+  });
+
+  for (final failedAnchor in [true, false]) {
+    test(
+        'app-history restore verifies each Apple completion independently when ${failedAnchor ? 'anchor' : 'another receipt'} fails',
+        () async {
+      final directory =
+          await Directory.systemTemp.createTemp('restage-engine-');
+      addTearDown(() => _deleteAfterCommerceStops(directory));
+      final clock = _HeldClock();
+      final queue = CommerceFileReportQueue(
+          directoryPath: directory.path, clock: clock.now);
+      final receipts = [
+        _ownedTransaction('anchor', CommerceStore.appStore),
+        _ownedTransaction('other', CommerceStore.appStore)
+      ];
+      final finished = <String?>[];
+      final adapter = _TestStoreAdapter(
+          store: CommerceStore.appStore,
+          products: const [],
+          onComplete: (transaction) async =>
+              finished.add(transaction.storeTransactionId));
+      addTearDown(adapter.close);
+      final reports = <CommerceReportRequest>[];
+      _activate(
+          adapter: adapter,
+          queueFactory: () async => queue,
+          clock: clock.now,
+          usesPurchaserStateHandler: true,
+          client: MockClient((request) async {
+            if (request.url.path.endsWith('/purchaser-state'))
+              return _jsonResponse(
+                  _purchaserState(entitlements: const []).toJson());
+            final report = CommerceReportRequest.fromJson(
+                jsonDecode(request.body) as Map<String, dynamic>);
+            reports.add(report);
+            final fails =
+                (report.storeTransactionId == 'order-anchor') == failedAnchor;
+            return _jsonResponse((fails
+                    ? _pendingState()
+                    : _scopedReport(
+                        scopedEntitlements: const [],
+                        scopedFulfillments: [_fulfillment('durable-grant')]))
+                .toJson());
+          }));
+      await _waitFor(() =>
+          Restage.commerce.currentState.status ==
+          CommercePurchaserStateStatusCode.available);
+      adapter.ownedTransactions = receipts;
+      expect((await Restage.commerce.restore()).status,
+          CommerceActionStatusCode.failed);
+      expect(reports, hasLength(2));
+      expect(reports.where((report) => report.restoreAppHistory), hasLength(1));
+      expect(
+          reports
+              .singleWhere((report) => report.restoreAppHistory)
+              .storeTransactionId,
+          'order-anchor');
+      expect(finished, [failedAnchor ? 'order-other' : 'order-anchor']);
+      final retained = await queue.open();
+      expect(retained, hasLength(1));
+      expect(retained.single.storeTransactionId,
+          failedAnchor ? 'order-anchor' : 'order-other');
+      expect(Restage.commerce.currentState.fulfillments, isEmpty);
+    });
+  }
+
+  for (final store in [CommerceStore.appStore, CommerceStore.playStore]) {
+    for (final entry in <(String, CommerceStoreProductKind)>[
+      ('consumable', CommerceStoreProductKind.consumable),
+      ('nonConsumable', CommerceStoreProductKind.nonConsumable),
+      (
+        'nonRenewingSubscription',
+        CommerceStoreProductKind.nonRenewingSubscription
+      ),
+    ]) {
+      test(
+          'one-time resolution carries the configured form to $store ${entry.$1}',
+          () async {
+        final directory =
+            await Directory.systemTemp.createTemp('restage-engine-');
+        addTearDown(() => _deleteAfterCommerceStops(directory));
+        final adapter = _TestStoreAdapter(store: store, products: [
+          _TestStoreProduct(
+              store: store,
+              storeProductId: 'store.product',
+              kind: store == CommerceStore.playStore
+                  ? CommerceStoreProductKind.oneTime
+                  : entry.$2)
+        ]);
+        addTearDown(adapter.close);
+        _activate(
+            adapter: adapter,
+            journalPath: directory.path,
+            client: MockClient((request) async {
+              final json = jsonDecode(request.body) as Map<String, dynamic>;
+              return _jsonResponse(CommerceIntentResponse(
+                      intentId: json['intentId'] as String,
+                      status: 'ready',
+                      resolved: CommerceResolvedPurchasable(
+                          storeProductId: 'store.product',
+                          productKind: store == CommerceStore.playStore
+                              ? 'oneTime'
+                              : entry.$1,
+                          fulfillmentForm: entry.$1,
+                          appAccountToken: _appAccountToken))
+                  .toJson());
+            }));
+        final result = await Restage.commerce.purchase(
+            CommercePurchaseRequest(CommerceOfferId('offer.one-time')));
+        expect(result.status, CommerceActionStatusCode.pending);
+        expect(adapter.startedPurchasable!.fulfillmentForm, entry.$2);
+        expect(adapter.startedPurchasable!.applicationAccountToken,
+            _appAccountToken);
+      });
+    }
+  }
+
+  for (final form in <String?>[null, 'futureForm']) {
+    test('one-time Play resolution refuses an unconfigured form $form',
+        () async {
+      final directory =
+          await Directory.systemTemp.createTemp('restage-engine-');
+      addTearDown(() => _deleteAfterCommerceStops(directory));
+      final adapter =
+          _TestStoreAdapter(store: CommerceStore.playStore, products: const []);
+      addTearDown(adapter.close);
+      _activate(
+          adapter: adapter,
+          journalPath: directory.path,
+          client: MockClient((request) async {
+            final json = jsonDecode(request.body) as Map<String, dynamic>;
+            return _jsonResponse(CommerceIntentResponse(
+                    intentId: json['intentId'] as String,
+                    status: 'ready',
+                    resolved: CommerceResolvedPurchasable(
+                        storeProductId: 'store.product',
+                        productKind: 'oneTime',
+                        fulfillmentForm: form,
+                        appAccountToken: _appAccountToken))
+                .toJson());
+          }));
+      final result = await Restage.commerce
+          .purchase(CommercePurchaseRequest(CommerceOfferId('offer.one-time')));
+      expect(result.failureCode, CommerceFailureCode.unsupportedCapability);
+      expect(adapter.queryCalls, 0);
+      expect(adapter.startCalls, 0);
+    });
+  }
+
+  test(
+      'one-time restore merges stable lines and clears revoked or expired grants',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final first = _fulfillment('a', quantity: 3);
+    final second = _fulfillment('b', quantity: 2);
+    final canonical = _fulfillment('c', quantity: 1);
+    var revoked = false;
+    var queryFails = false;
+    final adapter = _TestStoreAdapter(
+        store: CommerceStore.playStore,
+        products: const [],
+        onQueryOwnedTransactions: () async {
+          if (queryFails) throw StateError('Owned query unavailable');
+          return [_ownedTransaction('a'), _ownedTransaction('b')];
+        });
+    addTearDown(adapter.close);
+    _activate(
+        adapter: adapter,
+        journalPath: directory.path,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state'))
+            return _jsonResponse(_purchaserState(
+                    entitlements: const [],
+                    fulfillments: revoked ? [] : [canonical, first])
+                .toJson());
+          final json = jsonDecode(request.body) as Map<String, dynamic>;
+          final lines = revoked
+              ? <CommerceFulfillmentSummary>[]
+              : [
+                  _reportedVerificationIdentity(json) == 'proof-a'
+                      ? first
+                      : second,
+                ];
+          return _jsonResponse(_scopedReport(
+              scopedEntitlements: const [],
+              scopedFulfillments: lines,
+              verifiedPurchases: [
+                _verifiedOneTime(
+                  json['storeTransactionId'] as String,
+                  outcome: revoked ? 'revoked' : 'granted',
+                  fulfillments: lines,
+                )
+              ]).toJson());
+        }));
+    await _waitFor(() =>
+        Restage.commerce.currentState.status ==
+        CommercePurchaserStateStatusCode.available);
+    final before = Restage.commerce.currentState;
+    expect(before.fulfillments, [first, second, canonical]);
+    expect(before.fulfillments.map((entry) => entry.productId).toSet(),
+        {'store.product'});
+    expect(before.hasProductionPurchaseHistory, isTrue);
+    expect(() => before.fulfillments.clear(), throwsUnsupportedError);
+    final restored = await Restage.commerce.restore();
+    expect(
+        restored.status, CommerceActionStatusCode.submittedForReconciliation);
+    expect(Restage.commerce.currentState, before);
+    queryFails = true;
+    final stale = await Restage.commerce.refresh();
+    expect(stale.status, CommercePurchaserStateStatusCode.stale);
+    expect(stale.fulfillments, isEmpty);
+    expect(stale.hasProductionPurchaseHistory, isTrue);
+    queryFails = false;
+    revoked = true;
+    final after = await Restage.commerce.refresh();
+    expect(after.status, CommercePurchaserStateStatusCode.available);
+    expect(after.fulfillments, isEmpty);
+    expect(after.hasProductionPurchaseHistory, isTrue);
+    expect(after, isNot(before));
+  });
+
+  for (final history in <bool?>[false, true, null]) {
+    test(
+        'one-time sandbox fulfillment obeys nullable production history $history',
+        () async {
+      final directory =
+          await Directory.systemTemp.createTemp('restage-engine-');
+      addTearDown(() => _deleteAfterCommerceStops(directory));
+      final line = _fulfillment('sandbox', providerEnvironment: 'sandbox');
+      final adapter = _TestStoreAdapter(
+          store: CommerceStore.playStore,
+          products: const [],
+          ownedTransactions: [_ownedTransaction('sandbox')]);
+      addTearDown(adapter.close);
+      _activate(
+          adapter: adapter,
+          journalPath: directory.path,
+          usesPurchaserStateHandler: true,
+          client: MockClient((request) async => _jsonResponse(
+              request.url.path.endsWith('/purchaser-state')
+                  ? _purchaserState(
+                          entitlements: const [],
+                          hasProductionPurchaseHistory: history)
+                      .toJson()
+                  : _scopedReport(
+                          scopedEntitlements: const [],
+                          scopedFulfillments: [
+                          line
+                        ],
+                          verifiedPurchases: [
+                          _verifiedOneTime('order-sandbox',
+                              providerEnvironment: 'sandbox',
+                              fulfillments: [line])
+                        ],
+                          ordinaryProductionPurchaseHistory: history,
+                          scopedProductionPurchaseHistory: history)
+                      .toJson())));
+      await _waitFor(() =>
+          Restage.commerce.currentState.status ==
+          CommercePurchaserStateStatusCode.available);
+      expect(
+          Restage.commerce.currentState.hasProductionPurchaseHistory, history);
+      expect(Restage.commerce.currentState.fulfillments,
+          history == true ? isEmpty : [line]);
+    });
+  }
+
+  test(
+      'one-time production fulfillment filters a sandbox snapshot even from an older report',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final queue = CommerceFileReportQueue(directoryPath: directory.path);
+    final sandbox = _fulfillment('sandbox', providerEnvironment: 'sandbox');
+    final adapter = _TestStoreAdapter(
+        store: CommerceStore.playStore,
+        products: const [],
+        ownedTransactions: [_ownedTransaction('sandbox')]);
+    addTearDown(adapter.close);
+    _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state'))
+            return _jsonResponse(_purchaserState(
+                    entitlements: const [],
+                    retrievedAt: DateTime.utc(2026, 10, 17),
+                    hasProductionPurchaseHistory: false)
+                .toJson());
+          final json = jsonDecode(request.body) as Map<String, dynamic>;
+          final initial =
+              _reportedVerificationIdentity(json) == 'proof-sandbox';
+          return _jsonResponse(_scopedReport(
+                  scopedEntitlements: const [],
+                  scopedFulfillments: [
+                initial ? sandbox : _fulfillment('production')
+              ],
+                  verifiedPurchases: [
+                _verifiedOneTime(json['storeTransactionId'] as String,
+                    providerEnvironment: initial ? 'sandbox' : 'production',
+                    fulfillments: [
+                      initial ? sandbox : _fulfillment('production')
+                    ])
+              ],
+                  ordinaryProductionPurchaseHistory: false,
+                  scopedProductionPurchaseHistory: false,
+                  retrievedAt: DateTime.utc(2026, 10, initial ? 17 : 16))
+              .toJson());
+        }));
+    await _waitFor(() => Restage.commerce.currentState.fulfillments.isNotEmpty);
+    adapter.emit(_ownedTransaction('production'));
+    await _waitFor(() =>
+        Restage.commerce.currentState.hasProductionPurchaseHistory == true);
+    await _waitFor(() async => (await queue.open()).isEmpty);
+    expect(Restage.commerce.currentState.fulfillments,
+        [_fulfillment('production')]);
+    final refreshed = await Restage.commerce.refresh();
+    expect(refreshed.hasProductionPurchaseHistory, isTrue);
+    expect(refreshed.fulfillments, [_fulfillment('production')]);
+  });
+
+  test(
+      'one-time pending Apple evidence retains the durable report without a grant or finish',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final clock = _HeldClock();
+    final queue = CommerceFileReportQueue(
+        directoryPath: directory.path, clock: clock.now);
+    final adapter =
+        _TestStoreAdapter(store: CommerceStore.appStore, products: const []);
+    addTearDown(adapter.close);
+    _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        clock: clock.now,
+        client:
+            MockClient((_) async => _jsonResponse(_pendingState().toJson())));
+    adapter.emit(const _TestTransaction(
+        store: CommerceStore.appStore,
+        status: CommerceStoreTransactionStatus.purchased,
+        storeProductId: 'store.product',
+        storeTransactionId: 'pending-one-time',
+        storeVerificationData: 'pending.signed.jws',
+        requiresDeviceCompletion: true));
+    await _waitFor(() async {
+      final records = await queue.open();
+      return records.length == 1 && records.single.retryAttempt == 1;
+    });
+    expect(adapter.completionCalls, 0);
+    expect(Restage.commerce.currentState.fulfillments, isEmpty);
+  });
+
+  test(
+      'one-time Apple completion follows durable verified fulfillment and preserves replay',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final clock = _HeldClock();
+    final queue = _FailFirstAcknowledgementQueue(CommerceFileReportQueue(
+        directoryPath: directory.path, clock: clock.now));
+    final reply = Completer<http.Response>();
+    final line = _fulfillment('consumable-line', quantity: 3);
+    final adapter =
+        _TestStoreAdapter(store: CommerceStore.appStore, products: const []);
+    addTearDown(adapter.close);
+    final reports = <Map<String, dynamic>>[];
+    _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        clock: clock.now,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state'))
+            return _jsonResponse(
+                _purchaserState(entitlements: const []).toJson());
+          reports.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return reply.future;
+        }));
+    await _waitFor(() =>
+        Restage.commerce.currentState.status ==
+        CommercePurchaserStateStatusCode.available);
+    const transaction = _TestTransaction(
+        store: CommerceStore.appStore,
+        status: CommerceStoreTransactionStatus.purchased,
+        storeProductId: 'store.product',
+        storeTransactionId: 'consumable-transaction',
+        storeVerificationData: 'one-time.signed.jws',
+        requiresDeviceCompletion: true);
+    adapter.emit(transaction);
+    await _waitFor(
+        () async => reports.isNotEmpty && (await queue.open()).isNotEmpty);
+    expect(adapter.completionCalls, 0);
+    expect(Restage.commerce.currentState.fulfillments, isEmpty);
+    reply.complete(_jsonResponse(_scopedReport(
+        scopedEntitlements: const [],
+        ordinaryFulfillments: [line],
+        scopedFulfillments: [line]).toJson()));
+    await _waitFor(() async =>
+        adapter.completionCalls == 1 &&
+        (await queue.open()).single.retryAttempt == 1);
+    expect(Restage.commerce.currentState.fulfillments, [line]);
+    adapter.emit(transaction);
+    await Future<void>.delayed(Duration.zero);
+    clock.advance(const Duration(days: 1));
+    notifyRestageCommerceForegrounded();
+    await _waitFor(() async => (await queue.open()).isEmpty);
+    expect(adapter.completionCalls, 1);
+    expect(Restage.commerce.currentState.fulfillments, [line]);
+    expect(reports.map((json) => json['reportId']).toSet(), hasLength(1));
+  });
+
   for (final measurementEnabled in [false, true]) {
     test(
         'placement purchase retains selected publication with Measurement '
@@ -5072,7 +6227,7 @@ void main() {
   });
 
   test(
-      'empty refresh removes restored membership and failure stays non-current',
+      'signed empty refresh removes restored membership and failure stays non-current',
       () async {
     final directory = await Directory.systemTemp.createTemp('restage-engine-');
     addTearDown(() => _deleteAfterCommerceStops(directory));
@@ -5117,14 +6272,18 @@ void main() {
       return _jsonResponse(
         _scopedReport(
           scopedEntitlements: switch (proof) {
-            'restored-token' => [_entitlement('entitlement.restored')],
+            'restored-token' => [
+                if (adapter.ownedTransactions.length == 2)
+                  _entitlement('entitlement.restored'),
+              ],
             'expiring-token' => [
-                _entitlement(
-                  'entitlement.expiring',
-                  status: adapter.ownedTransactions.length == 1
-                      ? 'expired'
-                      : 'active',
-                ),
+                if (adapter.ownedTransactions.isNotEmpty)
+                  _entitlement(
+                    'entitlement.expiring',
+                    status: adapter.ownedTransactions.length < 2
+                        ? 'expired'
+                        : 'active',
+                  ),
               ],
             _ => [_entitlement('entitlement.ordinary')],
           },
@@ -5360,8 +6519,12 @@ void main() {
     expect(result.status, CommercePurchaserStateStatusCode.available);
     expect(reports, hasLength(2));
     expect(reports.last['reportId'], isNot(reports.first['reportId']));
+    expect(reports.first['restoreAppHistory'], isNull);
+    expect(reports.last['restoreAppHistory'], isTrue);
     expect(
-      {...reports.last}..remove('reportId'),
+      {...reports.last}
+        ..remove('reportId')
+        ..remove('restoreAppHistory'),
       {...reports.first}..remove('reportId'),
     );
     expect(await queue.open(), isEmpty);
@@ -6463,7 +7626,12 @@ void main() {
           label: 'fresh context publishes after late native completion',
         );
         expect(reports, hasLength(2));
-        expect(reports.last, reports.first);
+        expect(reports.first['restoreAppHistory'], isTrue);
+        expect(reports.last.containsKey('restoreAppHistory'), isFalse);
+        expect(
+          reports.last,
+          {...reports.first}..remove('restoreAppHistory'),
+        );
         expect(Restage.commerce.currentState.status,
             CommercePurchaserStateStatusCode.available);
       }
@@ -6674,10 +7842,12 @@ CommercePurchaserStateResponse _purchaserState({
   DateTime? retrievedAt,
   String status = 'current',
   bool? hasProductionPurchaseHistory,
+  List<CommerceFulfillmentSummary> fulfillments = const [],
 }) =>
     CommercePurchaserStateResponse(
       status: status,
       entitlements: entitlements,
+      fulfillments: fulfillments,
       retrievedAt: retrievedAt ?? DateTime.utc(2026, 9, 8),
       hasProductionPurchaseHistory: hasProductionPurchaseHistory,
     );
@@ -6685,26 +7855,54 @@ CommercePurchaserStateResponse _purchaserState({
 CommerceReportResponse _scopedReport({
   required List<EntitlementSummary> scopedEntitlements,
   List<EntitlementSummary> ordinaryEntitlements = const <EntitlementSummary>[],
+  List<CommerceFulfillmentSummary> scopedFulfillments = const [],
+  List<CommerceFulfillmentSummary> ordinaryFulfillments = const [],
   String outcome = 'verified',
   bool includeScopedState = true,
   DateTime? retrievedAt,
   bool? ordinaryProductionPurchaseHistory,
   bool? scopedProductionPurchaseHistory,
+  List<CommerceVerifiedPurchase>? verifiedPurchases,
 }) =>
     CommerceReportResponse(
       outcome: outcome,
+      verifiedPurchases: verifiedPurchases,
       purchaserState: _purchaserState(
         entitlements: ordinaryEntitlements,
+        fulfillments: ordinaryFulfillments,
         retrievedAt: retrievedAt,
         hasProductionPurchaseHistory: ordinaryProductionPurchaseHistory,
       ),
       verifiedPurchaseState: includeScopedState
           ? _purchaserState(
               entitlements: scopedEntitlements,
+              fulfillments: scopedFulfillments,
               retrievedAt: retrievedAt,
               hasProductionPurchaseHistory: scopedProductionPurchaseHistory,
             )
           : null,
+    );
+
+CommerceVerifiedPurchase _verifiedOneTime(
+  String transactionId, {
+  String productId = 'store.product',
+  String providerEnvironment = 'production',
+  String outcome = 'granted',
+  int outcomeOrder = 1,
+  List<EntitlementSummary> entitlements = const [],
+  List<CommerceFulfillmentSummary> fulfillments = const [],
+  int? expiresAtMs,
+}) =>
+    CommerceVerifiedPurchase(
+      storeTransactionId: transactionId,
+      productId: productId,
+      providerEnvironment: providerEnvironment,
+      kind: 'oneTimePurchase',
+      outcome: outcome,
+      outcomeOrder: outcomeOrder,
+      entitlements: entitlements,
+      fulfillments: fulfillments,
+      expiresAtMs: expiresAtMs,
     );
 
 EntitlementSummary _entitlement(
@@ -6721,6 +7919,23 @@ EntitlementSummary _entitlement(
       productId: productId ?? entitlementId,
       source: 'clientReport',
       providerEnvironment: providerEnvironment,
+    );
+
+_TestTransaction _appleReceipt(
+  String transactionId, {
+  String productId = 'store.product',
+  String? proof,
+  bool complete = false,
+}) =>
+    _TestTransaction(
+      store: CommerceStore.appStore,
+      status: complete
+          ? CommerceStoreTransactionStatus.purchased
+          : CommerceStoreTransactionStatus.restored,
+      storeProductId: productId,
+      storeTransactionId: transactionId,
+      storeVerificationData: proof ?? '$transactionId.signed.jws',
+      requiresDeviceCompletion: complete,
     );
 
 _TestTransaction _ownedTransaction(
@@ -7119,6 +8334,7 @@ final class _TestStoreProduct implements CommerceStoreProduct {
   const _TestStoreProduct({
     required this.store,
     required this.storeProductId,
+    this.kind = CommerceStoreProductKind.subscription,
   });
 
   @override
@@ -7130,7 +8346,7 @@ final class _TestStoreProduct implements CommerceStoreProduct {
   @override
   String? get storeOfferIdentifier => null;
   @override
-  CommerceStoreProductKind get kind => CommerceStoreProductKind.subscription;
+  final CommerceStoreProductKind kind;
 }
 
 final class _TestTransaction implements CommerceStoreTransaction {
@@ -7170,3 +8386,11 @@ String _playReceipt(String token) => GooglePlayPurchaseReceipt(
 String _reportedVerificationIdentity(Map<String, dynamic> body) =>
     commerceVerificationIdentity(
         body['store'] as String, body['storeVerificationData'] as String);
+
+CommerceFulfillmentSummary _fulfillment(String id,
+        {int quantity = 1, String providerEnvironment = 'production'}) =>
+    CommerceFulfillmentSummary(
+        id: id,
+        productId: 'store.product',
+        quantity: quantity,
+        providerEnvironment: providerEnvironment);

@@ -222,6 +222,7 @@ final class CommerceResolvedPurchasable {
     required String storeProductId,
     required String productKind,
     required String appAccountToken,
+    String? fulfillmentForm,
     String? basePlanId,
     String? storeOfferIdentifier,
     OfferSignatureResponse? offerSignature,
@@ -233,11 +234,13 @@ final class CommerceResolvedPurchasable {
       'appAccountToken',
       lowercase: false,
     );
+    _requireOptionalString(fulfillmentForm, 'fulfillmentForm');
     _requireOptionalString(basePlanId, 'basePlanId');
     _requireOptionalString(storeOfferIdentifier, 'storeOfferIdentifier');
     return CommerceResolvedPurchasable._(
       storeProductId: storeProductId,
       productKind: productKind,
+      fulfillmentForm: fulfillmentForm,
       basePlanId: basePlanId,
       storeOfferIdentifier: storeOfferIdentifier,
       offerSignature: offerSignature,
@@ -248,6 +251,7 @@ final class CommerceResolvedPurchasable {
   const CommerceResolvedPurchasable._({
     required this.storeProductId,
     required this.productKind,
+    required this.fulfillmentForm,
     required this.basePlanId,
     required this.storeOfferIdentifier,
     required this.offerSignature,
@@ -268,6 +272,7 @@ final class CommerceResolvedPurchasable {
     return CommerceResolvedPurchasable(
       storeProductId: requiredCommerceString(json, 'storeProductId'),
       productKind: requiredCommerceString(json, 'productKind'),
+      fulfillmentForm: optionalCommerceString(json, 'fulfillmentForm'),
       basePlanId: optionalCommerceString(json, 'basePlanId'),
       storeOfferIdentifier:
           optionalCommerceString(json, 'storeOfferIdentifier'),
@@ -287,6 +292,9 @@ final class CommerceResolvedPurchasable {
   /// Product kind selected by the server.
   final String productKind;
 
+  /// Server-configured fulfillment form for a one-time purchase.
+  final String? fulfillmentForm;
+
   /// Google Play base-plan identifier, when applicable.
   final String? basePlanId;
 
@@ -303,6 +311,7 @@ final class CommerceResolvedPurchasable {
   Map<String, dynamic> toJson() => {
         'storeProductId': storeProductId,
         'productKind': productKind,
+        if (fulfillmentForm != null) 'fulfillmentForm': fulfillmentForm,
         if (basePlanId != null) 'basePlanId': basePlanId,
         if (storeOfferIdentifier != null)
           'storeOfferIdentifier': storeOfferIdentifier,
@@ -316,6 +325,7 @@ final class CommerceResolvedPurchasable {
       other is CommerceResolvedPurchasable &&
           other.storeProductId == storeProductId &&
           other.productKind == productKind &&
+          other.fulfillmentForm == fulfillmentForm &&
           other.basePlanId == basePlanId &&
           other.storeOfferIdentifier == storeOfferIdentifier &&
           other.offerSignature == offerSignature &&
@@ -325,6 +335,7 @@ final class CommerceResolvedPurchasable {
   int get hashCode => Object.hash(
         storeProductId,
         productKind,
+        fulfillmentForm,
         basePlanId,
         storeOfferIdentifier,
         offerSignature,
