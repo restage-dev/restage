@@ -262,7 +262,7 @@ final foreignGeneratedRef = Object();
               .generatedParts['lib/restage.generated/authoring.restage.g.dart'],
           allOf(
             startsWith("part of '../authoring.dart';"),
-            contains('SurfaceScreenRef<AnnouncementEvent>'),
+            contains('SurfaceScreenRef<AnnouncementSurfaceEvent>'),
             isNot(contains('NeutralFlowScreenRef.generated')),
             contains('const generalFlowRef ='),
             contains('SurfaceFlowRef<GeneralFlowResult>'),
@@ -283,7 +283,7 @@ final foreignGeneratedRef = Object();
         final generated = bundle.generatedParts.values.join('\n');
         expect(generated, contains('final class GeneralFlowSurface '));
         // This fixture's screen omits its mount, so it names none.
-        expect(generated, isNot(contains('AnnouncementSurface')));
+        expect(generated, isNot(matches(RegExp(r'\bAnnouncementSurface\b'))));
 
         await _assertGeneratedPartsAnalyze(
           scenario.source,
@@ -723,9 +723,12 @@ final foreignGeneratedRef = Object();
 
       expect(result.issues, isEmpty);
       // general_flow contains `welcome` and the embedded `paywall_premium`,
-      // so the reference names a widget from each.
+      // so the vocabulary its reference installs names a widget from each.
       final union = _packed(
-        _referenceBody(_authoringPart(result), 'const generalFlowRef ='),
+        _referenceBody(
+          _authoringPart(result),
+          'const _generalFlowRefVocabulary =',
+        ),
       );
       expect(union, contains("'Text':buildText"));
       expect(union, contains("'Chip':buildChip"));
@@ -739,7 +742,10 @@ final foreignGeneratedRef = Object();
 
       expect(narrowed.issues, isEmpty);
       final withoutPremium = _packed(
-        _referenceBody(_authoringPart(narrowed), 'const generalFlowRef ='),
+        _referenceBody(
+          _authoringPart(narrowed),
+          'const _generalFlowRefVocabulary =',
+        ),
       );
       expect(withoutPremium, contains("'Text':buildText"));
       expect(withoutPremium, isNot(contains('buildChip')));
@@ -763,7 +769,10 @@ final foreignGeneratedRef = Object();
       expect(result.issues, isEmpty);
       expect(
         _packed(
-          _referenceBody(_authoringPart(result), 'const generalFlowRef ='),
+          _referenceBody(
+            _authoringPart(result),
+            'const _generalFlowRefVocabulary =',
+          ),
         ),
         contains(
           "0xe156:IconData(0xe156,fontFamily:'MaterialIcons',"

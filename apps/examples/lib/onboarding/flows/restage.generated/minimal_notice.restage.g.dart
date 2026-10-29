@@ -2,6 +2,32 @@ part of '../minimal_notice.dart';
 
 // ignore_for_file: type=lint
 
+const _minimalNoticeFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Column': buildColumn,
+      'Padding': buildPadding,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Spacer': buildSpacer,
+      'Text': buildText,
+    },
+    material: {
+      'AppBar': buildAppBar,
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'IconButton': buildIconButton,
+      'Scaffold': buildScaffold,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf614: IconData(0xf614, fontFamily: 'MaterialIcons'),
+      0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+    },
+  }),
+);
+
 const minimalNoticeFlowRef = SurfaceFlowRef<
     MinimalNoticeResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_notice',
@@ -20,31 +46,7 @@ const minimalNoticeFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '4dcad975a54a39b792783de23419b441c9fd099f3bb852dc58e3406bc07fbc2b',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Column': buildColumn,
-        'Padding': buildPadding,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Spacer': buildSpacer,
-        'Text': buildText,
-      },
-      material: {
-        'AppBar': buildAppBar,
-        'FilledButton': buildFilledButton,
-        'Icon': buildIcon,
-        'IconButton': buildIconButton,
-        'Scaffold': buildScaffold,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf614: IconData(0xf614, fontFamily: 'MaterialIcons'),
-        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
-      },
-    }),
-  ),
+  vocabulary: _minimalNoticeFlowRefVocabulary,
 );
 
 MinimalNoticeResult _decodeMinimalNoticeFlowResult(

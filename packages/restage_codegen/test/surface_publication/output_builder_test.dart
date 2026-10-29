@@ -44,6 +44,7 @@ void main() {
         'fixture|tool/restage/metadata/restage.publication.json': anything,
         'fixture|tool/restage/metadata/restage.analytics-id.metadata.json':
             anything,
+        'fixture|tool/restage/metadata/restage.capture.json': anything,
       },
     );
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
@@ -233,6 +234,22 @@ const launch = FlowDefinition(
     ) as Map<String, Object?>;
     expect(indexJson['package'], 'apps_examples');
     expect(indexJson['physicalRoot'], '.restage/build');
+    // The capture plan is bound to this build by the index's fingerprint.
+    final capturePlan = jsonDecode(
+      readerWriter.testing.readString(
+        AssetId(
+            'apps_examples', '.restage/build/metadata/restage.capture.json'),
+      ),
+    ) as Map<String, Object?>;
+    expect(capturePlan['version'], 1);
+    expect(
+      capturePlan['generationFingerprint'],
+      allOf(isA<String>(), indexJson['generationFingerprint']),
+    );
+    expect(
+      (capturePlan['surfaces']! as Map<String, Object?>).keys,
+      unorderedEquals(<String>['general.announcement', 'general.launch']),
+    );
     expect(
       indexJson['publicationManifestPath'],
       '.restage/build/metadata/restage.publication.json',

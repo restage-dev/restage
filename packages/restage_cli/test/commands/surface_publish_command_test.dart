@@ -263,6 +263,73 @@ void main() {
     expect(err.toString(), 'The surface has no pushed revision here.\n');
   });
 
+  group('when the gateway times out', () {
+    /// Activation answers come from [responses] in order; returns the bodies.
+    Future<(int?, List<Map<String, dynamic>>)> publishThrough(
+      List<http.Response Function()> responses,
+    ) async {
+      final bodies = <Map<String, dynamic>>[];
+      final client = mockHttpClient((request) {
+        bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return responses[bodies.length - 1]();
+      });
+      final code = await runWith(client, ['pro', '--revision', '6']);
+      return (code, bodies);
+    }
+
+    http.Response timedOut() => http.Response('error code: 524', 524);
+    http.Response published() =>
+        http.Response(_activationResponse(revision: 6, before: 5), 200);
+
+    test('the same operation is sent again and its result reported', () async {
+      final (code, bodies) = await publishThrough([timedOut, published]);
+
+      expect(code, 0, reason: err.toString());
+      expect(out.toString(), contains('Published "pro" at r6'));
+      expect(err.toString(), isEmpty);
+      expect(bodies, hasLength(2));
+      expect(
+        bodies.last['measurementProceedBytes'],
+        bodies.first['measurementProceedBytes'],
+      );
+      expect(bodies.first['measurementProceedBytes'], isNotNull);
+    });
+
+    test('a lost connection is retried the same way', () async {
+      final (code, bodies) = await publishThrough([
+        () => throw http.ClientException('Connection closed'),
+        published,
+      ]);
+
+      expect(code, 0, reason: err.toString());
+      expect(bodies, hasLength(2));
+    });
+
+    test('a server refusal is reported without a retry', () async {
+      final (code, bodies) = await publishThrough([
+        () => typedErrorResponse('SurfaceContractFamilyViolation', {
+          'code': 'familyNotFound',
+          'message': 'The surface has no pushed revision here.',
+        }),
+      ]);
+
+      expect(code, 1);
+      expect(bodies, hasLength(1));
+    });
+
+    test('a gateway that keeps timing out still fails', () async {
+      final (code, bodies) = await publishThrough([
+        timedOut,
+        timedOut,
+        timedOut,
+      ]);
+
+      expect(code, isNot(0));
+      expect(bodies, hasLength(3));
+      expect(err.toString(), contains('524'));
+    });
+  });
+
   test('disagreeing revision flags are refused before any call', () async {
     final code = await runPublish([
       'pro',

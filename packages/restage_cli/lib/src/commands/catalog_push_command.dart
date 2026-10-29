@@ -172,25 +172,27 @@ class CatalogPushCommand extends Command<int> {
     }
 
     try {
-      final configuredOrganization = await resolveConfiguredOrganization(
+      final organizationId = await resolveOrganizationId(
         api: api,
-        config: loaded?.config,
-        stderr: _stderr,
+        loaded: loaded,
         preferredSlug: argResults?['organization'] as String?,
         organizationId: organizationIdOption(argResults),
+        notices: _stderr,
       );
-      if (configuredOrganization == null) return 1;
 
       final version = await CatalogApi(api).push(
         project: project,
         app: app,
         catalogJson: generated.json,
-        organizationId: configuredOrganization.organizationId,
+        organizationId: organizationId,
       );
       _stdout.writeln(
         'Uploaded the widget catalog as version $version. $catalogPurpose',
       );
       return 0;
+    } on TargetSelectionException catch (e) {
+      _stderr.writeln(e.message);
+      return 1;
     } on RestageApiException catch (e) {
       return _handleApiException(e);
     } on SocketException catch (e) {

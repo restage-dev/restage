@@ -2,19 +2,19 @@ part of '../categorized_screens.dart';
 
 // ignore_for_file: type=lint
 
-sealed class GeneralStatusEvent {
-  const GeneralStatusEvent();
+sealed class GeneralStatusSurfaceEvent {
+  const GeneralStatusSurfaceEvent();
 }
 
-final class GeneralStatusFinishEvent extends GeneralStatusEvent {
-  const GeneralStatusFinishEvent();
+final class GeneralStatusSurfaceFinishEvent extends GeneralStatusSurfaceEvent {
+  const GeneralStatusSurfaceFinishEvent();
 }
 
 final _generalStatusEvents =
-    SurfaceScreenEventContract<GeneralStatusEvent>.generated(
+    SurfaceScreenEventContract<GeneralStatusSurfaceEvent>.generated(
   hash:
       'sha256:ca846c32a23d2d98fb3ca253fc69fb1ccef2fa2ee9fa5397947d5e5c2e03bc31',
-  decodeValidated: _decodeValidatedGeneralStatusEvent,
+  decodeValidated: _decodeValidatedGeneralStatusSurfaceEvent,
 );
 
 final _generalStatusProvenance = SurfaceScreenRuntimeProvenance.generated(
@@ -64,20 +64,20 @@ final _generalStatusProvenance = SurfaceScreenRuntimeProvenance.generated(
 );
 
 final generalStatusRef = SurfaceScreenRef<
-    GeneralStatusEvent>.generatedWithMeasurementPublicationDraftDigest(
+    GeneralStatusSurfaceEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _generalStatusProvenance,
   eventContract: _generalStatusEvents,
   measurementPublicationDraftDigest:
       'd9b94b215f9f25289329d3fa78141998bd0cf68c4a86eb8e04dc7c22b7963e88',
 );
 
-GeneralStatusEvent _decodeValidatedGeneralStatusEvent(
+GeneralStatusSurfaceEvent _decodeValidatedGeneralStatusSurfaceEvent(
   String name,
   Map<String, Object?> arguments,
 ) {
   switch (name) {
     case 'finish':
-      return const GeneralStatusFinishEvent();
+      return const GeneralStatusSurfaceFinishEvent();
   }
   throw FormatException('Invalid GeneralStatus event "$name".');
 }
@@ -146,7 +146,7 @@ final class GeneralStatusSurface extends StatelessWidget {
 
   final String? _restagePlacementName;
 
-  final ValueChanged<GeneralStatusEvent>? onEvent;
+  final ValueChanged<GeneralStatusSurfaceEvent>? onEvent;
 
   final SurfaceScreenResolver? resolver;
 
@@ -158,7 +158,7 @@ final class GeneralStatusSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<GeneralStatusEvent>(
+    return RestageScreen<GeneralStatusSurfaceEvent>(
       screen: generalStatusRef,
       placementBinding: RestageScreen.generatedPlacementBinding(
         definition: generalStatusPlacementDefinition,
@@ -176,19 +176,20 @@ final class GeneralStatusSurface extends StatelessWidget {
   }
 }
 
-sealed class MessageNoticeEvent {
-  const MessageNoticeEvent();
+sealed class MessageNoticeSurfaceEvent {
+  const MessageNoticeSurfaceEvent();
 }
 
-final class MessageNoticeOpenOfferEvent extends MessageNoticeEvent {
-  const MessageNoticeOpenOfferEvent();
+final class MessageNoticeSurfaceOpenOfferEvent
+    extends MessageNoticeSurfaceEvent {
+  const MessageNoticeSurfaceOpenOfferEvent();
 }
 
 final _messageNoticeEvents =
-    SurfaceScreenEventContract<MessageNoticeEvent>.generated(
+    SurfaceScreenEventContract<MessageNoticeSurfaceEvent>.generated(
   hash:
       'sha256:179c12fb27777408d1211a67a2e68e33c1d1abb5b306a9416c2208c99c853b18',
-  decodeValidated: _decodeValidatedMessageNoticeEvent,
+  decodeValidated: _decodeValidatedMessageNoticeSurfaceEvent,
 );
 
 final _messageNoticeProvenance = SurfaceScreenRuntimeProvenance.generated(
@@ -238,20 +239,20 @@ final _messageNoticeProvenance = SurfaceScreenRuntimeProvenance.generated(
 );
 
 final messageNoticeRef = SurfaceScreenRef<
-    MessageNoticeEvent>.generatedWithMeasurementPublicationDraftDigest(
+    MessageNoticeSurfaceEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _messageNoticeProvenance,
   eventContract: _messageNoticeEvents,
   measurementPublicationDraftDigest:
       'eaa2e5ed954e5ba9066287aa20a5b4150c9c8a97cc10f0dba87456598a9eaa43',
 );
 
-MessageNoticeEvent _decodeValidatedMessageNoticeEvent(
+MessageNoticeSurfaceEvent _decodeValidatedMessageNoticeSurfaceEvent(
   String name,
   Map<String, Object?> arguments,
 ) {
   switch (name) {
     case 'open_offer':
-      return const MessageNoticeOpenOfferEvent();
+      return const MessageNoticeSurfaceOpenOfferEvent();
   }
   throw FormatException('Invalid MessageNotice event "$name".');
 }
@@ -320,7 +321,7 @@ final class MessageNoticeSurface extends StatelessWidget {
 
   final String? _restagePlacementName;
 
-  final ValueChanged<MessageNoticeEvent>? onEvent;
+  final ValueChanged<MessageNoticeSurfaceEvent>? onEvent;
 
   final SurfaceScreenResolver? resolver;
 
@@ -332,7 +333,7 @@ final class MessageNoticeSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<MessageNoticeEvent>(
+    return RestageScreen<MessageNoticeSurfaceEvent>(
       screen: messageNoticeRef,
       placementBinding: RestageScreen.generatedPlacementBinding(
         definition: messageNoticePlacementDefinition,
@@ -350,19 +351,20 @@ final class MessageNoticeSurface extends StatelessWidget {
   }
 }
 
-sealed class OnboardingWelcomeEvent {
-  const OnboardingWelcomeEvent();
+sealed class OnboardingWelcomeSurfaceEvent {
+  const OnboardingWelcomeSurfaceEvent();
 }
 
-final class OnboardingWelcomeContinueFlowEvent extends OnboardingWelcomeEvent {
-  const OnboardingWelcomeContinueFlowEvent();
+final class OnboardingWelcomeSurfaceContinueFlowEvent
+    extends OnboardingWelcomeSurfaceEvent {
+  const OnboardingWelcomeSurfaceContinueFlowEvent();
 }
 
 final _onboardingWelcomeEvents =
-    SurfaceScreenEventContract<OnboardingWelcomeEvent>.generated(
+    SurfaceScreenEventContract<OnboardingWelcomeSurfaceEvent>.generated(
   hash:
       'sha256:72daff87223b7d45852a98ceb57a5dc83702eede99b8f045f2619af0062e9bc3',
-  decodeValidated: _decodeValidatedOnboardingWelcomeEvent,
+  decodeValidated: _decodeValidatedOnboardingWelcomeSurfaceEvent,
 );
 
 final _onboardingWelcomeProvenance = SurfaceScreenRuntimeProvenance.generated(
@@ -411,20 +413,20 @@ final _onboardingWelcomeProvenance = SurfaceScreenRuntimeProvenance.generated(
 );
 
 final onboardingWelcomeRef = SurfaceScreenRef<
-    OnboardingWelcomeEvent>.generatedWithMeasurementPublicationDraftDigest(
+    OnboardingWelcomeSurfaceEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _onboardingWelcomeProvenance,
   eventContract: _onboardingWelcomeEvents,
   measurementPublicationDraftDigest:
       '8e9a37f24b46bbd1b026066e8658e002519c899ab25d5ce6b7824cfbf9b2eb57',
 );
 
-OnboardingWelcomeEvent _decodeValidatedOnboardingWelcomeEvent(
+OnboardingWelcomeSurfaceEvent _decodeValidatedOnboardingWelcomeSurfaceEvent(
   String name,
   Map<String, Object?> arguments,
 ) {
   switch (name) {
     case 'continue':
-      return const OnboardingWelcomeContinueFlowEvent();
+      return const OnboardingWelcomeSurfaceContinueFlowEvent();
   }
   throw FormatException('Invalid OnboardingWelcome event "$name".');
 }
@@ -493,7 +495,7 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
 
   final String? _restagePlacementName;
 
-  final ValueChanged<OnboardingWelcomeEvent>? onEvent;
+  final ValueChanged<OnboardingWelcomeSurfaceEvent>? onEvent;
 
   final SurfaceScreenResolver? resolver;
 
@@ -505,7 +507,7 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<OnboardingWelcomeEvent>(
+    return RestageScreen<OnboardingWelcomeSurfaceEvent>(
       screen: onboardingWelcomeRef,
       placementBinding: RestageScreen.generatedPlacementBinding(
         definition: onboardingWelcomePlacementDefinition,

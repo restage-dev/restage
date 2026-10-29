@@ -9,6 +9,9 @@ import '../resolver/surface_resolution_report.dart';
 enum SurfaceDeliveryReceiptReason {
   none,
   offline,
+
+  /// The service had not answered when the mount rendered local content.
+  pending,
   throttled,
   serverError,
   unsupported,

@@ -7,9 +7,12 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart' as rfw;
 
+import '../delivery/decoded_surface_library.dart';
+import '../delivery/placement_fit_verdicts.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../delivery/surface_delivery_receipt_batch.dart';
 import '../delivery/surface_delivery_receipt.dart';
+import '../delivery/surface_race.dart' show markHeldDecision, reportRaceWinner;
 import '../delivery/surface_artifact_store.dart';
 import '../delivery/surface_sections_carrier.dart';
 import '../flow/flow_descriptors.dart';
@@ -71,6 +74,10 @@ Future<PlacementRefreshProbeV1> probeRenderedPlacement(
 
 final _placementAdmissions = Expando<PlacementDeliveryAdmission>();
 
+/// Platform reads a saved decision waits for only when it consulted them.
+@internal
+const placementDeferredFacts = {'appBuildOrdinal', 'osVersion'};
+
 @internal
 T copyPlacementAdmission<T extends Object>(Object original, T copy) {
   _placementAdmissions[copy] = placementAdmissionFor(original);
@@ -115,7 +122,7 @@ final class PlacementDeliveryAdmission {
 
   Future<void> invalidateCache() => registry.decisions.removeAccepted(
       registry.decisions.decisionKey(
-          context.request, context.request.mounts.single, context.inputStamp,
+          context.request, context.request.mounts.single,
           target: decision.descriptor.placement.target),
       decision);
 
@@ -129,15 +136,48 @@ final class PlacementDeliveryAdmission {
       decision.watch?.decisionIdentityDigest ==
           other.decision.watch?.decisionIdentityDigest;
 
-  bool get isCurrent =>
-      placementHostIsCurrent(host) &&
-      context.isCurrent() &&
-      registry.target == decision.descriptor.placement.target &&
-      currentInstalledCapability().contentHash ==
-          context.request.buildContract.installedCapabilityHash &&
-      registry.now().toUtc().compareTo(context.capturedAt) >= 0 &&
-      placementCacheIsValid(delivery.cacheValidity,
-          now: registry.now(), clock: context.request.localClock);
+  bool get isCurrent => lapse == null;
+
+  /// Why this admission no longer holds, or null while it does.
+  PlacementLapse? get lapse {
+    if (!placementHostIsCurrent(host)) return (placementSupersededReason, null);
+    if (!context.isCurrent()) {
+      return (placementStaleReason, placementStaleCause(context));
+    }
+    final changed =
+        context.changedFacts(delivery.cacheValidity.consultedBuiltIns);
+    if (changed.isNotEmpty) {
+      return (
+        placementStaleReason,
+        PlacementNoAnswerStale(PlacementStaleChange.deviceFacts, facts: changed)
+      );
+    }
+    if (registry.target != decision.descriptor.placement.target) {
+      return (
+        placementStaleReason,
+        const PlacementNoAnswerStale(PlacementStaleChange.configuration)
+      );
+    }
+    if (currentInstalledCapability().contentHash !=
+        context.request.buildContract.installedCapabilityHash) {
+      return (
+        placementStaleReason,
+        const PlacementNoAnswerStale(PlacementStaleChange.installedWidgets)
+      );
+    }
+    final now = registry.now();
+    if (now.toUtc().compareTo(context.capturedAt) < 0) {
+      return (
+        placementStaleReason,
+        const PlacementNoAnswerStale(PlacementStaleChange.clockMovedBack)
+      );
+    }
+    final change = placementValidityLapse(delivery.cacheValidity,
+        now: now, clock: context.request.localClock);
+    return change == null
+        ? null
+        : (placementStaleReason, PlacementNoAnswerStale(change));
+  }
 
   DateTime? get nextBoundary {
     final validity = delivery.cacheValidity;
@@ -162,6 +202,12 @@ final class PlacementDeliveryAdmission {
 /// Tests returned bounds only; no audience or policy is evaluated locally.
 @internal
 bool placementCacheIsValid(DeliveryCacheValidityV1 validity,
+        {required DateTime now, required DeliveryLocalClockV1? clock}) =>
+    placementValidityLapse(validity, now: now, clock: clock) == null;
+
+/// Why [validity] does not hold at [now], or null while it does.
+@internal
+PlacementStaleChange? placementValidityLapse(DeliveryCacheValidityV1 validity,
     {required DateTime now, required DeliveryLocalClockV1? clock}) {
   final utc = now.toUtc().microsecondsSinceEpoch;
   if ([
@@ -169,20 +215,28 @@ bool placementCacheIsValid(DeliveryCacheValidityV1 validity,
     validity.assignmentExpiresAtMicros,
     validity.contentExpiresAtMicros
   ].any((expiry) => expiry != null && utc >= expiry)) {
-    return false;
+    return PlacementStaleChange.expired;
   }
   if (validity.notBeforeLocal == null && validity.expiresBeforeLocal == null) {
-    return true;
+    return null;
   }
   if (clock == null || clock.utcOffsetMinutes != now.timeZoneOffset.inMinutes) {
-    return false;
+    return PlacementStaleChange.timeZone;
   }
   final civil = clock.localNow(nowMicros: utc);
-  return (validity.notBeforeLocal == null ||
-          civil.compareTo(validity.notBeforeLocal!) >= 0) &&
-      (validity.expiresBeforeLocal == null ||
-          civil.compareTo(validity.expiresBeforeLocal!) < 0);
+  if (validity.notBeforeLocal case final start?
+      when civil.compareTo(start) < 0) {
+    return PlacementStaleChange.notYetStarted;
+  }
+  if (validity.expiresBeforeLocal case final end?
+      when civil.compareTo(end) >= 0) {
+    return PlacementStaleChange.expired;
+  }
+  return null;
 }
+
+/// Why a placement answer no longer holds: a reason and its cause.
+typedef PlacementLapse = (String reason, PlacementNoAnswerCause? cause);
 
 /// Maps qualified batch content into the existing host's result and race.
 @internal
@@ -233,8 +287,11 @@ abstract class PlacementMountResolver<T extends Object>
         .where((diagnostic) => diagnostic.code == reason)
         .map((diagnostic) => diagnostic.detail)
         .firstOrNull;
+    final selected = decision?.selectedSurface;
     debugLogPlacementFallback(declaration.mount.key, reason,
-        detail: _fallbackDetail);
+        detail: _fallbackDetail,
+        published: PublishedSurfaceLabel(
+            type: selected?.surfaceType.value, slug: selected?.slug));
     final pending = _pendingSource;
     if (pending != null) {
       // The mount settled on local content before the server answered.
@@ -248,6 +305,7 @@ abstract class PlacementMountResolver<T extends Object>
 
   @override
   void hostFallbackShown(SurfaceStoreKey key) {
+    _logSavedRefusal(true);
     _uncountedTurn = _turns;
     _recordHostFallback();
   }
@@ -277,8 +335,22 @@ abstract class PlacementMountResolver<T extends Object>
 
   @override
   void fallbackReportedWithoutReason(
-          SurfaceStoreKey key, SurfaceResolutionSource source) =>
-      _pendingSource = source;
+      SurfaceStoreKey key, SurfaceResolutionSource source) {
+    _pendingSource = source;
+    _lateSource = null;
+  }
+
+  // The fallback a late answer found showing, until the host adopts or keeps it.
+  SurfaceResolutionSource? _lateSource;
+
+  @override
+  void lateAnswerKept(SurfaceStoreKey key) {
+    final source = _lateSource;
+    if (source == null) return;
+    _lateSource = null;
+    reportSurfaceFallback(reportSurfaceFor(key), reportFallbackSlugFor(key),
+        reason: SurfaceDeliveryReceiptReason.pending.name, source: source);
+  }
 
   @override
   String? fallbackReasonFor(SurfaceStoreKey key) => fallbackReason == null
@@ -313,29 +385,73 @@ abstract class PlacementMountResolver<T extends Object>
       PlacementDeliveryArtifacts artifacts,
       {required bool cacheHit});
 
-  T? _accept(PlacementBatchAvailableV1 entry,
+  /// The surface [entry] delivers, or null with the fit tokens of what this
+  /// build lacks, if any, the surface it delivered, and why it cannot be
+  /// used when that is not a fit.
+  ({
+    T? resolved,
+    List<String> unfit,
+    PublishedSurfaceLabel published,
+    PlacementLapse? lapse
+  }) _accept(PlacementBatchAvailableV1 entry,
       PlacementDeliveryArtifacts artifacts, PlacementRequestContext context,
       {required bool cacheHit}) {
+    final actual = entry.publicDelivery.actualPublication;
+    final document = artifacts.publications[actual];
+    // Its content could not be fetched or verified; a later mount fetches
+    // it again.
+    if (document == null) {
+      return (
+        resolved: null,
+        unfit: <String>[],
+        published: PublishedSurfaceLabel(version: actual.publishedVersion),
+        lapse: (
+          PlacementBatchRefusalReasonV1.artifactUnavailable.name,
+          const PlacementNoAnswerContentUnavailable()
+        )
+      );
+    }
+    final published = PublishedSurfaceLabel(
+        type: document.surfaceType.wireName,
+        slug: document.surfaceSlug,
+        version: actual.publishedVersion);
+    final refused =
+        (resolved: null, unfit: <String>[], published: published, lapse: null);
     final admission = PlacementDeliveryAdmission(
         decision: entry,
         context: context,
         host: declaration.host,
         registry: registry,
-        document:
-            artifacts.publications[entry.publicDelivery.actualPublication]!);
-    if (!admission.isCurrent ||
-        (admission.isAssigned &&
-            (!context.lease.assignmentsAllowed ||
-                context.lease.assignmentKey == null ||
-                (!cacheHit &&
-                    context.request.assignmentKey !=
-                        context.lease.assignmentKey))) ||
-        !SurfaceFitEvaluator.evaluate(
-                host: declaration.host,
-                requirement: entry.publicDelivery.fitRequirement,
-                installed: context.request.buildContract.installedCapability)
-            .accepted) {
-      return null;
+        document: document);
+    final lapse = admission.lapse;
+    if (lapse != null) {
+      return (
+        resolved: null,
+        unfit: <String>[],
+        published: published,
+        lapse: lapse
+      );
+    }
+    if ((admission.isAssigned &&
+        (!context.lease.assignmentsAllowed ||
+            context.lease.assignmentKey == null ||
+            (!cacheHit &&
+                context.request.assignmentKey !=
+                    context.lease.assignmentKey)))) {
+      return refused;
+    }
+    final installed = context.request.buildContract.installedCapability;
+    final fit = placementFitVerdict(
+        host: declaration.host,
+        requirement: entry.publicDelivery.fitRequirement,
+        installed: installed);
+    if (!fit.accepted) {
+      return (
+        resolved: null,
+        unfit: [for (final failure in fit.failures) failure.token],
+        published: published,
+        lapse: null
+      );
     }
     for (final reference in entry.artifactClosure) {
       final publication = artifacts.documents[reference]!;
@@ -343,11 +459,22 @@ abstract class PlacementMountResolver<T extends Object>
           required: CapabilityManifest(
               builtInFloor: publication.minClient,
               requiredLibraries: publication.requiredLibraries),
-          installed: context.request.buildContract.installedCapability);
-      if (verdict is BlobRenderRejected) return null;
+          installed: installed);
+      if (verdict is BlobRenderRejected) {
+        return (
+          resolved: null,
+          unfit: capabilityFitTokens(
+              CapabilityManifest(
+                  builtInFloor: publication.minClient,
+                  requiredLibraries: publication.requiredLibraries),
+              installed),
+          published: published,
+          lapse: null
+        );
+      }
     }
     final resolved = convert(admission, artifacts, cacheHit: cacheHit);
-    if (resolved == null) return null;
+    if (resolved == null) return refused;
     _placementAdmissions[resolved] = admission;
     attachSurfaceAssignmentLease(resolved, context.lease);
     attachResolvedPlacementDelivery(resolved, entry.publicDelivery,
@@ -359,6 +486,8 @@ abstract class PlacementMountResolver<T extends Object>
         registrationFingerprint: admission.isAssigned
             ? context.lease.registration?.fingerprint
             : null);
+    registry.noteAccepted(declaration.mount,
+        (decision: entry, artifacts: artifacts, context: context));
     currentAdmission = admission;
     currentFallback = null;
     labelSurfaceSource(
@@ -366,11 +495,16 @@ abstract class PlacementMountResolver<T extends Object>
         cacheHit
             ? SurfaceResolutionSource.holdLastGood
             : SurfaceResolutionSource.fresh);
-    return labelSurfaceSource(
-        resolved,
-        cacheHit
-            ? SurfaceResolutionSource.holdLastGood
-            : SurfaceResolutionSource.fresh);
+    return (
+      resolved: labelSurfaceSource(
+          resolved,
+          cacheHit
+              ? SurfaceResolutionSource.holdLastGood
+              : SurfaceResolutionSource.fresh),
+      unfit: const <String>[],
+      published: published,
+      lapse: null
+    );
   }
 
   /// Checks the watched fallback through the side-effect-free refresh route.
@@ -431,18 +565,23 @@ abstract class PlacementMountResolver<T extends Object>
     try {
       for (var attempt = 1;; attempt++) {
         String? noAnswer;
+        PlacementNoAnswerCause? cause;
         var staleBeforeSend = false;
         final decision = await _freshDecision(sendAssignmentKey, keyDeadline,
-            (reason) => noAnswer = reason, () => staleBeforeSend = true);
+            (reason, [why]) {
+          noAnswer = reason;
+          cause = why;
+        }, () => staleBeforeSend = true);
         // Only a request that never left the device is gathered again, so
         // an answered request is never sent twice.
         if (staleBeforeSend && attempt < _maxStaleAttempts) continue;
         if (decision != null || noAnswer == null) return decision;
         if (noAnswer == placementSupersededReason) return null;
-        return _unanswered(noAnswer!);
+        return _unanswered(noAnswer!, cause);
       }
     } on Exception catch (error) {
-      return _unanswered(SurfaceDeliveryReceiptReason.offline.name, error);
+      return _unanswered(SurfaceDeliveryReceiptReason.offline.name,
+          PlacementNoAnswerError(error));
     }
   }
 
@@ -460,22 +599,23 @@ abstract class PlacementMountResolver<T extends Object>
   Future<T?> _freshDecision(
       bool sendAssignmentKey,
       Future<void>? keyDeadline,
-      void Function(String reason) noAnswer,
+      void Function(String reason, [PlacementNoAnswerCause? cause]) noAnswer,
       void Function() staleBeforeSend) async {
-    final context = await registry.capture(
-        mounts: [declaration.mount],
+    // Mounts resolving together share one request.
+    final fetched = await registry.fetchMount(declaration.mount,
         sendAssignmentKey: sendAssignmentKey,
         keyDeadline: keyDeadline,
         publicationGuard: () => placementHostIsCurrent(declaration.host),
-        onDeclined: noAnswer);
-    if (context == null) return null;
-    final fetched = await registry.fetch(context, onRefused: (reason) {
-      _clearAnswer();
-      _fellBack(reason);
-    }, onNoAnswer: noAnswer, onStaleBeforeSend: staleBeforeSend);
+        onRefused: (reason) {
+          _clearAnswer();
+          _fellBack(reason);
+        },
+        onNoAnswer: noAnswer,
+        onStaleBeforeSend: staleBeforeSend);
     if (fetched == null) return null;
     _clearAnswer();
-    final entry = fetched.response.decisions.single;
+    final context = fetched.context;
+    final entry = fetched.entry;
     if (entry is PlacementBatchUseFallbackV1) {
       _fellBack(entry.reason, entry.diagnostics, entry);
       final watch = entry.watch;
@@ -486,13 +626,19 @@ abstract class PlacementMountResolver<T extends Object>
       if (watch != previous) onFallbackChanged?.call();
     }
     if (entry is! PlacementBatchAvailableV1) return null;
-    final accepted =
+    final (resolved: accepted, :unfit, :published, :lapse) =
         _accept(entry, fetched.artifacts, context, cacheHit: false);
     if (accepted == null) {
-      noAnswer(SurfaceDeliveryReceiptReason.unsupported.name);
+      if (lapse == null) {
+        noAnswer(SurfaceDeliveryReceiptReason.unsupported.name,
+            PlacementNoAnswerUnrenderable(unfit, published: published));
+      } else {
+        noAnswer(lapse.$1, lapse.$2);
+      }
       return null;
     }
     // Delivered content replaces any fallback still waiting for a decision.
+    _lateSource = _pendingSource;
     _pendingSource = null;
     return accepted;
   }
@@ -501,7 +647,7 @@ abstract class PlacementMountResolver<T extends Object>
   String? _unansweredReason;
 
   /// Names why no decision arrived, and settles a report waiting for one.
-  T? _unanswered(String reason, [Object? error]) {
+  T? _unanswered(String reason, [PlacementNoAnswerCause? cause]) {
     _clearAnswer();
     _unansweredReason = reason;
     // The delivery receipt carries only the reasons it has a value for.
@@ -509,7 +655,7 @@ abstract class PlacementMountResolver<T extends Object>
         case final receipt?) {
       freshRefused(storeKey, receipt);
     }
-    debugLogPlacementNoAnswer(declaration.mount.key, reason, error);
+    debugLogPlacementNoAnswer(declaration.mount.key, reason, cause);
     final pending = _pendingSource;
     if (pending != null) {
       _pendingSource = null;
@@ -520,23 +666,108 @@ abstract class PlacementMountResolver<T extends Object>
     return null;
   }
 
+  /// A decision this process accepted for the mount, presentable without
+  /// waiting, or null. Decisions that read device facts wait for them.
+  T? heldNow() {
+    final accepted = registry.acceptedNow(declaration.mount);
+    if (accepted == null ||
+        accepted.decision.publicDelivery.cacheValidity.consultedBuiltIns
+            .isNotEmpty ||
+        !accepted.context.lease.isCurrent) {
+      return null;
+    }
+    // The request it was accepted under, now bound to this mount.
+    final held = accepted.context;
+    final context = PlacementRequestContext(
+        request: held.request,
+        lease: held.lease,
+        capturedAt: held.capturedAt,
+        isCurrent: () =>
+            registry.isCurrent() &&
+            placementHostIsCurrent(declaration.host) &&
+            held.lease.isCurrent &&
+            !held.capabilityChanged(),
+        capabilityChanged: held.capabilityChanged,
+        superseded: () => !placementHostIsCurrent(declaration.host));
+    final (:resolved, unfit: _, published: _, lapse: _) =
+        _accept(accepted.decision, accepted.artifacts, context, cacheHit: true);
+    if (resolved != null) markHeldDecision(resolved);
+    return resolved;
+  }
+
   @override
   Future<T?> bestLocal(SurfaceStoreKey key) async {
-    final context = await registry.capture(
-        mounts: [declaration.mount],
-        sendAssignmentKey: false,
-        publicationGuard: () => placementHostIsCurrent(declaration.host));
+    Future<PlacementRequestContext?> capture(Set<String> deferFacts) =>
+        registry.capture(
+            mounts: [declaration.mount],
+            sendAssignmentKey: false,
+            deferFacts: deferFacts,
+            publicationGuard: () => placementHostIsCurrent(declaration.host));
+    // A saved decision that read no deferred fact paints without its read.
+    var context = await capture(placementDeferredFacts);
+    _savedRefusal = null;
+    ({String reason, PlacementNoAnswerStale cause})? refused;
     if (context != null) {
-      final local = await registry.local(context);
+      Future<
+          ({
+            PlacementBatchAvailableV1 decision,
+            PlacementDeliveryArtifacts artifacts,
+            PlacementRequestContext context
+          })?> read() async {
+        var needsFacts = false;
+        final found = await registry.local(context!,
+            onPendingFacts: () => needsFacts = true);
+        if (found != null || !needsFacts) return found;
+        context = await capture(const {});
+        return context == null ? null : registry.local(context!);
+      }
+
+      var local = await read();
+      // Nothing saved: the startup batch may be bringing this mount's answer.
+      final startup = registry.startup;
+      if (local == null && startup != null) {
+        await startup;
+        if (context != null) local = await read();
+      }
       if (local != null) {
-        final resolved = _accept(local.decision, local.artifacts, local.context,
+        final (:resolved, unfit: _, published: _, :lapse) = _accept(
+            local.decision, local.artifacts, local.context,
             cacheHit: true);
-        if (resolved != null) return resolved;
+        if (resolved != null) {
+          markHeldDecision(resolved);
+          return resolved;
+        }
+        if (lapse case (final reason, final PlacementNoAnswerStale cause)
+            when cause.change == PlacementStaleChange.deviceFacts) {
+          refused = (reason: reason, cause: cause);
+        }
       }
     }
     currentAdmission = null;
-    return original();
+    final fallback = await original();
+    if (refused != null) {
+      _savedRefusal =
+          (reason: refused.reason, cause: refused.cause, fallback: fallback);
+    }
+    return fallback;
   }
+
+  /// A saved decision refused on changed facts, logged only if its fallback
+  /// is what the mount shows.
+  ({String reason, PlacementNoAnswerStale cause, T? fallback})? _savedRefusal;
+
+  void _logSavedRefusal(bool shown) {
+    final refusal = _savedRefusal;
+    _savedRefusal = null;
+    if (refusal != null && shown) {
+      debugLogPlacementNoAnswer(
+          declaration.mount.key, refusal.reason, refusal.cause);
+    }
+  }
+
+  @override
+  void winnerReported(SurfaceStoreKey key, T winner) =>
+      _logSavedRefusal(identical(winner, _savedRefusal?.fallback));
 
   @override
   Future<void> forgetStored(SurfaceStoreKey key) async {
@@ -546,7 +777,7 @@ abstract class PlacementMountResolver<T extends Object>
         publicationGuard: () => placementHostIsCurrent(declaration.host));
     if (context != null && registry.target != null) {
       await registry.decisions.remove(registry.decisions.decisionKey(
-          context.request, declaration.mount, context.inputStamp,
+          context.request, declaration.mount,
           target: registry.target!));
     }
   }
@@ -618,7 +849,7 @@ String placementRootWidgetFor(Object resolved, String original) {
 @internal
 String placementBlobRootWidget(Uint8List blob) =>
     surfaceRootWidgetName(
-        rfw.decodeLibraryBlob(blob).widgets.map((widget) => widget.name)) ??
+        decodedSurfaceLibrary(blob).widgets.map((widget) => widget.name)) ??
     (throw const FormatException(
         'The selected surface has no recognized root widget.'));
 
@@ -848,4 +1079,34 @@ final class UnavailablePlacementFlowResolver implements FlowResolver {
           flowVersion: flow.version,
           reason: 'placement_unavailable',
           message: 'No configured placement content is available.');
+}
+
+/// Presents what this process already accepted for [raced]'s mount before the
+/// mount's first frame, then sends fresh as a race does. Returns false,
+/// presenting nothing, when nothing is held.
+@internal
+bool presentHeldPlacement<T extends Object>(
+  RacedSurfaceResolver<T>? raced, {
+  required SurfaceStoreKey Function() key,
+  required R Function<R>(R Function() body) inScope,
+  required Future<void> Function(T held) present,
+  required void Function() onPresentFailed,
+  required Future<void> keyDeadline,
+  required void Function(T fresh, void Function(T? rendered) report)
+      onLateFresh,
+}) {
+  if (raced is! PlacementMountResolver<T>) return false;
+  final held = inScope(raced.heldNow);
+  if (held == null) return false;
+  final storeKey = key();
+  void report(T? rendered) => reportRaceWinner(raced, storeKey, rendered);
+  // Reported once shown; a failed present falls back to the race, which
+  // reports for itself.
+  unawaited(present(held)
+      .then((_) => report(held), onError: (Object _) => onPresentFailed()));
+  unawaited(inScope(() => raced.fresh(storeKey,
+      sendAssignmentKey: true, keyDeadline: keyDeadline)).then((value) {
+    if (value != null) onLateFresh(value, report);
+  }, onError: (Object _) {}));
+  return true;
 }

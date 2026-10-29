@@ -8,6 +8,8 @@ import 'package:restage_cli/src/render_bundles/loader_engine_base.dart';
 import 'package:restage_cli/src/render_bundles/package_resolution.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_project.dart';
+import 'package:restage_cli/src/render_bundles/surface_capture_source.dart'
+    show SurfaceCaptureWrapper;
 import 'package:restage_shared/restage_shared.dart';
 
 const _robotoFontSha256 =
@@ -57,6 +59,7 @@ enum RenderBundleBuildFailure {
   nonDeterministicOutput('non_deterministic_output'),
   emptyOutput('empty_output'),
   fileAccess('file_access'),
+  bundleRule('bundle_rule'),
   buildFailed('build_failed'),
   cleanupFailed('cleanup_failed');
 
@@ -71,6 +74,8 @@ final class RenderBundleBuildException implements Exception {
     this.reason, {
     this.detail,
     this.buildDirectory,
+    this.log,
+    this.note,
   });
 
   final RenderBundleBuildFailure reason;
@@ -80,6 +85,12 @@ final class RenderBundleBuildException implements Exception {
 
   /// The generated build project, relative to the app, once it was written.
   final String? buildDirectory;
+
+  /// The last lines the failing process printed.
+  final String? log;
+
+  /// Why a bundle rule broke and what to do about it.
+  final String? note;
 
   @override
   String toString() => detail == null
@@ -148,6 +159,7 @@ abstract interface class RenderBundleArtifactBuilder {
     required Uri parentOrigin,
     required Uri controlOrigin,
     String? flutterExecutable,
+    SurfaceCaptureWrapper? previewWrapper,
   });
 }
 
@@ -179,6 +191,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     required Uri parentOrigin,
     required Uri controlOrigin,
     String? flutterExecutable,
+    SurfaceCaptureWrapper? previewWrapper,
   }) async {
     // Audit the merged catalog and the app's resolution before any private
     // temp directory or dart-define file exists.
@@ -227,6 +240,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
         flutterVersion: flutterVersion,
         fontBytes: fontBytes,
         licenseBytes: licenseBytes,
+        previewWrapper: previewWrapper,
       );
       projectPath = p.relative(project.path, from: projectRoot.path);
       if (!isRenderBundleProjectResolved(project, flutterRoot: flutterRoot)) {
@@ -235,8 +249,9 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
           'get',
         ], workingDirectory: project.path);
         if (resolved.exitCode != 0) {
-          throw const RenderBundleBuildException(
+          throw RenderBundleBuildException(
             RenderBundleBuildFailure.dependenciesFailed,
+            log: _outputTail(resolved),
           );
         }
         await markRenderBundleProjectResolved(
@@ -274,8 +289,9 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
           '--dart-define-from-file=${defineFile.path}',
         ], workingDirectory: project.path);
         if (result.exitCode != 0) {
-          throw const RenderBundleBuildException(
+          throw RenderBundleBuildException(
             RenderBundleBuildFailure.flutterBuildFailed,
+            log: _outputTail(result),
           );
         }
         final engineSet = deriveRenderBundleEngineSet(
@@ -311,6 +327,15 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
         error.reason,
         detail: error.detail,
         buildDirectory: projectPath,
+        log: error.log,
+        note: error.note,
+      );
+    } on RenderBundleArchiveException catch (error) {
+      throw RenderBundleBuildException(
+        RenderBundleBuildFailure.bundleRule,
+        detail: error.reason,
+        buildDirectory: projectPath,
+        note: error.note,
       );
     } on FileSystemException catch (error) {
       throw RenderBundleBuildException(
@@ -413,6 +438,18 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       indexSource: indexSource,
       loaderSource: loaderSource,
     );
+    // Dependencies' service-worker assets never register in a render bundle;
+    // the app's own still fail the archive check.
+    final packages = Directory(p.join(output.path, 'assets', 'packages'));
+    if (packages.existsSync()) {
+      await for (final entity in packages.list(recursive: true)) {
+        if (entity is! File) continue;
+        final path = p.relative(entity.path, from: output.path);
+        if (isRenderBundleServiceWorkerPath(p.split(path).join('/'))) {
+          await entity.delete();
+        }
+      }
+    }
     // The engine files serve from their own origin, so the loader is pointed
     // there before anything reads the built output.
     await loader.writeAsString(
@@ -683,4 +720,12 @@ bool _sameBytes(Uint8List left, Uint8List right) {
     if (left[index] != right[index]) return false;
   }
   return true;
+}
+
+/// The last [lines] lines [result] printed, or null when it printed none.
+String? _outputTail(ProcessResult result, {int lines = 20}) {
+  final text = '${result.stdout}\n${result.stderr}'.trim();
+  if (text.isEmpty) return null;
+  final all = text.split('\n');
+  return all.sublist(all.length > lines ? all.length - lines : 0).join('\n');
 }

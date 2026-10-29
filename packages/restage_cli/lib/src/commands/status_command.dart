@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/scope_snapshot_api.dart';
@@ -79,9 +80,11 @@ class StatusCommand extends Command<int> {
     }
 
     try {
-      var scope = await readProgrammaticScope(
+      var scope = await readConfiguredScope(
         api,
-        organizationId: loaded?.config.organizationId,
+        loaded: loaded,
+        organizationSlug: loaded?.config.organization,
+        notices: _stderr,
       );
       _stdout.writeln(
         'signed in as ${scope.session['email'] ?? '(unknown identity)'}',
@@ -99,6 +102,15 @@ class StatusCommand extends Command<int> {
       }
 
       final config = loaded.config;
+      if (config.organization case final slug?
+          when scope.organizations.every(
+            (organization) => organization.slug != slug,
+          )) {
+        _stderr.writeln(
+          organizationUnavailableSentence(slug, currentSelectorSyntax),
+        );
+        return 1;
+      }
       if (config.organization != null) {
         _stdout.writeln('organization: ${config.organization}');
       }
@@ -126,13 +138,19 @@ class StatusCommand extends Command<int> {
       await _writeWorkspaceStatus(scope, config);
       return 0;
     } on RestageApiException catch (e) {
-      if (e.statusCode == 401 || e.statusCode == 403) {
-        _stderr.writeln(staleCredentialSentence(currentSelectorSyntax));
-        return 1;
-      }
-      _stderr.writeln('Could not contact the backend: ${e.body}');
+      final outcome = renderApiError(e);
+      _stderr.writeln(outcome.message);
+      return outcome.exitCode;
+    } on TargetSelectionException catch (e) {
+      _stderr.writeln(e.message);
+      return 1;
+    } on FormatException catch (e) {
+      _stderr.writeln('Could not discover your Restage context: ${e.message}');
       return 2;
     } on SocketException catch (e) {
+      _stderr.writeln(backendUnreachableMessage(api.endpoint, e));
+      return 2;
+    } on http.ClientException catch (e) {
       _stderr.writeln(backendUnreachableMessage(api.endpoint, e));
       return 2;
     } finally {

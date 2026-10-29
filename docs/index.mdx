@@ -63,7 +63,7 @@ dart run build_runner build
 
 It compiles the widget to a small artifact and generates a mount, `WelcomeScreenSurface`.
 The mount takes your constructor's parameters, `name` included, plus `onEvent` for the
-events the class declares (`next` arrives as a `WelcomeScreenNextEvent`) and optional
+events the class declares (`next` arrives as a `WelcomeScreenSurfaceNextEvent`) and optional
 `resolver`, `onUnavailable`, and `loadingBuilder` hooks. It's an ordinary widget, so it goes wherever the screen belongs in your
 widget tree. Here it is the whole body of a page the app routes to on first run:
 
@@ -78,7 +78,7 @@ class OnboardingPage extends StatelessWidget {
         body: WelcomeScreenSurface(
           name: user.firstName,
           onEvent: (event) {
-            if (event is WelcomeScreenNextEvent) {
+            if (event is WelcomeScreenSurfaceNextEvent) {
               Navigator.of(context).pushReplacementNamed('/home');
             }
           },

@@ -585,6 +585,117 @@ void main() {
     expect(decoded.buildContract, request.buildContract);
   });
 
+  test('a request refuses a capability alias its contract would refuse', () {
+    final (base, _, _, _) = _batchFixture();
+    final old = base.buildContract;
+    final build = PlacementBuildContractV1(
+      platform: old.platform,
+      mounts: old.mounts,
+      contractsByHash: old.contractsByHash,
+      installedCapability: _installed(names: {'a.Alpha', 'b.Beta'}),
+      installedCapabilityHash:
+          _installed(names: {'a.Alpha', 'b.Beta'}).contentHash,
+    );
+    final request = PlacementBatchRequestV1(
+      mounts: base.mounts,
+      buildContract: build,
+      appBuildContractHash: build.appBuildContractHash,
+      mode: base.mode,
+      localClock: base.localClock,
+    );
+    Map<String, Object?> aliased() {
+      final json = jsonDecode(utf8.decode(request.canonicalBytes))
+          as Map<String, Object?>;
+      final vocabulary = ((json['buildContract']!
+          as Map)['installedCapability']! as Map)['vocabulary']! as Map;
+      vocabulary['widgetNames'] =
+          (vocabulary['widgetNames']! as List).reversed.toList();
+      return json;
+    }
+
+    expect(
+      PlacementBatchRequestV1.fromCanonicalBytes(request.canonicalBytes),
+      request,
+    );
+    expect(
+      () => PlacementBuildContractV1.fromJson(aliased()['buildContract']),
+      throwsA(_refusal),
+    );
+    expect(
+      () => PlacementBatchRequestV1.fromJson(aliased()),
+      throwsA(_refusal),
+    );
+    final bytes = CanonicalJsonCodec.encode(aliased());
+    expect(
+      () => PlacementBatchRequestV1.fromJson(
+        jsonDecode(utf8.decode(bytes)),
+        sourceBytes: bytes,
+      ),
+      throwsA(_refusal),
+    );
+  });
+
+  test('a malformed build hash is refused before any contract lookup', () {
+    final (request, _, _, _) = _batchFixture();
+    final json = request.withBuildContract(carried: false).toJson()
+      ..['appBuildContractHash'] = 'sha256:not-a-digest';
+    var looked = false;
+    expect(
+      () => PlacementBatchRequestV1.fromJson(
+        json,
+        verifiedBuildContract: (_) {
+          looked = true;
+          return null;
+        },
+      ),
+      throwsA(_refusal),
+    );
+    expect(looked, isFalse);
+  });
+
+  test('a request names its build by hash alone only for a held contract', () {
+    final (request, _, _, _) = _batchFixture();
+    final byHash = request.withBuildContract(carried: false);
+    final bytes = byHash.canonicalBytes;
+    expect(
+      (jsonDecode(utf8.decode(bytes)) as Map).containsKey('buildContract'),
+      isFalse,
+    );
+    expect(bytes.length, lessThan(request.canonicalBytes.length));
+
+    expect(
+      () => PlacementBatchRequestV1.fromJson(jsonDecode(utf8.decode(bytes))),
+      throwsA(isA<PlacementBuildContractRequired>()),
+    );
+    final decoded = PlacementBatchRequestV1.fromJson(
+      jsonDecode(utf8.decode(bytes)),
+      verifiedBuildContract: (_) => request.buildContract,
+      sourceBytes: bytes,
+    );
+    expect(decoded.carriesBuildContract, isFalse);
+    expect(decoded.buildContract, same(request.buildContract));
+    expect(decoded.canonicalBytes, bytes);
+    expect(
+      decoded.withBuildContract(carried: true).canonicalBytes,
+      request.canonicalBytes,
+    );
+
+    final other = PlacementBuildContractV1(
+      platform: 'android',
+      mounts: request.buildContract.mounts,
+      contractsByHash: request.buildContract.contractsByHash,
+      installedCapability: request.buildContract.installedCapability,
+      installedCapabilityHash: request.buildContract.installedCapabilityHash,
+    );
+    expect(
+      () => PlacementBatchRequestV1.fromJson(
+        jsonDecode(utf8.decode(bytes)),
+        verifiedBuildContract: (_) => other,
+      ),
+      throwsA(isA<PlacementBuildContractRequired>()),
+    );
+  });
+
   group('discovery and reported geometry', () {
     test('same-key occurrences remain distinct without changing build hash',
         () {
@@ -1017,8 +1128,65 @@ TargetCoordinate _coordinate(int id, {bool sandbox = false}) =>
 
 void _batchContractTests() {
   group('placement batch and safe delivery', () {
+    test('a mount whose credential is unknown is told to register again', () {
+      final (original, response, target, _) = _batchFixture();
+      final request = PlacementBatchRequestV1.fromJson({
+        ...original.toJson(),
+        'mode': 'mount',
+        'assignmentKey': 'ic1.${'a' * 64}',
+      });
+      final refused = PlacementBatchResolvedV1(
+        request: request,
+        expectedTarget: target,
+        decisions: response.decisions,
+        registrationRefused: true,
+      );
+      expect(refused.toJson()['registrationRefused'], isTrue);
+      final decoded = PlacementBatchResponseV1.fromCanonicalBytes(
+        refused.canonicalBytes,
+        request: request,
+        expectedTarget: target,
+      ) as PlacementBatchResolvedV1;
+      expect(decoded.registrationRefused, isTrue);
+      expect(
+        PlacementBatchResponseV1.fromCanonicalBytes(
+          PlacementBatchResolvedV1(
+            request: request,
+            expectedTarget: target,
+            decisions: response.decisions,
+          ).canonicalBytes,
+          request: request,
+          expectedTarget: target,
+        ),
+        isA<PlacementBatchResolvedV1>().having(
+          (value) => value.registrationRefused,
+          'registrationRefused',
+          isFalse,
+        ),
+      );
+      expect(
+        () => PlacementBatchResponseV1.fromJson(
+          {...refused.toJson(), 'registrationRefused': false},
+          request: request,
+          expectedTarget: target,
+        ),
+        throwsA(_refusal),
+      );
+      // Only a mount that presented a credential can have it refused.
+      expect(
+        () => PlacementBatchResolvedV1(
+          request: original,
+          expectedTarget: target,
+          decisions: response.decisions,
+          registrationRefused: true,
+        ),
+        throwsA(_refusal),
+      );
+    });
+
     test('real shared blob fixture retains two correlated decisions once', () {
       final (request, response, target, fixture) = _batchFixture();
+      final artifacts = _fixtureArtifacts(fixture);
       expect(
         request.mounts.map((mount) => mount.key.surfaceType!.value),
         ['general', 'message'],
@@ -1028,7 +1196,8 @@ void _batchContractTests() {
         ['welcome', 'welcome'],
       );
       expect(response.decisions, hasLength(2));
-      expect(response.artifacts, hasLength(1));
+      expect(artifacts, hasLength(1));
+      validatePlacementContent(response, _content(artifacts));
       expect(
         response.decisions.map((row) => row.descriptor.placement.key),
         request.mounts.map((mount) => mount.key),
@@ -1042,8 +1211,8 @@ void _batchContractTests() {
         rows[0].publicDelivery.publicProjectionDigest,
         isNot(rows[1].publicDelivery.publicProjectionDigest),
       );
-      final frame = SurfacePayload.decode(response.artifacts.single.bytes)
-          as BlobSurfacePayload;
+      final frame =
+          SurfacePayload.decode(artifacts.single.bytes) as BlobSurfacePayload;
       final library = rfw.decodeLibraryBlob(frame.blob);
       expect(library.widgets.single.name, 'Root');
       expect(library.imports.single.name.parts, ['restage', 'core']);
@@ -1069,6 +1238,59 @@ void _batchContractTests() {
       expect(request.mounts[1].defaultSurface!.family.contractVersion, 3);
     });
 
+    test('an answer carries closure bytes only to a client that holds none',
+        () {
+      final (request, response, target, fixture) = _batchFixture();
+      final artifact = _fixtureArtifacts(fixture).single;
+      expect(
+          () => PlacementBatchRequestV1.fromJson({
+                ...request.toJson(),
+                'mode': 'mount',
+                'holdsNoArtifacts': true,
+              }),
+          throwsA(isA<CanonicalFormatException>()));
+      final flagged = PlacementBatchRequestV1.fromJson({
+        ...request.toJson(),
+        'mode': 'prefetch',
+        'holdsNoArtifacts': true,
+      });
+      expect(flagged.holdsNoArtifacts, isTrue);
+      expect(flagged.canonicalBytes, isNot(request.canonicalBytes));
+      final inlined = PlacementBatchResolvedV1.fromBuiltRows(
+        request: flagged,
+        expectedTarget: target,
+        decisions: response.decisions,
+        inlineArtifacts: {artifact.identity: artifact.bytes},
+      );
+      final decoded = PlacementBatchResponseV1.fromCanonicalBytes(
+        inlined.canonicalBytes,
+        request: flagged,
+        expectedTarget: target,
+      ) as PlacementBatchResolvedV1;
+      expect(decoded.inlineArtifacts[artifact.identity], artifact.bytes);
+      expect(
+        () => PlacementBatchResponseV1.fromCanonicalBytes(
+          inlined.canonicalBytes,
+          request: request,
+          expectedTarget: target,
+        ),
+        throwsA(_refusal),
+      );
+      final stranger = ArtifactIdentityV1(
+        payloadFormatVersion: artifact.identity.payloadFormatVersion,
+        contentHash: 'sha256:${'0' * 64}',
+      );
+      expect(
+        () => PlacementBatchResolvedV1.fromBuiltRows(
+          request: flagged,
+          expectedTarget: target,
+          decisions: response.decisions,
+          inlineArtifacts: {stranger: artifact.bytes},
+        ),
+        throwsA(_refusal),
+      );
+    });
+
     test('public and selection identity domains have independent exact vectors',
         () {
       final (_, response, _, _) = _batchFixture();
@@ -1084,8 +1306,8 @@ void _batchContractTests() {
             'fc77e71e7f4ee82796476aefddb4c49d0e6c46e0aa7d92f35cf0b5ab66a757d4',
           ]);
       expect(rows.map((row) => row.publicDelivery.publicProjectionDigest.hex), [
-        '524614c296721666c4b27bc4e4728555bc636f4d9eccaf660cda3a4dcc48d54e',
-        '6d0b3942200c25f56be6d2e4dc8aa126f79fbfe834aa487a3234bd9dd5e9298d',
+        'c765897a1fb9187275101785ed729bd057e21b9244ec347f8b71c7bc818c67ec',
+        '8e4acee0d8280c589c08da1ed32014cb155811ad54a6589449454d966e2c40e3',
       ]);
       final delivery = rows.first.publicDelivery;
       final attached = PublicPlacementDeliveryV1.fromJson({
@@ -1216,7 +1438,8 @@ void _batchContractTests() {
         PublicPlacementDeliveryV1.fromCanonicalBytes(changed.canonicalBytes),
         changed,
       );
-      expect(identical(changed.fitRequirement, requirement), isFalse);
+      // An immutable requirement is held as given.
+      expect(changed.fitRequirement, same(requirement));
       expect(
         changed.fitRequirement.hosting.allowedPresentations.clear,
         throwsUnsupportedError,
@@ -1253,26 +1476,13 @@ void _batchContractTests() {
           entry.artifactClosure,
         );
         final artifact = _artifact(payload);
+        final response = PlacementBatchResponseV1(
+          request: request,
+          expectedTarget: _target,
+          decisions: [mismatched],
+        ) as PlacementBatchResolvedV1;
         expect(
-          () => PlacementBatchResponseV1(
-            request: request,
-            expectedTarget: _target,
-            decisions: [mismatched],
-            artifacts: [artifact],
-          ),
-          throwsA(_refusal),
-        );
-        expect(
-          () => PlacementBatchResponseV1.fromJson(
-            {
-              'kind': 'placementBatchResponse',
-              'schemaVersion': 1,
-              'status': 'resolved',
-              'decisions': [mismatched.toJson()],
-              'artifacts': [artifact.toJson()],
-            },
-            request: request,
-          ),
+          () => validatePlacementContent(response, _content([artifact])),
           throwsA(_refusal),
         );
       }
@@ -1410,7 +1620,6 @@ void _batchContractTests() {
         request: emptyRequest,
         expectedTarget: _target,
         decisions: [],
-        artifacts: [],
       );
       expect(
         PlacementBatchResponseV1.fromCanonicalBytes(
@@ -1437,7 +1646,7 @@ void _batchContractTests() {
         () => PlacementBatchResponseV1.fromJson(
           {
             ...emptyResponse.toJson(),
-            'artifacts': [response.artifacts.single.toJson()],
+            'artifacts': <Object?>[],
           },
           request: emptyRequest,
         ),
@@ -1459,7 +1668,6 @@ void _batchContractTests() {
         request: request,
         expectedTarget: target,
         decisions: [response.decisions.first, fallback],
-        artifacts: response.artifacts,
       ) as PlacementBatchResolvedV1;
       expect(mixed.decisions.last, isA<PlacementBatchUseFallbackV1>());
       expect(
@@ -1477,7 +1685,6 @@ void _batchContractTests() {
             request: request,
             expectedTarget: target,
             decisions: rows,
-            artifacts: response.artifacts,
           ),
           throwsA(_refusal),
         );
@@ -1495,7 +1702,6 @@ void _batchContractTests() {
           request: request,
           expectedTarget: target,
           decisions: [response.decisions.first, wrongHost],
-          artifacts: response.artifacts,
         ),
         throwsA(_refusal),
       );
@@ -1547,7 +1753,6 @@ void _batchContractTests() {
           request: changedRequest,
           expectedTarget: target,
           decisions: response.decisions,
-          artifacts: response.artifacts,
         ),
         throwsA(_refusal),
       );
@@ -1784,7 +1989,6 @@ void _batchContractTests() {
         'mode': 'refresh',
         'assignmentKey': 'ic1.${'a' * 64}',
         'heldAssignments': [proof.toJson()],
-        'heldArtifacts': [response.artifacts.single.identity.toJson()],
         'localClock': clock.toJson(),
       });
       expect(request.mode, PlacementBatchModeV1.refresh);
@@ -1846,7 +2050,6 @@ void _batchContractTests() {
         request: request,
         expectedTarget: _target,
         decisions: [row],
-        artifacts: [],
         registration: metadata,
       ) as PlacementBatchResolvedV1;
       expect(response.toJson()['credentialHandle'], metadata.credentialHandle);
@@ -2054,10 +2257,10 @@ void _batchContractTests() {
       expect(closure.clear, throwsUnsupportedError);
       expect(delivery.path.steps.clear, throwsUnsupportedError);
       expect(response.decisions.clear, throwsUnsupportedError);
-      expect(response.artifacts.clear, throwsUnsupportedError);
-      final bytes = response.artifacts.single.bytes;
+      final artifact = _fixtureArtifacts(_batchFixture().$4).single;
+      final bytes = artifact.bytes;
       bytes[0] ^= 0xff;
-      expect(response.artifacts.single.bytes[0], isNot(bytes[0]));
+      expect(artifact.bytes[0], isNot(bytes[0]));
     });
 
     test(
@@ -2097,7 +2300,6 @@ void _batchContractTests() {
         request: request,
         expectedTarget: target,
         decisions: [watched, response.decisions.last],
-        artifacts: response.artifacts,
       );
       expect(
         PlacementBatchResponseV1.fromCanonicalBytes(
@@ -2496,26 +2698,11 @@ void _batchContractTests() {
       );
     });
 
-    test('missing duplicate conflicting and mismatched content closure refuses',
-        () {
-      final (request, response, target, _) = _batchFixture();
-      final artifact = response.artifacts.single;
+    test('missing conflicting and mismatched content closure refuses', () {
+      final (request, response, target, fixture) = _batchFixture();
+      final artifact = _fixtureArtifacts(fixture).single;
       expect(
-        () => PlacementBatchResponseV1(
-          request: request,
-          expectedTarget: target,
-          decisions: response.decisions,
-          artifacts: [],
-        ),
-        throwsA(_refusal),
-      );
-      expect(
-        () => PlacementBatchResponseV1(
-          request: request,
-          expectedTarget: target,
-          decisions: response.decisions,
-          artifacts: [artifact, artifact],
-        ),
+        () => validatePlacementContent(response, const {}),
         throwsA(_refusal),
       );
       final otherValidFrame = _validPayload(text: 'Different valid frame');
@@ -2525,6 +2712,22 @@ void _batchContractTests() {
           bytes: otherValidFrame.canonicalBytes,
         ),
         throwsA(_refusal),
+      );
+      final floored = BlobSurfacePayload(
+        minClient: 3,
+        blob: _validPayload().blob,
+        requiredLibraries: const [
+          LibraryRequirement(
+            namespace: 'acme.widgets',
+            minVersion: 1,
+            minGenerated: 2,
+          ),
+        ],
+      );
+      // A generated-code floor is a frame section like any other.
+      expect(
+        _artifact(floored).identity.payloadFormatVersion,
+        kSurfaceArtifactSectionsPayloadFormatVersion,
       );
       final bytes = artifact.bytes..[0] ^= 1;
       expect(
@@ -2569,7 +2772,7 @@ void _batchContractTests() {
         ),
       );
       expect(
-        () => PlacementBatchResponseV1(
+        () => _resolved(
           request: request,
           expectedTarget: target,
           decisions: [
@@ -2580,7 +2783,7 @@ void _batchContractTests() {
             ),
             response.decisions.last,
           ],
-          artifacts: response.artifacts,
+          artifacts: [artifact],
         ),
         throwsA(_refusal),
       );
@@ -2602,66 +2805,6 @@ void _batchContractTests() {
             _entryFor(conflictingMounts[0], one),
             _entryFor(conflictingMounts[1], two),
           ],
-          artifacts: [
-            _artifact(one),
-            _artifact(two),
-          ],
-        ),
-        throwsA(_refusal),
-      );
-      final extra = _artifact(_validPayload(text: 'Unused'));
-      expect(
-        () => PlacementBatchResponseV1(
-          request: request,
-          expectedTarget: target,
-          decisions: response.decisions,
-          artifacts: [...response.artifacts, extra],
-        ),
-        throwsA(_refusal),
-      );
-    });
-
-    test('held content permits omission only with verified original bytes', () {
-      final (original, response, target, _) = _batchFixture();
-      final artifact = response.artifacts.single;
-      final request = _batch(
-        mounts: original.mounts,
-        build: original.buildContract,
-        heldArtifacts: {artifact.identity},
-      );
-      expect(
-        () => PlacementBatchResponseV1(
-          request: request,
-          expectedTarget: target,
-          decisions: response.decisions,
-          artifacts: [],
-        ),
-        throwsA(_refusal),
-      );
-      final held = {artifact.identity: artifact.bytes};
-      final omitted = PlacementBatchResponseV1(
-        request: request,
-        expectedTarget: target,
-        decisions: response.decisions,
-        artifacts: [],
-        heldArtifactBytes: held,
-      );
-      expect(
-        PlacementBatchResponseV1.fromCanonicalBytes(
-          omitted.canonicalBytes,
-          request: request,
-          expectedTarget: target,
-          heldArtifactBytes: held,
-        ),
-        omitted,
-      );
-      held[artifact.identity]![0] ^= 1;
-      expect(
-        () => PlacementBatchResponseV1.fromCanonicalBytes(
-          omitted.canonicalBytes,
-          request: request,
-          expectedTarget: target,
-          heldArtifactBytes: held,
         ),
         throwsA(_refusal),
       );
@@ -2689,7 +2832,9 @@ void _batchContractTests() {
           response,
         );
         expect(response.decisions, hasLength(2));
-        expect(response.artifacts, hasLength(4));
+        final artifacts = _fixtureArtifacts(fixture);
+        expect(artifacts, hasLength(4));
+        validatePlacementContent(response, _content(artifacts));
         final rows = response.decisions.cast<PlacementBatchAvailableV1>();
         expect(
           rows.map(
@@ -2727,7 +2872,7 @@ void _batchContractTests() {
               root.descriptor.publishedAtMicros,
             );
             expect(
-              response.artifacts.where(
+              artifacts.where(
                 (artifact) => artifact.identity == reference.identity,
               ),
               hasLength(1),
@@ -2876,7 +3021,7 @@ void _batchContractTests() {
         ],
       );
       expect(
-        () => PlacementBatchResponseV1(
+        () => _resolved(
           request: request,
           expectedTarget: _target,
           decisions: [changedRow],
@@ -2920,7 +3065,7 @@ void _batchContractTests() {
         for (final child in wrongChildren) {
           final artifact = _artifact(child);
           expect(
-            () => PlacementBatchResponseV1(
+            () => _resolved(
               request: request,
               expectedTarget: _target,
               decisions: [
@@ -2978,7 +3123,7 @@ void _batchContractTests() {
           [...row.artifactClosure, _dependencyFor(extra)],
         ]) {
           expect(
-            () => PlacementBatchResponseV1(
+            () => _resolved(
               request: request,
               expectedTarget: _target,
               decisions: [
@@ -3020,7 +3165,7 @@ void _batchContractTests() {
       ]);
       final request = _batch();
       final artifacts = [_artifact(parent), _artifact(child)];
-      final response = PlacementBatchResponseV1(
+      final response = _resolved(
         request: request,
         expectedTarget: _target,
         decisions: [root],
@@ -3035,7 +3180,7 @@ void _batchContractTests() {
         response,
       );
       expect(
-        () => PlacementBatchResponseV1(
+        () => _resolved(
           request: request,
           expectedTarget: _target,
           decisions: [parentEntry],
@@ -3045,7 +3190,7 @@ void _batchContractTests() {
       );
       final unrelated = _dependencyFor(_flowPayload('unrelated'));
       expect(
-        () => PlacementBatchResponseV1(
+        () => _resolved(
           request: request,
           expectedTarget: _target,
           decisions: [
@@ -3092,13 +3237,20 @@ void _batchContractTests() {
           family: DeliveryFamilySelectorV1.screenContract(contractVersion: 2),
         ),
       ];
-      final response = PlacementBatchResponseV1(
+      final response = _resolved(
         request: _batch(mounts: mounts, build: _build(mounts: mounts)),
         expectedTarget: _target,
         decisions: rows,
         artifacts: [_artifact(payload)],
-      ) as PlacementBatchResolvedV1;
-      expect(response.artifacts, hasLength(1));
+      );
+      expect(
+        {
+          for (final row
+              in response.decisions.cast<PlacementBatchAvailableV1>())
+            for (final reference in row.artifactClosure) reference.identity,
+        },
+        hasLength(1),
+      );
       expect(
         rows[0].artifactClosure.single.publication!.surface.family,
         _general,
@@ -3169,7 +3321,7 @@ void _batchContractTests() {
         );
         expect(
           () => PlacementBatchArtifactV1.fromJson(
-            {...response.artifacts.single.toJson(), field: true},
+            {..._artifact(_validPayload()).toJson(), field: true},
           ),
           throwsA(_refusal),
         );
@@ -3245,7 +3397,6 @@ void _batchContractTests() {
           ),
           response.decisions.last,
         ],
-        artifacts: response.artifacts,
       );
       expect(
         PlacementBatchResponseV1.fromCanonicalBytes(
@@ -3284,9 +3435,7 @@ void _batchContractTests() {
       );
     });
 
-    test(
-        'decoded artifact transfer and '
-        'expanded closure budgets are independent', () {
+    test('decoded artifact and expanded closure budgets both hold', () {
       final empty = _validPayload(text: '');
       final payload = _validPayload(
         text: 'x' *
@@ -3318,7 +3467,7 @@ void _batchContractTests() {
       final four =
           _batch(mounts: mounts.take(4).toList(), build: request.buildContract);
       expect(
-        PlacementBatchResponseV1(
+        _resolved(
           request: four,
           expectedTarget: _target,
           decisions: rows.take(4).toList(),
@@ -3327,32 +3476,11 @@ void _batchContractTests() {
         isA<PlacementBatchResolvedV1>(),
       );
       expect(
-        () => PlacementBatchResponseV1(
+        () => _resolved(
           request: request,
           expectedTarget: _target,
           decisions: rows,
           artifacts: [artifact],
-        ),
-        throwsA(_refusal),
-      );
-      final otherPayload = _validPayload(
-        text: 'y' *
-            (kMaximumPlacementArtifactBytes - empty.canonicalBytes.length),
-      );
-      final two =
-          _batch(mounts: mounts.take(2).toList(), build: request.buildContract);
-      expect(
-        () => PlacementBatchResponseV1(
-          request: two,
-          expectedTarget: _target,
-          decisions: [
-            rows.first,
-            _entryFor(mounts[1], otherPayload, slug: 'other'),
-          ],
-          artifacts: [
-            artifact,
-            _artifact(otherPayload),
-          ],
         ),
         throwsA(_refusal),
       );
@@ -3427,7 +3555,6 @@ PlacementBatchRequestV1 _batch({
   List<PlacementMountRequestV1>? mounts,
   PlacementBuildContractV1? build,
   PlacementBatchModeV1 mode = PlacementBatchModeV1.prefetch,
-  Set<ArtifactIdentityV1> heldArtifacts = const {},
   List<PlacementHeldAssignmentV1> heldAssignments = const [],
   String? assignmentKey,
   SurfaceRegistrationTupleV1? registration,
@@ -3443,7 +3570,6 @@ PlacementBatchRequestV1 _batch({
     buildContract: contract,
     appBuildContractHash: contract.appBuildContractHash,
     mode: mode,
-    heldArtifacts: heldArtifacts,
     heldAssignments: heldAssignments,
     assignmentKey: assignmentKey,
     registration: registration,
@@ -3782,11 +3908,41 @@ PlacementArtifactReferenceV1 _dependencyFor(
     for (final payload in [...roots, child, leaf])
       payload.flowDocument.flow: payload,
   };
-  final response = PlacementBatchResponseV1(
+  final response = _resolved(
     request: request,
     expectedTarget: _target,
     decisions: decisions,
     artifacts: payloads.values.map(_artifact).toList(),
-  ) as PlacementBatchResolvedV1;
+  );
   return (request, response, payloads);
+}
+
+List<PlacementBatchArtifactV1> _fixtureArtifacts(
+        Map<String, Object?> fixture) =>
+    [
+      for (final raw in fixture['artifacts']! as List<Object?>)
+        PlacementBatchArtifactV1.fromJson(raw),
+    ];
+
+Map<ArtifactIdentityV1, PlacementBatchArtifactV1> _content(
+  Iterable<PlacementBatchArtifactV1> artifacts,
+) =>
+    {for (final artifact in artifacts) artifact.identity: artifact};
+
+/// A response checked together with the content its rows reference.
+PlacementBatchResolvedV1 _resolved({
+  required PlacementBatchRequestV1 request,
+  required TargetCoordinate expectedTarget,
+  required List<PlacementBatchEntryV1> decisions,
+  required List<PlacementBatchArtifactV1> artifacts,
+  SurfaceRegistrationMetadataV1? registration,
+}) {
+  final response = PlacementBatchResponseV1(
+    request: request,
+    expectedTarget: expectedTarget,
+    decisions: decisions,
+    registration: registration,
+  ) as PlacementBatchResolvedV1;
+  validatePlacementContent(response, _content(artifacts));
+  return response;
 }

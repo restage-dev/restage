@@ -204,6 +204,7 @@ http.Response? _targetDirectory(String method) => switch (method) {
         {'id': 31, 'appId': 23, 'namedEnvironmentId': 37, 'slug': 'production'},
       ],
       'environmentTargets': [_directoryTarget],
+      'legacyDefaultTargetIds': <Object>[],
       'surfaces': <Object>[],
     }),
     200,

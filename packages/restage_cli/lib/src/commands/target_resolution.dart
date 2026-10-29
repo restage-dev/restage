@@ -7,6 +7,9 @@ import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
+import 'package:restage_cli/src/commands/organization_resolution.dart';
+import 'package:restage_cli/src/api/typed_error_renderer.dart'
+    show organizationUnavailableSentence;
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/discovery/context_discovery.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -267,15 +270,24 @@ Future<ResolvedEnvironmentTargetContext> resolveTargetInteractively({
   required String environmentSlug,
   String? organizationSlug,
   int? organizationId,
+  LoadedConfig? configured,
   int? environmentTargetId,
   RuntimePlane? runtimePlane,
   RuntimePlane? configuredPlane,
 }) async {
-  var snapshot = await readProgrammaticScope(
-    api,
-    organizationId: organizationId,
-  );
+  var snapshot = organizationId != null
+      ? await readProgrammaticScope(api, organizationId: organizationId)
+      : await readConfiguredScope(
+          api,
+          loaded: configured,
+          organizationSlug: organizationSlug,
+        );
+  final hasCachedId =
+      configured != null &&
+      configured.config.organization == organizationSlug &&
+      configured.config.organizationId != null;
   if (organizationId == null &&
+      !hasCachedId &&
       organizationSlug == null &&
       snapshot.organizations.length > 1) {
     if (!interactive.isInteractive) {
@@ -300,8 +312,11 @@ Future<ResolvedEnvironmentTargetContext> resolveTargetInteractively({
         .where((organization) => organization.slug == organizationSlug)
         .toList();
     if (matches.length != 1) {
-      throw const TargetSelectionException(
-        'No organization matches those selectors.',
+      throw TargetSelectionException(
+        organizationUnavailableSentence(
+          organizationSlug,
+          currentSelectorSyntax,
+        ),
       );
     }
     if (matches.single.organizationId != snapshot.organizationId) {

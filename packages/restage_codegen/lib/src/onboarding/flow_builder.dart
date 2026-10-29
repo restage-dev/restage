@@ -4568,9 +4568,13 @@ String _emitFlowDescriptor(
       ? ''
       : '  measurementPublicationDraftDigest: '
           '${_dartStringLiteral(measurementPublicationDraftDigest)},\n';
-  final vocabularyArgument = vocabulary.namesInstallable
-      ? '  vocabulary: ${emitSurfaceVocabulary(vocabulary)},\n'
-      : '';
+  // A canonical flow installs the constant the package compiler declares in
+  // its part: everything its steps draw, app widgets included.
+  final vocabularyArgument = flow.isCanonical
+      ? '  vocabulary: ${flowStepVocabularyName(refName)},\n'
+      : vocabulary.namesInstallable
+          ? '  vocabulary: ${emitSurfaceVocabulary(vocabulary)},\n'
+          : '';
   // The argument is emitted only when this flow enters a child flow.
   final subFlowsArgument = lowered.subFlowReferenceNames.isEmpty
       ? ''
@@ -4665,6 +4669,10 @@ Set<String> _flowGeneratedTopLevelSymbols(
     if (flow.isCanonical && emitsCompiledFlowMount(flow.element.library))
       ...placementDefinitionSymbols(flow.className),
     generatedHandleName(flow.className, fallback: 'surfaceFlow'),
+    if (flow.isCanonical)
+      flowStepVocabularyName(
+        generatedHandleName(flow.className, fallback: 'surfaceFlow'),
+      ),
     '_decode${flow.className}Result',
     '${flow.className}Descriptor',
     '${baseName}Actions',

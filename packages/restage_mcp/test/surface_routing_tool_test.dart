@@ -1401,6 +1401,7 @@ MockClient _withTargets(
             'runtimePlane': 'live',
           },
         ],
+        'legacyDefaultTargetIds': <Object>[],
         'surfaces': <Object>[],
         'apiKeys': <Object>[],
       }),

@@ -150,6 +150,41 @@ widget Preview = Text(text: "Preview ink");
     }
   });
 
+  testWidgets('an app widget reads what the app wrapper provides',
+      (tester) async {
+    final registration = RestageWidgetLibraryRegistration(
+      library: const WidgetLibrary.custom('acme.widgets'),
+      widgets: <RestageWidgetFactory>[
+        RestageWidgetFactory(
+          name: 'Badge',
+          builder: (context, _) => Text(_AppScope.of(context)),
+        ),
+      ],
+      capabilityVersion: 1,
+    );
+    final library = parseLibraryFile('''
+import acme.widgets;
+widget Preview = Badge();
+''');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RawRfwRenderSurface.library(
+          epoch: 1,
+          library: library,
+          data: const <String, Object?>{},
+          environment: _environment(),
+          registrations: <RestageWidgetLibraryRegistration>[registration],
+          entryWidgetName: 'Preview',
+          onRemoteEvent: (_, __) {},
+          wrap: (child) => _AppScope(label: 'From the app', child: child),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('From the app'), findsOneWidget);
+  });
+
   testWidgets('raw core decodes a blob, applies environment, and settles',
       (tester) async {
     final events = <RenderEvent>[];
@@ -1250,4 +1285,17 @@ class _AppDataCounterState extends State<_AppDataCounter> {
         onPressed: () => setState(() => _count += 1),
         child: Text('${widget.label} · Count $_count'),
       );
+}
+
+/// App state an app widget reads with `of`, which throws when it is absent.
+class _AppScope extends InheritedWidget {
+  const _AppScope({required this.label, required super.child});
+
+  final String label;
+
+  static String of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_AppScope>()!.label;
+
+  @override
+  bool updateShouldNotify(_AppScope oldWidget) => label != oldWidget.label;
 }

@@ -126,6 +126,24 @@ void main() {
       );
     });
 
+    test('an unreachable organization is named by the MCP caller id', () {
+      final body = jsonEncode({
+        'className': 'OrganizationNotFoundException',
+        'data': {
+          '__className__': 'OrganizationNotFoundException',
+          'organizationId': 99,
+        },
+      });
+      expect(
+        renderApiError(
+          RestageApiException(400, body),
+          syntax: SelectorSyntax.mcp,
+        ).message,
+        'No organization `99` is available to this account. Check '
+        '`organizationId`, or sign in again with `restage_login`.',
+      );
+    });
+
     test('returns null for a retired className', () {
       final body = jsonEncode({
         'className': 'PaywallNotFoundException',
@@ -210,7 +228,11 @@ void main() {
       const error = RestageApiException(500, 'boom');
       final cli = renderApiError(error);
       expect(cli.exitCode, 2);
-      expect(cli.message, 'Could not contact the backend: HTTP 500 — boom');
+      expect(
+        cli.message,
+        'The Restage backend returned an error (HTTP 500). Try again; if it '
+        'keeps happening, report it.',
+      );
       final mcp = renderApiError(error, syntax: SelectorSyntax.mcp);
       expect(mcp.exitCode, 2);
       expect(mcp.message, isNot(contains('boom')));

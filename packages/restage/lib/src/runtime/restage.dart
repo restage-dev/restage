@@ -232,6 +232,10 @@ abstract final class Restage {
   static RestageRpcClient? _rpcClient;
   static PlacementRegistry? _placementRegistry;
   static bool _placementDiscoveryConfigured = false;
+  // What this configuration's discovery reports and declares, whoever asks first.
+  static bool _placementDiscoveryReports = false;
+  static List<RestageSurfaceRef> _placementDiscoverySurfaces = const [];
+  static List<GeneratedPlacementDefinition> _buildPlacements = const [];
   static DateTime Function()? _placementNow;
   static bool _placementPaywallsEnabled = false;
   static bool _placementScreensEnabled = false;
@@ -463,6 +467,7 @@ abstract final class Restage {
       baseUrl = null;
     }
     _configurationGeneration += 1;
+    _environment = environment;
     _placementPaywallsEnabled = resolver == null;
     _placementScreensEnabled = surfaceScreenResolver == null;
     _placementFlowsEnabled = flowResolver == null;
@@ -472,7 +477,8 @@ abstract final class Restage {
     _onSurfaceResolution = onSurfaceResolution;
     _apiKey = apiKey;
     _baseUrl = baseUrl;
-    configureSurfaceDeliveryObservations(channel: channel);
+    configureSurfaceDeliveryObservations(
+        channel: channel, renderDeadline: renderDeadline);
     SurfaceDeliveryReceiptUploader.instance.configure(
       baseUrl: baseUrl,
       apiKey: apiKey,
@@ -482,7 +488,28 @@ abstract final class Restage {
     // origin or credential. Test clients can be reinstalled after configure.
     _rpcClient = null;
     _placementRegistry = null;
-    _configurePlacementDiscovery(surfaces, report: deliveryReceiptsEnabled);
+    _placementDiscoveryReports = deliveryReceiptsEnabled;
+    _placementDiscoverySurfaces = surfaces;
+    final decoding = _decodeGeneratedAhead(surfaces);
+    if (decoding == null) {
+      _configurePlacementDiscovery();
+    } else {
+      // Discovery waits for the read ahead's host contracts unless a mount
+      // asks for it first; either way it gets this configuration's settings.
+      final generation = _configurationGeneration;
+      PlacementDiscovery.instance.reset();
+      _placementDiscoveryConfigured = false;
+      void configureOnce() {
+        if (generation != _configurationGeneration ||
+            _placementDiscoveryConfigured) {
+          return;
+        }
+        _configurePlacementDiscovery();
+      }
+
+      unawaited(decoding.then((_) => configureOnce(),
+          onError: (Object _) => configureOnce()));
+    }
     _installIttAssignmentTransport();
     if (apiKey == null) {
       GovernedMeasurementPortRegistry.install(null);
@@ -496,7 +523,6 @@ abstract final class Restage {
     } else {
       GovernedMeasurementPortRegistry.install(null);
     }
-    _environment = environment;
     _defaultResolver = resolver ??
         (apiKey == null
             ? const AssetVariantResolver()
@@ -588,6 +614,55 @@ abstract final class Restage {
     }
   }
 
+  // The declared placements go at once with only in-memory facts, so a mount
+  // with nothing saved can paint their answer; remembered extras follow the
+  // first frame.
+  static Future<void> _prefetchPlacements(
+      PlacementRegistry placements,
+      List<PlacementDeclaration> declared,
+      Future<List<PlacementDeclaration>> knownPlacements,
+      int generation) async {
+    final startup = placements.beginStartup();
+    try {
+      // After configure returns, so the batch names the installed catalog.
+      await Future<void>.value();
+      // A relaunch that holds every declared mount's decision paints from
+      // them, so its batch waits for the first frame.
+      if (placements.holdsDecisionsFor([for (final d in declared) d.mount])) {
+        try {
+          // A hidden app schedules no frame, so its batch goes at once.
+          final binding = SchedulerBinding.instance;
+          if (binding.framesEnabled) await binding.endOfFrame;
+        } on Object {
+          // No binding yet: nothing to render, so nothing to stay off.
+        }
+        if (generation != _configurationGeneration) return;
+      }
+      await placements.prefetch(declared, inMemory: true);
+    } on Object {
+      // A refused startup batch leaves each mount's original available.
+    } finally {
+      startup.complete();
+    }
+    try {
+      final declaredMounts = {for (final d in declared) d.mount};
+      final extra = [
+        for (final known in await knownPlacements)
+          if (!declaredMounts.contains(known.mount)) known,
+      ];
+      if (extra.isEmpty) return;
+      try {
+        await SchedulerBinding.instance.endOfFrame;
+      } on Object {
+        // No binding yet: nothing to render, so nothing to stay off.
+      }
+      if (generation != _configurationGeneration) return;
+      await placements.prefetch(extra);
+    } on Object {
+      // A refused batch leaves each mount's original available.
+    }
+  }
+
   /// Fetches at most this many surfaces at once when prefetching.
   static const int _prefetchConcurrency = 4;
 
@@ -601,8 +676,53 @@ abstract final class Restage {
     _installSurfaceVocabularies(surfaces);
     final generation = _configurationGeneration;
     final placements = placementRegistry;
-    // Freeze persisted discovery before a first-frame mount can add itself.
-    final knownPlacements = placements?.loadKnownMounts();
+    if (placements != null) {
+      final decoding = _decodeGeneratedAhead(surfaces);
+      // Every request describes the whole build, from the first mount on.
+      final declared = decoding == null
+          ? placements.configure(_declaredPlacements(surfaces))
+          : null;
+      // Freeze persisted discovery before a first-frame mount can add itself.
+      final known = placements.loadKnownMounts(
+          declared: () => {
+                for (final definition in _declaredPlacements(surfaces))
+                  _mountOf(definition),
+              });
+      // A cold start paints a saved decision only if it is read before the
+      // first mount's deadline.
+      placements.warmSaved();
+      // The warm-up captures with every declared mount configured.
+      final configured = Completer<void>();
+      unawaited(placements.warmAccepted(() async {
+        final remembered = await known;
+        await configured.future;
+        return remembered;
+      }()));
+      unawaited(() async {
+        try {
+          await decoding;
+          // Off the frame isolate the read ahead is due before the first
+          // frame; the batch knows what it holds.
+          final store = sharedSurfaceArtifactStore;
+          if (store is SurfaceArtifactScopeReader &&
+              (store as SurfaceArtifactScopeReader).readsOffIsolate) {
+            await placements.readAhead();
+          }
+        } on Object {
+          // A definition the read ahead could not decode decodes itself.
+        }
+        final List<PlacementDeclaration> configuredDeclarations;
+        try {
+          if (generation != _configurationGeneration) return;
+          configuredDeclarations =
+              declared ?? placements.configure(_declaredPlacements(surfaces));
+        } finally {
+          configured.complete();
+        }
+        await _prefetchPlacements(
+            placements, configuredDeclarations, known, generation);
+      }());
+    }
     final scope = SurfaceStoreKey.scopeFor(
       apiKey: apiKey,
       environment: _environment.name,
@@ -634,18 +754,6 @@ abstract final class Restage {
       // No binding yet: nothing to render, so nothing to stay off.
     }
     if (generation != _configurationGeneration) return;
-    if (placements != null) {
-      final generated = placements
-          .configure(surfaces.whereType<GeneratedPlacementDefinition>());
-      try {
-        await placements.prefetch([
-          ...generated,
-          ...await knownPlacements!,
-        ]);
-      } on Object {
-        // A refused startup batch leaves each mount's original available.
-      }
-    }
     final queue = keys.toList();
     Future<void> worker() async {
       while (queue.isNotEmpty) {
@@ -906,6 +1014,13 @@ abstract final class Restage {
       ),
       refuseRegistration: credentialStore.refuse,
     );
+    // Minted a turn after configure, so it is ready before the first mount's
+    // deadline; a configuration replaced in that turn reads nothing.
+    scheduleMicrotask(() {
+      if (configurationGeneration == _configurationGeneration) {
+        unawaited(credentialStore.capture());
+      }
+    });
   }
 
   static void _configureMeasurementHost({
@@ -1027,6 +1142,7 @@ abstract final class Restage {
   /// Inert until [configure] supplies a `baseUrl`.
   static void reset() {
     _eventAttributionGeneration += 1;
+    _placementRegistry?.dropSaved();
     unawaited(clearSurfaceArtifactStores());
     _measurementHostOwner?.resetSdkRuntimeSession();
     _rpcClient?.forgetPublicationBindings();
@@ -1181,37 +1297,90 @@ abstract final class Restage {
 
   @internal
   static PlacementDiscovery? get placementDiscovery {
-    if (!_placementDiscoveryConfigured) {
-      _configurePlacementDiscovery(const [], report: false);
-    }
+    if (!_placementDiscoveryConfigured) _configurePlacementDiscovery();
     return _placementDiscoveryConfigured ? PlacementDiscovery.instance : null;
   }
 
-  static void _configurePlacementDiscovery(List<RestageSurfaceRef> surfaces,
-      {required bool report}) {
+  /// Declares every placement this build can mount, so each request
+  /// describes the whole build from the first launch. Generated
+  /// `registerRestageWidgets()` calls it with `restageSurfaces`.
+  static void declareSurfaces(List<RestageSurfaceRef> surfaces) {
+    // By identity: the mounts are compared once their contracts are decoded.
+    final known = {..._buildPlacements};
+    final added = [
+      for (final definition
+          in surfaces.whereType<GeneratedPlacementDefinition>())
+        if (known.add(definition)) definition,
+    ];
+    if (added.isEmpty) return;
+    _buildPlacements = List.unmodifiable([..._buildPlacements, ...added]);
+    placementRegistry?.configure(added);
+  }
+
+  // The read ahead that decodes the declared generated host contracts, or
+  // null when they are decoded here: no registry, nothing left to decode, or
+  // a store that reads on this isolate.
+  static Future<void>? _decodeGeneratedAhead(List<RestageSurfaceRef> surfaces) {
+    final registry = placementRegistry;
+    final pending = [
+      for (final definition in {
+        ..._buildPlacements,
+        ...surfaces.whereType<GeneratedPlacementDefinition>(),
+      })
+        if (definition.undecodedHostContract != null ||
+            definition.undecodedScreen != null)
+          definition,
+    ];
+    final store = sharedSurfaceArtifactStore;
+    if (registry == null ||
+        pending.isEmpty ||
+        store is! SurfaceArtifactScopeReader ||
+        !(store as SurfaceArtifactScopeReader).readsOffIsolate) {
+      return null;
+    }
+    registry.declareGenerated(pending);
+    // The read ahead judges with the widgets every listed surface draws.
+    _installSurfaceVocabularies([...pending, ...surfaces]);
+    return registry.readAhead();
+  }
+
+  static List<GeneratedPlacementDefinition> _declaredPlacements(
+      List<RestageSurfaceRef> surfaces) {
+    final seen = <PlacementMountRequestV1>{};
+    return [
+      for (final definition in [
+        ..._buildPlacements,
+        ...surfaces.whereType<GeneratedPlacementDefinition>(),
+      ])
+        if (seen.add(_mountOf(definition))) definition,
+    ];
+  }
+
+  static PlacementMountRequestV1 _mountOf(
+          GeneratedPlacementDefinition definition) =>
+      PlacementMountRequestV1(
+          key: definition.key,
+          hostContractHash: definition.hostContract.contentHash,
+          defaultSurface: definition.defaultSurfaceLocator);
+
+  static void _configurePlacementDiscovery() {
+    final definitions = _declaredPlacements(_placementDiscoverySurfaces);
+    final report = _placementDiscoveryReports;
     final platform = normalizeDeliveryPlatform(
         isWeb: kIsWeb, targetPlatform: defaultTargetPlatform);
     PlacementDiscovery.instance.reset();
     _placementDiscoveryConfigured = platform != null;
     if (platform == null) return;
     final generation = _configurationGeneration;
-    final declarations = [
-      for (final definition
-          in surfaces.whereType<GeneratedPlacementDefinition>())
-        PlacementMountRequestV1(
-            key: definition.key,
-            hostContractHash: definition.hostContract.contentHash,
-            defaultSurface: definition.defaultSurfaceLocator)
-    ];
     PlacementDiscovery.instance.configure(
         installedCapability: currentInstalledCapability,
         platform: platform,
-        mounts: declarations,
+        mounts: [for (final definition in definitions) _mountOf(definition)],
         contractsByHash: {
-          for (final definition
-              in surfaces.whereType<GeneratedPlacementDefinition>())
+          for (final definition in definitions)
             definition.hostContract.contentHash: definition.hostContract
         },
+        now: placementNow,
         report: report && _apiKey != null && _baseUrl != null
             ? (declaration) async {
                 if (generation != _configurationGeneration) return false;
@@ -1219,16 +1388,20 @@ abstract final class Restage {
                     publicationGuard: () =>
                         generation == _configurationGeneration);
               }
-            : null);
+            : null,
+        buildInputsPending: true);
     unawaited(() async {
-      final inputs = await readDeliveryBuildInputs();
-      if (generation != _configurationGeneration || inputs.platform == null) {
-        return;
+      ({String? platform, int? buildOrdinal, String? appVersion})? inputs;
+      try {
+        inputs = await readDeliveryBuildInputs();
+      } on Object {
+        // Reports then name the build without its ordinal.
       }
+      if (generation != _configurationGeneration) return;
       PlacementDiscovery.instance.updateBuildInputs(
-          platform: inputs.platform!,
-          buildOrdinal: inputs.buildOrdinal,
-          appVersion: inputs.appVersion);
+          platform: inputs?.platform ?? platform,
+          buildOrdinal: inputs?.buildOrdinal,
+          appVersion: inputs?.appVersion);
     }());
   }
 
@@ -1413,6 +1586,9 @@ abstract final class Restage {
     _placementRegistry = null;
     PlacementDiscovery.instance.reset();
     _placementDiscoveryConfigured = false;
+    _placementDiscoveryReports = false;
+    _placementDiscoverySurfaces = const [];
+    _buildPlacements = const [];
     MeasurementAssignmentTransportRegistry.debugReset();
     RootAnalyticsRuntime.clear();
     _analyticsIdentity = null;
@@ -1451,6 +1627,7 @@ abstract final class Restage {
     switch (state) {
       case AppLifecycleState.resumed:
         notifyRestageCommerceForegrounded();
+        SurfaceDeliveryReceiptUploader.instance.onAppResumed();
         scheduleMicrotask(() => SurfaceRefreshRegistry.instance.onAppResumed());
         return;
       case AppLifecycleState.hidden:

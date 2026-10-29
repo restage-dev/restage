@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/measurement_page_api.dart';
 import 'package:restage_cli/src/api/render_bundle_api.dart';
@@ -65,31 +66,15 @@ class DefaultConsoleRepository implements ConsoleRepository {
     final endpoint = _resolveEndpoint(config, credential);
     final api = _buildApi(endpoint, credential);
 
-    var scope = await readProgrammaticScope(
-      api,
-      organizationId: config.organizationId,
-    );
-    final configuredOrganization = config.organization;
-    if (configuredOrganization != null &&
-        !scope.organizations.any(
-          (organization) =>
-              organization.organizationId == scope.organizationId &&
-              organization.slug == configuredOrganization,
-        )) {
-      final match = scope.organizations
-          .where((organization) => organization.slug == configuredOrganization)
-          .firstOrNull;
-      if (match == null) {
-        throw ConsoleLoadException(
-          'restage_config.yaml names organization `$configuredOrganization`, '
-          'which is not one of yours. Your organizations: '
-          '${scope.organizations.map((o) => '${o.slug} (id ${o.organizationId})').join(', ')}.',
-        );
-      }
-      scope = await readProgrammaticScope(
+    ProgrammaticScopeSnapshot scope;
+    try {
+      scope = await readConfiguredScope(
         api,
-        organizationId: match.organizationId,
+        loaded: loaded,
+        organizationSlug: config.organization,
       );
+    } on TargetSelectionException catch (e) {
+      throw ConsoleLoadException(e.message);
     }
     if (scope.organizations.isEmpty) {
       throw ConsoleLoadException(noOrganizationSentence(api.endpoint));

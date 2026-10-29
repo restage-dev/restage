@@ -172,6 +172,7 @@ void main() {
         ).readAsString();
         expect(pubspecContent, contains('restage'));
         expect(pubspecContent, contains('restage: ^2.0.0'));
+        expect(pubspecContent, contains('restage_material: ^2.0.0'));
         expect(pubspecContent, contains('restage_codegen'));
         expect(pubspecContent, contains('restage_codegen: ^2.0.0'));
         expect(pubspecContent, contains('build_runner'));
@@ -251,6 +252,76 @@ void main() {
 
       expect(exitCode, 0, reason: stderr.toString());
       expect(stdout.toString(), isNot(contains('Set endpoint')));
+    });
+
+    group('the Android manifest', () {
+      setUp(() => _writePubspec(tempDir));
+
+      File manifest() => File(
+        p.join(
+          tempDir.path,
+          'android',
+          'app',
+          'src',
+          'main',
+          'AndroidManifest.xml',
+        ),
+      );
+      const source =
+          '<manifest xmlns:android="x">\n    <application/>\n</manifest>\n';
+
+      test('gets the INTERNET permission, then is kept', () async {
+        manifest()
+          ..createSync(recursive: true)
+          ..writeAsStringSync(source);
+
+        expect(await _runInit(stdout, stderr, store, tempDir), 0);
+        expect(
+          manifest().readAsStringSync(),
+          '<manifest xmlns:android="x">\n'
+          '    <uses-permission android:name="android.permission.INTERNET"/>\n'
+          '    <application/>\n</manifest>\n',
+        );
+        expect(
+          stdout.toString(),
+          contains(
+            'Added the INTERNET permission to '
+            'android/app/src/main/AndroidManifest.xml. Release builds can now '
+            'reach Restage.',
+          ),
+        );
+
+        stdout.clear();
+        expect(await _runInit(stdout, stderr, store, tempDir), 0);
+        expect(
+          stdout.toString(),
+          contains('AndroidManifest.xml already allows network access.'),
+        );
+      });
+
+      test('is only planned on a dry run', () async {
+        manifest()
+          ..createSync(recursive: true)
+          ..writeAsStringSync(source);
+
+        expect(
+          await _runInit(stdout, stderr, store, tempDir, extra: ['--dry-run']),
+          0,
+        );
+        expect(manifest().readAsStringSync(), source);
+        expect(
+          stdout.toString(),
+          contains(
+            '  update ${manifest().path} '
+            '(Add the INTERNET permission for release builds)',
+          ),
+        );
+      });
+
+      test('is not mentioned in a project without one', () async {
+        expect(await _runInit(stdout, stderr, store, tempDir), 0);
+        expect(stdout.toString(), isNot(contains('INTERNET')));
+      });
     });
 
     group('build.yaml', () {
@@ -402,6 +473,486 @@ void main() {
       }
     });
 
+    final sixCell = <(String, String)>[
+      for (final slug in ['dev', 'staging', 'production'])
+        for (final plane in ['sandbox', 'live']) (slug, plane),
+    ];
+    const threeCell = <(String, String)>[
+      ('dev', 'sandbox'),
+      ('staging', 'sandbox'),
+      ('production', 'live'),
+    ];
+
+    Future<({int? exit, String? environment, String? plane})> initOn(
+      List<(String, String)> grid,
+      List<String> extra,
+    ) async {
+      await _writePubspec(tempDir);
+      await seedCredential(store);
+      final exit =
+          await RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+            httpClient: _discoveryClient(grid: grid),
+          ).run([
+            '--yes',
+            'init',
+            '--directory',
+            tempDir.path,
+            '--no-starter',
+            '--no-add-deps',
+            ...extra,
+          ]);
+      final config = await loadRestageConfig(from: tempDir);
+      return (
+        exit: exit,
+        environment: config?.config.defaultEnvironment,
+        plane: config?.config.plane?.name,
+      );
+    }
+
+    for (final (name, grid) in [
+      ('six-cell', sixCell),
+      ('three-cell', threeCell),
+    ]) {
+      test('--yes on a $name app picks the first sandbox environment and '
+          'says so', () async {
+        final result = await initOn(grid, []);
+        expect(result.exit, 0, reason: stderr.toString());
+        expect(result.environment, 'dev');
+        expect(result.plane, 'sandbox');
+        expect(
+          stdout.toString(),
+          contains('Using environment `dev` (sandbox)'),
+        );
+      });
+
+      test('--env staging on a $name app needs no --plane', () async {
+        final result = await initOn(grid, ['--env', 'staging']);
+        expect(result.exit, 0, reason: stderr.toString());
+        expect(result.environment, 'staging');
+        expect(result.plane, 'sandbox');
+      });
+    }
+
+    test(
+      '--env production with no --plane uses sandbox when it is on both',
+      () async {
+        final result = await initOn(sixCell, ['--env', 'production']);
+        expect(result.exit, 0, reason: stderr.toString());
+        expect(result.plane, 'sandbox');
+      },
+    );
+
+    test(
+      '--env production with no --plane finds it on the live plane',
+      () async {
+        final result = await initOn(threeCell, ['--env', 'production']);
+        expect(result.exit, 0, reason: stderr.toString());
+        expect(result.environment, 'production');
+        expect(result.plane, 'live');
+      },
+    );
+
+    test(
+      '--env production on the wrong explicit plane says which to pass',
+      () async {
+        final result = await initOn(threeCell, [
+          '--env',
+          'production',
+          '--plane',
+          'sandbox',
+        ]);
+        expect(result.exit, 1);
+        expect(
+          stderr.toString(),
+          contains(
+            '`production` has no sandbox environment. Pass --plane live.',
+          ),
+        );
+      },
+    );
+
+    test('--yes --plane live on a three-cell app picks production', () async {
+      final result = await initOn(threeCell, ['--plane', 'live']);
+      expect(result.exit, 0, reason: stderr.toString());
+      expect(result.environment, 'production');
+      expect(result.plane, 'live');
+    });
+
+    const allSelectors = [
+      '--organization',
+      'default',
+      '--project',
+      'default-project',
+      '--app',
+      'default-app',
+    ];
+
+    test('a mistyped --env with every flag given fails and names the '
+        'environments', () async {
+      final result = await initOn(threeCell, [
+        ...allSelectors,
+        '--env',
+        'stagin',
+      ]);
+      expect(result.exit, isNot(0));
+      expect(result.environment, isNull);
+      expect(
+        stderr.toString(),
+        contains('No environment `stagin` in this app. '),
+      );
+      expect(stderr.toString(), contains('dev, staging, production'));
+    });
+
+    test('an app with only a live environment initializes with no --env '
+        'or --plane', () async {
+      final result = await initOn(const [('production', 'live')], []);
+      expect(result.exit, 0, reason: stderr.toString());
+      expect(result.environment, 'production');
+      expect(result.plane, 'live');
+    });
+
+    test('--plane with every flag given still checks the environment '
+        'exists on that plane', () async {
+      final result = await initOn(threeCell, [
+        ...allSelectors,
+        '--env',
+        'production',
+        '--plane',
+        'sandbox',
+      ]);
+      expect(result.exit, isNot(0));
+      expect(result.environment, isNull);
+      expect(
+        stderr.toString(),
+        contains('`production` has no sandbox environment. Pass --plane live.'),
+      );
+    });
+
+    Future<int> initAllFlags(http.Client client) async {
+      await _writePubspec(tempDir);
+      await seedCredential(store);
+      return RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: client,
+      ).run([
+        '--yes',
+        'init',
+        '--directory',
+        tempDir.path,
+        '--no-starter',
+        '--no-add-deps',
+        ...allSelectors,
+        '--env',
+        'staging',
+      ]);
+    }
+
+    test('all flags with an unreachable backend initialize from the flags '
+        'and say they were not checked', () async {
+      final exit = await initAllFlags(
+        mockHttpClient(
+          (_) => throw const SocketException('connection refused'),
+          withDefaultTargetDiscovery: false,
+        ),
+      );
+      expect(exit, 0, reason: stderr.toString());
+      final config = await loadRestageConfig(from: tempDir);
+      expect(config!.config.defaultEnvironment, 'staging');
+      expect(
+        stderr.toString(),
+        contains(
+          'Continuing with the slugs you passed; they were not checked.',
+        ),
+      );
+    });
+
+    test(
+      'all flags with a rejected credential fail and write no config',
+      () async {
+        final exit = await initAllFlags(
+          mockHttpClient(
+            (_) => http.Response('{"error":"unauthorized"}', 401),
+            withDefaultTargetDiscovery: false,
+          ),
+        );
+        expect(exit, 1);
+        expect(await loadRestageConfig(from: tempDir), isNull);
+        expect(stderr.toString(), isNot(contains('unauthorized')));
+        expect(stderr.toString(), isNot(contains('Continuing')));
+      },
+    );
+
+    test('all flags with a typed refusal fail and write no config', () async {
+      final exit = await initAllFlags(
+        mockHttpClient(
+          (_) => http.Response(
+            '{"className":"ProjectNotFoundException",'
+            '"data":{"slug":"default-project"}}',
+            400,
+          ),
+          withDefaultTargetDiscovery: false,
+        ),
+      );
+      expect(exit, 1);
+      expect(await loadRestageConfig(from: tempDir), isNull);
+      expect(stderr.toString(), isNot(contains('className')));
+    });
+
+    for (final (name, body) in [
+      ('a list', '[]'),
+      ('an empty object', '{}'),
+      (
+        'a malformed app row',
+        '{"organizationId": 7, "session": {"memberships": [], '
+            '"workspaceExperiences": []}, "projects": [], '
+            '"apps": [{"slug": 5}], "environments": [], '
+            '"environmentTargets": [], "surfaces": [], '
+            '"legacyDefaultTargetIds": []}',
+      ),
+      (
+        'a malformed target row',
+        '{"organizationId": 7, "session": {"memberships": [], '
+            '"workspaceExperiences": []}, "projects": [], "apps": [], '
+            '"environments": [], "environmentTargets": [{"runtimePlane": 5}], '
+            '"surfaces": [], "legacyDefaultTargetIds": []}',
+      ),
+      (
+        'a wrong-typed organization id',
+        '{"organizationId": "7", "session": {"memberships": [], '
+            '"workspaceExperiences": []}, "projects": [], "apps": [], '
+            '"environments": [], "environmentTargets": [], "surfaces": [], '
+            '"legacyDefaultTargetIds": []}',
+      ),
+      (
+        'a malformed surface row',
+        '{"organizationId": 7, "session": {"memberships": [], '
+            '"workspaceExperiences": []}, "projects": [], "apps": [], '
+            '"environments": [], "environmentTargets": [], '
+            '"surfaces": [{"id": "x"}]}',
+      ),
+      (
+        'a missing list',
+        '{"organizationId": 7, "session": {"memberships": [], '
+            '"workspaceExperiences": []}, "projects": [], "apps": [], '
+            '"environments": [], "environmentTargets": []}',
+      ),
+      (
+        'a malformed environment row',
+        '{"organizationId": 7, "session": {"memberships": [], '
+            '"workspaceExperiences": []}, "projects": [], "apps": [], '
+            '"environments": [{"slug": 5}], "environmentTargets": [], "surfaces": []}',
+      ),
+      (
+        'a wrong-typed field',
+        '{"organizationId": 7, "session": {"memberships": "x"}, '
+            '"projects": 1}',
+      ),
+    ]) {
+      test('a malformed scope reply ($name) fails with exit 2 and no stack '
+          'trace', () async {
+        final exit = await initAllFlags(
+          mockHttpClient(
+            (_) => http.Response(body, 200),
+            withDefaultTargetDiscovery: false,
+          ),
+        );
+        expect(exit, 2);
+        expect(await loadRestageConfig(from: tempDir), isNull);
+        expect(
+          stderr.toString(),
+          contains('The current scope is unavailable.'),
+        );
+      });
+    }
+
+    test(
+      'all flags with a server error exit 2 and do not echo the body',
+      () async {
+        final exit = await initAllFlags(
+          mockHttpClient(
+            (_) => http.Response('internal secret detail', 500),
+            withDefaultTargetDiscovery: false,
+          ),
+        );
+        expect(exit, 2);
+        expect(await loadRestageConfig(from: tempDir), isNull);
+        expect(stderr.toString(), contains('(HTTP 500)'));
+        expect(stderr.toString(), isNot(contains('secret')));
+      },
+    );
+
+    test('an unreachable backend without every flag exits 2', () async {
+      await _writePubspec(tempDir);
+      await seedCredential(store);
+      final exit =
+          await RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+            httpClient: mockHttpClient(
+              (_) => throw const SocketException('connection refused'),
+              withDefaultTargetDiscovery: false,
+            ),
+          ).run([
+            '--yes',
+            'init',
+            '--directory',
+            tempDir.path,
+            '--no-starter',
+            '--no-add-deps',
+          ]);
+      expect(exit, 2);
+      expect(await loadRestageConfig(from: tempDir), isNull);
+    });
+
+    test('all flags with no sign-in say the slugs were not checked', () async {
+      await _writePubspec(tempDir);
+      final exit =
+          await RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+          ).run([
+            '--yes',
+            'init',
+            '--directory',
+            tempDir.path,
+            '--no-starter',
+            '--no-add-deps',
+            '--project',
+            'p',
+            '--app',
+            'a',
+            '--env',
+            'dev',
+          ]);
+      expect(exit, 0, reason: stderr.toString());
+      expect(
+        stderr.toString(),
+        contains(
+          'Continuing with the slugs you passed; they were not checked.',
+        ),
+      );
+    });
+
+    test('several organizations with no --organization asks for it', () async {
+      await _writePubspec(tempDir);
+      await seedCredential(store);
+      final exit =
+          await RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+            httpClient: mockHttpClient(
+              (_) => http.Response(
+                jsonEncode({
+                  'organizationId': 7,
+                  'session': {
+                    'memberships': [
+                      for (final (i, slug) in ['one', 'two'].indexed)
+                        {
+                          'organizationId': 7 + i,
+                          'slug': slug,
+                          'name': slug,
+                          'role': 'owner',
+                        },
+                    ],
+                    'workspaceExperiences': <Object>[],
+                  },
+                  'projects': <Object>[],
+                  'apps': <Object>[],
+                  'environments': <Object>[],
+                  'environmentTargets': <Object>[],
+                  'legacyDefaultTargetIds': <Object>[],
+                  'surfaces': <Object>[],
+                }),
+                200,
+              ),
+              withDefaultTargetDiscovery: false,
+            ),
+          ).run([
+            '--non-interactive',
+            'init',
+            '--directory',
+            tempDir.path,
+            '--no-starter',
+            '--no-add-deps',
+            '--project',
+            'default-project',
+            '--app',
+            'default-app',
+            '--env',
+            'staging',
+          ]);
+      expect(exit, 1);
+      expect(await loadRestageConfig(from: tempDir), isNull);
+      expect(stderr.toString(), contains('--organization'));
+    });
+
+    test('--preview-wrapper must name a function the app declares', () async {
+      await _writePubspec(tempDir);
+      final exitCode =
+          await RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+          ).run(
+            _initArgs(tempDir, [
+              '--preview-wrapper',
+              'lib/restage_preview.dart#wrapPreview',
+            ]),
+          );
+      expect(exitCode, 1);
+      expect(stderr.toString(), contains('lib/restage_preview.dart'));
+      expect(
+        File(p.join(tempDir.path, 'restage_config.yaml')).existsSync(),
+        isFalse,
+      );
+    });
+
+    test('--preview-wrapper is written to the config', () async {
+      await _writePubspec(tempDir);
+      File(p.join(tempDir.path, 'lib', 'restage_preview.dart'))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('''
+import 'package:flutter/widgets.dart';
+
+Widget wrapPreview(Widget child) => child;
+''');
+      final exitCode =
+          await RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+          ).run(
+            _initArgs(tempDir, [
+              '--preview-wrapper',
+              'lib/restage_preview.dart#wrapPreview',
+            ]),
+          );
+      expect(exitCode, 0, reason: stderr.toString());
+      final config = await loadRestageConfig(from: tempDir);
+      expect(
+        config!.config.previewWrapper,
+        'lib/restage_preview.dart#wrapPreview',
+      );
+      expect(stdout.toString(), isNot(contains('previewWrapper: lib')));
+    });
+
+    test('init without a wrapper shows the config line to add', () async {
+      await _writePubspec(tempDir);
+      await _runInit(stdout, stderr, store, tempDir);
+      expect(
+        stdout.toString(),
+        contains('previewWrapper: lib/restage_preview.dart#wrapPreview'),
+      );
+    });
+
     test('--dry-run prints the planned changes without writing', () async {
       await _writePubspec(tempDir);
 
@@ -516,6 +1067,12 @@ void main() {
                 'memberships': <Object>[],
                 'workspaceExperiences': <Object>[],
               },
+              'projects': <Object>[],
+              'apps': <Object>[],
+              'environments': <Object>[],
+              'environmentTargets': <Object>[],
+              'legacyDefaultTargetIds': <Object>[],
+              'surfaces': <Object>[],
             }),
             200,
           ),
@@ -707,9 +1264,10 @@ void main() {
   });
 }
 
-http.Client _discoveryClient({void Function()? onRead}) => mockHttpClient((
-  request,
-) {
+http.Client _discoveryClient({
+  void Function()? onRead,
+  List<(String, String)> grid = const [('staging', 'sandbox')],
+}) => mockHttpClient((request) {
   onRead?.call();
   final body = jsonDecode(request.body) as Map<String, dynamic>;
   expect(request.url.path, '/scope');
@@ -734,17 +1292,28 @@ http.Client _discoveryClient({void Function()? onRead}) => mockHttpClient((
       'apps': [
         {'id': 5, 'projectId': 1, 'slug': 'default-app', 'name': 'Default App'},
       ],
+      // One row per environment target, as the server returns them.
       'environments': [
-        {'id': 11, 'appId': 5, 'namedEnvironmentId': 9, 'slug': 'staging'},
+        for (final (i, cell) in grid.indexed)
+          {
+            'id': 11 + i,
+            'appId': 5,
+            'namedEnvironmentId':
+                9 + grid.map((c) => c.$1).toSet().toList().indexOf(cell.$1),
+            'slug': cell.$1,
+          },
       ],
       'environmentTargets': [
-        {
-          'environmentTargetId': 11,
-          'namedEnvironmentId': 9,
-          'environmentSlug': 'staging',
-          'runtimePlane': 'sandbox',
-        },
+        for (final (i, cell) in grid.indexed)
+          {
+            'environmentTargetId': 11 + i,
+            'namedEnvironmentId':
+                9 + grid.map((c) => c.$1).toSet().toList().indexOf(cell.$1),
+            'environmentSlug': cell.$1,
+            'runtimePlane': cell.$2,
+          },
       ],
+      'legacyDefaultTargetIds': <Object>[],
       'surfaces': <Object>[],
     }),
     200,

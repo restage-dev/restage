@@ -23,7 +23,7 @@ Future<void> showRecap(BuildContext context) => Restage.presentPlacement(
     name: 'Sam',
     streakDays: 12,
     onEvent: (event) {
-      if (event is WeeklyRecapDismissEvent) presentation.close();
+      if (event is WeeklyRecapSurfaceDismissEvent) presentation.close();
     },
   ),
 );

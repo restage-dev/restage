@@ -7,6 +7,8 @@ import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_project.dart';
+import 'package:restage_cli/src/render_bundles/surface_capture_source.dart'
+    show SurfaceCaptureWrapper;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -61,6 +63,7 @@ _flutter.loader.load({
     required String flutterVersion,
     required Uint8List fontBytes,
     required Uint8List licenseBytes,
+    SurfaceCaptureWrapper? previewWrapper,
   }) async {
     writes.add((projectRoot: projectRoot, flutterVersion: flutterVersion));
     generated.createSync(recursive: true);
@@ -216,6 +219,21 @@ _flutter.loader.load({
     } finally {
       expect(scenarioScratch.existsSync(), isFalse);
     }
+  }
+
+  for (final worker in const [
+    'assets/packages/flutter_local_notifications_web/web/'
+        'notifications_service_worker.js',
+    'assets/packages/firebase_messaging_web/web/firebaseServiceWorker.js',
+    'assets/packages/push_web/service_worker/sw.js',
+  ]) {
+    test('leaves the dependency service worker $worker out', () async {
+      final artifact = await buildCompatibilityWorkerScenario(
+        extraFiles: <String, String>{worker: 'self.addEventListener();'},
+      );
+
+      expect(artifact.appFiles.keys, isNot(contains(worker)));
+    });
   }
 
   test('a build configuration without a skwasm build is refused', () async {
@@ -612,7 +630,13 @@ _flutter.loader.load({
           );
         }
         if (executable.endsWith('chmod')) return ProcessResult(3, 0, '', '');
-        return ProcessResult(4, arguments.first == failing ? 1 : 0, '', '');
+        final fails = arguments.first == failing;
+        return ProcessResult(
+          4,
+          fails ? 1 : 0,
+          fails ? List.generate(30, (i) => 'progress $i').join('\n') : '',
+          fails ? 'first\nboom' : '',
+        );
       }
 
       final builder = FlutterRenderBundleBuilder(
@@ -648,6 +672,16 @@ _flutter.loader.load({
                 (error) => error.buildDirectory,
                 'buildDirectory',
                 p.join('.restage', 'build', 'render_bundle'),
+              )
+              .having(
+                (error) => error.log,
+                'log',
+                allOf(endsWith('first\nboom'), hasLength(lessThan(300))),
+              )
+              .having(
+                (error) => error.log!.split('\n'),
+                'lines',
+                hasLength(20),
               ),
         ),
       );

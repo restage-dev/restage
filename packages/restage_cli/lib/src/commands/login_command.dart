@@ -7,6 +7,7 @@ import 'package:restage_cli/src/api/auth_api.dart';
 import 'package:restage_cli/src/api/auth_models.dart';
 import 'package:restage_cli/src/api/backend_sites.dart';
 import 'package:restage_cli/src/api/discovery_api.dart';
+import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/config/config_target_check.dart'
     show noOrganizationSentence;
@@ -121,8 +122,9 @@ class LoginCommand extends Command<int> {
       try {
         start = await auth.startDeviceAuthorization();
       } on RestageApiException catch (e) {
-        _stderr.writeln('Could not contact the backend: ${e.body}');
-        return 2;
+        final failure = _loginFailure(e);
+        _stderr.writeln(failure.message);
+        return failure.exitCode;
       }
 
       final verificationLink = start.verificationLink(
@@ -177,8 +179,9 @@ class LoginCommand extends Command<int> {
             result = await auth.exchangeDeviceCode(start.deviceCode);
           } on RestageApiException catch (e) {
             spinner.stop();
-            _stderr.writeln('Could not contact the backend: ${e.body}');
-            return 2;
+            final failure = _loginFailure(e);
+            _stderr.writeln(failure.message);
+            return failure.exitCode;
           }
           switch (result.status) {
             case DeviceAuthorizationStatus.pending:
@@ -314,4 +317,27 @@ class LoginCommand extends Command<int> {
     await store.write(credential);
     return credential;
   }
+}
+
+/// Login sends no credential, so an untyped 401/403 comes from something in
+/// front of the backend, not from a stale sign-in.
+({int exitCode, String message}) _loginFailure(RestageApiException e) {
+  final outcome = renderApiError(e);
+  if (outcome.exitCode == 1 && (e.statusCode == 401 || e.statusCode == 403)) {
+    String? typed;
+    try {
+      typed = typedErrorSentence(e.body);
+    } on Object {
+      typed = null;
+    }
+    if (typed == null) {
+      return (
+        exitCode: 2,
+        message:
+            'The Restage backend returned an error (HTTP ${e.statusCode}). '
+            'Try again; if it keeps happening, report it.',
+      );
+    }
+  }
+  return (exitCode: outcome.exitCode, message: outcome.message);
 }

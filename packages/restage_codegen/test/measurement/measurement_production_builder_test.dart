@@ -1600,11 +1600,22 @@ final class UnmeasuredParent extends RestageFlow {
         returnsNormally,
       );
 
+      // A later build in the same harness would take the compiler's outputs
+      // for its own previous step; the outputs build starts from them as
+      // files, as in an app's build.
+      final outputsReaderWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      for (final id in readerWriter.testing.assets) {
+        if (id.path.startsWith('.dart_tool/')) continue;
+        outputsReaderWriter.testing
+            .writeBytes(id, readerWriter.testing.readBytes(id));
+      }
       final outputsResult = await testBuilder(
         RestageOutputsBuilder(_bundledPolicyOptions),
         sources,
         rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
+        readerWriter: outputsReaderWriter,
         flattenOutput: true,
       );
       expect(
@@ -1613,7 +1624,7 @@ final class UnmeasuredParent extends RestageFlow {
         reason: outputsResult.errors.join('\n'),
       );
       final emittedBundle = RestageBundleCodec.decode(
-        readerWriter.testing.readBytes(
+        outputsReaderWriter.testing.readBytes(
           AssetId(
             'apps_examples',
             'assets/restage/bundles/lib/flows/unmeasured_parent.rsbundle',

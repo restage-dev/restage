@@ -292,10 +292,29 @@ final class PlacementBuildContractV1 extends _PlacementValue {
     for (final entry in contractsByHash.entries) {
       budget
         ..addJson(entry.key)
-        ..addJson(entry.value.toJson());
+        ..addJson(entry.value);
     }
     budget.addCapability(installedCapability);
 
+    return PlacementBuildContractV1._checked(
+      platform: platform,
+      buildOrdinal: buildOrdinal,
+      mounts: mounts,
+      contractsByHash: contractsByHash,
+      installedCapability: _strictCapability(installedCapability.toJson()),
+      installedCapabilityHash: installedCapabilityHash,
+    );
+  }
+
+  // [contractsByHash] and [installedCapability] are already strictly decoded.
+  factory PlacementBuildContractV1._checked({
+    required String platform,
+    required int? buildOrdinal,
+    required List<PlacementMountRequestV1> mounts,
+    required Map<String, SurfaceHostContractV1> contractsByHash,
+    required InstalledCapability installedCapability,
+    required String installedCapabilityHash,
+  }) {
     final canonicalMounts = _canonicalMounts(mounts);
     final referencedHashes =
         canonicalMounts.map((mount) => mount.hostContractHash).toSet();
@@ -308,9 +327,8 @@ final class PlacementBuildContractV1 extends _PlacementValue {
     final contracts = <String, SurfaceHostContractV1>{};
     for (final hash in contractsByHash.keys.toList()..sort()) {
       _requireContentHash(hash, 'contractsByHash');
-      final snapshot = SurfaceHostContractV1.fromJson(
-        contractsByHash[hash]!.toJson(),
-      );
+      // Host contracts are immutable documents; they need no defensive copy.
+      final snapshot = contractsByHash[hash]!;
       if (snapshot.contentHash != hash) {
         throw const CanonicalFormatException(
           'A host contract does not match its exact content hash.',
@@ -318,7 +336,7 @@ final class PlacementBuildContractV1 extends _PlacementValue {
       }
       contracts[hash] = snapshot;
     }
-    final capability = _strictCapability(installedCapability.toJson());
+    final capability = installedCapability;
     if (capability.contentHash != installedCapabilityHash) {
       throw const CanonicalFormatException(
         'The installed capability does not match its exact content hash.',
@@ -332,7 +350,7 @@ final class PlacementBuildContractV1 extends _PlacementValue {
       installedCapability: capability,
       installedCapabilityHash: installedCapabilityHash,
     );
-    _requireJsonBudget(result.toJson());
+    _requireByteBudget(result.canonicalBytes.length);
     return result;
   }
 
@@ -346,16 +364,31 @@ final class PlacementBuildContractV1 extends _PlacementValue {
   });
 
   /// Decodes the complete closed target-free build object.
-  factory PlacementBuildContractV1.fromJson(Object? value) {
+  factory PlacementBuildContractV1.fromJson(Object? value) =>
+      PlacementBuildContractV1._fromJson(value, canonicalChecked: false);
+
+  // With [canonicalChecked], the caller compares the whole document to its
+  // canonical bytes, so the capability needs no comparison of its own.
+  factory PlacementBuildContractV1._fromJson(
+    Object? value, {
+    required bool canonicalChecked,
+  }) {
     final reader = _reader(value, _keys, 'buildContract');
     final rawOrdinal = reader.requiredNullableValue('buildOrdinal');
     if (rawOrdinal != null && rawOrdinal is! int) {
       throw const CanonicalFormatException('buildOrdinal must be null or int.');
     }
     final rawContracts = reader.object('contractsByHash');
-    return _construct(
-      () => PlacementBuildContractV1(
-        platform: reader.string('platform'),
+    final platform = reader.string('platform');
+    final capabilityHash = reader.string('installedCapabilityHash');
+    return _construct(() {
+      _requirePlatform(platform);
+      if (rawOrdinal != null) {
+        _requireNonnegative(rawOrdinal as int, 'buildOrdinal');
+      }
+      _requireContentHash(capabilityHash, 'installedCapabilityHash');
+      return PlacementBuildContractV1._checked(
+        platform: platform,
         buildOrdinal: rawOrdinal as int?,
         mounts: reader
             .list('mounts')
@@ -365,11 +398,13 @@ final class PlacementBuildContractV1 extends _PlacementValue {
           for (final entry in rawContracts.entries)
             entry.key: SurfaceHostContractV1.fromJson(entry.value),
         },
-        installedCapability:
-            _strictCapability(reader.object('installedCapability')),
-        installedCapabilityHash: reader.string('installedCapabilityHash'),
-      ),
-    );
+        installedCapability: _strictCapability(
+          reader.object('installedCapability'),
+          canonicalChecked: canonicalChecked,
+        ),
+        installedCapabilityHash: capabilityHash,
+      );
+    });
   }
 
   /// Decodes exact canonical bytes and optionally verifies the supplied hash.
@@ -416,11 +451,9 @@ final class PlacementBuildContractV1 extends _PlacementValue {
   ///
   /// Target, credentials, users, observations and geometry are absent from the
   /// build bytes and therefore absent from this hash's preimage.
-  late final String appBuildContractHash = 'sha256:${crypto.sha256.convert(
-    <int>[
-      ...utf8.encode('restage.placement-build-contract.v1\u0000'),
-      ...canonicalBytes,
-    ],
+  late final String appBuildContractHash = 'sha256:${_sha256Of(
+    utf8.encode('restage.placement-build-contract.v1\u0000'),
+    canonicalBytes,
   )}';
 
   /// Refuses a supplied digest that does not identify this exact build.
@@ -442,6 +475,17 @@ final class PlacementBuildContractV1 extends _PlacementValue {
           for (final entry in contractsByHash.entries)
             entry.key: entry.value.toJson(),
         },
+        'installedCapability': installedCapability.toJson(),
+        'installedCapabilityHash': installedCapabilityHash,
+      };
+
+  // Host contracts encode from the bytes their hashes were taken over.
+  @override
+  Map<String, Object?> toCanonicalTree() => {
+        'platform': platform,
+        'buildOrdinal': buildOrdinal,
+        'mounts': mounts,
+        'contractsByHash': contractsByHash,
         'installedCapability': installedCapability.toJson(),
         'installedCapabilityHash': installedCapabilityHash,
       };
@@ -927,14 +971,14 @@ final class PublicDeliveryDecisionPathV1 extends _DeliveryValue {
   final DeliveryPublicationReferenceV1 actualPublication;
 
   /// The noncyclic digest of selected identities, path, and publication.
-  CanonicalDigest get selectionIdentityDigest => _domainDigest(
-        'restage.placement-selection-identity.v1',
-        {
-          'path': toJson(),
-          'selectedSurface': actualPublication.surface.toJson(),
-          'actualPublication': actualPublication.toJson(),
-        },
-      );
+  late final CanonicalDigest selectionIdentityDigest = _domainDigest(
+    'restage.placement-selection-identity.v1',
+    {
+      'path': this,
+      'selectedSurface': actualPublication.surface,
+      'actualPublication': actualPublication,
+    },
+  );
 
   @override
   Map<String, Object?> toJson() => {
@@ -983,22 +1027,17 @@ final class PublicPlacementDeliveryV1 extends _DeliveryValue {
     if (routingSelectionReceipt != null) {
       _requireOpaqueReceipt(routingSelectionReceipt);
     }
+    // Every part is an immutable value, so it is held as given.
     final result = PublicPlacementDeliveryV1._(
-      mount: PlacementMountDescriptorV1.fromJson(mount.toJson()),
-      path: PublicDeliveryDecisionPathV1.fromJson(path.toJson()),
-      selectedSurface: DeliverySurfaceReferenceV1.fromJson(
-        selectedSurface.toJson(),
-      ),
-      actualPublication: DeliveryPublicationReferenceV1.fromJson(
-        actualPublication.toJson(),
-      ),
-      fitRequirement: SurfaceFitRequirementV1.fromJson(fitRequirement.toJson()),
-      cacheValidity: DeliveryCacheValidityV1.fromJson(cacheValidity.toJson()),
+      mount: mount,
+      path: path,
+      selectedSurface: selectedSurface,
+      actualPublication: actualPublication,
+      fitRequirement: fitRequirement,
+      cacheValidity: cacheValidity,
       dependencyClosure: dependencies,
       routingSelectionReceipt: routingSelectionReceipt,
-      assignment: assignment == null
-          ? null
-          : PresentationAssignmentCarrierV2.fromJson(assignment.toJson()),
+      assignment: assignment,
     );
     if (publicProjectionDigest != null &&
         publicProjectionDigest != result.publicProjectionDigest) {
@@ -1006,7 +1045,8 @@ final class PublicPlacementDeliveryV1 extends _DeliveryValue {
         'Public projection digest mismatch.',
       );
     }
-    _requireResponseJsonBudget(result.toJson());
+    // Held bytes, bounded by the same response limit.
+    result.canonicalBytes;
     return result;
   }
 
@@ -1020,7 +1060,36 @@ final class PublicPlacementDeliveryV1 extends _DeliveryValue {
     required this.dependencyClosure,
     required this.routingSelectionReceipt,
     required this.assignment,
-  });
+    CanonicalDigest? projectionDigest,
+  }) : _projectionDigest = projectionDigest;
+
+  /// This delivery carrying [routingSelectionReceipt] and [assignment] in
+  /// place of none; the projection and its digest are unchanged.
+  PublicPlacementDeliveryV1 withCredentials({
+    String? routingSelectionReceipt,
+    PresentationAssignmentCarrierV2? assignment,
+  }) {
+    if (this.routingSelectionReceipt != null || this.assignment != null) {
+      throw const CanonicalFormatException('Credentials are already set.');
+    }
+    if (routingSelectionReceipt != null) {
+      _requireOpaqueReceipt(routingSelectionReceipt);
+    }
+    return PublicPlacementDeliveryV1._(
+      mount: mount,
+      path: path,
+      selectedSurface: selectedSurface,
+      actualPublication: actualPublication,
+      fitRequirement: fitRequirement,
+      cacheValidity: cacheValidity,
+      dependencyClosure: dependencyClosure,
+      routingSelectionReceipt: routingSelectionReceipt,
+      assignment: assignment,
+      projectionDigest: publicProjectionDigest,
+    );
+  }
+
+  final CanonicalDigest? _projectionDigest;
 
   /// Decodes the closed projection and verifies its supplied digest.
   factory PublicPlacementDeliveryV1.fromJson(Object? value) {
@@ -1106,10 +1175,31 @@ final class PublicPlacementDeliveryV1 extends _DeliveryValue {
   final PresentationAssignmentCarrierV2? assignment;
 
   /// Digest of the safe pre-mount projection, excluding opaque credentials.
-  late final CanonicalDigest publicProjectionDigest = _domainDigest(
-    'restage.public-placement-delivery.v1',
-    _projection(),
-  );
+  late final CanonicalDigest publicProjectionDigest = _projectionDigest ??
+      _domainDigest(
+        'restage.public-placement-delivery.v1',
+        _projectionTree(),
+      );
+
+  // The projection with nested values held, which encode from their bytes.
+  Map<String, Object?> _projectionTree() => {
+        'mount': mount,
+        'path': path,
+        'selectedSurface': selectedSurface,
+        'actualPublication': actualPublication,
+        'fitRequirement': fitRequirement.toJson(),
+        'cacheValidity': cacheValidity,
+        'dependencyClosure': _closureJson[dependencyClosure] ??=
+            DeliveryDependencyClosureV1Codec.encode(dependencyClosure),
+      };
+
+  @override
+  Map<String, Object?> toCanonicalTree() => {
+        ..._projectionTree(),
+        'publicProjectionDigest': publicProjectionDigest.hex,
+        'routingSelectionReceipt': routingSelectionReceipt,
+        'assignment': assignment,
+      };
 
   Map<String, Object?> _projection() => {
         'mount': mount.toJson(),
@@ -1259,7 +1349,6 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
     required String appBuildContractHash,
     required PlacementBatchModeV1 mode,
     DeliveryLocalClockV1? localClock,
-    Set<ArtifactIdentityV1> heldArtifacts = const {},
     String? sdkInstalledLibraries,
     String? sdkBuiltInsCanonicalBase64,
     String? sdkSupportedPolicyRevisions,
@@ -1268,19 +1357,25 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
     SurfaceRegistrationTupleV1? registration,
     String? meteringKey,
     String? analyticsAnonymousId,
+    bool carriesBuildContract = true,
+    bool holdsNoArtifacts = false,
   }) {
+    // Only the startup prefetch asks for its artifacts in the answer.
+    if (holdsNoArtifacts && mode != PlacementBatchModeV1.prefetch) {
+      throw const CanonicalFormatException(
+        'Only a prefetch may say it holds no artifacts.',
+      );
+    }
+    // Nested values count their held canonical bytes.
     _requireJsonBudget({
       'kind': 'placementBatchRequest',
       'schemaVersion': 1,
-      'mounts': [for (final mount in mounts) mount.toJson()],
-      'buildContract': buildContract.toJson(),
+      'mounts': mounts,
+      if (carriesBuildContract) 'buildContract': buildContract,
       'appBuildContractHash': appBuildContractHash,
       'mode': mode.name,
       'localClock': localClock?.toJson(),
-      'heldAssignments': [for (final proof in heldAssignments) proof.toJson()],
-      'heldArtifacts': [
-        for (final identity in heldArtifacts) identity.toJson(),
-      ],
+      'heldAssignments': heldAssignments,
       if (sdkInstalledLibraries != null)
         'sdkInstalledLibraries': sdkInstalledLibraries,
       if (sdkBuiltInsCanonicalBase64 != null)
@@ -1292,13 +1387,15 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
       if (meteringKey != null) 'meteringKey': meteringKey,
       if (analyticsAnonymousId != null)
         'analyticsAnonymousId': analyticsAnonymousId,
+      if (holdsNoArtifacts) 'holdsNoArtifacts': true,
     });
     buildContract.verifyHash(appBuildContractHash);
     final seen = <String>{};
+    final declared = buildContract.mounts.toSet();
     for (final mount in mounts) {
       final key = '${utf8.decode(mount.key.canonicalBytes)}\u0000'
           '${mount.hostContractHash}';
-      if (!seen.add(key) || !buildContract.mounts.contains(mount)) {
+      if (!seen.add(key) || !declared.contains(mount)) {
         throw const CanonicalFormatException(
           'Mount is duplicated or undeclared.',
         );
@@ -1384,19 +1481,14 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
         );
       }
     }
-    final identities = heldArtifacts.toList();
-    _sortCanonical(identities);
     final result = PlacementBatchRequestV1._(
-      mounts: List.unmodifiable([
-        for (final mount in mounts)
-          PlacementMountRequestV1.fromJson(mount.toJson()),
-      ]),
+      // Immutable final values; they need no defensive copy.
+      mounts: List.unmodifiable(mounts),
       // An immutable final value; it needs no defensive copy.
       buildContract: buildContract,
       appBuildContractHash: appBuildContractHash,
       mode: mode,
       localClock: localClock,
-      heldArtifacts: Set.unmodifiable(identities),
       sdkInstalledLibraries: sdkInstalledLibraries,
       sdkBuiltInsCanonicalBase64: sdkBuiltInsCanonicalBase64,
       sdkSupportedPolicyRevisions: sdkSupportedPolicyRevisions,
@@ -1405,8 +1497,10 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
       registration: registration,
       meteringKey: meteringKey,
       analyticsAnonymousId: analyticsAnonymousId,
+      carriesBuildContract: carriesBuildContract,
+      holdsNoArtifacts: holdsNoArtifacts,
     );
-    _requireJsonBudget(result.toJson());
+    _requireByteBudget(result.canonicalBytes.length);
     return result;
   }
 
@@ -1416,7 +1510,6 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
     required this.appBuildContractHash,
     required this.mode,
     required this.localClock,
-    required this.heldArtifacts,
     required this.sdkInstalledLibraries,
     required this.sdkBuiltInsCanonicalBase64,
     required this.sdkSupportedPolicyRevisions,
@@ -1425,16 +1518,23 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
     required this.registration,
     required this.meteringKey,
     required this.analyticsAnonymousId,
+    required this.carriesBuildContract,
+    required this.holdsNoArtifacts,
   });
 
   /// Decodes a closed request without inventing authenticated target authority.
   ///
   /// [verifiedBuildContract] may supply an earlier verified build for the
-  /// request's hash; it is used only when the request carries its exact bytes.
+  /// request's hash. A request that names its build by hash alone throws
+  /// [PlacementBuildContractRequired] when it supplies none.
+  ///
+  /// With [sourceBytes], the bytes [value] was decoded from, canonical bytes
+  /// pass the canonical check without encoding [value] again.
   factory PlacementBatchRequestV1.fromJson(
     Object? value, {
     PlacementBuildContractV1? Function(String appBuildContractHash)?
         verifiedBuildContract,
+    List<int>? sourceBytes,
   }) {
     _requireJsonBudget(value);
     final reader = _taggedBatchReader(
@@ -1443,13 +1543,12 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
       const {
         'mode',
         'mounts',
-        'buildContract',
         'appBuildContractHash',
         'localClock',
-        'heldArtifacts',
         'heldAssignments',
       },
       optional: const {
+        'buildContract',
         'sdkInstalledLibraries',
         'sdkBuiltInsCanonicalBase64',
         'sdkSupportedPolicyRevisions',
@@ -1458,18 +1557,11 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
         'registrationCreatedAtMicros',
         'meteringKey',
         'analyticsAnonymousId',
+        'holdsNoArtifacts',
       },
     );
     final clock = reader.requiredNullableValue('localClock');
-    final rawHeld = reader.list('heldArtifacts');
-    final held = <ArtifactIdentityV1>{};
-    for (final raw in rawHeld) {
-      if (!held.add(ArtifactIdentityV1.fromJson(raw))) {
-        throw const CanonicalFormatException(
-          'Duplicate held artifact identity.',
-        );
-      }
-    }
+    final contract = reader.optionalObject('buildContract');
     final result = _construct(
       () => PlacementBatchRequestV1(
         mounts: [
@@ -1477,7 +1569,7 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
             PlacementMountRequestV1.fromJson(mount),
         ],
         buildContract: _verifiedOrDecodedBuild(
-          reader.object('buildContract'),
+          contract,
           reader.string('appBuildContractHash'),
           verifiedBuildContract,
         ),
@@ -1488,7 +1580,6 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
             : DeliveryLocalClockV1.fromJson(
                 requireCanonicalObject(clock, 'localClock'),
               ),
-        heldArtifacts: held,
         sdkInstalledLibraries: reader.optionalString('sdkInstalledLibraries'),
         sdkBuiltInsCanonicalBase64:
             reader.optionalString('sdkBuiltInsCanonicalBase64'),
@@ -1504,17 +1595,33 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
         ),
         meteringKey: reader.optionalString('meteringKey'),
         analyticsAnonymousId: reader.optionalString('analyticsAnonymousId'),
+        carriesBuildContract: contract != null,
+        holdsNoArtifacts: reader.optionalBoolean('holdsNoArtifacts') ?? false,
       ),
     );
-    if (!_sameJson(value, result.toJson())) {
+    // The whole request, verified build contract included, must be exactly
+    // the canonical form of what was read.
+    final canonical = result.canonicalBytes;
+    if ((sourceBytes == null || _compareBytes(sourceBytes, canonical) != 0) &&
+        _compareBytes(CanonicalJsonCodec.encode(value), canonical) != 0) {
       throw const CanonicalFormatException('Batch request is not canonical.');
     }
     return result;
   }
 
   /// Decodes only the bounded original canonical request bytes.
-  factory PlacementBatchRequestV1.fromCanonicalBytes(List<int> bytes) =>
-      _decode(bytes, PlacementBatchRequestV1.fromJson);
+  factory PlacementBatchRequestV1.fromCanonicalBytes(
+    List<int> bytes, {
+    PlacementBuildContractV1? Function(String appBuildContractHash)?
+        verifiedBuildContract,
+  }) =>
+      _decode(
+        bytes,
+        (value) => PlacementBatchRequestV1.fromJson(
+          value,
+          verifiedBuildContract: verifiedBuildContract,
+        ),
+      );
 
   /// Original order of unique declared mounts.
   final List<PlacementMountRequestV1> mounts;
@@ -1530,9 +1637,6 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
 
   /// Current local offset evidence; absence remains unavailable.
   final DeliveryLocalClockV1? localClock;
-
-  /// Sorted content identities already held by the client.
-  final Set<ArtifactIdentityV1> heldArtifacts;
 
   /// Existing opaque installed-library carrier.
   final String? sdkInstalledLibraries;
@@ -1558,18 +1662,43 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
   /// Existing analytics rollout identifier for a real mount.
   final String? analyticsAnonymousId;
 
+  /// Whether the wire form carries [buildContract] or names it by hash alone.
+  final bool carriesBuildContract;
+
+  /// Whether the client holds no artifact, so the answer carries its closure.
+  final bool holdsNoArtifacts;
+
+  /// This request with its wire form carrying the build contract or not.
+  PlacementBatchRequestV1 withBuildContract({required bool carried}) =>
+      carried == carriesBuildContract
+          ? this
+          : PlacementBatchRequestV1._(
+              mounts: mounts,
+              buildContract: buildContract,
+              appBuildContractHash: appBuildContractHash,
+              mode: mode,
+              localClock: localClock,
+              sdkInstalledLibraries: sdkInstalledLibraries,
+              sdkBuiltInsCanonicalBase64: sdkBuiltInsCanonicalBase64,
+              sdkSupportedPolicyRevisions: sdkSupportedPolicyRevisions,
+              assignmentKey: assignmentKey,
+              heldAssignments: heldAssignments,
+              registration: registration,
+              meteringKey: meteringKey,
+              analyticsAnonymousId: analyticsAnonymousId,
+              carriesBuildContract: carried,
+              holdsNoArtifacts: holdsNoArtifacts,
+            );
+
   @override
   Map<String, Object?> toJson() => {
         'kind': 'placementBatchRequest',
         'schemaVersion': 1,
         'mounts': [for (final mount in mounts) mount.toJson()],
-        'buildContract': buildContract.toJson(),
+        if (carriesBuildContract) 'buildContract': buildContract.toJson(),
         'appBuildContractHash': appBuildContractHash,
         'mode': mode.name,
         'localClock': localClock?.toJson(),
-        'heldArtifacts': [
-          for (final identity in heldArtifacts) identity.toJson(),
-        ],
         if (sdkInstalledLibraries != null)
           'sdkInstalledLibraries': sdkInstalledLibraries,
         if (sdkBuiltInsCanonicalBase64 != null)
@@ -1584,6 +1713,35 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
         if (meteringKey != null) 'meteringKey': meteringKey,
         if (analyticsAnonymousId != null)
           'analyticsAnonymousId': analyticsAnonymousId,
+        if (holdsNoArtifacts) 'holdsNoArtifacts': true,
+      };
+
+  @override
+  Map<String, Object?> toCanonicalTree() => {
+        ..._treeFields(),
+        if (carriesBuildContract) 'buildContract': buildContract,
+      };
+
+  Map<String, Object?> _treeFields() => {
+        'kind': 'placementBatchRequest',
+        'schemaVersion': 1,
+        'mounts': mounts,
+        'appBuildContractHash': appBuildContractHash,
+        'mode': mode.name,
+        'localClock': localClock?.toJson(),
+        if (sdkInstalledLibraries != null)
+          'sdkInstalledLibraries': sdkInstalledLibraries,
+        if (sdkBuiltInsCanonicalBase64 != null)
+          'sdkBuiltInsCanonicalBase64': sdkBuiltInsCanonicalBase64,
+        if (sdkSupportedPolicyRevisions != null)
+          'sdkSupportedPolicyRevisions': sdkSupportedPolicyRevisions,
+        if (assignmentKey != null) 'assignmentKey': assignmentKey,
+        'heldAssignments': heldAssignments,
+        if (registration != null) ...registration!.toJson(),
+        if (meteringKey != null) 'meteringKey': meteringKey,
+        if (analyticsAnonymousId != null)
+          'analyticsAnonymousId': analyticsAnonymousId,
+        if (holdsNoArtifacts) 'holdsNoArtifacts': true,
       };
 }
 
@@ -1728,6 +1886,9 @@ final class PlacementBatchArtifactV1 extends CanonicalValue
 
   /// Defensive copy of verified whole-frame bytes.
   Uint8List get bytes => Uint8List.fromList(_bytes);
+
+  /// The frame decoded when its bytes were verified.
+  SurfacePayload get payload => _payload;
 
   /// Actual decoded whole-frame byte count.
   int get decodedByteLength => _bytes.length;
@@ -1930,13 +2091,13 @@ sealed class PlacementBatchEntryV1 extends _DeliveryValue {
 
 /// One server-issued watch token associated with its exact policy scope.
 final class PlacementDeliveryWatchChannelV1 extends _DeliveryValue {
-  /// Copies the scope and validates the existing token's bounded wire shape.
+  /// Holds the immutable scope and validates the token's bounded wire shape.
   PlacementDeliveryWatchChannelV1({
-    required DeliveryPolicyScopeV1 scope,
+    required this.scope,
     required this.token,
-  }) : scope = DeliveryPolicyScopeV1.fromJson(scope.toJson()) {
+  }) {
     _requireWatchToken(token);
-    _requireResponseJsonBudget(toJson());
+    canonicalBytes;
   }
 
   /// Decodes a closed scope-associated token without authorizing its signature.
@@ -1975,7 +2136,7 @@ final class PlacementDeliveryWatchV1 extends _DeliveryValue {
     this.edgeOrigin,
   }) : channels = _freezeDeliveryWatchChannels(channels) {
     requireLiveEdgeOrigin(edgeOrigin);
-    _requireResponseJsonBudget(toJson());
+    canonicalBytes;
   }
 
   /// Decodes a closed watch with exact canonical scope ordering.
@@ -2045,11 +2206,8 @@ final class PlacementBatchAvailableV1 extends PlacementBatchEntryV1 {
     PlacementMountDescriptorV1 descriptor,
     this.publicDelivery,
     List<PlacementArtifactReferenceV1> artifactClosure, {
-    PlacementDeliveryWatchV1? watch,
+    this.watch,
   })  : artifactClosure = _freezeArtifactClosure(artifactClosure),
-        watch = watch == null
-            ? null
-            : PlacementDeliveryWatchV1.fromJson(watch.toJson()),
         super._(descriptor) {
     if (publicDelivery.mount != descriptor ||
         this
@@ -2079,7 +2237,7 @@ final class PlacementBatchAvailableV1 extends PlacementBatchEntryV1 {
         'Watch scopes disagree with delivery dependency closure.',
       );
     }
-    _requireResponseJsonBudget(toJson());
+    // The response that carries this row bounds its size.
   }
 
   /// Safe selected delivery.
@@ -2099,6 +2257,15 @@ final class PlacementBatchAvailableV1 extends PlacementBatchEntryV1 {
         'artifactClosure': [for (final ref in artifactClosure) ref.toJson()],
         if (watch != null) 'watch': watch!.toJson(),
       };
+
+  @override
+  Map<String, Object?> toCanonicalTree() => {
+        'status': 'available',
+        'descriptor': descriptor,
+        'publicDelivery': publicDelivery,
+        'artifactClosure': artifactClosure,
+        if (watch != null) 'watch': watch,
+      };
 }
 
 /// A fallback decision retaining exact input correlation.
@@ -2108,14 +2275,11 @@ final class PlacementBatchUseFallbackV1 extends PlacementBatchEntryV1 {
     super.descriptor,
     this.reason,
     List<PlacementBatchDiagnosticV1> diagnostics, {
-    PlacementDeliveryWatchV1? watch,
+    this.watch,
     this.fallbackReceipt,
     this.selectedSurface,
     this.routeId,
   })  : diagnostics = _freezeDiagnostics(diagnostics),
-        watch = watch == null
-            ? null
-            : PlacementDeliveryWatchV1.fromJson(watch.toJson()),
         super._() {
     if (routeId != null && !_fallbackRouteIdPattern.hasMatch(routeId!)) {
       throw const CanonicalFormatException('A fallback route id is malformed.');
@@ -2127,7 +2291,7 @@ final class PlacementBatchUseFallbackV1 extends PlacementBatchEntryV1 {
         'A fallback watch names only its own placement scope.',
       );
     }
-    _requireResponseJsonBudget(toJson());
+    canonicalBytes;
   }
 
   /// The placement's own policy scope, the only one a fallback watches.
@@ -2169,6 +2333,21 @@ final class PlacementBatchUseFallbackV1 extends PlacementBatchEntryV1 {
           'selectedSurface': selectedSurface!.toJson(),
         if (routeId != null) 'routeId': routeId!,
       };
+
+  @override
+  Map<String, Object?> toCanonicalTree() => {
+        'status': 'useFallback',
+        'descriptor': descriptor,
+        'reason': reason.name,
+        'diagnostics': [
+          for (final diagnostic in diagnostics) diagnostic.toJson(),
+        ],
+        if (watch != null) 'watch': watch,
+        if (fallbackReceipt != null) 'fallbackReceipt': fallbackReceipt!,
+        if (selectedSurface != null)
+          'selectedSurface': selectedSurface!.toJson(),
+        if (routeId != null) 'routeId': routeId!,
+      };
 }
 
 final RegExp _fallbackRouteIdPattern =
@@ -2182,8 +2361,6 @@ sealed class PlacementBatchResponseV1 extends CanonicalValue
     required PlacementBatchRequestV1 request,
     required TargetCoordinate expectedTarget,
     required List<PlacementBatchEntryV1> decisions,
-    required List<PlacementBatchArtifactV1> artifacts,
-    Map<ArtifactIdentityV1, List<int>> heldArtifactBytes,
     SurfaceRegistrationMetadataV1? registration,
   }) = PlacementBatchResolvedV1;
 
@@ -2201,7 +2378,6 @@ sealed class PlacementBatchResponseV1 extends CanonicalValue
     List<int> bytes, {
     required PlacementBatchRequestV1 request,
     TargetCoordinate? expectedTarget,
-    Map<ArtifactIdentityV1, List<int>> heldArtifactBytes = const {},
   }) {
     _requireSize(
       bytes.length,
@@ -2214,7 +2390,6 @@ sealed class PlacementBatchResponseV1 extends CanonicalValue
           CanonicalJsonCodec.decode(bytes),
           request: request,
           expectedTarget: expectedTarget,
-          heldArtifactBytes: heldArtifactBytes,
         ),
         bytes,
         path: 'placementBatchResponse',
@@ -2228,7 +2403,6 @@ sealed class PlacementBatchResponseV1 extends CanonicalValue
     Object? value, {
     required PlacementBatchRequestV1 request,
     TargetCoordinate? expectedTarget,
-    Map<ArtifactIdentityV1, List<int>> heldArtifactBytes = const {},
   }) {
     _requireSize(
       CanonicalJsonCodec.encode(value).length,
@@ -2262,16 +2436,27 @@ sealed class PlacementBatchResponseV1 extends CanonicalValue
       final reader = _taggedBatchReader(
         json,
         'placementBatchResponse',
-        const {'status', 'decisions', 'artifacts'},
-        optional: _confirmationKeys,
+        const {'status', 'decisions'},
+        optional: {
+          ..._confirmationKeys,
+          'registrationRefused',
+          'inlineArtifacts',
+        },
       );
+      final registrationRefused = reader.optionalBoolean('registrationRefused');
+      final inline = <ArtifactIdentityV1, List<int>>{};
+      for (final entry in reader.optionalList('inlineArtifacts') ?? const []) {
+        final fields = _reader(entry, const {'identity', 'bytes'}, 'inline');
+        final identity = ArtifactIdentityV1.fromJson(fields.object('identity'));
+        if (inline.containsKey(identity)) {
+          throw const CanonicalFormatException('An artifact is inlined twice.');
+        }
+        inline[identity] = _carrierBytes(fields.string('bytes'),
+            kMaximumPlacementResponseBytes, 'inlineArtifacts.bytes');
+      }
       final decisions = [
         for (final decision in reader.list('decisions'))
           PlacementBatchEntryV1.fromJson(decision),
-      ];
-      final artifacts = [
-        for (final artifact in reader.list('artifacts'))
-          PlacementBatchArtifactV1.fromJson(artifact),
       ];
       final target = expectedTarget ??
           (decisions.isEmpty
@@ -2283,20 +2468,16 @@ sealed class PlacementBatchResponseV1 extends CanonicalValue
             'A batch needs one decision per mount.',
           );
         }
-        if (artifacts.isNotEmpty) {
-          throw const CanonicalFormatException(
-            'Unreferenced transferred artifact.',
-          );
-        }
-        return PlacementBatchResolvedV1._(const [], const [], registration);
+        return PlacementBatchResolvedV1._(const [], registration);
       }
-      return PlacementBatchResolvedV1(
+      return PlacementBatchResolvedV1._checked(
         request: request,
         expectedTarget: target,
         decisions: decisions,
-        artifacts: artifacts,
-        heldArtifactBytes: heldArtifactBytes,
         registration: registration,
+        registrationRefused: registrationRefused ?? false,
+        inlineArtifacts: inline,
+        decodeRows: true,
       );
     });
     if (!_sameJson(value, result.toJson())) {
@@ -2317,28 +2498,93 @@ sealed class PlacementBatchResponseV1 extends CanonicalValue
   }
 }
 
-/// One ordered result per mount and a deduplicated verified content transfer.
+/// One ordered result per mount; content is fetched by reference.
 final class PlacementBatchResolvedV1 extends PlacementBatchResponseV1 {
-  /// Checks every row and every reachable whole frame before admission.
+  /// Checks every row before admission; [validatePlacementContent] checks the
+  /// fetched frames.
   factory PlacementBatchResolvedV1({
     required PlacementBatchRequestV1 request,
     required TargetCoordinate expectedTarget,
     required List<PlacementBatchEntryV1> decisions,
-    required List<PlacementBatchArtifactV1> artifacts,
-    Map<ArtifactIdentityV1, List<int>> heldArtifactBytes = const {},
     SurfaceRegistrationMetadataV1? registration,
+    bool registrationRefused = false,
+  }) =>
+      PlacementBatchResolvedV1._checked(
+        request: request,
+        expectedTarget: expectedTarget,
+        decisions: decisions,
+        registration: registration,
+        registrationRefused: registrationRefused,
+        inlineArtifacts: const {},
+        decodeRows: true,
+      );
+
+  /// Like the default constructor, for rows this process built with their
+  /// own constructors: each row is checked against the request but not
+  /// re-decoded, and the response encodes to the same bytes.
+  factory PlacementBatchResolvedV1.fromBuiltRows({
+    required PlacementBatchRequestV1 request,
+    required TargetCoordinate expectedTarget,
+    required List<PlacementBatchEntryV1> decisions,
+    SurfaceRegistrationMetadataV1? registration,
+    bool registrationRefused = false,
+    Map<ArtifactIdentityV1, List<int>> inlineArtifacts = const {},
+  }) =>
+      PlacementBatchResolvedV1._checked(
+        request: request,
+        expectedTarget: expectedTarget,
+        decisions: decisions,
+        registration: registration,
+        registrationRefused: registrationRefused,
+        inlineArtifacts: inlineArtifacts,
+        decodeRows: false,
+      );
+
+  factory PlacementBatchResolvedV1._checked({
+    required PlacementBatchRequestV1 request,
+    required TargetCoordinate expectedTarget,
+    required List<PlacementBatchEntryV1> decisions,
+    required SurfaceRegistrationMetadataV1? registration,
+    required bool registrationRefused,
+    required Map<ArtifactIdentityV1, List<int>> inlineArtifacts,
+    required bool decodeRows,
   }) {
     _validateRegistrationConfirmation(request, registration);
+    if (inlineArtifacts.isNotEmpty && !request.holdsNoArtifacts) {
+      throw const CanonicalFormatException(
+        'Only a client holding no artifact is sent their bytes.',
+      );
+    }
+    if (registrationRefused &&
+        (registration != null ||
+            request.mode != PlacementBatchModeV1.mount ||
+            request.assignmentKey == null)) {
+      throw const CanonicalFormatException(
+        'Only a mount that presented a credential can have it refused.',
+      );
+    }
     if (decisions.length != request.mounts.length) {
       throw const CanonicalFormatException(
         'A batch needs one decision per mount.',
       );
     }
     final frozenDecisions = <PlacementBatchEntryV1>[];
-    final publications = <String, Map<String, Object?>>{};
+    final publications = <(DeliverySurfaceReferenceV1, int),
+        (PlacementArtifactReferenceV1, Map<String, Object?>)>{};
+    Map<String, Object?> coordinateOf(PlacementArtifactReferenceV1 reference) {
+      final descriptor = reference.descriptor.toJson()
+        ..remove('artifactPass')
+        ..remove('artifactUrl');
+      return {
+        'publication': reference.publication!.toJson(),
+        'descriptor': descriptor,
+      };
+    }
+
     for (var index = 0; index < decisions.length; index++) {
-      final decision =
-          PlacementBatchEntryV1.fromJson(decisions[index].toJson());
+      final decision = decodeRows
+          ? PlacementBatchEntryV1.fromJson(decisions[index].toJson())
+          : decisions[index];
       decision.descriptor.validateForRequest(
         request.mounts[index],
         expectedTarget: expectedTarget,
@@ -2354,99 +2600,74 @@ final class PlacementBatchResolvedV1 extends PlacementBatchResponseV1 {
         for (final reference in decision.artifactClosure) {
           final publication = reference.publication;
           if (publication == null) continue;
-          final key = utf8.decode(
-            CanonicalJsonCodec.encode({
-              'surface': publication.surface.toJson(),
-              'publishedVersion': publication.publishedVersion,
-            }),
-          );
-          final descriptor = reference.descriptor.toJson()
-            ..remove('artifactPass')
-            ..remove('artifactUrl');
-          final coordinate = <String, Object?>{
-            'publication': publication.toJson(),
-            'descriptor': descriptor,
-          };
-          if (publications[key] case final previous?) {
-            if (!_sameJson(previous, coordinate)) {
+          final key = (publication.surface, publication.publishedVersion);
+          if (publications[key] case (final first, final coordinate)) {
+            if (!identical(first, reference) &&
+                !_sameJson(coordinate, coordinateOf(reference))) {
               throw const CanonicalFormatException(
                 'Conflicting publication descriptors across decisions.',
               );
             }
           } else {
-            publications[key] = coordinate;
+            publications[key] = (reference, coordinateOf(reference));
           }
         }
       }
       frozenDecisions.add(decision);
     }
-    final transferred = <ArtifactIdentityV1, PlacementBatchArtifactV1>{};
-    for (final artifact in artifacts) {
-      if (transferred.containsKey(artifact.identity)) {
-        throw const CanonicalFormatException(
-          'Duplicate transferred artifact identity.',
-        );
-      }
-      transferred[artifact.identity] = artifact;
-    }
-    final available = <ArtifactIdentityV1, PlacementBatchArtifactV1>{
-      ...transferred,
+    final closure = {
+      for (final decision in frozenDecisions)
+        if (decision is PlacementBatchAvailableV1)
+          for (final reference in decision.artifactClosure) reference.identity,
     };
-    final needed = <ArtifactIdentityV1>{};
-    var expandedBytes = 0;
-    for (final decision
-        in frozenDecisions.whereType<PlacementBatchAvailableV1>()) {
-      for (final reference in decision.artifactClosure) {
-        final identity = reference.identity;
-        needed.add(identity);
-        if (!available.containsKey(identity)) {
-          final held = heldArtifactBytes[identity];
-          if (!request.heldArtifacts.contains(identity) || held == null) {
-            throw const CanonicalFormatException(
-              'Missing artifact content closure.',
-            );
-          }
-          available[identity] =
-              PlacementBatchArtifactV1(identity: identity, bytes: held);
-        }
-      }
-      expandedBytes += _validateReachableClosure(decision, available);
-      _requireSize(
-        expandedBytes,
-        kMaximumPlacementExpandedClosureBytes,
-        'Expanded selected closure',
-      );
-    }
-    if (!needed.containsAll(transferred.keys)) {
+    if (!closure.containsAll(inlineArtifacts.keys)) {
       throw const CanonicalFormatException(
-        'Unreferenced transferred artifact.',
+        'An inlined artifact is outside every closure.',
       );
     }
-    final sortedArtifacts = transferred.values.toList()
-      ..sort(
-        (a, b) =>
-            _compareBytes(a.identity.canonicalBytes, b.identity.canonicalBytes),
-      );
     final result = PlacementBatchResolvedV1._(
       List.unmodifiable(frozenDecisions),
-      List.unmodifiable(sortedArtifacts),
       registration,
+      registrationRefused: registrationRefused,
+      inlineArtifacts: Map.unmodifiable({
+        for (final identity in closure)
+          if (inlineArtifacts[identity] case final bytes?)
+            identity: Uint8List.fromList(bytes),
+      }),
     );
+    // Materialize the bounded original response before returning it.
     // Materialize the bounded original response before returning it.
     return result..canonicalBytes;
   }
 
-  PlacementBatchResolvedV1._(this.decisions, this.artifacts, this.registration)
-      : super._();
+  PlacementBatchResolvedV1._(
+    this.decisions,
+    this.registration, {
+    this.registrationRefused = false,
+    this.inlineArtifacts = const {},
+  }) : super._();
 
   /// Exact original input order, including correlated fallback rows.
   final List<PlacementBatchEntryV1> decisions;
 
-  /// Content transferred once, in canonical identity order.
-  final List<PlacementBatchArtifactV1> artifacts;
-
   /// Original folded credential confirmation, when registration succeeded.
   final SurfaceRegistrationMetadataV1? registration;
+
+  /// Whether the service no longer knows the credential the mount presented.
+  /// The device then registers again on its next mount.
+  final bool registrationRefused;
+
+  /// Closure bytes for a client that held none, in closure order. They are
+  /// checked against their identity exactly as fetched bytes are.
+  final Map<ArtifactIdentityV1, Uint8List> inlineArtifacts;
+
+  List<Map<String, Object?>> get _inlineJson => [
+        for (final MapEntry(:key, :value) in inlineArtifacts.entries)
+          {
+            'identity': key.toJson(),
+            'bytes': base64Url.encode(value).replaceAll('=', ''),
+          },
+      ];
 
   @override
   Map<String, Object?> toJson() => {
@@ -2454,8 +2675,20 @@ final class PlacementBatchResolvedV1 extends PlacementBatchResponseV1 {
         'schemaVersion': 1,
         'status': 'resolved',
         'decisions': [for (final decision in decisions) decision.toJson()],
-        'artifacts': [for (final artifact in artifacts) artifact.toJson()],
         if (registration != null) ...registration!.toJson(),
+        if (registrationRefused) 'registrationRefused': true,
+        if (inlineArtifacts.isNotEmpty) 'inlineArtifacts': _inlineJson,
+      };
+
+  @override
+  Map<String, Object?> toCanonicalTree() => {
+        'kind': 'placementBatchResponse',
+        'schemaVersion': 1,
+        'status': 'resolved',
+        'decisions': decisions,
+        if (registration != null) ...registration!.toJson(),
+        if (registrationRefused) 'registrationRefused': true,
+        if (inlineArtifacts.isNotEmpty) 'inlineArtifacts': _inlineJson,
       };
 }
 
@@ -2545,12 +2778,35 @@ List<PlacementHeldAssignmentV1> _freezeHeldAssignments(
   return List.unmodifiable(copied);
 }
 
+// Each held dependency closure's JSON, encoded once.
+final _closureJson = Expando<List<Object?>>('dependency closure JSON');
+
 CanonicalDigest _domainDigest(String domain, Object? value) => CanonicalDigest(
-      crypto.sha256.convert([
-        ...utf8.encode('$domain\u0000'),
-        ...CanonicalJsonCodec.encode(value),
-      ]).toString(),
+      _sha256Of(
+        utf8.encode('$domain\u0000'),
+        CanonicalJsonCodec.encode(value),
+      ),
     );
+
+// Hex SHA-256 of [prefix] then [bytes], hashed without joining them.
+String _sha256Of(List<int> prefix, List<int> bytes) {
+  final output = _DigestSink();
+  crypto.sha256.startChunkedConversion(output)
+    ..add(prefix)
+    ..add(bytes)
+    ..close();
+  return output.digest.toString();
+}
+
+final class _DigestSink implements Sink<crypto.Digest> {
+  late crypto.Digest digest;
+
+  @override
+  void add(crypto.Digest data) => digest = data;
+
+  @override
+  void close() {}
+}
 
 void _requireSize(int size, int maximum, String field) {
   if (size > maximum) {
@@ -2603,9 +2859,20 @@ void _validateUuid(String? value, String field) {
 }
 
 void _requireOpaqueReceipt(String value) {
-  if (value.isEmpty ||
-      value.length > 16 * 1024 ||
-      RegExp(r'^[A-Za-z0-9._-]+$').stringMatch(value) != value) {
+  if (value.isEmpty || value.length > 16 * 1024) {
+    throw const CanonicalFormatException('Invalid opaque routing receipt.');
+  }
+  // Only [A-Za-z0-9._-].
+  for (var index = 0; index < value.length; index++) {
+    final unit = value.codeUnitAt(index);
+    if ((unit >= 0x61 && unit <= 0x7A) ||
+        (unit >= 0x41 && unit <= 0x5A) ||
+        (unit >= 0x30 && unit <= 0x39) ||
+        unit == 0x2E ||
+        unit == 0x5F ||
+        unit == 0x2D) {
+      continue;
+    }
     throw const CanonicalFormatException('Invalid opaque routing receipt.');
   }
 }
@@ -2679,36 +2946,58 @@ List<PlacementArtifactReferenceV1> _freezeArtifactClosure(
   List<PlacementArtifactReferenceV1> references,
 ) {
   final copied = <PlacementArtifactReferenceV1>[];
-  final seen = <String>{};
+  final seen = <Object>{};
   for (final reference in references) {
     final publication = reference.publication;
-    final key = utf8.decode(
-      CanonicalJsonCodec.encode(
-        publication == null
-            ? {
-                'dependency': {
-                  'surfaceSlug': reference.descriptor.surfaceSlug,
-                  'version': reference.descriptor.version,
-                },
-              }
-            : {
-                'publication': {
-                  'surface': publication.surface.toJson(),
-                  'publishedVersion': publication.publishedVersion,
-                },
-              },
-      ),
-    );
+    final key = publication == null
+        ? (reference.descriptor.surfaceSlug, reference.descriptor.version)
+        : (publication.surface, publication.publishedVersion);
     if (!seen.add(key)) {
       throw const CanonicalFormatException(
         'Duplicate or conflicting artifact closure.',
       );
     }
-    copied.add(PlacementArtifactReferenceV1.fromJson(reference.toJson()));
+    // A reference is an immutable value, so it is held as given.
+    copied.add(reference);
   }
   _sortCanonical(copied);
   return List.unmodifiable(copied);
 }
+
+/// Checks that [content] holds every frame [response] references and that
+/// each available row's closure is exactly reachable and within budget.
+void validatePlacementContent(
+  PlacementBatchResolvedV1 response,
+  Map<ArtifactIdentityV1, PlacementBatchArtifactV1> content,
+) {
+  var expandedBytes = 0;
+  for (final decision
+      in response.decisions.whereType<PlacementBatchAvailableV1>()) {
+    expandedBytes += validatePlacementRowContent(decision, content);
+    _requireSize(
+      expandedBytes,
+      kMaximumPlacementExpandedClosureBytes,
+      'Expanded selected closure',
+    );
+  }
+}
+
+/// Checks that [content] holds every frame [decision] references and that its
+/// closure is exactly reachable; returns the closure's decoded byte count.
+int validatePlacementRowContent(
+  PlacementBatchAvailableV1 decision,
+  Map<ArtifactIdentityV1, PlacementBatchArtifactV1> content,
+) =>
+    _construct(() {
+      for (final reference in decision.artifactClosure) {
+        if (!content.containsKey(reference.identity)) {
+          throw const CanonicalFormatException(
+            'Missing artifact content closure.',
+          );
+        }
+      }
+      return _validateReachableClosure(decision, content);
+    });
 
 int _validateReachableClosure(
   PlacementBatchAvailableV1 decision,
@@ -2957,7 +3246,10 @@ int _compareBytes(List<int> left, List<int> right) {
   return left.length - right.length;
 }
 
-InstalledCapability _strictCapability(Map<String, Object?> json) {
+InstalledCapability _strictCapability(
+  Map<String, Object?> json, {
+  bool canonicalChecked = false,
+}) {
   final reader = CanonicalObjectReader(
     json,
     allowedKeys: const {
@@ -3046,7 +3338,7 @@ InstalledCapability _strictCapability(Map<String, Object?> json) {
   final result = _construct(() => InstalledCapability.fromJson(json));
   // The capability owner supplies hashing and ordering. Refuse aliases rather
   // than silently changing supplied vocabulary, library order or version floor.
-  if (!_sameJson(json, result.toJson())) {
+  if (!canonicalChecked && !_sameJson(json, result.toJson())) {
     throw const CanonicalFormatException(
       'The installed capability must use its canonical wire representation.',
     );
@@ -3055,18 +3347,35 @@ InstalledCapability _strictCapability(Map<String, Object?> json) {
 }
 
 PlacementBuildContractV1 _verifiedOrDecodedBuild(
-  Map<String, Object?> json,
+  Map<String, Object?>? json,
   String appBuildContractHash,
   PlacementBuildContractV1? Function(String)? verified,
 ) {
+  // A malformed hash is refused as malformed, never looked up or missed.
+  if (json == null) {
+    _requireContentHash(appBuildContractHash, 'appBuildContractHash');
+  }
   final known = verified?.call(appBuildContractHash);
-  if (known != null &&
-      known.appBuildContractHash == appBuildContractHash &&
-      _compareBytes(CanonicalJsonCodec.encode(json), known.canonicalBytes) ==
-          0) {
+  // The caller compares the whole request's bytes, this contract's included.
+  if (known != null && known.appBuildContractHash == appBuildContractHash) {
     return known;
   }
-  return PlacementBuildContractV1.fromJson(json);
+  if (json == null) throw const PlacementBuildContractRequired();
+  return PlacementBuildContractV1._fromJson(json, canonicalChecked: true);
+}
+
+/// A request named its build contract by hash, and the reader holds none.
+///
+/// The service answers it so that the client resends the full contract.
+final class PlacementBuildContractRequired implements Exception {
+  /// Creates the miss.
+  const PlacementBuildContractRequired();
+
+  /// The error code a service answers this miss with.
+  static const errorCode = 'build_contract_required';
+
+  /// The HTTP status a service answers this miss with.
+  static const status = 409;
 }
 
 bool _sameJson(Object? left, Object? right) =>
@@ -3161,6 +3470,10 @@ final class _JsonBudget {
           _addString(iterator.current! as String);
         case final int integer when _isCompactInteger(integer):
           _add(integer.toString().length);
+        // A held value counts its held bytes without encoding them again.
+        case final CanonicalValue value
+            when value is ImmutableCanonicalDocument:
+          _add(value.canonicalBytes.length);
         default:
           _add(CanonicalJsonCodec.encode(iterator.current).length);
       }
@@ -3174,6 +3487,13 @@ final class _JsonBudget {
   void _addString(String value) {
     // UTF-16 length is a lower bound on canonical UTF-8 string length.
     _requireByteBudget(_bytes + value.length + 2);
-    _add(CanonicalJsonCodec.encode(value).length);
+    // Printable ASCII other than a quote or backslash encodes as itself.
+    for (var index = 0; index < value.length; index++) {
+      final unit = value.codeUnitAt(index);
+      if (unit < 0x20 || unit > 0x7E || unit == 0x22 || unit == 0x5C) {
+        return _add(CanonicalJsonCodec.encode(value).length);
+      }
+    }
+    _add(value.length + 2);
   }
 }

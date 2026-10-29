@@ -93,6 +93,7 @@ class ArchiveHarness {
   Object? malformed;
   String? refusal;
   bool hasLive = true;
+  String listedType = 'paywall';
   Interactive interactive = const NonInteractive();
 
   http.Client client() => MockClient((request) async {
@@ -145,9 +146,24 @@ class ArchiveHarness {
                 'runtimePlane': 'live',
               },
           ],
+          'legacyDefaultTargetIds': <Object>[],
           'surfaces': <Object>[],
           'apiKeys': <Object>[],
         }),
+        200,
+      );
+    }
+    if (endpoint == 'surface' && body['method'] == 'list') {
+      return http.Response(
+        jsonEncode([
+          if (body['surfaceType'] == listedType)
+            {
+              'surfaceType': listedType,
+              'slug': 'pro',
+              'name': 'Pro',
+              'draftUpdatedAt': '2026-05-01T12:34:56.000Z',
+            },
+        ]),
         200,
       );
     }
@@ -170,6 +186,7 @@ class ArchiveHarness {
     List<String> flags, {
     bool yes = true,
     String command = 'archive',
+    bool withType = true,
   }) {
     calls.clear();
     stdout.clear();
@@ -185,8 +202,7 @@ class ArchiveHarness {
       'surface',
       command,
       'pro',
-      '--type',
-      'paywall',
+      if (withType) ...['--type', 'paywall'],
       '--project',
       'demo',
       '--app',
@@ -207,6 +223,59 @@ class ArchiveHarness {
 }
 
 void main() {
+  test('archive finds a removed onboarding surface by id', () async {
+    final h = await ArchiveHarness.create();
+    addTearDown(h.dispose);
+    h.listedType = 'onboarding';
+    expect(
+      await h.run([
+        '--reviewed-digest',
+        h.review.digest.hex,
+        '--operation-id',
+        operationId,
+      ], withType: false),
+      0,
+      reason: h.stderr.toString(),
+    );
+    expect(h.archiveCalls.single['surfaceType'], 'onboarding');
+  });
+
+  test('a review with nothing to acknowledge prints one line', () async {
+    final h = await ArchiveHarness.create();
+    addTearDown(h.dispose);
+    h.review = archiveReview(warned: false);
+
+    expect(
+      await h.run(['--operation-id', operationId]),
+      0,
+      reason: h.stderr.toString(),
+    );
+    expect(h.archiveCalls, hasLength(1));
+    expect(h.stdout.toString().trim().split('\n'), [
+      'Measurement impact surfaceArchive; review ${h.review.digest.hex}.',
+      'Operation $operationId.',
+      'Surface archived.',
+    ]);
+  });
+
+  test('archive finds a surface by id when --type is left out', () async {
+    final h = await ArchiveHarness.create();
+    addTearDown(h.dispose);
+    final digest = h.review.digest.hex;
+    expect(
+      await h.run([
+        '--reviewed-digest',
+        digest,
+        '--operation-id',
+        operationId,
+      ], withType: false),
+      0,
+      reason: h.stderr.toString(),
+    );
+    expect(h.archiveCalls, hasLength(1));
+    expect(h.archiveCalls.single['surfaceType'], 'paywall');
+  });
+
   test(
     'registered archive retains every target review and requires exact separate acknowledgement',
     () async {

@@ -58,10 +58,31 @@ class ProgrammaticScopeSnapshot {
     ];
   }
 
+  /// Decodes every row once, so a malformed reply fails here and never in a
+  /// later read.
+  void validate() {
+    organizationId;
+    organizations;
+    workspaceExperiences;
+    projects;
+    for (final row in _rows('apps')) {
+      AppSummary.fromJson(row);
+    }
+    for (final row in _rows('environments')) {
+      EnvironmentSummary.fromJson(row);
+    }
+    for (final row in _rows('environmentTargets')) {
+      EnvironmentTargetSummary.fromJson(row);
+    }
+    for (final row in _rows('surfaces')) {
+      SurfaceSummary.fromJson(row);
+    }
+    legacyDefaultTargetIds;
+  }
+
   /// Exact target ids selected as named-environment legacy defaults.
   Set<int> get legacyDefaultTargetIds => {
-    for (final id
-        in document['legacyDefaultTargetIds'] as List<dynamic>? ?? const [])
+    for (final id in document['legacyDefaultTargetIds']! as List<dynamic>)
       id as int,
   };
 
@@ -115,6 +136,11 @@ Future<ProgrammaticScopeSnapshot> readProgrammaticScope(
     throw const FormatException('The current scope is unavailable.');
   }
   final snapshot = ProgrammaticScopeSnapshot(raw);
+  try {
+    snapshot.validate();
+  } on Object {
+    throw const FormatException('The current scope is unavailable.');
+  }
   if (organizationId != null && snapshot.organizationId != organizationId) {
     throw const FormatException('The requested organization is unavailable.');
   }

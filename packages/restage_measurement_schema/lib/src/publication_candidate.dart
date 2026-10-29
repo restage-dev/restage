@@ -593,7 +593,7 @@ List<int> _decodeBase64UrlNoPadding(
   required String label,
   int? maximumDecodedLength,
 }) {
-  if (value.isEmpty || !_base64UrlNoPaddingPattern.hasMatch(value)) {
+  if (!isUnpaddedBase64UrlAlphabet(value)) {
     throw ArgumentError.value(value, label, 'Expected unpadded base64url');
   }
   if (maximumDecodedLength != null &&
@@ -629,8 +629,6 @@ int _maximumBase64UrlNoPaddingLength(int byteLength) {
     _ => paddedLength,
   };
 }
-
-final RegExp _base64UrlNoPaddingPattern = RegExp(r'^[A-Za-z0-9_-]+$');
 
 T _constructCandidate<T>(String path, T Function() create) {
   try {

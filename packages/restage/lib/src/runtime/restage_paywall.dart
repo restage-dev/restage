@@ -212,6 +212,11 @@ class RestagePaywall extends StatefulWidget implements RestagePlacementMount {
   State<RestagePaywall> createState() => _RestagePaywallState();
 }
 
+/// The host-supplied render data [paywall] was given as `context`, for render
+/// hosts that record it. Not a member, so a subclass may own `context`.
+Map<String, Object?>? paywallHostContext(RestagePaywall paywall) =>
+    paywall._context;
+
 class _RestagePaywallState extends State<RestagePaywall> {
   static const String _paywallRootWidget = 'Paywall';
 
@@ -228,6 +233,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   /// The compiled widget shown because nothing was ready by the deadline.
   bool _showDeadlineFallback = false;
+
+  /// Delivered content that arrived after the compiled fallback painted.
+  ({int? version})? _late;
   static const RestagePaywallError _deadlineFallbackError = RestagePaywallError(
     code: RestageErrorCodes.deliveryUnavailable,
     message: 'No content was ready by the render deadline.',
@@ -350,7 +358,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _handleRfwEvent(name, args ?? const <String, Object?>{});
       },
     );
-    _load();
     // Join the live-refresh registry so producers (an explicit reload, the
     // app-resume sweep, an update-channel signal) can re-resolve this surface
     // in place. Registration is inert when the surface has no triggers and
@@ -445,6 +452,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _flowController = null;
         _flowTransaction = null;
         _showDeadlineFallback = true;
+        _late = null;
       });
       if (blob != null) _disposeBlobStageAfterDetach(blob);
       if (flow != null) _disposeFlowControllerAfterDetach(flow);
@@ -550,6 +558,42 @@ class _RestagePaywallState extends State<RestagePaywall> {
         );
       }
     }
+    // The first load starts once the host theme and media are known.
+    if (_initialLoadPending) {
+      _initialLoadPending = false;
+      if (!_presentHeld()) _load();
+    }
+  }
+
+  bool _initialLoadPending = true;
+
+  // Paints a decision this process already accepted on the first build. Fresh
+  // still answers, as it does after a local candidate wins the race.
+  bool _presentHeld() {
+    final resolver = _resolver();
+    final epoch = ++_loadEpoch;
+    bool current() => mounted && epoch == _loadEpoch;
+    final cell = _presentationObservations();
+    final stopwatch = Stopwatch()..start();
+    return presentHeldPlacement<ResolvedPaywallPayload>(
+      racedResolverOf<ResolvedPaywallPayload>(resolver),
+      key: () => Restage.storeKeyFor(PaywallRef(widget.id), resolver: resolver),
+      inScope: <R>(R Function() body) => withSurfaceDeliveryObservations(
+          cell: cell,
+          resolve: () =>
+              withPaywallPresentationGuard(guard: current, resolve: body)),
+      present: (held) {
+        _fireEvent(PaywallLoadStarted(paywallId: widget.id));
+        return _presentPayload(held,
+            stopwatch: stopwatch, epoch: epoch, isRefresh: false);
+      },
+      onPresentFailed: () {
+        if (current()) unawaited(_load(announceLoadStarted: false));
+      },
+      keyDeadline: _renderDeadline.reached,
+      onLateFresh: (payload, report) =>
+          _presentLateFresh(payload, epoch, stopwatch, report),
+    );
   }
 
   /// Whether [mediaQuery] would publish the same `data.device.*` values as the
@@ -864,8 +908,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
               ),
         bestLocal:
             raced == null ? () async => null : () => raced.bestLocal(key!),
-        onLateFresh: (payload) =>
-            _presentLateFresh(payload, epoch, stopwatch, report),
+        onLateFresh: (payload) => _presentLateFresh(
+            payload, epoch, stopwatch, report,
+            kept: () => reportLateAnswerKept(raced, key)),
       ),
     );
     if (!mounted || epoch != _loadEpoch) {
@@ -940,8 +985,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
     ResolvedPaywallPayload payload,
     int epoch,
     Stopwatch stopwatch,
-    void Function(ResolvedPaywallPayload?) report,
-  ) {
+    void Function(ResolvedPaywallPayload?) report, {
+    void Function()? kept,
+  }) {
     if (!mounted || epoch != _loadEpoch) {
       payload.abandonHostedLastGood();
       return;
@@ -962,6 +1008,18 @@ class _RestagePaywallState extends State<RestagePaywall> {
         !_canSwap() ||
         _carriesAssignment(payload)) {
       payload.abandonHostedLastGood();
+      if (_showDeadlineFallback) kept?.call();
+      // The badge says delivered content is waiting for the next mount.
+      if (_showDeadlineFallback && Restage.showSourceBadges) {
+        setState(() => _late = (
+              version: switch (payload) {
+                BlobPaywallPayload(:final variant) =>
+                  variant.paywallPublishedVersion,
+                FlowPaywallPayload(:final paywallPublishedVersion) =>
+                  paywallPublishedVersion,
+              },
+            ));
+      }
       return;
     }
     _lateReports[payload] = LateRenderReport(() => report(payload));
@@ -2734,17 +2792,33 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   @override
   Widget build(BuildContext context) =>
-      withSourceBadge(_sourceBadgeLabel, _buildContent(context));
+      withSourceBadge(_sourceBadgeLabel, _buildContent(context),
+          description: () {
+        final late = _late;
+        return late == null || _badgePayload != null
+            ? null
+            : lateSourceBadgeDescription(late.version);
+      });
 
-  String _sourceBadgeLabel() {
+  /// The delivered payload on screen, or null when the original shows.
+  Object? get _badgePayload {
     final blob = _blobPresentation;
     final resolver = _flowController?.resolver;
-    final Object? payload = blob != null
+    return blob != null
         ? blob.payload
         : resolver is _PreResolvedFlowResolver
             ? resolver._payload
             : null;
-    if (payload == null) return sourceBadgeLabel(null, null);
+  }
+
+  String _sourceBadgeLabel() {
+    final payload = _badgePayload;
+    if (payload == null) {
+      final late = _late;
+      return late == null
+          ? sourceBadgeLabel(null, null)
+          : lateSourceBadgeLabel(late.version);
+    }
     final leaf = placementResolvedLeaf(payload);
     return sourceBadgeLabel(
         surfaceResolutionSourceFor(leaf) ?? surfaceResolutionSourceFor(payload),

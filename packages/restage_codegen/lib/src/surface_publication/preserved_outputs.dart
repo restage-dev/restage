@@ -80,6 +80,7 @@ Map<String, List<int>> readPriorGeneratedOutputsFromDirectory(
     plan.outputIndexPath,
     plan.measurementOutputIndexPath,
     plan.analyticsIdMetadataPath,
+    plan.capturePlanPath,
     plan.customCatalogPath,
   ]) {
     final file = File(p.join(root.path, path));

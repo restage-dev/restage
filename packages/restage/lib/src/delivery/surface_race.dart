@@ -49,10 +49,25 @@ final class RaceNone<T> extends RaceOutcome<T> {
   final bool freshPending;
 }
 
+final _heldDecisions = Expando<bool>('restage.heldDecision');
+
+/// Marks [local] as a saved decision that passed every check, so a race
+/// settles on it as soon as it is ready.
+@internal
+void markHeldDecision(Object local) => _heldDecisions[local] = true;
+
+bool _isHeldDecision(Object local) =>
+    local is! String &&
+    local is! num &&
+    local is! bool &&
+    local is! Record &&
+    _heldDecisions[local] == true;
+
 /// Starts [fresh] and [bestLocal] together and settles by [deadline].
 ///
 /// Fresh wins if it is accepted before the deadline. Otherwise the local
-/// candidate ready at that moment renders. A fresh value accepted after the
+/// candidate ready at that moment renders. A held decision renders as soon
+/// as it is ready. A fresh value accepted after the
 /// race settled goes to [onLateFresh].
 @internal
 Future<RaceOutcome<T>> raceSurface<T extends Object>({
@@ -85,12 +100,16 @@ Future<RaceOutcome<T>> raceSurface<T extends Object>({
     unawaited(deadline.reached.then((_) => settle(localOutcome())));
   }
 
-  unawaited(Future<T?>.sync(bestLocal)
-      .then<void>(
-    (value) => local = value,
+  unawaited(Future<T?>.sync(bestLocal).then<void>(
+    (value) {
+      local = value;
+      // A held decision paints at once; fresh still answers the next mount.
+      if (value != null && _isHeldDecision(value)) {
+        settle(RaceLocal<T>(value, freshError: freshError));
+      }
+    },
     onError: (Object _) {},
-  )
-      .whenComplete(() {
+  ).whenComplete(() {
     localDone = true;
     if (freshDone) settle(localOutcome());
   }));

@@ -1218,7 +1218,7 @@ Object x() => AcmeCard(child: Text("passed"));
         rootPackage: 'apps_examples',
       );
       final definition = result.translation.widgetDefinitions['AcmeGradient'];
-      expect(definition, isEmpty);
+      expect(definition, isNull);
       expect(result.decoded, isNull);
       expect(
         result.issues.map((i) => i.code),
@@ -1245,7 +1245,7 @@ Object x() => AcmeCard(child: Text("passed"));
         rootPackage: 'apps_examples',
       );
       final definition = result.translation.widgetDefinitions['AcmeGradient'];
-      expect(definition, isEmpty);
+      expect(definition, isNull);
       expect(result.decoded, isNull);
       expect(
         result.issues.map((i) => i.code),
@@ -1271,7 +1271,7 @@ Object x() => AcmeCard(child: Text("passed"));
         rootPackage: 'apps_examples',
       );
       final definition = result.translation.widgetDefinitions['AcmeGradient'];
-      expect(definition, isEmpty);
+      expect(definition, isNull);
       expect(result.decoded, isNull);
       expect(
         result.issues.map((i) => i.code),
@@ -1297,7 +1297,7 @@ Object x() => AcmeCard(child: Text("passed"));
         rootPackage: 'apps_examples',
       );
       final definition = result.translation.widgetDefinitions['AcmeGradient'];
-      expect(definition, isEmpty);
+      expect(definition, isNull);
       expect(result.decoded, isNull);
       expect(
         result.issues.map((i) => i.code),
@@ -1466,7 +1466,7 @@ Object x() => AcmeCard(child: Text("passed"));
         expect(mismatched.decoded, isNull);
         expect(
           mismatched.translation.widgetDefinitions['AcmeGradient'],
-          isEmpty,
+          isNull,
         );
         expect(
           mismatched.issues.map((issue) => issue.code),
@@ -5482,7 +5482,7 @@ Future<void> _expectNestedGradientChildRefusal(
     rootPackage: 'apps_examples',
   );
   final definition = result.translation.widgetDefinitions['AcmeGradient'];
-  expect(definition, isEmpty);
+  expect(definition, isNull);
   expect(result.decoded, isNull);
   expect(result.issues.map((issue) => issue.code), [
     code,

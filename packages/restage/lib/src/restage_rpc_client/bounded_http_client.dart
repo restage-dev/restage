@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 
+import '../resolver/placement_fallback_log.dart'
+    show noteAcceptedApiKey, noteRefusedApiKey;
+import 'network_access_check.dart';
+
 /// Bounds the wait for response headers and each silence between body
 /// chunks, so a server that stops answering fails the request with a
 /// [TimeoutException] while a slow but steady body still completes.
@@ -29,6 +33,9 @@ final class BoundedHttpClient extends http.BaseClient {
         sending,
         expired.future.then((_) => null),
       ]);
+    } on Object {
+      noteRequestFailedBeforeResponse();
+      rethrow;
     } finally {
       timer.cancel();
     }
@@ -39,6 +46,13 @@ final class BoundedHttpClient extends http.BaseClient {
         onError: (Object _) {},
       ));
       throw TimeoutException('No response', timeout);
+    }
+    if ((request.headers['Authorization'] ?? '').startsWith('Bearer rs_pk_')) {
+      if (response.statusCode == 401) {
+        noteRefusedApiKey(request.url);
+      } else if (response.statusCode >= 200 && response.statusCode < 300) {
+        noteAcceptedApiKey();
+      }
     }
     return http.StreamedResponse(
       http.ByteStream(_untilSilent(response.stream)),

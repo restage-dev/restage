@@ -228,6 +228,27 @@ void main() {
     );
   });
 
+  test('a file past its limit names the file, its size and the limit', () {
+    final files = validFiles()
+      ..['assets/garden.riv'] = Uint8List(3 * 1024 * 1024 + 512 * 1024);
+    expect(
+      () => encodeRenderBundleArchive(
+        files,
+        limits: const RenderBundleArchiveLimits(maxFileBytes: 2 * 1024 * 1024),
+      ),
+      throwsA(
+        isA<RenderBundleArchiveException>()
+            .having((e) => e.reason, 'reason', 'file_too_large')
+            .having(
+              (e) => e.note,
+              'note',
+              '`assets/garden.riv` is 3.5 MB, over the 2 MB limit for one '
+                  'file. Shrink or remove it and push again.',
+            ),
+      ),
+    );
+  });
+
   test('refuses a capability manifest past the node limit', () {
     final manifest = jsonEncode(<String, Object?>{
       'formatVersion': 1,

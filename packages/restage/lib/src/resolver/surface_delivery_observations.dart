@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart'
     show BuildContext, View, WidgetsBinding, WidgetsFlutterBinding;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
+import '../delivery/render_deadline.dart';
 import '../runtime/first_launch_store.dart';
 import 'platform_app_build_stub.dart'
     if (dart.library.io) 'platform_app_build_io.dart' as app_build;
@@ -22,6 +23,8 @@ String? _channel;
 FirstLaunchStore _firstLaunchStore = FirstLaunchStore();
 DateTime? _firstLaunchUtc;
 Future<void>? _firstLaunchRead;
+// A read in flight that already outlasted one request's wait.
+Future<void>? _timedOutFirstLaunchRead;
 DateTime Function() _utcNow = () => DateTime.now().toUtc();
 int _firstLaunchGeneration = 0;
 bool _firstLaunchEnabled = false;
@@ -43,7 +46,16 @@ String? normalizeDeliveryChannel(String? value) {
 void configureSurfaceDeliveryObservations({
   String? channel,
   bool initializeFirstLaunch = true,
+  Duration renderDeadline = RenderDeadline.defaultDuration,
 }) {
+  _installDateWait = renderDeadline ~/ 3;
+  if (!initializeFirstLaunch && _firstLaunchRead != null) {
+    // A read left in flight is dropped with the store it waits on.
+    _firstLaunchGeneration += 1;
+    _firstLaunchRead = null;
+    _timedOutFirstLaunchRead = null;
+    _firstLaunchStore = FirstLaunchStore();
+  }
   _channel = normalizeDeliveryChannel(channel);
   _firstLaunchEnabled = initializeFirstLaunch;
   _scheduleFirstLaunchRead();
@@ -53,18 +65,37 @@ void _scheduleFirstLaunchRead() {
   if (!_firstLaunchEnabled) return;
   final nowUtc = _utcNow();
   final generation = _firstLaunchGeneration;
-  scheduleMicrotask(() {
-    if (generation != _firstLaunchGeneration ||
-        _firstLaunchUtc != null ||
-        _firstLaunchRead != null) {
-      return;
+  scheduleMicrotask(() => unawaited(_readFirstLaunch(generation, nowUtc)));
+}
+
+Future<void>? _readFirstLaunch(int generation, DateTime nowUtc) {
+  if (generation != _firstLaunchGeneration) return null;
+  // A known origin whose write failed is read again, which retries the write.
+  if (_firstLaunchUtc != null && !_firstLaunchStore.unconfirmed) return null;
+  return _firstLaunchRead ??=
+      _firstLaunchStore.readOrCreate(nowUtc).then((origin) {
+    if (generation == _firstLaunchGeneration) {
+      _firstLaunchUtc = origin ?? _firstLaunchUtc;
     }
-    _firstLaunchRead = _firstLaunchStore.readOrCreate(nowUtc).then((origin) {
-      if (generation == _firstLaunchGeneration) _firstLaunchUtc = origin;
-    }).whenComplete(() {
-      if (generation == _firstLaunchGeneration) _firstLaunchRead = null;
-    });
-    unawaited(_firstLaunchRead);
+  }).whenComplete(() {
+    if (generation == _firstLaunchGeneration) _firstLaunchRead = null;
+  });
+}
+
+/// The longest a request waits for the install date before reporting none:
+/// a third of the render deadline, leaving the rest for the answer.
+Duration _installDateWait = RenderDeadline.defaultDuration ~/ 3;
+
+// A request reports the install age the device knows, waiting briefly for a
+// read in flight; a slow store costs only the age.
+Future<void> _installFactsSettled() {
+  if (!_firstLaunchEnabled) return Future<void>.value();
+  final read = _readFirstLaunch(_firstLaunchGeneration, _utcNow());
+  if (read == null || identical(read, _timedOutFirstLaunchRead)) {
+    return Future<void>.value();
+  }
+  return read.timeout(_installDateWait, onTimeout: () {
+    _timedOutFirstLaunchRead = read;
   });
 }
 
@@ -84,6 +115,7 @@ void debugResetInstallObservations({
   _channel = null;
   _firstLaunchUtc = null;
   _firstLaunchRead = null;
+  _timedOutFirstLaunchRead = null;
   _firstLaunchStore = store ?? FirstLaunchStore();
   _utcNow = nowUtc ?? () => DateTime.now().toUtc();
 }
@@ -241,7 +273,24 @@ final class SurfaceDeliveryObservations {
       'channel: $channel, daysSinceInstall: $daysSinceInstall)';
 }
 
+/// How many build or operating-system reads this process has asked the
+/// platform for.
+@visibleForTesting
+int get debugPlatformReadsStarted => _platformReadsStarted;
+int _platformReadsStarted = 0;
+
+Future<T> _platformRead<T>(Future<T> Function() read) {
+  _platformReadsStarted++;
+  return read();
+}
+
+/// Replaces the platform build-number read in tests.
+@visibleForTesting
+Future<String?> Function()? debugAppBuildNumberSource;
+
 Future<int?>? _appBuildOrdinalRead;
+bool _appBuildOrdinalKnown = false;
+int? _appBuildOrdinalValue;
 
 /// The app build ordinal for this process.
 ///
@@ -250,31 +299,44 @@ Future<int?>? _appBuildOrdinalRead;
 /// be able to answer later, so the next presentation asks again.
 Future<int?> _appBuildOrdinal(Future<String?> Function()? source) =>
     _appBuildOrdinalRead ??= () async {
+      final read = source ?? debugAppBuildNumberSource;
       try {
-        return normalizeAppBuildOrdinal(
-          source == null
-              ? await app_build.readPlatformAppBuildNumber()
-              : await source(),
+        final ordinal = normalizeAppBuildOrdinal(
+          read == null
+              ? await _platformRead(app_build.readPlatformAppBuildNumber)
+              : await read(),
         );
+        _appBuildOrdinalKnown = true;
+        return _appBuildOrdinalValue = ordinal;
       } on Object {
         _appBuildOrdinalRead = null;
         return null;
       }
     }();
 
-/// Reads the same process build facts used by hosted delivery without identity.
+Completer<void> _firstPresentation = Completer<void>();
+
+/// Reads the same process build facts used by hosted delivery without
+/// identity, once a presentation first reads its observations.
 @internal
 Future<({String? platform, int? buildOrdinal, String? appVersion})>
-    readDeliveryBuildInputs() async => (
-          platform: normalizeDeliveryPlatform(
-              isWeb: kIsWeb, targetPlatform: defaultTargetPlatform),
-          buildOrdinal: await _appBuildOrdinal(null),
-          appVersion: await readDeliveryAppVersion(),
-        );
+    readDeliveryBuildInputs() async {
+  await _firstPresentation.future;
+  return (
+    platform: normalizeDeliveryPlatform(
+        isWeb: kIsWeb, targetPlatform: defaultTargetPlatform),
+    buildOrdinal: await _appBuildOrdinal(null),
+    appVersion: await readDeliveryAppVersion(),
+  );
+}
 
 Future<String?>? _appVersionRead;
 bool _appVersionKnown = false;
 String? _appVersionValue;
+
+/// The display version when already read, without asking the platform.
+@internal
+String? knownDeliveryAppVersion() => _appVersionKnown ? _appVersionValue : null;
 
 /// The display version for this process; a failed read is asked again later.
 @internal
@@ -282,7 +344,8 @@ Future<String?> readDeliveryAppVersion() {
   if (_appVersionKnown) return Future<String?>.value(_appVersionValue);
   return _appVersionRead ??= () async {
     try {
-      final version = (await app_build.readPlatformAppVersion())?.trim();
+      final version =
+          (await _platformRead(app_build.readPlatformAppVersion))?.trim();
       _appVersionValue = version == null ||
               version.isEmpty ||
               version.length > 64 ||
@@ -299,10 +362,14 @@ Future<String?> readDeliveryAppVersion() {
   }();
 }
 
-/// Forgets the process-wide build ordinal and version so a test reads again.
+/// Forgets the process-wide build ordinal, version and first presentation, as
+/// a new process would.
 @visibleForTesting
 void debugResetAppBuildOrdinal() {
+  _firstPresentation = Completer<void>();
   _appBuildOrdinalRead = null;
+  _appBuildOrdinalKnown = false;
+  _appBuildOrdinalValue = null;
   _appVersionRead = null;
   _appVersionKnown = false;
   _appVersionValue = null;
@@ -333,7 +400,9 @@ Future<int?> _osVersion(
   if (_osVersionKnown) return Future<int?>.value(_osVersionValue);
   return _osVersionRead ??= () async {
     try {
-      final version = await (source ?? readPlatformOsVersion)(platform);
+      final version = source == null
+          ? await _platformRead(() => readPlatformOsVersion(platform))
+          : await source(platform);
       _osVersionKnown = true;
       _osVersionValue = version;
       _osVersionRead = null;
@@ -370,14 +439,27 @@ Future<SurfaceDeliveryObservations> readSurfaceDeliveryObservations({
   Future<String?> Function()? buildNumberSource,
   Future<int?> Function(String platform)? osVersionSource,
 }) async {
-  _scheduleFirstLaunchRead();
-  final (channel, installAge) = _installObservationStamp();
   WidgetsFlutterBinding.ensureInitialized();
   final web = isWeb ?? kIsWeb;
   final platform = normalizeDeliveryPlatform(
     isWeb: web,
     targetPlatform: targetPlatform ?? defaultTargetPlatform,
   );
+  // A deferred platform read answers what is already known.
+  final deferred = Zone.current[_deferredFactsKey];
+  final defer = deferred is Set<String> ? deferred : const <String>{};
+  if (defer.isEmpty && !_firstPresentation.isCompleted) {
+    _firstPresentation.complete();
+  }
+  // The build and OS reads run while the install date is awaited.
+  final ordinalRead = defer.contains('appBuildOrdinal')
+      ? Future<int?>.value(_appBuildOrdinalValue)
+      : _appBuildOrdinal(buildNumberSource);
+  final osVersionRead = defer.contains('osVersion')
+      ? Future<int?>.value(_osVersionKnown ? _osVersionValue : null)
+      : _osVersion(platform, osVersionSource);
+  await _installFactsSettled();
+  final (channel, installAge) = _installObservationStamp();
   final country = normalizePresentationCountry(
     deviceRegion ??
         WidgetsBinding.instance.platformDispatcher.locale.countryCode,
@@ -386,8 +468,8 @@ Future<SurfaceDeliveryObservations> readSurfaceDeliveryObservations({
     deviceLanguage ??
         WidgetsBinding.instance.platformDispatcher.locale.languageCode,
   );
-  final ordinal = await _appBuildOrdinal(buildNumberSource);
-  final osVersion = await _osVersion(platform, osVersionSource);
+  final ordinal = await ordinalRead;
+  final osVersion = await osVersionRead;
   return SurfaceDeliveryObservations(
     presentationCountry: country,
     presentationLanguage: language,
@@ -415,6 +497,48 @@ double? requestingViewShortestLogicalSide(BuildContext context) {
   return side.isFinite && side > 0 ? side : null;
 }
 
+/// The observations known without asking the platform for anything.
+@internal
+Future<SurfaceDeliveryObservations> readKnownSurfaceDeliveryObservations() =>
+    runZoned(readSurfaceDeliveryObservations,
+        zoneValues: {_deferredFactsKey: _platformFacts});
+
+const _platformFacts = {'appBuildOrdinal', 'osVersion'};
+
+/// The facts this process holds without a platform read, and those it lacks.
+@internal
+(SurfaceDeliveryObservations, Set<String>)
+    inMemorySurfaceDeliveryObservations() {
+  final dispatcher = WidgetsBinding.instance.platformDispatcher;
+  final view = dispatcher.implicitView;
+  final ratio = view?.devicePixelRatio ?? 0;
+  final deviceClass = classifyDeliveryDevice(
+      isWeb: kIsWeb,
+      shortestLogicalSide:
+          ratio > 0 ? view!.physicalSize.shortestSide / ratio : null);
+  return (
+    SurfaceDeliveryObservations(
+      presentationCountry:
+          normalizePresentationCountry(dispatcher.locale.countryCode),
+      presentationLanguage:
+          normalizePresentationLanguage(dispatcher.locale.languageCode),
+      platform: normalizeDeliveryPlatform(
+          isWeb: kIsWeb, targetPlatform: defaultTargetPlatform),
+      appBuildOrdinal: _appBuildOrdinalValue,
+      deviceClass: deviceClass,
+      osVersion: _osVersionValue,
+      sdkApiLevel: assignmentSdkApiLevel,
+      channel: _channel,
+    ),
+    {
+      if (!_appBuildOrdinalKnown) 'appBuildOrdinal',
+      if (!_osVersionKnown) 'osVersion',
+      if (deviceClass == null) 'deviceClass',
+      'daysSinceInstall',
+    },
+  );
+}
+
 /// Captures presentation facts once and refreshes install facts on request reuse.
 @internal
 final class SurfaceDeliveryObservationCell {
@@ -437,27 +561,47 @@ final class SurfaceDeliveryObservationCell {
         .canonicalBuiltInsBase64();
   }
 
+  /// The observations without waiting for the [defer]red platform reads, and
+  /// which of those are not known yet. The full read starts behind it.
+  Future<(SurfaceDeliveryObservations, Set<String>)> readKnown(
+      Set<String> defer) async {
+    final pending = {
+      if (defer.contains('appBuildOrdinal') && !_appBuildOrdinalKnown)
+        'appBuildOrdinal',
+      if (defer.contains('osVersion') && !_osVersionKnown) 'osVersion',
+    };
+    if (_value != null || pending.isEmpty) {
+      return (await read(), const <String>{});
+    }
+    unawaited(read().then<void>((_) {}, onError: (Object _) {}));
+    final known =
+        await runZoned(_read, zoneValues: {_deferredFactsKey: pending});
+    return (known, pending);
+  }
+
   Future<SurfaceDeliveryObservations> read() {
-    _scheduleFirstLaunchRead();
-    final stamp = _installObservationStamp();
-    final existing = _value;
-    if (existing != null) {
+    if (_value == null) {
+      // The first read already waits for the install date in flight.
+      return _resolution ??= _read().then((observations) {
+        _value = observations;
+        _installStamp = (observations.channel, observations.daysSinceInstall);
+        _resolution = null;
+        return observations;
+      });
+    }
+    return _installFactsSettled().then((_) {
+      final stamp = _installObservationStamp();
       if (_installStamp != stamp) {
-        _value = existing._withInstallFacts(stamp);
+        _value = _value!._withInstallFacts(stamp);
         _installStamp = stamp;
       }
-      return Future<SurfaceDeliveryObservations>.value(_value);
-    }
-    return _resolution ??= _read().then((observations) {
-      _value = observations;
-      _installStamp = stamp;
-      _resolution = null;
-      return observations;
+      return _value!;
     });
   }
 }
 
 const Object _observationsZoneKey = #restageSurfaceDeliveryObservations;
+const Object _deferredFactsKey = #restageDeferredPlatformFacts;
 
 /// Installs [cell] for the duration of one presentation's resolve.
 T withSurfaceDeliveryObservations<T>({

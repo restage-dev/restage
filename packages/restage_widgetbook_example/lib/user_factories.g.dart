@@ -23,6 +23,7 @@ import 'package:restage_widgetbook_example/widgets/price_badge.dart' as s5;
 import 'package:restage_widgetbook_example/widgets/stat_tile.dart' as s6;
 import 'package:restage_widgetbook_example/widgets/status_panel.dart' as s7;
 import 'package:restage/restage.dart';
+import 'restage_surfaces.g.dart';
 
 /// The built-in widgets and icons this package names in its
 /// own Dart, plus the catalog entries its compiled surfaces
@@ -99,6 +100,7 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
       ),
     );
     kRestageAppVocabulary.addToInstalled(explicitSelection: true);
+    Restage.declareSurfaces(restageSurfaces);
     Restage.registerWidgetLibrary(
       WidgetLibrary.custom('restage_widgetbook_example.widgets'),
       capabilityVersion: 4,

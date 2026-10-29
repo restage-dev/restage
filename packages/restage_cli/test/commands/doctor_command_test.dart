@@ -71,6 +71,49 @@ void main() {
         expect(stdout.toString(), contains('restage login'));
       });
 
+      test(
+        'checks the environment against the app, not the whole project',
+        () async {
+          await seedCredential(store, endpoint: 'https://api.example.com/');
+          await File(p.join(tempDir.path, 'restage_config.yaml')).writeAsString(
+            'project: default\napp: mobile\ndefaultEnvironment: dev\n'
+            'organization: acme\n',
+          );
+          final exitCode = await runDoctorWith(
+            mockHttpClient((request) {
+              final body = jsonDecode(request.body) as Map<String, dynamic>;
+              return switch (body['method']) {
+                'listMine' => http.Response(
+                  jsonEncode([
+                    {'organizationId': 7, 'slug': 'acme', 'name': 'Acme'},
+                  ]),
+                  200,
+                ),
+                'listProjects' => http.Response(
+                  jsonEncode([
+                    {'slug': 'default', 'name': 'Default'},
+                  ]),
+                  200,
+                ),
+                'listApps' => http.Response(
+                  jsonEncode([
+                    {'id': 5, 'slug': 'mobile', 'name': 'Mobile'},
+                  ]),
+                  200,
+                ),
+                'listEnvironmentTargets' => http.Response(
+                  jsonEncode(defaultEnvironmentTargets),
+                  200,
+                ),
+                _ => http.Response('{"items":[]}', 200),
+              };
+            }, withDefaultTargetDiscovery: false),
+          );
+          expect(exitCode, 0);
+          expect(stdout.toString(), contains('PASS  Project config'));
+        },
+      );
+
       test('WARNs with the real projects when the configured one does not '
           'exist', () async {
         await seedCredential(store, endpoint: 'https://api.example.com/');
@@ -102,6 +145,114 @@ void main() {
             'restage_config.yaml names project `examples`, which does not '
             'exist in `acme`. Projects: `default`.',
           ),
+        );
+      });
+    });
+
+    group('build output', () {
+      Future<void> git(List<String> arguments) =>
+          Process.run('git', arguments, workingDirectory: tempDir.path);
+
+      setUp(() => git(['init', '-q']));
+
+      test('WARNs when git would track the build metadata', () async {
+        await File(
+          p.join(tempDir.path, '.gitignore'),
+        ).writeAsString('restage.publication.json\n');
+
+        expect(await runDoctor(), 0);
+        expect(
+          stdout.toString(),
+          contains(
+            "Git doesn't ignore these build files: "
+            '.restage/build/metadata/restage.capture.json. Add them to '
+            '.gitignore.',
+          ),
+        );
+      });
+
+      test('PASSes when the build metadata is ignored', () async {
+        await File(
+          p.join(tempDir.path, '.gitignore'),
+        ).writeAsString('.restage/build/\n');
+
+        expect(await runDoctor(), 0);
+        expect(stdout.toString(), contains('Build output is ignored by git.'));
+      });
+
+      test('follows a configured output root', () async {
+        await File(p.join(tempDir.path, 'build.yaml')).writeAsString('''
+targets:
+  \$default:
+    builders:
+      restage_codegen:outputs:
+        options:
+          output_root: tool/restage
+''');
+        await File(
+          p.join(tempDir.path, '.gitignore'),
+        ).writeAsString('restage.publication.json\n');
+
+        await runDoctor();
+        expect(
+          stdout.toString(),
+          contains(
+            "Git doesn't ignore these build files: "
+            'tool/restage/metadata/restage.capture.json. Add them to '
+            '.gitignore.',
+          ),
+        );
+      });
+    });
+
+    group('the Android INTERNET permission', () {
+      File manifest() => File(
+        p.join(
+          tempDir.path,
+          'android',
+          'app',
+          'src',
+          'main',
+          'AndroidManifest.xml',
+        ),
+      )..createSync(recursive: true);
+
+      test('WARNs when the main manifest lacks it', () async {
+        manifest().writeAsStringSync('<manifest>\n</manifest>\n');
+        expect(await runDoctor(), 0);
+        expect(
+          stdout.toString(),
+          contains(
+            'WARN  Android network permission\n'
+            "      The main AndroidManifest.xml doesn't request the INTERNET "
+            'permission. Release builds may not reach Restage. Add '
+            '`<uses-permission android:name="android.permission.INTERNET"/>` '
+            'to it, or run `restage init`.',
+          ),
+        );
+      });
+
+      test('PASSes when it is declared', () async {
+        manifest().writeAsStringSync(
+          '<manifest>\n  <uses-permission '
+          'android:name="android.permission.INTERNET"/>\n</manifest>\n',
+        );
+        expect(await runDoctor(), 0);
+        expect(
+          stdout.toString(),
+          contains(
+            'PASS  Android network permission\n'
+            '      The main AndroidManifest.xml requests the INTERNET '
+            'permission.',
+          ),
+        );
+      });
+
+      test('is not checked without an Android app', () async {
+        expect(await runDoctor(), 0);
+        expect(
+          stdout.toString(),
+          isNot(contains('Android network permission')),
         );
       });
     });

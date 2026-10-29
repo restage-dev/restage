@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -53,6 +54,34 @@ void main() {
         isA<MeasurementPublicationBindingReadRpcAccepted>());
     expect(firstReads, 1);
     expect(secondReads, 1);
+  });
+
+  test('concurrent reads of one reference share one request', () async {
+    var reads = 0;
+    final respond = Completer<int>();
+    final rpc = RestageRpcClient(
+      baseUrl: 'https://surfaces.example.com',
+      apiKey: 'rs_pk_memo',
+      httpClient: MockClient((request) async {
+        reads++;
+        final status = await respond.future;
+        return http.Response(status == 200 ? acceptedBody : '', status);
+      }),
+    );
+    final first = [
+      for (var i = 0; i < 40; i++)
+        rpc.readMeasurementPublicationBindingExact(entry.reference),
+    ];
+    await pumpEventQueue();
+    respond.complete(503);
+    for (final outcome in await Future.wait(first)) {
+      expect(outcome, isA<MeasurementPublicationBindingReadRpcUnavailable>());
+    }
+    expect(reads, 1);
+
+    // A failed shared read is not kept: the next read asks again.
+    await rpc.readMeasurementPublicationBindingExact(entry.reference);
+    expect(reads, 2);
   });
 
   test('a failed read is not kept', () async {

@@ -133,18 +133,23 @@ abstract final class SurfaceAssignmentKeyProvider {
 
     String? key;
     SurfaceRegistrationAttempt? registration;
+    var registrationLate = false;
     if (registrationProvider != null) {
       try {
         registration = await DeliveryInputBudget.run(
-          (owned) => owned.bound(keyDeadline == null
-              ? registrationProvider()
-              : Future.any<SurfaceRegistrationAttempt?>([
-                  registrationProvider(),
-                  keyDeadline.then((_) {
-                    deadlinePassed = true;
-                    return null;
-                  }),
-                ])),
+          (owned) async {
+            final attempt = await owned.bound(keyDeadline == null
+                ? registrationProvider()
+                : Future.any<SurfaceRegistrationAttempt?>([
+                    registrationProvider(),
+                    keyDeadline.then((_) {
+                      deadlinePassed = true;
+                      return null;
+                    }),
+                  ]));
+            registrationLate = attempt == null && owned.expired;
+            return attempt;
+          },
           shared: budget,
           total: DeliveryInputBudget.defaultTotal,
         );
@@ -173,6 +178,7 @@ abstract final class SurfaceAssignmentKeyProvider {
       assignmentKey: key,
       registration: registration,
       registrationRequired: registrationProvider != null && !deadlinePassed,
+      registrationLate: registrationLate,
       assignmentsAllowed: resolveKey && !deadlinePassed,
       confirmRegistration: _confirmRegistration,
       refuseRegistration: _refuseRegistration,
@@ -261,6 +267,7 @@ final class SurfaceAssignmentResolutionLease {
     required this.assignmentsAllowed,
     required this.confirmRegistration,
     required this.refuseRegistration,
+    this.registrationLate = false,
   })  : assignmentKey = assignmentKey,
         sentAssignmentKey = assignmentKey,
         _configurationEpoch = configurationEpoch,
@@ -317,6 +324,9 @@ final class SurfaceAssignmentResolutionLease {
 
   /// A configured device sends no hosted request until its tuple is durable.
   final bool registrationRequired;
+
+  /// Whether a required registration missed the input deadline.
+  final bool registrationLate;
 
   /// Whether this request may carry experiment selection inputs.
   final bool assignmentsAllowed;

@@ -95,6 +95,7 @@ final class SurfacePublicationAssemblyInput {
     this.compiledScreenContracts = const {},
     this.declaredPresentation,
     this.fitRequirement,
+    this.hostDataContract = const SurfaceScreenHostDataSchema.empty(),
   })  : artifacts = List.unmodifiable(artifacts),
         // Ordered by the same rule as every other generated-path list in
         // this manifest family, so `sources` cannot be the one member whose
@@ -128,6 +129,10 @@ final class SurfacePublicationAssemblyInput {
   final SurfacePresentationV1? declaredPresentation;
   final SurfaceFitRequirementV1? fitRequirement;
 
+  /// What a paywall's mount publishes under the render context; a screen
+  /// carries its own in [screenContractFacts].
+  final SurfaceScreenHostDataSchema hostDataContract;
+
   /// Carries final compiler contracts and a reproduced requirement.
   SurfacePublicationAssemblyInput withCompiledContracts({
     required Map<String, SurfaceCompiledScreenContractV1> contracts,
@@ -147,6 +152,7 @@ final class SurfacePublicationAssemblyInput {
         compiledScreenContracts: contracts,
         declaredPresentation: presentation,
         fitRequirement: requirement,
+        hostDataContract: hostDataContract,
       );
 
   /// This input with [artifacts] in place of its own, every other fact kept.
@@ -166,6 +172,7 @@ final class SurfacePublicationAssemblyInput {
         compiledScreenContracts: compiledScreenContracts,
         declaredPresentation: declaredPresentation,
         fitRequirement: fitRequirement,
+        hostDataContract: hostDataContract,
       );
 }
 
@@ -503,8 +510,12 @@ abstract final class SurfacePublicationManifestAssembler {
       eventContract: contractFacts?.eventContract,
       eventContractHash: contractFacts?.eventContractHash,
       contractFingerprint: contractFacts?.contractFingerprint,
-      hostDataContract: contractFacts?.publishedHostDataContract,
-      hostDataContractHash: contractFacts?.hostDataContractHash,
+      hostDataContract: contractFacts?.publishedHostDataContract ??
+          (input.hostDataContract.isEmpty ? null : input.hostDataContract),
+      hostDataContractHash: contractFacts?.hostDataContractHash ??
+          (input.hostDataContract.isEmpty
+              ? null
+              : SurfaceScreenHostDataContractHash.hash(input.hostDataContract)),
       mountName: input.mountName,
       compiledScreenContracts: input.compiledScreenContracts,
       declaredPresentation: input.declaredPresentation,

@@ -137,9 +137,12 @@ sealed class SurfacePayload {
   /// none.
   SurfacePayload withoutEditorState();
 
-  /// Whether this payload carries an icon-font or local-seed section. Such a
-  /// payload requires [kSurfaceFeatureClientFloor].
-  bool get carriesSections => iconFonts.isNotEmpty || localSeeds.isNotEmpty;
+  /// Whether this payload carries an icon-font, local-seed or generated-floor
+  /// section. Icon fonts and local seeds require [kSurfaceFeatureClientFloor].
+  bool get carriesSections =>
+      iconFonts.isNotEmpty ||
+      localSeeds.isNotEmpty ||
+      requiredLibraries.any((library) => library.minGenerated > 1);
 
   /// Canonical payload bytes used as the content-hash domain.
   Uint8List get canonicalBytes;
@@ -150,7 +153,8 @@ sealed class SurfacePayload {
   /// Decodes a canonical payload frame.
   /// [requireRequiredLibraries] requires the libraries section for v2 envelopes;
   /// otherwise older frames may decode to an empty list.
-  /// [allowSections] controls whether icon-font and local-seed sections are accepted.
+  /// [allowSections] controls whether icon-font, local-seed and generated-floor
+  /// sections are accepted.
   static SurfacePayload decode(
     List<int> bytes, {
     bool requireRequiredLibraries = false,
@@ -236,7 +240,8 @@ final class FlowSurfacePayload extends SurfacePayload {
     }
     _checkSectionFloor(
       flowDocument.minClient,
-      carriesSections: canonicalFonts.isNotEmpty || canonicalSeeds.isNotEmpty,
+      carriesClientSections:
+          canonicalFonts.isNotEmpty || canonicalSeeds.isNotEmpty,
     );
     final frozenEditorState =
         editorState == null ? null : _freezeBytes(editorState);
@@ -379,7 +384,8 @@ final class BlobSurfacePayload extends SurfacePayload {
         editorState == null ? null : _freezeBytes(editorState);
     _checkSectionFloor(
       minClient,
-      carriesSections: canonicalFonts.isNotEmpty || canonicalSeeds.isNotEmpty,
+      carriesClientSections:
+          canonicalFonts.isNotEmpty || canonicalSeeds.isNotEmpty,
     );
     final canonicalBytes = _buildBlobCanonicalBytes(
       minClient: minClient,
@@ -956,8 +962,11 @@ const int _seedBool = 4;
 const int _maxSeedStringLength = 4096;
 final RegExp _seedKeyPattern = RegExp(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$');
 
-void _checkSectionFloor(int minClient, {required bool carriesSections}) {
-  if (carriesSections && minClient < kSurfaceFeatureClientFloor) {
+void _checkSectionFloor(
+  int minClient, {
+  required bool carriesClientSections,
+}) {
+  if (carriesClientSections && minClient < kSurfaceFeatureClientFloor) {
     throw ArgumentError.value(
       minClient,
       'minClient',
@@ -1179,7 +1188,7 @@ _Sections _readSections(
     final tag = reader.readUint32('section tag');
     if (!allowSections) {
       throw const FormatException(
-        'This payload format does not carry icon-font or local-seed sections.',
+        'This payload format does not carry payload sections.',
       );
     }
     if (tag <= previousTag) {

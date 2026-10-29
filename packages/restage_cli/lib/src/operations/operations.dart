@@ -668,7 +668,7 @@ final List<Operation> sharedOperations = [
     mcpName: 'restage_list_api_keys',
     description:
         "List an environment's active API keys. Only a short prefix of each "
-        'key is shown.',
+        "key is shown. Mint a public key with 'keys mint --public'.",
     mcpDescription:
         'List the active API keys for an app environment. Returns redacted '
         'views only — id, kind, a short key prefix, and lifecycle '
@@ -1162,9 +1162,12 @@ final List<Operation> sharedOperations = [
     mcpDescription:
         'Archive a surface. It stops serving in every environment and moves '
         'to Archived. Its versions and analytics stay. '
-        'restage_restore_surface brings it back. Requires an admin role.',
+        'restage_restore_surface brings it back. Requires an admin role. '
+        'Leave surfaceType out to find the surface by id, including one '
+        'removed from the app.',
     scope: OperationScope.app,
     surface: true,
+    readsSurface: true,
     params: const [
       OperationParam(
         'reviewOnly',

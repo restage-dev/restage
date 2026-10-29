@@ -18,8 +18,8 @@ import 'package:restage_shared/src/surface_document/surface_document.dart';
 /// libraries to the empty list.
 const int kSurfaceEnvelopeFormatVersion = 2;
 
-/// The envelope format version written for a payload that carries icon-font or
-/// local-seed sections. Older envelope versions never carry them.
+/// The envelope format version written for a payload that carries sections.
+/// Older envelope versions never carry them.
 const int kSurfaceEnvelopeSectionsFormatVersion = 3;
 
 /// The highest envelope format version this build can decode. An envelope

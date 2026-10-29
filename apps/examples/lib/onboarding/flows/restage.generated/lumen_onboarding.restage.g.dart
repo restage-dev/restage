@@ -2,6 +2,42 @@ part of '../lumen_onboarding.dart';
 
 // ignore_for_file: type=lint
 
+const _lumenOnboardingFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Center': buildCenter,
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Expanded': buildExpanded,
+      'Flexible': buildFlexible,
+      'GestureDetector': buildGestureDetector,
+      'Padding': buildPadding,
+      'Positioned': buildPositioned,
+      'Row': buildRow,
+      'SingleChildScrollView': buildSingleChildScrollView,
+      'SizedBox': buildSizedBox,
+      'Stack': buildStack,
+      'Text': buildText,
+    },
+    material: {
+      'Icon': buildIcon,
+      'Scaffold': buildScaffold,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xef9f: IconData(0xef9f, fontFamily: 'MaterialIcons'),
+      0xf636: IconData(0xf636, fontFamily: 'MaterialIcons'),
+      0xf0026: IconData(0xf0026, fontFamily: 'MaterialIcons'),
+    },
+  }, mirrored: {
+    'MaterialIcons': {
+      0xf63a: IconData(0xf63a,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+    },
+  }),
+);
+
 const lumenOnboardingFlowRef = SurfaceFlowRef<
     LumenOnboardingResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'lumen_onboarding',
@@ -24,41 +60,7 @@ const lumenOnboardingFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '166c6211e11399c1bdb227f7daa2b3593d7fffe308700c9d02a86024540200d7',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Center': buildCenter,
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Expanded': buildExpanded,
-        'Flexible': buildFlexible,
-        'GestureDetector': buildGestureDetector,
-        'Padding': buildPadding,
-        'Positioned': buildPositioned,
-        'Row': buildRow,
-        'SingleChildScrollView': buildSingleChildScrollView,
-        'SizedBox': buildSizedBox,
-        'Stack': buildStack,
-        'Text': buildText,
-      },
-      material: {
-        'Icon': buildIcon,
-        'Scaffold': buildScaffold,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xef9f: IconData(0xef9f, fontFamily: 'MaterialIcons'),
-        0xf636: IconData(0xf636, fontFamily: 'MaterialIcons'),
-        0xf0026: IconData(0xf0026, fontFamily: 'MaterialIcons'),
-      },
-    }, mirrored: {
-      'MaterialIcons': {
-        0xf63a: IconData(0xf63a,
-            fontFamily: 'MaterialIcons', matchTextDirection: true),
-      },
-    }),
-  ),
+  vocabulary: _lumenOnboardingFlowRefVocabulary,
 );
 
 LumenOnboardingResult _decodeLumenOnboardingFlowResult(

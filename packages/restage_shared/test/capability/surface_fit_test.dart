@@ -939,6 +939,36 @@ void main() {
       expect(_host().contentHash, isNot(_requirement().contentHash));
     });
 
+    test('withHosting reuses the held encoding and hashes as a new contract',
+        () {
+      final original = _host(
+        context: SurfaceScreenHostDataSchema(const {'name': _string}),
+        events: _events(_eventString),
+      );
+      const presented = SurfaceHostingV1(
+        contentKind: SurfaceContentKindV1.single,
+        presentation: SurfacePresentationV1.presented,
+      );
+      final copy = original.withHosting(presented);
+      final rebuilt = _host(
+        hosting: presented,
+        context: original.providedContext,
+        events: original.handledEvents,
+      );
+      expect(copy.canonicalBytes, rebuilt.canonicalBytes);
+      expect(copy.contentHash, rebuilt.contentHash);
+      expect(copy.contentHash, isNot(original.contentHash));
+      expect(
+        identical(
+          copy.toJson()['providedContext'],
+          original.toJson()['providedContext'],
+        ),
+        isTrue,
+      );
+      expect(identical(copy.handledEvents, original.handledEvents), isTrue);
+      expect(() => original.withHosting(_presentedFlow), throwsFormatException);
+    });
+
     test('every constructed shape supports the portable canonical profile', () {
       const tooLarge = 9007199254740992;
       expect(
@@ -1190,6 +1220,339 @@ void main() {
       expect(verdict.failures.clear, throwsUnsupportedError);
       expect(() => (failure.required! as Map).clear(), throwsUnsupportedError);
       expect(const SurfaceFitVerdictV1.fits().accepted, isTrue);
+    });
+  });
+
+  group('failure tokens', () {
+    List<String> tokens(SurfaceFitVerdictV1 verdict) =>
+        [for (final failure in verdict.failures) failure.token];
+    CapabilityManifest library(int minVersion, {int minGenerated = 1}) =>
+        CapabilityManifest(
+          builtInFloor: 1,
+          requiredLibraries: [
+            LibraryRequirement(
+              namespace: 'acme.widgets',
+              minVersion: minVersion,
+              minGenerated: minGenerated,
+            ),
+          ],
+        );
+
+    test('hosting tokens name both sides', () {
+      expect(
+        tokens(
+          _evaluate(
+            requirement: _requirement(
+              presentations: {SurfacePresentationV1.presented},
+            ),
+          ),
+        ),
+        ['hostingMismatch@single/presented;single/inline'],
+      );
+      expect(
+        tokens(
+          _evaluate(
+            requirement: _requirement(
+              hostingKind: SurfaceContentKindV1.flow,
+              boundary: _boundary(),
+            ),
+          ),
+        ),
+        contains('hostingMismatch@flow/inline+presented;single/inline'),
+      );
+    });
+
+    test('host data and event tokens name the field or event', () {
+      expect(
+        tokens(
+          _evaluate(
+            requirement: _requirement(
+              context: SurfaceScreenHostDataSchema(const {'name': _string}),
+            ),
+          ),
+        ),
+        ['missingHostField:name'],
+      );
+      expect(
+        tokens(
+          _evaluate(
+            host: _host(
+              context: SurfaceScreenHostDataSchema(const {'age': _string}),
+            ),
+            requirement: _requirement(
+              context: SurfaceScreenHostDataSchema(const {'age': _int}),
+            ),
+          ),
+        ),
+        ['incompatibleHostField:age@int;string'],
+      );
+      expect(
+        tokens(
+          _evaluate(requirement: _requirement(events: _events(_eventString))),
+        ),
+        ['unhandledEvent:answer'],
+      );
+      expect(
+        tokens(
+          _evaluate(
+            host: _host(events: _events(_eventString)),
+            requirement: _requirement(events: _events(_eventJson)),
+          ),
+        ),
+        ['incompatibleEventShape:answer'],
+      );
+    });
+
+    test('capability tokens carry what the build has', () {
+      expect(
+        tokens(
+          _evaluate(
+            requirement: _requirement(
+              capabilities: CapabilityManifest(
+                builtInFloor: 6,
+                requiredLibraries: const [],
+              ),
+            ),
+          ),
+        ),
+        ['builtInFloor@6;5'],
+      );
+      final libraries = <(InstalledLibrary?, CapabilityManifest, String)>[
+        (null, library(3), 'missingLibrary:acme.widgets@3'),
+        (
+          const InstalledLibrary(namespace: 'acme.widgets'),
+          library(3),
+          'missingLibrary:acme.widgets@3;unversioned',
+        ),
+        (
+          const InstalledLibrary(namespace: 'acme.widgets', version: 2),
+          library(3),
+          'oldLibrary:acme.widgets@3;2/1',
+        ),
+        (
+          const InstalledLibrary(namespace: 'acme.widgets', version: 3),
+          library(3, minGenerated: 2),
+          'oldLibrary:acme.widgets@3/2;3/1',
+        ),
+        (
+          const InstalledLibrary(
+            namespace: 'acme.widgets',
+            version: 5,
+            compatibleSince: 4,
+          ),
+          library(3),
+          'brokenLibrary:acme.widgets@3;5,4',
+        ),
+      ];
+      for (final (installed, manifest, token) in libraries) {
+        expect(
+          tokens(
+            _evaluate(
+              requirement: _requirement(capabilities: manifest),
+              installed:
+                  _installed(libraries: [if (installed != null) installed]),
+            ),
+          ),
+          [token],
+        );
+      }
+      expect(
+        tokens(
+          _evaluate(
+            requirement: _requirement(
+              vocabulary: WidgetVocabulary(
+                widgetNames: const {'restage.material:Text'},
+                iconCodePoints: const {
+                  'MaterialIcons': {42},
+                },
+              ),
+            ),
+          ),
+        ),
+        unorderedEquals([
+          'missingWidget:restage.material:Text',
+          'missingIcon:MaterialIcons@0x2a',
+        ]),
+      );
+      expect(
+        tokens(
+          _evaluate(
+            installed: InstalledCapability(
+              builtInCatalogVersion: 5,
+              installedLibraries: const [],
+            ),
+          ),
+        ),
+        ['missingInstalledVocabulary'],
+      );
+    });
+
+    test('flow boundary tokens name the mode, action, seed and signal', () {
+      expect(
+        tokens(
+          _flowFit(_boundary(mode: FlowDeliveryMode.general), _boundary()),
+        ),
+        ['deliveryModeMismatch@typed;general'],
+      );
+      final action = experimentAction();
+      final candidate = _boundary(actions: {'request_notifications': action});
+      expect(
+        tokens(_flowFit(_boundary(), candidate)),
+        ['actionMismatch:request_notifications@1'],
+      );
+      expect(
+        tokens(
+          _flowFit(
+            _boundary(
+              actions: {'request_notifications': _action(action, version: 2)},
+            ),
+            candidate,
+          ),
+        ),
+        ['actionMismatch:request_notifications@1;2'],
+      );
+      expect(
+        tokens(
+          _flowFit(
+            _boundary(
+              actions: {
+                'request_notifications': _action(
+                  action,
+                  args: const FlowActionSchema.string(),
+                  idempotent: true,
+                ),
+              },
+            ),
+            candidate,
+          ),
+        ),
+        ['actionMismatch:request_notifications@1;1/args,idempotent'],
+      );
+      final floored = _boundary(
+        actions: {'request_notifications': experimentAction(minClient: 2)},
+      );
+      expect(
+        tokens(
+          _flowFit(
+            _boundary(
+              actions: {
+                'request_notifications': _action(
+                  action,
+                  args: const FlowActionSchema.string(),
+                  minClient: 3,
+                ),
+              },
+            ),
+            floored,
+          ),
+        ),
+        ['actionMismatch:request_notifications@1;1/args'],
+      );
+      expect(
+        tokens(
+          _flowFit(
+            _boundary(actions: {'request_notifications': action}),
+            floored,
+          ),
+        ),
+        ['actionMismatch:request_notifications@1;1/minClient'],
+      );
+      final floor = _boundary(
+        actions: {'request_notifications': experimentAction(minClient: 6)},
+      );
+      expect(
+        tokens(_flowFit(floor, floor)),
+        ['builtInFloor:request_notifications@6;5'],
+      );
+      final seeded = _boundary(seeds: {'answer': _seed(FlowDataType.string)});
+      expect(
+        tokens(_flowFit(seeded, _boundary())),
+        ['seedMismatch:answer@string'],
+      );
+      expect(
+        tokens(
+          _flowFit(
+            seeded,
+            _boundary(seeds: {'answer': _seed(FlowDataType.int)}),
+          ),
+        ),
+        ['seedMismatch:answer@string;int'],
+      );
+      expect(
+        tokens(_flowFit(_boundary(), _boundary(signals: {'skip'}))),
+        ['signalMismatch:skip'],
+      );
+    });
+
+    test('result and outbound tokens name the keys', () {
+      expect(
+        tokens(
+          _flowFit(
+            _boundary(
+              outbound: FlowHostOutboundShapeV1(
+                terminalResult: const {
+                  'completed': FlowDataType.bool,
+                  'plan': FlowDataType.string,
+                },
+              ),
+            ),
+            _boundary(
+              outbound: FlowHostOutboundShapeV1(
+                terminalResult: const {
+                  'completed': FlowDataType.string,
+                  'plan': FlowDataType.string,
+                },
+              ),
+            ),
+          ),
+        ),
+        ['resultMismatch:completed'],
+      );
+      expect(
+        tokens(
+          _flowFit(
+            _boundary(
+              mode: FlowDeliveryMode.general,
+              outbound: FlowHostOutboundShapeV1(
+                lifecycle: const {'step': FlowDataType.int},
+              ),
+            ),
+            _boundary(
+              mode: FlowDeliveryMode.general,
+              outbound: FlowHostOutboundShapeV1(
+                lifecycle: const {'step': FlowDataType.string},
+              ),
+            ),
+          ),
+        ),
+        ['outboundMismatch:lifecycle.step@string;int'],
+      );
+    });
+
+    test('requirement tokens are bare and subjects escape control text', () {
+      for (final code in [
+        SurfaceFitFailureCodeV1.missingRequirement,
+        SurfaceFitFailureCodeV1.malformedRequirement,
+      ]) {
+        expect(
+          SurfaceFitFailureV1(
+            code: code,
+            path: r'$',
+            required: 1,
+            available: null,
+          ).token,
+          code.name,
+        );
+      }
+      expect(
+        SurfaceFitFailureV1(
+          code: SurfaceFitFailureCodeV1.missingIcon,
+          path: '\$.requiredVocabulary.iconCodePoints.My\nIcons\u007f',
+          required: 0x41,
+          available: null,
+        ).token,
+        'missingIcon:My%0AIcons%7F@0x41',
+      );
     });
   });
 }

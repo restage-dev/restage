@@ -2,6 +2,34 @@ part of '../apex_drop.dart';
 
 // ignore_for_file: type=lint
 
+const _apexDropFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Center': buildCenter,
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Padding': buildPadding,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Spacer': buildSpacer,
+      'Text': buildText,
+    },
+    material: {
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'IconButton': buildIconButton,
+      'Scaffold': buildScaffold,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+      0xf76d: IconData(0xf76d, fontFamily: 'MaterialIcons'),
+    },
+  }),
+);
+
 const apexDropFlowRef = SurfaceFlowRef<
     ApexDropResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'apex_drop',
@@ -20,33 +48,7 @@ const apexDropFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '68abcb6a82f3e2b81e83bdc33eb049390255d3e745fa1d47d37dd819609470b7',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Center': buildCenter,
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Padding': buildPadding,
-        'Row': buildRow,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Spacer': buildSpacer,
-        'Text': buildText,
-      },
-      material: {
-        'FilledButton': buildFilledButton,
-        'Icon': buildIcon,
-        'IconButton': buildIconButton,
-        'Scaffold': buildScaffold,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
-        0xf76d: IconData(0xf76d, fontFamily: 'MaterialIcons'),
-      },
-    }),
-  ),
+  vocabulary: _apexDropFlowRefVocabulary,
 );
 
 ApexDropResult _decodeApexDropFlowResult(Map<String, Object?> result) {

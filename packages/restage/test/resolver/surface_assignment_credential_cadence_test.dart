@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 const _day = Duration.microsecondsPerDay;
 
@@ -23,6 +24,27 @@ void main() {
   setUp(() {
     now = 60 * _day;
     rollovers = 0;
+  });
+
+  test('a relaunch reads its registration without writing it again', () async {
+    final storage = _CountingPreferences();
+    SharedPreferencesStorePlatform.instance = storage;
+    final first = (await launch().capture())!;
+    expect(storage.writes, 1);
+    final again = (await launch().capture())!;
+    expect(again.registrationNonce, first.registrationNonce);
+    expect(storage.writes, 1);
+  });
+
+  test('a registration whose write failed is written again', () async {
+    final storage = _CountingPreferences()..failNext = true;
+    SharedPreferencesStorePlatform.instance = storage;
+    await launch().capture();
+    expect(storage.writes, 1);
+    await launch().capture();
+    expect(storage.writes, 2);
+    await launch().capture();
+    expect(storage.writes, 2);
   });
 
   test('ahead clock uses request start and server remaining life', () async {
@@ -133,4 +155,20 @@ void main() {
         ),
         isFalse);
   });
+}
+
+final class _CountingPreferences extends InMemorySharedPreferencesStore {
+  _CountingPreferences() : super.empty();
+  int writes = 0;
+  bool failNext = false;
+
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) {
+    writes++;
+    if (failNext) {
+      failNext = false;
+      return Future.value(false);
+    }
+    return super.setValue(valueType, key, value);
+  }
 }

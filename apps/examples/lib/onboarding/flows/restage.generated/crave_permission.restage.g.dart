@@ -2,6 +2,34 @@ part of '../crave_permission.dart';
 
 // ignore_for_file: type=lint
 
+const _cravePermissionFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Expanded': buildExpanded,
+      'Padding': buildPadding,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Text': buildText,
+    },
+    material: {
+      'AppBar': buildAppBar,
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'Scaffold': buildScaffold,
+      'TextButton': buildTextButton,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf635: IconData(0xf635, fontFamily: 'MaterialIcons'),
+      0xf8f8: IconData(0xf8f8, fontFamily: 'MaterialIcons'),
+    },
+  }),
+);
+
 const cravePermissionFlowRef = SurfaceFlowRef<
     CravePermissionResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'crave_permission',
@@ -21,33 +49,7 @@ const cravePermissionFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '769396322c0d34f9a6192a7b5cea1c912cb76aed01d1827390d31b649d08586f',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Expanded': buildExpanded,
-        'Padding': buildPadding,
-        'Row': buildRow,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Text': buildText,
-      },
-      material: {
-        'AppBar': buildAppBar,
-        'FilledButton': buildFilledButton,
-        'Icon': buildIcon,
-        'Scaffold': buildScaffold,
-        'TextButton': buildTextButton,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf635: IconData(0xf635, fontFamily: 'MaterialIcons'),
-        0xf8f8: IconData(0xf8f8, fontFamily: 'MaterialIcons'),
-      },
-    }),
-  ),
+  vocabulary: _cravePermissionFlowRefVocabulary,
 );
 
 CravePermissionResult _decodeCravePermissionFlowResult(

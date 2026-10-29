@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:http/http.dart' as http;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -10,6 +11,7 @@ import 'package:restage_shared/restage_shared.dart';
   PlacementBatchRequestV1 request,
   PlacementBatchResolvedV1 response,
   TargetCoordinate target,
+  List<PlacementBatchArtifactV1> artifacts,
 }) readPlacementDeliveryFixture(
     {String fileName = 'shared_blob_two_mounts_v1.json'}) {
   final wire = jsonDecode(File(
@@ -22,15 +24,39 @@ import 'package:restage_shared/restage_shared.dart';
   final request = PlacementBatchRequestV1.fromCanonicalBytes(
     CanonicalJsonCodec.encode(wire['request']),
   );
+  final artifacts = [
+    for (final raw in wire['artifacts'] as List<Object?>)
+      PlacementBatchArtifactV1.fromJson(raw),
+  ];
+  final response = PlacementBatchResponseV1.fromCanonicalBytes(
+    CanonicalJsonCodec.encode(wire['response']),
+    request: request,
+    expectedTarget: target,
+  ) as PlacementBatchResolvedV1;
+  // The content each row references is served where the row says it is.
+  for (final row in response.decisions.whereType<PlacementBatchAvailableV1>()) {
+    for (final reference in row.artifactClosure) {
+      placementFixtureFrames[reference.descriptor.artifactUrl] = artifacts
+          .singleWhere((artifact) => artifact.identity == reference.identity)
+          .bytes;
+    }
+  }
   return (
     request: request,
-    response: PlacementBatchResponseV1.fromCanonicalBytes(
-      CanonicalJsonCodec.encode(wire['response']),
-      request: request,
-      expectedTarget: target,
-    ) as PlacementBatchResolvedV1,
+    response: response,
     target: target,
+    artifacts: artifacts,
   );
+}
+
+/// Frames the fixtures reference, by the URL their references name.
+final Map<String, Uint8List> placementFixtureFrames = {};
+
+/// Serves a fixture frame a placement reference names, as the edge would.
+http.Response? placementFixtureArtifact(http.BaseRequest request) {
+  if (request.method != 'GET') return null;
+  final bytes = placementFixtureFrames[request.url.toString()];
+  return bytes == null ? null : http.Response.bytes(bytes, 200);
 }
 
 /// Correlates the real shared content to the mount declarations a host sends.
@@ -56,14 +82,16 @@ PlacementBatchResolvedV1 placementFixtureResponse(
           surfaceIdentity: base.publicDelivery.selectedSurface.surfaceIdentity,
           family: family ?? base.publicDelivery.selectedSurface.family);
   final bytes = payload == null
-      ? fixture.response.artifacts.single.bytes
+      ? fixture.artifacts.single.bytes
       : Uint8List.fromList(payload.canonicalBytes);
   final identity = payload == null
-      ? fixture.response.artifacts.single.identity
+      ? fixture.artifacts.single.identity
       : ArtifactIdentityV1(
           payloadFormatVersion: surfaceArtifactPayloadFormatVersionFor(payload),
           contentHash: payload.contentHash);
   final target = selected.target;
+  placementFixtureFrames['https://content.example/artifacts/'
+      '${identity.contentHash.substring('sha256:'.length)}'] = bytes;
   final publication = publicationOverride ??
       DeliveryPublicationReferenceV1(
           surface: selected,
@@ -77,6 +105,8 @@ PlacementBatchResolvedV1 placementFixtureResponse(
         'payloadFormatVersion': identity.payloadFormatVersion,
         'contentHash': identity.contentHash,
         'version': publication.publishedVersion,
+        'artifactUrl': 'https://content.example/artifacts/'
+            '${identity.contentHash.substring('sha256:'.length)}',
         if (payload != null) 'payloadKind': payload.payloadKind,
         if (payload is FlowSurfacePayload)
           'surfaceSlug': payload.flowDocument.flow,
@@ -150,8 +180,5 @@ PlacementBatchResolvedV1 placementFixtureResponse(
             return PlacementBatchAvailableV1(descriptor, delivery, [reference],
                 watch: watch?.call(delivery));
           }()
-      ],
-      artifacts: [
-        PlacementBatchArtifactV1(identity: identity, bytes: bytes)
       ]);
 }

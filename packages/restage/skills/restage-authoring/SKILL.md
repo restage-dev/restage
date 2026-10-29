@@ -42,8 +42,8 @@ WeeklyRecapSurface(
   name: 'Sam',
   streakDays: 12,
   onEvent: (event) => switch (event) {
-    WeeklyRecapDismissEvent() => debugPrint('dismissed'),
-    WeeklyRecapOpenStatsEvent(:final value) => debugPrint(
+    WeeklyRecapSurfaceDismissEvent() => debugPrint('dismissed'),
+    WeeklyRecapSurfaceOpenStatsEvent(:final value) => debugPrint(
         'open stats: $value',
       ),
   },

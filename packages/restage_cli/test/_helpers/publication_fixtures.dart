@@ -135,8 +135,8 @@ Future<SurfacePublicationManifestEntry> seedGeneratedPaywall(
     eventContract: screenContract?.events,
     eventContractHash: screenContract?.eventsHash,
     contractFingerprint: screenContract?.fingerprint,
-    hostDataContract: screenContract == null ? null : hostDataContract,
-    hostDataContractHash: screenContract == null || hostDataContract == null
+    hostDataContract: hostDataContract,
+    hostDataContractHash: hostDataContract == null
         ? null
         : SurfaceScreenHostDataContractHash.hash(hostDataContract),
   );

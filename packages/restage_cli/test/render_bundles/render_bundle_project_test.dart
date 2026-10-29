@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_project.dart';
+import 'package:restage_cli/src/render_bundles/surface_capture_source.dart'
+    show SurfaceCaptureWrapper;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -235,6 +237,32 @@ flutter:
       });
     },
   );
+
+  test('wraps every surface in the configured preview wrapper', () async {
+    File(p.join(app.path, 'lib', 'preview.dart'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        'Widget wrapPreview(Widget child) => Theme(child: child);\n',
+      );
+    final project = await writeRenderBundleProject(
+      projectRoot: app,
+      flutterVersion: '3.47.0',
+      fontBytes: font,
+      licenseBytes: license,
+      previewWrapper: SurfaceCaptureWrapper.parse(
+        'lib/preview.dart#wrapPreview',
+        projectRoot: app,
+      ),
+    );
+
+    expect(
+      File(p.join(project.path, renderBundleEntrypoint)).readAsStringSync(),
+      allOf(
+        contains("import 'package:habit/preview.dart' as wrapper;"),
+        contains('wrap: wrapper.wrapPreview,'),
+      ),
+    );
+  });
 
   test('carries the app assets and fonts its widgets use', () async {
     final project = await writeProject();

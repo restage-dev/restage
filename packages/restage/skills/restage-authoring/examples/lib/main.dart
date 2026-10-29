@@ -39,18 +39,18 @@ class HomePage extends StatelessWidget {
             name: 'Sam',
             streakDays: 12,
             onEvent: (event) => switch (event) {
-              WeeklyRecapDismissEvent() => debugPrint('dismissed'),
-              WeeklyRecapOpenStatsEvent(:final value) => debugPrint(
+              WeeklyRecapSurfaceDismissEvent() => debugPrint('dismissed'),
+              WeeklyRecapSurfaceOpenStatsEvent(:final value) => debugPrint(
                   'open stats: $value',
                 ),
             },
           ),
           MoodCheckSurface(
             onEvent: (event) => switch (event) {
-              MoodCheckSubmitEvent(:final arguments) => debugPrint(
+              MoodCheckSurfaceSubmitEvent(:final arguments) => debugPrint(
                   'mood: ${arguments['mood']}, note: ${arguments['note']}',
                 ),
-              MoodCheckRemindMeEvent(:final value) =>
+              MoodCheckSurfaceRemindMeEvent(:final value) =>
                 debugPrint('remind: $value'),
             },
           ),

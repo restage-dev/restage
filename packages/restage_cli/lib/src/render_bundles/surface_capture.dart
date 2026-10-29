@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
 import 'package:restage_cli/src/render_bundles/flutter_toolchain.dart';
+import 'package:restage_cli/src/render_bundles/package_resolution.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_project.dart';
 import 'package:restage_cli/src/render_bundles/surface_capture_source.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -17,6 +18,39 @@ const surfaceCaptureWidth = 440.0;
 
 /// See [surfaceCaptureWidth].
 const surfaceCaptureHeight = 956.0;
+
+/// The plan a build writes beside its publication manifest for drawing
+/// surface images.
+const surfaceCapturePlanFileName = 'restage.capture.json';
+
+/// Why no surface can be drawn when the build left no matching plan.
+const surfaceCapturePlanMissing =
+    'the build output is out of date. Run `dart run build_runner build` and '
+    'push again';
+
+/// The capture plans [file] holds, by [surfaceImageName], or null when it is
+/// missing, of another shape, or from a build other than
+/// [generationFingerprint].
+Map<String, Map<String, Object?>>? readSurfaceCapturePlans(
+  File file, {
+  required String generationFingerprint,
+}) {
+  try {
+    if (jsonDecode(file.readAsStringSync()) case {
+      'version': 1,
+      'generationFingerprint': final String fingerprint,
+      'surfaces': final Map<String, Object?> surfaces,
+    } when fingerprint == generationFingerprint) {
+      return {
+        for (final MapEntry(:key, :value) in surfaces.entries)
+          if (value is Map<String, Object?>) key: value,
+      };
+    }
+  } on Object {
+    // A plan that cannot be read is treated as missing.
+  }
+  return null;
+}
 
 /// The name a surface's image and capture test go by.
 String surfaceImageName({required String surfaceType, required String slug}) =>
@@ -29,6 +63,8 @@ final class SurfaceCaptureResult {
     this.images = const <String, Uint8List>{},
     this.contexts = const <String, Map<String, Object?>>{},
     this.skipped = const <String, String>{},
+    this.contextSkipped = const <String, String>{},
+    this.placeholders = const <String, List<String>>{},
     this.failure,
   });
 
@@ -39,8 +75,16 @@ final class SurfaceCaptureResult {
   /// and `dark`, by image name, for surfaces with values the app computes.
   final Map<String, Map<String, Object?>> contexts;
 
+  /// The host data fields each surface's image draws with a neutral value, by
+  /// image name.
+  final Map<String, List<String>> placeholders;
+
   /// Why a surface has no image, by image name.
   final Map<String, String> skipped;
+
+  /// Why the values a surface's app computes were not recorded, by image
+  /// name.
+  final Map<String, String> contextSkipped;
 
   /// Why no surface has an image.
   final String? failure;
@@ -52,6 +96,7 @@ typedef SurfaceImageCapturer =
     Future<SurfaceCaptureResult> Function({
       required Directory projectRoot,
       required List<SurfacePublicationManifestEntry> entries,
+      required Map<String, Map<String, Object?>>? plans,
       String? flagRoot,
       String? configRoot,
       String? wrapper,
@@ -81,6 +126,7 @@ const surfaceCaptureTimeout = Duration(minutes: 4);
 Future<SurfaceCaptureResult> captureSurfaceImages({
   required Directory projectRoot,
   required List<SurfacePublicationManifestEntry> entries,
+  required Map<String, Map<String, Object?>>? plans,
   String? flagRoot,
   String? configRoot,
   String? wrapper,
@@ -90,6 +136,9 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
   SurfaceCaptureProcessStarter? processStarter,
 }) async {
   if (entries.isEmpty) return const SurfaceCaptureResult();
+  if (plans == null) {
+    return const SurfaceCaptureResult(failure: surfaceCapturePlanMissing);
+  }
   final deadline = DateTime.now().add(timeout);
   final root = Directory(p.normalize(projectRoot.absolute.path));
   final run = processRunner ?? runRenderBundleProcess;
@@ -105,8 +154,11 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
       return SurfaceCaptureResult(failure: error.reason);
     }
 
+    final readsPaywallContext = await appRestageReadsPaywallContext(root);
     // Sources come first: a project with nothing to draw starts no process.
     final skipped = <String, String>{};
+    final contextSkipped = <String, String>{};
+    final placeholders = <String, List<String>>{};
     final sources = <String, String>{};
     final contextSources = <String, String>{};
     final entryJson = <String, String>{};
@@ -123,32 +175,47 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
       }
       final schema = publication.hostDataContract;
       try {
+        final drawnNeutral = <String>[];
         final sample = sampleSurfaceCaptureContext(schema);
         sources[name] = surfaceCaptureTestSource(
-          projectRoot: root,
+          placeholders: drawnNeutral,
           appName: appName,
-          entry: entry,
+          plan: plans[name],
           name: name,
           wrapper: wrap,
           sample: sample,
         );
-        if (surfaceContextTestSource(
-              projectRoot: root,
-              appName: appName,
-              entry: entry,
-              name: name,
-              wrapper: wrap,
-              sample: sample,
-            )
-            case final context?) {
-          contextSources[name] = context;
+        // An older restage cannot hand a render host a paywall's context.
+        final readable =
+            readsPaywallContext || publication.surface != Surface.paywall;
+        if (!readable && schema != null && hostDataHasAppValues(schema)) {
+          contextSkipped[name] =
+              "the app's restage package is too old to record them. "
+              'Update the restage package';
         }
-        entryJson[name] = jsonEncode(entry.toJson());
+        final context = readable
+            ? surfaceContextTestSource(
+                appName: appName,
+                entry: entry,
+                plan: plans[name],
+                name: name,
+                wrapper: wrap,
+                sample: sample,
+              )
+            : null;
+        if (context != null) contextSources[name] = context;
+        entryJson[name] = jsonEncode([entry.toJson(), plans[name]]);
+        if (drawnNeutral.isNotEmpty) placeholders[name] = drawnNeutral;
       } on SurfaceCaptureSourceException catch (error) {
         skipped[name] = error.reason;
       }
     }
-    if (sources.isEmpty) return SurfaceCaptureResult(skipped: skipped);
+    if (sources.isEmpty) {
+      return SurfaceCaptureResult(
+        skipped: skipped,
+        contextSkipped: contextSkipped,
+      );
+    }
 
     final FlutterToolchain toolchain;
     try {
@@ -159,13 +226,18 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
         processRunner: run,
       );
     } on FlutterToolchainException catch (error) {
-      return SurfaceCaptureResult(failure: error.message, skipped: skipped);
+      return SurfaceCaptureResult(
+        failure: error.message,
+        skipped: skipped,
+        contextSkipped: contextSkipped,
+      );
     }
     final fontFiles = _fontFiles(toolchain);
     if (fontFiles == null) {
       return SurfaceCaptureResult(
         failure: "Flutter's fonts are not downloaded; run `flutter precache`",
         skipped: skipped,
+        contextSkipped: contextSkipped,
       );
     }
 
@@ -173,6 +245,7 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
       width: surfaceCaptureWidth,
       height: surfaceCaptureHeight,
       fontFiles: fontFiles,
+      readsPaywallContext: readsPaywallContext,
     );
     final project = await writeSurfaceCaptureProject(
       projectRoot: root,
@@ -236,6 +309,8 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
         images: captured,
         contexts: contexts,
         skipped: skipped,
+        contextSkipped: contextSkipped,
+        placeholders: placeholders,
       );
     }
 
@@ -255,6 +330,7 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
               'its dependencies did not resolve in '
               '${p.relative(project.path, from: root.path)}',
           skipped: skipped,
+          contextSkipped: contextSkipped,
         );
       }
       await markRenderBundleProjectResolved(project, flutterRoot: flutterSdk);
@@ -302,6 +378,8 @@ Future<SurfaceCaptureResult> captureSurfaceImages({
       images: captured,
       contexts: contexts,
       skipped: skipped,
+      contextSkipped: contextSkipped,
+      placeholders: placeholders,
     );
   } on TimeoutException {
     return const SurfaceCaptureResult(failure: 'rendering took too long');
@@ -505,9 +583,12 @@ String _testFailure(
       '${p.relative(project.path, from: root.path)}';
   if (error == null) return 'it did not render; run $command to see why';
   return 'it did not render: $error. '
-      '${wrapped ? '' : 'If it reads something your app provides above it, '
-                'name a function that provides it as previewWrapper in '
-                'restage_config.yaml. '}'
+      '${wrapped ? '' : 'If the surface reads something your app provides above it, '
+                'such as a theme or a provider, add '
+                '`previewWrapper: lib/restage_preview.dart#wrapPreview` to '
+                'restage_config.yaml and define '
+                '`Widget wrapPreview(Widget child)` in that file to return '
+                "your app's scope around `child`. "}'
       '$command shows the whole error';
 }
 
@@ -520,3 +601,25 @@ String _buildFailure(RenderBundleBuildFailure reason) => switch (reason) {
     "the app's dependencies are not resolved; run `flutter pub get`",
   _ => 'the image project could not be written (${reason.code})',
 };
+
+/// Whether the restage [projectRoot] resolves lets a render host read the
+/// context a paywall was given. Older releases do not.
+Future<bool> appRestageReadsPaywallContext(Directory projectRoot) async {
+  final String? restage;
+  try {
+    restage = (await PackageResolution.read(projectRoot)).rootOf('restage');
+  } on PackageResolutionException {
+    return false;
+  }
+  if (restage == null) return false;
+  final library = File(p.join(restage, 'lib', 'render_support.dart'));
+  try {
+    return _exportsPaywallReader.hasMatch(library.readAsStringSync());
+  } on FileSystemException {
+    return false;
+  }
+}
+
+final _exportsPaywallReader = RegExp(
+  r'\bexport\s[^;]*\bshow\b[^;]*\bpaywallHostContext\b',
+);

@@ -142,7 +142,7 @@ pass to the widget itself:
 HabitListSurface(
   habits: habits,
   onEvent: (event) {
-    if (event is HabitListToggleDayEvent) toggle(event.value['id']);
+    if (event is HabitListSurfaceToggleDayEvent) toggle(event.value['id']);
   },
 )
 ```

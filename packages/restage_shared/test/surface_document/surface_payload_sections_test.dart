@@ -546,6 +546,20 @@ void main() {
       expect(SurfaceDocumentCodec.decode(bytes), document);
     });
 
+    test('a document whose only section is a generated floor writes version 3',
+        () {
+      final payload = BlobSurfacePayload(
+        minClient: 3,
+        blob: _bytes('blob'),
+        requiredLibraries: _floored,
+      );
+      expect(payload.carriesSections, isTrue);
+      final document = _document(payload);
+      final bytes = SurfaceDocumentCodec.encode(document);
+      expect(_header(bytes)['formatVersion'], 3);
+      expect(SurfaceDocumentCodec.decode(bytes), document);
+    });
+
     test('a document without sections still writes version 2', () {
       final bytes = SurfaceDocumentCodec.encode(_document(_blob()));
       expect(_header(bytes)['formatVersion'], 2);
@@ -644,6 +658,7 @@ SurfaceDocument _document(BlobSurfacePayload payload) => SurfaceDocument(
       surfaceSlug: 'feedback',
       version: 1,
       minClient: payload.minClient,
+      requiredLibraries: payload.requiredLibraries,
       payload: payload,
       publishedAt: DateTime.utc(2026),
     );

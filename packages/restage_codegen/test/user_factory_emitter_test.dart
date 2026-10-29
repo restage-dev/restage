@@ -154,6 +154,26 @@ void main() {
       expect(skipped, equals(<String>['Bad']));
     });
 
+    for (final declares in [false, true]) {
+      test(
+          'the registration declares the surface list only when one is '
+          'generated ($declares)', () {
+        final sources = [
+          emitUserFactoriesDart(
+            [_widgetEntry(name: 'AcmeBadge', properties: const [])],
+            declaresSurfaces: declares,
+          )!,
+          emitEmptyUserFactoriesDart(declaresSurfaces: declares),
+        ];
+        for (final source in sources) {
+          final matcher =
+              declares ? contains : (Object s) => isNot(contains(s));
+          expect(source, matcher("import 'restage_surfaces.g.dart';"));
+          expect(source, matcher('Restage.declareSurfaces(restageSurfaces);'));
+        }
+      });
+    }
+
     test('emits header, imports, and the registration helpers for one entry',
         () {
       final src = emitUserFactoriesDart([

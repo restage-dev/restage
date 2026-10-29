@@ -15,13 +15,6 @@ final class SurfaceCaptureSourceException implements Exception {
   String toString() => reason;
 }
 
-const _unrecognized = SurfaceCaptureSourceException(
-  'its generated widget was not recognized',
-);
-const _unfillable = SurfaceCaptureSourceException(
-  'its host data has a type this cannot fill',
-);
-
 /// A top-level `Widget name(Widget child)` in the app's `lib/` that every
 /// captured surface is drawn inside.
 final class SurfaceCaptureWrapper {
@@ -71,21 +64,24 @@ final class SurfaceCaptureWrapper {
 
   /// The function's name.
   final String name;
+
+  /// The `package:` URI of [library] in the app named [appName].
+  String importUri(String appName) => _packageUri(library, appName);
 }
 
 /// Writes the Dart that builds one pushed surface with sample values for its
-/// host data: a flow's first screen, or the authored class of a screen or
-/// paywall.
+/// host data, from the build's capture [plan] for it: a flow's first screen,
+/// or the authored class of a screen or paywall.
 ///
 /// The returned library defines `main()`, which hands the builder to the
 /// support library's `capture(name, builder)`.
 String surfaceCaptureTestSource({
-  required Directory projectRoot,
   required String appName,
-  required SurfacePublicationManifestEntry entry,
+  required Map<String, Object?>? plan,
   required String name,
   required Map<String, Object?> sample,
   SurfaceCaptureWrapper? wrapper,
+  List<String>? placeholders,
 }) {
   final wrap = wrapper == null
       ? null
@@ -95,34 +91,30 @@ String surfaceCaptureTestSource({
               'as restage_capture_wrap;',
           call: 'restage_capture_wrap.${wrapper.name}',
         );
-  final publication = entry.publication;
-  final sources = _libSources(projectRoot, entry.sources);
-  if (publication.mountName case final mount?) {
-    final flow = _flowRef(projectRoot, sources, mount);
-    if (flow != null) {
-      if (flow.ref.startsWith('_')) {
-        throw const SurfaceCaptureSourceException(
-          'its flow is private to its library',
-        );
-      }
-      return _testLibrary(
-        ["import '${_packageUri(flow.library, appName)}';", ?wrap?.import],
-        name,
-        'return restage_capture.flowEntry(${flow.ref});',
-        wrap: wrap?.call,
-      );
-    }
-  }
-  final widget = _authoredClass(
-    sources,
-    publication.slug,
-    paywall: publication.surface == Surface.paywall,
-  );
-  if (widget == null) {
+  if (plan == null) {
     throw const SurfaceCaptureSourceException('its widget was not found');
   }
-  final types = _TypeImports(projectRoot, appName);
-  final call = types.construct(widget, sample, widget);
+  if (plan case {
+    'kind': 'flow',
+    'importUri': final String library,
+    'ref': final String ref,
+  }) {
+    if (ref.startsWith('_')) {
+      throw const SurfaceCaptureSourceException(
+        'its flow is private to its library',
+      );
+    }
+    return _testLibrary(
+      ["import '$library';", ?wrap?.import],
+      name,
+      'return restage_capture.flowEntry($ref);',
+      wrap: wrap?.call,
+    );
+  }
+  final widget = '${plan['name']}';
+  final types = _CaptureValues();
+  final call = types.construct(plan, sample, widget);
+  placeholders?.addAll(types.placeholders);
   return _testLibrary(
     [...types.directives, ?wrap?.import],
     name,
@@ -206,9 +198,9 @@ List<String> hostDataAppValueLabels(SurfaceScreenHostDataSchema schema) {
 /// widget builds with sample inputs, in light and dark, or null when the
 /// surface has no values the app computes.
 String? surfaceContextTestSource({
-  required Directory projectRoot,
   required String appName,
   required SurfacePublicationManifestEntry entry,
+  required Map<String, Object?>? plan,
   required String name,
   required Map<String, Object?> sample,
   SurfaceCaptureWrapper? wrapper,
@@ -217,16 +209,11 @@ String? surfaceContextTestSource({
   final schema = publication.hostDataContract;
   if (schema == null || !hostDataHasAppValues(schema)) return null;
   sampleSurfaceCaptureContext(schema);
-  final sources = _libSources(projectRoot, entry.sources);
-  final widget = _authoredClass(
-    sources,
-    publication.slug,
-    paywall: publication.surface == Surface.paywall,
-  );
-  if (widget == null) return null;
+  if (plan == null || plan['kind'] != 'object') return null;
+  final widget = '${plan['name']}';
   final mount = publication.mountName ?? '${widget}Surface';
-  final types = _TypeImports(projectRoot, appName);
-  final call = types.construct(widget, sample, widget);
+  final types = _CaptureValues();
+  final call = types.construct(plan, sample, widget);
   final open = call.indexOf('.$widget(');
   if (open < 0) return null;
   final mountCall = call.replaceRange(
@@ -271,273 +258,16 @@ void main() => restage_capture.$capture(${_string(name)}, (
 }${wrap == null ? '' : ', wrap: $wrap'});
 ''';
 
-typedef _Source = ({String path, String text});
-
-/// The app's own Dart files among [sources].
-List<_Source> _libSources(Directory projectRoot, List<String> sources) => [
-  for (final source in sources)
-    if (source.startsWith('lib/') && source.endsWith('.dart'))
-      if (_read(projectRoot, source) case final text?)
-        (path: source, text: text),
-];
-
 String? _read(Directory projectRoot, String path) {
   final file = File(p.joinAll([projectRoot.path, ...path.split('/')]));
   return file.existsSync() ? file.readAsStringSync() : null;
 }
-
-/// The flow ref the generated flow widget [mount] is built on, and the
-/// library whose generated part declares it, or null when [mount] is not a
-/// flow.
-({String library, String ref})? _flowRef(
-  Directory projectRoot,
-  List<_Source> sources,
-  String mount,
-) {
-  final declaration = RegExp(
-    r'\bclass\s+' + RegExp.escape(mount) + r'\b[^{]*\bRestageFlowGraph\b',
-  );
-  for (final source in sources) {
-    for (final match in _partDirective.allMatches(source.text)) {
-      final uri = match.group(2)!;
-      if (!uri.endsWith('.restage.g.dart')) continue;
-      final part = _read(
-        projectRoot,
-        p.posix.normalize(p.posix.join(p.posix.dirname(source.path), uri)),
-      );
-      final header = part == null ? null : declaration.firstMatch(part);
-      if (header == null) continue;
-      final flow = RegExp(
-        r'\bsuper\s*\(\s*flow:\s*([A-Za-z_$][\w$]*)',
-      ).firstMatch(part!.substring(header.end));
-      if (flow == null) throw _unrecognized;
-      return (library: source.path, ref: flow.group(1)!);
-    }
-  }
-  return null;
-}
-
-/// The class annotated as the surface [slug]: by its id, or, with no id, by
-/// the file named after it. A paywall is annotated `@Paywall` or
-/// `@PaywallSource`; any other surface is a `@Screen`.
-String? _authoredClass(
-  List<_Source> sources,
-  String slug, {
-  required bool paywall,
-}) {
-  final byId = RegExp(r'''\bid:\s*(['"])''' + RegExp.escape(slug) + r'\1');
-  final annotated = paywall ? _annotatedPaywall : _annotatedScreen;
-  for (final source in sources) {
-    final named = p.posix.basenameWithoutExtension(source.path) == slug;
-    for (final match in annotated.allMatches(source.text)) {
-      final arguments = match.group(1) ?? '';
-      final implicit = !arguments.contains(RegExp(r'\bid:'));
-      if (byId.hasMatch(arguments) || (named && implicit)) {
-        return match.group(2);
-      }
-    }
-  }
-  return null;
-}
-
-/// A surface annotation of [kinds], then the public class it annotates.
-RegExp _annotation(String kinds) => RegExp(
-  '@(?:$kinds)'
-  r'\b(\([^;{]*?\))?\s*'
-  r'(?:///[^\n]*\n\s*)*(?:(?:final|base)\s+)*class\s+([A-Z][\w$]*)',
-);
-
-final _annotatedPaywall = _annotation('Paywall|PaywallSource');
-final _annotatedScreen = _annotation('Screen');
-
-final _partDirective = RegExp(r'''\bpart\s+(['"])([^'"]+)\1\s*;''');
 
 String _packageUri(String packagePath, String appName) {
   if (!packagePath.startsWith('lib/')) {
     throw const SurfaceCaptureSourceException('its library is outside lib/');
   }
   return 'package:$appName/${packagePath.substring(4)}';
-}
-
-const _opening = {'(': ')', '[': ']', '{': '}'};
-
-/// The index of the first character of [stop] at the nesting depth of
-/// [start], past strings, comments and bracketed groups, or -1.
-int _scan(String source, int start, Set<String> stop) {
-  var index = start;
-  while (index < source.length) {
-    final skipped = _skipLiteral(source, index);
-    if (skipped != index) {
-      index = skipped;
-      continue;
-    }
-    final char = source[index];
-    if (stop.contains(char)) return index;
-    if (_opening[char] case final closing?) {
-      final end = _scan(source, index + 1, {closing});
-      if (end < 0) return -1;
-      index = end + 1;
-      continue;
-    }
-    index++;
-  }
-  return -1;
-}
-
-/// The index of the bracket closing the one at [open].
-int _close(String source, int open) {
-  final end = _scan(source, open + 1, {_opening[source[open]]!});
-  if (end < 0) throw _unrecognized;
-  return end;
-}
-
-/// [source] split at its top-level commas, type arguments counted as
-/// nesting.
-List<String> _split(String source) {
-  final parts = <String>[];
-  var start = 0;
-  var index = 0;
-  var depth = 0;
-  while (true) {
-    final next = _scan(source, index, const {',', '<', '>'});
-    if (next < 0) return parts..add(source.substring(start));
-    switch (source[next]) {
-      case '<':
-        depth++;
-      case '>':
-        depth--;
-      case _ when depth == 0:
-        parts.add(source.substring(start, next));
-        start = next + 1;
-    }
-    index = next + 1;
-  }
-}
-
-/// Past the string or comment starting at [index], or [index] itself.
-int _skipLiteral(String source, int index) {
-  if (source.startsWith('//', index)) {
-    final end = source.indexOf('\n', index);
-    return end < 0 ? source.length : end + 1;
-  }
-  if (source.startsWith('/*', index)) {
-    final end = source.indexOf('*/', index + 2);
-    return end < 0 ? source.length : end + 2;
-  }
-  var start = index;
-  final raw =
-      source[index] == 'r' &&
-      index + 1 < source.length &&
-      (source[index + 1] == "'" || source[index + 1] == '"') &&
-      (index == 0 || !RegExp(r'[\w$]').hasMatch(source[index - 1]));
-  if (raw) start++;
-  final quote = source[start];
-  if (quote != "'" && quote != '"') return index;
-  final triple = source.startsWith('$quote$quote$quote', start);
-  final delimiter = triple ? '$quote$quote$quote' : quote;
-  var cursor = start + delimiter.length;
-  while (cursor < source.length) {
-    if (!raw && source[cursor] == r'\') {
-      cursor += 2;
-      continue;
-    }
-    if (!raw && source.startsWith(r'${', cursor)) {
-      cursor = _close(source, cursor + 1) + 1;
-      continue;
-    }
-    if (source.startsWith(delimiter, cursor)) return cursor + delimiter.length;
-    cursor++;
-  }
-  return source.length;
-}
-
-/// A parsed type annotation: `prefix.Name<Arguments>?`.
-final class _DartType {
-  _DartType(this.name, this.arguments, {required this.nullable});
-
-  final String name;
-  final List<_DartType> arguments;
-  final bool nullable;
-
-  /// The name without an import prefix.
-  String get baseName => name.split('.').last;
-
-  static _DartType parse(String source) {
-    final parser = _TypeParser(source.replaceAll(RegExp(r'\s+'), ''));
-    final type = parser.type();
-    if (parser.index != parser.source.length) {
-      throw _unfillable;
-    }
-    return type;
-  }
-}
-
-final class _TypeParser {
-  _TypeParser(this.source);
-
-  final String source;
-  int index = 0;
-
-  _DartType type() {
-    final name = RegExp(
-      r'[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?',
-    ).matchAsPrefix(source, index);
-    if (name == null) {
-      throw _unfillable;
-    }
-    index = name.end;
-    final arguments = <_DartType>[];
-    if (index < source.length && source[index] == '<') {
-      index++;
-      arguments.add(type());
-      while (index < source.length && source[index] == ',') {
-        index++;
-        arguments.add(type());
-      }
-      if (index >= source.length || source[index] != '>') throw _unfillable;
-      index++;
-    }
-    final nullable = index < source.length && source[index] == '?';
-    if (nullable) index++;
-    return _DartType(name.group(0)!, arguments, nullable: nullable);
-  }
-}
-
-/// A Dart expression of [type] holding [value].
-String _literal(_DartType type, Object? value, _TypeImports types, String at) {
-  if (value == null) {
-    if (type.nullable || type.name == 'dynamic') return 'null';
-    throw SurfaceCaptureSourceException('its host data `$at` has no sample');
-  }
-  switch (type.name) {
-    case 'String':
-      return _string('$value');
-    case 'int':
-      if (value is num) return '${value.round()}';
-    case 'double':
-      if (value is num) return '${value.toDouble()}';
-    case 'num':
-      if (value is num) return '$value';
-    case 'bool':
-      if (value is bool) return '$value';
-    case 'Object' || 'dynamic':
-      return _json(value);
-    case 'List':
-      if (value is List) {
-        final element = type.arguments.isEmpty ? null : type.arguments.single;
-        return '[${[for (final item in value) element == null ? _json(item) : _literal(element, item, types, '$at[]')].join(', ')}]';
-      }
-    case 'Map':
-      if (value is Map) {
-        final element = type.arguments.length == 2 ? type.arguments[1] : null;
-        return '{${[for (final MapEntry(:key, value: item) in value.entries) '${_string('$key')}: ${element == null ? _json(item) : _literal(element, item, types, '$at.$key')}'].join(', ')}}';
-      }
-    default:
-      if (value is Map) return types.construct(type.baseName, value, at);
-  }
-  throw SurfaceCaptureSourceException(
-    'its host data `$at` does not match its sample',
-  );
 }
 
 String _json(Object? value) => switch (value) {
@@ -554,142 +284,188 @@ String _json(Object? value) => switch (value) {
 String _string(String value) =>
     "'${value.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll(r'$', r'\$').replaceAll('\n', r'\n').replaceAll('\r', r'\r')}'";
 
-/// Plain data classes named by host data, found in the app's `lib` and
-/// imported under their own prefixes.
-final class _TypeImports {
-  _TypeImports(this.projectRoot, this.appName);
-
-  final Directory projectRoot;
-  final String appName;
+/// Dart values for the types a capture plan names, with the libraries that
+/// declare them imported under their own prefixes.
+final class _CaptureValues {
   final Map<String, String> _prefixes = <String, String>{};
-  List<({String path, String source})>? _files;
+
+  /// The host data fields drawn with a neutral value, as `Widget.field`.
+  final List<String> placeholders = <String>[];
 
   List<String> get directives => [
     for (final MapEntry(key: uri, value: prefix) in _prefixes.entries)
       "import '$uri' as $prefix;",
   ];
 
-  /// A constructor call of the plain class [name] holding [fields].
-  String construct(String name, Map<Object?, Object?> fields, String at) {
-    final subject = at == name
-        ? 'its widget $name'
-        : 'its host data type $name';
-    final declared = _declaration(name);
-    if (declared == null) {
-      throw SurfaceCaptureSourceException('$subject is not declared in lib/');
-    }
-    final prefix = _prefixes.putIfAbsent(
-      _packageUri(declared.library, appName),
-      () => 'restage_capture_type${_prefixes.length}',
-    );
-    final body = declared.body;
-    final constructor = RegExp(
-      r'(?<![\w$.])' + RegExp.escape(name) + r'\s*\(',
-    ).firstMatch(body);
-    if (constructor == null) {
-      throw SurfaceCaptureSourceException(
-        '$subject has no constructor this can call',
-      );
-    }
-    final open = constructor.end - 1;
-    final parameters = body.substring(open + 1, _close(body, open));
-    final positional = <String>[];
-    final named = <String>[];
-    // Required positional parameters, then an optional `[...]` or `{...}`.
-    final optional = _scan(parameters, 0, const {'[', '{'});
-    final groups = [
-      (
-        parameters: optional < 0
-            ? parameters
-            : parameters.substring(0, optional),
-        named: false,
-      ),
-      if (optional >= 0)
-        (
-          parameters: parameters.substring(
-            optional + 1,
-            _close(parameters, optional),
-          ),
-          named: parameters[optional] == '{',
-        ),
-    ];
-    for (final group in groups) {
-      for (var raw in _split(group.parameters)) {
-        raw = raw.trim();
-        if (raw.isEmpty || raw.startsWith('super.')) continue;
-        final formal = RegExp(r'\bthis\.([A-Za-z_$][\w$]*)').firstMatch(raw);
-        if (formal == null) {
-          throw SurfaceCaptureSourceException(
-            '$subject has no constructor this can call',
-          );
-        }
-        final field = formal.group(1)!;
-        final type = RegExp(
-          r'\bfinal\s+([^;=]+?)\s+' + RegExp.escape(field) + r'\s*;',
-        ).firstMatch(body)?.group(1);
-        if (type == null) {
-          throw SurfaceCaptureSourceException(
-            '$subject has no constructor this can call',
-          );
-        }
-        if (!fields.containsKey(field) && raw.contains('=')) continue;
-        final value = _literal(
-          _DartType.parse(type),
-          fields[field],
-          this,
-          '$at.$field',
+  String _prefix(Object? library) => _prefixes.putIfAbsent(
+    '$library',
+    () => 'restage_capture_type${_prefixes.length}',
+  );
+
+  /// A constructor call of the planned class [plan] holding [fields].
+  String construct(
+    Map<String, Object?> plan,
+    Map<Object?, Object?> fields,
+    String at,
+  ) {
+    final name = '${plan['name']}';
+    switch (plan['kind']) {
+      case 'object':
+        break;
+      case 'recursive':
+        throw _unbuildable(at, name);
+      case 'private':
+        throw SurfaceCaptureSourceException(
+          '${at == name ? 'its widget' : 'its host data type'} `$name` is '
+          'private to its library',
         );
-        if (group.named) {
-          named.add('$field: $value');
-        } else {
-          positional.add(value);
-        }
+      default:
+        throw SurfaceCaptureSourceException(
+          '${at == name ? 'its widget' : 'its host data type'} $name has no '
+          'constructor this can call',
+        );
+    }
+    final prefix = _prefix(plan['importUri']);
+    final positional = <String?>[];
+    final named = <String>[];
+    for (final parameter
+        in (plan['parameters']! as List).cast<Map<String, Object?>>()) {
+      // A parameter no field holds is drawn without its sample.
+      final key = parameter['sampleKey'] as String?;
+      final label = '$at.${key ?? parameter['name']}';
+      final type = (parameter['type']! as Map).cast<String, Object?>();
+      final value = key == null ? null : fields[key];
+      final optional = parameter['required'] != true;
+      String? argument;
+      if (value != null) {
+        argument = _literal(type, value, label);
+      } else if (optional &&
+          (parameter['hasDefault'] == true || type['nullable'] == true)) {
+        argument = null;
+      } else {
+        argument = _literal(type, null, label);
+      }
+      if (key == null && !placeholders.contains(label)) placeholders.add(label);
+      if (parameter['named'] == true) {
+        if (argument != null) named.add('${parameter['name']}: $argument');
+      } else {
+        positional.add(argument);
       }
     }
-    return '$prefix.$name(${[...positional, ...named].join(', ')})';
-  }
-
-  /// The library declaring [name] and the class body, or null.
-  ({String library, String body})? _declaration(String name) {
-    final files = _files ??= _libFiles();
-    final pattern = RegExp(r'\bclass\s+' + RegExp.escape(name) + r'\b');
-    for (final file in files) {
-      final match = pattern.firstMatch(file.source);
-      if (match == null) continue;
-      final open = file.source.indexOf('{', match.end);
-      if (open < 0) continue;
-      final partOf = RegExp(
-        r'''\bpart\s+of\s+(['"])([^'"]+)\1''',
-      ).firstMatch(file.source);
-      final library = partOf == null
-          ? file.path
-          : p.posix.normalize(
-              p.posix.join(p.posix.dirname(file.path), partOf.group(2)),
-            );
-      return (
-        library: library,
-        body: file.source.substring(open, _close(file.source, open) + 1),
-      );
+    // Only trailing optional positionals can be left out.
+    while (positional.isNotEmpty && positional.last == null) {
+      positional.removeLast();
     }
-    return null;
+    if (positional.contains(null)) throw _unbuildable(at, name);
+    return '$prefix.$name('
+        '${[...positional, ...named].join(', ')})';
   }
 
-  List<({String path, String source})> _libFiles() {
-    final lib = Directory(p.join(projectRoot.path, 'lib'));
-    if (!lib.existsSync()) return const [];
-    return [
-      for (final entity in lib.listSync(recursive: true, followLinks: false))
-        if (entity is File &&
-            entity.path.endsWith('.dart') &&
-            !entity.path.endsWith('.g.dart'))
-          (
-            path: p.posix.joinAll(
-              p.split(p.relative(entity.path, from: projectRoot.path)),
-            ),
-            source: entity.readAsStringSync(),
-          ),
-    ]..sort((left, right) => left.path.compareTo(right.path));
+  /// A Dart expression of [type] holding [value], or a neutral value of it
+  /// when [value] is null.
+  String _literal(Map<String, Object?> type, Object? value, String at) {
+    if (value == null) {
+      if (type['nullable'] == true) return 'null';
+      final placeholder = _placeholder(type, at);
+      placeholders.add(at);
+      return placeholder;
+    }
+    switch (type['kind']) {
+      case 'string':
+        return _string('$value');
+      case 'int':
+        if (value is num) return '${value.round()}';
+      case 'double':
+        if (value is num) return '${value.toDouble()}';
+      case 'num':
+        if (value is num) return '$value';
+      case 'bool':
+        if (value is bool) return '$value';
+      case 'json':
+        return _json(value);
+      case 'list' || 'set':
+        if (value is List) {
+          final item = (type['item']! as Map).cast<String, Object?>();
+          final items = [
+            for (final element in value) _literal(item, element, '$at[]'),
+          ].join(', ');
+          return type['kind'] == 'list' ? '[$items]' : '{$items}';
+        }
+      case 'map':
+        if (value is Map) {
+          final entry = (type['value']! as Map).cast<String, Object?>();
+          return '{${[for (final MapEntry(:key, value: item) in value.entries) '${_string('$key')}: ${_literal(entry, item, '$at.$key')}'].join(', ')}}';
+        }
+      case 'enum':
+        if (value is String) {
+          final values = (type['values']! as List).cast<String>();
+          return '${_prefix(type['importUri'])}.${type['name']}.'
+              '${values.contains(value) ? value : values.first}';
+        }
+      case 'object':
+        if (value is Map) return construct(type, value, at);
+      case 'private':
+        return construct(type, const <String, Object?>{}, at);
+    }
+    throw SurfaceCaptureSourceException(
+      'its host data `$at` does not match its sample',
+    );
   }
+
+  /// A value of [type] for an input with no sample: an enum's first value, a
+  /// class built from its defaults (two of them in a list), the epoch, a zero
+  /// duration, black, or empty.
+  String _placeholder(Map<String, Object?> type, String at) {
+    switch (type['kind']) {
+      case 'string':
+        return "''";
+      case 'int' || 'num':
+        return '0';
+      case 'double':
+        return '0.0';
+      case 'bool':
+        return 'false';
+      case 'list':
+        final item = (type['item']! as Map).cast<String, Object?>();
+        if (item['nullable'] != true &&
+            const {'object', 'enum'}.contains(item['kind'])) {
+          try {
+            final sample = _placeholder(item, '$at[]');
+            return '[$sample, $sample]';
+          } on SurfaceCaptureSourceException {
+            // An item this cannot build leaves the list empty.
+          }
+        }
+        return 'const []';
+      case 'map' || 'set':
+        return 'const {}';
+      case 'enum':
+        final values = (type['values']! as List).cast<String>();
+        if (values.isNotEmpty) {
+          return '${_prefix(type['importUri'])}.${type['name']}.${values.first}';
+        }
+      case 'value':
+        switch (type['name']) {
+          case 'DateTime':
+            return 'DateTime.fromMillisecondsSinceEpoch(0, isUtc: true)';
+          case 'Duration':
+            return 'Duration.zero';
+          case 'Color':
+            return 'const restage_capture_widgets.Color(0xFF000000)';
+        }
+      case 'object' || 'unconstructible' || 'private':
+        return construct(type, const <String, Object?>{}, at);
+      case 'json':
+        throw _unbuildable(at, 'Object');
+    }
+    throw _unbuildable(at, '${type['display'] ?? type['name']}');
+  }
+
+  SurfaceCaptureSourceException _unbuildable(String at, String type) =>
+      SurfaceCaptureSourceException(
+        "its host data `$at` has a type the preview can't build a sample of "
+        '(`$type`). Give the parameter a default value to draw the image',
+      );
 }
 
 /// The support library every capture test imports.
@@ -697,6 +473,7 @@ String surfaceCaptureSupportSource({
   required double width,
   required double height,
   required Map<String, List<String>> fontFiles,
+  required bool readsPaywallContext,
 }) =>
     '''
 // Generated by `restage surface push`. Rewritten on every push.
@@ -709,7 +486,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restage/restage.dart'
+${readsPaywallContext ? "import 'package:restage/render_support.dart' show paywallHostContext;\n" : ''}import 'package:restage/restage.dart'
     show RestagePaywall, RestageScreen, SurfaceFlowRef;
 import 'package:restage_shared/restage_shared.dart' show ScreenFlowState;
 
@@ -802,8 +579,10 @@ void captureContext(
             ),
           )
           .first;
-      contexts[brightness.name] =
-          (surface as dynamic).context ?? const <String, Object?>{};
+      contexts[brightness.name] = (surface is RestagePaywall
+              ? ${readsPaywallContext ? 'paywallHostContext(surface)' : 'null'}
+              : (surface as RestageScreen).context) ??
+          const <String, Object?>{};
     }
     tester.platformDispatcher.clearPlatformBrightnessTestValue();
     File('images/\$name.context.json').writeAsStringSync(jsonEncode(contexts));

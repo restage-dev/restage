@@ -218,6 +218,10 @@ import 'package:my_app/app_scope.dart';
 Widget wrapPreview(Widget child) => AppScope.preview(child: child);
 ```
 
+The same function also wraps every dashboard and editor preview of the surface, so its
+file must compile for the web: a wrapper that imports `dart:io` or a plugin without web
+support fails `build push`.
+
 When a surface doesn't render, the push says what stopped it and goes ahead without
 its image.
 

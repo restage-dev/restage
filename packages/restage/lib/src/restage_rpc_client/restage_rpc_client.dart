@@ -5,6 +5,7 @@ import 'dart:typed_data' show BytesBuilder, Uint8List;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_measurement_schema/canonical_forms.dart';
 import 'package:restage_shared/commerce.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -17,6 +18,8 @@ import '../measurement/measurement_sdk_runtime_session.dart'
 import '../measurement/measurement_resolved_publication_provenance.dart'
     show stampAssignmentRegistrationFingerprint;
 import '../resolver/delivery_input_budget.dart';
+import '../resolver/placement_fallback_log.dart'
+    show PlacementNoAnswerCause, PlacementNoAnswerStatus;
 import '../resolver/surface_assignment_built_ins.dart'
     show assignmentSdkApiLevel;
 import '../resolver/surface_canonical_carrier_provider.dart';
@@ -43,6 +46,14 @@ typedef SurfaceRequestPublicationGuard = bool Function();
 final class SurfaceRequestPublicationRejected implements Exception {
   /// Creates the internal stale-publication signal.
   const SurfaceRequestPublicationRejected();
+}
+
+/// The service no longer holds the credential a placement request presented.
+/// It was retired, and the next mount registers the device again.
+@internal
+final class PlacementRegistrationRetired implements Exception {
+  /// Creates the internal retired-credential signal.
+  const PlacementRegistrationRetired();
 }
 
 /// Why a hosted surface carried no assignment it could commit.
@@ -678,6 +689,50 @@ class RestageRpcClient {
   @internal
   TargetCoordinate? get placementTarget => _placementTarget;
 
+  /// Build contracts a service has answered for; later requests name them by
+  /// hash alone.
+  final _answeredBuildContracts = <String>{};
+
+  /// Names [hash] by hash alone on its next request; a service that does not
+  /// hold it gets the full contract on the resend.
+  @internal
+  void expectHeldBuildContract(String hash) =>
+      _answeredBuildContracts.add(hash);
+
+  /// Whether the service refused the hash form as malformed; it then always
+  /// gets the full contract.
+  var _hashFormRefused = false;
+
+  /// Sends [request], naming an answered build by hash and resending the full
+  /// contract once when the service does not hold it. A service that refuses
+  /// the hash form as malformed gets the full contract from then on.
+  Future<http.StreamedResponse> _sendPlacements(Uri url,
+      PlacementBatchRequestV1 request, void Function() checkPublication) async {
+    http.Request wire(PlacementBatchRequestV1 body) => http.Request('POST', url)
+      ..headers.addAll({
+        'Authorization': 'Bearer $_apiKey',
+        'Content-Type': 'application/json',
+      })
+      ..bodyBytes = body.canonicalBytes;
+    final hash = request.appBuildContractHash;
+    if (!_hashFormRefused && _answeredBuildContracts.contains(hash)) {
+      final response =
+          await _client.send(wire(request.withBuildContract(carried: false)));
+      if (response.statusCode != PlacementBuildContractRequired.status &&
+          response.statusCode != 400) {
+        return response;
+      }
+      if (response.statusCode == 400) _hashFormRefused = true;
+      // Read to the end so the resend reuses the connection.
+      await response.stream.drain<void>();
+      _answeredBuildContracts.remove(hash);
+      checkPublication();
+    }
+    final response = await _client.send(wire(request));
+    if (response.statusCode == 200) _answeredBuildContracts.add(hash);
+    return response;
+  }
+
   /// Reports local declarations through this authenticated HTTP session.
   @internal
   Future<bool> reportPlacementMounts(PlacementDiscoveryReportV1 report,
@@ -726,7 +781,8 @@ class RestageRpcClient {
   Future<PlacementBatchRefusedV1?> _readPlacementRefusal(
       http.StreamedResponse response,
       PlacementBatchRequestV1 request,
-      TargetCoordinate? expectedTarget) async {
+      TargetCoordinate? expectedTarget,
+      {void Function(String code)? onErrorCode}) async {
     final Uint8List bytes;
     try {
       if ((response.contentLength ?? 0) > kMaximumPlacementResponseBytes) {
@@ -760,6 +816,7 @@ class RestageRpcClient {
     try {
       final json = jsonDecode(utf8.decode(bytes));
       error = json is Map ? json['error'] as String? : null;
+      if (error != null && _errorCode.hasMatch(error)) onErrorCode?.call(error);
     } on Object {
       return response.statusCode == 401 ? _refusedKey : null;
     }
@@ -767,6 +824,8 @@ class RestageRpcClient {
         ? _refusedKey
         : null;
   }
+
+  static final RegExp _errorCode = RegExp(r'^[A-Za-z0-9_.-]{1,64}$');
 
   static final PlacementBatchRefusedV1 _refusedKey = PlacementBatchRefusedV1(
       reason: PlacementBatchRefusalReasonV1.invalidAuthority);
@@ -791,7 +850,9 @@ class RestageRpcClient {
     Map<ArtifactIdentityV1, List<int>> heldArtifactBytes = const {},
     SurfaceAssignmentResolutionLease? registrationLease,
     void Function(Duration retryAfter)? onRateLimited,
-    void Function(SurfaceDeliveryReceiptReason reason)? onNoAnswer,
+    void Function(
+            SurfaceDeliveryReceiptReason reason, PlacementNoAnswerCause cause)?
+        onNoAnswer,
   }) async {
     void checkPublication() {
       try {
@@ -808,41 +869,43 @@ class RestageRpcClient {
     checkPublication();
     final held = {...heldPlacementArtifacts, ...heldArtifactBytes};
     final requestStartedAtMicros = _utcNowMicros();
-    final wire = http.Request(
-      'POST',
-      Uri.parse('$_baseUrl/sdk/v1/placements/resolve'),
-    )
-      ..headers.addAll({
-        'Authorization': 'Bearer $_apiKey',
-        'Content-Type': 'application/json',
-      })
-      ..bodyBytes = request.canonicalBytes;
+    final endpoint = Uri.parse('$_baseUrl/sdk/v1/placements/resolve');
     final Uint8List bytes;
     try {
-      final response = await _client.send(wire);
+      final response =
+          await _sendPlacements(endpoint, request, checkPublication);
       if (response.statusCode != 200) {
         checkPublication();
-        if (kDebugMode) {
-          debugPrint('[restage] placement resolve failed with HTTP '
-              '${response.statusCode}; mounts show their fallbacks.');
-        }
         final status = response.statusCode;
         if (status == 429) {
           onRateLimited?.call(retryAfterDelay(response.headers['retry-after']));
         }
         // A 4xx may carry a definitive refusal; a 5xx is always transient.
         PlacementBatchRefusedV1? refusal;
+        String? errorCode;
         if (status >= 400 && status < 500 && status != 429) {
           refusal = await _readPlacementRefusal(
-              response, request, expectedTarget ?? _placementTarget);
+              response, request, expectedTarget ?? _placementTarget,
+              onErrorCode: (code) => errorCode = code);
         } else {
           await response.stream.listen(null).cancel();
         }
         checkPublication();
         if (refusal != null) return refusal;
-        onNoAnswer?.call(status == 429
-            ? SurfaceDeliveryReceiptReason.throttled
-            : SurfaceDeliveryReceiptReason.serverError);
+        final cause = PlacementNoAnswerStatus(status,
+            retryAfter: requestedRetryAfter(response.headers['retry-after']),
+            endpoint: endpoint,
+            location: response.headers['location'],
+            error: errorCode);
+        if (kDebugMode) {
+          debugPrint('[restage] placement resolve failed: '
+              '${cause.describe()}');
+        }
+        onNoAnswer?.call(
+            status == 429
+                ? SurfaceDeliveryReceiptReason.throttled
+                : SurfaceDeliveryReceiptReason.serverError,
+            cause);
         return null;
       }
       if ((response.contentLength ?? 0) > kMaximumPlacementResponseBytes) {
@@ -865,8 +928,11 @@ class RestageRpcClient {
     } on SurfaceRequestPublicationRejected {
       rethrow;
     } on Object catch (error) {
-      if (kDebugMode) debugPrint('[restage] placement resolve failed: $error');
-      onNoAnswer?.call(SurfaceDeliveryReceiptReason.offline);
+      final cause = PlacementNoAnswerCause.of(error, endpoint);
+      if (kDebugMode) {
+        debugPrint('[restage] placement resolve failed: ${cause.describe()}');
+      }
+      onNoAnswer?.call(SurfaceDeliveryReceiptReason.offline, cause);
       return null;
     }
     checkPublication();
@@ -876,7 +942,6 @@ class RestageRpcClient {
         bytes,
         request: request,
         expectedTarget: expectedTarget ?? _placementTarget,
-        heldArtifactBytes: held,
       );
     } on CanonicalFormatException catch (error) {
       if (kDebugMode) {
@@ -901,10 +966,25 @@ class RestageRpcClient {
         reason: PlacementBatchRefusalReasonV1.invalidAuthority,
       );
     }
+    // Retire a presented credential the service no longer holds. The next
+    // mount registers again.
+    if (response is PlacementBatchResolvedV1 && response.registrationRefused) {
+      final attempt = registrationLease?.registration;
+      final refuse = registrationLease?.refuseRegistration;
+      if (attempt != null &&
+          refuse != null &&
+          attempt.credentialHandle == request.assignmentKey) {
+        await refuse(attempt);
+        throw const PlacementRegistrationRetired();
+      }
+    }
     if (response is PlacementBatchResolvedV1) {
+      // Bytes sent with the answer are checked as fetched ones are.
       final artifacts = await assemblePlacementDeliveryArtifacts(
         response,
         heldArtifactBytes: held,
+        inlineArtifactBytes: response.inlineArtifacts,
+        fetch: _fetchPlacementArtifact,
         publicationGuard: publicationGuard,
       );
       checkPublication();
@@ -932,6 +1012,18 @@ class RestageRpcClient {
     return response;
   }
 
+  /// The frame [reference] names, fetched with its pass; null on any failure.
+  Future<Uint8List?> _fetchPlacementArtifact(
+    PlacementArtifactReferenceV1 reference,
+  ) async {
+    try {
+      assertSecureUrl(reference.descriptor.artifactUrl, label: 'artifact URL');
+      return await _fetchArtifactBytes(reference.descriptor);
+    } on Object {
+      return null;
+    }
+  }
+
   void _rememberArtifact(_ArtifactIdentity identity, Uint8List bytes) {
     if (_artifacts.containsKey(identity) ||
         bytes.length > _maxHeldArtifactBytes) {
@@ -951,9 +1043,18 @@ class RestageRpcClient {
       _acceptedBindings = <MeasurementPublicationBindingReferenceV1,
           MeasurementPublicationBindingReadRpcAccepted>{};
 
+  /// Binding reads in flight, shared by every caller of the same reference.
+  final Map<MeasurementPublicationBindingReferenceV1,
+          Future<MeasurementPublicationBindingReadRpcOutcome>>
+      _pendingBindings = <MeasurementPublicationBindingReferenceV1,
+          Future<MeasurementPublicationBindingReadRpcOutcome>>{};
+
   /// Drops every held binding read.
   @internal
-  void forgetPublicationBindings() => _acceptedBindings.clear();
+  void forgetPublicationBindings() {
+    _acceptedBindings.clear();
+    _pendingBindings.clear();
+  }
 
   /// Sends one canonical Measurement request through the SDK HTTP session.
   ///
@@ -1210,6 +1311,23 @@ class RestageRpcClient {
   ) async {
     final held = _acceptedBindings[reference];
     if (held != null) return held;
+    final pending = _pendingBindings[reference];
+    if (pending != null) return pending;
+    final read = _readMeasurementPublicationBinding(reference);
+    _pendingBindings[reference] = read;
+    try {
+      return await read;
+    } finally {
+      if (identical(_pendingBindings[reference], read)) {
+        _pendingBindings.remove(reference);
+      }
+    }
+  }
+
+  Future<MeasurementPublicationBindingReadRpcOutcome>
+      _readMeasurementPublicationBinding(
+    MeasurementPublicationBindingReferenceV1 reference,
+  ) async {
     final carrier =
         base64Url.encode(reference.canonicalBytes).replaceAll('=', '');
     final uri = Uri.parse('$_baseUrl/sdk/v1/measurement-publication-binding');
@@ -1234,10 +1352,13 @@ class RestageRpcClient {
 
     switch (response.statusCode) {
       case 200:
-        final read = _parseMeasurementPublicationBindingReadAcceptedResponse(
-          response.body,
-          reference: reference,
-        );
+        // The strict decode takes tens of milliseconds; it runs off the
+        // isolate that draws frames.
+        final (read, forms) = await compute(
+            _parseMeasurementPublicationBindingRead,
+            (response.body, reference));
+        // The forms computed there are reused here, not recomputed.
+        adoptCanonicalForms(forms);
         if (read is MeasurementPublicationBindingReadRpcAccepted) {
           _acceptedBindings[reference] = read;
         }
@@ -1969,7 +2090,23 @@ String? _headerValue(Map<String, String> headers, String name) {
 const _measurementPublicationBindingHeaderV1 =
     'Restage-Measurement-Publication-Binding-V1';
 const _maximumMeasurementPublicationBindingHeaderCharacters = 4096;
-final _base64UrlNoPadding = RegExp(r'^[A-Za-z0-9_-]+$');
+// A loop, because a regular expression over a multi-megabyte carrier can
+// overflow the stack.
+bool _isUnpaddedBase64Url(String value) {
+  if (value.isEmpty) return false;
+  for (var index = 0; index < value.length; index += 1) {
+    final unit = value.codeUnitAt(index);
+    if (!((unit >= 0x41 && unit <= 0x5a) ||
+        (unit >= 0x61 && unit <= 0x7a) ||
+        (unit >= 0x30 && unit <= 0x39) ||
+        unit == 0x2d ||
+        unit == 0x5f)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 final _ittCredentialHandle = RegExp(r'^[A-Za-z0-9._-]{1,256}$');
 final _foldedCredentialHandle = RegExp(r'^ic1\.[0-9a-f]{64}$');
 const _maximumMeasurementPublicationBindingReadResponseBodyBytes =
@@ -2105,6 +2242,13 @@ GovernedMeasurementRpcOutcome _parseGovernedMeasurementAcceptedResponse(
   return GovernedMeasurementRpcAccepted(resultCanonicalBase64: carrier);
 }
 
+(MeasurementPublicationBindingReadRpcOutcome, CanonicalForms)
+    _parseMeasurementPublicationBindingRead(
+            (String, MeasurementPublicationBindingReferenceV1) read) =>
+        recordCanonicalForms(() =>
+            _parseMeasurementPublicationBindingReadAcceptedResponse(read.$1,
+                reference: read.$2));
+
 MeasurementPublicationBindingReadRpcOutcome
     _parseMeasurementPublicationBindingReadAcceptedResponse(
   String body, {
@@ -2167,11 +2311,7 @@ MeasurementPublicationBindingReadRpcOutcome
 }
 
 bool _isCanonicalBase64UrlCarrier(String value) {
-  if (value.isEmpty ||
-      value.contains('=') ||
-      !_base64UrlNoPadding.hasMatch(value)) {
-    return false;
-  }
+  if (!_isUnpaddedBase64Url(value)) return false;
   try {
     final bytes = base64Url.decode(base64Url.normalize(value));
     return base64UrlEncode(bytes).replaceAll('=', '') == value;
@@ -2209,7 +2349,7 @@ MeasurementPublicationBindingReferenceV1?
 
   final value = values.single;
   if (value.length > _maximumMeasurementPublicationBindingHeaderCharacters ||
-      !_base64UrlNoPadding.hasMatch(value)) {
+      !_isUnpaddedBase64Url(value)) {
     return null;
   }
   try {

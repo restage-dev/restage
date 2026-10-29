@@ -165,6 +165,21 @@ SurfaceArtifactOutcome assembleSurfaceArtifact({
     return SurfaceArtifactUndecodable(error);
   }
 
+  return assembleDecodedSurfaceArtifact(descriptor, payload);
+}
+
+/// Assembles [payload], already verified and decoded from [descriptor]'s frame.
+@internal
+SurfaceArtifactOutcome assembleDecodedSurfaceArtifact(
+  SurfaceArtifactDescriptor descriptor,
+  SurfacePayload payload,
+) {
+  if (descriptor.payloadFormatVersion >
+      kMaxSupportedSurfaceArtifactPayloadFormatVersion) {
+    return const SurfaceArtifactUnavailable(
+      SurfaceArtifactFetchFailure.unreadableDescription,
+    );
+  }
   // Step 4. The publication record can claim which shape it routed on. When it
   // did, the claim and the bytes have to agree — a record whose discriminator
   // disagrees with its own payload could route a delivery through the wrong

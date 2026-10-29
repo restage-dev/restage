@@ -29,12 +29,10 @@ const int kSurfaceArtifactDescriptorVersion = 1;
 /// more is refused, never guessed at.
 const int kMaxSupportedSurfaceArtifactDescriptorVersion = 1;
 
-/// The payload frame format of a frame without icon-font or local-seed
-/// sections.
+/// The payload frame format of a frame without sections.
 const int kSurfaceArtifactPayloadFormatVersion = 1;
 
-/// The payload frame format of a frame carrying icon-font or local-seed
-/// sections.
+/// The payload frame format of a frame carrying sections.
 const int kSurfaceArtifactSectionsPayloadFormatVersion = 2;
 
 /// The highest payload frame format this build can read.
@@ -47,7 +45,7 @@ int surfaceArtifactPayloadFormatVersionFor(SurfacePayload payload) =>
         : kSurfaceArtifactPayloadFormatVersion;
 
 /// Whether a payload frame stored under [payloadFormatVersion] may carry
-/// icon-font or local-seed sections.
+/// sections.
 bool surfaceArtifactFrameAllowsSections(int payloadFormatVersion) =>
     payloadFormatVersion >= kSurfaceArtifactSectionsPayloadFormatVersion;
 

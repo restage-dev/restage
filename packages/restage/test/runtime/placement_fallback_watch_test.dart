@@ -18,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/placement_delivery_fixture.dart';
 import '../surface_screen/surface_screen_test_support.dart';
+import '../support/sent_placement_request.dart';
 
 void main() {
   for (final late in [false, true]) {
@@ -74,8 +75,9 @@ void main() {
           baseUrl: 'https://example.com',
           apiKey: 'rs_pk_test',
           httpClient: MockClient((outgoing) async {
-            final request =
-                PlacementBatchRequestV1.fromCanonicalBytes(outgoing.bodyBytes);
+            final fixtureArtifact = placementFixtureArtifact(outgoing);
+            if (fixtureArtifact != null) return fixtureArtifact;
+            final request = sentPlacementRequest(outgoing.bodyBytes);
             requests.add(request);
             await answer.future;
             if (hosted) {
@@ -96,19 +98,19 @@ void main() {
                 family: const DeliveryFamilySelectorV1.none());
             return http.Response.bytes(
                 PlacementBatchResolvedV1(
-                    request: request,
-                    expectedTarget: fixture.target,
-                    decisions: [
-                      PlacementBatchEntryV1.useFallback(descriptor,
-                          PlacementBatchRefusalReasonV1.unavailable, const [],
-                          watch: PlacementDeliveryWatchV1(
-                              decisionIdentityDigest: CanonicalDigest('f' * 64),
-                              channels: [
-                                PlacementDeliveryWatchChannelV1(
-                                    scope: scope, token: _watchToken)
-                              ]))
-                    ],
-                    artifacts: const []).canonicalBytes,
+                  request: request,
+                  expectedTarget: fixture.target,
+                  decisions: [
+                    PlacementBatchEntryV1.useFallback(descriptor,
+                        PlacementBatchRefusalReasonV1.unavailable, const [],
+                        watch: PlacementDeliveryWatchV1(
+                            decisionIdentityDigest: CanonicalDigest('f' * 64),
+                            channels: [
+                              PlacementDeliveryWatchChannelV1(
+                                  scope: scope, token: _watchToken)
+                            ]))
+                  ],
+                ).canonicalBytes,
                 200);
           }));
       addTearDown(client.close);

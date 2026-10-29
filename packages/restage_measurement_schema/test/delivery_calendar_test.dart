@@ -350,12 +350,55 @@ void main() {
           unorderedEquals([
             'kind',
             'policySelections',
+            'consultedBuiltIns',
             'hostContractHash',
             'installedCapabilityHash',
             'selectionIdentityDigest',
           ]),
         );
+        expect(decoded.consultedBuiltIns, isEmpty);
       }
+    });
+
+    test('cache validity names the built-in facts its decision read', () {
+      final cache = DeliveryCacheValidityV1(
+        policySelections: const [],
+        consultedBuiltIns: const ['country', 'daysSinceInstall'],
+        hostContractHash: 'sha256:${'a' * 64}',
+        installedCapabilityHash: 'sha256:${'b' * 64}',
+        selectionIdentityDigest: CanonicalDigest('d' * 64),
+      );
+      final decoded =
+          DeliveryCacheValidityV1.fromCanonicalBytes(cache.canonicalBytes);
+      expect(decoded, cache);
+      expect(decoded.consultedBuiltIns, ['country', 'daysSinceInstall']);
+      for (final names in [
+        ['daysSinceInstall', 'country'],
+        ['country', 'country'],
+        ['zodiac'],
+      ]) {
+        expect(
+          () => DeliveryCacheValidityV1.fromJson({
+            ...cache.toJson(),
+            'consultedBuiltIns': names,
+          }),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: '$names',
+        );
+      }
+      expect(
+        () => DeliveryCacheValidityV1.fromJson(
+          {...cache.toJson()}..remove('consultedBuiltIns'),
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+      expect(
+        () => DeliveryCacheValidityV1.fromJson({
+          ...cache.toJson(),
+          'consultedBuiltIns': [1],
+        }),
+        throwsA(isA<CanonicalFormatException>()),
+      );
     });
 
     test('selection list refuses duplicate scopes extra stages and wrong order',

@@ -3,7 +3,6 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -51,15 +50,26 @@ List<PlacementBatchRequestV1> configureHostedPaywall({
     apiKey: 'rs_pk_test',
     baseUrl: 'https://example.com',
     httpClient: MockClient((request) async {
-      expect(request.method, 'POST');
-      expect(request.url.path, '/sdk/v1/placements/resolve');
-      final batch = PlacementBatchRequestV1.fromCanonicalBytes(
-        request.bodyBytes,
-      );
+      if (request.method == 'GET') {
+        final fixture = request.url.pathSegments.last;
+        return http.Response.bytes(
+            _fixture(fixture).payload.canonicalBytes, 200);
+      }
+      // Discovery reports are not part of hosted delivery.
+      if (request.url.path != '/sdk/v1/placements/resolve') {
+        return http.Response('', 200);
+      }
+      final PlacementBatchRequestV1 batch;
+      try {
+        batch = PlacementBatchRequestV1.fromCanonicalBytes(request.bodyBytes);
+      } on PlacementBuildContractRequired {
+        // A build named only by hash: the SDK resends it with its contract.
+        return http.Response('', PlacementBuildContractRequired.status);
+      }
       requests.add(batch);
       final selected =
           publication?.call() ?? (fixture: fixture, version: version);
-      final response = _response(
+      final PlacementBatchResolvedV1 response = _response(
         batch,
         definition: definition,
         fixture: selected.fixture,
@@ -74,6 +84,26 @@ List<PlacementBatchRequestV1> configureHostedPaywall({
   return requests;
 }
 
+({BlobSurfacePayload payload, CapabilitySidecar sidecar}) _fixture(
+  String fixture,
+) {
+  final blob = File('test/fixtures/$fixture.rfw').readAsBytesSync();
+  final sidecar = CapabilitySidecar.fromJson(
+    jsonDecode(
+      File('test/fixtures/$fixture.capability.json').readAsStringSync(),
+    ) as Map<String, dynamic>,
+  );
+  if (CapabilitySidecar.hashBlob(blob) != sidecar.blobSha256) {
+    throw StateError('The fixture $fixture does not match its capability.');
+  }
+  final payload = BlobSurfacePayload(
+    minClient: sidecar.manifest.builtInFloor,
+    requiredLibraries: sidecar.manifest.requiredLibraries,
+    blob: blob,
+  );
+  return (payload: payload, sidecar: sidecar);
+}
+
 PlacementBatchResolvedV1 _response(
   PlacementBatchRequestV1 request, {
   required GeneratedPlacementDefinition definition,
@@ -81,18 +111,7 @@ PlacementBatchResolvedV1 _response(
   required int version,
   required bool unavailable,
 }) {
-  final blob = File('test/fixtures/$fixture.rfw').readAsBytesSync();
-  final sidecar = CapabilitySidecar.fromJson(
-    jsonDecode(
-      File('test/fixtures/$fixture.capability.json').readAsStringSync(),
-    ) as Map<String, dynamic>,
-  );
-  expect(CapabilitySidecar.hashBlob(blob), sidecar.blobSha256);
-  final payload = BlobSurfacePayload(
-    minClient: sidecar.manifest.builtInFloor,
-    requiredLibraries: sidecar.manifest.requiredLibraries,
-    blob: blob,
-  );
+  final (:payload, :sidecar) = _fixture(fixture);
   final target = TargetCoordinate(
     organizationId: OrganizationId(1),
     appId: ApplicationId(2),
@@ -123,7 +142,7 @@ PlacementBatchResolvedV1 _response(
       version: version,
       publishedAtMicros: 1,
       contentHash: payload.contentHash,
-      artifactUrl: 'https://example.com/paywall',
+      artifactUrl: 'https://example.com/paywall/$fixture',
       artifactPass: 'test-artifact',
     ),
   );
@@ -199,16 +218,6 @@ PlacementBatchResolvedV1 _response(
           );
           return PlacementBatchAvailableV1(descriptor, delivery, [reference]);
         }(),
-    ],
-    artifacts: [
-      if (!unavailable)
-        PlacementBatchArtifactV1(
-          identity: ArtifactIdentityV1(
-            payloadFormatVersion: 1,
-            contentHash: payload.contentHash,
-          ),
-          bytes: Uint8List.fromList(payload.canonicalBytes),
-        ),
     ],
   );
 }

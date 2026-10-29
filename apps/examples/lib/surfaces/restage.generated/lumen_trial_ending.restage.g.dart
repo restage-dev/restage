@@ -2,25 +2,25 @@ part of '../lumen_trial_ending.dart';
 
 // ignore_for_file: type=lint
 
-sealed class LumenTrialEndingScreenEvent {
-  const LumenTrialEndingScreenEvent();
+sealed class LumenTrialEndingScreenSurfaceEvent {
+  const LumenTrialEndingScreenSurfaceEvent();
 }
 
-final class LumenTrialEndingScreenLaterEvent
-    extends LumenTrialEndingScreenEvent {
-  const LumenTrialEndingScreenLaterEvent();
+final class LumenTrialEndingScreenSurfaceLaterEvent
+    extends LumenTrialEndingScreenSurfaceEvent {
+  const LumenTrialEndingScreenSurfaceLaterEvent();
 }
 
-final class LumenTrialEndingScreenOpenOfferEvent
-    extends LumenTrialEndingScreenEvent {
-  const LumenTrialEndingScreenOpenOfferEvent();
+final class LumenTrialEndingScreenSurfaceOpenOfferEvent
+    extends LumenTrialEndingScreenSurfaceEvent {
+  const LumenTrialEndingScreenSurfaceOpenOfferEvent();
 }
 
 final _lumenTrialEndingScreenEvents =
-    SurfaceScreenEventContract<LumenTrialEndingScreenEvent>.generated(
+    SurfaceScreenEventContract<LumenTrialEndingScreenSurfaceEvent>.generated(
   hash:
       'sha256:c873ccfbaabb443865b81010c061e6321c2a6acf0488747e8cdc68debb658508',
-  decodeValidated: _decodeValidatedLumenTrialEndingScreenEvent,
+  decodeValidated: _decodeValidatedLumenTrialEndingScreenSurfaceEvent,
 );
 
 final _lumenTrialEndingScreenProvenance =
@@ -88,22 +88,23 @@ final _lumenTrialEndingScreenProvenance =
 );
 
 final lumenTrialEndingScreenRef = SurfaceScreenRef<
-    LumenTrialEndingScreenEvent>.generatedWithMeasurementPublicationDraftDigest(
+    LumenTrialEndingScreenSurfaceEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _lumenTrialEndingScreenProvenance,
   eventContract: _lumenTrialEndingScreenEvents,
   measurementPublicationDraftDigest:
       'cdedf7d890cd248032e19d47addcc4845e7a04054331a2a9b1f9dd3d15c2c5fb',
 );
 
-LumenTrialEndingScreenEvent _decodeValidatedLumenTrialEndingScreenEvent(
+LumenTrialEndingScreenSurfaceEvent
+    _decodeValidatedLumenTrialEndingScreenSurfaceEvent(
   String name,
   Map<String, Object?> arguments,
 ) {
   switch (name) {
     case 'later':
-      return const LumenTrialEndingScreenLaterEvent();
+      return const LumenTrialEndingScreenSurfaceLaterEvent();
     case 'open_offer':
-      return const LumenTrialEndingScreenOpenOfferEvent();
+      return const LumenTrialEndingScreenSurfaceOpenOfferEvent();
   }
   throw FormatException('Invalid LumenTrialEndingScreen event "$name".');
 }
@@ -176,7 +177,7 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
 
   final String? _restagePlacementName;
 
-  final ValueChanged<LumenTrialEndingScreenEvent>? onEvent;
+  final ValueChanged<LumenTrialEndingScreenSurfaceEvent>? onEvent;
 
   final SurfaceScreenResolver? resolver;
 
@@ -188,7 +189,7 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<LumenTrialEndingScreenEvent>(
+    return RestageScreen<LumenTrialEndingScreenSurfaceEvent>(
       screen: lumenTrialEndingScreenRef,
       placementBinding: RestageScreen.generatedPlacementBinding(
         definition: lumenTrialEndingScreenPlacementDefinition,

@@ -299,14 +299,15 @@ the widget itself, with no string id:
 GetStartedScreenSurface(
   title: 'Welcome',
   onEvent: (event) {
-    if (event is GetStartedScreenContinueEventEvent) next(event.value);
+    if (event is GetStartedScreenSurfaceContinueEventEvent) next(event.value);
   },
 )
 ```
 
-Each event gets a generated class named after the screen class and the event field.
+Each event gets a generated class named after the screen class, then `Surface`, then
+the event field.
 Here the field is `continueEvent`, so the class is
-`GetStartedScreenContinueEventEvent`.
+`GetStartedScreenSurfaceContinueEventEvent`.
 
 The generated widget does three things. It passes the constructor arguments that are
 [host data](/authoring/host-data) to the surface in `context:`. It shows the delivered

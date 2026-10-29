@@ -2,6 +2,41 @@ part of '../lumen_cancel_flow.dart';
 
 // ignore_for_file: type=lint
 
+const _lumenCancelRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Center': buildCenter,
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Expanded': buildExpanded,
+      'GestureDetector': buildGestureDetector,
+      'Padding': buildPadding,
+      'Positioned': buildPositioned,
+      'Row': buildRow,
+      'SingleChildScrollView': buildSingleChildScrollView,
+      'SizedBox': buildSizedBox,
+      'Stack': buildStack,
+      'Text': buildText,
+    },
+    material: {
+      'Icon': buildIcon,
+      'Scaffold': buildScaffold,
+      'TextField': buildTextField,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+      0xf738: IconData(0xf738, fontFamily: 'MaterialIcons'),
+    },
+  }, mirrored: {
+    'MaterialIcons': {
+      0xf57a: IconData(0xf57a,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+    },
+  }),
+);
+
 const lumenCancelRef = SurfaceFlowRef<
     LumenCancelResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'lumen_cancel',
@@ -22,40 +57,7 @@ const lumenCancelRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '8f735624fb24d4ed5b01bcf5771b8060e5cee62aa1e3704049c1269539a42041',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Center': buildCenter,
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Expanded': buildExpanded,
-        'GestureDetector': buildGestureDetector,
-        'Padding': buildPadding,
-        'Positioned': buildPositioned,
-        'Row': buildRow,
-        'SingleChildScrollView': buildSingleChildScrollView,
-        'SizedBox': buildSizedBox,
-        'Stack': buildStack,
-        'Text': buildText,
-      },
-      material: {
-        'Icon': buildIcon,
-        'Scaffold': buildScaffold,
-        'TextField': buildTextField,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
-        0xf738: IconData(0xf738, fontFamily: 'MaterialIcons'),
-      },
-    }, mirrored: {
-      'MaterialIcons': {
-        0xf57a: IconData(0xf57a,
-            fontFamily: 'MaterialIcons', matchTextDirection: true),
-      },
-    }),
-  ),
+  vocabulary: _lumenCancelRefVocabulary,
 );
 
 LumenCancelResult _decodeLumenCancelResult(Map<String, Object?> result) {

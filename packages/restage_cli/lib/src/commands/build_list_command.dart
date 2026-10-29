@@ -83,11 +83,10 @@ final class BuildListCommand extends Command<int> {
       }
       final organizationId = await resolveRequiredOrganizationId(
         api: ctx.api,
-        config: ctx.config,
-        stderr: _stderr,
+        loaded: ctx.loadedConfig,
         preferredSlug: argResults?['organization'] as String?,
+        notices: _stderr,
       );
-      if (organizationId == null) return 1;
       final bundles = RenderBundleApi(rpc: ctx.api, uploadClient: _httpClient);
       try {
         final heads = await bundles.listHeads(

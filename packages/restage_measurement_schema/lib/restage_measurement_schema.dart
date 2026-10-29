@@ -2,7 +2,13 @@
 library;
 
 export 'src/canonical.dart'
-    hide decodeStrictCanonicalObject, strictCanonicalFidelityCanReturn;
+    hide
+        CanonicalForms,
+        adoptCanonicalForms,
+        decodeStrictCanonicalObject,
+        isUnpaddedBase64UrlAlphabet,
+        recordCanonicalForms,
+        strictCanonicalFidelityCanReturn;
 export 'src/collection_decision.dart';
 export 'src/delivery_calendar.dart';
 export 'src/delivery_identity.dart';

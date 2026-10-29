@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/delivery_management_api.dart';
@@ -231,11 +232,18 @@ class SurfacePushCommand extends Command<int> {
 
     final List<AssembledSurfacePublication> assembled;
     final String generationFingerprint;
+    final Map<String, Map<String, Object?>>? capturePlans;
     try {
       final manifest = await SurfacePublicationManifestLoader().load(
         projectRoot: projectRoot,
       );
       generationFingerprint = manifest.outputIndex.generationFingerprint;
+      capturePlans = readSurfaceCapturePlans(
+        File(
+          p.join(manifest.manifestFile.parent.path, surfaceCapturePlanFileName),
+        ),
+        generationFingerprint: generationFingerprint,
+      );
       final entries = await resolvePublicationEntries(
         manifest: manifest,
         argument: selector,
@@ -323,6 +331,7 @@ class SurfacePushCommand extends Command<int> {
                   _readsAppValues(publication))
                 publication.entry,
           ],
+          plans: capturePlans,
           flagRoot: argResults?['flutter-root'] as String?,
           configRoot: loadedConfig?.config.flutterRoot,
           wrapper: loadedConfig?.config.previewWrapper,
@@ -468,11 +477,10 @@ class SurfacePushCommand extends Command<int> {
           appSlug: app,
           environmentSlug: environment,
           organizationSlug: preferredOrganizationSlug,
-          organizationId:
-              organizationIdOption(argResults) ??
-              (config?.organization == preferredOrganizationSlug
-                  ? config?.organizationId
-                  : null),
+          organizationId: organizationIdOption(argResults),
+          configured: config == null || configSource == null
+              ? null
+              : (config: config, source: configSource),
           environmentTargetId:
               config?.project == project &&
                   config?.app == app &&
@@ -534,15 +542,26 @@ class SurfacePushCommand extends Command<int> {
             : null,
         onContractBound: recorder?.track,
         onPushed: (publication, result) async {
+          final name = surfaceImageName(
+            surfaceType: publication.entry.publication.surface.wireName,
+            slug: publication.entry.publication.slug,
+          );
           final appValues =
               switch (publication.entry.publication.hostDataContract) {
                 final schema? => hostDataAppValueLabels(schema),
                 null => const <String>[],
               };
+          // Named only when the push recorded what they evaluated to.
           if (appValues.isNotEmpty) {
-            _stdout
-              ..writeln('Evaluated in the app:')
-              ..writeAll([for (final label in appValues) '  $label\n']);
+            if (captured.contextSkipped[name] case final reason?) {
+              _stdout.writeln(
+                'Its app-computed values were not recorded: $reason.',
+              );
+            } else if (captured.contexts.containsKey(name)) {
+              _stdout
+                ..writeln('Evaluated in the app:')
+                ..writeAll([for (final label in appValues) '  $label\n']);
+            }
           }
           await _reportPublicationFit(
             api: api,
@@ -661,7 +680,15 @@ class SurfacePushCommand extends Command<int> {
     );
     for (final publication in assembled.where(_drawnWithAppWidgets)) {
       final name = nameOf(publication);
-      if (images.images.containsKey(name)) continue;
+      if (images.images.containsKey(name)) {
+        if (images.placeholders[name] case final fields?) {
+          _stdout.writeln(
+            'Drawn with placeholder values for '
+            '${fields.map((f) => '`${f.split('.').skip(1).join('.')}`').join(', ')}.',
+          );
+        }
+        continue;
+      }
       if (images.skipped[name] case final reason?) {
         _stderr.writeln(
           'Pushing ${publication.entry.publication.slug} without an image: '

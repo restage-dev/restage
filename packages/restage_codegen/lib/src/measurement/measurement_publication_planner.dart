@@ -988,8 +988,10 @@ MeasurementPublicationRoutePlanV1 _routePlan(
                   MeasurementOccurrenceChannelV1.interaction
                 ],
                 interactionItemsV1: emission.tapItem != null,
-                completesSurfaceV1: discovery.completionEventNames
-                    .contains(discoveredEvent.authoredEventName),
+                completesSurfaceV1: _completesSurface(
+                  discoveredEvent.authoredEventNames,
+                  discovery.completionEventNames,
+                ),
               ),
             ),
           );
@@ -997,7 +999,7 @@ MeasurementPublicationRoutePlanV1 _routePlan(
       }
     }
     final measuredNames = {
-      for (final event in discovery.events) event.authoredEventName,
+      for (final event in discovery.events) ...event.authoredEventNames,
     };
     for (final name in discovery.completionEventNames) {
       if (!measuredNames.contains(name)) {
@@ -1026,10 +1028,8 @@ MeasurementPublicationRoutePlanV1 _routePlan(
     final sourceRoots = sourceArtifact.discovery.nodes
         .where((node) => node.parentStructuralOccurrenceKey == null)
         .toList(growable: false);
-    if (sourceRoots.length > 1) {
-      throw StateError('One source artifact has multiple static root nodes.');
-    }
-    final anchorParent = sourceRoots.isEmpty
+    // A conditional root has one root per branch; the anchor sits beside them.
+    final anchorParent = sourceRoots.length != 1
         ? artifactHost(edge)
         : ledgerByLocator[sourceRoots.single.structuralOccurrenceKey]
             ?.codeIdentityId;
@@ -1654,3 +1654,20 @@ final class _AutomaticTreatment {
 String _answerLocator(
         MeasurementPublicationPlanningInput input, String questionId) =>
     'compiler.publication-answer:${input.selector.key}:$questionId';
+
+/// Whether a tap firing [names] completes its surface. One tap carries one
+/// route, so its branches must agree.
+bool _completesSurface(Set<String> names, Set<String> completionNames) {
+  final completing = names.where(completionNames.contains).toList()..sort();
+  if (completing.isNotEmpty && completing.length != names.length) {
+    final others =
+        names.where((name) => !completionNames.contains(name)).toList()..sort();
+    final x = completing.map((name) => '`$name`').join(' or ');
+    final y = others.map((name) => '`$name`').join(' or ');
+    throw ArgumentError(
+      'This tap fires $x or $y, and only $x completes the surface. Give $x '
+      'its own tap so its completions can be counted.',
+    );
+  }
+  return completing.isNotEmpty;
+}

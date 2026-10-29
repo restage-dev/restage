@@ -1,8 +1,11 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/delivery/surface_artifact_store.dart';
+import 'package:restage/src/delivery/surface_artifact_store_io.dart'
+    show surfaceReadAheadIsolateName;
 
 void main() {
   late Directory root;
@@ -31,6 +34,14 @@ void main() {
 
   tearDown(() async {
     if (await root.exists()) await root.delete(recursive: true);
+  });
+
+  test('a write it cannot keep reports the failure', () async {
+    await store.write(key, entry(1));
+    await Process.run('chmod', ['555', root.path]);
+    addTearDown(() => Process.run('chmod', ['755', root.path]));
+    await expectLater(store.write(key, entry(2)), throwsA(anything));
+    expect((await store.read(key))!.artifactBytes, entry(1).artifactBytes);
   });
 
   test('round-trips an entry across store instances', () async {
@@ -109,6 +120,88 @@ void main() {
     expect(await store.keys(), <SurfaceStoreKey>[other]);
   });
 
+  test('keys follow this store\'s writes and removes after one scan', () async {
+    const other = SurfaceStoreKey(
+      scope: '0123456789abcdef',
+      surfaceType: 'onboarding',
+      slug: 'welcome',
+      contractVersion: 0,
+    );
+    await store.write(key, entry(1));
+    expect(await store.keys(), <SurfaceStoreKey>[key]);
+    // A file another writer adds after the scan is not listed.
+    await createSurfaceArtifactStore(directory: () async => root.path)
+        .write(other, entry(2));
+    expect(await store.keys(), <SurfaceStoreKey>[key]);
+
+    await store.write(other, entry(3));
+    expect(await store.keys(), unorderedEquals([key, other]));
+    await store.remove(key);
+    expect(await store.keys(), <SurfaceStoreKey>[other]);
+    await store.clear();
+    expect(await store.keys(), isEmpty);
+  });
+
+  test('a scope read returns one scope and type, and indexes every key',
+      () async {
+    const otherType = SurfaceStoreKey(
+        scope: '0123456789abcdef',
+        surfaceType: 'onboarding',
+        slug: 'welcome',
+        contractVersion: 0);
+    const otherScope = SurfaceStoreKey(
+        scope: 'fedcba9876543210',
+        surfaceType: 'paywall',
+        slug: 'annual-offer',
+        contractVersion: 3);
+    final writer = createSurfaceArtifactStore(directory: () async => root.path);
+    for (final (index, written) in [key, otherType, otherScope].indexed) {
+      await writer.write(written, entry(index));
+    }
+    File('${root.path}/unreadable.surface').writeAsBytesSync([1, 2, 3]);
+    final read = await readStoreScope(
+        store, key.scope, const {'paywall'}, _servedVersions);
+    expect(read, [(key, 0)]);
+    expect(await store.keys(), unorderedEquals([key, otherType, otherScope]));
+  });
+
+  test('a scope read takes other scopes from their headers alone', () async {
+    const otherScope = SurfaceStoreKey(
+        scope: 'fedcba9876543210',
+        surfaceType: 'paywall',
+        slug: 'annual-offer',
+        contractVersion: 3);
+    final writer = createSurfaceArtifactStore(directory: () async => root.path);
+    await writer.write(key, entry(0));
+    await writer.write(otherScope, entry(1));
+    // The other scope's body is cut off after its header.
+    for (final file in root.listSync().whereType<File>()) {
+      final bytes = file.readAsBytesSync();
+      final headerLength = ByteData.sublistView(bytes, 4, 8).getUint32(0);
+      if (String.fromCharCodes(bytes.sublist(8, 8 + headerLength))
+          .contains(otherScope.scope)) {
+        file.writeAsBytesSync(bytes.sublist(0, 8 + headerLength));
+      }
+    }
+    final fresh = createSurfaceArtifactStore(directory: () async => root.path);
+    final read = await readStoreScope(
+        fresh, key.scope, const {'paywall'}, _servedVersions);
+    expect(read, [(key, 0)]);
+    expect(await fresh.keys(), unorderedEquals([key, otherScope]));
+  });
+
+  test('an off-isolate scope read runs its pass in the read-ahead isolate',
+      () async {
+    await store.write(key, entry(1));
+    final offIsolate = createSurfaceArtifactStore(
+        directory: () async => root.path, readsOffIsolate: true);
+    final (isolate, keys) = await readStoreScope(
+        offIsolate, key.scope, const {'paywall'}, _isolateOf);
+    expect(isolate, surfaceReadAheadIsolateName);
+    expect(keys, [key]);
+    expect(await offIsolate.keys(), [key]);
+  });
+
   test('clear removes every entry', () async {
     await store.write(key, entry(1));
     await store.clear();
@@ -141,3 +234,9 @@ void main() {
     expect(production, isNot(sandbox));
   });
 }
+
+List<(SurfaceStoreKey, Object?)> _servedVersions(StoredScopeRows rows) =>
+    [for (final (key, value) in rows) (key, value.sidecar['servedVersion'])];
+
+(String?, List<SurfaceStoreKey>) _isolateOf(StoredScopeRows rows) =>
+    (Isolate.current.debugName, [for (final (key, _) in rows) key]);

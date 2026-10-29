@@ -288,6 +288,7 @@ void main() {
             'revokedAt': null,
           },
         ],
+        'legacyDefaultTargetIds': <Object>[],
         'surfaces': <Object>[],
       };
       return http.Response(jsonEncode(result), 200);

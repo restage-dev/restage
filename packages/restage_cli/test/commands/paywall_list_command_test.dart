@@ -325,6 +325,7 @@ String _scopeBody(
   ],
   'environments': <Object>[],
   'environmentTargets': <Object>[],
+  'legacyDefaultTargetIds': <Object>[],
   'surfaces': [
     for (final surface in surfaces)
       {'appId': 5, 'surfaceType': 'paywall', ...surface},

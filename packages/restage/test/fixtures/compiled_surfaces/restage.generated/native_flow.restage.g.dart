@@ -2,6 +2,29 @@ part of '../native_flow.dart';
 
 // ignore_for_file: type=lint
 
+const _nativeClassFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {'Text': buildText},
+    material: {'TextButton': buildTextButton},
+  ),
+);
+
+const _nativeNamedFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {'Text': buildText},
+    material: {'TextButton': buildTextButton},
+  ),
+);
+
+const _nativeOfferFlowRefVocabulary = SurfaceVocabulary.none;
+
+const _nativeWelcomeFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {'Text': buildText},
+    material: {'TextButton': buildTextButton},
+  ),
+);
+
 const nativeClassFlowRef = SurfaceFlowRef<
     NativeClassResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'native_class_flow',
@@ -18,12 +41,7 @@ const nativeClassFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       'd440e9839fb0719d1de60c51b4e7013f18b4dfbe098e712b38da31514a293d1f',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {'Text': buildText},
-      material: {'TextButton': buildTextButton},
-    ),
-  ),
+  vocabulary: _nativeClassFlowRefVocabulary,
 );
 
 NativeClassResult _decodeNativeClassFlowResult(Map<String, Object?> result) {
@@ -63,8 +81,8 @@ final _nativeClassFlowPlacementDefinitionValue =
       'presentation': 'inline',
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
       'schemaVersion': 1,
+      'inputs': <String, Object?>{},
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -161,12 +179,7 @@ const nativeNamedFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '04779677bd1bcd600127ed8ffc4ec4aee4ed8faa2aad71b5aff0c0ff6450938b',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {'Text': buildText},
-      material: {'TextButton': buildTextButton},
-    ),
-  ),
+  vocabulary: _nativeNamedFlowRefVocabulary,
 );
 
 NativeNamedFlowResult _decodeNativeNamedFlowResult(
@@ -197,8 +210,8 @@ final _nativeNamedFlowPlacementDefinitionValue =
       'presentation': 'inline',
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
       'schemaVersion': 1,
+      'inputs': <String, Object?>{},
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -318,6 +331,7 @@ const nativeOfferFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '5c082f28f1d0ca21058c7fd3adc6aa5359d2b474d1a3fed4ea19cf1c1f2e8448',
+  vocabulary: _nativeOfferFlowRefVocabulary,
 );
 
 NativeOfferFlowResult _decodeNativeOfferFlowResult(
@@ -348,8 +362,8 @@ final _nativeOfferFlowPlacementDefinitionValue =
       'presentation': 'inline',
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
       'schemaVersion': 1,
+      'inputs': <String, Object?>{},
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -471,12 +485,7 @@ const nativeWelcomeFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '0f849cb843db9a42ef74435276c9459c3f4bd2eaa2a13b72e2aa292db055124c',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {'Text': buildText},
-      material: {'TextButton': buildTextButton},
-    ),
-  ),
+  vocabulary: _nativeWelcomeFlowRefVocabulary,
   subFlows: [nativeOfferFlowRef],
 );
 
@@ -514,8 +523,8 @@ final _nativeWelcomeFlowPlacementDefinitionValue =
       'presentation': 'inline',
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
       'schemaVersion': 1,
+      'inputs': <String, Object?>{},
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -703,11 +712,11 @@ final _nativeNoticePlacementDefinitionValue =
       'presentation': 'inline',
     },
     'providedContext': <String, Object?>{
+      'schemaVersion': 1,
       'inputs': <String, Object?>{
         'count': <String, Object?>{'kind': 'int'},
         'title': <String, Object?>{'kind': 'string'},
       },
-      'schemaVersion': 1,
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -814,8 +823,8 @@ final _nativeOfferPlacementDefinitionValue =
       'presentation': 'inline',
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
       'schemaVersion': 1,
+      'inputs': <String, Object?>{},
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

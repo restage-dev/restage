@@ -171,9 +171,8 @@ final class MeasurementDiscoveredEvent {
   final MeasurementEventOccurrence emissionOccurrence;
 
   /// The authored event name this callback fires, when it names one.
-  String? get authoredEventName => measurement_completion.authoredEventName(
-        sourceExpression,
-      );
+  Set<String> get authoredEventNames =>
+      measurement_completion.authoredEventNames(sourceExpression);
 }
 
 /// Complete source-discovery result, empty on rejection.

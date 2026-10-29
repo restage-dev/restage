@@ -11,6 +11,7 @@ import 'package:restage/src/measurement/measurement_worker_protocol.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'admitted_bundled_publication_fixture.dart';
 import 'measurement_host_construction_test_support.dart';
@@ -25,7 +26,11 @@ const _assignment = SurfaceAssignment(
 );
 
 void main() {
-  setUp(Restage.debugReset);
+  setUp(() {
+    // Device storage answers, as on a device.
+    SharedPreferences.setMockInitialValues({});
+    Restage.debugReset();
+  });
   tearDown(Restage.debugReset);
 
   for (final deferred in [false, true]) {

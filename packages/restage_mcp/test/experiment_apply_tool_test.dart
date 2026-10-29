@@ -374,6 +374,55 @@ void main() {
       },
     );
 
+    test('names the revision a superseded-revision refusal refuses', () async {
+      final server = await connect(
+        requests: <Uint8List>[],
+        reply: (method, sent) => _refusal(
+          method,
+          ExperimentAuthoringRefusalCodeV1.revisionSuperseded,
+          sent.correlationId,
+          supersededRevision: {
+            'contractVersion': 2,
+            'definedFromRevision': 5,
+            'kind': 'supersededRevision',
+            'publishedRevision': 3,
+            'surfaceSlug': 'weekly_recap',
+          },
+        ),
+      );
+
+      final result = await server.connection.callTool(
+        CallToolRequest(
+          name: 'restage_experiment_apply',
+          arguments: arguments(
+            operation: 'activateDraft',
+            idempotencyKey: 'activation-superseded-key',
+            payload: _payloadFor(ExperimentAuthoringOperationV1.activateDraft),
+          ),
+        ),
+      );
+
+      expect(result.isError, isNot(true));
+      final refusal =
+          ((result.structuredContent!['result']!
+                  as Map<String, Object?>)['refusal']!
+              as Map<String, Object?>);
+      expect(refusal['code'], 'revisionSuperseded');
+      expect(refusal['supersededRevision'], {
+        'contractVersion': 2,
+        'definedFromRevision': 5,
+        'kind': 'supersededRevision',
+        'publishedRevision': 3,
+        'surfaceSlug': 'weekly_recap',
+      });
+      expect(
+        (result.content.single as TextContent).text,
+        'Refused activateDraft: revisionSuperseded. Revision 3 of '
+        "`weekly_recap` was pushed before version 2's contract changed. "
+        "Experiments can't use it. Use revision 5 or later.",
+      );
+    });
+
     test(
       'reports an activation audience conflict refusal with its typed locator',
       () async {
@@ -1058,6 +1107,7 @@ Uint8List _refusal(
   ExperimentAuthoringRefusalCodeV1 code,
   String correlationId, {
   Map<String, Object?>? locator,
+  Map<String, Object?>? supersededRevision,
 }) => ExperimentAuthoringResultV1.fromJson({
   'correlationId': correlationId,
   'kind': 'refused',
@@ -1071,6 +1121,7 @@ Uint8List _refusal(
         code == ExperimentAuthoringRefusalCodeV1.backendUnavailable ||
         code == ExperimentAuthoringRefusalCodeV1.transportUnknownOutcome,
     'schemaVersion': kMeasurementSchemaVersion,
+    'supersededRevision': ?supersededRevision,
   },
   'schemaVersion': kMeasurementSchemaVersion,
 }).canonicalBytes;
@@ -1201,6 +1252,7 @@ http.Response? _targetDirectory(String method) => switch (method) {
         {'id': 31, 'appId': 23, 'namedEnvironmentId': 37, 'slug': 'production'},
       ],
       'environmentTargets': [_directoryTarget],
+      'legacyDefaultTargetIds': <Object>[],
       'surfaces': <Object>[],
     }),
     200,

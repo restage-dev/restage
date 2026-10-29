@@ -27,6 +27,7 @@ const _design = 'acme_design_system';
 const _catalogKey = 'restage_codegen:user_catalog_json';
 const _compilerKey = 'restage_codegen:restage_package_surface_compiler';
 const _factoriesKey = 'restage_codegen:user_factories';
+const _surfacesKey = 'restage_codegen:restage_surfaces';
 const _screenPath = 'lib/welcome.dart';
 const _widgetsPath = 'lib/widgets.dart';
 const _libraryPath = 'lib/acme_design_system.dart';
@@ -67,6 +68,9 @@ void main() {
         '$_design|$_widgetsPath': _fixture('widgets'),
         '$_design|$_libraryPath': _fixture('library'),
         '$_app|lib/user_factories.g.dart': registration,
+        // The registration declares the package's generated surface list.
+        '$_app|lib/restage_surfaces.g.dart': build.readerWriter.testing
+            .readString(AssetId(_app, 'lib/restage_surfaces.g.dart')),
         for (final entry in first.ownedOutputs.entries)
           if (entry.key.endsWith('.dart'))
             '$_app|${entry.key}': utf8.decode(entry.value),
@@ -582,7 +586,12 @@ dependencies:
       File('build.yaml').readAsStringSync(),
     );
     final definitions = <runner.AbstractBuilderDefinition>[
-      for (final key in [_catalogKey, _compilerKey, _factoriesKey])
+      for (final key in [
+        _catalogKey,
+        _compilerKey,
+        _factoriesKey,
+        _surfacesKey
+      ])
         runner.BuilderDefinition.fromConfig(
           production.builderDefinitions[key]!,
         ),
@@ -628,6 +637,7 @@ dependencies:
                 ),
           ],
           _factoriesKey: [userFactoryBuilder],
+          _surfacesKey: [restageSurfaceListBuilder],
         }),
         buildOptions: runner.BuildOptions.forTests(),
         testingOverrides: runner.TestingOverrides(

@@ -381,8 +381,11 @@ class Welcome extends StatelessWidget {
       );
       expect(discovery.completionEventNames, {'subscribe'});
       expect(
-        discovery.events.map((event) => event.authoredEventName),
-        unorderedEquals(<String>['subscribe', 'close']),
+        discovery.events.map((event) => event.authoredEventNames),
+        unorderedEquals([
+          {'subscribe'},
+          {'close'},
+        ]),
       );
       final owner = fixture.rootExpression
           .thisOrAncestorOfType<ClassDeclaration>()!

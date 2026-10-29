@@ -10,11 +10,20 @@ import 'package:restage/src/restage_rpc_client/placement_delivery_adapter.dart';
 import 'package:restage/src/delivery/surface_artifact_store.dart';
 import 'package:restage/src/flow/flow_resolver.dart';
 import 'package:restage/src/flow/flow_descriptors.dart';
+import 'package:restage/src/resolver/placement_fallback_log.dart'
+    show
+        PlacementNoAnswerCause,
+        PlacementNoAnswerStale,
+        PlacementStaleChange,
+        refusedApiKeyClock,
+        resetPlacementFallbackLog;
 import 'package:restage/src/resolver/placement_mount_resolver.dart';
+import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/runtime/placement_registry.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/placement_delivery_fixture.dart';
 
@@ -31,7 +40,8 @@ void main() {
         apiKey: 'rs_pk_test',
         httpClient: MockClient((request) async {
           requests.add(request);
-          return http.Response.bytes(fixture.response.canonicalBytes, 200);
+          return placementFixtureArtifact(request) ??
+              http.Response.bytes(fixture.response.canonicalBytes, 200);
         }),
       );
       addTearDown(client.close);
@@ -67,7 +77,6 @@ void main() {
       final context = PlacementRequestContext(
         request: fixture.request,
         lease: SurfaceAssignmentKeyProvider.captureKeylessLease(),
-        inputStamp: 'captured',
         capturedAt: DateTime.utc(2026, 10, 3),
         isCurrent: () => true,
       );
@@ -134,14 +143,23 @@ void main() {
         ),
         throwsA(isA<FlowUnavailableError>()),
       );
-      expect(requests, hasLength(1));
-      expect(requests.single.method, 'POST');
-      expect(requests.single.url.path, '/sdk/v1/placements/resolve');
+      // One resolve, then each referenced frame once.
+      expect(requests.first.method, 'POST');
+      expect(requests.first.url.path, '/sdk/v1/placements/resolve');
+      expect(
+        requests.skip(1).map((request) => (request.method, request.url.path)),
+        unorderedEquals([
+          ('GET', '/first_root'),
+          ('GET', '/second_root'),
+          ('GET', '/shared_child'),
+          ('GET', '/shared_leaf'),
+        ]),
+      );
     },
   );
 
   test(
-    'one placement POST admits two decisions and one transferred frame',
+    'one placement POST admits two decisions and fetches their frame once',
     () async {
       final fixture = readPlacementDeliveryFixture();
       final requests = <http.Request>[];
@@ -150,6 +168,8 @@ void main() {
         apiKey: 'rs_pk_test',
         httpClient: MockClient((request) async {
           requests.add(request);
+          final artifact = placementFixtureArtifact(request);
+          if (artifact != null) return artifact;
           expect(request.method, 'POST');
           expect(request.url.path, '/sdk/v1/placements/resolve');
           expect(request.headers['Authorization'], 'Bearer rs_pk_test');
@@ -164,11 +184,14 @@ void main() {
         publicationGuard: () => true,
       );
 
-      expect(requests, hasLength(1));
+      expect(requests.map((request) => request.method), ['POST', 'GET']);
+      expect(
+        requests.last.headers[surfaceArtifactPassHeader],
+        isNotEmpty,
+      );
       expect(response, isA<PlacementBatchResolvedV1>());
       final resolved = response! as PlacementBatchResolvedV1;
       expect(resolved.decisions, hasLength(2));
-      expect(resolved.artifacts, hasLength(1));
       expect(client.heldPlacementArtifacts, hasLength(1));
       expect(client.placementTarget, fixture.target);
       final replacements = resolved.decisions.cast<PlacementBatchAvailableV1>();
@@ -185,79 +208,147 @@ void main() {
     },
   );
 
-  test('held batch content is assembled without an artifact GET', () async {
+  test('held content is assembled without an artifact GET', () async {
     final fixture = readPlacementDeliveryFixture();
     final requests = <http.Request>[];
-    var omitContent = false;
     final client = RestageRpcClient(
       baseUrl: 'https://example.com',
       apiKey: 'rs_pk_test',
       httpClient: MockClient((request) async {
         requests.add(request);
-        return http.Response.bytes(
-          CanonicalJsonCodec.encode({
-            ...fixture.response.toJson(),
-            if (omitContent) 'artifacts': <Object?>[],
-          }),
-          200,
-        );
+        return placementFixtureArtifact(request) ??
+            http.Response.bytes(fixture.response.canonicalBytes, 200);
       }),
     );
     addTearDown(client.close);
     await client.fetchPlacements(fixture.request, publicationGuard: () => true);
-    omitContent = true;
-    final request = PlacementBatchRequestV1.fromJson({
-      ...fixture.request.toJson(),
-      'heldArtifacts': [
-        for (final identity in client.heldPlacementArtifacts.keys)
-          identity.toJson(),
-      ],
-    });
-
     final response = await client.fetchPlacements(
-      request,
+      fixture.request,
       publicationGuard: () => true,
     );
 
     expect(response, isA<PlacementBatchResolvedV1>());
-    expect(requests, hasLength(2));
-    expect(requests.map((request) => request.method), everyElement('POST'));
+    expect(requests.map((request) => request.method), ['POST', 'GET', 'POST']);
   });
 
-  test('missing declared held content refuses without a hidden GET', () async {
+  test('an answered build is named by hash and resent once on a miss',
+      () async {
+    final fixture = readPlacementDeliveryFixture();
+    final carried = <bool>[];
+    var miss = false;
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async {
+        final artifact = placementFixtureArtifact(request);
+        if (artifact != null) return artifact;
+        final body = jsonDecode(request.body) as Map<String, Object?>;
+        carried.add(body.containsKey('buildContract'));
+        if (miss && !body.containsKey('buildContract')) {
+          return http.Response(
+              jsonEncode({'error': PlacementBuildContractRequired.errorCode}),
+              PlacementBuildContractRequired.status);
+        }
+        return http.Response.bytes(fixture.response.canonicalBytes, 200);
+      }),
+    );
+    addTearDown(client.close);
+    await client.fetchPlacements(fixture.request, publicationGuard: () => true);
+    await client.fetchPlacements(fixture.request, publicationGuard: () => true);
+    expect(carried, [true, false]);
+
+    miss = true;
+    final response = await client.fetchPlacements(
+      fixture.request,
+      publicationGuard: () => true,
+    );
+    expect(response, isA<PlacementBatchResolvedV1>());
+    expect(carried, [true, false, false, true]);
+  });
+
+  test('a service that cannot read a build named by hash gets it in full',
+      () async {
+    final fixture = readPlacementDeliveryFixture();
+    final carried = <bool>[];
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async {
+        final artifact = placementFixtureArtifact(request);
+        if (artifact != null) return artifact;
+        final body = jsonDecode(request.body) as Map<String, Object?>;
+        carried.add(body.containsKey('buildContract'));
+        // An older decoder requires the contract and refuses its absence.
+        if (!body.containsKey('buildContract')) {
+          return http.Response.bytes(
+              PlacementBatchRefusedV1(
+                reason: PlacementBatchRefusalReasonV1.invalidRequest,
+              ).canonicalBytes,
+              400);
+        }
+        return http.Response.bytes(fixture.response.canonicalBytes, 200);
+      }),
+    );
+    addTearDown(client.close);
+    for (var i = 0; i < 3; i++) {
+      expect(
+        await client.fetchPlacements(fixture.request,
+            publicationGuard: () => true),
+        isA<PlacementBatchResolvedV1>(),
+      );
+    }
+    // After one refusal of the hash form, every send carries the contract.
+    expect(carried, [true, false, true, true]);
+  });
+
+  test('a frame that cannot be fetched leaves its rows without content',
+      () async {
     final fixture = readPlacementDeliveryFixture();
     final requests = <http.Request>[];
-    final request = PlacementBatchRequestV1.fromJson({
-      ...fixture.request.toJson(),
-      'heldArtifacts': [fixture.response.artifacts.single.identity.toJson()],
-    });
     final client = RestageRpcClient(
       baseUrl: 'https://example.com',
       apiKey: 'rs_pk_test',
       httpClient: MockClient((request) async {
         requests.add(request);
-        return http.Response.bytes(
-          CanonicalJsonCodec.encode({
-            ...fixture.response.toJson(),
-            'artifacts': <Object?>[],
-          }),
-          200,
-        );
+        return request.method == 'GET'
+            ? http.Response('', 503)
+            : http.Response.bytes(fixture.response.canonicalBytes, 200);
       }),
     );
     addTearDown(client.close);
 
     final response = await client.fetchPlacements(
-      request,
+      fixture.request,
       publicationGuard: () => true,
-    );
+    ) as PlacementBatchResolvedV1;
 
-    expect(response, isA<PlacementBatchRefusedV1>());
-    expect(
-      (response! as PlacementBatchRefusedV1).reason,
-      PlacementBatchRefusalReasonV1.decodeFailed,
+    expect(placementArtifactsFor(response)!.publications, isEmpty);
+    expect(requests.map((request) => request.method), ['POST', 'GET']);
+    expect(client.heldPlacementArtifacts, isEmpty);
+  });
+
+  test('a fetched frame whose hash differs is not content', () async {
+    final fixture = readPlacementDeliveryFixture();
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          final bytes = placementFixtureArtifact(request)!.bodyBytes.toList()
+            ..[0] ^= 1;
+          return http.Response.bytes(bytes, 200);
+        }
+        return http.Response.bytes(fixture.response.canonicalBytes, 200);
+      }),
     );
-    expect(requests, hasLength(1));
+    addTearDown(client.close);
+
+    final response = await client.fetchPlacements(
+      fixture.request,
+      publicationGuard: () => true,
+    ) as PlacementBatchResolvedV1;
+
+    expect(placementArtifactsFor(response)!.publications, isEmpty);
     expect(client.heldPlacementArtifacts, isEmpty);
   });
 
@@ -287,6 +378,120 @@ void main() {
     );
     expect(lines.single,
         startsWith('[restage] placement response was malformed: '));
+  });
+
+  group('a failed resolve', () {
+    late List<String> lines;
+    setUp(() {
+      lines = [];
+      final previous = debugPrint;
+      debugPrint = (message, {wrapWidth}) => lines.add(message!);
+      addTearDown(() {
+        debugPrint = previous;
+        resetPlacementFallbackLog();
+      });
+    });
+
+    Future<(PlacementBatchResponseV1?, PlacementNoAnswerCause?)> fetch(
+        http.Response reply) async {
+      final fixture = readPlacementDeliveryFixture();
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient((_) async => reply),
+      );
+      addTearDown(client.close);
+      PlacementNoAnswerCause? cause;
+      final response = await client.fetchPlacements(fixture.request,
+          publicationGuard: () => true, onNoAnswer: (_, why) => cause = why);
+      return (response, cause);
+    }
+
+    test('logs nothing when the service first sends a refusal', () async {
+      final (response, cause) = await fetch(http.Response.bytes(
+          PlacementBatchResponseV1.refused(
+                  reason: PlacementBatchRefusalReasonV1.invalidAuthority)
+              .canonicalBytes,
+          401));
+      expect((response! as PlacementBatchRefusedV1).reason,
+          PlacementBatchRefusalReasonV1.invalidAuthority);
+      expect(cause, isNull);
+      expect(lines, isEmpty);
+    });
+
+    test('the edge refusing a dead key falls back, named once it persists',
+        () async {
+      var now = DateTime.utc(2026);
+      refusedApiKeyClock = () => now;
+      for (var i = 0; i < 3; i++) {
+        if (i == 1) expect(lines, isEmpty);
+        now = now.add(const Duration(seconds: 40));
+        final (response, cause) =
+            await fetch(http.Response('{"error":"unauthorized"}', 401));
+        expect((response! as PlacementBatchRefusedV1).reason,
+            PlacementBatchRefusalReasonV1.invalidAuthority);
+        expect(cause, isNull);
+      }
+      expect(lines, [
+        '[restage] the service at example.com refused the API key (HTTP 401). '
+            'Set `apiKey` to the public SDK key (rs_pk_...) for this '
+            'environment. See https://docs.restage.dev/delivery/'
+            'hosted-delivery#configure-delivery',
+      ]);
+    });
+
+    const configDocs =
+        'https://docs.restage.dev/delivery/hosted-delivery#configure-delivery';
+
+    test('names a 404 without a refusal as a base URL to fix', () async {
+      final (response, cause) =
+          await fetch(http.Response('{"error":"not_found"}', 404));
+      expect(response, isNull);
+      expect(
+          lines.single,
+          '[restage] placement resolve failed: the service at example.com has '
+          'no placement route at '
+          'https://example.com/sdk/v1/placements/resolve (HTTP 404, '
+          '`not_found`). Set `baseUrl` to the API URL alone, with no path. '
+          'See $configDocs');
+      expect(cause!.describe(), lines.single.split('failed: ').last);
+    });
+
+    test('names another 4xx without a refusal as a rejected request', () async {
+      final (response, cause) = await fetch(http.Response('', 422));
+      expect(response, isNull);
+      expect(
+          cause!.describe(),
+          'the service at example.com rejected the request (HTTP 422) '
+          'without a placement answer. Check that the restage package '
+          '(2.0.0) and the service are current.');
+    });
+
+    test('names a redirect as a base URL to fix, not a server error', () async {
+      final (response, cause) = await fetch(http.Response('', 301, headers: {
+        'location': 'https://www.example.com/sdk/v1/placements/resolve'
+      }));
+      expect(response, isNull);
+      expect(
+          lines.single,
+          '[restage] placement resolve failed: the service at example.com '
+          'redirected the request (HTTP 301 to '
+          'https://www.example.com/sdk/v1/placements/resolve), and the SDK '
+          "doesn't follow redirects. Set `baseUrl` to "
+          'https://www.example.com. See $configDocs');
+      expect(cause!.describe(), lines.single.split('failed: ').last);
+    });
+
+    test('names the wait the service asked for, uncapped', () async {
+      final (_, cause) =
+          await fetch(http.Response('', 429, headers: {'retry-after': '3600'}));
+      expect(lines.single, endsWith('(HTTP 429). Retry after 3600 s.'));
+      expect(cause!.describe(), endsWith('Retry after 3600 s.'));
+      final (_, dated) = await fetch(http.Response('', 429,
+          headers: {'retry-after': 'Wed, 21 Oct 2026 07:28:00 GMT'}));
+      expect(dated!.describe(),
+          'the service at example.com is rate limiting this app (HTTP 429).');
+    });
   });
 
   test('an independently known target fences a foreign batch', () async {
@@ -348,6 +553,228 @@ void main() {
       expect(client.placementTarget, isNull);
     },
   );
+
+  test('a fence rejected in flight says the registration changed', () async {
+    final fixture = readPlacementDeliveryFixture();
+    final reply = Completer<http.Response>();
+    final posted = Completer<void>();
+    var current = true;
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((_) {
+        posted.complete();
+        return reply.future;
+      }),
+    );
+    addTearDown(client.close);
+    final registry = PlacementRegistry(
+      scope: 'fence-test',
+      configurationFingerprint: 'fence-test',
+      client: () => client,
+      isCurrent: () => true,
+    );
+    final context = PlacementRequestContext(
+      request: fixture.request,
+      lease: SurfaceAssignmentKeyProvider.captureKeylessLease(),
+      capturedAt: DateTime.utc(2026, 10, 3),
+      isCurrent: () => current,
+    );
+    String? reason;
+    PlacementNoAnswerCause? cause;
+    final pending = registry.fetchBatch(context,
+        onNoAnswer: (why, [detail]) => (reason, cause) = (why, detail));
+    await posted.future;
+    current = false;
+    reply.complete(http.Response.bytes(fixture.response.canonicalBytes, 200));
+
+    expect(await pending, isNull);
+    expect(reason, placementStaleReason);
+    expect(cause, isA<PlacementNoAnswerStale>());
+    expect(
+        cause!.describe(),
+        "Restage's configuration, user identity or consent changed while the "
+        'request was being made. The request was dropped. '
+        "It's retried on the next mount.");
+  });
+
+  test('a decision whose routed-on fact changed names the fact', () async {
+    final fixture = readPlacementDeliveryFixture();
+    final response = placementFixtureResponse(fixture.request,
+        cacheValidityOverrides: const {
+          'consultedBuiltIns': ['daysSinceInstall']
+        });
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((http.Request wire) async =>
+          placementFixtureArtifact(wire) ??
+          http.Response.bytes(response.canonicalBytes, 200)),
+    );
+    addTearDown(client.close);
+    final fetched = await client.fetchPlacements(fixture.request,
+        publicationGuard: () => true) as PlacementBatchResolvedV1;
+    final decision = fetched.decisions.first as PlacementBatchAvailableV1;
+    final document = placementArtifactsFor(fetched)!
+        .publications[decision.publicDelivery.actualPublication]!;
+    final registry = PlacementRegistry(
+      scope: 'facts-test',
+      configurationFingerprint: 'facts-test',
+      client: () => client,
+      isCurrent: () => true,
+    );
+    PlacementLapse? lapse(List<String> changed) => PlacementDeliveryAdmission(
+          decision: decision,
+          context: PlacementRequestContext(
+            request: fixture.request,
+            lease: SurfaceAssignmentKeyProvider.captureKeylessLease(),
+            capturedAt: DateTime.utc(2026, 10, 3),
+            isCurrent: () => true,
+            changedFacts: (consulted) => [
+              for (final fact in changed)
+                if (consulted.contains(fact)) fact,
+            ],
+          ),
+          host: fixture.request.buildContract
+              .contractsByHash[decision.descriptor.hostContractHash]!,
+          registry: registry,
+          document: document,
+        ).lapse;
+    final changed = lapse(['daysSinceInstall']);
+    expect(changed?.$1, placementStaleReason);
+    expect(
+        changed?.$2?.describe(),
+        "the device's install age changed after this decision was made. The "
+        "decision wasn't shown. It's retried on the next mount.");
+    // A fact the decision was not routed on does not stale it.
+    expect(
+        lapse(['country'])?.$2,
+        isNot(isA<PlacementNoAnswerStale>().having((cause) => cause.change,
+            'change', PlacementStaleChange.deviceFacts)));
+  });
+
+  test('a credential the service no longer holds is retired for registration',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SurfaceAssignmentCredentialStore(
+      namespace: 'placements',
+      actor: () async => 'actor',
+      identityGeneration: () => 0,
+      onRetentionRollover: () {},
+    );
+    SurfaceAssignmentKeyProvider.install(
+      key: store.resolve,
+      identityGeneration: () => store.generation,
+      registration: store.capture,
+      confirmedKey: () => store.currentHandle,
+      refuseRegistration: store.refuse,
+    );
+    addTearDown(SurfaceAssignmentKeyProvider.clear);
+    final handle = 'ic1.${'a' * 64}';
+    final attempt = (await store.capture())!;
+    final now = DateTime.now().microsecondsSinceEpoch;
+    expect(
+        await store.confirm(
+            attempt: attempt,
+            localRequestStartMicros: now,
+            credentialHandle: handle,
+            expiresAtMicros: now + Duration.microsecondsPerDay,
+            serverNowMicros: now),
+        isTrue);
+    final lease = await SurfaceAssignmentKeyProvider.captureLease();
+    expect(lease.registration!.credentialHandle, handle);
+
+    final fixture = readPlacementDeliveryFixture();
+    final request = PlacementBatchRequestV1.fromJson({
+      ...fixture.request.toJson(),
+      'mode': 'mount',
+      'assignmentKey': handle,
+    });
+    final refused = PlacementBatchResolvedV1(
+      request: request,
+      expectedTarget: fixture.target,
+      decisions: placementFixtureResponse(request).decisions,
+      registrationRefused: true,
+    );
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((http.Request wire) async =>
+          placementFixtureArtifact(wire) ??
+          http.Response.bytes(refused.canonicalBytes, 200)),
+    );
+    addTearDown(client.close);
+    await expectLater(
+        client.fetchPlacements(request,
+            publicationGuard: () => true, registrationLease: lease),
+        throwsA(isA<PlacementRegistrationRetired>()));
+
+    // The next request carries a fresh registration tuple, not the handle.
+    final next = await SurfaceAssignmentKeyProvider.captureLease();
+    expect(next.registration!.credentialHandle, isNull);
+    expect(
+        next.registration!.registrationNonce, isNot(attempt.registrationNonce));
+  });
+
+  test('a refusal of a handle this device did not present retires nothing',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SurfaceAssignmentCredentialStore(
+      namespace: 'placements',
+      actor: () async => 'actor',
+      identityGeneration: () => 0,
+      onRetentionRollover: () {},
+    );
+    SurfaceAssignmentKeyProvider.install(
+      key: store.resolve,
+      identityGeneration: () => store.generation,
+      registration: store.capture,
+      confirmedKey: () => store.currentHandle,
+      refuseRegistration: store.refuse,
+    );
+    addTearDown(SurfaceAssignmentKeyProvider.clear);
+    final handle = 'ic1.${'a' * 64}';
+    final attempt = (await store.capture())!;
+    final now = DateTime.now().microsecondsSinceEpoch;
+    expect(
+        await store.confirm(
+            attempt: attempt,
+            localRequestStartMicros: now,
+            credentialHandle: handle,
+            expiresAtMicros: now + Duration.microsecondsPerDay,
+            serverNowMicros: now),
+        isTrue);
+    final lease = await SurfaceAssignmentKeyProvider.captureLease();
+    expect(lease.registration!.credentialHandle, handle);
+
+    final fixture = readPlacementDeliveryFixture();
+    final request = PlacementBatchRequestV1.fromJson({
+      ...fixture.request.toJson(),
+      'mode': 'mount',
+      'assignmentKey': 'ic1.${'c' * 64}',
+    });
+    final refused = PlacementBatchResolvedV1(
+      request: request,
+      expectedTarget: fixture.target,
+      decisions: placementFixtureResponse(request).decisions,
+      registrationRefused: true,
+    );
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((http.Request wire) async =>
+          placementFixtureArtifact(wire) ??
+          http.Response.bytes(refused.canonicalBytes, 200)),
+    );
+    addTearDown(client.close);
+    final fetched = await client.fetchPlacements(request,
+        publicationGuard: () => true, registrationLease: lease);
+    expect(fetched, isA<PlacementBatchResolvedV1>());
+
+    // The device keeps its own confirmed handle.
+    final next = await SurfaceAssignmentKeyProvider.captureLease();
+    expect(next.registration!.credentialHandle, handle);
+  });
 
   test('a closed publication fence never posts a placement request', () async {
     final fixture = readPlacementDeliveryFixture();

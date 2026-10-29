@@ -124,25 +124,6 @@ void main() {
       expect(apps.single.name, 'Default');
     });
 
-    test('listEnvironments threads org id + project slug', () async {
-      final fake = FakeRestageApi(
-        response: <dynamic>[
-          {'slug': 'staging'},
-        ],
-      );
-
-      final environments = await DiscoveryApi(
-        fake,
-      ).listEnvironments(organizationId: 7, projectSlug: 'default');
-
-      expect(fake.lastEndpoint, 'environment');
-      expect(fake.lastMethod, 'listEnvironments');
-      expect(fake.lastArgs!['organizationId'], 7);
-      expect(fake.lastArgs!['projectSlug'], 'default');
-      expect(fake.lastArgs!.containsKey('appSlug'), isFalse);
-      expect(environments.single.slug, 'staging');
-    });
-
     test('listEnvironmentTargets threads app scope and plane', () async {
       final fake = FakeRestageApi(
         response: <dynamic>[

@@ -25,6 +25,7 @@ final _onePaywallBody = jsonEncode({
   ],
   'environments': <Object>[],
   'environmentTargets': <Object>[],
+  'legacyDefaultTargetIds': <Object>[],
   'surfaces': [
     {
       'appId': 5,

@@ -57,8 +57,8 @@ final class WeeklyRecap extends StatelessWidget {
 }
 ```
 
-The build generates `WeeklyRecapSurface`, a sealed `WeeklyRecapEvent` with one class per
-event (`WeeklyRecapDismissEvent`, `WeeklyRecapOpenStatsEvent`), and `weeklyRecapRef`:
+The build generates `WeeklyRecapSurface`, a sealed `WeeklyRecapSurfaceEvent` with one class per
+event (`WeeklyRecapSurfaceDismissEvent`, `WeeklyRecapSurfaceOpenStatsEvent`), and `weeklyRecapRef`:
 
 <!-- skill-check: expression -->
 ```dart
@@ -66,14 +66,14 @@ WeeklyRecapSurface(
   name: user.firstName,
   streakDays: stats.streak,
   onEvent: (event) => switch (event) {
-    WeeklyRecapDismissEvent() => Navigator.of(context).maybePop(),
-    WeeklyRecapOpenStatsEvent(:final value) => openStats(value),
+    WeeklyRecapSurfaceDismissEvent() => Navigator.of(context).maybePop(),
+    WeeklyRecapSurfaceOpenStatsEvent(:final value) => openStats(value),
   },
 )
 ```
 
-Event class names are the screen class name, then the event field name in
-UpperCamelCase, then `Event`.
+Event class names are the screen class name, then `Surface`, then the event field
+name in UpperCamelCase, then `Event`.
 
 ## Events
 

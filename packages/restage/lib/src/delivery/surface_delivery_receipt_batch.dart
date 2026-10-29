@@ -33,32 +33,12 @@ typedef SurfaceDeliveryReceiptDevice = ({String? platform, int appBuild});
 final class SurfaceDeliveryReceiptPayload {
   SurfaceDeliveryReceiptPayload(this.counts, this.dropped);
 
-  /// Rebuilds a payload from posted-shape entries, merging identical receipts.
-  factory SurfaceDeliveryReceiptPayload.fromEntries(
-    Iterable<SurfaceDeliveryReceiptEntry> entries,
-    int dropped,
-  ) {
-    final counts = <SurfaceDeliveryReceipt, int>{};
-    for (final entry in entries) {
-      counts[entry.receipt] = (counts[entry.receipt] ?? 0) + entry.count;
-    }
-    return SurfaceDeliveryReceiptPayload(counts, dropped);
-  }
-
   final Map<SurfaceDeliveryReceipt, int> counts;
-  int dropped;
+  final int dropped;
 
   bool get isEmpty => counts.isEmpty && dropped == 0;
 
   int get presentations => counts.values.fold(0, (sum, count) => sum + count);
-
-  /// Adds [other]'s receipts and drops into this payload.
-  void absorb(SurfaceDeliveryReceiptPayload other) {
-    other.counts.forEach((receipt, count) {
-      counts[receipt] = (counts[receipt] ?? 0) + count;
-    });
-    dropped += other.dropped;
-  }
 
   /// The receipts in posted shape: no entry above the per-receipt count bound.
   List<SurfaceDeliveryReceiptEntry> entries() => <SurfaceDeliveryReceiptEntry>[
@@ -186,6 +166,9 @@ final class SurfaceDeliveryReceiptBatch {
   /// Called after each append so the uploader can arm its timer.
   void Function()? onAppended;
 
+  /// Called after a presentation closes, so the uploader can journal it.
+  void Function()? onClosed;
+
   /// Test seam for the platform and app build; defaults to the device read.
   Future<SurfaceDeliveryReceiptDevice> Function()? deviceSource;
 
@@ -301,6 +284,7 @@ final class SurfaceDeliveryReceiptBatch {
       minute: DateTime.utc(now.year, now.month, now.day, now.hour, now.minute),
     );
     _closed[key] = (_closed[key] ?? 0) + 1;
+    onClosed?.call();
     onAppended?.call();
   }
 
@@ -309,8 +293,21 @@ final class SurfaceDeliveryReceiptBatch {
   SurfaceDeliveryReceiptHandle? latestFor(Surface surfaceType, String slug) =>
       _latestBySurface[_surfaceKey(surfaceType, slug)];
 
+  /// The platform and app build every receipt in this process carries.
+  Future<SurfaceDeliveryReceiptDevice> device() => _device ??= _readDevice();
+
+  /// The closed receipts in posted shape, without draining them.
+  List<SurfaceDeliveryReceiptEntry> closedEntries(
+    SurfaceDeliveryReceiptDevice device,
+  ) =>
+      _payload(_closed, device, 0).entries();
+
   /// Closes every open receipt as not painted, then returns and clears all.
-  Future<SurfaceDeliveryReceiptPayload> drain() async {
+  Future<SurfaceDeliveryReceiptPayload> drain() async =>
+      drainFor(await device());
+
+  /// [drain] for a device already read, in one synchronous step.
+  SurfaceDeliveryReceiptPayload drainFor(SurfaceDeliveryReceiptDevice device) {
     for (final open in _open.toList()) {
       open.closed = true;
       _closeOpen(
@@ -324,19 +321,20 @@ final class SurfaceDeliveryReceiptBatch {
     _latestBySurface.clear();
     final dropped = _dropped;
     _dropped = 0;
-    if (_closed.isEmpty) {
-      return SurfaceDeliveryReceiptPayload(
-          <SurfaceDeliveryReceipt, int>{}, dropped);
-    }
-    final closed = Map<_Key, int>.of(_closed);
+    final payload = _payload(_closed, device, dropped);
     _closed.clear();
-    final device = await (_device ??= _readDevice());
+    return payload;
+  }
+
+  static SurfaceDeliveryReceiptPayload _payload(
+    Map<_Key, int> closed,
+    SurfaceDeliveryReceiptDevice device,
+    int dropped,
+  ) {
     final platform = device.platform;
     final counts = <SurfaceDeliveryReceipt, int>{};
-    if (platform == null) {
-      // A platform outside the closed set has nowhere to report to.
-      return SurfaceDeliveryReceiptPayload(counts, dropped);
-    }
+    // A platform outside the closed set has nowhere to report to.
+    if (platform == null) return SurfaceDeliveryReceiptPayload(counts, dropped);
     closed.forEach((key, count) {
       final receipt = key.toReceipt(platform, device.appBuild);
       counts[receipt] = (counts[receipt] ?? 0) + count;
@@ -372,6 +370,7 @@ final class SurfaceDeliveryReceiptBatch {
       ),
     );
     _closed[key] = (_closed[key] ?? 0) + 1;
+    onClosed?.call();
   }
 
   SurfaceDeliveryReceiptReason _explain(
@@ -387,7 +386,8 @@ final class SurfaceDeliveryReceiptBatch {
       return reason;
     }
     // A transport-shaped reason is refined by what the service actually said.
-    return reason == SurfaceDeliveryReceiptReason.offline
+    return reason == SurfaceDeliveryReceiptReason.offline ||
+            reason == SurfaceDeliveryReceiptReason.pending
         ? refusal.reason
         : reason;
   }
@@ -492,6 +492,8 @@ final class _Key {
 
 final Expando<SurfaceDeliveryReceiptHandle> _handles =
     Expando<SurfaceDeliveryReceiptHandle>('restage.surfaceDeliveryReceipt');
+final Expando<MountAttributionSnapshotV1> _stagedAttributions =
+    Expando<MountAttributionSnapshotV1>('restage.surfaceDeliveryAttribution');
 
 /// Attaches [handle] to the resolved object a mount will later render.
 @internal
@@ -500,16 +502,21 @@ void attachSurfaceDeliveryReceipt(
   SurfaceDeliveryReceiptHandle handle,
 ) {
   _handles[resolved] = handle;
+  // Content reported only once it paints was staged before its receipt.
+  if (_stagedAttributions[resolved] case final snapshot?) {
+    handle.bindMountAttribution(snapshot);
+  }
 }
 
-/// Binds one accepted staging snapshot to its already opened delivery receipt.
+/// Binds one accepted staging snapshot to its delivery receipt, now or when
+/// the receipt opens.
 @internal
 void bindSurfaceDeliveryMountAttribution(
     Object resolved, MountAttributionSnapshotV1? snapshot) {
-  if (snapshot != null) {
-    surfaceDeliveryReceiptFor(placementResolvedLeaf(resolved))
-        ?.bindMountAttribution(snapshot);
-  }
+  if (snapshot == null) return;
+  final leaf = placementResolvedLeaf(resolved);
+  _stagedAttributions[leaf] = snapshot;
+  surfaceDeliveryReceiptFor(leaf)?.bindMountAttribution(snapshot);
 }
 
 /// The receipt opened for [resolved], if any.

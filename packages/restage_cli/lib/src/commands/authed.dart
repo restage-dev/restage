@@ -90,7 +90,7 @@ class AuthedContext {
     required this.api,
     required this.credential,
     required this.apiEndpoint,
-    required this.config,
+    required this.loadedConfig,
     this.organization,
     this.project,
     this.app,
@@ -110,8 +110,11 @@ class AuthedContext {
   /// Endpoint that may receive [credential].
   final Uri apiEndpoint;
 
-  /// The loaded restage_config.yaml, if any.
-  final RestageConfig? config;
+  /// The loaded restage_config.yaml and its file, if any.
+  final LoadedConfig? loadedConfig;
+
+  /// The loaded config, if any.
+  RestageConfig? get config => loadedConfig?.config;
 
   /// The resolved organization, below target scope.
   final OrganizationSummary? organization;
@@ -189,7 +192,7 @@ Future<int> runAuthed(
       api: api,
       credential: credential,
       apiEndpoint: apiEndpoint,
-      config: config,
+      loaded: loaded,
     );
     if (ctx == null) return 1;
     if (loaded != null && config != null) {
@@ -283,8 +286,9 @@ Future<AuthedContext?> _resolveScope({
   required RestageApi api,
   required Credential credential,
   required Uri apiEndpoint,
-  required RestageConfig? config,
+  required LoadedConfig? loaded,
 }) async {
+  final config = loaded?.config;
   AuthedContext build({
     OrganizationSummary? organization,
     String? project,
@@ -296,7 +300,7 @@ Future<AuthedContext?> _resolveScope({
     api: api,
     credential: credential,
     apiEndpoint: apiEndpoint,
-    config: config,
+    loadedConfig: loaded,
     organization: organization,
     project: project,
     app: app,
@@ -312,23 +316,30 @@ Future<AuthedContext?> _resolveScope({
       api: api,
       credential: credential,
       apiEndpoint: apiEndpoint,
-      config: config,
+      loaded: loaded,
     );
     return target == null ? null : build(target: target);
   }
   final preferredOrganization =
       _option(argResults, 'organization') ?? config?.organization;
-  final hintId = preferredOrganization == config?.organization
-      ? config?.organizationId
-      : null;
-  var snapshot = await readProgrammaticScope(api, organizationId: hintId);
+  var snapshot = await readConfiguredScope(
+    api,
+    loaded: loaded,
+    organizationSlug: preferredOrganization,
+    notices: io.stderr,
+  );
   OrganizationSummary? organization;
   if (preferredOrganization != null) {
     organization = snapshot.organizations
         .where((candidate) => candidate.slug == preferredOrganization)
         .firstOrNull;
     if (organization == null) {
-      io.stderr.writeln('No organization found for `$preferredOrganization`.');
+      io.stderr.writeln(
+        organizationUnavailableSentence(
+          preferredOrganization,
+          currentSelectorSyntax,
+        ),
+      );
       return null;
     }
     if (organization.organizationId != snapshot.organizationId) {
@@ -421,8 +432,9 @@ Future<LifecycleContext?> _resolveTarget({
   required RestageApi api,
   required Credential credential,
   required Uri apiEndpoint,
-  required RestageConfig? config,
+  required LoadedConfig? loaded,
 }) async {
+  final config = loaded?.config;
   final stderr = io.stderr;
   final project = _option(argResults, 'project') ?? config?.project;
   final app = _option(argResults, 'app') ?? config?.app;
@@ -455,11 +467,8 @@ Future<LifecycleContext?> _resolveTarget({
     appSlug: app,
     environmentSlug: environment,
     organizationSlug: organizationSlug,
-    organizationId:
-        organizationIdOption(argResults) ??
-        (config?.organization == organizationSlug
-            ? config?.organizationId
-            : null),
+    organizationId: organizationIdOption(argResults),
+    configured: loaded,
     environmentTargetId:
         config?.project == project &&
             config?.app == app &&

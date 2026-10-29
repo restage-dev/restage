@@ -216,7 +216,7 @@ final class InstalledCapability {
   ///
   /// The `sha256:` prefix is a required algorithm discriminator so the hashing
   /// scheme can evolve unambiguously.
-  String get contentHash =>
+  late final String contentHash =
       'sha256:${crypto.sha256.convert(utf8.encode(jsonEncode(toJson())))}';
 
   @override

@@ -97,16 +97,19 @@ Future<ConfigTargetCheck> checkConfigTarget(
     );
   }
   final environment = config.defaultEnvironment;
-  if (environment != null && environment.isNotEmpty) {
-    final environments = await discovery.listEnvironments(
+  if (environment != null &&
+      environment.isNotEmpty &&
+      apps.any((candidate) => candidate.slug == app)) {
+    final targets = await discovery.listEnvironmentTargets(
       organizationId: organization.organizationId,
       projectSlug: project,
+      appSlug: app,
     );
-    final slugs = {for (final environment in environments) environment.slug};
+    final slugs = {for (final target in targets) target.environmentSlug};
     if (!slugs.contains(environment)) {
       problems.add(
         'restage_config.yaml names environment `$environment`, which does '
-        'not exist in project `$project`. Environments there: '
+        'not exist for app `$app`. Environments there: '
         '${_list(slugs.toList()..sort())}.',
       );
     }

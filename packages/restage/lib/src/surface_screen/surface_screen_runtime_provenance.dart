@@ -159,33 +159,13 @@ final class SurfaceScreenRuntimeProvenance {
         const SurfaceScreenHostDataSchema.empty(),
     SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
   }) {
-    if (contractVersion < 1) {
-      throw ArgumentError.value(
-        contractVersion,
-        'contractVersion',
-        'must be positive',
-      );
-    }
-    final eventContractHash = SurfaceScreenEventContractHash.hash(eventSchema);
+    _checkContractVersion(contractVersion);
     return SurfaceScreenRuntimeProvenance._(
       surface: surface,
       slug: slug,
       contractVersion: contractVersion,
       capabilities: capabilities,
-      eventSchema: eventSchema,
-      eventContractHash: eventContractHash,
-      hostDataSchema: hostDataSchema,
-      hostDataContractHash: SurfaceScreenHostDataContractHash.hash(
-        hostDataSchema,
-      ),
-      contractFingerprint: SurfaceScreenContractFingerprint.hash(
-        sourceKind: sourceKind,
-        payloadKind: payloadKind,
-        capabilities: capabilities,
-        eventContractHash: eventContractHash,
-        hostDataContractHash:
-            SurfaceScreenHostDataContractHash.hash(hostDataSchema),
-      ),
+      contract: _contractOf(capabilities, eventSchema, hostDataSchema),
       bundle: bundle,
       vocabulary: vocabulary,
     );
@@ -195,7 +175,8 @@ final class SurfaceScreenRuntimeProvenance {
   ///
   /// Generated code passes the schema in its canonical encoded form rather
   /// than as a Dart literal tree, so the value that is hashed at runtime is
-  /// the exact value the build hashed.
+  /// the exact value the build hashed. The schemas are decoded and hashed on
+  /// first use, or ahead of it away from the frame.
   factory SurfaceScreenRuntimeProvenance.generated({
     required Surface surface,
     required String slug,
@@ -205,34 +186,79 @@ final class SurfaceScreenRuntimeProvenance {
     SurfaceScreenBundleLocator? bundle,
     String? hostDataSchemaJson,
     SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
-  }) =>
-      SurfaceScreenRuntimeProvenance(
-        surface: surface,
-        slug: slug,
-        contractVersion: contractVersion,
+  }) {
+    _checkContractVersion(contractVersion);
+    return SurfaceScreenRuntimeProvenance._(
+      surface: surface,
+      slug: slug,
+      contractVersion: contractVersion,
+      capabilities: capabilities,
+      source: (
+        eventSchemaJson: eventSchemaJson,
+        hostDataSchemaJson: hostDataSchemaJson,
         capabilities: capabilities,
-        eventSchema:
-            SurfaceScreenEventSchemaV1Codec.decodeJson(eventSchemaJson),
-        hostDataSchema: hostDataSchemaJson == null
-            ? const SurfaceScreenHostDataSchema.empty()
-            : SurfaceScreenHostDataSchemaV1Codec.decodeJson(hostDataSchemaJson),
-        bundle: bundle,
-        vocabulary: vocabulary,
-      );
+      ),
+      bundle: bundle,
+      vocabulary: vocabulary,
+    );
+  }
 
-  const SurfaceScreenRuntimeProvenance._({
+  SurfaceScreenRuntimeProvenance._({
     required this.surface,
     required this.slug,
     required this.contractVersion,
     required this.capabilities,
-    required this.eventSchema,
-    required this.eventContractHash,
-    required this.hostDataSchema,
-    required this.hostDataContractHash,
-    required this.contractFingerprint,
     required this.bundle,
     required this.vocabulary,
-  });
+    SurfaceScreenContract? contract,
+    SurfaceScreenContractSource? source,
+  })  : _source = source,
+        _cell = _ContractCell(contract);
+
+  static void _checkContractVersion(int contractVersion) {
+    if (contractVersion < 1) {
+      throw ArgumentError.value(
+        contractVersion,
+        'contractVersion',
+        'must be positive',
+      );
+    }
+  }
+
+  final SurfaceScreenContractSource? _source;
+  final _ContractCell _cell;
+
+  SurfaceScreenContract get _contract {
+    final contract = _cell.contract ??= decodeSurfaceScreenContract(_source!);
+    for (final hash in _cell.expectedEventContractHashes) {
+      if (hash != contract.eventContractHash) {
+        throw ArgumentError.value(
+          hash,
+          'eventContract',
+          'does not match the event schema in this screen provenance',
+        );
+      }
+    }
+    return contract;
+  }
+
+  /// The generated schemas not decoded yet, if any.
+  @internal
+  SurfaceScreenContractSource? get undecodedContract =>
+      _cell.contract == null ? _source : null;
+
+  /// Takes [contract], decoded elsewhere from [undecodedContract].
+  @internal
+  void adoptContract(SurfaceScreenContract contract) =>
+      _cell.contract ??= contract;
+
+  /// Requires the event contract hash to be [hash]; checked now when the
+  /// schemas are decoded, otherwise whenever they are.
+  @internal
+  void expectEventContractHash(String hash) {
+    _cell.expectedEventContractHashes.add(hash);
+    if (_cell.contract != null) _contract;
+  }
 
   /// Source semantics every standalone screen has.
   static const SurfaceSourceKind sourceKind = SurfaceSourceKind.screen;
@@ -253,19 +279,19 @@ final class SurfaceScreenRuntimeProvenance {
   final CapabilityManifest capabilities;
 
   /// Complete accepted event set of the screen.
-  final SurfaceScreenEventSchema eventSchema;
+  SurfaceScreenEventSchema get eventSchema => _contract.eventSchema;
 
   /// Hash derived from [eventSchema].
-  final String eventContractHash;
+  String get eventContractHash => _contract.eventContractHash;
 
   /// Host-supplied inputs this screen declares, empty when it declares none.
-  final SurfaceScreenHostDataSchema hostDataSchema;
+  SurfaceScreenHostDataSchema get hostDataSchema => _contract.hostDataSchema;
 
   /// Hash derived from [hostDataSchema], null when no host data is declared.
-  final String? hostDataContractHash;
+  String? get hostDataContractHash => _contract.hostDataContractHash;
 
   /// Fingerprint derived from the contract fields.
-  final String contractFingerprint;
+  String get contractFingerprint => _contract.contractFingerprint;
 
   /// Where the optional packaged fallback lives, when one was generated.
   final SurfaceScreenBundleLocator? bundle;
@@ -336,4 +362,67 @@ final class SurfaceScreenRuntimeProvenance {
       );
     }
   }
+}
+
+final class _ContractCell {
+  _ContractCell(this.contract);
+
+  SurfaceScreenContract? contract;
+  final expectedEventContractHashes = <String>[];
+}
+
+/// The schemas a generated provenance decodes, in a form another isolate can
+/// take.
+@internal
+typedef SurfaceScreenContractSource = ({
+  String eventSchemaJson,
+  String? hostDataSchemaJson,
+  CapabilityManifest capabilities,
+});
+
+/// A screen's decoded schemas and the hashes derived from them.
+@internal
+typedef SurfaceScreenContract = ({
+  SurfaceScreenEventSchema eventSchema,
+  String eventContractHash,
+  SurfaceScreenHostDataSchema hostDataSchema,
+  String? hostDataContractHash,
+  String contractFingerprint,
+});
+
+/// Decodes and hashes [source]; throws when either schema is invalid.
+@internal
+SurfaceScreenContract decodeSurfaceScreenContract(
+  SurfaceScreenContractSource source,
+) =>
+    _contractOf(
+      source.capabilities,
+      SurfaceScreenEventSchemaV1Codec.decodeJson(source.eventSchemaJson),
+      switch (source.hostDataSchemaJson) {
+        null => const SurfaceScreenHostDataSchema.empty(),
+        final json => SurfaceScreenHostDataSchemaV1Codec.decodeJson(json),
+      },
+    );
+
+SurfaceScreenContract _contractOf(
+  CapabilityManifest capabilities,
+  SurfaceScreenEventSchema eventSchema,
+  SurfaceScreenHostDataSchema hostDataSchema,
+) {
+  final eventContractHash = SurfaceScreenEventContractHash.hash(eventSchema);
+  final hostDataContractHash =
+      SurfaceScreenHostDataContractHash.hash(hostDataSchema);
+  return (
+    eventSchema: eventSchema,
+    eventContractHash: eventContractHash,
+    hostDataSchema: hostDataSchema,
+    hostDataContractHash: hostDataContractHash,
+    contractFingerprint: SurfaceScreenContractFingerprint.hash(
+      sourceKind: SurfaceScreenRuntimeProvenance.sourceKind,
+      payloadKind: SurfaceScreenRuntimeProvenance.payloadKind,
+      capabilities: capabilities,
+      eventContractHash: eventContractHash,
+      hostDataContractHash: hostDataContractHash,
+    ),
+  );
 }

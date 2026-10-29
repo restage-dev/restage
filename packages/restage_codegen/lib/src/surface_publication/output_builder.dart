@@ -14,6 +14,7 @@ import 'package:restage_codegen/src/surface_publication/legacy_output_cleanup.da
 import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
+import 'package:restage_codegen/src/surface_publication/surface_capture_plan.dart';
 import 'package:restage_codegen/src/surface_publication/surface_mount_diagnostics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -70,6 +71,7 @@ final class RestageOutputsBuilder implements Builder {
         plan.outputIndexPath,
         plan.measurementOutputIndexPath,
         plan.analyticsIdMetadataPath,
+        plan.capturePlanPath,
         plan.customCatalogPath,
       ];
     } else {
@@ -230,6 +232,20 @@ final class RestageOutputsBuilder implements Builder {
     await buildStep.writeAsString(
       AssetId(buildStep.inputId.package, plan.outputIndexPath),
       const JsonEncoder.withIndent('  ').convert(index),
+    );
+    final capturePlanAsset = AssetId(
+      buildStep.inputId.package,
+      kRestageSurfaceCapturePlanCompilerPath,
+    );
+    await buildStep.writeAsString(
+      AssetId(buildStep.inputId.package, plan.capturePlanPath),
+      jsonEncode({
+        'version': kRestageSurfaceCapturePlanVersion,
+        'generationFingerprint': index['generationFingerprint'],
+        'surfaces': await buildStep.canRead(capturePlanAsset)
+            ? jsonDecode(await buildStep.readAsString(capturePlanAsset))
+            : const <String, Object?>{},
+      }),
     );
     if (measurementOutput != null) {
       await buildStep.writeAsBytes(

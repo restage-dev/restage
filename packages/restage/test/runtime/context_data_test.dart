@@ -2,6 +2,7 @@ import 'dart:collection';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:restage/render_support.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/runtime/context_data.dart';
 import 'package:rfw/rfw.dart';
@@ -1926,5 +1927,13 @@ void main() {
       );
       expect(_readKey(content, 'products'), same(missing));
     });
+  });
+
+  test('a render host reads the context a paywall was given', () {
+    const context = <String, Object?>{'price': '4.99'};
+    expect(
+      paywallHostContext(const RestagePaywall(id: 'upgrade', context: context)),
+      same(context),
+    );
   });
 }

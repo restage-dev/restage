@@ -209,6 +209,7 @@ http.Client _scopeClient(List<Map<String, dynamic>> calls) => MockClient((
           'runtimePlane': 'live',
         },
       ],
+      'legacyDefaultTargetIds': <Object>[],
       'surfaces': <Object>[],
     }),
     200,

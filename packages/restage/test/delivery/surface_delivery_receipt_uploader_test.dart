@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt_batch.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt_uploader.dart';
+import 'package:restage/src/resolver/placement_fallback_log.dart';
 import 'package:restage/src/resolver/surface_resolution_report.dart';
 import 'package:restage_shared/restage_shared.dart' show Surface;
 
@@ -104,6 +106,123 @@ void main() {
     expect(uploader.hasPendingRetry, isFalse);
   });
 
+  test('a refused key is retried, then named and given up', () async {
+    final lines = <String>[];
+    final previous = debugPrint;
+    debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+    var now = DateTime.utc(2026);
+    refusedApiKeyClock = () => now;
+    addTearDown(() {
+      debugPrint = previous;
+      resetPlacementFallbackLog();
+    });
+    answer = (_) async => http.Response('{"error":"unauthorized"}', 401);
+
+    present();
+    await uploader.flush();
+    for (final wait in kSurfaceDeliveryReceiptRefusalRetries) {
+      expect(uploader.hasPendingRetry, isTrue);
+      expect(retries.last.delay, wait);
+      expect(lines, isEmpty);
+      now = now.add(wait);
+      retries.last.callback();
+      await Future<void>.delayed(Duration.zero);
+      await uploader.flush();
+    }
+
+    expect(requests, hasLength(4));
+    expect(uploader.hasPendingRetry, isFalse);
+    present(slug: 'later');
+    await uploader.flush();
+    expect(requests, hasLength(4), reason: 'a refused key posts nothing more');
+    expect(lines, hasLength(1));
+    expect(
+        lines.single,
+        startsWith(
+            '[restage] the service at api.example.test refused the API key (HTTP 401).'));
+  });
+
+  Future<void> giveUpKey(void Function(DateTime) setNow) async {
+    var now = DateTime.utc(2026);
+    setNow(now);
+    answer = (_) async => http.Response('{"error":"unauthorized"}', 401);
+    present();
+    await uploader.flush();
+    for (final wait in kSurfaceDeliveryReceiptRefusalRetries) {
+      now = now.add(wait);
+      setNow(now);
+      retries.last.callback();
+      await Future<void>.delayed(Duration.zero);
+      await uploader.flush();
+    }
+    expect(requests, hasLength(4));
+  }
+
+  test('a key accepted on another route lifts the receipts stop', () async {
+    final previous = debugPrint;
+    debugPrint = (message, {wrapWidth}) {};
+    var now = DateTime.utc(2026);
+    refusedApiKeyClock = () => now;
+    addTearDown(() {
+      debugPrint = previous;
+      resetPlacementFallbackLog();
+    });
+    await giveUpKey((value) => now = value);
+
+    answer = (_) async => http.Response('', 204);
+    present(slug: 'blocked');
+    await uploader.flush();
+    expect(requests, hasLength(4), reason: 'the key is still given up');
+
+    noteAcceptedApiKey();
+    present(slug: 'after');
+    await uploader.flush();
+    expect(requests, hasLength(5));
+  });
+
+  test('an app resume lifts the receipts stop', () async {
+    final previous = debugPrint;
+    debugPrint = (message, {wrapWidth}) {};
+    var now = DateTime.utc(2026);
+    refusedApiKeyClock = () => now;
+    addTearDown(() {
+      debugPrint = previous;
+      resetPlacementFallbackLog();
+    });
+    await giveUpKey((value) => now = value);
+
+    answer = (_) async => http.Response('', 204);
+    uploader.onAppResumed();
+    present(slug: 'after');
+    await uploader.flush();
+    expect(requests, hasLength(5));
+  });
+
+  test('a key the service publishes during the retries is never named',
+      () async {
+    final lines = <String>[];
+    final previous = debugPrint;
+    debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+    addTearDown(() {
+      debugPrint = previous;
+      resetPlacementFallbackLog();
+    });
+    answer = (_) async => http.Response('{"error":"unauthorized"}', 401);
+
+    present();
+    await uploader.flush();
+    expect(retries.last.delay, kSurfaceDeliveryReceiptRefusalRetries.first);
+    answer = (_) async => http.Response('', 204);
+    retries.last.callback();
+    await Future<void>.delayed(Duration.zero);
+    await uploader.flush();
+
+    expect(requests, hasLength(2));
+    expect(requests[1].body, requests[0].body);
+    expect(uploader.hasPendingRetry, isFalse);
+    expect(lines, isEmpty);
+  });
+
   test('a 429 re-queues once and the retry after the delay succeeds', () async {
     present();
     answer = (_) async => http.Response('', 429, headers: {'retry-after': '5'});
@@ -126,7 +245,7 @@ void main() {
     expect((await batch.drain()).dropped, 0);
   });
 
-  test('a second 429 drops the payload and counts it', () async {
+  test('a second 429 keeps the receipts for the next flush', () async {
     present();
     present();
     answer = (_) async => http.Response('', 429, headers: {'retry-after': '5'});
@@ -137,9 +256,16 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(requests, hasLength(2));
-    expect(uploader.hasPendingRetry, isFalse);
+    expect(uploader.hasPendingRetry, isTrue);
     expect(retries, hasLength(1));
-    expect((await batch.drain()).dropped, 2);
+    expect((await batch.drain()).dropped, 0);
+
+    answer = (_) async => http.Response('', 204);
+    await uploader.flush();
+    expect(requests, hasLength(3));
+    expect(
+        ((body(requests.last)['receipts']! as List).single as Map)['count'], 2);
+    expect(uploader.hasPendingRetry, isFalse);
   });
 
   test('a 404 drops silently with no retry', () async {
@@ -179,7 +305,7 @@ void main() {
     expect(uploader.hasPendingRetry, isFalse);
   });
 
-  test('a retried payload absorbs receipts that arrived meanwhile', () async {
+  test('a retry resends its post unchanged; new receipts post apart', () async {
     present();
     answer = (_) async => throw http.ClientException('offline');
     await uploader.flush();
@@ -190,9 +316,11 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
 
-    final receipts = body(requests.last)['receipts']! as List;
-    expect(receipts, hasLength(1));
-    expect((receipts.single as Map)['count'], 2);
+    expect(requests, hasLength(3));
+    expect(requests[1].body, requests[0].body);
+    expect(body(requests[2])['batchId'], isNot(body(requests[0])['batchId']));
+    expect(
+        ((body(requests[2])['receipts']! as List).single as Map)['count'], 1);
   });
 
   test('the body never carries a key beyond the closed set', () async {
@@ -202,7 +330,7 @@ void main() {
     await uploader.flush();
 
     final json = body(requests.single);
-    expect(json.keys, unorderedEquals(['receipts', 'dropped']));
+    expect(json.keys, unorderedEquals(['batchId', 'receipts', 'dropped']));
     expect(json['dropped'], 0);
     final receipt =
         ((json['receipts']! as List).single as Map).cast<String, Object?>();
@@ -273,15 +401,16 @@ void main() {
     retries.single.callback();
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
-    expect(requests, hasLength(2));
-    final receipts = body(requests.last)['receipts']! as List;
-    expect(receipts, hasLength(1));
-    expect((receipts.single as Map)['count'], 2);
+    expect(requests, hasLength(3));
+    expect(requests[1].body, requests[0].body);
+    expect(
+        ((body(requests[2])['receipts']! as List).single as Map)['count'], 1);
     expect(uploader.hasPendingRetry, isFalse);
     expect(uploader.hasRetryTimer, isFalse);
   });
 
-  test('the last release cancels a parked retry and counts it', () async {
+  test('the last release cancels a parked retry and keeps its receipts',
+      () async {
     present();
     present();
     answer = (_) async => http.Response('', 429, headers: {'retry-after': '5'});
@@ -291,9 +420,9 @@ void main() {
     uploader.release();
 
     expect(uploader.hasRetryTimer, isFalse);
-    expect(uploader.hasPendingRetry, isFalse);
+    expect(uploader.hasPendingRetry, isTrue);
     expect(retries.single.isActive, isFalse);
-    expect((await batch.drain()).dropped, 2);
+    expect((await batch.drain()).dropped, 0);
   });
 
   test('a reset cancels a parked retry and detaches the old uploader',
@@ -422,7 +551,7 @@ void main() {
 
   group('the 64 KiB boundary', () {
     const count = 200;
-    const envelope = '{"receipts":[],"dropped":0}';
+    final envelope = '{"batchId":"${'0' * 36}","receipts":[],"dropped":0}';
 
     Future<int> baseLength() async {
       present(slug: '');
@@ -495,7 +624,8 @@ void main() {
         (body(request)['receipts']! as List).length,
         lessThanOrEqualTo(kSurfaceDeliveryReceiptMaximumPostReceipts),
       );
-      expect(body(request).keys, unorderedEquals(['receipts', 'dropped']));
+      expect(body(request).keys,
+          unorderedEquals(['batchId', 'receipts', 'dropped']));
     }
     expect(
       requests.fold<int>(
@@ -552,10 +682,6 @@ void main() {
         kSurfaceDeliveryReceiptMaximumCount,
         5,
       ],
-    );
-    expect(
-      SurfaceDeliveryReceiptPayload.fromEntries(oversized.entries(), 0).counts,
-      oversized.counts,
     );
   });
 

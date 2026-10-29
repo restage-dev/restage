@@ -40,6 +40,9 @@ final class DeliveryInputBudget {
         _expired.future.then<T?>((_) => null),
       ]);
 
+  /// Whether the deadline has passed.
+  bool get expired => _expired.isCompleted;
+
   /// Releases the deadline timer.
   void close() => _timer.cancel();
 }

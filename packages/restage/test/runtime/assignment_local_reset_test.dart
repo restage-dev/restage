@@ -253,6 +253,22 @@ void main() {
         isNotNull);
   });
 
+  test('reset keeps a write the app makes while erasure runs', () async {
+    await retain(await confirmLease());
+    final prefs = await SharedPreferences.getInstance();
+    storage.holdRead = Completer<void>();
+
+    Restage.reset();
+    await Future.any(
+        [storage.readEntered.future, SurfaceAssignmentPersistence.ready]);
+    await prefs.setString('host.setting', 'written');
+    storage.holdRead!.complete();
+    await SurfaceAssignmentPersistence.ready;
+
+    expect(prefs.getString('host.setting'), 'written');
+    expect(await durableKeys(), isEmpty);
+  });
+
   test('failed erasure blocks enrollment until another explicit reset succeeds',
       () async {
     final first = await confirmLease();
@@ -268,12 +284,12 @@ void main() {
     Restage.reset();
     await SurfaceAssignmentPersistence.ready;
     expect(await durableKeys(), isEmpty,
-        reason: 'reload finds keys removed from the cache by a failed removal');
+        reason: 'keys a failed removal dropped from the cache are retried');
     expect((await SurfaceAssignmentKeyProvider.captureLease()).registration,
         isNotNull);
   });
 
-  test('cleanup waits for actor persistence before reloading preferences',
+  test('cleanup waits for actor persistence before reading preferences',
       () async {
     await SurfaceAssignmentKeyProvider.captureLease();
     final prefs = await SharedPreferences.getInstance();
@@ -310,6 +326,8 @@ class _ControlledPreferences extends InMemorySharedPreferencesStore {
   bool blockAssignmentWrite = false;
   bool blockActorWrite = false;
   bool failRemoval = false;
+  final readEntered = Completer<void>();
+  Completer<void>? holdRead;
   int _registrationWrites = 0;
   final writeEntered = Completer<void>();
   final _release = Completer<void>();
@@ -331,6 +349,16 @@ class _ControlledPreferences extends InMemorySharedPreferencesStore {
       await _release.future;
     }
     return super.setValue(valueType, key, value);
+  }
+
+  @override
+  Future<Map<String, Object>> getAll() async {
+    final snapshot = await super.getAll();
+    if (holdRead case final hold?) {
+      if (!readEntered.isCompleted) readEntered.complete();
+      await hold.future;
+    }
+    return snapshot;
   }
 
   @override

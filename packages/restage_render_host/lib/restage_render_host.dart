@@ -2,7 +2,7 @@
 /// render surface, and the entrypoint of the web bundle a build generates.
 library;
 
-import 'package:flutter/widgets.dart' show VoidCallback, runApp;
+import 'package:flutter/widgets.dart' show VoidCallback, Widget, runApp;
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'src/browser_render_message_transport.dart';
@@ -25,6 +25,7 @@ Future<void> runRestageRenderBundle({
   required VoidCallback registerWidgets,
   required String parentOrigin,
   required String flutterVersion,
+  Widget Function(Widget child)? wrap,
 }) async {
   await initializeDateFormatting();
   final manifest = await loadRenderBundleManifest();
@@ -37,6 +38,7 @@ Future<void> runRestageRenderBundle({
     manifest: manifest,
     engine: RenderEngine(flutterVersion: flutterVersion, renderer: 'skwasm'),
     registerAppWidgets: registerWidgets,
+    wrap: wrap,
     rasterController: rasterController,
   ));
 }

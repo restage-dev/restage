@@ -787,6 +787,36 @@ void main() {
           .validateAssembledPayload(flowFixture.payload.canonicalBytes);
     });
 
+    test('a paywall carries the host data its mount passes', () {
+      final fixture = _screenFixture();
+      final contract = SurfaceScreenHostDataSchema(
+        const <String, SurfaceScreenHostDataShape>{
+          'price': SurfaceScreenHostDataScalarShapeV1(
+            SurfaceScreenHostDataScalarKind.string,
+          ),
+        },
+      );
+      SurfacePublication paywall({String? hash}) => SurfacePublication(
+            surface: Surface.paywall,
+            slug: fixture.publication.slug,
+            sourceKind: SurfaceSourceKind.paywall,
+            payloadKind: SurfacePayloadKind.blob,
+            payloadContentHash: fixture.payload.contentHash,
+            hostDataContract: contract,
+            hostDataContractHash: hash,
+          );
+
+      final publication = paywall(
+        hash: SurfaceScreenHostDataContractHash.hash(contract),
+      );
+      final decoded = SurfacePublication.fromJson(
+        publication.toJson(),
+        path: 'publication',
+      );
+      expect(decoded.hostDataContract?.inputs.keys, ['price']);
+      expect(paywall, throwsFormatException);
+    });
+
     test('rejects unknown wire discriminators and unsafe artifact paths', () {
       final fixture = _screenFixture();
       final publicationJson = fixture.publication.toJson();

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' show Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,8 @@ import 'package:restage/src/resolver/platform_app_build_stub.dart'
     as build_stub;
 import 'package:restage/src/resolver/platform_os_version_stub.dart' as stub;
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
+import 'package:restage/src/runtime/first_launch_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 SurfaceDeliveryObservations snapshot({
   String? country = 'SE',
@@ -116,6 +119,26 @@ void main() {
   setUp(debugResetOsVersion);
   tearDown(debugResetAppBuildOrdinal);
   tearDown(debugResetOsVersion);
+
+  for (final (osKnown, sized) in [(false, true), (true, false)]) {
+    testWidgets(
+        'in-memory observations name what they leave out '
+        '(os known $osKnown, sized view $sized)', (tester) async {
+      if (osKnown) debugSetOsVersion(15);
+      if (!sized) {
+        tester.view.physicalSize = Size.zero;
+        addTearDown(tester.view.reset);
+      }
+      final (observations, pending) = inMemorySurfaceDeliveryObservations();
+      expect(pending, {
+        'appBuildOrdinal',
+        if (!osKnown) 'osVersion',
+        if (!sized) 'deviceClass',
+        'daysSinceInstall',
+      });
+      expect(observations.osVersion, osKnown ? 15 : null);
+    });
+  }
 
   group('country normalization', () {
     for (final value in ['se', 'SE', ' se ']) {
@@ -415,6 +438,28 @@ void main() {
     expect(value.presentationCountry, 'SE');
     expect(value.deviceClass, 'phone');
     expect(value.sdkApiLevel, assignmentSdkApiLevel);
+  });
+
+  test('the build read runs while the install date is awaited', () async {
+    final install = Completer<SharedPreferences>();
+    debugResetInstallObservations(
+        store: FirstLaunchStore(preferences: () => install.future));
+    configureSurfaceDeliveryObservations();
+    addTearDown(debugResetInstallObservations);
+    var asked = false;
+    final reading = readSurfaceDeliveryObservations(
+      isWeb: false,
+      targetPlatform: TargetPlatform.iOS,
+      buildNumberSource: () async {
+        asked = true;
+        return '42';
+      },
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(asked, isTrue);
+    SharedPreferences.setMockInitialValues({});
+    install.complete(SharedPreferences.getInstance());
+    expect((await reading).appBuildOrdinal, 42);
   });
 
   test('a reading takes its language from the device locale', () async {

@@ -153,6 +153,7 @@ class _TargetApi implements RestageApi {
           },
       ],
       'environmentTargets': targets,
+      'legacyDefaultTargetIds': <Object>[],
       'surfaces': <Object>[],
     };
   }

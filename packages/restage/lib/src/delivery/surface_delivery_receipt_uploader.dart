@@ -2,14 +2,26 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 
+import '../resolver/placement_fallback_log.dart'
+    show acceptedApiKeyEpoch, noteAcceptedApiKey, noteRefusedApiKey;
 import '../retry_after.dart';
 import 'surface_delivery_receipt_batch.dart';
+import 'surface_delivery_receipt_journal.dart';
+import '../restage_rpc_client/uuid_v4.dart';
 
 /// How often accumulated receipts are posted.
 const Duration kSurfaceDeliveryReceiptFlushInterval = Duration(seconds: 30);
+
+/// The waits before posting again after the service refuses the key.
+const List<Duration> kSurfaceDeliveryReceiptRefusalRetries = [
+  Duration(seconds: 5),
+  Duration(seconds: 15),
+  Duration(seconds: 45),
+];
 
 /// The route receipts are posted to, under the configured service origin.
 const String kSurfaceDeliveryReceiptPath = '/sdk/v1/delivery-receipts';
@@ -17,11 +29,15 @@ const String kSurfaceDeliveryReceiptPath = '/sdk/v1/delivery-receipts';
 /// The largest body the route accepts.
 const int kSurfaceDeliveryReceiptMaximumPostBytes = 64 * 1024;
 
+/// The most unacknowledged posts kept; the oldest beyond it are dropped.
+const int kSurfaceDeliveryReceiptMaximumJournaledPosts = 200;
+
 /// The most receipts the route accepts in one body.
 const int kSurfaceDeliveryReceiptMaximumPostReceipts = 500;
 
 /// Posts drained receipts to the service on app pause, and every 30 seconds
-/// while a receipt-observing surface is mounted.
+/// while a receipt-observing surface is mounted. Receipts the service has not
+/// acknowledged are journaled, so a killed process posts them at next launch.
 final class SurfaceDeliveryReceiptUploader {
   SurfaceDeliveryReceiptUploader._();
 
@@ -32,11 +48,15 @@ final class SurfaceDeliveryReceiptUploader {
   @internal
   static void debugReset() {
     instance._close();
-    instance = SurfaceDeliveryReceiptUploader._();
+    instance = SurfaceDeliveryReceiptUploader._()
+      ..debugJournal = MemorySurfaceDeliveryReceiptJournal();
   }
 
   /// Test seam for the HTTP client; production constructs one on first use.
   http.Client? debugHttpClient;
+
+  /// Test seam for the journal; production keeps it in app support storage.
+  SurfaceDeliveryReceiptJournal? debugJournal;
 
   /// Test seam for the retry timer.
   Timer Function(Duration delay, void Function() callback) timerFactory =
@@ -52,6 +72,7 @@ final class SurfaceDeliveryReceiptUploader {
 
   String? _baseUrl;
   String? _apiKey;
+  String? _fingerprint;
 
   /// Bumped on every change of key or origin; a payload posts only under the
   /// generation it was drained in.
@@ -60,19 +81,45 @@ final class SurfaceDeliveryReceiptUploader {
   bool _enabled = false;
   bool _closed = false;
   http.Client? _client;
+  SurfaceDeliveryReceiptJournal? _journal;
   Timer? _periodic;
   Timer? _retryTimer;
-  SurfaceDeliveryReceiptPayload? _retry;
   Future<void>? _inFlight;
   int _mounted = 0;
 
+  /// Posts not yet acknowledged, oldest first; each resends unchanged.
+  List<SurfaceDeliveryReceiptPost> _posts = <SurfaceDeliveryReceiptPost>[];
+
+  /// Journaled receipts an earlier process had not yet put in a post.
+  List<String> _unbatched = <String>[];
+  bool _retried = false;
+  int _refusals = 0;
+
+  /// The key stayed refused through every retry; nothing posts under it
+  /// again in this process.
+  bool _keyRefused = false;
+
+  /// The acceptance count when the key was given up; any later acceptance,
+  /// on any route, lifts the stop.
+  int _refusedAtEpoch = 0;
+
+  Future<void> _restored = Future<void>.value();
+
+  /// Whether an enabled configuration has read the journal in this process.
+  bool _journalRead = false;
+  Future<void>? _saving;
+  bool _saveAgain = false;
+
   bool get isEnabled => _enabled;
 
-  bool get hasPendingRetry => _retry != null;
+  bool get hasPendingRetry => _posts.isNotEmpty;
 
   bool get hasPeriodicTimer => _periodic != null;
 
   bool get hasRetryTimer => _retryTimer != null;
+
+  SurfaceDeliveryReceiptJournal get _store =>
+      _journal ??= debugJournal ?? createSurfaceDeliveryReceiptJournal();
 
   /// A receipt-observing surface mounted; the periodic flush runs while any is.
   void retain() {
@@ -81,6 +128,7 @@ final class SurfaceDeliveryReceiptUploader {
   }
 
   /// A receipt-observing surface unmounted; the last one stops every timer.
+  /// Unacknowledged receipts stay journaled for the next flush.
   void release() {
     if (_mounted > 0) _mounted -= 1;
     if (_mounted > 0) return;
@@ -88,15 +136,13 @@ final class SurfaceDeliveryReceiptUploader {
     _periodic = null;
     _retryTimer?.cancel();
     _retryTimer = null;
-    final parked = _retry;
-    _retry = null;
-    if (parked != null) _drop(parked, SurfaceDeliveryReceiptBatch.instance);
   }
 
   /// Binds the uploader to the configured service and public key.
   ///
   /// Receipts queued under one key never post under another: a change of key
-  /// or origin retires whatever is queued, counted as dropped.
+  /// or origin retires whatever is queued, counted as dropped. The first
+  /// enabled configuration in a process posts what an earlier one journaled.
   void configure({
     required String? baseUrl,
     required String? apiKey,
@@ -106,22 +152,69 @@ final class SurfaceDeliveryReceiptUploader {
     if (_configured && (baseUrl != _baseUrl || apiKey != _apiKey)) {
       _generation += 1;
       _cancelTimers();
-      batch.countDropped(batch.retire());
+      batch.countDropped(batch.retire() + _discardPending());
+      _refusals = 0;
+      _keyRefused = false;
     }
     _configured = true;
     _baseUrl = baseUrl;
     _apiKey = apiKey;
     _enabled = enabled && baseUrl != null && apiKey != null;
+    _fingerprint = _enabled
+        ? sha256.convert(utf8.encode('$baseUrl\n$apiKey')).toString()
+        : null;
     batch.enabled = _enabled;
     batch.onAppended = _enabled ? _armPeriodic : null;
-    if (!_enabled) _cancelTimers();
+    batch.onClosed = _enabled ? _scheduleSave : null;
+    if (!_enabled) {
+      _cancelTimers();
+      batch.countDropped(_discardPending());
+      // Receipts turned off leave nothing on the device; a configuration still
+      // waiting for its key keeps the journal for that key.
+      if (!enabled) {
+        _journalRead = true;
+        // After any write still in flight, so that write cannot restore it.
+        final saving = _saving ?? Future<void>.value();
+        unawaited(saving.catchError((Object _) {}).then(
+              (_) => _store.write(
+                (fingerprint: '', posts: const [], receipts: const []),
+              ),
+            ));
+      }
+      return;
+    }
+    // The first enabled configuration takes back the journal; a keyless one
+    // before it never wipes it.
+    if (!_journalRead) {
+      _journalRead = true;
+      _restored = _restore();
+    } else {
+      _scheduleSave();
+    }
   }
 
-  /// Drains the batch and posts it, honoring one retry per payload.
+  /// Takes back what an earlier process journaled under the same key.
+  Future<void> _restore() async {
+    final fingerprint = _fingerprint;
+    final generation = _generation;
+    final stored = await _store.read();
+    // A reconfiguration during the read owns the queue now.
+    if (stored == null || fingerprint == null || generation != _generation) {
+      return;
+    }
+    if (stored.fingerprint != fingerprint) {
+      await _store.write((fingerprint: fingerprint, posts: [], receipts: []));
+      return;
+    }
+    _posts = [...stored.posts, ..._posts];
+    _unbatched = [...stored.receipts, ..._unbatched];
+    unawaited(flush());
+  }
+
+  /// Drains the batch and posts it with anything still unacknowledged.
   ///
-  /// While a rate-limited retry is parked, its deadline wins and this is a
-  /// no-op; the retry timer posts the parked payload with whatever has
-  /// accumulated since.
+  /// While a retry is parked, its deadline wins and this is a no-op; the
+  /// retry timer posts with whatever has accumulated since.
   Future<void> flush() {
     if (_retryTimer != null) return Future<void>.value();
     return _inFlight ??= _flush().whenComplete(() {
@@ -130,49 +223,84 @@ final class SurfaceDeliveryReceiptUploader {
   }
 
   Future<void> _flush() async {
+    await _restored;
     final batch = SurfaceDeliveryReceiptBatch.instance;
     final generation = _generation;
-    final retry = _retry;
-    _retry = null;
-    final payload = await batch.drain();
+    final device = await batch.device();
+    // From the drain to the pending list in one step, so a save never sees
+    // receipts that are in neither.
+    final payload = batch.drainFor(device);
     if (_closed || !_enabled) return;
-    var canRetry = true;
-    if (retry != null) {
-      canRetry = false;
-      payload.absorb(retry);
+    if (_keyRefused && acceptedApiKeyEpoch != _refusedAtEpoch) {
+      _keyRefused = false;
+      _refusals = 0;
     }
-    if (generation != _generation) {
-      _drop(payload, batch);
+    if (_keyRefused) {
+      batch.countDropped(payload.presentations + payload.dropped);
       return;
     }
-    if (payload.isEmpty) {
+    if (generation != _generation) {
+      batch.countDropped(payload.presentations + payload.dropped);
+      return;
+    }
+    // New receipts go in fresh posts; unacknowledged ones resend unchanged.
+    _posts = [
+      ..._posts,
+      ..._batched(
+        _merged([
+          ..._unbatched,
+          for (final entry in payload.entries())
+            jsonEncode(entry.receipt.toJson(entry.count)),
+        ]),
+        payload.dropped,
+      ),
+    ];
+    _unbatched = <String>[];
+    if (_posts.length > kSurfaceDeliveryReceiptMaximumJournaledPosts) {
+      final excess =
+          _posts.length - kSurfaceDeliveryReceiptMaximumJournaledPosts;
+      for (final post in _posts.take(excess)) {
+        batch.countDropped(_presentations(post.receipts) + post.dropped);
+      }
+      _posts = _posts.sublist(excess);
+    }
+    if (_posts.isEmpty) {
       _periodic?.cancel();
       _periodic = null;
       return;
     }
-    await _post(payload, batch, generation, canRetry: canRetry);
+    // A post's id reaches the journal before the post is sent, so a resend
+    // after a kill reuses it.
+    await _saved();
+    if (_closed || generation != _generation) return;
+    await _post(batch, generation);
+    _scheduleSave();
   }
 
-  /// Posts [payload] in bodies the route accepts, stopping at the first
-  /// failure; what remains is re-queued or dropped as a whole.
-  Future<void> _post(
-    SurfaceDeliveryReceiptPayload payload,
-    SurfaceDeliveryReceiptBatch batch,
-    int generation, {
-    required bool canRetry,
-  }) async {
+  /// Completes once the journal holds the queue as it is now, or once a
+  /// write has taken longer than [_journalWait]; a slow disk never holds
+  /// receipts back.
+  Future<void> _saved() async {
+    _scheduleSave();
+    for (var saving = _saving; saving != null; saving = _saving) {
+      try {
+        await saving.timeout(_journalWait);
+      } on Object {
+        return;
+      }
+    }
+  }
+
+  static const Duration _journalWait = Duration(seconds: 2);
+
+  /// Posts the queue in order. A refused post is dropped alone; when the
+  /// service fails or does not answer, the queue stays for a retry.
+  Future<void> _post(SurfaceDeliveryReceiptBatch batch, int generation) async {
     final baseUrl = _baseUrl;
     final apiKey = _apiKey;
     if (baseUrl == null || apiKey == null) return;
-    var remaining = payload.entries();
-    var dropped = payload.dropped;
-    while (remaining.isNotEmpty || dropped > 0) {
-      if (generation != _generation) {
-        _drop(SurfaceDeliveryReceiptPayload.fromEntries(remaining, dropped),
-            batch);
-        return;
-      }
-      final chunk = _chunk(remaining, dropped);
+    while (_posts.isNotEmpty) {
+      if (generation != _generation) return;
       final http.Response response;
       try {
         response = await (_client ??= debugHttpClient ?? http.Client()).post(
@@ -181,66 +309,200 @@ final class SurfaceDeliveryReceiptUploader {
             'Authorization': 'Bearer $apiKey',
             'Content-Type': 'application/json',
           },
-          body: chunk.body,
+          body: _body(_posts.first),
         );
       } on Object {
-        _requeue(
-          SurfaceDeliveryReceiptPayload.fromEntries(remaining, dropped),
-          batch,
-          generation,
-          canRetry,
-          _spreadRetryDelay(),
-        );
+        if (generation == _generation) _retryLater(_spreadRetryDelay());
         return;
       }
-      if (_closed) return;
+      if (_closed || generation != _generation) return;
       final status = response.statusCode;
       if (status == 429) {
-        _requeue(
-          SurfaceDeliveryReceiptPayload.fromEntries(remaining, dropped),
-          batch,
-          generation,
-          canRetry,
-          retryAfterDelay(response.headers['retry-after']),
-        );
+        _retryLater(retryAfterDelay(response.headers['retry-after']));
         return;
       }
+      // A key minted moments ago is refused until the service publishes it,
+      // so a refusal is retried before the queue is given up.
+      if (status == 401) {
+        noteRefusedApiKey(Uri.parse('$baseUrl$kSurfaceDeliveryReceiptPath'));
+        if (_refusals < kSurfaceDeliveryReceiptRefusalRetries.length) {
+          _retryRefused(kSurfaceDeliveryReceiptRefusalRetries[_refusals++]);
+        } else {
+          _keyRefused = true;
+          _refusedAtEpoch = acceptedApiKeyEpoch;
+          batch.countDropped(_discardPending());
+        }
+        return;
+      }
+      // An organization the service is not serving now may be served again;
+      // the queue stays journaled for the next flush.
+      if (status == 403) return;
+      // The service may answer later; the queue stays journaled.
+      if (status == 408 || status >= 500) {
+        _retryLater(_spreadRetryDelay());
+        return;
+      }
+      _refusals = 0;
+      if (status >= 200 && status < 300) noteAcceptedApiKey();
       final accepted = (status >= 200 && status < 300) || status == 404;
       if (!accepted) {
-        _drop(SurfaceDeliveryReceiptPayload.fromEntries(remaining, 0), batch);
-        return;
+        final refused = _posts.first;
+        batch.countDropped(_presentations(refused.receipts) + refused.dropped);
       }
-      remaining = remaining.sublist(chunk.taken);
-      dropped = 0;
+      _posts = _posts.sublist(1);
+      _retried = false;
     }
   }
 
-  /// The longest prefix of [entries] that encodes under the route's limits,
-  /// always at least one entry so a post can make progress.
-  static _Chunk _chunk(
-    List<SurfaceDeliveryReceiptEntry> entries,
+  void _retryRefused(Duration delay) {
+    _retryTimer?.cancel();
+    _retryTimer = timerFactory(delay, () {
+      _retryTimer = null;
+      unawaited(flush());
+    });
+  }
+
+  /// The app came back to the foreground: a key given up earlier is tried
+  /// again.
+  void onAppResumed() {
+    _keyRefused = false;
+    _refusals = 0;
+  }
+
+  /// Retries once on a timer while a surface is mounted; otherwise what is
+  /// pending waits for the next flush.
+  void _retryLater(Duration delay) {
+    if (_closed || !_enabled || _mounted == 0 || _retried) {
+      _retried = false;
+      return;
+    }
+    _retried = true;
+    _retryTimer?.cancel();
+    _retryTimer = timerFactory(delay, () {
+      _retryTimer = null;
+      unawaited(flush());
+    });
+  }
+
+  /// Journals every unacknowledged receipt; writes coalesce.
+  void _scheduleSave() {
+    if (_fingerprint == null || _closed) return;
+    if (_saving != null) {
+      _saveAgain = true;
+      return;
+    }
+    _saving = _save().whenComplete(() {
+      _saving = null;
+      if (_saveAgain) {
+        _saveAgain = false;
+        _scheduleSave();
+      }
+    });
+  }
+
+  Future<void> _save() async {
+    await _restored;
+    final batch = SurfaceDeliveryReceiptBatch.instance;
+    final device = await batch.device();
+    final fingerprint = _fingerprint;
+    if (fingerprint == null) return;
+    // One synchronous snapshot of the queue and what is closed.
+    await _store.write((
+      fingerprint: fingerprint,
+      posts: _posts,
+      receipts: [
+        ..._unbatched,
+        for (final entry in batch.closedEntries(device))
+          jsonEncode(entry.receipt.toJson(entry.count)),
+      ],
+    ));
+  }
+
+  /// [receipts] with identical receipts coalesced, each count bounded.
+  static List<String> _merged(List<String> receipts) {
+    final counts = <String, int>{};
+    for (final receipt in receipts) {
+      final json = (jsonDecode(receipt) as Map).cast<String, Object?>();
+      final count = json.remove('count');
+      final key = jsonEncode(json);
+      counts[key] = (counts[key] ?? 0) + (count is int ? count : 1);
+    }
+    return [
+      for (final MapEntry(:key, value: count) in counts.entries)
+        for (var left = count;
+            left > 0;
+            left -= kSurfaceDeliveryReceiptMaximumCount)
+          jsonEncode({
+            ...(jsonDecode(key) as Map).cast<String, Object?>(),
+            'count': left > kSurfaceDeliveryReceiptMaximumCount
+                ? kSurfaceDeliveryReceiptMaximumCount
+                : left,
+          }),
+    ];
+  }
+
+  /// Forgets what is queued and returns the presentations it held.
+  int _discardPending() {
+    var presentations = _presentations(_unbatched);
+    for (final post in _posts) {
+      presentations += _presentations(post.receipts) + post.dropped;
+    }
+    _posts = <SurfaceDeliveryReceiptPost>[];
+    _unbatched = <String>[];
+    _retried = false;
+    return presentations;
+  }
+
+  static int _presentations(Iterable<String> receipts) {
+    var presentations = 0;
+    for (final receipt in receipts) {
+      presentations += switch (jsonDecode(receipt)) {
+        {'count': final int count} => count,
+        _ => 1,
+      };
+    }
+    return presentations;
+  }
+
+  /// [receipts] split into posts the route accepts, each under a new id,
+  /// with [dropped] reported in the first.
+  static List<SurfaceDeliveryReceiptPost> _batched(
+    List<String> receipts,
     int dropped,
   ) {
-    final encoded = <String>[];
-    const head = '{"receipts":[';
-    final tail = '],"dropped":$dropped}';
-    var size = head.length + tail.length;
-    for (final entry in entries) {
-      if (encoded.length == kSurfaceDeliveryReceiptMaximumPostReceipts) break;
-      final json = jsonEncode(entry.receipt.toJson(entry.count));
-      final growth = utf8.encode(json).length + (encoded.isEmpty ? 0 : 1);
-      if (encoded.isNotEmpty &&
-          size + growth > kSurfaceDeliveryReceiptMaximumPostBytes) {
-        break;
+    final posts = <SurfaceDeliveryReceiptPost>[];
+    var rest = receipts;
+    while (rest.isNotEmpty || (posts.isEmpty && dropped > 0)) {
+      final batchId = generateUuidV4();
+      final first = posts.isEmpty ? dropped : 0;
+      var size = utf8
+          .encode(_body((batchId: batchId, receipts: const [], dropped: first)))
+          .length;
+      var taken = 0;
+      for (final json in rest) {
+        if (taken == kSurfaceDeliveryReceiptMaximumPostReceipts) break;
+        final growth = utf8.encode(json).length + (taken == 0 ? 0 : 1);
+        if (taken > 0 &&
+            size + growth > kSurfaceDeliveryReceiptMaximumPostBytes) {
+          break;
+        }
+        size += growth;
+        taken += 1;
       }
-      encoded.add(json);
-      size += growth;
+      posts.add((
+        batchId: batchId,
+        receipts: rest.sublist(0, taken),
+        dropped: first,
+      ));
+      rest = rest.sublist(taken);
     }
-    return _Chunk(
-      taken: encoded.length,
-      body: '$head${encoded.join(',')}$tail',
-    );
+    return posts;
   }
+
+  /// The wire form of [post].
+  static String _body(SurfaceDeliveryReceiptPost post) =>
+      '{"batchId":${jsonEncode(post.batchId)},'
+      '"receipts":[${post.receipts.join(',')}],"dropped":${post.dropped}}';
 
   /// The flush interval spread by a quarter either way.
   Duration _spreadRetryDelay() {
@@ -250,36 +512,6 @@ final class SurfaceDeliveryReceiptUploader {
           (kSurfaceDeliveryReceiptFlushInterval.inMilliseconds * spread)
               .round(),
     );
-  }
-
-  void _requeue(
-    SurfaceDeliveryReceiptPayload payload,
-    SurfaceDeliveryReceiptBatch batch,
-    int generation,
-    bool canRetry,
-    Duration delay,
-  ) {
-    if (_closed ||
-        !canRetry ||
-        !_enabled ||
-        _mounted == 0 ||
-        generation != _generation) {
-      _drop(payload, batch);
-      return;
-    }
-    _retry = payload;
-    _retryTimer?.cancel();
-    _retryTimer = timerFactory(delay, () {
-      _retryTimer = null;
-      unawaited(flush());
-    });
-  }
-
-  void _drop(
-    SurfaceDeliveryReceiptPayload payload,
-    SurfaceDeliveryReceiptBatch batch,
-  ) {
-    batch.countDropped(payload.presentations + payload.dropped);
   }
 
   void _armPeriodic() {
@@ -301,9 +533,6 @@ final class SurfaceDeliveryReceiptUploader {
     _periodic = null;
     _retryTimer?.cancel();
     _retryTimer = null;
-    final parked = _retry;
-    _retry = null;
-    if (parked != null) _drop(parked, SurfaceDeliveryReceiptBatch.instance);
   }
 
   void _close() {
@@ -311,11 +540,4 @@ final class SurfaceDeliveryReceiptUploader {
     _enabled = false;
     _cancelTimers();
   }
-}
-
-final class _Chunk {
-  const _Chunk({required this.taken, required this.body});
-
-  final int taken;
-  final String body;
 }

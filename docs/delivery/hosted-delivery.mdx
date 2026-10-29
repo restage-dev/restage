@@ -139,13 +139,13 @@ listed under [Older names](/authoring/write-a-surface#older-names).
 Every standalone screen uses the same widget, whatever its category:
 
 ```dart
-RestageScreen<MaintenanceNoticeEvent>(
+RestageScreen<MaintenanceNoticeSurfaceEvent>(
   screen: maintenanceNoticeRef,
   unavailable: SurfaceScreenUnavailablePolicy.fallback(
     builder: (context, error) => const Text('Notice unavailable'),
   ),
   onEvent: (event) {
-    if (event is MaintenanceNoticeDismissEvent) {
+    if (event is MaintenanceNoticeSurfaceDismissEvent) {
       Navigator.of(context).maybePop();
     }
   },

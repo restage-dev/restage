@@ -2,6 +2,39 @@ part of '../reel_cancel.dart';
 
 // ignore_for_file: type=lint
 
+const _reelCancelFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Expanded': buildExpanded,
+      'GestureDetector': buildGestureDetector,
+      'Padding': buildPadding,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Text': buildText,
+    },
+    material: {
+      'AppBar': buildAppBar,
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'Scaffold': buildScaffold,
+      'TextButton': buildTextButton,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf636: IconData(0xf636, fontFamily: 'MaterialIcons'),
+    },
+  }, mirrored: {
+    'MaterialIcons': {
+      0xf63b: IconData(0xf63b,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+    },
+  }),
+);
+
 const reelCancelFlowRef = SurfaceFlowRef<
     ReelCancelResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'reel_cancel',
@@ -23,38 +56,7 @@ const reelCancelFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '057157cac2db926ca766bbb7e629704b01e201dd2caf433b9724fa1b16275cba',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Expanded': buildExpanded,
-        'GestureDetector': buildGestureDetector,
-        'Padding': buildPadding,
-        'Row': buildRow,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Text': buildText,
-      },
-      material: {
-        'AppBar': buildAppBar,
-        'FilledButton': buildFilledButton,
-        'Icon': buildIcon,
-        'Scaffold': buildScaffold,
-        'TextButton': buildTextButton,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf636: IconData(0xf636, fontFamily: 'MaterialIcons'),
-      },
-    }, mirrored: {
-      'MaterialIcons': {
-        0xf63b: IconData(0xf63b,
-            fontFamily: 'MaterialIcons', matchTextDirection: true),
-      },
-    }),
-  ),
+  vocabulary: _reelCancelFlowRefVocabulary,
 );
 
 ReelCancelResult _decodeReelCancelFlowResult(Map<String, Object?> result) {

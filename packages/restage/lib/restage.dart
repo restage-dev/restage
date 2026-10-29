@@ -323,7 +323,8 @@ export 'package:restage_measurement_schema/restage_measurement_schema.dart'
 export 'package:rfw/rfw.dart'
     show ArgumentDecoders, DataSource, LocalWidgetBuilder;
 export 'src/runtime/restage_identity.dart';
-export 'src/runtime/restage_paywall.dart' hide debugClearRestagePaywallCache;
+export 'src/runtime/restage_paywall.dart'
+    hide debugClearRestagePaywallCache, paywallHostContext;
 export 'src/runtime/paywall_controller.dart';
 export 'src/runtime/paywall_error.dart';
 export 'src/runtime/state_variables.dart'

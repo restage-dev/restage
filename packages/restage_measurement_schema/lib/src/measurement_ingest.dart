@@ -1560,10 +1560,8 @@ Uint8List _decodeBase64Url(
   required String path,
   required int maximumBytes,
 }) {
-  if (value.isEmpty ||
-      value.contains('=') ||
-      !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value) ||
-      value.length > ((maximumBytes * 4 + 2) ~/ 3)) {
+  if (value.length > ((maximumBytes * 4 + 2) ~/ 3) ||
+      !isUnpaddedBase64UrlAlphabet(value)) {
     throw MeasurementIngestCodecException('invalid_base64url:$path');
   }
   try {

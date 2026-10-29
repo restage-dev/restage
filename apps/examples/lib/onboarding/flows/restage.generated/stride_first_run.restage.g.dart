@@ -2,6 +2,36 @@ part of '../stride_first_run.dart';
 
 // ignore_for_file: type=lint
 
+const _strideFirstRunFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Expanded': buildExpanded,
+      'Padding': buildPadding,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Text': buildText,
+    },
+    material: {
+      'AppBar': buildAppBar,
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'Scaffold': buildScaffold,
+      'TextButton': buildTextButton,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf635: IconData(0xf635, fontFamily: 'MaterialIcons'),
+      0xf6b8: IconData(0xf6b8, fontFamily: 'MaterialIcons'),
+      0xf768: IconData(0xf768, fontFamily: 'MaterialIcons'),
+      0xf0026: IconData(0xf0026, fontFamily: 'MaterialIcons'),
+    },
+  }),
+);
+
 const strideFirstRunFlowRef = SurfaceFlowRef<
     Map<String, Object?>>.generatedWithMeasurementPublicationDraftDigest(
   id: 'stride_first_run',
@@ -23,35 +53,7 @@ const strideFirstRunFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '8edf2e9f6076e709cd4ebeac45af4cd63f3256ece346cca20aa31d95cc72186f',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Expanded': buildExpanded,
-        'Padding': buildPadding,
-        'Row': buildRow,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Text': buildText,
-      },
-      material: {
-        'AppBar': buildAppBar,
-        'FilledButton': buildFilledButton,
-        'Icon': buildIcon,
-        'Scaffold': buildScaffold,
-        'TextButton': buildTextButton,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf635: IconData(0xf635, fontFamily: 'MaterialIcons'),
-        0xf6b8: IconData(0xf6b8, fontFamily: 'MaterialIcons'),
-        0xf768: IconData(0xf768, fontFamily: 'MaterialIcons'),
-        0xf0026: IconData(0xf0026, fontFamily: 'MaterialIcons'),
-      },
-    }),
-  ),
+  vocabulary: _strideFirstRunFlowRefVocabulary,
 );
 
 Map<String, Object?> _decodeStrideFirstRunFlowResult(

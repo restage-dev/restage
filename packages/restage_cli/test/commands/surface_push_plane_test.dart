@@ -83,6 +83,7 @@ void main() {
                 'runtimePlane': plane,
               },
           ],
+          'legacyDefaultTargetIds': <Object>[],
           'surfaces': <Object>[],
         }),
         200,

@@ -88,6 +88,12 @@ void main() {
               'memberships': <Object>[],
               'workspaceExperiences': <Object>[],
             },
+            'projects': <Object>[],
+            'apps': <Object>[],
+            'environments': <Object>[],
+            'environmentTargets': <Object>[],
+            'legacyDefaultTargetIds': <Object>[],
+            'surfaces': <Object>[],
           }),
           200,
         ),
@@ -444,6 +450,7 @@ void main() {
             'runtimePlane': 'sandbox',
           },
         ],
+        'legacyDefaultTargetIds': <Object>[],
         'surfaces': <Object>[],
         'apiKeys': [
           {

@@ -2,21 +2,22 @@ part of '../get_started_screen.dart';
 
 // ignore_for_file: type=lint
 
-sealed class GetStartedScreenEvent {
-  const GetStartedScreenEvent();
+sealed class GetStartedScreenSurfaceEvent {
+  const GetStartedScreenSurfaceEvent();
 }
 
-final class GetStartedScreenContinueEventEvent extends GetStartedScreenEvent {
-  const GetStartedScreenContinueEventEvent(this.value);
+final class GetStartedScreenSurfaceContinueEventEvent
+    extends GetStartedScreenSurfaceEvent {
+  const GetStartedScreenSurfaceContinueEventEvent(this.value);
 
   final String value;
 }
 
 final _getStartedScreenEvents =
-    SurfaceScreenEventContract<GetStartedScreenEvent>.generated(
+    SurfaceScreenEventContract<GetStartedScreenSurfaceEvent>.generated(
       hash:
           'sha256:528895db4d56cf54e7293e34be342265bdf0d414f70213361a21084810bdf593',
-      decodeValidated: _decodeValidatedGetStartedScreenEvent,
+      decodeValidated: _decodeValidatedGetStartedScreenSurfaceEvent,
     );
 
 final _getStartedScreenProvenance = SurfaceScreenRuntimeProvenance.generated(
@@ -41,7 +42,7 @@ final _getStartedScreenProvenance = SurfaceScreenRuntimeProvenance.generated(
 
 final getStartedScreenRef =
     SurfaceScreenRef<
-      GetStartedScreenEvent
+      GetStartedScreenSurfaceEvent
     >.generatedWithMeasurementPublicationDraftDigest(
       provenance: _getStartedScreenProvenance,
       eventContract: _getStartedScreenEvents,
@@ -49,13 +50,15 @@ final getStartedScreenRef =
           '7f2489841a7737ed05008ce9c08cb4644704c9de28050d7283bcddf2c16a1e18',
     );
 
-GetStartedScreenEvent _decodeValidatedGetStartedScreenEvent(
+GetStartedScreenSurfaceEvent _decodeValidatedGetStartedScreenSurfaceEvent(
   String name,
   Map<String, Object?> arguments,
 ) {
   switch (name) {
     case 'continue':
-      return GetStartedScreenContinueEventEvent(arguments['value'] as String);
+      return GetStartedScreenSurfaceContinueEventEvent(
+        arguments['value'] as String,
+      );
   }
   throw FormatException('Invalid GetStartedScreen event "$name".');
 }
@@ -78,6 +81,7 @@ final _getStartedScreenPlacementDefinitionValue =
           'presentation': 'inline',
         },
         'providedContext': <String, Object?>{
+          'schemaVersion': 1,
           'inputs': <String, Object?>{
             'context': <String, Object?>{'kind': 'string'},
             'data': <String, Object?>{'kind': 'string'},
@@ -87,7 +91,6 @@ final _getStartedScreenPlacementDefinitionValue =
             'title': <String, Object?>{'kind': 'string'},
             'usage': <String, Object?>{'kind': 'string'},
           },
-          'schemaVersion': 1,
         },
         'handledEvents': <String, Object?>{
           'schemaVersion': 1,
@@ -209,7 +212,7 @@ final class GetStartedScreenSurface extends StatelessWidget {
   final String _restageArgument9;
   final String? _restagePlacementName;
 
-  final ValueChanged<GetStartedScreenEvent>? onEvent;
+  final ValueChanged<GetStartedScreenSurfaceEvent>? onEvent;
 
   final SurfaceScreenResolver? resolver;
 
@@ -221,7 +224,7 @@ final class GetStartedScreenSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<GetStartedScreenEvent>(
+    return RestageScreen<GetStartedScreenSurfaceEvent>(
       screen: getStartedScreenRef,
       placementBinding: RestageScreen.generatedPlacementBinding(
         definition: getStartedScreenPlacementDefinition,

@@ -2,6 +2,36 @@ part of '../first_run.dart';
 
 // ignore_for_file: type=lint
 
+const _firstRunFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Expanded': buildExpanded,
+      'Padding': buildPadding,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Text': buildText,
+    },
+    material: {
+      'AppBar': buildAppBar,
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'Scaffold': buildScaffold,
+      'TextButton': buildTextButton,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf5fe: IconData(0xf5fe, fontFamily: 'MaterialIcons'),
+      0xf636: IconData(0xf636, fontFamily: 'MaterialIcons'),
+      0xf0026: IconData(0xf0026, fontFamily: 'MaterialIcons'),
+      0xf0144: IconData(0xf0144, fontFamily: 'MaterialIcons'),
+    },
+  }),
+);
+
 const firstRunFlowRef = SurfaceFlowRef<
     FirstRunResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'first_run',
@@ -23,35 +53,7 @@ const firstRunFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       'cad28ee72785f051e84ae303de19fc0bef0d14ea8f4603f227f951ebd4d4eba8',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Expanded': buildExpanded,
-        'Padding': buildPadding,
-        'Row': buildRow,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Text': buildText,
-      },
-      material: {
-        'AppBar': buildAppBar,
-        'FilledButton': buildFilledButton,
-        'Icon': buildIcon,
-        'Scaffold': buildScaffold,
-        'TextButton': buildTextButton,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf5fe: IconData(0xf5fe, fontFamily: 'MaterialIcons'),
-        0xf636: IconData(0xf636, fontFamily: 'MaterialIcons'),
-        0xf0026: IconData(0xf0026, fontFamily: 'MaterialIcons'),
-        0xf0144: IconData(0xf0144, fontFamily: 'MaterialIcons'),
-      },
-    }),
-  ),
+  vocabulary: _firstRunFlowRefVocabulary,
 );
 
 FirstRunResult _decodeFirstRunFlowResult(Map<String, Object?> result) {

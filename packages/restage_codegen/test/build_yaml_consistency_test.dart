@@ -207,6 +207,7 @@ void main() {
           'lib/src/surface_publication/surface_publication.compiler.json',
           'lib/src/measurement/restage.measurement.compiler.json',
           'lib/src/measurement/restage.analytics-id.control.json',
+          'lib/src/surface_publication/surface_capture.compiler.json',
         ],
       );
     });

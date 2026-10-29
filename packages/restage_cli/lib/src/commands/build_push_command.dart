@@ -25,6 +25,8 @@ import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
 import 'package:restage_cli/src/render_bundles/push_target.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
+import 'package:restage_cli/src/render_bundles/surface_capture_source.dart'
+    show SurfaceCaptureSourceException, SurfaceCaptureWrapper;
 
 /// Environment variable carrying a secret key for an unattended push. It is
 /// read here only; a flag or the configuration file cannot supply it.
@@ -154,6 +156,20 @@ final class BuildPushCommand extends Command<int> {
     final directory = Directory(argResults?['directory'] as String? ?? '.');
     final loaded = await loadRestageConfig(from: directory);
     final projectRoot = loaded?.source.parent ?? directory.absolute;
+    // Read before anything slow: the bundle draws every surface inside it.
+    final SurfaceCaptureWrapper? previewWrapper;
+    try {
+      previewWrapper = switch (loaded?.config.previewWrapper) {
+        final spec? => SurfaceCaptureWrapper.parse(
+          spec,
+          projectRoot: projectRoot,
+        ),
+        null => null,
+      };
+    } on SurfaceCaptureSourceException catch (error) {
+      _stderr.writeln('Could not build the render bundle: ${error.reason}.');
+      return 1;
+    }
     var project = (argResults?['project'] as String?) ?? loaded?.config.project;
     var app = (argResults?['app'] as String?) ?? loaded?.config.app;
     final environment = _environment ?? Platform.environment;
@@ -271,8 +287,8 @@ final class BuildPushCommand extends Command<int> {
       }
       return await _push(
         api: api,
-        config: loaded?.config,
-        configDirectory: loaded?.source.parent,
+        loaded: loaded,
+        previewWrapper: previewWrapper,
         projectRoot: projectRoot,
         project: project,
         app: app,
@@ -286,8 +302,8 @@ final class BuildPushCommand extends Command<int> {
 
   Future<int> _push({
     required RestageApi api,
-    required RestageConfig? config,
-    required Directory? configDirectory,
+    required LoadedConfig? loaded,
+    required SurfaceCaptureWrapper? previewWrapper,
     required Directory projectRoot,
     required String project,
     required String app,
@@ -299,7 +315,7 @@ final class BuildPushCommand extends Command<int> {
 
     final organizationSlug = resolveOrganizationSlug(
       argResults,
-      config,
+      loaded?.config,
     )?.trim();
     final recordGit = argResults?['record-git'] as bool? ?? false;
     ReleaseRecorder? recorder;
@@ -327,7 +343,7 @@ final class BuildPushCommand extends Command<int> {
       flutter = await _flutterToolchain(
         projectRoot: projectRoot,
         flagRoot: _flagFlutterRoot(),
-        configRoot: _configFlutterRoot(config, configDirectory),
+        configRoot: _configFlutterRoot(loaded?.config, loaded?.source.parent),
       );
     } on FlutterToolchainException catch (error) {
       _stderr.writeln('Could not build the render bundle. ${error.message}');
@@ -370,6 +386,7 @@ final class BuildPushCommand extends Command<int> {
         parentOrigin: origins.dashboardOrigin,
         controlOrigin: origins.bundleOrigin,
         flutterExecutable: flutter.executable,
+        previewWrapper: previewWrapper,
       );
     } on RenderBundleBuildException catch (error) {
       return _reportBuildFailure(error);
@@ -409,21 +426,18 @@ final class BuildPushCommand extends Command<int> {
     try {
       int? organizationId;
       if (!withKey) {
-        // The shared resolver can render raw backend details. Suppress that
-        // sink so this upload path preserves its generic-error contract.
-        final suppressedResolutionErrors = StringBuffer();
-        final configuredOrganization = await resolveConfiguredOrganization(
-          api: api,
-          config: config,
-          stderr: suppressedResolutionErrors,
-          preferredSlug: organizationSlug,
-          organizationId: organizationIdOption(argResults),
-        );
-        if (configuredOrganization == null) {
-          _stderr.writeln('Could not resolve organization context.');
+        try {
+          organizationId = await resolveOrganizationId(
+            api: api,
+            loaded: loaded,
+            preferredSlug: organizationSlug,
+            organizationId: organizationIdOption(argResults),
+            notices: _stderr,
+          );
+        } on TargetSelectionException catch (e) {
+          _stderr.writeln(e.message);
           return 1;
         }
-        organizationId = configuredOrganization.organizationId;
       }
       renderBundles = RenderBundleApi(
         rpc: api,
@@ -575,8 +589,7 @@ String _buildFailureMessage(RenderBundleBuildException error) {
       'the temporary directory ${detail ?? ''} could not be made private. '
           'Set TMPDIR to a directory you own and push again.',
     RenderBundleBuildFailure.flutterBuildFailed =>
-      '`flutter build web` failed. Run `flutter build web --wasm` in '
-          '$project to see why.',
+      '`flutter build web` failed. ${error.log == null ? 'Run `flutter build web --wasm` in $project to see why.' : 'The last lines of its output:'}',
     RenderBundleBuildFailure.webOutputMissing =>
       '`flutter build web` wrote no index.html or flutter_bootstrap.js. Run '
           '`flutter build web --wasm` in $project to see why.',
@@ -608,6 +621,9 @@ String _buildFailureMessage(RenderBundleBuildException error) {
     RenderBundleBuildFailure.fileAccess =>
       'could not read or write ${detail ?? 'a build file'}. Check its '
           'permissions and free disk space, then push again.',
+    RenderBundleBuildFailure.bundleRule =>
+      'it broke the bundle rule `${detail ?? 'unknown'}`'
+          '${error.note == null ? '. $updateCli' : ': ${error.note}'}',
     RenderBundleBuildFailure.buildFailed =>
       'the build stopped on an unexpected ${detail ?? 'error'}. Push again. '
           'If it happens again, include the reason below when you report it.',
@@ -617,6 +633,7 @@ String _buildFailureMessage(RenderBundleBuildException error) {
   };
   return [
     'Could not build the render bundle: $sentence',
+    ?error.log,
     'Reason: ${error.reason.code}.',
     if (error.buildDirectory case final directory?)
       'Build directory: $directory',

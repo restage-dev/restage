@@ -401,7 +401,8 @@ const launch = FlowDefinition(
               'lib/features/restage.generated/announcement.restage.g.dart']!,
         ),
       ),
-      matches(RegExp(r'SurfaceScreenRef<\s*FeatureAnnouncementEvent\s*>')),
+      matches(
+          RegExp(r'SurfaceScreenRef<\s*FeatureAnnouncementSurfaceEvent\s*>')),
     );
     expect(
       utf8.decode(
@@ -1011,6 +1012,12 @@ final class PlainBadgeOffer extends StatelessWidget {
       expect(text, contains('PlainBadge(label: "streak")'));
       expect(text, contains('widget PlainBadge'));
     }
+    // A paywall whose mount passes nothing carries no host data.
+    final paywall = bundle.manifest!.publications
+        .map((entry) => entry.publication)
+        .singleWhere((publication) => publication.slug == 'plain_badge_offer');
+    expect(paywall.hostDataContract, isNull);
+    expect(paywall.hostDataContractHash, isNull);
   });
 
   test('leaves a dependency package to compile in its own build', () async {
@@ -1629,6 +1636,45 @@ const customOffer = UpgradeOfferSurface(
 ''',
       'apps_examples|lib/restage.generated/offer.restage.g.dart': generated,
     });
+  });
+
+  test('a paywall publishes what its mount passes as host data', () async {
+    const source = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/offer.restage.g.dart';
+
+@Paywall(id: 'upgrade_offer')
+final class UpgradeOffer extends StatelessWidget {
+  const UpgradeOffer({super.key, required this.price});
+  final String price;
+  @override
+  Widget build(BuildContext context) =>
+      Text(price, style: TextStyle(color: Theme.of(context).primaryColor));
+}
+''';
+    final readerWriter =
+        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      const {'apps_examples|lib/offer.dart': source},
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    final publication = bundle.manifest!.publications.single.publication;
+    final contract = publication.hostDataContract;
+    expect(contract, isNotNull);
+    expect(contract!.inputs.keys, contains('price'));
+    // The hoisted theme color is a value only the app can compute.
+    expect(
+      contract.inputs.keys.where((key) => key.startsWith('_h')),
+      hasLength(1),
+    );
+    expect(publication.hostDataContractHash, isNotNull);
   });
 
   test('borrows constructor native scalers through the typed binding scope',

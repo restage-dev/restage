@@ -2,6 +2,35 @@ part of '../lumen_trial_ending_flow.dart';
 
 // ignore_for_file: type=lint
 
+const _lumenTrialOfferRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Center': buildCenter,
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Expanded': buildExpanded,
+      'GestureDetector': buildGestureDetector,
+      'Padding': buildPadding,
+      'Positioned': buildPositioned,
+      'Row': buildRow,
+      'SingleChildScrollView': buildSingleChildScrollView,
+      'SizedBox': buildSizedBox,
+      'Stack': buildStack,
+      'Text': buildText,
+    },
+    material: {
+      'Icon': buildIcon,
+      'Scaffold': buildScaffold,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+      0xf0027: IconData(0xf0027, fontFamily: 'MaterialIcons'),
+    },
+  }),
+);
+
 const lumenTrialOfferRef = SurfaceFlowRef<
     LumenTrialOfferResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'lumen_trial_offer',
@@ -21,34 +50,7 @@ const lumenTrialOfferRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '412f51b23383bf60cfb11305d11d1ee2d0934de21afecc2e6aade06f11643417',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Center': buildCenter,
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Expanded': buildExpanded,
-        'GestureDetector': buildGestureDetector,
-        'Padding': buildPadding,
-        'Positioned': buildPositioned,
-        'Row': buildRow,
-        'SingleChildScrollView': buildSingleChildScrollView,
-        'SizedBox': buildSizedBox,
-        'Stack': buildStack,
-        'Text': buildText,
-      },
-      material: {
-        'Icon': buildIcon,
-        'Scaffold': buildScaffold,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
-        0xf0027: IconData(0xf0027, fontFamily: 'MaterialIcons'),
-      },
-    }),
-  ),
+  vocabulary: _lumenTrialOfferRefVocabulary,
 );
 
 LumenTrialOfferResult _decodeLumenTrialOfferResult(

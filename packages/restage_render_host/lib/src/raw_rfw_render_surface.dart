@@ -34,6 +34,7 @@ class RawRfwRenderSurface extends StatefulWidget {
     this.onRenderEvent,
     this.geometryRegistry,
     this.placeholderBuilder,
+    this.wrap,
     super.key,
   })  : blob = Uint8List.fromList(blob).asUnmodifiableView(),
         library = null,
@@ -53,6 +54,7 @@ class RawRfwRenderSurface extends StatefulWidget {
     this.onRenderEvent,
     this.geometryRegistry,
     this.placeholderBuilder,
+    this.wrap,
     super.key,
   })  :
         // This constructor narrows the nullable storage used by the blob path.
@@ -77,6 +79,9 @@ class RawRfwRenderSurface extends StatefulWidget {
 
   /// Draws a widget this surface cannot build; null draws a muted box.
   final RenderPlaceholderBuilder? placeholderBuilder;
+
+  /// Puts the app's own ancestors, such as its theme, above the surface.
+  final Widget Function(Widget child)? wrap;
 
   @override
   State<RawRfwRenderSurface> createState() => _RawRfwRenderSurfaceState();
@@ -323,14 +328,16 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
             data: theme,
             child: DefaultTextStyle(
               style: theme.textTheme.bodyMedium!,
-              child: RemoteWidget(
-                runtime: _runtime,
-                data: _data,
-                widget: FullyQualifiedWidgetName(
-                  _documentLibrary,
-                  widget.entryWidgetName,
+              child: (widget.wrap ?? _unwrapped)(
+                RemoteWidget(
+                  runtime: _runtime,
+                  data: _data,
+                  widget: FullyQualifiedWidgetName(
+                    _documentLibrary,
+                    widget.entryWidgetName,
+                  ),
+                  onEvent: widget.onRemoteEvent,
                 ),
-                onEvent: widget.onRemoteEvent,
               ),
             ),
           ),
@@ -468,3 +475,5 @@ Locale _parseLocale(String tag) {
   }
   return Locale.fromSubtags(languageCode: parts[0], countryCode: parts[1]);
 }
+
+Widget _unwrapped(Widget child) => child;

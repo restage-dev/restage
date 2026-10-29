@@ -8,10 +8,15 @@ import 'package:restage_cli/src/api/library_requirements_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/config/config_target_check.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/init/android_manifest_editor.dart';
 import 'package:restage_cli/src/libraries/library_contract_check.dart';
+import 'package:restage_cli/src/publication/publication_errors.dart';
+import 'package:restage_cli/src/publication/publication_outputs.dart';
+import 'package:restage_cli/src/render_bundles/surface_capture.dart';
 
 /// A build flag Restage apps no longer need.
 ///
@@ -113,6 +118,8 @@ class DoctorCommand extends Command<int> {
 
     await _checkConfig(root);
     await _checkLibraries(root);
+    await _checkBuildOutputIgnored(root);
+    await _checkAndroidInternet(root);
 
     if (evidence != null) {
       _stdout.writeln('WARN  Icon tree shaking is turned off');
@@ -193,6 +200,76 @@ class DoctorCommand extends Command<int> {
     }
   }
 
+  /// Warns when git would track the build's local metadata files.
+  Future<void> _checkBuildOutputIgnored(Directory root) async {
+    void line(String status, String detail) {
+      _stdout
+        ..writeln('$status  Build output ignored by git')
+        ..writeln('      $detail');
+    }
+
+    final String outputRoot;
+    try {
+      outputRoot =
+          await readConfiguredRestageOutputRoot(root) ??
+          defaultRestagePortableOutputRoot;
+    } on PublicationException {
+      return;
+    }
+    final tracked = <String>[];
+    for (final name in [
+      restagePublicationFileName,
+      surfaceCapturePlanFileName,
+    ]) {
+      final path = p.posix.join(outputRoot, 'metadata', name);
+      final ProcessResult result;
+      try {
+        result = await Process.run('git', [
+          'check-ignore',
+          '-q',
+          path,
+        ], workingDirectory: root.path);
+      } on ProcessException {
+        return;
+      }
+      // 0: ignored, 1: not ignored, anything else: not a git checkout.
+      if (result.exitCode == 1) {
+        tracked.add(path);
+      } else if (result.exitCode != 0) {
+        return;
+      }
+    }
+    if (tracked.isEmpty) {
+      line('PASS', 'Build output is ignored by git.');
+    } else {
+      line(
+        'WARN',
+        "Git doesn't ignore these build files: ${tracked.join(', ')}. Add "
+            'them to .gitignore.',
+      );
+    }
+  }
+
+  /// Warns when release builds of the Android app cannot reach the network.
+  Future<void> _checkAndroidInternet(Directory root) async {
+    final manifest = File(p.join(root.path, androidMainManifestPath));
+    if (!manifest.existsSync()) return;
+    final allowed = androidManifestAllowsInternet(
+      await manifest.readAsString(),
+    );
+    _stdout
+      ..writeln('${allowed ? 'PASS' : 'WARN'}  Android network permission')
+      ..writeln(
+        allowed
+            ? '      The main AndroidManifest.xml requests the INTERNET '
+                  'permission.'
+            : "      The main AndroidManifest.xml doesn't request the INTERNET "
+                  'permission. Release builds may not reach Restage. Add '
+                  '`<uses-permission android:name="android.permission.INTERNET"/>` '
+                  'to it, or run `restage init`.',
+      );
+  }
+
   /// Warns about live versions this build's library contracts stop rendering.
   Future<void> _checkLibraries(Directory root) async {
     void line(String status, String detail) {
@@ -242,9 +319,19 @@ class DoctorCommand extends Command<int> {
         httpClient: _httpClient,
         credential: credential,
       );
-      final live = await LibraryRequirementsApi(
-        api,
-      ).liveLibraryRequirements(project: project, app: app);
+      final organizationSlug = loaded.config.organization;
+      final organizationId = organizationSlug == null
+          ? null
+          : (await readConfiguredScope(
+              api,
+              loaded: loaded,
+              organizationSlug: organizationSlug,
+            )).organizationId;
+      final live = await LibraryRequirementsApi(api).liveLibraryRequirements(
+        project: project,
+        app: app,
+        organizationId: organizationId,
+      );
       final breaks = findLibraryBreaks(live: live, compatibleSince: since);
       if (breaks.isEmpty) {
         line('PASS', 'All versions in use render on this build.');
@@ -258,6 +345,8 @@ class DoctorCommand extends Command<int> {
       line('SKIP', error.toString());
     } on RestageApiException catch (error) {
       line('SKIP', renderApiError(error).message);
+    } on TargetSelectionException catch (error) {
+      line('SKIP', error.message);
     } on SocketException catch (error) {
       line('SKIP', backendUnreachableMessage(api?.endpoint, error));
     } finally {

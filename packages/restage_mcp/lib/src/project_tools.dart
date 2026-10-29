@@ -46,7 +46,9 @@ final _initTool = Tool(
       ),
       'organizationId': organizationIdProperty,
       'runtimePlane': UntitledSingleSelectEnumSchema(
-        description: 'Default runtime plane: sandbox (default) or live.',
+        description:
+            'Default runtime plane: sandbox or live. Omit it to use the plane '
+            'the environment is on, sandbox first.',
         values: runtimePlaneWireNames,
       ),
       'starter': Schema.bool(
@@ -54,8 +56,14 @@ final _initTool = Tool(
       ),
       'addDependencies': Schema.bool(
         description:
-            'Add the restage, restage_codegen and build_runner dependencies '
-            'to pubspec.yaml (default true).',
+            'Add the restage and restage_material dependencies plus '
+            'restage_codegen and build_runner to pubspec.yaml (default true).',
+      ),
+      'previewWrapper': Schema.string(
+        description:
+            'A function in lib/ that wraps push images with what the app '
+            'provides above its screens, such as a theme: '
+            'lib/restage_preview.dart#wrapPreview.',
       ),
       'dryRun': Schema.bool(
         description: 'Report the planned changes without writing them.',
@@ -118,6 +126,10 @@ Future<CallToolResult> _init(
     request.str('environmentSlug'),
     if (organization != null) ...['--organization', organization.slug],
     if (request.optStr('runtimePlane') case final plane?) ...['--plane', plane],
+    if (request.optStr('previewWrapper') case final wrapper?) ...[
+      '--preview-wrapper',
+      wrapper,
+    ],
     if (request.optBool('starter') == false) '--no-starter',
     if (request.optBool('addDependencies') == false) '--no-add-deps',
     if (request.optBool('dryRun') ?? false) '--dry-run',

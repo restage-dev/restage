@@ -114,10 +114,18 @@ bool textLowersToRichText(InstanceCreationExpression expr) {
   if (instanceCreationMemberName(expr) == 'rich') return true;
   for (final argument in expr.argumentList.arguments) {
     if (argument is NamedArgument) continue;
-    return argument is StringInterpolation;
+    return isInterpolatedString(argument);
   }
   return false;
 }
+
+/// Whether [expression] is a string literal with an interpolated part,
+/// directly or among adjacent strings.
+bool isInterpolatedString(AstNode? expression) => switch (expression) {
+      StringInterpolation() => true,
+      AdjacentStrings(:final strings) => strings.any(isInterpolatedString),
+      _ => false,
+    };
 
 /// Whether [invocation] spells the `Text.rich` constructor. A named
 /// constructor stays a call where the analyzer has not rewritten it, so both

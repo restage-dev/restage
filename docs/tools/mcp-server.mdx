@@ -180,11 +180,12 @@ before the dashboard can show it.
 | `restage_get_app_config` | An app's iOS bundle id, Android package, and web domain. |
 | `restage_update_app_config` | Update them (admin). |
 | `restage_list_api_keys` | List an environment's API keys, with the secrets removed. |
+| `restage_mint_api_key` | Mint a public key (admin). The key is returned in full. |
 | `restage_revoke_api_key` | Revoke a key (admin). |
 | `restage_resolve_api_key` | Find the organization, project, app, environment, and plane a key belongs to. The key is matched against key prefixes locally and never sent. |
 
-Neither the server nor the CLI creates API keys, because a new key's secret is shown
-only once. Create keys in the dashboard.
+Public keys ship inside your app, so `restage_mint_api_key` returns the key in full.
+Secret keys are shown only once, so they are created in the dashboard.
 
 **Audit.** `restage_audit_log`, `restage_audit_export`, and `restage_audit_verdict` read
 the organization's audit log, its compliance rows, and whether its audit chain verifies.
