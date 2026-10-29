@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show
         MeasurementOrderedCaptureDeclarationV1,
-        kHostListItemPositionKey,
         kLocalValueSetEventName,
         kMeasurementPublicationItemArgumentKeyV1,
         kMeasurementPublicationReservedArgumentPrefixV1,
@@ -13,6 +12,7 @@ import 'package:restage_shared/src/fonts/sfnt_cmap.dart';
 import 'package:restage_shared/src/rfw_formats.dart' hide WidgetLibrary;
 import 'package:restage_shared/src/surface_contract/screen_event_names.dart'
     show kReservedCommerceEventNames;
+import 'package:restage_shared/src/surface_document/measurement_tap_item.dart';
 import 'package:restage_shared/src/surface_document/surface_document.dart';
 import 'package:restage_shared/src/surface_feature_client_floor.dart';
 
@@ -156,12 +156,9 @@ bool _validateEvents(RemoteWidgetLibrary library) {
         if (eventArguments.containsKey(
           kMeasurementPublicationItemArgumentKeyV1,
         )) {
-          final item = eventArguments[kMeasurementPublicationItemArgumentKeyV1];
-          final admitted = item is String ||
-              (item is LoopReference &&
-                  item.parts.length == 1 &&
-                  item.parts.single == kHostListItemPositionKey);
-          if (!admitted) {
+          if (!isMeasurementTapItemV1(
+            eventArguments[kMeasurementPublicationItemArgumentKeyV1],
+          )) {
             throw const FormatException(
               'A tap item must be a literal string or its list element index.',
             );

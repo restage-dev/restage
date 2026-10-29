@@ -39,6 +39,7 @@ void main() {
               'apps': <Object>[],
               'environments': <Object>[],
               'environmentTargets': <Object>[],
+              'legacyDefaultTargetIds': <Object>[],
               'surfaces': <Object>[],
             }),
           );

@@ -303,6 +303,9 @@ enum ExperimentAuthoringRefusalCodeV1 {
   deniedAction('deniedAction'),
   targetMismatch('targetMismatch'),
   incompatibleReference('incompatibleReference'),
+
+  /// A revision was published before its contract version changed.
+  revisionSuperseded('revisionSuperseded'),
   capabilityUnavailable('capabilityUnavailable'),
 
   /// A count numerator is unsupported for rate analysis.
@@ -8585,6 +8588,7 @@ final class ExperimentAuthoringRefusalV1 extends _ExperimentAuthoringValue {
     required this.retryable,
     this.detail,
     this.locator,
+    this.supersededRevision,
   }) : super(json);
 
   /// Decodes strict refusal details.
@@ -8600,6 +8604,7 @@ final class ExperimentAuthoringRefusalV1 extends _ExperimentAuthoringValue {
         'messageKey',
         'retryable',
         'schemaVersion',
+        'supersededRevision',
       },
       requiredKeys: const {
         'code',
@@ -8635,6 +8640,14 @@ final class ExperimentAuthoringRefusalV1 extends _ExperimentAuthoringValue {
         'experimentAuthoringRefusal.locator requires validationBlocked',
       );
     }
+    final supersededRevision = reader.optionalObject('supersededRevision');
+    if ((supersededRevision != null) !=
+        (code == ExperimentAuthoringRefusalCodeV1.revisionSuperseded)) {
+      throw const CanonicalFormatException(
+        'experimentAuthoringRefusal.supersededRevision is carried exactly '
+        'by revisionSuperseded',
+      );
+    }
     return ExperimentAuthoringRefusalV1._(
       json,
       code: code,
@@ -8649,6 +8662,12 @@ final class ExperimentAuthoringRefusalV1 extends _ExperimentAuthoringValue {
           : ExperimentAudienceConflictLocatorV1.fromJson(
               locator,
               path: '$path.locator',
+            ),
+      supersededRevision: supersededRevision == null
+          ? null
+          : ExperimentSupersededRevisionV1.fromJson(
+              supersededRevision,
+              path: '$path.supersededRevision',
             ),
     );
   }
@@ -8665,6 +8684,87 @@ final class ExperimentAuthoringRefusalV1 extends _ExperimentAuthoringValue {
   /// Audience conflict returned only for `validationBlocked` when the caller
   /// requests typed issue locators. Other callers receive no locator field.
   final ExperimentAudienceConflictLocatorV1? locator;
+
+  /// The superseded revision, carried by every `revisionSuperseded` refusal
+  /// and by no other.
+  final ExperimentSupersededRevisionV1? supersededRevision;
+}
+
+/// A revision published before its surface's contract version changed.
+///
+/// Revisions from [definedFromRevision] on carry the current contract.
+final class ExperimentSupersededRevisionV1 extends _ExperimentAuthoringValue {
+  ExperimentSupersededRevisionV1._(
+    super.json, {
+    required this.surfaceSlug,
+    required this.contractVersion,
+    required this.publishedRevision,
+    required this.definedFromRevision,
+  });
+
+  /// Decodes a strict superseded revision.
+  factory ExperimentSupersededRevisionV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'contractVersion',
+        'definedFromRevision',
+        'kind',
+        'publishedRevision',
+        'surfaceSlug',
+      },
+      requiredKeys: const {
+        'contractVersion',
+        'definedFromRevision',
+        'kind',
+        'publishedRevision',
+        'surfaceSlug',
+      },
+      path: path,
+    );
+    _requireKind(reader, 'supersededRevision');
+    final publishedRevision = _positiveInteger(
+      reader.integer('publishedRevision'),
+      '$path.publishedRevision',
+    );
+    final definedFromRevision = _positiveInteger(
+      reader.integer('definedFromRevision'),
+      '$path.definedFromRevision',
+    );
+    if (publishedRevision >= definedFromRevision) {
+      throw CanonicalFormatException(
+        '$path.publishedRevision must precede definedFromRevision',
+      );
+    }
+    return ExperimentSupersededRevisionV1._(
+      json,
+      surfaceSlug: _boundedString(
+        reader.string('surfaceSlug'),
+        '$path.surfaceSlug',
+      ),
+      contractVersion: _positiveInteger(
+        reader.integer('contractVersion'),
+        '$path.contractVersion',
+      ),
+      publishedRevision: publishedRevision,
+      definedFromRevision: definedFromRevision,
+    );
+  }
+
+  /// The surface's slug.
+  final String surfaceSlug;
+
+  /// The contract version that changed.
+  final int contractVersion;
+
+  /// The superseded revision.
+  final int publishedRevision;
+
+  /// The first revision carrying the current contract.
+  final int definedFromRevision;
 }
 
 /// Closed result union for semantic experiment operations.

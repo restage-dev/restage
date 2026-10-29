@@ -8,6 +8,7 @@ const List<String> restagePortableOutputIgnorePatterns = <String>[
   '*.restage.md',
   'restage.outputs.json',
   'restage.publication.json',
+  'restage.capture.json',
   'restage_a2ui_catalog.a2ui.json',
   '!$restageBundledAssetsPattern',
 ];

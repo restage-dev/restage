@@ -8,9 +8,11 @@ import 'package:http/testing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/delivery/raced_surface_resolver.dart';
+import 'package:restage/src/delivery/render_deadline.dart';
 import 'package:restage/src/delivery/surface_artifact_store.dart';
 import 'package:restage/src/flow/flow_resolver.dart';
 import 'package:restage/src/resolver/placement_mount_resolver.dart';
+import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
@@ -22,6 +24,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../fixtures/compiled_surfaces/native_flow.dart';
 import '../support/placement_delivery_fixture.dart';
 import '../support/pump_until.dart';
+import '../support/sent_placement_request.dart';
 
 /// How the delivery service answers, and the reason a mount then reports.
 enum _Server {
@@ -275,15 +278,59 @@ void main() {
         key: () => null,
         identityGeneration: () => 0,
         registration: () async => null);
-    await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: NativeOfferSurface())));
-    await _finish(tester,
-        until: () => _reported(reports, 'enrollmentRequired'));
+    final lines = <String>[];
+    final print = debugPrint;
+    debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+    try {
+      await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: NativeOfferSurface())));
+      await _finish(tester,
+          until: () => _reported(reports, 'enrollmentRequired'));
+    } finally {
+      debugPrint = print;
+    }
     final shown = find.text('Offer original').evaluate().length;
     await tester.pumpWidget(const SizedBox());
     expect(shown, 1);
     expect(requests, isNot(contains(PlacementBatchModeV1.mount)));
     _expectReportedFallback(reports, 'enrollmentRequired');
+    expect(
+        lines.where((line) =>
+            line.contains('(enrollmentRequired)') &&
+            line.contains("experiment registration couldn't be saved. The "
+                "request wasn't sent.")),
+        hasLength(1));
+  });
+
+  testWidgets('a registration slower than the input deadline says so',
+      (tester) async {
+    final requests = <PlacementBatchModeV1>[];
+    // A render deadline past the input deadline, so the key is still awaited.
+    final reports = _configure(_Server.nothingPublished, const {},
+        requests: requests, renderDeadline: const Duration(seconds: 15));
+    SurfaceAssignmentKeyProvider.install(
+        key: () => null,
+        identityGeneration: () => 0,
+        registration: () => Completer<SurfaceRegistrationAttempt?>().future);
+    final lines = <String>[];
+    final print = debugPrint;
+    debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+    try {
+      await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: NativeOfferSurface())));
+      await _finish(tester,
+          until: () => _reported(reports, 'enrollmentRequired'));
+    } finally {
+      debugPrint = print;
+    }
+    await tester.pumpWidget(const SizedBox());
+    expect(requests, isNot(contains(PlacementBatchModeV1.mount)));
+    expect(
+        lines.where((line) =>
+            line.contains('(enrollmentRequired)') &&
+            line.contains("registration wasn't saved within 2 s. The "
+                "request wasn't sent.")),
+        hasLength(1));
   });
 
   test('a queued fetch keeps the earlier answer until its own arrives',
@@ -302,11 +349,12 @@ void main() {
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
         httpClient: MockClient((request) async {
+          final fixtureArtifact = placementFixtureArtifact(request);
+          if (fixtureArtifact != null) return fixtureArtifact;
           calls += 1;
           if (calls == 1) return http.Response('', 503);
           await second.future;
-          final batch =
-              PlacementBatchRequestV1.fromCanonicalBytes(request.bodyBytes);
+          final batch = sentPlacementRequest(request.bodyBytes);
           return http.Response.bytes(
               _nothingPublished(batch).canonicalBytes, 200);
         }));
@@ -372,6 +420,7 @@ List<SurfaceResolutionReport> _configure(
     {List<PlacementBatchModeV1>? requests,
     Duration delay = Duration.zero,
     void Function(bool started)? onMountRequest,
+    Duration renderDeadline = RenderDeadline.defaultDuration,
     List<RestageSurfaceRef> extraSurfaces = const []}) {
   final reports = <SurfaceResolutionReport>[];
   Restage.configure(
@@ -387,6 +436,7 @@ List<SurfaceResolutionReport> _configure(
         ...extraSurfaces,
       ],
       liveRefresh: liveRefresh,
+      renderDeadline: renderDeadline,
       onSurfaceResolution: reports.add);
   debugResetInstallObservations();
   debugSetOsVersion(19);
@@ -396,11 +446,12 @@ List<SurfaceResolutionReport> _configure(
       baseUrl: 'https://example.com',
       apiKey: 'rs_pk_test',
       httpClient: MockClient((request) async {
+        final fixtureArtifact = placementFixtureArtifact(request);
+        if (fixtureArtifact != null) return fixtureArtifact;
         if (request.url.path != '/sdk/v1/placements/resolve') {
           return http.Response('', 404);
         }
-        final batch =
-            PlacementBatchRequestV1.fromCanonicalBytes(request.bodyBytes);
+        final batch = sentPlacementRequest(request.bodyBytes);
         requests?.add(batch.mode);
         final mount = batch.mode == PlacementBatchModeV1.mount;
         if (mount) onMountRequest?.call(true);
@@ -456,19 +507,18 @@ List<SurfaceResolutionReport> _configure(
 PlacementBatchResolvedV1 _nothingPublished(PlacementBatchRequestV1 request) {
   final target = readPlacementDeliveryFixture().target;
   return PlacementBatchResolvedV1(
-      request: request,
-      expectedTarget: target,
-      decisions: [
-        for (final mount in request.mounts)
-          PlacementBatchEntryV1.useFallback(
-              PlacementMountDescriptorV1(
-                  placement:
-                      PlacementIdentityV1(target: target, key: mount.key),
-                  hostContractHash: mount.hostContractHash),
-              PlacementBatchRefusalReasonV1.unavailable,
-              const []),
-      ],
-      artifacts: const []);
+    request: request,
+    expectedTarget: target,
+    decisions: [
+      for (final mount in request.mounts)
+        PlacementBatchEntryV1.useFallback(
+            PlacementMountDescriptorV1(
+                placement: PlacementIdentityV1(target: target, key: mount.key),
+                hostContractHash: mount.hostContractHash),
+            PlacementBatchRefusalReasonV1.unavailable,
+            const []),
+    ],
+  );
 }
 
 Future<void> _finish(WidgetTester tester,

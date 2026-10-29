@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/widgets.dart' show IconData;
+import 'package:meta/meta.dart' show internal;
 import 'package:restage_core/restage_core.dart'
     show InstalledIconTable, RestageIconTable;
 import 'package:restage_shared/restage_shared.dart'
@@ -63,10 +64,37 @@ Map<String, Set<int>> _installedCodePoints(RestageIconTable icons) {
 /// The capability contract this build presents to the delivery service: the
 /// built-in catalog version, the registered custom libraries, and the exact
 /// widgets and icons installed.
-InstalledCapability currentInstalledCapability() => InstalledCapability(
-      builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
-      installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
-      vocabulary: installedWidgetVocabulary(),
-    );
+InstalledCapability currentInstalledCapability() {
+  final vocabulary = installedWidgetVocabulary();
+  final revision = LibraryRuntimeRegistry.revision;
+  if (_capability case (final v, final r, final capability)
+      when identical(v, vocabulary) && r == revision) {
+    return capability;
+  }
+  final capability = InstalledCapability(
+    builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
+    installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
+    vocabulary: vocabulary,
+  );
+  _capability = (vocabulary, revision, capability);
+  return capability;
+}
+
+/// Takes [received], an equal copy of [sent] with its hash computed elsewhere,
+/// while [sent] is still current; returns the capability now current.
+@internal
+InstalledCapability adoptInstalledCapability(
+    InstalledCapability sent, InstalledCapability received) {
+  if (_capability case (final v, final r, final capability)
+      when identical(capability, sent)) {
+    _capability = (v, r, received);
+    return received;
+  }
+  return sent;
+}
+
+// The last capability, kept while the vocabulary and libraries it reports
+// are unchanged.
+(WidgetVocabulary, int, InstalledCapability)? _capability;
 
 WidgetVocabulary? _cached;

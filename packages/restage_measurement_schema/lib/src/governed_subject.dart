@@ -2187,9 +2187,7 @@ String _encodeBase64Url(List<int> bytes) =>
     base64Url.encode(bytes).replaceAll('=', '');
 
 Uint8List _decodeBase64Url(String value, {required String path}) {
-  if (value.isEmpty ||
-      value.contains('=') ||
-      !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value)) {
+  if (!isUnpaddedBase64UrlAlphabet(value)) {
     throw CanonicalFormatException('$path must be unpadded base64url');
   }
   try {

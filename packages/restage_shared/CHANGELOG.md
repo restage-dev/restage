@@ -9,6 +9,22 @@
 handle its installed native binding contract; native values cannot be sampled
 as JSON.
 
+- `SurfaceHostContractV1.withHosting` returns a copy with new hosting details,
+  reusing the contract's held encoding.
+- A fresh install's first startup request can ask for its surfaces' content
+  files with `holdsNoArtifacts`, and the answer carries them in
+  `inlineArtifacts`. A first launch can then show delivered content without a
+  second download.
+- `PlacementBatchArtifactV1.payload` returns the artifact's verified payload
+  bytes.
+- `surfaceTapElementName` names an element by its own literal `label`,
+  `title` or `text` argument, and by its optional `eventName` when nothing
+  else names it. `distinctSurfaceTapNames` numbers names that repeat.
+`SurfaceHostContractV1` is a `CanonicalValue` and an
+`ImmutableCanonicalDocument`: it encodes once, holds its `contentHash`, and
+compares by its canonical bytes. A `PlacementBuildContractV1` encodes its host
+contracts from those held bytes.
+
 Flow documents gain the `always` and `matches` host-action result predicates,
 and `actionResultPredicateSchemaIssue` checks a predicate against a result
 schema. `kJoinedStringClientFloor` is the client capability for text joined
@@ -28,6 +44,29 @@ through `package:restage_measurement_schema/restage_measurement_schema.dart`.
 The resolution input (`RfwCatalogOccurrenceResolutionInput`,
 `RfwCatalogConstructorProvenance`, `RfwCatalogLocalSymbol`) stays here, with
 its JSON unchanged.
+
+**Breaking:** placement batches no longer carry artifact content.
+`PlacementBatchRequestV1.heldArtifacts` and its constructor parameter are
+removed. `PlacementBatchResolvedV1.artifacts` is removed, with the `artifacts`
+and `heldArtifactBytes` parameters of the `PlacementBatchResolvedV1` and
+`PlacementBatchResponseV1` constructors, and the `heldArtifactBytes` parameter
+of `PlacementBatchResponseV1.fromCanonicalBytes` and `.fromJson`. A client
+fetches content by artifact identity and checks it with
+`validatePlacementContent` or `validatePlacementRowContent`.
+
+A placement request can name its build contract by hash alone.
+`PlacementBatchRequestV1.carriesBuildContract` says whether the wire form carries
+the contract, `withBuildContract(carried:)` changes it, and
+`PlacementBuildContractRequired` is thrown when a request names a contract the
+reader does not hold; a service answers it with `status` and `errorCode`.
+`PlacementBatchRequestV1.fromCanonicalBytes` takes `verifiedBuildContract`, and
+`.fromJson` takes the `sourceBytes` it was decoded from.
+`PlacementBatchResolvedV1.fromBuiltRows` assembles a response from rows already
+checked one by one. `PublicPlacementDeliveryV1.withCredentials` attaches a
+receipt or an assignment to a delivery. `SurfaceFitFailureV1.token` is the
+failure's fit token, and `capabilityFitTokens` lists the fit failure tokens for
+what a manifest needs that an installed capability lacks. Several placement
+values expose `toCanonicalTree`.
 
 `PlacementBatchUseFallbackV1` carries the service's signed `fallbackReceipt`,
 the `selectedSurface` the build cannot show, and the `routeId` of the rule that

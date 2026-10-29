@@ -6,6 +6,8 @@ abstract final class SurfaceAssignmentPersistence {
   static Future<Object?>? _writes;
   static Future<void>? _ready;
   static (Object, StackTrace)? _failure;
+  // Keys a failed removal dropped from the cache but may leave on the platform.
+  static final Set<String> _unremoved = {};
 
   static int get generation => _generation;
 
@@ -46,9 +48,18 @@ abstract final class SurfaceAssignmentPersistence {
       if (generation != _generation) return false;
       final prefs = await SharedPreferences.getInstance();
       if (generation != _generation) return false;
-      return prefs.setString(key, value);
+      _unsaved.add(key);
+      final saved = await prefs.setString(key, value);
+      if (saved) _unsaved.remove(key);
+      return saved;
     });
   }
+
+  // Keys whose last write in this process did not reach storage.
+  static final Set<String> _unsaved = {};
+
+  /// Whether the last write of [key] in this process did not reach storage.
+  static bool isUnsaved(String key) => _unsaved.contains(key);
 
   /// Removes one retained value in the same order as writes.
   static Future<bool> remove(String key, {required int generation}) async {
@@ -57,7 +68,7 @@ abstract final class SurfaceAssignmentPersistence {
       if (generation != _generation) return false;
       final prefs = await SharedPreferences.getInstance();
       if (generation != _generation) return false;
-      return prefs.remove(key);
+      return _remove(prefs, key);
     });
   }
 
@@ -70,12 +81,12 @@ abstract final class SurfaceAssignmentPersistence {
       try {
         await afterIdentityReset;
         final prefs = await SharedPreferences.getInstance();
-        // Failed platform writes/removals can still alter the preferences cache.
-        await prefs.reload();
-        for (final key in prefs.getKeys()) {
+        // The cache is shared with the app and never reloaded: a reload would
+        // drop writes made while it runs. Failed removals are retried instead.
+        for (final key in {...prefs.getKeys(), ..._unremoved}) {
           if (key.startsWith('restage.assignmentRegistration.') ||
               key.startsWith('restage.assignment.')) {
-            if (!await prefs.remove(key)) {
+            if (!await _remove(prefs, key)) {
               throw StateError('Assignment state could not be removed');
             }
           }
@@ -88,5 +99,12 @@ abstract final class SurfaceAssignmentPersistence {
         if (generation == _generation) _ready = null;
       }
     });
+  }
+
+  static Future<bool> _remove(SharedPreferences prefs, String key) async {
+    _unremoved.add(key);
+    final removed = await prefs.remove(key);
+    if (removed) _unremoved.remove(key);
+    return removed;
   }
 }

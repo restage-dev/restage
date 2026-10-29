@@ -184,9 +184,12 @@ class MaintenanceNotice extends f.StatelessWidget {
         ),
         emitted,
       );
-      expect(emitted, contains('sealed class MaintenanceNoticeEvent'));
-      expect(emitted, contains('MaintenanceNoticeDismissEvent'));
-      expect(emitted, contains('SurfaceScreenRef<MaintenanceNoticeEvent>'));
+      expect(emitted, contains('sealed class MaintenanceNoticeSurfaceEvent'));
+      expect(emitted, contains('MaintenanceNoticeSurfaceDismissEvent'));
+      expect(
+        emitted,
+        contains('SurfaceScreenRef<MaintenanceNoticeSurfaceEvent>'),
+      );
       expect(emitted, contains('Map<String, Object?> arguments'));
       expect(emitted, isNot(contains('artifactPath')));
       expect(emitted, isNot(contains('.validate')));
@@ -206,7 +209,7 @@ class MaintenanceNotice extends f.StatelessWidget {
       expect(emitted, isNot(contains(contract.contractFingerprint)));
       expect(
         sha256.convert(utf8.encode(emitted)).toString(),
-        '7de13bfe06a683c8bdd3099ddadaf2568d1f550989cbfa4e620444ed49fd9758',
+        '846ad69b9aad955915a5d941b942edc75a77cfec94645a8df190e2b7d61069d4',
         reason: emitted,
       );
     });
@@ -227,7 +230,10 @@ class MaintenanceNotice extends f.StatelessWidget {
       expect(parseString(content: emitted).errors, isEmpty, reason: emitted);
       expect(emitted, contains('SurfaceScreenEventContract<Never>.none'));
       expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
-      expect(emitted, isNot(contains('sealed class ServiceStatusEvent')));
+      expect(
+        emitted,
+        isNot(contains('sealed class ServiceStatusSurfaceEvent')),
+      );
       expect(emitted, isNot(contains('decodeValidated')));
     });
 
@@ -353,7 +359,10 @@ class MaintenanceNotice extends f.StatelessWidget {
       expect(inspection.issues, isEmpty);
       final emitted = inspection.contract!.emitReferenceDart();
       expect(parseString(content: emitted).errors, isEmpty, reason: emitted);
-      expect(emitted, contains('rs.SurfaceScreenRef<AliasedNoticeEvent>'));
+      expect(
+        emitted,
+        contains('rs.SurfaceScreenRef<AliasedNoticeSurfaceEvent>'),
+      );
       expect(emitted, contains('rs.Surface.general'));
     });
 
@@ -712,7 +721,7 @@ const hiddenPlacement = PositionalNoticeSurface.atPlacement('settings_card',
       await _assertGeneratedPartAnalyzes(
         '''
 $source
-void handleNotice(NamedNoticeEvent event) {}
+void handleNotice(NamedNoticeSurfaceEvent event) {}
 const originalCall = NamedNoticeSurface('original', count: 3,
   key: ValueKey('original'), onEvent: handleNotice,
   unavailable: SurfaceScreenUnavailablePolicy.hide());
@@ -4938,9 +4947,9 @@ part of '../maintenance_notice.dart';
 
 final warmNoticeRef = Object();
 final _warmNoticeEvents = Object();
-final _decodeValidatedWarmNoticeEvent = Object();
-final WarmNoticeEvent = Object();
-final WarmNoticeFinishEvent = Object();
+final _decodeValidatedWarmNoticeSurfaceEvent = Object();
+final WarmNoticeSurfaceEvent = Object();
+final WarmNoticeSurfaceFinishEvent = Object();
 ''',
         },
       );
@@ -5010,9 +5019,9 @@ part of '../maintenance_notice.dart';
 
 final foreignNoticeRef = Object();
 final _foreignNoticeEvents = Object();
-final _decodeValidatedForeignNoticeEvent = Object();
-final ForeignNoticeEvent = Object();
-final ForeignNoticeFinishEvent = Object();
+final _decodeValidatedForeignNoticeSurfaceEvent = Object();
+final ForeignNoticeSurfaceEvent = Object();
+final ForeignNoticeSurfaceFinishEvent = Object();
 ''',
         },
       );

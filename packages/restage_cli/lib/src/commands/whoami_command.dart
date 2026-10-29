@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/auth_api.dart';
+import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 
@@ -60,14 +63,14 @@ class WhoamiCommand extends Command<int> {
       _stdout.writeln(user.email ?? '(unknown identity)');
       return 0;
     } on RestageApiException catch (e) {
-      if (e.statusCode == 401 || e.statusCode == 403) {
-        _stderr.writeln(
-          'The stored credential is no longer accepted by the server. '
-          'Run `restage login` to refresh it.',
-        );
-        return 1;
-      }
-      _stderr.writeln('Could not contact the backend: ${e.body}');
+      final outcome = renderApiError(e);
+      _stderr.writeln(outcome.message);
+      return outcome.exitCode;
+    } on SocketException catch (e) {
+      _stderr.writeln(backendUnreachableMessage(api.endpoint, e));
+      return 2;
+    } on http.ClientException catch (e) {
+      _stderr.writeln(backendUnreachableMessage(api.endpoint, e));
       return 2;
     } finally {
       if (_httpClient == null) api.close();

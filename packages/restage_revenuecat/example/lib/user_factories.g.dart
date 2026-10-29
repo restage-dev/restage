@@ -3,6 +3,7 @@
 // ignore_for_file: type=lint
 
 import 'package:restage/restage.dart';
+import 'restage_surfaces.g.dart';
 
 /// The built-in widgets and icons this package names in its
 /// own Dart, plus the catalog entries its compiled surfaces
@@ -59,6 +60,7 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
     bool includeCupertino = true,
   }) {
     kRestageAppVocabulary.addToInstalled(explicitSelection: true);
+    Restage.declareSurfaces(restageSurfaces);
   }
 }
 

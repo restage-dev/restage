@@ -164,18 +164,11 @@ final class SurfaceScreenRef<E> extends FlowScreenRef
     required this.eventContract,
   })  : surface = provenance.surface,
         capabilities = provenance.capabilities,
-        contractFingerprint = provenance.contractFingerprint,
         super(
           slug: provenance.slug,
           contractVersion: provenance.contractVersion,
         ) {
-    if (eventContract.hash != provenance.eventContractHash) {
-      throw ArgumentError.value(
-        eventContract.hash,
-        'eventContract',
-        'does not match the event schema in this screen provenance',
-      );
-    }
+    provenance.expectEventContractHash(eventContract.hash);
     // Puts the screen's widgets and icons in place for a reader that never
     // mounts it, such as a resolver. Each mount installs them again.
     provenance.vocabulary.addToInstalled();
@@ -211,7 +204,7 @@ final class SurfaceScreenRef<E> extends FlowScreenRef
   final Surface surface;
 
   /// Immutable hash binding the generated contract fields.
-  final String contractFingerprint;
+  String get contractFingerprint => provenance.contractFingerprint;
 
   /// Typed generated event conversion contract.
   final SurfaceScreenEventContract<E> eventContract;

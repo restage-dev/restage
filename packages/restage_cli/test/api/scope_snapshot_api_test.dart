@@ -34,6 +34,7 @@ void main() {
           'runtimePlane': 'live',
         },
       ],
+      'legacyDefaultTargetIds': <Object>[],
       'surfaces': <Object>[],
     });
 

@@ -28,6 +28,158 @@ void main() {
     }
   });
 
+  test('a server error exits 2 without echoing the body', () async {
+    await seedCredential(store, endpoint: 'https://api.example.com/');
+    final exitCode = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: mockHttpClient(
+        (_) => http.Response('internal secret detail', 500),
+        withDefaultTargetDiscovery: false,
+      ),
+    ).run(['status', '-C', tempDir.path]);
+    expect(exitCode, 2);
+    expect(stderr.toString(), contains('(HTTP 500)'));
+    expect(stderr.toString(), isNot(contains('secret')));
+  });
+
+  String unavailable(String name) =>
+      'No organization `$name` is available to this account. Check `org` in '
+      'your Restage config, or run `restage login` with an account that '
+      'belongs to it.';
+  const acme = [
+    {'organizationId': 7, 'slug': 'acme', 'name': 'Acme'},
+  ];
+  Future<(int, String)> run(
+    List<String> args, {
+    required String config,
+    required List<Map<String, dynamic>> organizations,
+    List<Map<String, dynamic>>? calls,
+  }) async {
+    await seedCredential(store, endpoint: 'https://api.example.com/');
+    final file = File(p.join(tempDir.path, 'restage_config.yaml'));
+    await file.writeAsString(
+      'project: alpha\napp: mobile\ndefaultEnvironment: staging\n$config',
+    );
+    final exitCode = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _statusClient(
+        workspaces: const [],
+        organizations: organizations,
+        refuseIds: {99},
+        calls: calls,
+      ),
+    ).run([...args, '-C', tempDir.path]);
+    return (exitCode, await file.readAsString());
+  }
+
+  for (final (family, args) in <(String, List<String>)>[
+    ('status', ['status']),
+    ('authed commands', ['surface', 'status', 'welcome']),
+  ]) {
+    test('$family: a stale cached id is re-resolved from the slug', () async {
+      final (exitCode, config) = await run(
+        args,
+        config: 'organization: acme\norganizationId: 99\n',
+        organizations: acme,
+      );
+      // The fixture has no environment targets, so an authed run ends later
+      // with a target error; only the organization step is under test.
+      expect(stderr.toString(), isNot(contains('No organization')));
+      if (family == 'status') expect(exitCode, 0, reason: '$stdout$stderr');
+      expect(config, contains('organizationId: 7'));
+      final calls = <Map<String, dynamic>>[];
+      await run(
+        args,
+        config: 'organization: acme\norganizationId: 7\n',
+        organizations: acme,
+        calls: calls,
+      );
+      expect(calls.first['organizationId'], 7);
+    });
+
+    test('$family: a slug outside the account reads as one sentence', () async {
+      final (exitCode, _) = await run(
+        args,
+        config: 'organization: ghost\norganizationId: 99\n',
+        organizations: acme,
+      );
+      expect(exitCode, 1);
+      expect(stderr.toString().trim(), unavailable('ghost'));
+    });
+  }
+
+  test('a config that cannot be rewritten does not stop the command', () async {
+    await seedCredential(store, endpoint: 'https://api.example.com/');
+    final file = File(p.join(tempDir.path, 'restage_config.yaml'));
+    await file.writeAsString(
+      'project: alpha\napp: mobile\norganization: acme\n'
+      'organizationId: 99\n',
+    );
+    await Process.run('chmod', ['444', file.path]);
+    addTearDown(() => Process.run('chmod', ['644', file.path]));
+    final exitCode = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _statusClient(
+        workspaces: const [],
+        organizations: acme,
+        refuseIds: {99},
+      ),
+    ).run(['status', '-C', tempDir.path]);
+    expect(exitCode, 0, reason: '$stdout$stderr');
+    expect(
+      stderr.toString(),
+      contains(
+        "Couldn't save the organization id to restage_config.yaml. The next "
+        'command looks it up again.',
+      ),
+    );
+  });
+
+  test(
+    'a refused --organization-id names that id, not the config slug',
+    () async {
+      final (exitCode, _) = await run(
+        ['surface', 'status', 'welcome', '--organization-id', '99'],
+        config: 'organization: acme\n',
+        organizations: acme,
+      );
+      expect(exitCode, 1);
+      expect(stderr.toString().trim(), unavailable('99'));
+    },
+  );
+
+  for (final (name, handler, text)
+      in <(String, http.Response Function(http.Request), String)>[
+        (
+          'an unreachable backend',
+          (_) => throw http.ClientException('tunnel failed'),
+          'Could not reach',
+        ),
+        (
+          'a malformed scope reply',
+          (_) => http.Response('{}', 200),
+          'Could not discover your Restage context',
+        ),
+      ]) {
+    test('status with $name exits 2', () async {
+      await seedCredential(store, endpoint: 'https://api.example.com/');
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: mockHttpClient(handler, withDefaultTargetDiscovery: false),
+      ).run(['status', '-C', tempDir.path]);
+      expect(exitCode, 2);
+      expect(stderr.toString(), contains(text));
+    });
+  }
+
   for (final missing in ['project', 'app']) {
     test(
       'a config without $missing names the key after one scope read',
@@ -363,6 +515,7 @@ http.Client _statusClient({
   },
   List<String> apps = const ['mobile'],
   List<String> environments = const ['staging'],
+  Set<int> refuseIds = const {},
 }) {
   return mockHttpClient((request) {
     final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -370,6 +523,18 @@ http.Client _statusClient({
     expect(request.url.path, '/scope');
     expect(body['method'], 'read');
     final selectedId = body['organizationId'] as int? ?? 7;
+    if (refuseIds.contains(selectedId)) {
+      return http.Response(
+        jsonEncode({
+          'className': 'OrganizationNotFoundException',
+          'data': {
+            '__className__': 'OrganizationNotFoundException',
+            'organizationId': selectedId,
+          },
+        }),
+        400,
+      );
+    }
     final selectedProjects = projects[selectedId] ?? const <String>[];
     return http.Response(
       jsonEncode({
@@ -406,6 +571,7 @@ http.Client _statusClient({
             {'id': i + 10, 'appId': 5, 'slug': environments[i]},
         ],
         'environmentTargets': <Object>[],
+        'legacyDefaultTargetIds': <Object>[],
         'surfaces': <Object>[],
       }),
       200,

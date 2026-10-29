@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+An SDK key that no environment recognizes is now reported once per run, in release builds too, with how to fix it. Before, the app fell back to its built-in surfaces with no message.
+
+Generated code passes the app's surfaces to the SDK at startup through
+`Restage.declareSurfaces`. Apps don't call it directly.
+
+Delivery receipts are saved on the device until the service accepts them. A view counts once, even when the app is killed while sending and resends after relaunch.
+
+Delivery receipts are saved on the device until the service accepts them. A view counts once, even when the app is killed while sending and resends after relaunch.
+
+An SDK key that no environment recognizes is reported once per run, in release builds too, after it has been refused for about a minute. Receipts wait and retry meanwhile, so a key that was only just created is never reported.
+
+Placement requests send the build contract once, then name the build by its
+hash. A service that does not hold the contract answers 409 and gets it in full
+on one resend; a service that refuses the hash form with 400 gets the full
+contract from then on.
+
+A placement keeps the decision it saved and shows it again on later launches,
+within the render deadline, while the device facts that decision depended on
+still hold. The service names those facts, such as install age or country, in
+each decision. A decision that did not depend on install age survives the day
+changing, and a decision the startup prefetch saved serves the first mount.
+This needs a service that names the facts; a response without them is refused.
+
 `surfaceEvent` fires a standalone paywall's custom event, with a value under
 `args['value']`. Flows evaluate `always` and `matches` host-action result
 predicates.

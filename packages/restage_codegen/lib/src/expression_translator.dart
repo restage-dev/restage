@@ -2465,18 +2465,8 @@ final class ExpressionTranslator {
     if (expr is SimpleStringLiteral) {
       return _stringLiteral(expr.value);
     }
-    if (expr is StringInterpolation) {
-      return _stringInterpolation(expr, issues);
-    }
-    // Adjacent string literals (`'a' 'b'`) concatenate at compile time. Handle
-    // the all-literal form here; a mixed adjacent string that includes an
-    // interpolated segment falls through to the unsupported-expression path
-    // rather than silently dropping the interpolation.
-    if (expr is AdjacentStrings &&
-        expr.strings.every((s) => s is SimpleStringLiteral)) {
-      return _stringLiteral(
-        expr.strings.map((s) => (s as SimpleStringLiteral).value).join(),
-      );
+    if (expr is StringInterpolation || expr is AdjacentStrings) {
+      return _stringInterpolation(expr as StringLiteral, issues);
     }
     if (expr is IntegerLiteral) {
       final v = expr.value;
@@ -3021,7 +3011,7 @@ final class ExpressionTranslator {
 
   /// A string interpolation outside a String slot: one value, or refused,
   /// since only a String slot's decoder joins parts.
-  String _stringInterpolation(StringInterpolation expr, List<Issue> issues) {
+  String _stringInterpolation(StringLiteral expr, List<Issue> issues) {
     final parts = _interpolationParts(expr, issues);
     if (parts == null) return '';
     if (parts.isEmpty) return '""';
@@ -3040,23 +3030,39 @@ final class ExpressionTranslator {
   }
 
   /// The parts of [expr] as DSL values: quoted literals and references in
-  /// order, or `null` after a diagnostic.
-  List<String>? _interpolationParts(
-    StringInterpolation expr,
-    List<Issue> issues,
-  ) {
+  /// order, or `null` after a diagnostic. Adjacent strings join as in Dart.
+  List<String>? _interpolationParts(StringLiteral expr, List<Issue> issues) {
     final issueStart = issues.length;
     final parts = <String>[];
-    for (final element in expr.elements) {
-      if (element is InterpolationString) {
-        if (element.value.isNotEmpty) {
-          parts.add('"${_escapeForDsl(element.value)}"');
-        }
-      } else if (element is InterpolationExpression) {
-        final dsl = _stringInterpolationExpression(element.expression, issues);
-        if (dsl != null) parts.add(dsl);
+    final text = StringBuffer();
+    void flushText() {
+      if (text.isEmpty) return;
+      parts.add('"${_escapeForDsl(text.toString())}"');
+      text.clear();
+    }
+
+    void collect(StringLiteral literal) {
+      switch (literal) {
+        case SimpleStringLiteral(:final value):
+          text.write(value);
+        case AdjacentStrings(:final strings):
+          strings.forEach(collect);
+        case StringInterpolation(:final elements):
+          for (final element in elements) {
+            if (element is InterpolationString) {
+              text.write(element.value);
+            } else if (element is InterpolationExpression) {
+              flushText();
+              final dsl =
+                  _stringInterpolationExpression(element.expression, issues);
+              if (dsl != null) parts.add(dsl);
+            }
+          }
       }
     }
+
+    collect(expr);
+    flushText();
     final refused =
         issues.skip(issueStart).any((issue) => !issue.code.isBuildNotice);
     return refused ? null : parts;
@@ -3083,15 +3089,32 @@ final class ExpressionTranslator {
       return _needsTextSpans(value.thenExpression) ||
           _needsTextSpans(value.elseExpression);
     }
-    if (value is! StringInterpolation) return false;
-    return value.elements
-            .where(
-              (e) =>
-                  e is InterpolationExpression ||
-                  (e is InterpolationString && e.value.isNotEmpty),
-            )
-            .length >
-        1;
+    if (!isInterpolatedString(value)) return false;
+    var parts = 0;
+    var inText = false;
+    void count(StringLiteral literal) {
+      switch (literal) {
+        case SimpleStringLiteral(:final value):
+          if (value.isNotEmpty && !inText) parts++;
+          inText |= value.isNotEmpty;
+        case AdjacentStrings(:final strings):
+          strings.forEach(count);
+        case StringInterpolation(:final elements):
+          for (final element in elements) {
+            if (element is InterpolationExpression) {
+              parts++;
+              inText = false;
+            } else if (element is InterpolationString &&
+                element.value.isNotEmpty) {
+              if (!inText) parts++;
+              inText = true;
+            }
+          }
+      }
+    }
+
+    count(value as StringLiteral);
+    return parts > 1;
   }
 
   /// Lowers Text's [text] to an inline span value; a conditional selects a
@@ -3117,8 +3140,8 @@ final class ExpressionTranslator {
         (arm) => _textSpanValue(arm, issues),
       );
     }
-    if (value is StringInterpolation) {
-      final parts = _interpolationParts(value, issues);
+    if (isInterpolatedString(value)) {
+      final parts = _interpolationParts(value as StringLiteral, issues);
       if (parts == null) return '';
       if (parts.length == 1) return '{ text: ${parts.single} }';
       final spans = parts.map((p) => '{ text: $p }').join(', ');
@@ -3175,8 +3198,8 @@ final class ExpressionTranslator {
             : _translateSlotValue(arm, PropertyType.string, issues),
       );
     }
-    if (value is StringInterpolation) {
-      final parts = _interpolationParts(value, issues);
+    if (isInterpolatedString(value)) {
+      final parts = _interpolationParts(value as StringLiteral, issues);
       if (parts == null) return '';
       return parts.length == 1 ? parts.single : '[${parts.join(', ')}]';
     }
@@ -10247,6 +10270,7 @@ final class ExpressionTranslator {
         measurementWidget: null,
         measurementWidgetList: null,
       );
+      final bodyMark = issues.length;
       try {
         if (_admitOrdinaryLeaf(blueprint.buildExpression, issues)) {
           definitions[name] = _translate(blueprint.buildExpression, issues);
@@ -10260,12 +10284,20 @@ final class ExpressionTranslator {
       } finally {
         _walk = saved;
       }
+      // A body that cannot translate is not inlined; a registered widget is
+      // then referenced by name.
+      if (issues.skip(bodyMark).any((issue) => !issue.code.isBuildNotice)) {
+        definitions.remove(name);
+        definitionStates.remove(name);
+        return '';
+      }
     } else if (claimedBy != key) {
       issues.add(
         _nameCollisionIssue(key, name, 'another custom widget ($claimedBy)'),
       );
       return '';
     }
+    if (!definitions.containsKey(name)) return '';
     if (emissionIdentity != null) {
       _currentCustomWidgetInlineClaims?.add(emissionIdentity);
     }

@@ -231,6 +231,7 @@ http.Response _listOrganizations(http.Request request) {
       'apps': <Object>[],
       'environments': <Object>[],
       'environmentTargets': <Object>[],
+      'legacyDefaultTargetIds': <Object>[],
       'surfaces': <Object>[],
     }),
     200,

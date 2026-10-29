@@ -300,30 +300,7 @@ final class SurfacePublication {
             'Screen eventContractHash does not match eventContract.',
           );
         }
-        // A screen declaring no host data carries neither field, so its
-        // contract encodes exactly as it did before host data existed.
-        if ((hostDataContract == null) != (hostDataContractHash == null)) {
-          throw const FormatException(
-            'A screen host data contract requires its hash, and vice versa.',
-          );
-        }
-        if (hostDataContract != null) {
-          if (hostDataContract.isEmpty) {
-            throw const FormatException(
-              'An empty screen host data contract must be omitted.',
-            );
-          }
-          SurfaceContractJson.requireSha256(
-            hostDataContractHash!,
-            'publication.hostDataContractHash',
-          );
-          if (hostDataContractHash !=
-              SurfaceScreenHostDataContractHash.hash(hostDataContract)) {
-            throw const FormatException(
-              'Screen hostDataContractHash does not match hostDataContract.',
-            );
-          }
-        }
+        _validateHostDataContract(hostDataContract, hostDataContractHash);
         final expectedFingerprint = SurfaceScreenContractFingerprint.hash(
           sourceKind: sourceKind,
           payloadKind: payloadKind,
@@ -369,9 +346,9 @@ final class SurfacePublication {
           eventContract: eventContract,
           eventContractHash: eventContractHash,
           contractFingerprint: contractFingerprint,
-          hostDataContract: hostDataContract,
-          hostDataContractHash: hostDataContractHash,
         );
+        // A paywall's mount passes host data too; previews need its shape.
+        _validateHostDataContract(hostDataContract, hostDataContractHash);
     }
 
     return SurfacePublication._(
@@ -430,8 +407,8 @@ final class SurfacePublication {
   final String? eventContractHash;
   final String? contractFingerprint;
 
-  /// The host-supplied inputs this screen declares, or null when it declares
-  /// none.
+  /// The host-supplied inputs this surface's mount passes, or null when it
+  /// passes none. Only a screen or a paywall carries them.
   final SurfaceScreenHostDataSchema? hostDataContract;
 
   /// Content hash of [hostDataContract], present exactly with it.
@@ -492,6 +469,12 @@ final class SurfacePublication {
     }
     return <String, Object?>{
       if (deliveryMode != null) 'deliveryMode': deliveryMode!.wireName,
+      if (hostDataContract != null)
+        'hostDataContract': SurfaceScreenHostDataSchemaV1Codec.encode(
+          hostDataContract!,
+        ),
+      if (hostDataContractHash != null)
+        'hostDataContractHash': hostDataContractHash,
       if (mountName != null) 'mountName': mountName,
       if (compiledScreenContracts.isNotEmpty)
         'compiledScreenContracts': {
@@ -526,8 +509,9 @@ final class SurfacePublication {
       sourceKind: sourceKind,
       payloadKind: payloadKind,
     );
-    // Host data is optional on a screen: present as a pair, or absent.
-    if (sourceKind == SurfaceSourceKind.screen &&
+    // Host data is optional on a screen or paywall: a pair, or absent.
+    if ((sourceKind == SurfaceSourceKind.screen ||
+            sourceKind == SurfaceSourceKind.paywall) &&
         (json.containsKey('hostDataContract') ||
             json.containsKey('hostDataContractHash'))) {
       expected
@@ -2184,14 +2168,39 @@ Set<String> _publicationRequiredFields({
   return fields;
 }
 
+/// Host data is declared with its hash, or not at all, so a publication
+/// without it encodes as it did before host data existed.
+void _validateHostDataContract(
+  SurfaceScreenHostDataSchema? contract,
+  String? hash,
+) {
+  if ((contract == null) != (hash == null)) {
+    throw const FormatException(
+      'A host data contract requires its hash, and vice versa.',
+    );
+  }
+  if (contract == null) return;
+  if (contract.isEmpty) {
+    throw const FormatException(
+      'An empty host data contract must be omitted.',
+    );
+  }
+  SurfaceContractJson.requireSha256(hash!, 'publication.hostDataContractHash');
+  if (hash != SurfaceScreenHostDataContractHash.hash(contract)) {
+    throw const FormatException(
+      'hostDataContractHash does not match hostDataContract.',
+    );
+  }
+}
+
 void _requireNoScreenContract({
   required int? contractVersion,
   required CapabilityManifest? capabilities,
   required SurfaceScreenEventSchema? eventContract,
   required String? eventContractHash,
   required String? contractFingerprint,
-  required SurfaceScreenHostDataSchema? hostDataContract,
-  required String? hostDataContractHash,
+  SurfaceScreenHostDataSchema? hostDataContract,
+  String? hostDataContractHash,
 }) {
   if (contractVersion != null ||
       capabilities != null ||

@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
@@ -15,6 +16,7 @@ import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/discovery/context_discovery.dart';
+import 'package:restage_cli/src/init/android_manifest_editor.dart';
 import 'package:restage_cli/src/init/build_yaml_editor.dart';
 import 'package:restage_cli/src/init/gitignore_editor.dart';
 import 'package:restage_cli/src/init/pubspec_editor.dart'
@@ -24,6 +26,8 @@ import 'package:restage_cli/src/init/pubspec_editor.dart'
         complexConstraintMarker,
         planAddDependencies;
 import 'package:restage_cli/src/init/starter_paywall.dart';
+import 'package:restage_cli/src/render_bundles/surface_capture_source.dart'
+    show SurfaceCaptureSourceException, SurfaceCaptureWrapper;
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:path/path.dart' as p;
 
@@ -31,7 +35,10 @@ import 'package:path/path.dart' as p;
 ///
 /// These pin against the current package contract. Bumping the constraints
 /// here keeps newly initialized projects on the same SDK/toolchain release.
-const Map<String, String> _defaultRuntimeDeps = {'restage': '^2.0.0'};
+const Map<String, String> _defaultRuntimeDeps = {
+  'restage': '^2.0.0',
+  'restage_material': '^2.0.0',
+};
 const Map<String, String> _defaultDevDeps = {
   'build_runner': '>=2.4.0 <3.0.0',
   'restage_codegen': '^2.0.0',
@@ -72,10 +79,18 @@ class InitCommand extends Command<int> {
         help: 'Organization slug (skips the organization picker).',
       )
       ..addOption(
+        'preview-wrapper',
+        help:
+            'An existing function in lib/ that wraps push images with what '
+            'your app provides above its screens, such as a theme: '
+            'lib/restage_preview.dart#wrapPreview.',
+      )
+      ..addOption(
         'plane',
         allowed: runtimePlaneWireNames,
-        defaultsTo: 'sandbox',
-        help: 'Default runtime plane: sandbox or live.',
+        help:
+            'Default runtime plane: sandbox or live. Without it, the plane '
+            'the environment is on, sandbox first.',
       )
       ..addFlag(
         'starter',
@@ -85,8 +100,9 @@ class InitCommand extends Command<int> {
       ..addFlag(
         'add-deps',
         help:
-            'Add `restage` (dependencies) plus `restage_codegen` '
-            'and `build_runner` (dev_dependencies) to pubspec.yaml.',
+            'Add `restage` and `restage_material` (dependencies) plus '
+            '`restage_codegen` and `build_runner` (dev_dependencies) to '
+            'pubspec.yaml.',
         defaultsTo: true,
       )
       ..addFlag(
@@ -128,9 +144,18 @@ class InitCommand extends Command<int> {
       return 1;
     }
 
+    if (_flag(results, 'preview-wrapper') case final wrapper?) {
+      try {
+        SurfaceCaptureWrapper.parse(wrapper, projectRoot: root);
+      } on SurfaceCaptureSourceException catch (error) {
+        _stderr.writeln('--preview-wrapper: ${error.reason}.');
+        return 1;
+      }
+    }
+
     final context = await _resolveInitContext(results);
     if (context == null) {
-      return 1;
+      return _failureExit;
     }
 
     final config = RestageConfig(
@@ -139,7 +164,8 @@ class InitCommand extends Command<int> {
       defaultEnvironment: context.environment,
       organization: context.organization,
       endpoint: context.endpoint,
-      plane: RuntimePlane.fromWireName(results['plane'] as String),
+      plane: context.plane,
+      previewWrapper: _flag(results, 'preview-wrapper'),
       organizationId: context.organizationId,
       appId: context.appId,
       environmentTargetId: context.environmentTargetId,
@@ -177,6 +203,11 @@ class InitCommand extends Command<int> {
       buildYamlFile.existsSync() ? await buildYamlFile.readAsString() : null,
     );
 
+    final manifestFile = File(p.join(root.path, androidMainManifestPath));
+    final manifestUpdate = manifestFile.existsSync()
+        ? addAndroidInternetPermission(await manifestFile.readAsString())
+        : null;
+
     final configAction = !configFile.existsSync()
         ? 'create'
         : force
@@ -196,6 +227,8 @@ class InitCommand extends Command<int> {
       gitignorePlan: gitignorePlan,
       buildYamlFile: buildYamlFile,
       buildYamlPlan: buildYamlPlan,
+      manifestFile: manifestFile,
+      manifestUpdate: manifestUpdate,
     );
 
     if (dryRun) return 0;
@@ -214,6 +247,17 @@ class InitCommand extends Command<int> {
     }
 
     await _applyBuildYaml(buildYamlFile, buildYamlPlan);
+
+    if (manifestUpdate != null) {
+      await manifestFile.writeAsString(manifestUpdate);
+      _stdout.writeln(
+        'Added the INTERNET permission to '
+        'android/app/src/main/AndroidManifest.xml. Release builds can now '
+        'reach Restage.',
+      );
+    } else if (manifestFile.existsSync()) {
+      _stdout.writeln('AndroidManifest.xml already allows network access.');
+    }
 
     if (!configFile.existsSync()) {
       await writeRestageConfig(configFile, config);
@@ -293,6 +337,14 @@ class InitCommand extends Command<int> {
         '${push('<id>')} to push a surface.',
       );
     }
+    if (config.previewWrapper == null) {
+      _stdout.writeln(
+        'If your surfaces need something your app provides above them, such '
+        'as a theme, add `previewWrapper: lib/restage_preview.dart#wrapPreview` '
+        'to restage_config.yaml (or pass --preview-wrapper), where '
+        '`wrapPreview` is `Widget wrapPreview(Widget child)`.',
+      );
+    }
     return 0;
   }
 
@@ -353,10 +405,16 @@ class InitCommand extends Command<int> {
       recordGit: existing.recordGit,
       declareAssets: existing.declareAssets,
       flutterRoot: existing.flutterRoot,
-      previewWrapper: existing.previewWrapper,
+      previewWrapper: config.previewWrapper ?? existing.previewWrapper,
     );
     await writeRestageConfig(file, merged);
   }
+
+  /// Exit code when init stops: 1 for a refusal, 2 for a system error.
+  int _failureExit = 1;
+
+  static const _unchecked =
+      'Continuing with the slugs you passed; they were not checked.';
 
   Future<_InitContext?> _resolveInitContext(ArgResults results) async {
     final organizationFlag = _flag(results, 'organization');
@@ -366,26 +424,41 @@ class InitCommand extends Command<int> {
 
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
     final credential = await store.read();
-    if (projectFlag != null && appFlag != null && envFlag != null) {
-      return _InitContext(
-        organization: organizationFlag,
-        project: projectFlag,
-        app: appFlag,
-        environment: envFlag,
-        endpoint: credential?.endpoint,
-      );
+    final explicitPlane = results.wasParsed('plane')
+        ? RuntimePlane.fromWireName(results['plane'] as String)
+        : null;
+    final flagsContext = _InitContext(
+      organization: organizationFlag,
+      project: projectFlag ?? '',
+      app: appFlag ?? '',
+      environment: envFlag,
+      endpoint: credential?.endpoint,
+      plane: explicitPlane ?? RuntimePlane.sandbox,
+    );
+    final allFlags = projectFlag != null && appFlag != null && envFlag != null;
+    if (allFlags && credential == null) {
+      _stderr.writeln(_unchecked);
+      return flagsContext;
     }
 
     if (credential != null) {
+      var unreachable = false;
       final discovered = await _discoverContext(
         credential: credential,
         organizationFlag: organizationFlag,
         projectFlag: projectFlag,
         appFlag: appFlag,
         envFlag: envFlag,
-        plane: RuntimePlane.fromWireName(results['plane'] as String),
+        explicitPlane: explicitPlane,
+        onUnreachable: () => unreachable = true,
       );
       if (discovered != null) return discovered;
+      // With every selector given, an unreachable backend still initializes
+      // from the flags alone; a refusal or a bad credential does not.
+      if (allFlags && unreachable) {
+        _stderr.writeln(_unchecked);
+        return flagsContext;
+      }
       return null;
     }
 
@@ -403,6 +476,7 @@ class InitCommand extends Command<int> {
         environment:
             envFlag ??
             await _resolveManualSlug('env', 'Default environment slug?'),
+        plane: explicitPlane ?? RuntimePlane.sandbox,
       );
     } on NonInteractiveDefaultMissing catch (e) {
       _stderr.writeln('Required: --${e.flagName ?? "value"} <slug>.');
@@ -416,7 +490,8 @@ class InitCommand extends Command<int> {
     required String? projectFlag,
     required String? appFlag,
     required String? envFlag,
-    required RuntimePlane plane,
+    required RuntimePlane? explicitPlane,
+    required void Function() onUnreachable,
   }) async {
     final RestageApi api;
     try {
@@ -472,36 +547,24 @@ class InitCommand extends Command<int> {
       );
       if (app == null) return null;
 
-      final environment = await _pickDiscovered(
-        preferredSlug: envFlag,
-        options: scope
-            .environments(project.slug)
-            .where((environment) => environment.appId == app.appId)
-            .toList(),
-        prompt: 'Which default environment?',
-        missingFlag: '--env <slug>',
-        slugOf: (environment) => environment.slug,
-        labelOf: (environment) => environment.slug,
-        allowEmpty: true,
+      final targets = scope.targets(
+        projectSlug: project.slug,
+        appSlug: app.slug,
       );
-
-      final targets = environment == null
-          ? <EnvironmentTargetSummary>[]
-          : scope
-                .targets(
-                  projectSlug: project.slug,
-                  appSlug: app.slug,
-                  runtimePlane: plane,
-                )
-                .where((target) => target.environmentSlug == environment.slug)
-                .toList();
-      final selectedTarget = targets.length == 1 ? targets.single : null;
+      final choice = await _chooseEnvironment(
+        targets: targets,
+        envFlag: envFlag,
+        explicitPlane: explicitPlane,
+      );
+      if (choice == null) return null;
+      final selectedTarget = choice.target;
 
       return _InitContext(
         organization: organization.slug,
         project: project.slug,
         app: app.slug,
-        environment: environment?.slug,
+        environment: selectedTarget?.environmentSlug,
+        plane: choice.plane,
         endpoint: credential.endpoint,
         organizationId: organization.organizationId,
         appId: app.appId,
@@ -509,14 +572,105 @@ class InitCommand extends Command<int> {
         namedEnvironmentId: selectedTarget?.namedEnvironmentId,
       );
     } on RestageApiException catch (e) {
-      _stderr.writeln('Could not discover your Restage context: ${e.body}');
+      final outcome = renderApiError(e);
+      _failureExit = outcome.exitCode;
+      _stderr.writeln(outcome.message);
+      return null;
+    } on FormatException catch (e) {
+      _failureExit = 2;
+      _stderr.writeln('Could not discover your Restage context: ${e.message}');
       return null;
     } on SocketException catch (e) {
+      onUnreachable();
+      _failureExit = 2;
+      _stderr.writeln(backendUnreachableMessage(api.endpoint, e));
+      return null;
+    } on http.ClientException catch (e) {
+      onUnreachable();
+      _failureExit = 2;
       _stderr.writeln(backendUnreachableMessage(api.endpoint, e));
       return null;
     } finally {
       if (_httpClient == null) api.close();
     }
+  }
+
+  /// The target `init` records. Slugs repeat across planes, so a named
+  /// environment is one slug on the plane it is chosen on.
+  Future<({EnvironmentTargetSummary? target, RuntimePlane plane})?>
+  _chooseEnvironment({
+    required List<EnvironmentTargetSummary> targets,
+    required String? envFlag,
+    required RuntimePlane? explicitPlane,
+  }) async {
+    if (targets.isEmpty) {
+      return (target: null, plane: explicitPlane ?? RuntimePlane.sandbox);
+    }
+    if (envFlag != null) {
+      final named = targets.where((t) => t.environmentSlug == envFlag);
+      if (named.isEmpty) {
+        final existing = {for (final t in targets) t.environmentSlug};
+        _stderr.writeln(
+          'No environment `$envFlag` in this app. '
+          'Environments: ${existing.join(', ')}.',
+        );
+        return null;
+      }
+      final RuntimePlane plane;
+      if (explicitPlane != null) {
+        plane = explicitPlane;
+      } else if (named.any((t) => t.runtimePlane == RuntimePlane.sandbox)) {
+        plane = RuntimePlane.sandbox;
+      } else {
+        plane = named.first.runtimePlane;
+      }
+      final match = named.where((t) => t.runtimePlane == plane).firstOrNull;
+      if (match == null) {
+        final other = named.first.runtimePlane.name;
+        _stderr.writeln(
+          '`$envFlag` has no ${plane.name} environment. Pass --plane $other.',
+        );
+        return null;
+      }
+      return (target: match, plane: plane);
+    }
+
+    final plane =
+        explicitPlane ??
+        (targets.any((t) => t.runtimePlane == RuntimePlane.sandbox)
+            ? RuntimePlane.sandbox
+            : targets.first.runtimePlane);
+    final seen = <String>{};
+    final onPlane = [
+      for (final target in targets)
+        if (target.runtimePlane == plane && seen.add(target.environmentSlug))
+          target,
+    ];
+    if (onPlane.isEmpty) {
+      final other = targets.first.runtimePlane.name;
+      _stderr.writeln(
+        'This app has no ${plane.name} environment. Pass --plane $other.',
+      );
+      return null;
+    }
+    if (onPlane.length == 1) return (target: onPlane.single, plane: plane);
+    if (_interactive.isInteractive) {
+      final picked = await _interactive.select<EnvironmentTargetSummary>(
+        'Which default environment?',
+        [
+          for (final target in onPlane)
+            (label: target.environmentSlug, value: target),
+        ],
+      );
+      return (target: picked, plane: plane);
+    }
+    final first = onPlane.first;
+    _stdout.writeln(
+      'Using environment `${first.environmentSlug}` (${plane.name}). Pass '
+      '--env <slug> to choose another: '
+      '${onPlane.map((t) => t.environmentSlug).join(', ')}.',
+    );
+    return (target: first, plane: plane);
   }
 
   Future<T?> _pickDiscovered<T>({
@@ -574,6 +728,8 @@ class InitCommand extends Command<int> {
     required PortableOutputIgnorePlan gitignorePlan,
     required File buildYamlFile,
     required StateBuildInputsPlan buildYamlPlan,
+    required File manifestFile,
+    required String? manifestUpdate,
   }) {
     _stdout.writeln('Planned changes:');
     _stdout.writeln(
@@ -624,6 +780,12 @@ class InitCommand extends Command<int> {
     _stdout.writeln(
       '  $buildYamlAction ${buildYamlFile.path} (track Restage state files)',
     );
+    if (manifestFile.existsSync()) {
+      _stdout.writeln(
+        '  ${manifestUpdate == null ? 'keep' : 'update'} ${manifestFile.path} '
+        '(Add the INTERNET permission for release builds)',
+      );
+    }
     _stdout.writeln();
   }
 
@@ -638,6 +800,7 @@ class _InitContext {
   const _InitContext({
     required this.project,
     required this.app,
+    required this.plane,
     this.environment,
     this.organization,
     this.endpoint,
@@ -648,6 +811,7 @@ class _InitContext {
   });
 
   final String? organization;
+  final RuntimePlane plane;
   final String project;
   final String app;
   final String? environment;

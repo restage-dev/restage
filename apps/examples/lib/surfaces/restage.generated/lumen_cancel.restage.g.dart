@@ -2,25 +2,27 @@ part of '../lumen_cancel.dart';
 
 // ignore_for_file: type=lint
 
-sealed class LumenCancelNoteScreenEvent {
-  const LumenCancelNoteScreenEvent();
+sealed class LumenCancelNoteScreenSurfaceEvent {
+  const LumenCancelNoteScreenSurfaceEvent();
 }
 
-final class LumenCancelNoteScreenSendEvent extends LumenCancelNoteScreenEvent {
-  const LumenCancelNoteScreenSendEvent(this.value);
+final class LumenCancelNoteScreenSurfaceSendEvent
+    extends LumenCancelNoteScreenSurfaceEvent {
+  const LumenCancelNoteScreenSurfaceSendEvent(this.value);
 
   final String value;
 }
 
-final class LumenCancelNoteScreenSkipEvent extends LumenCancelNoteScreenEvent {
-  const LumenCancelNoteScreenSkipEvent();
+final class LumenCancelNoteScreenSurfaceSkipEvent
+    extends LumenCancelNoteScreenSurfaceEvent {
+  const LumenCancelNoteScreenSurfaceSkipEvent();
 }
 
 final _lumenCancelNoteScreenEvents =
-    SurfaceScreenEventContract<LumenCancelNoteScreenEvent>.generated(
+    SurfaceScreenEventContract<LumenCancelNoteScreenSurfaceEvent>.generated(
   hash:
       'sha256:845ed8018eaa74aee9fc9d2480d99f931510601bb1109f245111ef3237614ca1',
-  decodeValidated: _decodeValidatedLumenCancelNoteScreenEvent,
+  decodeValidated: _decodeValidatedLumenCancelNoteScreenSurfaceEvent,
 );
 
 final _lumenCancelNoteScreenProvenance =
@@ -81,22 +83,24 @@ final _lumenCancelNoteScreenProvenance =
 );
 
 final lumenCancelNoteScreenRef = SurfaceScreenRef<
-    LumenCancelNoteScreenEvent>.generatedWithMeasurementPublicationDraftDigest(
+    LumenCancelNoteScreenSurfaceEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _lumenCancelNoteScreenProvenance,
   eventContract: _lumenCancelNoteScreenEvents,
   measurementPublicationDraftDigest:
       'e621d2f54acb88952f37d5d975bf366b086e8b94fcd40ece1b5f3f8e4685ca63',
 );
 
-LumenCancelNoteScreenEvent _decodeValidatedLumenCancelNoteScreenEvent(
+LumenCancelNoteScreenSurfaceEvent
+    _decodeValidatedLumenCancelNoteScreenSurfaceEvent(
   String name,
   Map<String, Object?> arguments,
 ) {
   switch (name) {
     case 'send':
-      return LumenCancelNoteScreenSendEvent(arguments['value'] as String);
+      return LumenCancelNoteScreenSurfaceSendEvent(
+          arguments['value'] as String);
     case 'skip':
-      return const LumenCancelNoteScreenSkipEvent();
+      return const LumenCancelNoteScreenSurfaceSkipEvent();
   }
   throw FormatException('Invalid LumenCancelNoteScreen event "$name".');
 }
@@ -172,7 +176,7 @@ final class LumenCancelNoteScreenSurface extends StatelessWidget {
 
   final String? _restagePlacementName;
 
-  final ValueChanged<LumenCancelNoteScreenEvent>? onEvent;
+  final ValueChanged<LumenCancelNoteScreenSurfaceEvent>? onEvent;
 
   final SurfaceScreenResolver? resolver;
 
@@ -184,7 +188,7 @@ final class LumenCancelNoteScreenSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<LumenCancelNoteScreenEvent>(
+    return RestageScreen<LumenCancelNoteScreenSurfaceEvent>(
       screen: lumenCancelNoteScreenRef,
       placementBinding: RestageScreen.generatedPlacementBinding(
         definition: lumenCancelNoteScreenPlacementDefinition,
@@ -202,27 +206,27 @@ final class LumenCancelNoteScreenSurface extends StatelessWidget {
   }
 }
 
-sealed class LumenCancelReasonScreenEvent {
-  const LumenCancelReasonScreenEvent();
+sealed class LumenCancelReasonScreenSurfaceEvent {
+  const LumenCancelReasonScreenSurfaceEvent();
 }
 
-final class LumenCancelReasonScreenReasonEvent
-    extends LumenCancelReasonScreenEvent {
-  const LumenCancelReasonScreenReasonEvent(this.value);
+final class LumenCancelReasonScreenSurfaceReasonEvent
+    extends LumenCancelReasonScreenSurfaceEvent {
+  const LumenCancelReasonScreenSurfaceReasonEvent(this.value);
 
   final String value;
 }
 
-final class LumenCancelReasonScreenSkipEvent
-    extends LumenCancelReasonScreenEvent {
-  const LumenCancelReasonScreenSkipEvent();
+final class LumenCancelReasonScreenSurfaceSkipEvent
+    extends LumenCancelReasonScreenSurfaceEvent {
+  const LumenCancelReasonScreenSurfaceSkipEvent();
 }
 
 final _lumenCancelReasonScreenEvents =
-    SurfaceScreenEventContract<LumenCancelReasonScreenEvent>.generated(
+    SurfaceScreenEventContract<LumenCancelReasonScreenSurfaceEvent>.generated(
   hash:
       'sha256:55bb77c38f6e53b2258a45594521bc78c955d54ae17505b1633c04fbba822784',
-  decodeValidated: _decodeValidatedLumenCancelReasonScreenEvent,
+  decodeValidated: _decodeValidatedLumenCancelReasonScreenSurfaceEvent,
 );
 
 final _lumenCancelReasonScreenProvenance =
@@ -294,22 +298,24 @@ final _lumenCancelReasonScreenProvenance =
 );
 
 final lumenCancelReasonScreenRef = SurfaceScreenRef<
-    LumenCancelReasonScreenEvent>.generatedWithMeasurementPublicationDraftDigest(
+    LumenCancelReasonScreenSurfaceEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _lumenCancelReasonScreenProvenance,
   eventContract: _lumenCancelReasonScreenEvents,
   measurementPublicationDraftDigest:
       '046216f4320c29d2ca2c25345011904aee226b7579687d14e1ff5ce179e8161e',
 );
 
-LumenCancelReasonScreenEvent _decodeValidatedLumenCancelReasonScreenEvent(
+LumenCancelReasonScreenSurfaceEvent
+    _decodeValidatedLumenCancelReasonScreenSurfaceEvent(
   String name,
   Map<String, Object?> arguments,
 ) {
   switch (name) {
     case 'reason':
-      return LumenCancelReasonScreenReasonEvent(arguments['value'] as String);
+      return LumenCancelReasonScreenSurfaceReasonEvent(
+          arguments['value'] as String);
     case 'skip':
-      return const LumenCancelReasonScreenSkipEvent();
+      return const LumenCancelReasonScreenSurfaceSkipEvent();
   }
   throw FormatException('Invalid LumenCancelReasonScreen event "$name".');
 }
@@ -385,7 +391,7 @@ final class LumenCancelReasonScreenSurface extends StatelessWidget {
 
   final String? _restagePlacementName;
 
-  final ValueChanged<LumenCancelReasonScreenEvent>? onEvent;
+  final ValueChanged<LumenCancelReasonScreenSurfaceEvent>? onEvent;
 
   final SurfaceScreenResolver? resolver;
 
@@ -397,7 +403,7 @@ final class LumenCancelReasonScreenSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<LumenCancelReasonScreenEvent>(
+    return RestageScreen<LumenCancelReasonScreenSurfaceEvent>(
       screen: lumenCancelReasonScreenRef,
       placementBinding: RestageScreen.generatedPlacementBinding(
         definition: lumenCancelReasonScreenPlacementDefinition,
@@ -415,20 +421,20 @@ final class LumenCancelReasonScreenSurface extends StatelessWidget {
   }
 }
 
-sealed class LumenCancelThanksScreenEvent {
-  const LumenCancelThanksScreenEvent();
+sealed class LumenCancelThanksScreenSurfaceEvent {
+  const LumenCancelThanksScreenSurfaceEvent();
 }
 
-final class LumenCancelThanksScreenFinishEvent
-    extends LumenCancelThanksScreenEvent {
-  const LumenCancelThanksScreenFinishEvent();
+final class LumenCancelThanksScreenSurfaceFinishEvent
+    extends LumenCancelThanksScreenSurfaceEvent {
+  const LumenCancelThanksScreenSurfaceFinishEvent();
 }
 
 final _lumenCancelThanksScreenEvents =
-    SurfaceScreenEventContract<LumenCancelThanksScreenEvent>.generated(
+    SurfaceScreenEventContract<LumenCancelThanksScreenSurfaceEvent>.generated(
   hash:
       'sha256:ca846c32a23d2d98fb3ca253fc69fb1ccef2fa2ee9fa5397947d5e5c2e03bc31',
-  decodeValidated: _decodeValidatedLumenCancelThanksScreenEvent,
+  decodeValidated: _decodeValidatedLumenCancelThanksScreenSurfaceEvent,
 );
 
 final _lumenCancelThanksScreenProvenance =
@@ -494,20 +500,21 @@ final _lumenCancelThanksScreenProvenance =
 );
 
 final lumenCancelThanksScreenRef = SurfaceScreenRef<
-    LumenCancelThanksScreenEvent>.generatedWithMeasurementPublicationDraftDigest(
+    LumenCancelThanksScreenSurfaceEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _lumenCancelThanksScreenProvenance,
   eventContract: _lumenCancelThanksScreenEvents,
   measurementPublicationDraftDigest:
       '61a0b43a79a63f3513dba0e5afabb3bab4315688110977b480a4845e5ff3f644',
 );
 
-LumenCancelThanksScreenEvent _decodeValidatedLumenCancelThanksScreenEvent(
+LumenCancelThanksScreenSurfaceEvent
+    _decodeValidatedLumenCancelThanksScreenSurfaceEvent(
   String name,
   Map<String, Object?> arguments,
 ) {
   switch (name) {
     case 'finish':
-      return const LumenCancelThanksScreenFinishEvent();
+      return const LumenCancelThanksScreenSurfaceFinishEvent();
   }
   throw FormatException('Invalid LumenCancelThanksScreen event "$name".');
 }
@@ -576,7 +583,7 @@ final class LumenCancelThanksScreenSurface extends StatelessWidget {
 
   final String? _restagePlacementName;
 
-  final ValueChanged<LumenCancelThanksScreenEvent>? onEvent;
+  final ValueChanged<LumenCancelThanksScreenSurfaceEvent>? onEvent;
 
   final SurfaceScreenResolver? resolver;
 
@@ -588,7 +595,7 @@ final class LumenCancelThanksScreenSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<LumenCancelThanksScreenEvent>(
+    return RestageScreen<LumenCancelThanksScreenSurfaceEvent>(
       screen: lumenCancelThanksScreenRef,
       placementBinding: RestageScreen.generatedPlacementBinding(
         definition: lumenCancelThanksScreenPlacementDefinition,

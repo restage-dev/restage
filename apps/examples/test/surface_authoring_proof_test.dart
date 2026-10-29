@@ -11,11 +11,15 @@ void main() {
   setUp(Restage.debugReset);
 
   test('generated screen references preserve authored identities', () {
-    final onboarding = <SurfaceScreenRef<OnboardingWelcomeEvent>>[
+    final onboarding = <SurfaceScreenRef<OnboardingWelcomeSurfaceEvent>>[
       onboardingWelcomeRef,
     ];
-    final message = <SurfaceScreenRef<MessageNoticeEvent>>[messageNoticeRef];
-    final general = <SurfaceScreenRef<GeneralStatusEvent>>[generalStatusRef];
+    final message = <SurfaceScreenRef<MessageNoticeSurfaceEvent>>[
+      messageNoticeRef
+    ];
+    final general = <SurfaceScreenRef<GeneralStatusSurfaceEvent>>[
+      generalStatusRef
+    ];
 
     expect(onboarding.single.surface, Surface.onboarding);
     expect(onboarding.single.slug, 'onboarding_welcome');
@@ -25,7 +29,8 @@ void main() {
     expect(general.single.slug, 'general_status');
 
     expect(generalStatusRef.eventContract.hash, startsWith('sha256:'));
-    expect(const GeneralStatusFinishEvent(), isA<GeneralStatusEvent>());
+    expect(const GeneralStatusSurfaceFinishEvent(),
+        isA<GeneralStatusSurfaceEvent>());
   });
 
   test('general and paywall-composing flows resolve complete closures',
@@ -115,7 +120,7 @@ void main() {
 
   testWidgets('one generic host mounts categorized generated screens',
       (tester) async {
-    final onboardingEvents = <OnboardingWelcomeEvent>[];
+    final onboardingEvents = <OnboardingWelcomeSurfaceEvent>[];
     final unavailable = <SurfaceScreenUnavailableError>[];
     await tester.pumpWidget(
       _surfaceHost(
@@ -130,9 +135,10 @@ void main() {
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     expect(onboardingEvents, hasLength(1));
-    expect(onboardingEvents.single, isA<OnboardingWelcomeContinueFlowEvent>());
+    expect(onboardingEvents.single,
+        isA<OnboardingWelcomeSurfaceContinueFlowEvent>());
 
-    final messageEvents = <MessageNoticeEvent>[];
+    final messageEvents = <MessageNoticeSurfaceEvent>[];
     await tester.pumpWidget(
       _surfaceHost(
         screen: messageNoticeRef,
@@ -144,9 +150,9 @@ void main() {
     await tester.tap(find.text('Open offer'));
     await tester.pumpAndSettle();
     expect(messageEvents, hasLength(1));
-    expect(messageEvents.single, isA<MessageNoticeOpenOfferEvent>());
+    expect(messageEvents.single, isA<MessageNoticeSurfaceOpenOfferEvent>());
 
-    final generalEvents = <GeneralStatusEvent>[];
+    final generalEvents = <GeneralStatusSurfaceEvent>[];
     await tester.pumpWidget(
       _surfaceHost(
         screen: generalStatusRef,
@@ -158,7 +164,7 @@ void main() {
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
     expect(generalEvents, hasLength(1));
-    expect(generalEvents.single, isA<GeneralStatusFinishEvent>());
+    expect(generalEvents.single, isA<GeneralStatusSurfaceFinishEvent>());
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
   });

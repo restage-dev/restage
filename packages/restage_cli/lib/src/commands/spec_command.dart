@@ -23,8 +23,8 @@ const _groupDescriptions = <String, String>{
   'slots': "List or set an app's product slots.",
   'stores': "List an app's store connections.",
   'keys':
-      "List or revoke an environment's API keys, or find where a key "
-      'belongs. Create keys in the dashboard.',
+      "List or revoke an environment's API keys, mint a public key, or find "
+      'where a key belongs. Secret keys are created in the dashboard.',
   'audit': 'Read server audit logs and compliance exports.',
   'surface draft':
       'Download or push the draft a surface has saved in the dashboard.',

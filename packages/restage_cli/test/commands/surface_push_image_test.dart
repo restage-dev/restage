@@ -42,6 +42,7 @@ void main() {
   Future<int?> push(
     SurfaceCaptureResult result, {
     List<List<SurfacePublicationManifestEntry>>? captured,
+    List<Map<String, Map<String, Object?>>?>? plansSeen,
     http.Client? httpClient,
     Future<SurfaceCaptureResult> Function(Future<void>? cancel)? render,
   }) {
@@ -55,6 +56,7 @@ void main() {
           ({
             required projectRoot,
             required entries,
+            required plans,
             flagRoot,
             configRoot,
             wrapper,
@@ -62,6 +64,7 @@ void main() {
             cancel,
           }) async {
             captured?.add(entries);
+            plansSeen?.add(plans);
             if (render != null) return render(cancel);
             return result;
           },
@@ -116,6 +119,99 @@ void main() {
     expect(err.toString(), isNot(contains('image')));
   });
 
+  group('the build\'s capture plan', () {
+    const plan = <String, Object?>{
+      'kind': 'object',
+      'importUri': 'package:demo/pro_upgrade.dart',
+      'name': 'ProUpgradePaywall',
+      'parameters': <Object?>[],
+    };
+
+    /// Seeds [layout] with a plan beside its manifest and returns the plans
+    /// the capturer was handed.
+    Future<Map<String, Map<String, Object?>>?> plansFor(
+      GeneratedOutputLayout layout, {
+      String? fingerprint,
+      int version = 1,
+    }) async {
+      for (final generated in ['.restage', fixtureOutputRoot]) {
+        final directory = Directory(p.join(app.path, generated));
+        if (directory.existsSync()) directory.deleteSync(recursive: true);
+      }
+      await seedGeneratedPaywall(app, slug: 'pro_upgrade', layout: layout);
+      final index =
+          jsonDecode(
+                File(
+                  p.join(app.path, layout.outputIndexPath),
+                ).readAsStringSync(),
+              )
+              as Map<String, Object?>;
+      File(
+        p.join(app.path, layout.metadataDirectory, surfaceCapturePlanFileName),
+      ).writeAsStringSync(
+        jsonEncode({
+          'version': version,
+          'generationFingerprint':
+              fingerprint ?? index['generationFingerprint'],
+          'surfaces': {imageName: plan},
+        }),
+      );
+      final seen = <Map<String, Map<String, Object?>>?>[];
+      final code = await push(
+        SurfaceCaptureResult(images: {imageName: png}),
+        plansSeen: seen,
+      );
+      expect(code, 0, reason: err.toString());
+      return seen.single;
+    }
+
+    for (final layout in [
+      GeneratedOutputLayout.generatedDirectory,
+      GeneratedOutputLayout.outputRoot,
+    ]) {
+      test(
+        'reaches the capturer from beside the ${layout.name} manifest',
+        () async {
+          expect(await plansFor(layout), {imageName: plan});
+        },
+      );
+    }
+
+    test(
+      'from another build or of another version reaches it as none',
+      () async {
+        expect(
+          await plansFor(
+            GeneratedOutputLayout.generatedDirectory,
+            fingerprint: 'sha256:${'0' * 64}',
+          ),
+          isNull,
+        );
+        expect(
+          await plansFor(GeneratedOutputLayout.generatedDirectory, version: 2),
+          isNull,
+        );
+      },
+    );
+  });
+
+  test('says which fields the image draws with placeholder values', () async {
+    final code = await push(
+      SurfaceCaptureResult(
+        images: {imageName: png},
+        placeholders: {
+          imageName: ['ProUpgradePaywall.entitled', 'ProUpgradePaywall.title'],
+        },
+      ),
+    );
+
+    expect(code, 0, reason: err.toString());
+    expect(
+      out.toString(),
+      contains('Drawn with placeholder values for `entitled`, `title`.'),
+    );
+  });
+
   test('a capture that fails warns once and pushes without images', () async {
     final code = await push(
       const SurfaceCaptureResult(failure: 'Flutter could not be started'),
@@ -168,6 +264,69 @@ void main() {
       expect(err.toString(), isNot(contains('image')));
     },
   );
+
+  group('the values a paywall computes in the app', () {
+    setUp(() async {
+      await seedGeneratedPaywall(
+        app,
+        slug: 'pro_upgrade',
+        hostDataContract: SurfaceScreenHostDataSchema({
+          '_h0123456789': const SurfaceScreenHostDataScalarShapeV1(
+            SurfaceScreenHostDataScalarKind.integer,
+          ).withLabel('VColors.of(context).ink'),
+        }),
+      );
+    });
+
+    test('are named when the push recorded them', () async {
+      final code = await push(
+        SurfaceCaptureResult(
+          contexts: {
+            imageName: const {
+              'light': {'_h0123456789': 1},
+              'dark': {'_h0123456789': 2},
+            },
+          },
+        ),
+      );
+
+      expect(code, 0, reason: err.toString());
+      expect(
+        out.toString(),
+        contains('Evaluated in the app:\n  VColors.of(context).ink\n'),
+      );
+    });
+
+    test('say why when an older restage cannot record them', () async {
+      final code = await push(
+        SurfaceCaptureResult(
+          contextSkipped: {
+            imageName:
+                "the app's restage package is too old to record "
+                'them. Update the restage package',
+          },
+        ),
+      );
+
+      expect(code, 0, reason: err.toString());
+      expect(
+        out.toString(),
+        contains(
+          "Its app-computed values were not recorded: the app's restage "
+          'package is too old to record them. Update the restage package.',
+        ),
+      );
+      expect(out.toString(), isNot(contains('Evaluated in the app')));
+    });
+
+    test('are not named when nothing was recorded', () async {
+      final code = await push(const SurfaceCaptureResult());
+
+      expect(code, 0, reason: err.toString());
+      expect(out.toString(), isNot(contains('Evaluated in the app')));
+      expect(out.toString(), isNot(contains('not recorded')));
+    });
+  });
 
   test('a push that stops early stops its render', () async {
     var stopped = false;

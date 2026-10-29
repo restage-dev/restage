@@ -20,7 +20,7 @@ void main() {
     ) async {
       final resolver = _UnavailableResolver();
       final errors = <SurfaceScreenUnavailableError>[];
-      final events = <GetStartedScreenEvent>[];
+      final events = <GetStartedScreenSurfaceEvent>[];
       final mount = _mount(
         atPlacement: atPlacement,
         resolver: resolver,
@@ -47,8 +47,8 @@ void main() {
       expect(resolver.calls, 1);
       expect(errors, [_missing]);
 
-      final host = tester.widget<RestageScreen<GetStartedScreenEvent>>(
-        find.byType(RestageScreen<GetStartedScreenEvent>),
+      final host = tester.widget<RestageScreen<GetStartedScreenSurfaceEvent>>(
+        find.byType(RestageScreen<GetStartedScreenSurfaceEvent>),
       );
       expect(host.context, <String, Object?>{
         'title': 'Welcome',
@@ -65,9 +65,9 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('get-started-action')));
       await tester.pump();
-      expect(events.single, isA<GetStartedScreenContinueEventEvent>());
+      expect(events.single, isA<GetStartedScreenSurfaceContinueEventEvent>());
       expect(
-        (events.single as GetStartedScreenContinueEventEvent).value,
+        (events.single as GetStartedScreenSurfaceContinueEventEvent).value,
         'preview',
       );
     });
@@ -95,8 +95,8 @@ void main() {
       expect(find.text('Get started'), findsNothing);
       expect(resolver.calls, 1);
       expect(errors, [_missing]);
-      final host = tester.widget<RestageScreen<GetStartedScreenEvent>>(
-        find.byType(RestageScreen<GetStartedScreenEvent>),
+      final host = tester.widget<RestageScreen<GetStartedScreenSurfaceEvent>>(
+        find.byType(RestageScreen<GetStartedScreenSurfaceEvent>),
       );
       expect(host.unavailable, same(policy));
       expect(host.context!['title'], 'Welcome');
@@ -139,7 +139,7 @@ GetStartedScreenSurface _mount({
   required SurfaceScreenResolver resolver,
   SurfaceScreenUnavailablePolicy? unavailable,
   ValueChanged<SurfaceScreenUnavailableError>? onUnavailable,
-  ValueChanged<GetStartedScreenEvent>? onEvent,
+  ValueChanged<GetStartedScreenSurfaceEvent>? onEvent,
 }) => atPlacement
     ? GetStartedScreenSurface.atPlacement(
         'welcome_card',

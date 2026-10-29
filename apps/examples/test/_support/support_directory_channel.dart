@@ -6,10 +6,12 @@ import 'package:restage/restage.dart';
 
 /// Answers the application support directory channel for this test file.
 /// Call once at the top of `main` so the SDK's background privacy purge does
-/// not fail on a missing platform channel after the test finishes.
+/// and install-date read do not fail on a missing platform channel after the
+/// test finishes.
 void useSupportDirectoryChannel() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('plugins.flutter.io/path_provider');
+  const preferences = MethodChannel('plugins.flutter.io/shared_preferences');
   late Directory directory;
 
   setUpAll(() async {
@@ -23,11 +25,20 @@ void useSupportDirectoryChannel() {
         return directory.path;
       },
     );
+    // The SDK reads its install date from stored preferences at configure.
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      preferences,
+      (call) async => switch (call.method) {
+        'getAll' => <String, Object>{},
+        _ => true,
+      },
+    );
   });
 
   tearDownAll(() async {
     await Restage.debugResetAndWait();
     binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(preferences, null);
     await directory.delete(recursive: true);
   });
 }

@@ -75,6 +75,12 @@ final class UserFactoryBuilder implements Builder {
     );
     final dependencyFactories =
         dependencies.isEmpty ? null : dependencies.registrationSource();
+    // The same condition under which `restage_surfaces.g.dart` is written.
+    final declaresSurfaces = (await readRestageCompilerHandoff(buildStep))
+            ?.manifest
+            ?.publications
+            .isNotEmpty ??
+        false;
 
     // The admitted structured graph is threaded to the inline reconstructor:
     // a widget carrying a renderable structured
@@ -86,6 +92,7 @@ final class UserFactoryBuilder implements Builder {
             appVocabulary: appVocabulary,
             installWholeCatalog: installWholeCatalog,
             dependencyFactories: dependencyFactories,
+            declaresSurfaces: declaresSurfaces,
           )
         : emitAdmittedUserFactoriesDart(
             collection.widgets,
@@ -101,6 +108,7 @@ final class UserFactoryBuilder implements Builder {
             installWholeCatalog: installWholeCatalog,
             builtInIndex: collection.builtInIndex,
             dependencyFactories: dependencyFactories,
+            declaresSurfaces: declaresSurfaces,
           );
 
     await buildStep.writeAsString(
@@ -246,6 +254,7 @@ String emitAdmittedUserFactoriesDart(
   bool installWholeCatalog = false,
   AppWidgetRegistrationSource? dependencyFactories,
   NativeCatalogIndex? builtInIndex,
+  bool declaresSurfaces = false,
 }) {
   final source = emitUserFactoriesDart(
     widgets,
@@ -261,6 +270,7 @@ String emitAdmittedUserFactoriesDart(
     installWholeCatalog: installWholeCatalog,
     dependencyFactories: dependencyFactories,
     builtInIndex: builtInIndex,
+    declaresSurfaces: declaresSurfaces,
     onSkip: _throwAdmittedFactoryCoherenceFailure,
   );
   return source ??
@@ -268,6 +278,7 @@ String emitAdmittedUserFactoriesDart(
         appVocabulary: appVocabulary,
         installWholeCatalog: installWholeCatalog,
         dependencyFactories: dependencyFactories,
+        declaresSurfaces: declaresSurfaces,
       );
 }
 

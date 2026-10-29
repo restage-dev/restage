@@ -63,7 +63,10 @@ Future<T?> pickOne<T>({
   }
   if (options.length == 1) return options.single.value;
   if (!interactive.isInteractive) {
-    stderr.writeln('Multiple options. Pass $missingFlag.');
+    stderr.writeln(
+      'Multiple options: ${options.map((o) => o.label).join(', ')}. '
+      'Pass $missingFlag.',
+    );
     return null;
   }
   return interactive.select<T>(prompt, options);

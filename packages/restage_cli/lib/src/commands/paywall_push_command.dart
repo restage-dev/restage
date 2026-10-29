@@ -334,9 +334,9 @@ class PaywallPushCommand extends Command<int> {
           appSlug: app,
           environmentSlug: environment,
           organizationSlug: preferredOrganizationSlug,
-          organizationId: config?.organization == preferredOrganizationSlug
-              ? config?.organizationId
-              : null,
+          configured: config == null || configSource == null
+              ? null
+              : (config: config, source: configSource),
           environmentTargetId:
               config?.project == project &&
                   config?.app == app &&

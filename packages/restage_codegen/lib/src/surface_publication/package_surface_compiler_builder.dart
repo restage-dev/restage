@@ -45,6 +45,7 @@ import 'package:restage_codegen/src/surface_publication/package_surface_compiler
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
+import 'package:restage_codegen/src/surface_publication/surface_capture_plan.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_compiler_core/restage_compiler_core.dart';
@@ -78,14 +79,19 @@ final class TrackedPackageSurfaceCompilation {
     required this.analyticsIdControlOutput,
     required Map<String, String> generatedParts,
     required List<Issue> issues,
+    Map<String, Map<String, Object?>> capturePlans = const {},
   })  : generatedParts = Map.unmodifiable(Map.of(generatedParts)),
-        issues = List.unmodifiable(issues);
+        issues = List.unmodifiable(issues),
+        capturePlans = Map.unmodifiable(capturePlans);
 
   final RestageSurfacePublicationBundle publicationBundle;
   final RestageMeasurementCompilerOutputV1 measurementCompilerOutput;
   final AnalyticsIdControlOutputV1 analyticsIdControlOutput;
   final Map<String, String> generatedParts;
   final List<Issue> issues;
+
+  /// How a push draws each surface's image, by [surfaceCapturePlanKey].
+  final Map<String, Map<String, Object?>> capturePlans;
 
   bool get isValid => publicationBundle.valid && issues.isEmpty;
 }
@@ -161,7 +167,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   final issues = <Issue>[];
   final buildNoticeKeys = <String>{};
   final appFactoryNotices = _AppFactoryNoticeCensus();
-  // Loaded at most once per build step, and only when something needs it.
+  // Loaded at most once per build step.
   Future<Catalog>? mergedCatalogLoad;
   Future<Catalog> mergedCatalog() =>
       mergedCatalogLoad ??= loadMergedCatalog(buildStep);
@@ -169,6 +175,9 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   // cannot disagree about which libraries can declare a surface, and the
   // package's sources are read once instead of twice.
   final assets = await selectRestageSurfaceCandidates(buildStep);
+  // Loaded before any resolution: a lazy catalog build in another package
+  // can hide this package's generated sources from the shared resolver.
+  if (assets.isNotEmpty) await mergedCatalog();
   // The roster builder owns discovery; this compiler consumes that exact
   // production seam.
   // ignore: invalid_use_of_visible_for_testing_member
@@ -188,6 +197,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   final measurementScreenInputs = <ResolvedScreenCompilationInput>[];
   final provisionalAnalyticsIdControlCaptures = <AnalyticsIdControlCapture>[];
   final flowJobs = <_FlowCompilationJob>[];
+  final capturePlans = <String, Map<String, Object?>>{};
   final sourcesByLibrary = <String, List<RestageSourceDeclaration>>{};
   for (final source in roster.declarations) {
     sourcesByLibrary.putIfAbsent(source.libraryIdentity, () => []).add(source);
@@ -215,6 +225,10 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     );
     issues.addAll(flowInspection.issues);
     flows.addAll(flowInspection.flows);
+    for (final flow in flowInspection.flows) {
+      capturePlans[surfaceCapturePlanKey(flow.surface, flow.id)] =
+          captureFlowPlan(flow.declaration);
+    }
     if (flowInspection.flows.any((flow) => flow.graph == null)) {
       flowJobs.add(
         _FlowCompilationJob(
@@ -232,6 +246,14 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     );
     issues.addAll(screenInspection.issues);
     measurementScreenInputs.addAll(screenInspection.screens);
+    for (final screen in screenInspection.screens) {
+      if (screen.surface case final surface?) {
+        capturePlans.putIfAbsent(
+          surfaceCapturePlanKey(surface, screen.id),
+          () => captureWidgetPlan(screen.declaration),
+        );
+      }
+    }
     if (screenInspection.screens.isNotEmpty) {
       final compilation = await compileResolvedScreens(
         buildStep,
@@ -346,6 +368,12 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         issues.add(_lostDeclarationIssue(source));
         continue;
       }
+      if (source.surface case final surface?) {
+        capturePlans.putIfAbsent(
+          surfaceCapturePlanKey(surface, source.effectiveId),
+          () => captureWidgetPlan(declaration),
+        );
+      }
       final visited = await visitOnboardingSources(
         library,
         assetId,
@@ -455,6 +483,17 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       catalog: await mergedCatalog(),
     );
     issues.addAll(paywalls.issues);
+    // A paywall surface is drawn from its paywall class, never a screen.
+    for (final source in sourcesByLibrary[library.identifier] ??
+        const <RestageSourceDeclaration>[]) {
+      if (source.kind != RestageRosterSourceKind.paywall) continue;
+      if (_resolvedClassForSource(library, source) case final declaration?) {
+        capturePlans[surfaceCapturePlanKey(
+          Surface.paywall,
+          source.effectiveId,
+        )] = captureWidgetPlan(declaration);
+      }
+    }
     if (paywalls.sources.isNotEmpty) {
       paywallJobs.add(
         _PaywallCompilationJob(
@@ -668,6 +707,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         packageName: buildStep.inputId.package,
         publications: const [],
       ),
+      capturePlans: capturePlans,
     );
   }
   final priorMeasurementOutput = await _readPriorMeasurementOutput(
@@ -1044,6 +1084,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     bundle,
     measurementCompilerOutput,
     analyticsIdControl.output,
+    capturePlans: capturePlans,
   );
 }
 
@@ -1125,8 +1166,9 @@ List<AnalyticsIdControlPublicationScope> _analyticsIdControlScopes(
 TrackedPackageSurfaceCompilation _validCompilation(
   PackageSurfaceCompilationBundle bundle,
   RestageMeasurementCompilerOutputV1 measurementCompilerOutput,
-  AnalyticsIdControlOutputV1 analyticsIdControlOutput,
-) {
+  AnalyticsIdControlOutputV1 analyticsIdControlOutput, {
+  required Map<String, Map<String, Object?>> capturePlans,
+}) {
   final manifestFiles = bundle.manifestFiles;
   final aggregateOwnedManifestFiles = bundle.aggregateOwnedManifestFiles;
   final ownedOutputs = <String, List<int>>{
@@ -1155,6 +1197,7 @@ TrackedPackageSurfaceCompilation _validCompilation(
     analyticsIdControlOutput: analyticsIdControlOutput,
     generatedParts: bundle.generatedParts,
     issues: const [],
+    capturePlans: capturePlans,
   );
 }
 
@@ -1273,6 +1316,7 @@ final class PackageSurfaceCompilerBuilder implements Builder {
           kRestageSurfacePublicationCompilerBundlePath,
           kRestageMeasurementCompilerOutputPath,
           kRestageAnalyticsIdControlOutputPath,
+          kRestageSurfaceCapturePlanCompilerPath,
         ],
       };
 
@@ -1327,6 +1371,16 @@ final class PackageSurfaceCompilerBuilder implements Builder {
           kRestageAnalyticsIdControlOutputPath,
         ),
         compilation.analyticsIdControlOutput.encodeJson(),
+      ),
+      buildStep.writeAsString(
+        AssetId(
+          buildStep.inputId.package,
+          kRestageSurfaceCapturePlanCompilerPath,
+        ),
+        jsonEncode({
+          for (final key in compilation.capturePlans.keys.toList()..sort())
+            key: compilation.capturePlans[key],
+        }),
       ),
     ]);
     if (compilation.isValid) {

@@ -232,7 +232,7 @@ final class MaintenanceNotice extends StatelessWidget {
 
 MaintenanceNoticeSurface(
   onEvent: (event) {
-    if (event is MaintenanceNoticeDismissEvent) {
+    if (event is MaintenanceNoticeSurfaceDismissEvent) {
       Navigator.of(context).maybePop();
     }
   },

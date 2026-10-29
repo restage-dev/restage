@@ -1,6 +1,8 @@
+import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/backend_sites.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
@@ -84,7 +86,7 @@ Future<({SurfacePublication publication, bool? recorded})> publishSurface({
   DeliveryMeasurementMutationProceedV1? measurementProceed,
   bool acceptFit = false,
 }) async {
-  final result = await api.activate(
+  Future<SurfaceFamilyMutationResult> activate() => api.activate(
     acceptFit: acceptFit,
     project: at.project,
     app: at.app,
@@ -100,6 +102,9 @@ Future<({SurfacePublication publication, bool? recorded})> publishSurface({
     sourceKind: identity.sourceKind,
     measurementProceed: measurementProceed,
   );
+  final result = measurementProceed == null
+      ? await activate()
+      : await _repeatWhileOutcomeUnknown(activate);
   final sourceKind = result.sourceKind;
   final family = sourceKind == null
       ? identity
@@ -137,6 +142,28 @@ Future<({SurfacePublication publication, bool? recorded})> publishSurface({
   );
   return (publication: publication, recorded: recorded);
 }
+
+/// Sends [operation] again while the gateway leaves its outcome unknown. The
+/// server answers a repeated operation id with the original result.
+Future<T> _repeatWhileOutcomeUnknown<T>(Future<T> Function() operation) async {
+  for (var attempt = 1; ; attempt++) {
+    try {
+      return await operation();
+    } on RestageApiException catch (error) {
+      if (attempt == _maximumAttempts ||
+          !_outcomeUnknownStatuses.contains(error.statusCode)) {
+        rethrow;
+      }
+    } on http.ClientException {
+      if (attempt == _maximumAttempts) rethrow;
+    }
+  }
+}
+
+const _maximumAttempts = 3;
+
+/// Gateway answers sent without the server's result.
+const _outcomeUnknownStatuses = {502, 503, 504, 520, 521, 522, 523, 524};
 
 /// The line a publish prints when [revision] is already live.
 @experimental

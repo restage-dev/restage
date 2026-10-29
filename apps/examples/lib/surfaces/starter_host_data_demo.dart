@@ -37,7 +37,7 @@ class _StarterHostDataDemoState extends State<StarterHostDataDemo> {
           ),
       ],
       onEvent: (event) {
-        if (event is StarterChecklistToggleEvent) {
+        if (event is StarterChecklistSurfaceToggleEvent) {
           setState(() {
             if (!_done.remove(event.value)) _done.add(event.value);
           });

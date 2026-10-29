@@ -675,6 +675,7 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
             flow: flow,
             sdkPrefix: sdkPrefix,
             source: source,
+            vocabularyName: flowStepVocabularyName(refName),
             issues: issues,
           );
     if (issues.isNotEmpty || reference == null) {
@@ -700,7 +701,11 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
         libraryPath: source.libraryPath,
         library: library,
       )}'
-      '\n\n$reference\n',
+      '\n\n$reference\n'
+      // Only the aggregate compiler knows what the steps draw; this
+      // validation-only part is never written into a package.
+      'const ${flowStepVocabularyName(refName)} = '
+      '${sdkPrefix}SurfaceVocabulary.none;\n',
       languageVersion: libraryLanguageVersion(library),
     );
     return CanonicalFlowArtifactCompilationResult(
@@ -972,6 +977,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   final artifactsByIdentity = <String, List<_ResolvedArtifact>>{};
   final paywallsByIdentity = <String, PaywallArtifactFacts>{};
   final paywallMountNamesByIdentity = <String, String>{};
+  final paywallHostDataByIdentity = <String, SurfaceScreenHostDataSchema>{};
   final partFragments = <String, _PartAccumulator>{};
   // Each class-authored flow's part, and the document it embeds, so the part
   // can follow the document measurement finalizes.
@@ -1014,12 +1020,13 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
 
   // A flow installs its steps' app widgets from its own part when its library
   // can name them, else through a constant each step's part declares.
-  String? flowAppWidgetLibraries(_PendingFlowPart pending) {
-    final identities = {
-      for (final reference in pending.graph.screens.values)
-        reference.declarationIdentity,
-    }.toList()
-      ..sort();
+  String? flowAppWidgetLibraries({
+    required List<String> stepIdentities,
+    required LibraryElement flowLibrary,
+    required String partPath,
+    required RestageSourceDeclaration flowSource,
+  }) {
+    final identities = stepIdentities.toSet().toList()..sort();
     final steps = [
       for (final identity in identities)
         for (final artifact
@@ -1033,21 +1040,21 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       'RestageWidgetFactory',
       'WidgetLibrary',
     };
-    final flowPrefix = _sdkPrefixFor(pending.library, registrationSymbols);
+    final flowPrefix = _sdkPrefixFor(flowLibrary, registrationSymbols);
     if (flowPrefix != null) {
       final direct = input.appWidgets.plan(
         [for (final step in steps) ...step.rendered.vocabulary.widgetNames],
-        pending.library,
+        flowLibrary,
         sdkPrefix: flowPrefix,
-        takenNames: _topLevelNames(pending.library, source: pending.source),
+        takenNames: _topLevelNames(flowLibrary, source: flowSource),
       );
       if (direct.libraries case final libraries?) {
         for (final fragment in direct.fragments) {
           _addPartFragment(
             partFragments,
-            path: pending.partPath,
-            source: pending.source,
-            library: pending.library,
+            path: partPath,
+            source: flowSource,
+            library: flowLibrary,
             fragment: fragment,
           );
         }
@@ -1055,7 +1062,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       }
     }
 
-    final namespace = OwningLibraryNamespace(pending.library);
+    final namespace = OwningLibraryNamespace(flowLibrary);
     final spreads = <String>[];
     final constLibraries = <String, LibraryElement>{};
     for (final artifact in steps) {
@@ -1077,25 +1084,25 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       if (partPaths.length != 1 || sdkPrefix == null) {
         problem = 'no generated part of ${library.uri} can declare them';
       } else if (screenName == null) {
-        problem = '${pending.library.uri} cannot name ${screen.name}';
+        problem = '${flowLibrary.uri} cannot name ${screen.name}';
       } else if (_topLevelNames(library, source: artifact.source)
           .contains(name)) {
         problem = '${library.uri} already declares $name';
       } else if (constLibraries[name] case final other? when other != library) {
         problem = '${other.uri} declares $name too';
       } else if (!_seesGeneratedName(
-        pending.library,
+        flowLibrary,
         library,
         prefix: prefix,
         name: name,
       )) {
-        problem = '${pending.library.uri} cannot see $name, which a part of '
+        problem = '${flowLibrary.uri} cannot see $name, which a part of '
             '${library.uri} declares; import that library without a show or '
             'hide combinator that excludes it';
       }
       if (problem != null) {
         warnings.add(
-          '${pending.source.declarationIdentity}: The generated flow mount '
+          '${flowSource.declarationIdentity}: The generated flow mount '
           'cannot install the app widgets of ${screen.name}: $problem. '
           'Published versions of this flow render only after '
           'registerRestageWidgets() runs at startup.',
@@ -1125,6 +1132,28 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     }
     return '[${spreads.join(', ')}]';
   }
+
+  // The constant a canonical flow reference installs: everything its steps
+  // draw, with the app widgets they use, so no step has to build first.
+  String flowStepVocabularyFragment({
+    required String refName,
+    required SurfaceVocabularyReferences vocabulary,
+    required List<String> stepIdentities,
+    required LibraryElement flowLibrary,
+    required String partPath,
+    required RestageSourceDeclaration flowSource,
+    required String sdkPrefix,
+  }) =>
+      'const ${flowStepVocabularyName(refName)} = ${emitSurfaceVocabulary(
+        vocabulary,
+        sdkPrefix: sdkPrefix,
+        libraries: flowAppWidgetLibraries(
+          stepIdentities: stepIdentities,
+          flowLibrary: flowLibrary,
+          partPath: partPath,
+          flowSource: flowSource,
+        ),
+      )};\n';
 
   for (final suppliedRendered in input.renderedSources) {
     final identity = suppliedRendered.declarationIdentity;
@@ -1338,6 +1367,10 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       }
     }
 
+    if ((rendered.paywallFacts, rendered.compiledScreenInput)
+        case (_?, final screenInput?)) {
+      paywallHostDataByIdentity[identity] = screenInput.hostDataContract;
+    }
     if (rendered.nativeMountInput case final mountInput?) {
       final mount = emitPaywallMount(
         mountInput,
@@ -1482,6 +1515,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       issues: issues,
       artifactLibraryPaths: artifactLibraryPaths,
       mountName: paywallMountNamesByIdentity[entry.key],
+      hostDataContract: paywallHostDataByIdentity[entry.key],
     );
     if (publication != null) manifestInputs.add(publication);
   }
@@ -1807,13 +1841,54 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         );
         if (partPath != null) {
           final fragment = _withoutPartHeader(generatedPart);
+          final flowLibrary = precompiled.declaration.library!;
           _addPartFragment(
             partFragments,
             path: partPath,
             source: source,
-            library: precompiled.declaration.library!,
+            library: flowLibrary,
             fragment: fragment,
           );
+          final refName = generatedHandleName(
+            flow.declaration.name!,
+            fallback: 'surfaceFlow',
+          );
+          final sdkPrefix =
+              _sdkPrefixFor(flowLibrary, const {'SurfaceVocabulary'});
+          // A canonical class flow reference installs this constant.
+          if (fragment.contains(flowStepVocabularyName(refName)) &&
+              sdkPrefix == null) {
+            _addIssue(
+              issues,
+              code: IssueCode.analyzerResolutionFailed,
+              message: 'The flow library must import package:restage with a '
+                  'namespace that exposes SurfaceVocabulary.',
+              location: source.span.location,
+            );
+          } else if (fragment.contains(flowStepVocabularyName(refName))) {
+            final steps = assembly.stepIdentities;
+            _addPartFragment(
+              partFragments,
+              path: partPath,
+              source: source,
+              library: flowLibrary,
+              fragment: flowStepVocabularyFragment(
+                refName: refName,
+                vocabulary: _flowScreenVocabulary(
+                  steps,
+                  artifactsByIdentity,
+                  issues: issues,
+                  flowId: flow.id,
+                  location: source.span.location,
+                ),
+                stepIdentities: steps,
+                flowLibrary: flowLibrary,
+                partPath: partPath,
+                flowSource: source,
+                sdkPrefix: sdkPrefix!,
+              ),
+            );
+          }
           precompiledFlowParts.add(
             _PrecompiledFlowPart(
               partPath: partPath,
@@ -1941,7 +2016,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         // A delivered flow resolves its screens by slug and never reads their
         // generated references, so the flow reference carries the union.
         vocabulary: _flowScreenVocabulary(
-          graph,
+          _graphStepIdentities(graph),
           artifactsByIdentity,
           issues: issues,
           flowId: source.effectiveId,
@@ -2247,6 +2322,21 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       },
   };
   for (final pending in pendingFlowParts) {
+    _addPartFragment(
+      partFragments,
+      path: pending.partPath,
+      source: pending.source,
+      library: pending.library,
+      fragment: flowStepVocabularyFragment(
+        refName: pending.refName,
+        vocabulary: pending.vocabulary,
+        stepIdentities: _graphStepIdentities(pending.graph),
+        flowLibrary: pending.library,
+        partPath: pending.partPath,
+        flowSource: pending.source,
+        sdkPrefix: pending.sdkPrefix,
+      ),
+    );
     final reference = _emitFlowReference(
       refName: pending.refName,
       resultName: pending.resultName,
@@ -2263,8 +2353,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       flow: pending.flow,
       sdkPrefix: pending.sdkPrefix,
       source: pending.source,
-      vocabulary: pending.vocabulary,
-      appWidgetLibraries: flowAppWidgetLibraries(pending),
+      vocabularyName: flowStepVocabularyName(pending.refName),
       measurementPublicationDraftDigest: carrierDraftDigestsByPublicationKey[
           pending.measurementPublicationKey],
       issues: issues,
@@ -2625,6 +2714,7 @@ SurfacePublicationAssemblyInput? _assemblePaywallPublication({
   required List<Issue> issues,
   required Map<String, String> artifactLibraryPaths,
   String? mountName,
+  SurfaceScreenHostDataSchema? hostDataContract,
 }) {
   try {
     final files = facts.filesByPath;
@@ -2697,6 +2787,8 @@ SurfacePublicationAssemblyInput? _assemblePaywallPublication({
       artifacts: inputs,
       sources: _authoringSources([source]),
       mountName: mountName,
+      hostDataContract:
+          hostDataContract ?? const SurfaceScreenHostDataSchema.empty(),
       flowFacts: facts.hasFlow
           ? SurfacePublicationFlowFacts(
               deliveryMode: facts.navigationFlow!.deliveryMode,
@@ -3265,6 +3357,10 @@ _FlowAssembly? _assemblePrecompiledFlowPublication({
         mountName: mountName,
       ),
       flowDocumentBytes: documentBytes,
+      stepIdentities: [
+        for (final artifact in closure)
+          artifact.artifact.source.declarationIdentity,
+      ],
     );
   } on Object catch (error) {
     _addIssue(
@@ -3723,23 +3819,26 @@ List<String> _packageSurfaceWidgetNames(PackageSurfaceCompilationInput input) {
   return names;
 }
 
-/// The union of every screen vocabulary [graph] reaches, ordered so two runs
-/// over one input fold the same set.
+/// The declarations of a normalized flow's step screens.
+List<String> _graphStepIdentities(NormalizedFlowGraph graph) => [
+      for (final reference in graph.screens.values)
+        reference.declarationIdentity,
+    ];
+
+/// The union of the vocabularies of the [stepIdentities] screens, ordered so
+/// two runs over one input fold the same set.
 ///
 /// Two screens can each be carriable and still disagree on what one icon
 /// renders. That records an issue against [location] and folds to the empty
 /// set; the caller's build already fails on a non-empty [issues].
 SurfaceVocabularyReferences _flowScreenVocabulary(
-  NormalizedFlowGraph graph,
+  Iterable<String> stepIdentities,
   Map<String, List<_ResolvedArtifact>> artifactsByIdentity, {
   required List<Issue> issues,
   required String flowId,
   required String location,
 }) {
-  final identities = <String>{
-    for (final reference in graph.screens.values) reference.declarationIdentity,
-  }.toList()
-    ..sort();
+  final identities = stepIdentities.toSet().toList()..sort();
   final union = VocabularyUnionBuilder();
   for (final identity in identities) {
     for (final artifact
@@ -3776,8 +3875,7 @@ String? _emitFlowReference({
   required String sdkPrefix,
   required RestageSourceDeclaration source,
   required List<Issue> issues,
-  SurfaceVocabularyReferences vocabulary = SurfaceVocabularyReferences.empty,
-  String? appWidgetLibraries,
+  required String vocabularyName,
   Map<String, FlowDocument> descendants = const {},
   Map<String, ClassElement> nativeScreens = const {},
   String? measurementPublicationDraftDigest,
@@ -3796,14 +3894,7 @@ String? _emitFlowReference({
         : resultName,
   );
   final support = _emitCanonicalActions(resultName, graph.actions, sdkPrefix);
-  var vocabularyArgument = '';
-  if (vocabulary.namesInstallable || appWidgetLibraries != null) {
-    vocabularyArgument = '  vocabulary: ${emitSurfaceVocabulary(
-      vocabulary,
-      sdkPrefix: sdkPrefix,
-      libraries: appWidgetLibraries,
-    )},\n';
-  }
+  final vocabularyArgument = '  vocabulary: $vocabularyName,\n';
   String referenceConstructor(String resultType) =>
       measurementPublicationDraftDigest == null
           ? '${sdkPrefix}SurfaceFlowRef<$resultType>'
@@ -5482,10 +5573,14 @@ final class _FlowAssembly {
   const _FlowAssembly({
     required this.manifestInput,
     required this.flowDocumentBytes,
+    this.stepIdentities = const [],
   });
 
   final SurfacePublicationAssemblyInput manifestInput;
   final Uint8List flowDocumentBytes;
+
+  /// The declarations of the step screens the assembly matched.
+  final List<String> stepIdentities;
 }
 
 final class _FlowClosureArtifact {

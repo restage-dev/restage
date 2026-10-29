@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
-    show CanonicalJsonCodec;
+    show CanonicalJsonCodec, CanonicalValue, ImmutableCanonicalDocument;
 import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/src/capability/blob_render_capability_gate.dart';
 import 'package:restage_shared/src/capability/capability_manifest.dart';
@@ -523,7 +523,8 @@ final class FlowHostBoundaryV1 {
 
 /// The immutable contract a mount provides independently of its fallback.
 @immutable
-final class SurfaceHostContractV1 {
+final class SurfaceHostContractV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a complete host shape, excluding actual host data values.
   factory SurfaceHostContractV1({
     required SurfaceHostingV1 hosting,
@@ -532,17 +533,20 @@ final class SurfaceHostContractV1 {
     FlowHostBoundaryV1? flowBoundary,
   }) {
     _checkBoundary(hosting.contentKind, flowBoundary);
-    return SurfaceHostContractV1._(
+    final result = SurfaceHostContractV1._(
       hosting: hosting,
-      providedContextJson: _snapshotObject(providedContext.toJson()),
+      providedContextJson:
+          _freezeJson(providedContext.toJson())! as Map<String, Object?>,
       handledEvents: SurfaceScreenEventSchemaV1Codec.decode(
         SurfaceScreenEventSchemaV1Codec.encode(handledEvents),
       ),
       flowBoundary: flowBoundary,
     );
+    // Taking the hash is the one encode, and it refuses a tree it cannot write.
+    return result..contentHash;
   }
 
-  const SurfaceHostContractV1._({
+  SurfaceHostContractV1._({
     required this.hosting,
     required Map<String, Object?> providedContextJson,
     required this.handledEvents,
@@ -573,6 +577,22 @@ final class SurfaceHostContractV1 {
   final SurfaceHostingV1 hosting;
   final Map<String, Object?> _providedContextJson;
 
+  // Read-only within this library; callers get detached copies.
+  late final SurfaceScreenHostDataSchema _providedSchema =
+      SurfaceScreenHostDataSchema.fromJson(_providedContextJson);
+
+  /// This contract with [hosting]; everything else it declares is shared.
+  SurfaceHostContractV1 withHosting(SurfaceHostingV1 hosting) {
+    _checkBoundary(hosting.contentKind, flowBoundary);
+    final result = SurfaceHostContractV1._(
+      hosting: hosting,
+      providedContextJson: _providedContextJson,
+      handledEvents: handledEvents,
+      flowBoundary: flowBoundary,
+    );
+    return result..contentHash;
+  }
+
   /// A detached schema snapshot of the provided context.
   SurfaceScreenHostDataSchema get providedContext =>
       SurfaceScreenHostDataSchema.fromJson(_providedContextJson);
@@ -584,6 +604,7 @@ final class SurfaceHostContractV1 {
   final FlowHostBoundaryV1? flowBoundary;
 
   /// The canonical mount contract without any particular surface identity.
+  @override
   Map<String, Object?> toJson() => {
         'schemaVersion': 1,
         'hosting': hosting.toJson(),
@@ -592,11 +613,8 @@ final class SurfaceHostContractV1 {
         'flowBoundary': flowBoundary?.toJson(),
       };
 
-  /// Canonical contract bytes.
-  Uint8List get canonicalBytes => CanonicalJsonCodec.encode(toJson());
-
   /// Hash identifying this generated or explicitly declared host contract.
-  String get contentHash => hashOfCanonicalBytes(canonicalBytes);
+  late final String contentHash = hashOfCanonicalBytes(canonicalBytes);
 
   /// The host contract hash of [bytes], the canonical bytes of a contract.
   static String hashOfCanonicalBytes(List<int> bytes) =>
@@ -819,7 +837,164 @@ final class SurfaceFitFailureV1 {
 
   /// Available shape or capability; null when absent.
   final Object? available;
+
+  /// A compact public name for this failure:
+  /// `code[:subject][@required][;available]`.
+  ///
+  /// For example `oldLibrary:acme.ui@3/2;2/1` (library version, generated
+  /// code; then this build's), `missingWidget:acme.ui:Badge`,
+  /// `missingIcon:MaterialIcons@0xe5f9`, `builtInFloor@9;8`,
+  /// `deliveryModeMismatch@general;typed` or `unhandledEvent:dismiss`.
+  /// Same-version action tokens add the differing parts, as in
+  /// `actionMismatch:pay@2;2/args,idempotent`. Parts escape `%`, `;`, `@`,
+  /// space and control characters as `%XX`.
+  String get token {
+    final required = this.required;
+    final available = this.available;
+    String? subject;
+    String? need;
+    String? have;
+    switch (code) {
+      case SurfaceFitFailureCodeV1.missingLibrary ||
+            SurfaceFitFailureCodeV1.oldLibrary ||
+            SurfaceFitFailureCodeV1.brokenLibrary:
+        if (required is Map<String, Object?>) {
+          subject = '${required['namespace']}';
+          final generated = required['minGenerated'];
+          need = '${required['minVersion']}'
+              '${generated == null ? '' : '/$generated'}';
+        }
+        if (available is Map<String, Object?>) {
+          final version = available['version'];
+          have = switch (code) {
+            _ when version == null => 'unversioned',
+            SurfaceFitFailureCodeV1.oldLibrary =>
+              '$version/${available['generated'] ?? 1}',
+            SurfaceFitFailureCodeV1.brokenLibrary =>
+              '$version,${available['compatibleSince'] ?? 1}',
+            _ => '$version',
+          };
+        }
+      case SurfaceFitFailureCodeV1.missingWidget:
+        if (required is String) subject = required;
+      case SurfaceFitFailureCodeV1.missingIcon:
+        subject = _after(path, r'$.requiredVocabulary.iconCodePoints.');
+        if (required is int) {
+          need = '0x${required.toRadixString(16)}';
+        }
+      case SurfaceFitFailureCodeV1.builtInFloor:
+        if (path != r'$.capabilities.builtInFloor') {
+          final action = _after(path, r'$.flowBoundary.actions.');
+          subject = action?.substring(0, action.lastIndexOf('.'));
+        }
+        need = '$required';
+        have = '$available';
+      case SurfaceFitFailureCodeV1.hostingMismatch:
+        if (required is Map<String, Object?> &&
+            available is Map<String, Object?>) {
+          final modes = required['allowedPresentations'];
+          need = '${required['contentKind']}/'
+              '${modes is List ? modes.join('+') : ''}';
+          have = '${available['contentKind']}/${available['presentation']}';
+        }
+      case SurfaceFitFailureCodeV1.deliveryModeMismatch:
+        need = '$required';
+        have = '$available';
+      case SurfaceFitFailureCodeV1.missingHostField:
+        subject = _after(path, r'$.requiredContext.');
+      case SurfaceFitFailureCodeV1.incompatibleHostField:
+        subject = _after(path, r'$.requiredContext.');
+        need = _shapeKind(required);
+        have = _shapeKind(available);
+      case SurfaceFitFailureCodeV1.unhandledEvent ||
+            SurfaceFitFailureCodeV1.incompatibleEventShape:
+        subject = _after(path, r'$.emittedEvents.');
+      case SurfaceFitFailureCodeV1.actionMismatch:
+        subject = _after(path, r'$.flowBoundary.actions.');
+        if (required is Map<String, Object?>) {
+          need = '${required['contractVersion']}';
+        }
+        if (available is Map<String, Object?>) {
+          have = '${available['contractVersion']}';
+          if (required is Map<String, Object?> &&
+              required['contractVersion'] == available['contractVersion']) {
+            final needClient = required['minClient'];
+            final haveClient = available['minClient'];
+            final differs = [
+              for (final (key, name) in const [
+                ('actionName', 'name'),
+                ('argsSchema', 'args'),
+                ('resultSchema', 'result'),
+                ('idempotent', 'idempotent'),
+              ])
+                if (!SurfaceContractJson.bytesEqual(
+                  CanonicalJsonCodec.encode(required[key]),
+                  CanonicalJsonCodec.encode(available[key]),
+                ))
+                  name,
+              // A build with a higher minimum still satisfies the contract.
+              if (needClient is int &&
+                  haveClient is int &&
+                  haveClient < needClient)
+                'minClient',
+            ];
+            if (differs.isNotEmpty) have = '$have/${differs.join(',')}';
+          }
+        }
+      case SurfaceFitFailureCodeV1.seedMismatch:
+        subject = _after(path, r'$.flowBoundary.hostSeedableState.');
+        need = required is String ? required : null;
+        have = available is String ? available : null;
+      case SurfaceFitFailureCodeV1.signalMismatch:
+        if (required is String) subject = required;
+      case SurfaceFitFailureCodeV1.resultMismatch:
+        if (required is Map<String, Object?> &&
+            available is Map<String, Object?>) {
+          final keys = {...required.keys, ...available.keys}
+              .where((key) => required[key] != available[key])
+              .toList()
+            ..sort();
+          if (keys.isNotEmpty) subject = keys.join(',');
+        }
+      case SurfaceFitFailureCodeV1.outboundMismatch:
+        subject = _after(path, r'$.flowBoundary.outbound.');
+        need = required is String ? required : null;
+        have = available is String ? available : null;
+      case SurfaceFitFailureCodeV1.missingInstalledVocabulary ||
+            SurfaceFitFailureCodeV1.missingRequirement ||
+            SurfaceFitFailureCodeV1.malformedRequirement:
+        break;
+    }
+    return '${code.name}'
+        '${subject == null ? '' : ':${_escapeTokenPart(subject)}'}'
+        '${need == null ? '' : '@${_escapeTokenPart(need)}'}'
+        '${have == null ? '' : ';${_escapeTokenPart(have)}'}';
+  }
 }
+
+String? _after(String path, String prefix) =>
+    path.startsWith(prefix) && path.length > prefix.length
+        ? path.substring(prefix.length)
+        : null;
+
+/// The top-level kind of a host-data shape, `int` or `string?`.
+String? _shapeKind(Object? shape) {
+  if (shape is! Map<String, Object?>) return null;
+  final kind = shape['kind'];
+  if (kind == 'nullable') {
+    final inner = _shapeKind(shape['value']);
+    return inner == null ? null : '$inner?';
+  }
+  return kind is String ? kind : null;
+}
+
+String _escapeTokenPart(String part) => part.replaceAllMapped(
+      RegExp(r'[%;@\x00-\x20\x7f]'),
+      (match) {
+        final hex = match[0]!.codeUnitAt(0).toRadixString(16).toUpperCase();
+        return '%${hex.padLeft(2, '0')}';
+      },
+    );
 
 /// An accepted fit or a rejection with at least one immutable failure.
 @immutable
@@ -865,7 +1040,7 @@ abstract final class SurfaceFitEvaluator {
         host.hosting.toJson(),
       );
     }
-    final provided = host.providedContext.inputs;
+    final provided = host._providedSchema.inputs;
     for (final entry in requirement.requiredContext.inputs.entries) {
       final path = r'$.requiredContext.' + entry.key;
       final available = provided[entry.key];
@@ -1095,12 +1270,31 @@ bool _eventShapeAccepts(
   };
 }
 
+/// Fit failure tokens for what [manifest] needs that [installed] lacks: the
+/// built-in catalog floor and each custom library.
+List<String> capabilityFitTokens(
+  CapabilityManifest manifest,
+  InstalledCapability installed,
+) {
+  final failures = <SurfaceFitFailureV1>[];
+  _checkManifest(manifest, installed, failures);
+  return [for (final failure in failures) failure.token];
+}
+
 void _checkCapabilities(
   SurfaceFitRequirementV1 requirement,
   InstalledCapability installed,
   List<SurfaceFitFailureV1> failures,
 ) {
-  final manifest = requirement.capabilities;
+  _checkManifest(requirement.capabilities, installed, failures);
+  _checkVocabulary(requirement, installed, failures);
+}
+
+void _checkManifest(
+  CapabilityManifest manifest,
+  InstalledCapability installed,
+  List<SurfaceFitFailureV1> failures,
+) {
   final verdict = BlobRenderCapabilityGate.evaluate(
     required: manifest,
     installed: installed,
@@ -1134,6 +1328,13 @@ void _checkCapabilities(
       actual?.toJson(),
     );
   }
+}
+
+void _checkVocabulary(
+  SurfaceFitRequirementV1 requirement,
+  InstalledCapability installed,
+  List<SurfaceFitFailureV1> failures,
+) {
   final vocabulary = installed.vocabulary;
   if (vocabulary == null) {
     _fail(

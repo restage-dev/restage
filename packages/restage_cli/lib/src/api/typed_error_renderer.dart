@@ -39,7 +39,8 @@ TypedErrorOutcome renderApiError(
   }
   return TypedErrorOutcome(2, switch (syntax) {
     SelectorSyntax.cli || SelectorSyntax.console =>
-      'Could not contact the backend: HTTP ${e.statusCode} — ${e.body}',
+      'The Restage backend returned an error (HTTP ${e.statusCode}). Try '
+          'again; if it keeps happening, report it.',
     SelectorSyntax.mcp =>
       'The Restage backend returned an error (status ${e.statusCode}).',
   });
@@ -113,6 +114,22 @@ String _utcMinute(DateTime at) {
       '${two(utc.hour)}:${two(utc.minute)} UTC';
 }
 
+/// The sentence for an organization [name] (a config slug, or an id the
+/// request sent) that the account cannot reach.
+String organizationUnavailableSentence(String? name, SelectorSyntax syntax) {
+  final subject = name == null || name.isEmpty
+      ? 'No organization is'
+      : 'No organization `$name` is';
+  return switch (syntax) {
+    SelectorSyntax.mcp =>
+      '$subject available to this account. Check `organizationId`, or sign in '
+          'again with `restage_login`.',
+    _ =>
+      '$subject available to this account. Check `org` in your Restage '
+          'config, or run `restage login` with an account that belongs to it.',
+  };
+}
+
 /// The sentence for an app slug with no app under [projectSlug].
 String appNotFoundSentence(String appSlug, String projectSlug) =>
     'App `$appSlug` not found under project `$projectSlug`.';
@@ -126,6 +143,8 @@ String _genericSentence(
   GenericTypedException typed,
   SelectorSyntax syntax,
 ) => switch (typed) {
+  OrganizationNotFound(:final organizationId) =>
+    organizationUnavailableSentence('$organizationId', syntax),
   ProjectNotFound(:final projectSlug) =>
     'Project `$projectSlug` not found or you do not have access to it.',
   AppNotFound(:final appSlug, :final projectSlug) => appNotFoundSentence(

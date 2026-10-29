@@ -213,8 +213,12 @@ String _resultText(measurement.ExperimentAuthoringResultV1 result) {
       : ' Audience held by ${locator.conflictingExperimentId} '
             '(its revision ${locator.conflictingAudienceRef.revisionId.value}, '
             'this draft ${locator.proposedAudienceRef.revisionId.value}).';
+  final superseded = refused.refusal.supersededRevision;
+  final supersededText = superseded == null
+      ? ''
+      : ' ${supersededRevisionSentence(superseded)}';
   return 'Refused ${result.operation.wireName}: '
-      '${refused.refusal.code.wireName}.$conflict';
+      '${refused.refusal.code.wireName}.$conflict$supersededText';
 }
 
 String _deliveryArmPublication(measurement.ExperimentDeliveryArmV1 arm) =>

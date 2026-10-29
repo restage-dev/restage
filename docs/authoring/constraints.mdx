@@ -201,16 +201,6 @@ Supported typed values and native `intl` formatting can also produce text inside
 value objects, nested spans, and pure builder callbacks. See
 [Dates and localized text](/authoring/host-data#dates-and-localized-text).
 
-## Keep an interpolated string in one literal
-
-Adjacent plain strings are joined as in Dart. A group of adjacent strings that mixes
-plain and interpolated parts isn't supported, so keep the interpolation in one string:
-
-```dart
-// Instead of: Text('Hello, ' '$name')
-Text('Hello, $name')
-```
-
 ## Full width without double.infinity
 
 A literal property in a surface can't carry `double.infinity` or another non-finite

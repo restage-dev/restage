@@ -91,6 +91,7 @@ MockClient fakeBackend(
             'environmentTargets': [
               for (final target in targets) _targetJson(target),
             ],
+            'legacyDefaultTargetIds': <Object>[],
             'surfaces': [
               for (final surface in scopeSurfaces) {'appId': 11, ...surface},
             ],

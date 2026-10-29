@@ -5265,6 +5265,7 @@ void main() {
         'deniedAction',
         'targetMismatch',
         'incompatibleReference',
+        'revisionSuperseded',
         'capabilityUnavailable',
         'statisticalCountNumeratorUnsupported',
         'replayRebinding',
@@ -5289,6 +5290,8 @@ void main() {
             'retryable': code == 'backendUnavailable' ||
                 code == 'transportUnknownOutcome',
             'schemaVersion': 1,
+            if (code == 'revisionSuperseded')
+              'supersededRevision': _supersededRevision(),
           },
           'schemaVersion': 1,
         };
@@ -5342,6 +5345,60 @@ void main() {
         ).toJson(),
         refusal(detail: 'audienceContextSchema'),
       );
+    });
+
+    test('a superseded-revision refusal names the revision it refuses', () {
+      Map<String, Object?> refusal({
+        String code = 'revisionSuperseded',
+        Map<String, Object?>? superseded,
+        bool carried = true,
+      }) =>
+          {
+            'correlationId': 'correlation-refusal-superseded',
+            'kind': 'refused',
+            'operation': 'activateDraft',
+            'refusal': {
+              'code': code,
+              'kind': 'experimentAuthoringRefusal',
+              'messageKey': 'experiment.authoring.$code',
+              'retryable': false,
+              'schemaVersion': 1,
+              if (carried)
+                'supersededRevision': superseded ?? _supersededRevision(),
+            },
+            'schemaVersion': 1,
+          };
+
+      final read = ExperimentAuthoringResultV1.fromJson(refusal())
+          as ExperimentAuthoringRefusedV1;
+      final superseded = read.refusal.supersededRevision!;
+      expect(superseded.surfaceSlug, 'weekly_recap');
+      expect(superseded.contractVersion, 2);
+      expect(superseded.publishedRevision, 3);
+      expect(superseded.definedFromRevision, 5);
+      expect(read.refusal.locator, isNull);
+      expect(
+        ExperimentAuthoringResultV1.fromCanonicalBytes(
+          read.canonicalBytes,
+        ).toJson(),
+        refusal(),
+      );
+
+      for (final invalid in [
+        refusal(carried: false),
+        refusal(code: 'incompatibleReference'),
+        refusal(
+          superseded: _supersededRevision()..['publishedRevision'] = 5,
+        ),
+        refusal(superseded: _supersededRevision()..['extra'] = 1),
+        refusal(superseded: _supersededRevision()..remove('surfaceSlug')),
+        refusal(superseded: _supersededRevision()..['kind'] = 'other'),
+      ]) {
+        expect(
+          () => ExperimentAuthoringResultV1.fromJson(invalid),
+          throwsA(isA<CanonicalFormatException>()),
+        );
+      }
     });
 
     test('reads a typed audience conflict on a validation-blocked refusal', () {
@@ -8362,3 +8419,11 @@ void _expectNoSensitiveKeys(
     );
   }
 }
+
+Map<String, Object?> _supersededRevision() => {
+      'contractVersion': 2,
+      'definedFromRevision': 5,
+      'kind': 'supersededRevision',
+      'publishedRevision': 3,
+      'surfaceSlug': 'weekly_recap',
+    };

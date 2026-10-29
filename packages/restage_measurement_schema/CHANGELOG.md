@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- An experiment refusal can name a superseded revision: one published before
+  its surface's contract version changed. The refusal code
+  `revisionSuperseded` always carries `supersededRevision`
+  (`ExperimentSupersededRevisionV1`), with the surface slug, the contract
+  version, the refused revision and the first revision on the current
+  contract. No other code carries it.
+- `CanonicalValue.toCanonicalTree` is the tree a value's canonical bytes encode.
+  It defaults to `toJson`, and a value may hold nested values in it, which
+  encode from their own canonical bytes.
+- `package:restage_measurement_schema/canonical_forms.dart` exposes
+  `CanonicalForms`, for passing already-decoded canonical documents between
+  isolates.
+- Breaking: `DeliveryCacheValidityV1.consultedBuiltIns` lists, sorted, the SDK
+  built-in facts a delivery decision read. `kDeliveryBuiltInFactNames` holds the
+  names it may contain. The canonical JSON requires the key. A cache validity
+  encoded without it no longer decodes. The constructor parameter is optional
+  and defaults to an empty list. This change ships in a minor version bump
+  (0.2.0).
 - The disclosure floor is not a constant in this package. The service states the
   floor it applied in each response (`disclosureFloor`), and a client shows a
   held count as less than that number.

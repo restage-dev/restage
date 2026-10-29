@@ -2,6 +2,31 @@ part of '../section_header_showcase.dart';
 
 // ignore_for_file: type=lint
 
+const _sectionHeaderShowcaseFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Column': buildColumn,
+      'Padding': buildPadding,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Spacer': buildSpacer,
+      'Text': buildText,
+    },
+    material: {
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'IconButton': buildIconButton,
+      'Scaffold': buildScaffold,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+    },
+  }),
+);
+
 const sectionHeaderShowcaseFlowRef = SurfaceFlowRef<
     SectionHeaderShowcaseResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'section_header_showcase',
@@ -20,30 +45,7 @@ const sectionHeaderShowcaseFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '59e578f435304b59f05e0a444f44588889aa8eedbd2016a061591bde594a284c',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Column': buildColumn,
-        'Padding': buildPadding,
-        'Row': buildRow,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Spacer': buildSpacer,
-        'Text': buildText,
-      },
-      material: {
-        'FilledButton': buildFilledButton,
-        'Icon': buildIcon,
-        'IconButton': buildIconButton,
-        'Scaffold': buildScaffold,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
-      },
-    }),
-  ),
+  vocabulary: _sectionHeaderShowcaseFlowRefVocabulary,
 );
 
 SectionHeaderShowcaseResult _decodeSectionHeaderShowcaseFlowResult(

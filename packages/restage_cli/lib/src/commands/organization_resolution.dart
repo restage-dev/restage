@@ -1,20 +1,14 @@
 import 'dart:io';
 
 import 'package:args/args.dart';
-import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/scope_snapshot_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
+import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
-import 'package:restage_cli/src/config/config_target_check.dart';
+import 'package:restage_cli/src/config/config_target_check.dart'
+    show ambiguousOrganizationSentence, noOrganizationSentence;
 import 'package:restage_cli/src/config/restage_config.dart';
-
-/// Resolved organization id for commands scoped by project/app slugs.
-class ConfiguredOrganizationContext {
-  /// Construct a resolved organization context.
-  const ConfiguredOrganizationContext(this.organizationId);
-
-  /// Backend organization id, or null when no organization was configured.
-  final int? organizationId;
-}
 
 /// Register the hidden `--organization-id` selector a tool that already
 /// knows the organization id passes.
@@ -44,93 +38,133 @@ String? resolveOrganizationSlug(ArgResults? argResults, RestageConfig? config) {
   return organizationIdOption(argResults) == null ? config?.organization : null;
 }
 
-void _writeOrganizationDiscoveryError(
-  StringSink stderr,
-  RestageApiException error,
-) => stderr.writeln(renderApiError(error).message);
-
-/// Resolve `restage_config.yaml`'s organization slug to the backend id.
+/// The organization id for [preferredSlug], else the config's organization,
+/// else [organizationId]; null when none is named.
 ///
-/// Project/app commands can omit this when there is no configured organization;
-/// the backend then resolves within the caller's memberships and fails closed on
-/// ambiguous project slugs. When a config names an organization, resolve it
-/// through the authenticated discovery RPC and thread the id into the scoped
-/// operation so day-2 zero-flag commands work for multi-organization accounts.
-Future<ConfiguredOrganizationContext?> resolveConfiguredOrganization({
+/// Resolves through [readConfiguredScope], so a slug the account cannot reach
+/// raises the one [TargetSelectionException] sentence.
+Future<int?> resolveOrganizationId({
   required RestageApi api,
-  required RestageConfig? config,
-  required StringSink stderr,
+  required LoadedConfig? loaded,
   String? preferredSlug,
   int? organizationId,
+  StringSink? notices,
 }) async {
-  if (organizationId != null && !(preferredSlug?.isNotEmpty ?? false)) {
-    return ConfiguredOrganizationContext(organizationId);
-  }
-  final organizationSlug = preferredSlug?.isNotEmpty ?? false
+  final slug = preferredSlug?.isNotEmpty ?? false
       ? preferredSlug
-      : config?.organization;
-  if (organizationSlug == null || organizationSlug.isEmpty) {
-    return const ConfiguredOrganizationContext(null);
+      : loaded?.config.organization;
+  if (slug == null || slug.isEmpty) return organizationId;
+  if (organizationId != null && !(preferredSlug?.isNotEmpty ?? false)) {
+    return organizationId;
   }
+  final snapshot = await readConfiguredScope(
+    api,
+    loaded: loaded,
+    organizationSlug: slug,
+    notices: notices,
+  );
+  if (organizationId != null && snapshot.organizationId != organizationId) {
+    throw TargetSelectionException(
+      organizationUnavailableSentence(slug, currentSelectorSyntax),
+    );
+  }
+  return snapshot.organizationId;
+}
 
-  try {
-    final organizations = await DiscoveryApi(api).listOrganizations();
-    for (final organization in organizations) {
-      if (organization.slug == organizationSlug &&
-          (organizationId == null ||
-              organization.organizationId == organizationId)) {
-        return ConfiguredOrganizationContext(organization.organizationId);
-      }
+/// The loaded project config: its values and the file they came from.
+typedef LoadedConfig = ({RestageConfig config, File source});
+
+/// Read the scope for the organization [organizationSlug] names in [loaded].
+///
+/// Sends the id the config cached. When the server refuses it, resolves the
+/// slug once, rewrites the cached id in the config file, and continues; only a
+/// slug the account cannot reach raises the error that prints the sentence.
+/// A failed rewrite is reported on [notices] and does not stop the command.
+Future<ProgrammaticScopeSnapshot> readConfiguredScope(
+  RestageApi api, {
+  required LoadedConfig? loaded,
+  required String? organizationSlug,
+  StringSink? notices,
+}) async {
+  final config = loaded?.config;
+  final cached = config != null && config.organization == organizationSlug
+      ? config.organizationId
+      : null;
+  var snapshot = await _readCached(api, cached);
+  final refused = snapshot == null;
+  snapshot ??= await readProgrammaticScope(api);
+  if (organizationSlug == null) return snapshot;
+  final match = snapshot.organizations
+      .where((organization) => organization.slug == organizationSlug)
+      .firstOrNull;
+  if (match == null) {
+    throw TargetSelectionException(
+      organizationUnavailableSentence(organizationSlug, currentSelectorSyntax),
+    );
+  }
+  if (match.organizationId != snapshot.organizationId) {
+    snapshot = await readProgrammaticScope(
+      api,
+      organizationId: match.organizationId,
+    );
+  }
+  if ((refused || (cached != null && cached != match.organizationId)) &&
+      loaded != null) {
+    try {
+      await writeRestageConfig(
+        loaded.source,
+        loaded.config.withConfirmedOrganizationId(match.organizationId),
+      );
+    } on FileSystemException {
+      notices?.writeln(
+        "Couldn't save the organization id to restage_config.yaml. The next "
+        'command looks it up again.',
+      );
     }
-    stderr.writeln('No organization found for `$organizationSlug`.');
-    return null;
+  }
+  return snapshot;
+}
+
+/// The scope for [cached], or null when the server refuses that id.
+Future<ProgrammaticScopeSnapshot?> _readCached(
+  RestageApi api,
+  int? cached,
+) async {
+  try {
+    return await readProgrammaticScope(api, organizationId: cached);
   } on RestageApiException catch (e) {
-    _writeOrganizationDiscoveryError(stderr, e);
-    return null;
-  } on SocketException catch (e) {
-    stderr.writeln(backendUnreachableMessage(api.endpoint, e));
-    return null;
+    final refused = decodeGenericTypedException(e.body);
+    if (cached != null &&
+        refused is OrganizationNotFound &&
+        refused.organizationId == cached) {
+      return null;
+    }
+    rethrow;
   }
 }
 
-/// Resolve the exact organization id required by target-aware operations.
-///
-/// A configured organization is authoritative. Without one, a sole membership
-/// is safe to select automatically; multiple memberships fail closed and ask
-/// the caller to persist an explicit organization in `restage_config.yaml`.
-Future<int?> resolveRequiredOrganizationId({
+/// [resolveOrganizationId], or the caller's only organization when none is
+/// named; several or none raise the sentence that says how to choose.
+Future<int> resolveRequiredOrganizationId({
   required RestageApi api,
-  required RestageConfig? config,
-  required StringSink stderr,
+  required LoadedConfig? loaded,
   String? preferredSlug,
+  int? organizationId,
+  StringSink? notices,
 }) async {
-  final configured = await resolveConfiguredOrganization(
+  final resolved = await resolveOrganizationId(
     api: api,
-    config: config,
-    stderr: stderr,
+    loaded: loaded,
     preferredSlug: preferredSlug,
+    organizationId: organizationId,
+    notices: notices,
   );
-  if (configured == null) return null;
-  if (configured.organizationId case final organizationId?) {
-    return organizationId;
-  }
-
-  try {
-    final organizations = await DiscoveryApi(api).listOrganizations();
-    if (organizations.isEmpty) {
-      stderr.writeln(noOrganizationSentence(api.endpoint));
-      return null;
-    }
-    if (organizations.length != 1) {
-      stderr.writeln(ambiguousOrganizationSentence(organizations));
-      return null;
-    }
-    return organizations.single.organizationId;
-  } on RestageApiException catch (e) {
-    _writeOrganizationDiscoveryError(stderr, e);
-    return null;
-  } on SocketException catch (e) {
-    stderr.writeln(backendUnreachableMessage(api.endpoint, e));
-    return null;
-  }
+  if (resolved != null) return resolved;
+  final organizations = (await readProgrammaticScope(api)).organizations;
+  if (organizations.length == 1) return organizations.single.organizationId;
+  throw TargetSelectionException(
+    organizations.isEmpty
+        ? noOrganizationSentence(api.endpoint)
+        : ambiguousOrganizationSentence(organizations),
+  );
 }

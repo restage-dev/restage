@@ -2,6 +2,31 @@ part of '../plan_board_showcase.dart';
 
 // ignore_for_file: type=lint
 
+const _planBoardShowcaseFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Column': buildColumn,
+      'Padding': buildPadding,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Spacer': buildSpacer,
+      'Text': buildText,
+    },
+    material: {
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'IconButton': buildIconButton,
+      'Scaffold': buildScaffold,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+    },
+  }),
+);
+
 const planBoardShowcaseFlowRef = SurfaceFlowRef<
     PlanBoardShowcaseResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'plan_board_showcase',
@@ -20,30 +45,7 @@ const planBoardShowcaseFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       'abece91d2cf288ae1c840cd23982f06da781d57f33a7402ff0569ec9df0ff1c5',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Column': buildColumn,
-        'Padding': buildPadding,
-        'Row': buildRow,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Spacer': buildSpacer,
-        'Text': buildText,
-      },
-      material: {
-        'FilledButton': buildFilledButton,
-        'Icon': buildIcon,
-        'IconButton': buildIconButton,
-        'Scaffold': buildScaffold,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
-      },
-    }),
-  ),
+  vocabulary: _planBoardShowcaseFlowRefVocabulary,
 );
 
 PlanBoardShowcaseResult _decodePlanBoardShowcaseFlowResult(

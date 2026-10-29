@@ -28,8 +28,7 @@ final class CanonicalFormatException implements Exception {
 /// Byte-exact canonical JSON used by all measurement hashes and fixtures.
 abstract final class CanonicalJsonCodec {
   /// Encodes [value] using the frozen canonical profile.
-  static Uint8List encode(Object? value) =>
-      Uint8List.fromList(utf8.encode(_encodeText(value)));
+  static Uint8List encode(Object? value) => utf8.encode(_encodeText(value));
 
   static String _encodeText(Object? value) {
     final output = StringBuffer();
@@ -88,6 +87,12 @@ abstract final class CanonicalJsonCodec {
           _writeValue(output, value[index]);
         }
         output.write(']');
+      case CanonicalValue():
+        if (value is ImmutableCanonicalDocument) {
+          output.write(value._heldCanonicalText);
+        } else {
+          _writeValue(output, value.toCanonicalTree());
+        }
       case Map<String, Object?>():
         final keys = value.keys.toList()..sort(_compareUtf8);
         output.write('{');
@@ -508,6 +513,11 @@ abstract base class CanonicalValue {
   /// Closed JSON representation consumed by [CanonicalJsonCodec].
   Map<String, Object?> toJson();
 
+  /// What [CanonicalJsonCodec] encodes for this value: [toJson], or the same
+  /// tree with nested values in place of their JSON, which then encode from
+  /// their held bytes. Both encode to the same bytes.
+  Object? toCanonicalTree() => toJson();
+
   /// Canonical bytes, returned as a fresh mutable list on every read.
   /// [ImmutableCanonicalDocument] values encode once and return copies;
   /// other values encode on each read.
@@ -518,23 +528,42 @@ abstract base class CanonicalValue {
     return Uint8List.fromList(_heldCanonicalBytes);
   }
 
-  /// The bytes themselves, for comparisons that do not hand them out.
+  /// The bytes themselves, held for [ImmutableCanonicalDocument] values.
   Uint8List get _heldCanonicalBytes {
     if (this is! ImmutableCanonicalDocument) {
       return CanonicalJsonCodec.encode(toJson());
     }
-    return _canonicalByteStrings[this] ??= CanonicalJsonCodec.encode(toJson());
+    return _canonicalByteStrings[this] ??=
+        _recorded<Uint8List>(utf8.encode(_heldCanonicalText));
+  }
+
+  /// The held canonical text of an [ImmutableCanonicalDocument], for writing
+  /// it inside another value and for comparisons.
+  String get _heldCanonicalText => _canonicalTexts[this] ??=
+      _recorded<String>(CanonicalJsonCodec._encodeText(toCanonicalTree()));
+
+  T _recorded<T>(T value) {
+    _recording?.add(this);
+    return value;
   }
 
   @override
   bool operator ==(Object other) =>
-      runtimeType == other.runtimeType &&
-      other is CanonicalValue &&
-      _bytesEqual(_heldCanonicalBytes, other._heldCanonicalBytes);
+      identical(this, other) ||
+      (runtimeType == other.runtimeType &&
+          other is CanonicalValue &&
+          // Equal canonical text is equal canonical bytes.
+          (this is ImmutableCanonicalDocument
+              ? _heldCanonicalText == other._heldCanonicalText
+              : _bytesEqual(_heldCanonicalBytes, other._heldCanonicalBytes)));
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, utf8.decode(_heldCanonicalBytes));
+  int get hashCode => Object.hash(
+        runtimeType,
+        this is ImmutableCanonicalDocument
+            ? _heldCanonicalText
+            : utf8.decode(_heldCanonicalBytes),
+      );
 }
 
 /// Declares content fixed at construction, allowing cached bytes and digests.
@@ -544,6 +573,52 @@ abstract interface class ImmutableCanonicalDocument {}
 
 final _canonicalDigests = Expando<CanonicalDigest>('canonicalDigest');
 final _canonicalByteStrings = Expando<Uint8List>('canonicalBytes');
+final _canonicalTexts = Expando<String>('canonicalText');
+
+Set<CanonicalValue>? _recording;
+
+/// Canonical forms held for values, to carry with them to another isolate.
+final class CanonicalForms {
+  CanonicalForms._(this._entries);
+
+  final List<(CanonicalValue, String?, Uint8List?, CanonicalDigest?)> _entries;
+}
+
+/// Runs [body] and returns its result with the canonical forms it computed.
+/// Sent together, an isolate that adopts them reuses those forms.
+(T, CanonicalForms) recordCanonicalForms<T>(T Function() body) {
+  final previous = _recording;
+  final recording = _recording = Set.identity();
+  try {
+    final result = body();
+    return (
+      result,
+      CanonicalForms._([
+        for (final value in recording)
+          (
+            value,
+            _canonicalTexts[value],
+            _canonicalByteStrings[value],
+            _canonicalDigests[value],
+          ),
+      ]),
+    );
+  } finally {
+    _recording = previous;
+  }
+}
+
+/// Holds the forms [recordCanonicalForms] carried for values this isolate
+/// received in the same message.
+void adoptCanonicalForms(CanonicalForms forms) {
+  for (final (value, text, bytes, digest) in forms._entries) {
+    if (text != null) _canonicalTexts[value] ??= text;
+    if (bytes != null) _canonicalByteStrings[value] ??= bytes;
+    if (digest != null && value is CanonicalDocument) {
+      _canonicalDigests[value] ??= digest;
+    }
+  }
+}
 
 /// A top-level hash authority with one fixed domain.
 abstract base class CanonicalDocument extends CanonicalValue {
@@ -562,10 +637,8 @@ abstract base class CanonicalDocument extends CanonicalValue {
     if (this is! ImmutableCanonicalDocument) {
       return canonicalSha256(hashDomain, canonicalBytes);
     }
-    return _canonicalDigests[this] ??= canonicalSha256(
-      hashDomain,
-      canonicalBytes,
-    );
+    return _canonicalDigests[this] ??=
+        _recorded<CanonicalDigest>(canonicalSha256(hashDomain, canonicalBytes));
   }
 }
 
@@ -749,6 +822,25 @@ Map<String, Object?> decodeCanonicalObject(List<int> bytes) {
     throw const CanonicalFormatException('Document root must be an object');
   }
   return value;
+}
+
+/// Internal check that [value] is nonempty unpadded base64url, by code unit.
+///
+/// A loop, because a regular expression over a multi-megabyte carrier can
+/// overflow the stack.
+bool isUnpaddedBase64UrlAlphabet(String value) {
+  if (value.isEmpty) return false;
+  for (var index = 0; index < value.length; index += 1) {
+    final unit = value.codeUnitAt(index);
+    if (!((unit >= 0x41 && unit <= 0x5a) ||
+        (unit >= 0x61 && unit <= 0x7a) ||
+        (unit >= 0x30 && unit <= 0x39) ||
+        unit == 0x2d ||
+        unit == 0x5f)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /// Internal decoder that passes a privately immutable object graph to [callback].

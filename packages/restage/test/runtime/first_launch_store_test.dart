@@ -82,49 +82,72 @@ void main() {
     expect((await storage.getAll())[_platformKey], first.toIso8601String());
   });
 
-  test('a failed reload cannot treat cached data as a successful read',
-      () async {
+  test('a write the app makes while the origin is read is kept', () async {
     final first = DateTime.utc(2026, 10, 3);
     final storage = _installStorage({_key: first.toIso8601String()});
-    await SharedPreferences.getInstance();
-    storage.failReads = true;
+    final preferences = await SharedPreferences.getInstance();
+    storage.holdRead = Completer<void>();
 
-    expect(await FirstLaunchStore().readOrCreate(first), isNull);
-    expect(storage.writes, 0);
-    storage.failReads = false;
-    expect((await storage.getAll())[_platformKey], first.toIso8601String());
+    final read = FirstLaunchStore().readOrCreate(first);
+    await Future.any([storage.readEntered.future, read]);
+    await preferences.setString('app.setting', 'written');
+    storage.holdRead!.complete();
+
+    expect(await read, first);
+    expect(preferences.getString('app.setting'), 'written');
+  });
+
+  test('a new origin is returned before its write completes', () async {
+    final storage = _installStorage({})..releaseWrite = Completer<void>();
+    final now = DateTime.utc(2026, 10, 3, 12);
+    var answered = false;
+    final read = FirstLaunchStore().readOrCreate(now).then((origin) {
+      answered = true;
+      return origin;
+    });
+
+    await pumpEventQueue();
+    expect(answered, isTrue);
+    expect(await read, now);
+    expect((await storage.getAll()).containsKey(_platformKey), isFalse);
+    storage.releaseWrite!.complete();
+    await pumpEventQueue();
+    expect((await storage.getAll())[_platformKey], now.toIso8601String());
   });
 
   for (final throws in [false, true]) {
     test(
-        'a ${throws ? 'throwing' : 'failed'} write never confirms cached origin',
-        () async {
+        'a ${throws ? 'throwing' : 'failed'} write keeps the origin and is '
+        'retried', () async {
       final storage = _installStorage({})
         ..failWrites = true
         ..throwOnWrite = throws;
       final store = FirstLaunchStore();
       final first = DateTime.utc(2026, 10, 3, 12);
 
-      expect(await store.readOrCreate(first), isNull);
-      final preferences = await SharedPreferences.getInstance();
-      expect(preferences.getString(_key), first.toIso8601String());
+      expect(await store.readOrCreate(first), first);
+      await pumpEventQueue();
       expect((await storage.getAll()).containsKey(_platformKey), isFalse);
       expect(
-          await store.readOrCreate(first.add(const Duration(days: 1))), isNull);
+          await store.readOrCreate(first.add(const Duration(days: 1))), first);
+      await pumpEventQueue();
       expect(
         await FirstLaunchStore()
             .readOrCreate(first.add(const Duration(days: 2))),
-        isNull,
+        first,
       );
+      await pumpEventQueue();
+      expect(storage.writes, 3);
 
       storage.failWrites = false;
-      final persisted = first.add(const Duration(days: 3));
-      expect(await store.readOrCreate(persisted), persisted);
       expect(
-          (await storage.getAll())[_platformKey], persisted.toIso8601String());
-      expect(await store.readOrCreate(persisted.add(const Duration(days: 1))),
-          persisted);
-      expect(storage.writes, 4);
+          await store.readOrCreate(first.add(const Duration(days: 3))), first);
+      await pumpEventQueue();
+      expect((await storage.getAll())[_platformKey], first.toIso8601String());
+      expect(
+          await store.readOrCreate(first.add(const Duration(days: 4))), first);
+      await pumpEventQueue();
+      expect(storage.writes, 4, reason: 'a confirmed origin is not rewritten');
     });
   }
 
@@ -150,32 +173,27 @@ void main() {
 
   for (final succeeds in [true, false]) {
     test(
-        'independent stores share one ${succeeds ? 'successful' : 'failed'} '
-        'in-flight production write', () async {
+        'stores share one ${succeeds ? 'successful' : 'failed'} in-flight '
+        'origin write', () async {
       final storage = _installStorage({})
         ..releaseWrite = Completer<void>()
         ..failWrites = !succeeds;
       final now = DateTime.utc(2026, 10, 3, 12);
       final firstStore = FirstLaunchStore();
-      var completed = false;
-      final first = firstStore.readOrCreate(now);
-      await storage.writeEntered.future;
-      final second = FirstLaunchStore()
-          .readOrCreate(now.add(const Duration(days: 1)))
-          .then((value) {
-        completed = true;
-        return value;
-      });
-      final third = firstStore.readOrCreate(now.add(const Duration(days: 2)));
-      await Future<void>.delayed(Duration.zero);
 
+      expect(await firstStore.readOrCreate(now), now);
+      await storage.writeEntered.future;
+      expect(
+          await FirstLaunchStore()
+              .readOrCreate(now.add(const Duration(days: 1))),
+          now);
+      expect(
+          await firstStore.readOrCreate(now.add(const Duration(days: 2))), now);
       expect(storage.writes, 1);
-      expect(completed, isFalse);
       expect((await storage.getAll()).containsKey(_platformKey), isFalse);
+
       storage.releaseWrite!.complete();
-      final expected = succeeds ? now : null;
-      expect(await Future.wait([first, second, third]),
-          [expected, expected, expected]);
+      await pumpEventQueue();
       expect((await storage.getAll())[_platformKey],
           succeeds ? now.toIso8601String() : null);
     });
@@ -245,15 +263,22 @@ final class _ControlledPreferences extends InMemorySharedPreferencesStore {
 
   bool failReads = false;
   bool failWrites = false;
+  final readEntered = Completer<void>();
+  Completer<void>? holdRead;
   bool throwOnWrite = false;
   int writes = 0;
   final writeEntered = Completer<void>();
   Completer<void>? releaseWrite;
 
   @override
-  Future<Map<String, Object>> getAll() {
+  Future<Map<String, Object>> getAll() async {
     if (failReads) throw StateError('Preferences read failed');
-    return super.getAll();
+    final snapshot = await super.getAll();
+    if (holdRead case final hold?) {
+      if (!readEntered.isCompleted) readEntered.complete();
+      await hold.future;
+    }
+    return snapshot;
   }
 
   @override

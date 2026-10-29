@@ -25,6 +25,11 @@ abstract final class LibraryRuntimeRegistry {
   /// Mount installs that only add libraries or widgets leave it unchanged.
   static int get generation => _generation;
 
+  /// Changes whenever [installedSnapshot] may change.
+  @internal
+  static int get revision => _revision;
+  static int _revision = 0;
+
   /// Registers [widgets] under [library], replacing that namespace.
   /// [capabilityVersion] must satisfy the surface's required version;
   /// unversioned registrations satisfy no positive requirement.
@@ -139,6 +144,7 @@ abstract final class LibraryRuntimeRegistry {
       registration: registration,
     );
     if (!additive) _generation += 1;
+    _revision += 1;
   }
 
   /// Adds the widgets of [registration] that its namespace does not yet carry.
@@ -303,6 +309,7 @@ abstract final class LibraryRuntimeRegistry {
     _entries.clear();
     _installed.clear();
     _generation += 1;
+    _revision += 1;
   }
 }
 

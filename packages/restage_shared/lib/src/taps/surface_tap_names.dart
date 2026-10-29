@@ -6,18 +6,39 @@ import 'package:restage_shared/src/taps/icon_names.g.dart';
 const kSurfaceTapNameLimit = 128;
 
 /// The name a tappable [element] shows: [semanticsOverride] when an enclosing
-/// `Semantics` labels it, else its first text, semantics label, tooltip, then
-/// icon; null when none is found.
+/// `Semantics` labels it, else its first text, semantics label, tooltip, its
+/// own literal label, title or text, icon, then [eventName] in words; null
+/// when none is found.
 String? surfaceTapElementName(
   ConstructorCall element, {
   String? semanticsOverride,
+  String? eventName,
 }) =>
     _bounded(semanticsOverride) ??
     _first(element,
         (call) => call.name == 'Text' ? call.arguments['text'] : null) ??
     _first(element, _semanticsLabelOf) ??
     _first(element, (call) => call.arguments['tooltip']) ??
-    _first(element, _iconNameOf);
+    _ownLabel(element) ??
+    _first(element, _iconNameOf) ??
+    _bounded(eventName == null ? null : humaniseSurfaceId(eventName));
+
+/// [names] with each name that repeats numbered in order, such as
+/// Select plan 1 and Select plan 2; null names stay null.
+List<String?> distinctSurfaceTapNames(List<String?> names) {
+  final counts = <String, int>{};
+  for (final name in names) {
+    if (name != null) counts[name] = (counts[name] ?? 0) + 1;
+  }
+  final seen = <String, int>{};
+  return [
+    for (final name in names)
+      if (name == null || counts[name] == 1)
+        name
+      else
+        '$name ${seen[name] = (seen[name] ?? 0) + 1}',
+  ];
+}
 
 /// The label a `Semantics` call gives its subtree, or null for any other call.
 String? surfaceTapSemanticsLabel(ConstructorCall call) =>
@@ -53,6 +74,12 @@ Object? _semanticsLabelOf(ConstructorCall call) =>
     surfaceTapSemanticsLabel(call) ??
     call.arguments['semanticsLabel'] ??
     call.arguments['semanticLabel'];
+
+/// A literal label, title or text argument of [element] itself.
+String? _ownLabel(ConstructorCall element) =>
+    _bounded(element.arguments['label']) ??
+    _bounded(element.arguments['title']) ??
+    _bounded(element.arguments['text']);
 
 Object? _iconNameOf(ConstructorCall call) {
   if (call.name != 'Icon') return null;

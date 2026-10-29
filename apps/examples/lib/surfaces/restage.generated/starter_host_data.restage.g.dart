@@ -2,21 +2,22 @@ part of '../starter_host_data.dart';
 
 // ignore_for_file: type=lint
 
-sealed class StarterChecklistEvent {
-  const StarterChecklistEvent();
+sealed class StarterChecklistSurfaceEvent {
+  const StarterChecklistSurfaceEvent();
 }
 
-final class StarterChecklistToggleEvent extends StarterChecklistEvent {
-  const StarterChecklistToggleEvent(this.value);
+final class StarterChecklistSurfaceToggleEvent
+    extends StarterChecklistSurfaceEvent {
+  const StarterChecklistSurfaceToggleEvent(this.value);
 
   final String value;
 }
 
 final _starterChecklistEvents =
-    SurfaceScreenEventContract<StarterChecklistEvent>.generated(
+    SurfaceScreenEventContract<StarterChecklistSurfaceEvent>.generated(
   hash:
       'sha256:a7ada2e8b71a3ea880d9a08f8f6611049ca39921c9ef6ae9fd6ebef981c3dbe0',
-  decodeValidated: _decodeValidatedStarterChecklistEvent,
+  decodeValidated: _decodeValidatedStarterChecklistSurfaceEvent,
 );
 
 final _starterChecklistProvenance = SurfaceScreenRuntimeProvenance.generated(
@@ -75,20 +76,20 @@ final _starterChecklistProvenance = SurfaceScreenRuntimeProvenance.generated(
 );
 
 final starterChecklistRef = SurfaceScreenRef<
-    StarterChecklistEvent>.generatedWithMeasurementPublicationDraftDigest(
+    StarterChecklistSurfaceEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _starterChecklistProvenance,
   eventContract: _starterChecklistEvents,
   measurementPublicationDraftDigest:
       'cfe5436ee0dbd30f22db2d67782ef300d6625d76e0797cd5c682e3e2aca08079',
 );
 
-StarterChecklistEvent _decodeValidatedStarterChecklistEvent(
+StarterChecklistSurfaceEvent _decodeValidatedStarterChecklistSurfaceEvent(
   String name,
   Map<String, Object?> arguments,
 ) {
   switch (name) {
     case 'toggle':
-      return StarterChecklistToggleEvent(arguments['value'] as String);
+      return StarterChecklistSurfaceToggleEvent(arguments['value'] as String);
   }
   throw FormatException('Invalid StarterChecklist event "$name".');
 }
@@ -184,7 +185,7 @@ final class StarterChecklistSurface extends StatelessWidget {
   final List<ChecklistItem> _restageArgument1;
   final String? _restagePlacementName;
 
-  final ValueChanged<StarterChecklistEvent>? onEvent;
+  final ValueChanged<StarterChecklistSurfaceEvent>? onEvent;
 
   final SurfaceScreenResolver? resolver;
 
@@ -196,7 +197,7 @@ final class StarterChecklistSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<StarterChecklistEvent>(
+    return RestageScreen<StarterChecklistSurfaceEvent>(
       screen: starterChecklistRef,
       placementBinding: RestageScreen.generatedPlacementBinding(
         definition: starterChecklistPlacementDefinition,

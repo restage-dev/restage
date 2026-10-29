@@ -23,6 +23,7 @@ import 'package:restage_example/widgets/section_header.dart' as s8;
 import 'package:restage_example/widgets/streak_badge.dart' as s9;
 import 'package:restage_example/widgets/tier_board.dart' as s10;
 import 'package:restage/restage.dart';
+import 'restage_surfaces.g.dart';
 
 /// The built-in widgets and icons this package names in its
 /// own Dart, plus the catalog entries its compiled surfaces
@@ -255,6 +256,7 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
       includeCupertino: includeCupertino,
     ));
     kRestageAppVocabulary.addToInstalled(explicitSelection: true);
+    Restage.declareSurfaces(restageSurfaces);
     Restage.registerWidgetLibrary(
       WidgetLibrary.custom('restage_example.widgets'),
       capabilityVersion: 5,

@@ -15,6 +15,8 @@ import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dar
 import 'package:restage_cli/src/render_bundles/flutter_toolchain.dart';
 import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
+import 'package:restage_cli/src/render_bundles/surface_capture_source.dart'
+    show SurfaceCaptureWrapper;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -143,7 +145,10 @@ void main() {
         if (organization == 'other-org') {
           expect(exit, 1);
           expect(calls, isEmpty);
-          expect(stderr.toString(), contains('Could not resolve organization'));
+          expect(
+            stderr.toString(),
+            contains('No organization `other-org` is available'),
+          );
         } else {
           expect(exit, 0, reason: stderr.toString());
           expect(calls, ['prepare', 'commit']);
@@ -542,6 +547,62 @@ void main() {
     );
   });
 
+  for (final (spec, preview, reason) in <(String, String?, String)>[
+    (
+      'preview.dart',
+      null,
+      'previewWrapper in restage_config.yaml must look like '
+          '`lib/preview.dart#wrapPreview`, not `preview.dart`',
+    ),
+    (
+      'lib/missing.dart#wrapPreview',
+      null,
+      'previewWrapper names lib/missing.dart, which does not exist',
+    ),
+    (
+      'lib/preview.dart#wrapPreview',
+      'Widget wrapPreview(BuildContext context) => const SizedBox();\n',
+      'previewWrapper names `wrapPreview`, which lib/preview.dart does not '
+          'declare as `Widget wrapPreview(Widget child)`',
+    ),
+  ]) {
+    test('previewWrapper $spec stops the push before Flutter', () async {
+      final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+      var probed = false;
+      File(p.join(root.path, 'restage_config.yaml')).writeAsStringSync(
+        'project: demo\napp: mobile\npreviewWrapper: $spec\n',
+      );
+      if (preview != null) {
+        File(p.join(root.path, 'lib', 'preview.dart'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync(preview);
+      }
+
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: _pushClient(builder.archive),
+        renderBundleBuilder: builder,
+        renderBundleFlutterToolchain:
+            ({required projectRoot, String? flagRoot, String? configRoot}) {
+              probed = true;
+              return _fakeFlutter(projectRoot: projectRoot);
+            },
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
+      ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
+
+      expect(exit, 1);
+      expect(
+        stderr.toString(),
+        'Could not build the render bundle: $reason.\n',
+      );
+      expect(probed, isFalse);
+      expect(builder.projectRoot, isNull);
+    });
+  }
+
   test('build failure is generic and performs no network operation', () async {
     var networkCalls = 0;
     final exit = await RestageCli(
@@ -617,6 +678,38 @@ void main() {
           'why.\n'
           'Reason: flutter_build_failed.\n'
           'Build directory: .restage/build/render_bundle',
+    ),
+    (
+      const RenderBundleBuildException(
+        RenderBundleBuildFailure.flutterBuildFailed,
+        log: 'Error: a\nError: b',
+      ),
+      'Could not build the render bundle: `flutter build web` failed. '
+          'The last lines of its output:\n'
+          'Error: a\nError: b\n'
+          'Reason: flutter_build_failed.',
+    ),
+    (
+      const RenderBundleBuildException(
+        RenderBundleBuildFailure.bundleRule,
+        detail: 'file_too_large',
+        note:
+            '`assets/garden.riv` is 14.2 MB, over the 10 MB limit for one '
+            'file. Shrink or remove it and push again.',
+      ),
+      'Could not build the render bundle: it broke the bundle rule '
+          '`file_too_large`: `assets/garden.riv` is 14.2 MB, over the 10 MB '
+          'limit for one file. Shrink or remove it and push again.\n'
+          'Reason: bundle_rule.',
+    ),
+    (
+      const RenderBundleBuildException(
+        RenderBundleBuildFailure.bundleRule,
+        detail: 'source_map_shape',
+      ),
+      'Could not build the render bundle: it broke the bundle rule '
+          '`source_map_shape`. Update the restage CLI and push again.\n'
+          'Reason: bundle_rule.',
     ),
     (
       const RenderBundleBuildException(
@@ -1928,15 +2021,27 @@ http.Client _pushClient(
   onUrl?.call(request.url);
   if (request.url.port == 8081) return http.Response('', 204);
   final body = jsonDecode(request.body) as Map<String, dynamic>;
-  if (body['method'] == 'listMine') {
+  if (body['endpoint'] == 'scope' || request.url.path == '/scope') {
     return http.Response(
-      jsonEncode(<Object?>[
-        <String, Object?>{
-          'organizationId': organizationId,
-          'slug': 'acme',
-          'name': 'Acme',
+      jsonEncode(<String, Object?>{
+        'organizationId': organizationId ?? 7,
+        'session': <String, Object?>{
+          'memberships': [
+            <String, Object?>{
+              'organizationId': organizationId ?? 7,
+              'slug': 'acme',
+              'name': 'Acme',
+            },
+          ],
+          'workspaceExperiences': <Object>[],
         },
-      ]),
+        'projects': <Object>[],
+        'apps': <Object>[],
+        'environments': <Object>[],
+        'environmentTargets': <Object>[],
+        'legacyDefaultTargetIds': <Object>[],
+        'surfaces': <Object>[],
+      }),
       200,
     );
   }
@@ -2122,6 +2227,7 @@ final class _FakeBuilder implements RenderBundleArtifactBuilder {
     required Uri parentOrigin,
     required Uri controlOrigin,
     String? flutterExecutable,
+    SurfaceCaptureWrapper? previewWrapper,
   }) async {
     this.projectRoot = projectRoot;
     this.catalogJson = catalogJson;
@@ -2156,6 +2262,7 @@ final class _FailingBuilder implements RenderBundleArtifactBuilder {
     required Uri parentOrigin,
     required Uri controlOrigin,
     String? flutterExecutable,
+    SurfaceCaptureWrapper? previewWrapper,
   }) => throw failure;
 }
 
@@ -2171,5 +2278,6 @@ final class _ThrowingBuilder implements RenderBundleArtifactBuilder {
     required Uri parentOrigin,
     required Uri controlOrigin,
     String? flutterExecutable,
+    SurfaceCaptureWrapper? previewWrapper,
   }) => throw error;
 }

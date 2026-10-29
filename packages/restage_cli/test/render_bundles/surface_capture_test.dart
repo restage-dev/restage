@@ -18,6 +18,16 @@ final _png = Uint8List.fromList(const <int>[
   107, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130, //
 ]);
 
+/// The plan a build writes for the fixture paywall.
+const _plans = <String, Map<String, Object?>>{
+  'paywall.pro_upgrade': {
+    'kind': 'object',
+    'importUri': 'package:$fixturePackageName/paywalls/pro_upgrade.dart',
+    'name': 'ProUpgrade',
+    'parameters': <Object?>[],
+  },
+};
+
 /// A process the test finishes by hand.
 final class _FakeProcess implements Process {
   _FakeProcess({String output = ''}) {
@@ -206,9 +216,11 @@ dependencies:
     Duration timeout = surfaceCaptureTimeout,
     Future<void>? cancel,
     String? wrapper,
+    Map<String, Map<String, Object?>>? plans = _plans,
   }) => captureSurfaceImages(
     projectRoot: app,
     entries: [entry],
+    plans: plans,
     flagRoot: p.join(root.path, 'flutter'),
     wrapper: wrapper,
     processRunner: versionRunner,
@@ -292,9 +304,12 @@ dependencies:
     expect(
       result.skipped['paywall.pro_upgrade'],
       'it did not render: Could not find the correct Provider<CartBloc> '
-      'above this ProUpgrade Widget. If it reads something your app provides '
-      'above it, name a function that provides it as previewWrapper in '
-      'restage_config.yaml. `flutter test test/paywall.pro_upgrade_test.dart` '
+      'above this ProUpgrade Widget. If the surface reads something your app provides '
+      'above it, such as a theme or a provider, add '
+      '`previewWrapper: lib/restage_preview.dart#wrapPreview` to '
+      'restage_config.yaml and define `Widget wrapPreview(Widget child)` in '
+      "that file to return your app's scope around `child`. "
+      '`flutter test test/paywall.pro_upgrade_test.dart` '
       'in ${p.join('.restage', 'build', 'surface_capture')} shows the whole '
       'error',
     );
@@ -425,6 +440,45 @@ Widget wrapPreview(Widget child) => child;
     expect(started, isEmpty);
   });
 
+  test('draws nothing without a plan from the build it pushes', () async {
+    final result = await capture(renderer(image: _png), plans: null);
+
+    expect(result.failure, surfaceCapturePlanMissing);
+    expect(
+      'Pushing without surface images: $surfaceCapturePlanMissing.',
+      'Pushing without surface images: the build output is out of date. Run '
+          '`dart run build_runner build` and push again.',
+    );
+    expect(started, isEmpty);
+  });
+
+  test('reads a plan only from the build it pushes', () {
+    final file = File(p.join(root.path, 'restage.capture.json'))
+      ..writeAsStringSync(
+        jsonEncode({
+          'version': 1,
+          'generationFingerprint': 'a' * 64,
+          'surfaces': _plans,
+        }),
+      );
+
+    expect(
+      readSurfaceCapturePlans(file, generationFingerprint: 'a' * 64),
+      _plans,
+    );
+    expect(
+      readSurfaceCapturePlans(file, generationFingerprint: 'b' * 64),
+      isNull,
+    );
+    expect(
+      readSurfaceCapturePlans(
+        File(p.join(root.path, 'missing.json')),
+        generationFingerprint: 'a' * 64,
+      ),
+      isNull,
+    );
+  });
+
   test('says a surface with no generated widget is not drawn', () async {
     final screen = await seedGeneratedPaywall(
       app,
@@ -435,6 +489,7 @@ Widget wrapPreview(Widget child) => child;
     final result = await captureSurfaceImages(
       projectRoot: app,
       entries: [screen],
+      plans: _plans,
       flagRoot: p.join(root.path, 'flutter'),
       processRunner: versionRunner,
       processStarter: renderer(image: _png),
@@ -445,5 +500,62 @@ Widget wrapPreview(Widget child) => child;
       'it has no generated widget to draw',
     );
     expect(started, isEmpty);
+  });
+
+  group('the restage an app resolves', () {
+    late Directory app;
+    late Directory restage;
+
+    setUp(() async {
+      app = await Directory.systemTemp.createTemp('reads_paywall_context_');
+      restage = Directory(p.join(app.path, 'sdk', 'restage'))
+        ..createSync(recursive: true);
+      File(p.join(app.path, 'pubspec.yaml')).writeAsStringSync('name: demo\n');
+      File(p.join(app.path, '.dart_tool', 'package_config.json'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          jsonEncode(<String, Object?>{
+            'configVersion': 2,
+            'packages': <Object?>[
+              <String, Object?>{
+                'name': 'demo',
+                'rootUri': '../',
+                'packageUri': 'lib/',
+              },
+              <String, Object?>{
+                'name': 'restage',
+                'rootUri': '../sdk/restage/',
+                'packageUri': 'lib/',
+              },
+            ],
+          }),
+        );
+    });
+
+    tearDown(() => app.deleteSync(recursive: true));
+
+    void renderSupport(String source) =>
+        File(p.join(restage.path, 'lib', 'render_support.dart'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync(source);
+
+    test('reads paywall context when it exports the reader', () async {
+      renderSupport(
+        "export 'src/runtime/restage_paywall.dart' show paywallHostContext;\n",
+      );
+      expect(await appRestageReadsPaywallContext(app), isTrue);
+    });
+
+    test('does not when it is a release without it', () async {
+      renderSupport(
+        "export 'src/runtime/builtin_icon_table.dart' "
+        'show addBuiltInIconTable;\n',
+      );
+      expect(await appRestageReadsPaywallContext(app), isFalse);
+      renderSupport('// paywallHostContext arrives in a later release.\n');
+      expect(await appRestageReadsPaywallContext(app), isFalse);
+      File(p.join(restage.path, 'lib', 'render_support.dart')).deleteSync();
+      expect(await appRestageReadsPaywallContext(app), isFalse);
+    });
   });
 }

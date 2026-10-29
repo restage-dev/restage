@@ -156,15 +156,11 @@ PlacementDeclaration capturePlacementDeclaration(
     }
   }
   final original = captured.host;
-  final hostContract = SurfaceHostContractV1(
-      hosting: SurfaceHostingV1(
-          contentKind: original.hosting.contentKind,
-          presentation: isRoot
-              ? SurfacePresentationV1.presented
-              : SurfacePresentationV1.inline),
-      providedContext: original.providedContext,
-      handledEvents: original.handledEvents,
-      flowBoundary: original.flowBoundary);
+  final hostContract = original.withHosting(SurfaceHostingV1(
+      contentKind: original.hosting.contentKind,
+      presentation: isRoot
+          ? SurfacePresentationV1.presented
+          : SurfacePresentationV1.inline));
   _hostPresentationCurrency[hostContract] = () =>
       context.mounted &&
       context.widget is RestagePlacementMount &&

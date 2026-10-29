@@ -8,7 +8,11 @@ import 'surface_analytics_identity_provider.dart';
 import 'surface_assignment_key_provider.dart';
 import 'surface_canonical_carrier_provider.dart';
 import 'surface_delivery_observations.dart'
-    show currentSurfaceDeliveryObservationCell, readDeliveryAppVersion;
+    show
+        currentSurfaceDeliveryObservationCell,
+        inMemorySurfaceDeliveryObservations,
+        knownDeliveryAppVersion,
+        readDeliveryAppVersion;
 import 'surface_metering_key_provider.dart';
 
 /// The optional inputs of one hosted surface request, read under one budget.
@@ -20,6 +24,7 @@ final class SurfaceRequestInputs {
     required bool Function() assignmentDeadlinePassed,
     required this.meteringKey,
     required this.builtIns,
+    required this.pendingFacts,
     required this.heldAssignment,
     required this.installedCapability,
     required this.installedCapabilityHash,
@@ -35,6 +40,7 @@ final class SurfaceRequestInputs {
   /// waits for the lease, because it is keyed by [assignmentKey] or the
   /// lease's key. With [sendAssignmentKey] false neither the key nor a held
   /// assignment is read; a key not ready before [keyDeadline] is absent.
+  /// Built-in facts named in [deferFacts] are read only when already known.
   static Future<SurfaceRequestInputs> gather({
     required DeliveryInputBudget budget,
     required String surface,
@@ -44,8 +50,31 @@ final class SurfaceRequestInputs {
     bool sendAssignmentKey = true,
     Future<void>? keyDeadline,
     SurfaceAssignmentResolutionLease? capturedLease,
+    Set<String> deferFacts = const {},
+    bool inMemory = false,
   }) async {
     final installedCapability = currentInstalledCapability();
+    if (inMemory) {
+      // Nothing that waits for the platform: no identity, storage or OS read.
+      final (observations, pending) = inMemorySurfaceDeliveryObservations();
+      return SurfaceRequestInputs._(
+        budget: budget,
+        lease: SurfaceAssignmentKeyProvider.captureKeylessLease(),
+        assignmentDeadlinePassed: () => false,
+        meteringKey: null,
+        analyticsAnonymousId: null,
+        analyticsGeneration: SurfaceAnalyticsIdentityProvider.generation,
+        builtIns: observations.canonicalBuiltInsBase64(),
+        pendingFacts: pending,
+        heldAssignment: null,
+        installedCapability: installedCapability,
+        installedCapabilityHash: installedCapability.contentHash,
+        sdkInstalledLibraries: installedLibrariesCarrier(
+          snapshot: installedCapability,
+          appVersion: knownDeliveryAppVersion(),
+        ),
+      );
+    }
     var deadlinePassed = false;
     if (keyDeadline != null) {
       keyDeadline.then((_) => deadlinePassed = true);
@@ -63,6 +92,7 @@ final class SurfaceRequestInputs {
         : Future.value(sendAssignmentKey
             ? capturedLease
             : capturedLease.withoutAssignment());
+    var pendingFacts = const <String>{};
     final values = await Future.wait<Object?>([
       lease,
       budget.bound(SurfaceMeteringKeyProvider.currentKey()),
@@ -70,9 +100,10 @@ final class SurfaceRequestInputs {
       // A turn later: observations read the host's view, which a host that
       // starts resolving from initState cannot depend on yet.
       budget.bound(Future<String?>.microtask(() => observationCell != null
-          ? observationCell
-              .read()
-              .then((observations) => observations.canonicalBuiltInsBase64())
+          ? observationCell.readKnown(deferFacts).then((known) {
+              pendingFacts = known.$2;
+              return known.$1.canonicalBuiltInsBase64();
+            })
           : SurfaceCanonicalCarrierProvider.builtIns())),
       lease.then((captured) => sendAssignmentKey
           ? budget.bound(SurfaceCanonicalCarrierProvider.heldAssignment(
@@ -82,7 +113,9 @@ final class SurfaceRequestInputs {
               assignmentKey: assignmentKey ?? captured.assignmentKey,
             ))
           : null),
-      budget.bound(readDeliveryAppVersion()),
+      deferFacts.contains('appBuildOrdinal')
+          ? Future<String?>.value(knownDeliveryAppVersion())
+          : budget.bound(readDeliveryAppVersion()),
     ]);
     return SurfaceRequestInputs._(
       budget: budget,
@@ -92,6 +125,7 @@ final class SurfaceRequestInputs {
       analyticsAnonymousId: values[2] as String?,
       analyticsGeneration: analyticsGeneration,
       builtIns: values[3] as String?,
+      pendingFacts: pendingFacts,
       heldAssignment: values[4] as String?,
       installedCapability: installedCapability,
       installedCapabilityHash: installedCapability.contentHash,
@@ -117,6 +151,9 @@ final class SurfaceRequestInputs {
 
   /// The audience-observation carrier, when one answered.
   final String? builtIns;
+
+  /// Deferred built-in facts [builtIns] leaves out because they were unknown.
+  final Set<String> pendingFacts;
 
   /// The assignment this build already holds, when one answered.
   final String? heldAssignment;

@@ -96,6 +96,45 @@ void main() {
         isNot(requests.first['registrationNonce']));
   });
 
+  test('a confirmed handle the service no longer holds registers again',
+      () async {
+    final requests = <Map<String, dynamic>>[];
+    _install(_store());
+    final handle = 'ic1.${'a' * 64}';
+    final client = RestageRpcClient(
+      baseUrl: 'https://edge.example.test',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async {
+        requests.add(jsonDecode(request.body) as Map<String, dynamic>);
+        final now = DateTime.now().microsecondsSinceEpoch;
+        return http.Response(
+            jsonEncode(requests.length == 1
+                ? {
+                    'credentialHandle': handle,
+                    'expiresAtMicros': now + 30 * Duration.microsecondsPerDay,
+                    'serverNowMicros': now,
+                    'artifact': null,
+                  }
+                : {
+                    'assignment': {'result': 'registrationRefused'},
+                    'artifact': null,
+                  }),
+            200);
+      }),
+    );
+    for (var i = 0; i < 3; i++) {
+      await client.fetchSurface(surfaceType: 'general', surfaceSlug: 'notice');
+    }
+    expect(requests, hasLength(3));
+    // The confirmed handle travels alone until the service refuses it.
+    expect(requests[1]['assignmentKey'], handle);
+    expect(requests[1].containsKey('registrationNonce'), isFalse);
+    expect(requests[2].containsKey('assignmentKey'), isFalse);
+    expect(requests[2]['registrationNonce'], isA<String>());
+    expect(requests[2]['registrationNonce'],
+        isNot(requests[0]['registrationNonce']));
+  });
+
   test('lost serve response replays the persisted tuple after restart',
       () async {
     final requests = <Map<String, dynamic>>[];

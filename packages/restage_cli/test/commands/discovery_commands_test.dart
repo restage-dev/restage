@@ -169,6 +169,7 @@ String _scopePayload() => jsonEncode({
       'runtimePlane': 'sandbox',
     },
   ],
+  'legacyDefaultTargetIds': <Object>[],
   'surfaces': <Object>[],
 });
 

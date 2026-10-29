@@ -2,6 +2,27 @@ part of '../minimal_stats.dart';
 
 // ignore_for_file: type=lint
 
+const _minimalStatsFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Center': buildCenter,
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Padding': buildPadding,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Spacer': buildSpacer,
+      'Text': buildText,
+    },
+    material: {
+      'AppBar': buildAppBar,
+      'FilledButton': buildFilledButton,
+      'Scaffold': buildScaffold,
+    },
+  ),
+);
+
 const minimalStatsFlowRef = SurfaceFlowRef<
     MinimalStatsResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_stats',
@@ -20,26 +41,7 @@ const minimalStatsFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       'c4d2b8e797058a9cb6fbf3b3556f106e4b4672e5c4de4b0a9c51f53f0e574f2a',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Center': buildCenter,
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Padding': buildPadding,
-        'Row': buildRow,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Spacer': buildSpacer,
-        'Text': buildText,
-      },
-      material: {
-        'AppBar': buildAppBar,
-        'FilledButton': buildFilledButton,
-        'Scaffold': buildScaffold,
-      },
-    ),
-  ),
+  vocabulary: _minimalStatsFlowRefVocabulary,
 );
 
 MinimalStatsResult _decodeMinimalStatsFlowResult(Map<String, Object?> result) {

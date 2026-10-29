@@ -49,7 +49,7 @@ void main() {
         (response.decisions.first as PlacementBatchAvailableV1).publicDelivery;
     final leaf = attachResolvedPlacementDelivery(
         ResolvedVariant(
-            bytes: fixture.response.artifacts.single.bytes,
+            bytes: fixture.artifacts.single.bytes,
             paywallId: 'welcome',
             surfaceVersion: '1'),
         delivery);
@@ -94,7 +94,7 @@ void main() {
         .cast<PlacementBatchAvailableV1>()
         .map((row) => row.publicDelivery)
         .toList();
-    final bytes = fixture.response.artifacts.single.bytes;
+    final bytes = fixture.artifacts.single.bytes;
     final leaves = [
       for (final delivery in deliveries)
         attachResolvedPlacementDelivery(
@@ -146,6 +146,10 @@ void main() {
     final fixture = readPlacementDeliveryFixture(
         fileName: 'retained_flow_dependencies_v1.json');
     final artifacts = await assemblePlacementDeliveryArtifacts(fixture.response,
+        heldArtifactBytes: {
+          for (final artifact in fixture.artifacts)
+            artifact.identity: artifact.bytes,
+        },
         publicationGuard: () => true);
     final decision =
         fixture.response.decisions.first as PlacementBatchAvailableV1;
@@ -210,7 +214,7 @@ void main() {
     Restage.configure(analyticsEnabled: true, measurementEnabled: true);
     final fixture = readPlacementDeliveryFixture();
     final publication = AdmittedBundledPublicationFixture.build(
-        artifact: fixture.response.artifacts.single.bytes);
+        artifact: fixture.artifacts.single.bytes);
     final delayed = _DelayedReadPort(publication);
     final harness = AdmittedConstructionOwnerHostTestHarness.install(
         publicationContext: publication.publicationContextRef,
@@ -222,7 +226,7 @@ void main() {
         publication);
     final leaf = attachResolvedPlacementDelivery(
         ResolvedVariant(
-            bytes: fixture.response.artifacts.single.bytes,
+            bytes: fixture.artifacts.single.bytes,
             paywallId: 'welcome',
             surfaceVersion: 'selected'),
         delivery);
@@ -260,7 +264,7 @@ void main() {
     final fixture = readPlacementDeliveryFixture();
     final mount = fixture.request.mounts.first;
     ResolvedVariant variant() => ResolvedVariant(
-        bytes: fixture.response.artifacts.single.bytes,
+        bytes: fixture.artifacts.single.bytes,
         paywallId: 'welcome',
         surfaceVersion: 'selected');
     for (final source in [

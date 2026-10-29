@@ -2,6 +2,53 @@ part of '../tally_onboarding.dart';
 
 // ignore_for_file: type=lint
 
+const _tallyOnboardingFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Expanded': buildExpanded,
+      'GestureDetector': buildGestureDetector,
+      'Padding': buildPadding,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Spacer': buildSpacer,
+      'Text': buildText,
+    },
+    material: {
+      'AppBar': buildAppBar,
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'Scaffold': buildScaffold,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf520: IconData(0xf520, fontFamily: 'MaterialIcons'),
+      0xf59e: IconData(0xf59e, fontFamily: 'MaterialIcons'),
+      0xf5ca: IconData(0xf5ca, fontFamily: 'MaterialIcons'),
+      0xf768: IconData(0xf768, fontFamily: 'MaterialIcons'),
+      0xf847: IconData(0xf847, fontFamily: 'MaterialIcons'),
+      0xf888: IconData(0xf888, fontFamily: 'MaterialIcons'),
+      0xf009a: IconData(0xf009a, fontFamily: 'MaterialIcons'),
+      0xf0128: IconData(0xf0128, fontFamily: 'MaterialIcons'),
+      0xf02e0: IconData(0xf02e0, fontFamily: 'MaterialIcons'),
+    },
+  }, mirrored: {
+    'MaterialIcons': {
+      0xf63b: IconData(0xf63b,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf0174: IconData(0xf0174,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf0252: IconData(0xf0252,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf0254: IconData(0xf0254,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+    },
+  }),
+);
+
 const tallyOnboardingFlowRef = SurfaceFlowRef<
     TallyOnboardingResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'tally_onboarding',
@@ -27,52 +74,7 @@ const tallyOnboardingFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '0ee4786a4271d506035ecfa17facdfb7e53f8944e40d7f55e2c8a850f347066f',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Expanded': buildExpanded,
-        'GestureDetector': buildGestureDetector,
-        'Padding': buildPadding,
-        'Row': buildRow,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Spacer': buildSpacer,
-        'Text': buildText,
-      },
-      material: {
-        'AppBar': buildAppBar,
-        'FilledButton': buildFilledButton,
-        'Icon': buildIcon,
-        'Scaffold': buildScaffold,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf520: IconData(0xf520, fontFamily: 'MaterialIcons'),
-        0xf59e: IconData(0xf59e, fontFamily: 'MaterialIcons'),
-        0xf5ca: IconData(0xf5ca, fontFamily: 'MaterialIcons'),
-        0xf768: IconData(0xf768, fontFamily: 'MaterialIcons'),
-        0xf847: IconData(0xf847, fontFamily: 'MaterialIcons'),
-        0xf888: IconData(0xf888, fontFamily: 'MaterialIcons'),
-        0xf009a: IconData(0xf009a, fontFamily: 'MaterialIcons'),
-        0xf0128: IconData(0xf0128, fontFamily: 'MaterialIcons'),
-        0xf02e0: IconData(0xf02e0, fontFamily: 'MaterialIcons'),
-      },
-    }, mirrored: {
-      'MaterialIcons': {
-        0xf63b: IconData(0xf63b,
-            fontFamily: 'MaterialIcons', matchTextDirection: true),
-        0xf0174: IconData(0xf0174,
-            fontFamily: 'MaterialIcons', matchTextDirection: true),
-        0xf0252: IconData(0xf0252,
-            fontFamily: 'MaterialIcons', matchTextDirection: true),
-        0xf0254: IconData(0xf0254,
-            fontFamily: 'MaterialIcons', matchTextDirection: true),
-      },
-    }),
-  ),
+  vocabulary: _tallyOnboardingFlowRefVocabulary,
 );
 
 TallyOnboardingResult _decodeTallyOnboardingFlowResult(

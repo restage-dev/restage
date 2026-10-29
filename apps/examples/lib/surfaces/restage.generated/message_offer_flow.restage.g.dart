@@ -2,6 +2,17 @@ part of '../message_offer_flow.dart';
 
 // ignore_for_file: type=lint
 
+const _messageOfferRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Text': buildText,
+    },
+    material: {
+      'FilledButton': buildFilledButton,
+    },
+  ),
+);
+
 const messageOfferRef = SurfaceFlowRef<
     MessageOfferResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'message_offer',
@@ -21,16 +32,7 @@ const messageOfferRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       'e8f27960fe028756e11170594f523958b6874e8cd5122ab96f9199a9b8c1ce07',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Text': buildText,
-      },
-      material: {
-        'FilledButton': buildFilledButton,
-      },
-    ),
-  ),
+  vocabulary: _messageOfferRefVocabulary,
 );
 
 MessageOfferResult _decodeMessageOfferResult(Map<String, Object?> result) {

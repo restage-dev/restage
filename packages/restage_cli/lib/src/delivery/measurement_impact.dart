@@ -10,11 +10,18 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 @experimental
 String formatDeliveryMeasurementMutationReview(
   DeliveryMeasurementMutationReviewV1 review,
+) =>
+    '${deliveryMeasurementMutationReviewSummary(review)}\n'
+    '${const JsonEncoder.withIndent('  ').convert(review.toJson())}';
+
+/// The one-line summary of [review]: its operation, digest and consequence.
+@experimental
+String deliveryMeasurementMutationReviewSummary(
+  DeliveryMeasurementMutationReviewV1 review,
 ) {
   final consequence = deliveryMeasurementMutationConsequence(review);
   return 'Measurement impact ${review.operation}; review ${review.digest.hex}.'
-      '${consequence == null ? '' : ' $consequence'}\n'
-      '${const JsonEncoder.withIndent('  ').convert(review.toJson())}';
+      '${consequence == null ? '' : ' $consequence'}';
 }
 
 /// Describes the serving consequence without changing the canonical review.
@@ -48,8 +55,10 @@ class DeliveryMeasurementReviewRequired extends FormatException {
 
 /// Present the server review and ask separately about its measurement warnings.
 ///
-/// Returns null on an interactive decline. Headless callers must supply the
-/// digest they reviewed; general confirmation flags cannot acknowledge it.
+/// A review with nothing to acknowledge is summarized in one line; warnings
+/// and refusals print in full. Returns null on an interactive decline.
+/// Headless callers must supply the digest they reviewed; general
+/// confirmation flags cannot acknowledge it.
 @experimental
 Future<DeliveryMeasurementMutationProceedV1?>
 confirmDeliveryMeasurementProceed({
@@ -59,10 +68,15 @@ confirmDeliveryMeasurementProceed({
   String? reviewedDigest,
   String? operationId,
 }) async {
-  stdout.writeln(formatDeliveryMeasurementMutationReview(review));
+  final warned = review.reviews.any((impact) => impact.warningCodes.isNotEmpty);
+  stdout.writeln(
+    warned || review.refusalCodes.isNotEmpty
+        ? formatDeliveryMeasurementMutationReview(review)
+        : deliveryMeasurementMutationReviewSummary(review),
+  );
   var approvedDigest = reviewedDigest;
   if (review.refusalCodes.isEmpty &&
-      review.reviews.any((impact) => impact.warningCodes.isNotEmpty) &&
+      warned &&
       approvedDigest == null &&
       interactive.isInteractive) {
     if (!await interactive.confirm(

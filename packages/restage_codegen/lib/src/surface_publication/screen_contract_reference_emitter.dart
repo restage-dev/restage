@@ -1371,7 +1371,8 @@ String _emitReferenceDart(
   final screenName = contract.screen.name!;
   final screenStem = _pascalIdentifier(screenName, fallback: 'SurfaceScreen');
   final refStem = _lowerCamelIdentifier(screenName, fallback: 'surfaceScreen');
-  final eventBase = '${screenStem}Event';
+  final eventStem = _eventStem(screenName);
+  final eventBase = '${eventStem}Event';
   final eventContractName = '_${refStem}Events';
   final provenanceName = '_${refStem}Provenance';
   final decoderName = '_decodeValidated$eventBase';
@@ -1389,7 +1390,7 @@ String _emitReferenceDart(
       ..writeln('}')
       ..writeln();
     for (final event in _eventsInSchemaOrder(contract)) {
-      final eventClass = _eventClassName(screenStem, event.field.name);
+      final eventClass = _eventClassName(eventStem, event.field.name);
       buffer.writeln('final class $eventClass extends $eventBase {');
       final shape = event.dartShape;
       if (shape == null) {
@@ -1504,7 +1505,7 @@ String _emitReferenceDart(
       ..writeln(') {')
       ..writeln('  switch (name) {');
     for (final event in _eventsInSchemaOrder(contract)) {
-      final eventClass = _eventClassName(screenStem, event.field.name);
+      final eventClass = _eventClassName(eventStem, event.field.name);
       buffer.writeln('    case ${dartStringLiteral(event.id)}:');
       if (event.dartShape == null) {
         buffer.writeln('      return const $eventClass();');
@@ -2189,17 +2190,17 @@ List<String> _referenceGeneratedTopLevelSymbols(
   String screenName,
   Iterable<_ResolvedScreenEvent> events,
 ) {
-  final screenStem = _pascalIdentifier(screenName, fallback: 'SurfaceScreen');
+  final eventStem = _eventStem(screenName);
   final refStem = _lowerCamelIdentifier(screenName, fallback: 'surfaceScreen');
   final hasEvents = events.isNotEmpty;
   return <String>[
-    if (hasEvents) '${screenStem}Event',
+    if (hasEvents) '${eventStem}Event',
     '_${refStem}Events',
     '_${refStem}Provenance',
-    if (hasEvents) '_decodeValidated${screenStem}Event',
+    if (hasEvents) '_decodeValidated${eventStem}Event',
     generatedHandleName(screenName, fallback: 'surfaceScreen'),
     if (hasEvents)
-      for (final event in events) _eventClassName(screenStem, event.field.name),
+      for (final event in events) _eventClassName(eventStem, event.field.name),
   ];
 }
 
@@ -2221,8 +2222,12 @@ String _mountDefaultBindingName(String screenName, int ordinal) =>
     '_${_lowerCamelIdentifier(screenName, fallback: 'surfaceScreen')}'
     'MountDefault$ordinal';
 
-String _eventClassName(String screenStem, String? fieldName) =>
-    '$screenStem${_pascalIdentifier(fieldName ?? '', fallback: 'Event')}Event';
+/// The stem of a screen's generated event types: `<Class>Surface`.
+String _eventStem(String screenName) =>
+    '${_pascalIdentifier(screenName, fallback: 'SurfaceScreen')}Surface';
+
+String _eventClassName(String eventStem, String? fieldName) =>
+    '$eventStem${_pascalIdentifier(fieldName ?? '', fallback: 'Event')}Event';
 
 Set<String> _owningLibrarySourceNames(
   ResolvedWidgetMountInput input,

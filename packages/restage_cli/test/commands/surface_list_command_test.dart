@@ -204,6 +204,7 @@ http.Client _scopeClient(
       ],
       'environments': <Object>[],
       'environmentTargets': <Object>[],
+      'legacyDefaultTargetIds': <Object>[],
       'surfaces': [
         for (final surface in surfaces) {'appId': 5, ...surface},
       ],

@@ -2,6 +2,17 @@ part of '../general_flow.dart';
 
 // ignore_for_file: type=lint
 
+const _generalJourneyRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Text': buildText,
+    },
+    material: {
+      'FilledButton': buildFilledButton,
+    },
+  ),
+);
+
 const generalJourneyRef = SurfaceFlowRef<
     GeneralJourneyResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'general_journey',
@@ -20,16 +31,7 @@ const generalJourneyRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '4ac9de0c0db6d0be76db838474000d49a39a1e7466f3db25e6411e03490e8cfd',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Text': buildText,
-      },
-      material: {
-        'FilledButton': buildFilledButton,
-      },
-    ),
-  ),
+  vocabulary: _generalJourneyRefVocabulary,
 );
 
 GeneralJourneyResult _decodeGeneralJourneyResult(Map<String, Object?> result) {

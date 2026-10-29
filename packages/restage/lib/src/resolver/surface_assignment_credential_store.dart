@@ -142,11 +142,15 @@ final class SurfaceAssignmentCredentialStore {
         onRetentionRollover();
       }
       state ??= _RegistrationState.mint(_nowMicros());
-      if (!await SurfaceAssignmentPersistence.writeString(
-        storageKey,
-        jsonEncode(state.toJson()),
-        generation: persistenceGeneration,
-      )) {
+      final encoded = jsonEncode(state.toJson());
+      // An unchanged state is not written again, unless its last write failed.
+      if ((encoded != stored ||
+              SurfaceAssignmentPersistence.isUnsaved(storageKey)) &&
+          !await SurfaceAssignmentPersistence.writeString(
+            storageKey,
+            encoded,
+            generation: persistenceGeneration,
+          )) {
         return null;
       }
       if (identityGeneration() != identityGenerationAtStart ||

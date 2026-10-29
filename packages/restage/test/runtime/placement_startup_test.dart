@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io' show FileSystemException;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -11,7 +14,14 @@ import 'package:restage/src/delivery/surface_artifact_store.dart';
 import 'package:restage/src/delivery/placement_decision_store.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt_batch.dart';
+import 'package:restage/src/metering/metering_token_store.dart';
+import 'package:restage/src/resolver/placement_fallback_log.dart'
+    show resetPlacementFallbackLog;
 import 'package:restage/src/resolver/placement_mount_resolver.dart';
+import 'package:restage/src/runtime/first_launch_store.dart';
+import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
+import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
@@ -26,6 +36,7 @@ import '../flow/flow_test_support.dart' as flows;
 import '../fixtures/compiled_surfaces/native_flow.dart' as native;
 import '../support/placement_delivery_fixture.dart';
 import '../surface_screen/surface_screen_test_support.dart';
+import '../support/sent_placement_request.dart';
 
 void main() {
   setUp(() {
@@ -112,8 +123,1291 @@ void main() {
     });
   }
 
+  testWidgets('the first mount in a fresh process is delivered',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final reports = <SurfaceResolutionReport>[];
+    _configure(requests,
+        installDateAfter: const Duration(milliseconds: 5),
+        gatherAfter: const Duration(milliseconds: 10),
+        onSurfaceResolution: reports.add);
+    final lines = <String>[];
+    final print = debugPrint;
+    debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+    addTearDown(() => debugPrint = print);
+    final host = readPlacementDeliveryFixture()
+        .request
+        .buildContract
+        .contractsByHash
+        .values
+        .first;
+    final definition = _paywallDefinition('original', host);
+    await tester.pumpWidget(MaterialApp(
+        home: RestagePaywall(
+      id: 'original',
+      placementBinding: PlacementMountBinding(
+          definition: () => definition, name: 'home_card'),
+      fallbackBuilder: (_) => const Text('Original'),
+    )));
+    await _finish(tester);
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    // The gather waits briefly for the install date in flight.
+    expect(requests, hasLength(1));
+    expect(_builtInsOf(requests.single)['daysSinceInstall'], 0);
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(reports.map((report) => report.reason), isNot(contains('stale')));
+    expect(lines.where((line) => line.contains('(stale)')), isEmpty);
+    debugPrint = print;
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  for (final after in [false, true]) {
+    testWidgets(
+        'the first request names every declared placement '
+        '(declared ${after ? 'after' : 'before'} configure)', (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final host = readPlacementDeliveryFixture()
+          .request
+          .buildContract
+          .contractsByHash
+          .values
+          .first;
+      final declared = [
+        _paywallDefinition('original', host),
+        _paywallDefinition('later', host),
+      ];
+      if (!after) Restage.declareSurfaces(declared);
+      _configure(requests);
+      if (after) Restage.declareSurfaces(declared);
+      await tester.pumpWidget(MaterialApp(
+          home: RestagePaywall(
+        id: 'original',
+        placementBinding: PlacementMountBinding(
+            definition: () => declared.first, name: 'home_card'),
+        fallbackBuilder: (_) => const Text('Original'),
+      )));
+      await _finish(tester);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      expect(
+          requests.first.buildContract.mounts,
+          containsAll([
+            for (final definition in declared)
+              PlacementMountRequestV1(
+                  key: definition.key,
+                  hostContractHash: definition.hostContract.contentHash,
+                  defaultSurface: definition.defaultSurfaceLocator),
+          ]));
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
+  Future<List<String>> mountPaywall(WidgetTester tester,
+      {bool dispose = false,
+      Completer<void>? release,
+      Duration settle = Duration.zero}) async {
+    final host = readPlacementDeliveryFixture()
+        .request
+        .buildContract
+        .contractsByHash
+        .values
+        .first;
+    final definition = _paywallDefinition('original', host);
+    final lines = <String>[];
+    final print = debugPrint;
+    debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+    try {
+      await tester.pumpWidget(MaterialApp(
+          home: RestagePaywall(
+        id: 'original',
+        placementBinding: PlacementMountBinding(
+            definition: () => definition, name: 'home_card'),
+        fallbackBuilder: (_) => const Text('Original'),
+      )));
+      await _finish(tester);
+      if (dispose) await tester.pumpWidget(const SizedBox());
+      release?.complete();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(settle);
+      await _finish(tester);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+    } finally {
+      debugPrint = print;
+    }
+    return lines;
+  }
+
+  group('a relaunch', () {
+    final host = readPlacementDeliveryFixture()
+        .request
+        .buildContract
+        .contractsByHash
+        .values
+        .first;
+    final definition = _paywallDefinition('original', host);
+    const slowMount = Duration(milliseconds: 650);
+
+    // A new process over the same storage: nothing held in memory, and a
+    // mount's own answer arrives after the render deadline.
+    void launch(List<PlacementBatchRequestV1> requests,
+        {DateTime? day,
+        Duration? installDateAfter,
+        Duration? gatherAfter,
+        List<String> consulted = const [],
+        List<RestageSurfaceRef> surfaces = const [],
+        bool keyed = false,
+        Duration mountDelay = slowMount,
+        Duration prefetchDelay = Duration.zero,
+        void Function(PlacementBatchRequestV1 sent)? onSend,
+        int build = 42}) {
+      PackageInfo.setMockInitialValues(
+          appName: 'test',
+          packageName: 'test',
+          version: '1',
+          buildNumber: '$build',
+          buildSignature: '');
+      debugResetAppBuildOrdinal();
+      debugResetOsVersion();
+      // A new process has logged nothing yet.
+      resetPlacementFallbackLog();
+      // The startup prefetch reads the clock configure was given.
+      Restage.debugPlacementNow = () => DateTime.utc(2026, 10, 4, 12);
+      _configure(requests,
+          surfaces: surfaces,
+          installDateAfter: installDateAfter,
+          gatherAfter: gatherAfter, delayEach: () {
+        onSend?.call(requests.last);
+        return Future<void>.delayed(
+            requests.last.mode == PlacementBatchModeV1.mount
+                ? mountDelay
+                : prefetchDelay);
+      }, respond: (request) {
+        final answer = placementFixtureResponse(request,
+            cacheValidityOverrides: {'consultedBuiltIns': consulted});
+        if (request.registration == null) return answer;
+        // The service confirms the registration the mount folded in.
+        final now = DateTime.now().microsecondsSinceEpoch;
+        return PlacementBatchResolvedV1(
+            request: request,
+            expectedTarget: readPlacementDeliveryFixture().target,
+            decisions: answer.decisions,
+            registration: SurfaceRegistrationMetadataV1(
+                credentialHandle: 'ic1.${'b' * 64}',
+                expiresAtMicros: now + Duration.microsecondsPerDay,
+                serverNowMicros: now));
+      });
+      if (keyed) {
+        // As configure installs it with measurement on: a credential store
+        // over this device's storage.
+        final store = SurfaceAssignmentCredentialStore(
+          namespace: 'relaunch',
+          actor: () async => 'device',
+          identityGeneration: () => 0,
+          onRetentionRollover:
+              SurfaceCanonicalCarrierProvider.clearHeldAssignments,
+        );
+        SurfaceAssignmentKeyProvider.install(
+          key: store.resolve,
+          localKey: store.resolveLocal,
+          identityGeneration: () => store.generation,
+          registration: store.capture,
+          confirmedKey: () => store.currentHandle,
+          confirmRegistration: (attempt, start, handle, expiry, serverNow) =>
+              store.confirm(
+            attempt: attempt,
+            localRequestStartMicros: start,
+            credentialHandle: handle,
+            expiresAtMicros: expiry,
+            serverNowMicros: serverNow,
+          ),
+          refuseRegistration: store.refuse,
+        );
+      }
+      if (day != null) {
+        debugResetInstallObservations(nowUtc: () => day);
+        configureSurfaceDeliveryObservations();
+      }
+    }
+
+    Widget mount({String? name}) => MaterialApp(
+            home: RestagePaywall(
+          id: 'original',
+          placementBinding:
+              PlacementMountBinding(definition: () => definition, name: name),
+          fallbackBuilder: (_) => const Text('Original'),
+        ));
+
+    // What a mount shows at the render deadline.
+    Future<String> atDeadline(WidgetTester tester, {String? name}) async {
+      await tester.pumpWidget(mount(name: name));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      final shown = find.text('Welcome').evaluate().isNotEmpty
+          ? 'Welcome'
+          : find.text('Original').evaluate().isNotEmpty
+              ? 'Original'
+              : 'nothing';
+      await tester.pump(slowMount);
+      await _finish(tester);
+      await tester.pumpWidget(const SizedBox());
+      return shown;
+    }
+
+    Future<void> accept(WidgetTester tester,
+        {String shown = 'Original'}) async {
+      await tester.pumpWidget(mount(name: 'home_card'));
+      await tester.pump(slowMount);
+      await _finish(tester);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      // The answer came after the deadline and is kept for the next mount.
+      expect(find.text(shown), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    }
+
+    testWidgets('paints the stored decision before the deadline',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      // The install date lands after each launch's first request is gathered.
+      const install = Duration(milliseconds: 20);
+      const gather = Duration(milliseconds: 5);
+      launch(requests, installDateAfter: install, gatherAfter: gather);
+      await accept(tester);
+      launch(requests, installDateAfter: install, gatherAfter: gather);
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+    });
+
+    testWidgets('a cold relaunch paints the decision saved before its mount',
+        (tester) async {
+      final store = _SlowWriteStore(Duration.zero);
+      sharedSurfaceArtifactStore = store;
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await accept(tester);
+      // Storage answers slowly while the first frame builds, and the
+      // startup batch is still in flight when the screen mounts.
+      store.keysDelay = const Duration(milliseconds: 600);
+      launch(requests, prefetchDelay: const Duration(seconds: 2));
+      await tester.pump(const Duration(seconds: 1));
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+      await tester.pump(const Duration(seconds: 2));
+      await _finish(tester);
+    });
+
+    testWidgets('a remount reads the decision this process just accepted',
+        (tester) async {
+      final store = _SlowWriteStore(Duration.zero);
+      sharedSurfaceArtifactStore = store;
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await accept(tester);
+      // Storage now answers after the deadline; memory does not.
+      store.readDelay = const Duration(milliseconds: 600);
+      store.keysDelay = const Duration(milliseconds: 600);
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+      // The mount's own answer is still being saved.
+      store.readDelay = store.keysDelay = Duration.zero;
+      await tester.pump(const Duration(seconds: 2));
+      await _finish(tester);
+    });
+
+    testWidgets('a relaunch paints a remembered mount on its first frame',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await accept(tester);
+      launch(requests);
+      // The read ahead and the warm-up finish before the screen mounts.
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpWidget(mount(name: 'home_card'));
+      expect(find.text('Welcome'), findsOneWidget);
+      await tester.pump(slowMount);
+      await _finish(tester);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('the warm-up asks the platform for nothing before the mount',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await accept(tester);
+      final before = debugPlatformReadsStarted;
+      launch(requests);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      expect(debugPlatformReadsStarted, before);
+      await tester.pumpWidget(mount(name: 'home_card'));
+      expect(find.text('Welcome'), findsOneWidget);
+      await tester.pump(slowMount);
+      expect(debugPlatformReadsStarted, greaterThan(before));
+      await _finish(tester);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a relaunch knows it holds the declared decisions',
+        (tester) async {
+      PlacementMountRequestV1 mountOf(String name) =>
+          PlacementMountBinding(definition: () => definition, name: name)
+              .capture()
+              .mount;
+      final requests = <PlacementBatchRequestV1>[];
+      // The mount [accept] saves a decision for.
+      final declared = [mountOf('home_card')];
+      Future<bool> holds() async {
+        await tester.runAsync(() => Restage.placementRegistry!.readAhead());
+        return Restage.placementRegistry!.holdsDecisionsFor(declared);
+      }
+
+      launch(requests);
+      expect(Restage.placementRegistry!.holdsDecisionsFor(declared), isFalse);
+      expect(await holds(), isFalse);
+      await accept(tester);
+      launch(requests);
+      expect(Restage.placementRegistry!.holdsDecisionsFor(declared), isFalse);
+      expect(await holds(), isTrue);
+      expect(
+          Restage.placementRegistry!
+              .holdsDecisionsFor([...declared, mountOf('elsewhere')]),
+          isFalse);
+      expect(Restage.placementRegistry!.holdsDecisionsFor(const []), isFalse);
+      await tester.pump(const Duration(seconds: 10));
+      await _finish(tester);
+    });
+
+    testWidgets('a relaunch under another capability holds no decisions',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final declared = [
+        PlacementMountBinding(definition: () => definition, name: 'home_card')
+            .capture()
+            .mount,
+      ];
+      launch(requests);
+      await accept(tester);
+      launch(requests);
+      await tester.runAsync(() => Restage.placementRegistry!.readAhead());
+      expect(Restage.placementRegistry!.holdsDecisionsFor(declared), isTrue);
+      const SurfaceVocabulary(libraries: [
+        RestageWidgetLibraryRegistration.constant(
+            library: WidgetLibrary.custom('acme.ui'),
+            capabilityVersion: 1,
+            generatedVersion: 1,
+            widgets: []),
+      ]).addToInstalled();
+      launch(requests);
+      await tester.runAsync(() => Restage.placementRegistry!.readAhead());
+      expect(Restage.placementRegistry!.holdsDecisionsFor(declared), isFalse);
+      await tester.pump(const Duration(seconds: 10));
+      await _finish(tester);
+    });
+
+    testWidgets(
+        'a relaunch holding its decisions sends the startup batch after the '
+        'first frame', (tester) async {
+      sharedSurfaceArtifactStore = _OffIsolateStore();
+      // Frames drawn when each startup batch left.
+      var frames = 0;
+      final sentAfter = <int>[];
+      Future<void> start() async {
+        frames = 0;
+        SchedulerBinding.instance.addPostFrameCallback((_) => frames += 1);
+        Restage.declareSurfaces([definition]);
+        launch(<PlacementBatchRequestV1>[], onSend: (sent) {
+          if (sent.mode == PlacementBatchModeV1.prefetch) sentAfter.add(frames);
+        });
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      await start();
+      expect(sentAfter, [0]);
+      await accept(tester);
+      sentAfter.clear();
+      await start();
+      // The startup batch and the remembered extras, all after the frame.
+      expect(sentAfter, [1, 1]);
+      await _finish(tester);
+    });
+
+    testWidgets('a hidden relaunch sends its startup batch without a frame',
+        (tester) async {
+      sharedSurfaceArtifactStore = _OffIsolateStore();
+      Restage.declareSurfaces([definition]);
+      launch(<PlacementBatchRequestV1>[]);
+      await accept(tester);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      addTearDown(() => tester.binding
+          .handleAppLifecycleStateChanged(AppLifecycleState.resumed));
+      final sent = <PlacementBatchModeV1>[];
+      Restage.declareSurfaces([definition]);
+      launch(<PlacementBatchRequestV1>[], onSend: (request) {
+        sent.add(request.mode);
+      });
+      await tester
+          .runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
+      expect(sent, contains(PlacementBatchModeV1.prefetch));
+      await _finish(tester);
+    });
+
+    testWidgets('a held decision paints before the deadline', (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await accept(tester);
+      await tester.pumpWidget(mount(name: 'home_card'));
+      // Well inside the 300 ms deadline, with the mount's answer still out.
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      expect(find.text('Welcome'), findsOneWidget);
+      await tester.pump(slowMount);
+      await _finish(tester);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a mount right after configure waits for the saved decisions',
+        (tester) async {
+      final store = _SlowWriteStore(Duration.zero);
+      sharedSurfaceArtifactStore = store;
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await accept(tester);
+      // The read ahead is still in flight when the screen mounts.
+      store.keysDelay = const Duration(milliseconds: 250);
+      launch(requests,
+          gatherAfter: const Duration(milliseconds: 100),
+          prefetchDelay: const Duration(seconds: 2));
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+      await tester.pump(const Duration(seconds: 2));
+      await _finish(tester);
+    });
+
+    Future<List<SurfaceStoreKey>> storedKeys(String type) async => [
+          for (final key in await sharedSurfaceArtifactStore.keys())
+            if (key.surfaceType == type) key,
+        ];
+
+    testWidgets('a new build reuses a saved decision that read no build fact',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests, build: 42);
+      await accept(tester);
+      for (final build in [43, 44, 45]) {
+        launch(requests, build: build);
+        await accept(tester, shown: 'Welcome');
+      }
+      expect(await storedKeys('placementDecision'), hasLength(1));
+      expect(await storedKeys('placementArtifact'), hasLength(1));
+      // A row an older version left is neither read ahead nor kept.
+      final scope = (await storedKeys('placementDecision')).single.scope;
+      await sharedSurfaceArtifactStore.write(
+          SurfaceStoreKey(
+              scope: scope,
+              surfaceType: 'placementDecision',
+              slug: 'older',
+              contractVersion: 1),
+          StoredSurface(
+              descriptorJson: Uint8List(0), artifactBytes: Uint8List(0)));
+      // The read ahead at build 45 holds that one decision and its frame.
+      launch(requests, build: 45);
+      final rows = await Restage.placementRegistry!.decisions.saved!.rows;
+      expect(rows.keys.map((key) => key.surfaceType),
+          unorderedEquals(['placementDecision', 'placementArtifact']));
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+      expect(await storedKeys('placementDecision'), hasLength(1));
+    });
+
+    testWidgets('a decision that cannot be saved keeps the earlier one',
+        (tester) async {
+      final store = _FailingRowStore();
+      sharedSurfaceArtifactStore = store;
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests, build: 42);
+      await accept(tester);
+      final earlier = await storedKeys('placementDecision');
+      expect(earlier, hasLength(1));
+      store.failRows = true;
+      final lines = <String>[];
+      final print = debugPrint;
+      debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+      try {
+        launch(requests, build: 43);
+        await accept(tester, shown: 'Welcome');
+      } finally {
+        debugPrint = print;
+      }
+      // The new row was never written, so nothing it replaces is evicted.
+      expect(await storedKeys('placementDecision'), earlier);
+      expect(
+          lines,
+          contains(startsWith("[restage] This device couldn't save a "
+              'placement decision')));
+    });
+
+    testWidgets(
+        'a remount paints what this process accepted on its first frame',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      // Every gather takes longer than a frame.
+      launch(requests, gatherAfter: const Duration(milliseconds: 200));
+      await tester.pumpWidget(mount(name: 'home_card'));
+      await tester.pump(const Duration(seconds: 1));
+      await _finish(tester);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpWidget(const SizedBox());
+      // The first frame of the remount already shows it.
+      await tester.pumpWidget(mount(name: 'home_card'));
+      expect(find.text('Welcome'), findsOneWidget);
+      await tester.pump(slowMount);
+      await _finish(tester);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a remount of a decision that read a device fact waits for it',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      const install = Duration(milliseconds: 20);
+      launch(requests,
+          installDateAfter: install,
+          consulted: ['daysSinceInstall'],
+          gatherAfter: const Duration(milliseconds: 200));
+      await tester.pumpWidget(mount(name: 'home_card'));
+      await tester.pump(const Duration(seconds: 1));
+      await _finish(tester);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(mount(name: 'home_card'));
+      expect(find.text('Welcome'), findsNothing);
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+      await tester.pump(slowMount);
+      await _finish(tester);
+    });
+
+    testWidgets(
+        'a saved decision is found after another placement first mounts',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await accept(tester);
+      // A placement first seen after the decision was saved.
+      await tester.pumpWidget(mount(name: 'other_card'));
+      await tester.pump(slowMount);
+      await _finish(tester);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpWidget(const SizedBox());
+      launch(requests);
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+      await tester.pump(slowMount);
+      await _finish(tester);
+    });
+
+    testWidgets('a reset before the first mount shows the original',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await accept(tester);
+      launch(requests);
+      await tester
+          .runAsync(() => Restage.placementRegistry!.decisions.saved!.rows);
+      Restage.reset();
+      expect(await atDeadline(tester, name: 'home_card'), 'Original');
+    });
+
+    testWidgets('a keyed relaunch keeps its saved decision decoded',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests, keyed: true);
+      await accept(tester);
+      launch(requests, keyed: true);
+      final saved = Restage.placementRegistry!.decisions.saved!;
+      Future<SavedRow> decision() async =>
+          (await tester.runAsync(() => saved.rows))!
+              .entries
+              .singleWhere((MapEntry<SurfaceStoreKey, SavedRow> row) =>
+                  row.key.surfaceType == 'placementDecision')
+              .value;
+      final before = await decision();
+      expect(before.decision, isNotNull);
+      // The keyless startup batch answers; the device's keyed row stays.
+      await tester.pump(const Duration(seconds: 2));
+      await _finish(tester);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump(const Duration(seconds: 1));
+      expect(requests.map((request) => request.mode),
+          contains(PlacementBatchModeV1.prefetch));
+      final after = await decision();
+      expect(after.decision, isNotNull);
+      expect(identical(after.stored, before.stored), isTrue);
+    });
+
+    testWidgets('a reset while an answer is being saved holds', (tester) async {
+      sharedSurfaceArtifactStore =
+          _SlowWriteStore(const Duration(milliseconds: 500));
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await tester.pumpWidget(mount(name: 'home_card'));
+      // The answer is shown; its save is still running.
+      await tester.pump(slowMount);
+      Restage.reset();
+      await tester.pump(const Duration(seconds: 2));
+      await _finish(tester);
+      await tester.pumpWidget(const SizedBox());
+      launch(requests);
+      expect(await atDeadline(tester, name: 'home_card'), 'Original');
+      await tester.pump(const Duration(seconds: 2));
+      await _finish(tester);
+    });
+
+    testWidgets('a read sees a change made while it runs', (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await accept(tester);
+      launch(requests);
+      final registry = Restage.placementRegistry!;
+      final decisions = registry.decisions;
+      await tester.runAsync(() => decisions.saved!.rows);
+      final request = requests.last;
+      final found = await tester.runAsync(() => decisions.read(
+          request: request,
+          configurationFingerprint: registry.configurationFingerprint,
+          acceptsStored: (stored, decision) async {
+            // Another mount drops the row mid-read.
+            for (final key in await storedKeys('placementDecision')) {
+              await registry.decisions.remove(key);
+            }
+            return true;
+          }));
+      expect(found, isNull);
+      await tester.pump(const Duration(seconds: 1));
+      await _finish(tester);
+    });
+
+    testWidgets('a keyed device paints its stored decision before the deadline',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests, keyed: true);
+      await accept(tester);
+      expect(requests.last.registration, isNotNull);
+      launch(requests, keyed: true);
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+      // The relaunch read its confirmed handle back from storage.
+      final mounted = requests
+          .lastWhere((request) => request.mode == PlacementBatchModeV1.mount);
+      expect(mounted.assignmentKey, 'ic1.${'b' * 64}');
+    });
+
+    testWidgets('a decision stored warm serves a cold gather', (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests, day: DateTime.utc(2026, 10, 4, 12));
+      await accept(tester);
+      expect(
+          _builtInsOf(requests.last).containsKey('daysSinceInstall'), isTrue);
+      // The install date lands after this launch's first request is gathered.
+      launch(requests,
+          installDateAfter: const Duration(milliseconds: 200),
+          gatherAfter: const Duration(milliseconds: 5));
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+    });
+
+    testWidgets('reuses a decision routed on install age the same day',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      const install = Duration(milliseconds: 20);
+      launch(requests,
+          installDateAfter: install, consulted: ['daysSinceInstall']);
+      await accept(tester);
+      launch(requests,
+          installDateAfter: install, consulted: ['daysSinceInstall']);
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+    });
+
+    testWidgets('refuses an install-age decision when the gather lacks the age',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests,
+          day: DateTime.utc(2026, 10, 4, 12), consulted: ['daysSinceInstall']);
+      await accept(tester);
+      launch(requests,
+          installDateAfter: const Duration(milliseconds: 200),
+          consulted: ['daysSinceInstall']);
+      expect(await atDeadline(tester, name: 'home_card'), 'Original');
+    });
+
+    // Launch 1 stores a decision routed on an install age it did not send.
+    Future<_SlowWriteStore> storeAgeDecision(
+        WidgetTester tester, List<PlacementBatchRequestV1> requests) async {
+      final store = _SlowWriteStore(Duration.zero);
+      sharedSurfaceArtifactStore = store;
+      const install = Duration(milliseconds: 150);
+      launch(requests,
+          installDateAfter: install, consulted: ['daysSinceInstall']);
+      // The send waits for the install date; the mount stays up until its
+      // answer is stored.
+      await tester.pumpWidget(mount(name: 'home_card'));
+      await tester.pump(slowMount + install);
+      await _finish(tester);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await _finish(tester);
+      await tester.pumpWidget(const SizedBox());
+      expect(_builtInsOf(requests.last), isNot(contains('daysSinceInstall')));
+      // Slow storage lets the install date land before the stored row is shown.
+      store.keysDelay = const Duration(milliseconds: 200);
+      return store;
+    }
+
+    // What a relaunch shows at the deadline, and the lines it logged.
+    Future<(String, List<String>)> relaunch(WidgetTester tester,
+        List<PlacementBatchRequestV1> requests, Duration mountDelay) async {
+      final lines = <String>[];
+      final previous = debugPrint;
+      debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+      // This launch's own answer reads no fact. Only the saved one is refused.
+      launch(requests,
+          installDateAfter: const Duration(milliseconds: 150),
+          mountDelay: mountDelay);
+      final shown = await atDeadline(tester, name: 'home_card');
+      debugPrint = previous;
+      return (shown, lines);
+    }
+
+    testWidgets('refuses a stored decision whose routed-on fact lands late',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      await storeAgeDecision(tester, requests);
+      final (shown, lines) = await relaunch(tester, requests, slowMount);
+      expect(shown, 'Original');
+      expect(lines, [
+        '[restage] placement named:home_card shows its fallback (stale): '
+            "the device's install age changed after this decision was made. "
+            "The decision wasn't shown. It's retried on the next mount."
+      ]);
+    });
+
+    testWidgets('a refused stored decision is not logged when fresh shows',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      await storeAgeDecision(tester, requests);
+      // The fresh answer lands after the saved one is refused, before the
+      // deadline.
+      final (shown, lines) =
+          await relaunch(tester, requests, const Duration(milliseconds: 100));
+      expect(shown, 'Welcome');
+      expect(lines, isEmpty);
+    });
+
+    testWidgets('reuses a decision across a day that it did not route on',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final today = DateTime.utc(2026, 10, 4, 12);
+      launch(requests, day: today);
+      await accept(tester);
+      launch(requests, day: today.add(const Duration(days: 1)));
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+    });
+
+    testWidgets('asks again when the install age it routed on moves',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final today = DateTime.utc(2026, 10, 4, 12);
+      launch(requests, day: today, consulted: ['daysSinceInstall']);
+      await accept(tester);
+      // The same day keeps it; the next day's age does not.
+      launch(requests, day: today, consulted: ['daysSinceInstall']);
+      expect(await atDeadline(tester, name: 'home_card'), 'Welcome');
+      launch(requests,
+          day: today.add(const Duration(days: 1)),
+          consulted: ['daysSinceInstall']);
+      expect(await atDeadline(tester, name: 'home_card'), 'Original');
+    });
+
+    testWidgets(
+        'a first launch paints its declared placement from the startup batch',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      Restage.declareSurfaces([definition]);
+      launch(requests, keyed: true);
+      // Sent before any frame, so the first mount can paint its answer.
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      expect(requests.map((request) => request.mode),
+          [PlacementBatchModeV1.prefetch]);
+      expect(await atDeadline(tester), 'Welcome');
+      final startup = requests.first;
+      expect((startup.mode, startup.registration),
+          (PlacementBatchModeV1.prefetch, null));
+      // The mount still sends its own request, which registers.
+      expect(
+          requests
+              .where((request) => request.mode == PlacementBatchModeV1.mount)
+              .single
+              .registration,
+          isNotNull);
+    });
+
+    testWidgets('a slow store does not hold back the startup answer',
+        (tester) async {
+      final store = _SlowWriteStore(const Duration(milliseconds: 600));
+      sharedSurfaceArtifactStore = store;
+      final requests = <PlacementBatchRequestV1>[];
+      Restage.declareSurfaces([definition]);
+      launch(requests);
+      // The read ahead runs off the frame isolate, in real time.
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      expect(await atDeadline(tester), 'Welcome');
+      await tester.pump(const Duration(seconds: 2));
+      await _finish(tester);
+    });
+
+    for (final (valid, fetchable) in [
+      (true, false),
+      (false, false),
+      (false, true),
+    ]) {
+      testWidgets(
+          'a first launch paints from bytes sent with its answer '
+          '(valid $valid, fetchable $fetchable)', (tester) async {
+        final requests = <PlacementBatchRequestV1>[];
+        Restage.declareSurfaces([definition]);
+        // The mount's own answer lands after the deadline.
+        _configure(requests,
+            delayEach: () => Future<void>.delayed(
+                requests.last.mode == PlacementBatchModeV1.mount
+                    ? slowMount
+                    : Duration.zero),
+            respond: (request) {
+              final base = placementFixtureResponse(request);
+              if (!request.holdsNoArtifacts) return base;
+              final inline = <ArtifactIdentityV1, List<int>>{
+                for (final row
+                    in base.decisions.whereType<PlacementBatchAvailableV1>())
+                  for (final reference in row.artifactClosure)
+                    reference.identity: valid
+                        ? placementFixtureFrames
+                            .remove(reference.descriptor.artifactUrl)!
+                        : [0, 1, 2],
+              };
+              if (!valid && !fetchable) {
+                for (final row
+                    in base.decisions.whereType<PlacementBatchAvailableV1>()) {
+                  for (final reference in row.artifactClosure) {
+                    placementFixtureFrames
+                        .remove(reference.descriptor.artifactUrl);
+                  }
+                }
+              }
+              return PlacementBatchResolvedV1.fromBuiltRows(
+                  request: request,
+                  expectedTarget: readPlacementDeliveryFixture().target,
+                  decisions: base.decisions,
+                  inlineArtifacts: inline);
+            });
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)));
+        expect(requests.single.holdsNoArtifacts, isTrue);
+        // Bytes that fail their check are fetched instead.
+        expect(await atDeadline(tester),
+            valid || fetchable ? 'Welcome' : 'Original');
+      });
+    }
+
+    testWidgets('a launch that holds artifacts does not ask for them',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      await accept(tester);
+      Restage.declareSurfaces([definition]);
+      launch(requests);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      expect(requests.last.mode, PlacementBatchModeV1.prefetch);
+      expect(requests.last.holdsNoArtifacts, isFalse);
+      await tester.pump(const Duration(seconds: 2));
+      await _finish(tester);
+    });
+
+    testWidgets('a startup batch names a build the service holds by hash',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      for (var launchIndex = 0; launchIndex < 2; launchIndex++) {
+        Restage.declareSurfaces([definition]);
+        launch(requests);
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      }
+      // The service held the build from the first launch.
+      expect(requests.last.mode, PlacementBatchModeV1.prefetch);
+      expect(requests.last.carriesBuildContract, isFalse);
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('a startup answer on a fact it did not send is not kept',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      Restage.declareSurfaces([definition]);
+      launch(requests, consulted: ['daysSinceInstall']);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      expect(requests.single.mode, PlacementBatchModeV1.prefetch);
+      expect(
+          (await sharedSurfaceArtifactStore.keys())
+              .where((key) => key.surfaceType == 'placementDecision'),
+          isEmpty);
+      expect(await atDeadline(tester), 'Original');
+    });
+
+    testWidgets('a prefetched decision serves the first mount', (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests, surfaces: [definition]);
+      await tester.pumpWidget(const SizedBox());
+      await _finish(tester);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      expect(requests.map((request) => request.mode),
+          [PlacementBatchModeV1.prefetch]);
+      expect(await atDeadline(tester), 'Welcome');
+      // The startup batch waits for no platform read: it carries no
+      // identity and only the facts already in memory.
+      final startup = requests.first;
+      expect((startup.meteringKey, startup.analyticsAnonymousId), (null, null));
+      expect(
+          _builtInsOf(startup).keys,
+          isNot(anyOf(
+              contains('appBuildOrdinal'), contains('daysSinceInstall'))));
+    });
+  });
+
+  testWidgets('an install date that lands after the send keeps the answer',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final reports = <SurfaceResolutionReport>[];
+    // An install date slower than the gather's wait lands after the send.
+    _configure(requests,
+        installDateAfter: const Duration(milliseconds: 150),
+        gatherAfter: const Duration(milliseconds: 5),
+        delayEach: () => Future<void>.delayed(const Duration(milliseconds: 40)),
+        onSurfaceResolution: reports.add);
+    final lines = await mountPaywall(tester);
+    expect(requests, hasLength(1));
+    expect(_builtInsOf(requests.single), isNot(contains('daysSinceInstall')));
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(reports.map((report) => report.reason), isNot(contains('stale')));
+    expect(lines.where((line) => line.contains('(stale)')), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    // The answer is stored under the facts it was sent with, so the next
+    // mount asks again with the install age.
+    await mountPaywall(tester);
+    expect(requests, hasLength(2));
+    expect(_builtInsOf(requests.last)['daysSinceInstall'], 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a longer render deadline waits longer for the install date',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    // A third of 600 ms covers an install date at 150 ms.
+    _configure(requests,
+        deadline: const Duration(milliseconds: 600),
+        installDateAfter: const Duration(milliseconds: 150),
+        gatherAfter: const Duration(milliseconds: 5));
+    await mountPaywall(tester);
+    expect(_builtInsOf(requests.first)['daysSinceInstall'], 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('an answer shows before it is saved', (tester) async {
+    // Saving takes longer than the deadline; the answer does not wait for it.
+    sharedSurfaceArtifactStore =
+        _SlowWriteStore(const Duration(milliseconds: 600));
+    final requests = <PlacementBatchRequestV1>[];
+    final reports = <SurfaceResolutionReport>[];
+    _configure(requests, onSurfaceResolution: reports.add);
+    await mountPaywall(tester);
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(reports.first.source, SurfaceResolutionSource.fresh);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 2));
+    await _finish(tester);
+  });
+
+  testWidgets('an install date that lands while the answer is stored keeps it',
+      (tester) async {
+    sharedSurfaceArtifactStore =
+        _SlowWriteStore(const Duration(milliseconds: 40));
+    final requests = <PlacementBatchRequestV1>[];
+    final reports = <SurfaceResolutionReport>[];
+    _configure(requests,
+        installDateAfter: const Duration(milliseconds: 20),
+        gatherAfter: const Duration(milliseconds: 5),
+        onSurfaceResolution: reports.add);
+    final lines = await mountPaywall(tester);
+    expect(requests, hasLength(1));
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(reports.map((report) => report.reason),
+        everyElement(isNot(anyOf('unsupported', 'stale'))));
+    expect(lines.where((line) => line.contains('shows its fallback')), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a time zone that changes after the send names it',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final reports = <SurfaceResolutionReport>[];
+    final utc = DateTime.utc(2026, 10, 4, 12);
+    var moved = false;
+    _configure(requests,
+        now: () => moved ? _ZonedTime(utc, const Duration(hours: 9)) : utc,
+        delayEach: () async => moved = true,
+        cacheValidityOverrides: {
+          'expiresBeforeLocal':
+              LocalCivilDateTimeV1.parse('2026-10-05T00:00:00').toJson(),
+        },
+        onSurfaceResolution: reports.add);
+    final lines = await mountPaywall(tester);
+    expect(requests, hasLength(1));
+    expect(find.text('Original'), findsOneWidget);
+    expect(
+        reports.map((report) => report.reason), isNot(contains('unsupported')));
+    expect(
+        lines,
+        contains(endsWith("shows its fallback (stale): the device's time zone "
+            "changed after the request was sent. The delivered version's time "
+            'window is set in the old time zone. The answer was dropped. '
+            "It's retried on the next mount.")));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('content that cannot be downloaded names it', (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final reports = <SurfaceResolutionReport>[];
+    _configure(requests,
+        contentUnavailable: true, onSurfaceResolution: reports.add);
+    final lines = await mountPaywall(tester);
+    expect(requests, hasLength(1));
+    expect(find.text('Original'), findsOneWidget);
+    expect(
+        reports.map((report) => report.reason), isNot(contains('unsupported')));
+    expect(
+        lines,
+        contains(endsWith('shows its fallback (artifactUnavailable): the '
+            "delivered version's content couldn't be downloaded or verified. "
+            "It's retried on the next mount.")),
+        reason: lines.join('\n'));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a version that expires before it is shown names it',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final reports = <SurfaceResolutionReport>[];
+    var now = DateTime.utc(2026, 10, 4, 12);
+    _configure(requests,
+        now: () => now,
+        delayEach: () async => now = now.add(const Duration(seconds: 1)),
+        cacheValidityOverrides: {
+          'contentExpiresAtMicros':
+              now.add(const Duration(seconds: 1)).microsecondsSinceEpoch
+        },
+        onSurfaceResolution: reports.add);
+    final lines = await mountPaywall(tester);
+    expect(requests, hasLength(1));
+    expect(find.text('Original'), findsOneWidget);
+    expect(
+        reports.map((report) => report.reason), isNot(contains('unsupported')));
+    expect(
+        lines,
+        contains(endsWith("shows its fallback (stale): the delivered version's "
+            'time window or experiment assignment ended before it could be '
+            "shown. The answer was dropped. It's retried on the next mount.")));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  for (final (label, overrides, move, sentence) in [
+    (
+      'a local window that ends in flight',
+      {
+        'expiresBeforeLocal':
+            LocalCivilDateTimeV1.parse('2026-10-04T12:00:01').toJson(),
+      },
+      const Duration(seconds: 1),
+      "the delivered version's time window or experiment assignment ended "
+          "before it could be shown. The answer was dropped. It's retried on "
+          'the next mount.',
+    ),
+    (
+      'a local window not started by the device clock',
+      {
+        'notBeforeLocal':
+            LocalCivilDateTimeV1.parse('2026-10-04T13:00:00').toJson(),
+      },
+      Duration.zero,
+      "the delivered version's time window hasn't started by this device's "
+          "clock. The answer was dropped. It's retried on the next mount.",
+    ),
+    (
+      'a clock that moves back in flight',
+      const <String, Object?>{},
+      const Duration(seconds: -1),
+      'the device clock moved back while the request was in flight. The '
+          "answer was dropped. It's retried on the next mount.",
+    ),
+  ]) {
+    testWidgets('$label names why the answer lapsed', (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final reports = <SurfaceResolutionReport>[];
+      var now = DateTime.utc(2026, 10, 4, 12);
+      _configure(requests,
+          now: () => now,
+          delayEach: () async => now = now.add(move),
+          cacheValidityOverrides: overrides,
+          onSurfaceResolution: reports.add);
+      final lines = await mountPaywall(tester);
+      expect(requests, hasLength(1));
+      expect(find.text('Original'), findsOneWidget);
+      expect(reports.map((report) => report.reason),
+          isNot(contains('unsupported')));
+      expect(
+          lines, contains(endsWith('shows its fallback (stale): $sentence')));
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
+  testWidgets('an answer routed on a fact that landed in flight is refused',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final reports = <SurfaceResolutionReport>[];
+    _configure(requests,
+        installDateAfter: const Duration(milliseconds: 150),
+        gatherAfter: const Duration(milliseconds: 5),
+        delayEach: () =>
+            Future<void>.delayed(const Duration(milliseconds: 200)),
+        cacheValidityOverrides: const {
+          'consultedBuiltIns': ['daysSinceInstall']
+        },
+        onSurfaceResolution: reports.add);
+    final lines =
+        await mountPaywall(tester, settle: const Duration(milliseconds: 300));
+    expect(requests, hasLength(1));
+    expect(_builtInsOf(requests.single), isNot(contains('daysSinceInstall')));
+    expect(find.text('Original'), findsOneWidget);
+    expect(
+        lines,
+        contains(endsWith("shows its fallback (stale): the device's install "
+            "age changed after this decision was made. The decision wasn't "
+            "shown. It's retried on the next mount.")));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a day that turns after the send keeps the answer',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    var day = DateTime.utc(2026, 10, 4, 12);
+    _configure(requests, delayEach: () async {
+      day = day.add(const Duration(days: 1));
+    });
+    debugResetInstallObservations(nowUtc: () => day);
+    configureSurfaceDeliveryObservations();
+    final lines = await mountPaywall(tester);
+    expect(requests, hasLength(1));
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(lines.where((line) => line.contains('(stale)')), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('an identity reset during the gather gathers it again',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    _configure(requests);
+    var generation = 0;
+    var reset = false;
+    // The first key read lands during an identity reset.
+    SurfaceAssignmentKeyProvider.install(
+        key: () {
+          if (!reset) {
+            reset = true;
+            generation++;
+          }
+          return null;
+        },
+        identityGeneration: () => generation);
+    final lines = await mountPaywall(tester);
+    expect(requests, hasLength(1));
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(lines.where((line) => line.contains('(stale)')), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a credential the service no longer holds registers again',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    _configure(requests,
+        respond: (request) => request.assignmentKey == null
+            ? placementFixtureResponse(request)
+            : PlacementBatchResolvedV1(
+                request: request,
+                expectedTarget: readPlacementDeliveryFixture().target,
+                decisions: placementFixtureResponse(request).decisions,
+                registrationRefused: true,
+              ));
+    final store = SurfaceAssignmentCredentialStore(
+      namespace: 'placements',
+      actor: () async => 'actor',
+      identityGeneration: () => 0,
+      onRetentionRollover: () {},
+    );
+    SurfaceAssignmentKeyProvider.install(
+      key: store.resolve,
+      identityGeneration: () => store.generation,
+      registration: store.capture,
+      confirmedKey: () => store.currentHandle,
+      refuseRegistration: store.refuse,
+    );
+    // A handle confirmed before the service lost it.
+    final handle = 'ic1.${'a' * 64}';
+    final attempt = (await store.capture())!;
+    final now = DateTime.now().microsecondsSinceEpoch;
+    expect(
+        await store.confirm(
+            attempt: attempt,
+            localRequestStartMicros: now,
+            credentialHandle: handle,
+            expiresAtMicros: now + Duration.microsecondsPerDay,
+            serverNowMicros: now),
+        isTrue);
+    final lines = await mountPaywall(tester);
+    expect(requests.single.assignmentKey, handle);
+    expect(requests.single.registration, isNull);
+    expect(
+        lines,
+        contains(endsWith("shows its fallback (stale): the service no longer "
+            "holds this device's experiment registration. The answer was "
+            'dropped. The next mount registers this device again.')));
+    await tester.pumpWidget(const SizedBox());
+    await mountPaywall(tester);
+    expect(requests, hasLength(2));
+    expect(requests.last.assignmentKey, isNull);
+    expect(requests.last.registration, isNotNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a mount disposed while its request is out stays silent',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final release = Completer<void>();
+    _configure(requests, delay: release.future);
+    final lines = await mountPaywall(tester, dispose: true, release: release);
+    expect(requests, hasLength(1));
+    expect(lines.where((line) => line.contains('shows its fallback')), isEmpty);
+  });
+
   testWidgets(
-      'configure sends one keyless batch for generated and remembered mounts',
+      'configure sends generated mounts at once and remembered ones after',
       (tester) async {
     final fixture = readPlacementDeliveryFixture();
     final host = fixture.request.buildContract.contractsByHash.values.first;
@@ -135,17 +1429,96 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
     await _finish(tester);
     await tester.pumpWidget(const SizedBox());
-    expect(requests, hasLength(1));
-    final request = requests.single;
-    expect(request.mounts, hasLength(3));
-    expect(request.mode, PlacementBatchModeV1.prefetch);
-    expect(request.assignmentKey, isNull);
-    expect(request.registration, isNull);
-    expect(request.heldAssignments, isEmpty);
-    expect(request.buildContract.mounts, hasLength(3));
-    expect(request.buildContract.contractsByHash, hasLength(1));
     expect(
-        request.mounts.any((mount) => mount.key.slug == 'seen_card'), isTrue);
+        requests.map((request) => (
+              request.mode,
+              request.assignmentKey,
+              request.registration,
+              request.heldAssignments.length,
+              [for (final mount in request.mounts) mount.key.slug].join(','),
+            )),
+        [
+          (PlacementBatchModeV1.prefetch, null, null, 0, 'one,two'),
+          (PlacementBatchModeV1.prefetch, null, null, 0, 'seen_card'),
+        ]);
+    expect(requests.last.buildContract.mounts, hasLength(3));
+    expect(requests.last.buildContract.contractsByHash, hasLength(1));
+  });
+
+  testWidgets('configure forgets remembered generated mounts it no longer has',
+      (tester) async {
+    final fixture = readPlacementDeliveryFixture();
+    final host = fixture.request.buildContract.contractsByHash.values.first;
+    final kept = _paywallDefinition('kept', host);
+    final removed = _paywallDefinition('removed', host);
+    final store = PlacementDecisionStore(
+        scope: SurfaceStoreKey.scopeFor(
+            apiKey: 'rs_pk_test',
+            environment: 'production',
+            baseUrl: 'https://example.com'),
+        store: sharedSurfaceArtifactStore);
+    for (final binding in [
+      PlacementMountBinding(definition: () => removed),
+      PlacementMountBinding(definition: () => removed, name: 'seen_card'),
+    ]) {
+      final captured = binding.capture();
+      await store.remember(captured.mount, captured.host, () => true);
+    }
+    final requests = <PlacementBatchRequestV1>[];
+    _configure(requests, surfaces: [kept]);
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await _finish(tester);
+    await tester.pumpWidget(const SizedBox());
+    // A named mount is not the build's to declare, so it stays.
+    expect(requests.expand((request) => request.mounts).map((m) => m.key.slug),
+        ['kept', 'seen_card']);
+    expect(requests.last.buildContract.mounts, hasLength(2));
+    expect(
+        (await store.readAhead())
+            .mounts
+            .where((known) => known.mount.key.isGeneratedDefault)
+            .map((known) => known.mount.key.slug),
+        isNot(contains('removed')));
+  });
+
+  testWidgets(
+      'prefetch reports the app widgets a listed flow installs, before any '
+      'step builds', (tester) async {
+    final document = flows.childScreenFlow(text: 'Journey').document;
+    final flow = SurfaceFlowRef<Map<String, Object?>>(
+        id: document.flow,
+        version: document.version,
+        minClient: 1,
+        surface: Surface.onboarding,
+        decodeResult: (value) => value,
+        vocabulary: const SurfaceVocabulary(libraries: [
+          RestageWidgetLibraryRegistration.constant(
+              library: WidgetLibrary.custom('acme.ui'),
+              capabilityVersion: 1,
+              generatedVersion: 2,
+              widgets: []),
+        ]));
+    final definition = GeneratedPlacementDefinition(
+        defaultSurface: flow,
+        defaultSurfaceLocator: DeliverySurfaceLocatorV1(
+            surfaceType: DeliverySurfaceTypeId('onboarding'),
+            slug: document.flow,
+            family: const DeliveryFamilySelectorV1.general()),
+        key: PlacementKeyV1.generatedDefault(
+            surfaceType: DeliverySurfaceTypeId('onboarding'),
+            slug: document.flow),
+        hostContract: _flowHost(document).host,
+        vocabulary: SurfaceVocabulary.none);
+    final requests = <PlacementBatchRequestV1>[];
+    _configure(requests, surfaces: [definition]);
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await _finish(tester);
+    await tester.pumpWidget(const SizedBox());
+    expect(requests.single.mode, PlacementBatchModeV1.prefetch);
+    expect(
+        requests.single.buildContract.installedCapability.installedLibraries
+            .map((library) => (library.namespace, library.generated)),
+        contains(('acme.ui', 2)));
   });
 
   testWidgets(
@@ -311,6 +1684,70 @@ void main() {
     }
   });
 
+  testWidgets('forty mounts built in one frame send one request',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    _configure(requests,
+        respond: (request) => placementFixtureResponse(request,
+            requirement: screenRequirement(),
+            family:
+                DeliveryFamilySelectorV1.screenContract(contractVersion: 1)));
+    try {
+      await tester.pumpWidget(MaterialApp(
+          home: SingleChildScrollView(
+              child: Column(children: [
+        for (var i = 0; i < 40; i++)
+          native.NativeNoticeSurface.atPlacement(
+              'notice_slot_$i', 'Notice original $i', 3),
+      ]))));
+      await _finish(tester);
+      final mounts =
+          requests.where((sent) => sent.mode == PlacementBatchModeV1.mount);
+      expect(mounts, hasLength(1));
+      expect(mounts.single.mounts, hasLength(40));
+      expect(find.text('Welcome'), findsNWidgets(40));
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets('a mount whose callback throws fails alone in its batch',
+      (tester) async {
+    _configure([]);
+    final refusing = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient((_) async => http.Response.bytes(
+            PlacementBatchRefusedV1(
+                    reason: PlacementBatchRefusalReasonV1.invalidAuthority)
+                .canonicalBytes,
+            400)));
+    Restage.debugRestageRpcClient = refusing;
+    addTearDown(refusing.close);
+    final fixture = readPlacementDeliveryFixture().request;
+    final registry = Restage.placementRegistry!;
+    for (final mount in fixture.mounts) {
+      registry.remember((
+        mount: mount,
+        host: fixture.buildContract.contractsByHash[mount.hostContractHash]!
+      ));
+    }
+    final refused = <PlacementBatchRefusalReasonV1>[];
+    await tester.runAsync(() async {
+      final failing = registry.fetchMount(fixture.mounts.first,
+          sendAssignmentKey: false,
+          publicationGuard: () => true,
+          onRefused: (_) => throw StateError('host callback'));
+      final other = registry.fetchMount(fixture.mounts.last,
+          sendAssignmentKey: false,
+          publicationGuard: () => true,
+          onRefused: refused.add);
+      await expectLater(failing, throwsA(isA<StateError>()));
+      expect(await other, isNull);
+    });
+    expect(refused, [PlacementBatchRefusalReasonV1.invalidAuthority]);
+  });
+
   testWidgets('a late server fallback reason still reaches the host',
       (tester) async {
     final requests = <PlacementBatchRequestV1>[];
@@ -380,6 +1817,139 @@ void main() {
     } finally {
       await tester.pumpWidget(const SizedBox());
     }
+  });
+
+  group('a paint receipt', () {
+    void enableReceipts() => SurfaceDeliveryReceiptBatch.instance
+      ..enabled = true
+      ..deviceSource = () async => (platform: 'android', appBuild: 42);
+
+    Widget paywall() {
+      final host = readPlacementDeliveryFixture()
+          .request
+          .buildContract
+          .contractsByHash
+          .values
+          .first;
+      final definition = _paywallDefinition('original', host);
+      return MaterialApp(
+          home: RestagePaywall(
+        id: 'original',
+        placementBinding: PlacementMountBinding(
+            definition: () => definition, name: 'home_card'),
+        fallbackBuilder: (_) => const Text('Original'),
+      ));
+    }
+
+    testWidgets('content swapped in after the deadline counts for its spot',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final response = Completer<void>();
+      _configure(requests,
+          delay: response.future,
+          liveRefresh: const {SurfaceRefreshTrigger.appResume});
+      enableReceipts();
+      try {
+        await tester.pumpWidget(paywall());
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Original'), findsOneWidget);
+        response.complete();
+        await _finish(tester);
+        expect(find.text('Welcome'), findsOneWidget);
+        final receipt = (await SurfaceDeliveryReceiptBatch.instance.drain())
+            .entries()
+            .single
+            .receipt;
+        expect(receipt.source, SurfaceResolutionSource.fresh);
+        expect(receipt.outcome, SurfaceDeliveryReceiptOutcome.painted);
+        expect(receipt.attribution?.placementKey?.slug, 'home_card');
+        expect(
+            receipt.attribution?.resolutionKind, MountResolutionKindV1.hosted);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('a flow swapped in after the deadline counts for its spot',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final response = Completer<void>();
+      final selected = flows.childScreenFlow(text: 'Hosted generated flow');
+      final document = selected.document
+          .copyWith(flow: 'selected_generated_journey', version: 9);
+      _configure(requests,
+          delay: response.future,
+          liveRefresh: const {SurfaceRefreshTrigger.appResume},
+          payload: FlowSurfacePayload(
+              flowDocument: document,
+              screenBlobs: selected.screenBlobs,
+              requiredLibraries: []),
+          requirement: SurfaceFitRequirementV1(
+              hosting: SurfaceHostingRequirementV1(
+                  contentKind: SurfaceContentKindV1.flow,
+                  allowedPresentations: {SurfacePresentationV1.inline}),
+              requiredContext: const SurfaceScreenHostDataSchema.empty(),
+              emittedEvents: SurfaceScreenEventSchema(events: []),
+              capabilities:
+                  CapabilityManifest(builtInFloor: 3, requiredLibraries: []),
+              requiredVocabulary: WidgetVocabulary(widgetNames: {
+                'restage.core:Text',
+                'restage.core:GestureDetector'
+              }),
+              flowBoundary:
+                  FlowHostBoundaryV1.fromDocument(document, signals: {})),
+          family: const DeliveryFamilySelectorV1.general());
+      enableReceipts();
+      try {
+        await tester.pumpWidget(const MaterialApp(
+            home: native.NativeClassFlowSurface.atPlacement('journey_slot')));
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump();
+        expect(find.text('Preferences original'), findsOneWidget);
+        response.complete();
+        await _finish(tester);
+        expect(find.text('Hosted generated flow'), findsOneWidget);
+        final receipt = (await SurfaceDeliveryReceiptBatch.instance.drain())
+            .entries()
+            .where((entry) =>
+                entry.receipt.source == SurfaceResolutionSource.fresh)
+            .single
+            .receipt;
+        expect(receipt.outcome, SurfaceDeliveryReceiptOutcome.painted);
+        expect(receipt.attribution?.placementKey?.slug, 'journey_slot');
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('held content shown before the answer says it was pending',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      Completer<void>? held;
+      _configure(requests, delayEach: () async => held?.future);
+      enableReceipts();
+      try {
+        await tester.pumpWidget(paywall());
+        await _finish(tester);
+        await SurfaceDeliveryReceiptBatch.instance.drain();
+        await tester.pumpWidget(const SizedBox());
+        held = Completer<void>();
+        await tester.pumpWidget(paywall());
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Welcome'), findsOneWidget);
+        final receipt = (await SurfaceDeliveryReceiptBatch.instance.drain())
+            .entries()
+            .single
+            .receipt;
+        expect(receipt.source, SurfaceResolutionSource.holdLastGood);
+        expect(receipt.reason, SurfaceDeliveryReceiptReason.pending);
+        expect(receipt.attribution?.placementKey?.slug, 'home_card');
+        held.complete();
+        await _finish(tester);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
   });
 
   group('a fallback the service decided', () {
@@ -653,6 +2223,165 @@ void main() {
       expect(find.text('compiled'), findsNothing);
     } finally {
       await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets('a decision this build cannot render names what it lacks',
+      (tester) async {
+    final lines = <String>[];
+    final previous = debugPrint;
+    debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+    final screen = screenRequirement();
+    final vocabulary = screen.requiredVocabulary;
+    _configure(<PlacementBatchRequestV1>[],
+        respond: (request) => placementFixtureResponse(request,
+            requirement: SurfaceFitRequirementV1.fromJson({
+              ...screen.toJson(),
+              'requiredVocabulary': WidgetVocabulary(
+                      widgetNames: {...vocabulary.widgetNames, 'acme.ui:Badge'},
+                      iconCodePoints: vocabulary.iconCodePoints)
+                  .toJson(),
+            }),
+            family:
+                DeliveryFamilySelectorV1.screenContract(contractVersion: 1)));
+    try {
+      await tester.pumpWidget(const MaterialApp(
+          home: native.NativeNoticeSurface.atPlacement(
+              'notice_slot', 'Notice original', 3)));
+      await _finish(tester);
+      expect(find.text('Notice original'), findsOneWidget);
+    } finally {
+      debugPrint = previous;
+      await tester.pumpWidget(const SizedBox());
+    }
+    expect(
+        lines.where((line) => line.contains('(unsupported)')),
+        [
+          '[restage] placement named:notice_slot shows its fallback '
+              '(unsupported): the published `welcome` r9 draws `Badge` from '
+              "`acme.ui`, which this build's `acme.ui` doesn't include. "
+              'Update the package that provides `acme.ui`, or annotate '
+              '`Badge` with `@RestageWidget`, then run `dart run '
+              'build_runner build`. See https://docs.restage.dev/authoring/'
+              'custom-widgets#3-declare-exact-library-ownership'
+        ],
+        reason: lines.join('\n'));
+  });
+
+  for (final paywall in [false, true]) {
+    testWidgets(
+        'a late answer kept for the next mount reports the compiled render '
+        '(${paywall ? 'paywall' : 'screen'})', (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final resolutions = <SurfaceResolutionReport>[];
+      final response = Completer<void>();
+      _configure(requests,
+          delay: response.future,
+          onSurfaceResolution: resolutions.add,
+          respond: paywall
+              ? null
+              : (request) => placementFixtureResponse(request,
+                  requirement: screenRequirement(),
+                  family: DeliveryFamilySelectorV1.screenContract(
+                      contractVersion: 1)));
+      final host = readPlacementDeliveryFixture()
+          .request
+          .buildContract
+          .contractsByHash
+          .values
+          .first;
+      final definition = _paywallDefinition('original', host);
+      try {
+        await tester.pumpWidget(MaterialApp(
+            home: paywall
+                ? RestagePaywall(
+                    id: 'original',
+                    placementBinding: PlacementMountBinding(
+                        definition: () => definition, name: 'home_card'),
+                    fallbackBuilder: (_) => const Text('Original'))
+                : const native.NativeNoticeSurface.atPlacement(
+                    'notice_slot', 'Original', 3)));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(resolutions, isEmpty);
+        response.complete();
+        await _finish(tester);
+        expect(find.text('Original'), findsOneWidget);
+        expect(resolutions.map((r) => (r.source, r.reason)),
+            [(SurfaceResolutionSource.bundled, 'pending')]);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+  }
+
+  testWidgets('a source badge names delivered content that arrived late',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    final requests = <PlacementBatchRequestV1>[];
+    final response = Completer<void>();
+    _configure(requests,
+        showSourceBadges: true,
+        delay: response.future,
+        respond: (request) => placementFixtureResponse(request,
+            requirement: screenRequirement(),
+            family:
+                DeliveryFamilySelectorV1.screenContract(contractVersion: 1)));
+    try {
+      await tester.pumpWidget(const MaterialApp(
+          home: native.NativeNoticeSurface.atPlacement(
+              'notice_slot', 'Notice original', 3)));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Notice original'), findsOneWidget);
+      expect(find.text('compiled'), findsOneWidget);
+      response.complete();
+      await _finish(tester);
+      // The compiled original stays; the badge says what is waiting.
+      expect(find.text('Notice original'), findsOneWidget);
+      expect(find.text('compiled · r9 next mount'), findsOneWidget);
+      expect(
+          find.bySemanticsLabel('Showing the compiled screen. Version r9 '
+              'arrived after it painted and shows on the next mount.'),
+          findsOneWidget);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+      semantics.dispose();
+    }
+  });
+
+  testWidgets('a paywall badge names delivered content that arrived late',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    final requests = <PlacementBatchRequestV1>[];
+    final response = Completer<void>();
+    _configure(requests, showSourceBadges: true, delay: response.future);
+    final host = readPlacementDeliveryFixture()
+        .request
+        .buildContract
+        .contractsByHash
+        .values
+        .first;
+    final definition = _paywallDefinition('original', host);
+    try {
+      await tester.pumpWidget(MaterialApp(
+          home: RestagePaywall(
+              id: 'original',
+              placementBinding: PlacementMountBinding(
+                  definition: () => definition, name: 'home_card'),
+              fallbackBuilder: (_) => const Text('Original'))));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Original'), findsOneWidget);
+      expect(find.text('compiled'), findsOneWidget);
+      response.complete();
+      await _finish(tester);
+      expect(find.text('Original'), findsOneWidget);
+      expect(find.text('compiled · r9 next mount'), findsOneWidget);
+      expect(
+          find.bySemanticsLabel('Showing the compiled screen. Version r9 '
+              'arrived after it painted and shows on the next mount.'),
+          findsOneWidget);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+      semantics.dispose();
     }
   });
 
@@ -1170,7 +2899,8 @@ void main() {
                   const Expanded(child: Text('Flow fallback')))),
     ])));
     await _finish(tester);
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 251));
+    await tester.pump(const Duration(milliseconds: 251));
     final frame = PlacementDiscovery.instance
         .captureFrame(view: tester.binding.renderViews.single);
     final screenFallback = find.text('Screen fallback').evaluate().length;
@@ -1489,6 +3219,41 @@ void main() {
         received.whereType<PaywallCustomEvent>().single.eventName, 'continue');
   });
 
+  testWidgets(
+      'a late flow root kept for the next mount reports the compiled render '
+      'once', (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final resolutions = <SurfaceResolutionReport>[];
+    final response = Completer<void>();
+    final selected = flows.childScreenFlow(text: 'Hosted generated flow');
+    final document = selected.document
+        .copyWith(flow: 'selected_generated_journey', version: 9);
+    final served = _flowHost(document);
+    _configure(requests,
+        delay: response.future,
+        onSurfaceResolution: resolutions.add,
+        payload: FlowSurfacePayload(
+            flowDocument: document,
+            screenBlobs: selected.screenBlobs,
+            requiredLibraries: []),
+        requirement: served.requirement,
+        family: const DeliveryFamilySelectorV1.general());
+    try {
+      await tester.pumpWidget(const MaterialApp(
+          home: native.NativeClassFlowSurface.atPlacement('journey_slot')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      expect(find.text('Preferences original'), findsOneWidget);
+      response.complete();
+      await _finish(tester);
+      expect(find.text('Preferences original'), findsOneWidget);
+      expect(resolutions.map((r) => (r.source, r.reason)),
+          [(SurfaceResolutionSource.bundled, null)]);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
   testWidgets('a named flow slot hosts a served onboarding flow',
       (tester) async {
     final requests = <PlacementBatchRequestV1>[];
@@ -1591,10 +3356,15 @@ void _configure(List<PlacementBatchRequestV1> requests,
     SurfaceUpdateChannel? updateChannel,
     void Function(SurfaceResolutionReport)? onSurfaceResolution,
     bool showSourceBadges = false,
+    Duration? installDateAfter,
+    Duration? gatherAfter,
     PlacementBatchResolvedV1 Function(PlacementBatchRequestV1)? respond,
     DateTime Function()? now,
     Map<String, Object?> cacheValidityOverrides = const {},
-    String flowSurfaceType = 'onboarding'}) {
+    String flowSurfaceType = 'onboarding',
+    bool contentUnavailable = false}) {
+  // Set before configure, which builds the registry it reads.
+  Restage.debugPlacementNow = now ?? () => DateTime.utc(2026, 10, 4, 12);
   Restage.configure(
       apiKey: 'rs_pk_test',
       baseUrl: 'https://example.com',
@@ -1608,20 +3378,45 @@ void _configure(List<PlacementBatchRequestV1> requests,
       showSourceBadges: showSourceBadges,
       renderDeadline: deadline);
   debugResetInstallObservations();
+  // As in a fresh process: the install date and the gather's own storage
+  // reads answer later.
+  Future<SharedPreferences> slow(Duration delay) async {
+    await Future<void>.delayed(delay);
+    return SharedPreferences.getInstance();
+  }
+
+  if (installDateAfter != null) {
+    debugResetInstallObservations(
+        store: FirstLaunchStore(preferences: () => slow(installDateAfter)));
+    configureSurfaceDeliveryObservations(renderDeadline: deadline);
+  }
   debugSetOsVersion(19);
   SurfaceMeteringKeyProvider.clear();
-  Restage.debugPlacementNow = now ?? () => DateTime.utc(2026, 10, 4, 12);
+  if (gatherAfter != null) {
+    SurfaceMeteringKeyProvider.install(
+        store: MeteringTokenStore(prefsProvider: () => slow(gatherAfter)));
+  }
   final client = RestageRpcClient(
       baseUrl: 'https://example.com',
       apiKey: 'rs_pk_test',
       httpClient: MockClient((request) async {
+        if (contentUnavailable && request.method == 'GET') {
+          return http.Response('', 503);
+        }
+        final artifact = placementFixtureArtifact(request);
+        if (artifact != null) return artifact;
         if (request.method != 'POST' ||
             request.url.path != '/sdk/v1/placements/resolve') {
           throw StateError(
               'Unexpected request: ${request.method} ${request.url}');
         }
-        final batch =
-            PlacementBatchRequestV1.fromCanonicalBytes(request.bodyBytes);
+        final PlacementBatchRequestV1 batch;
+        try {
+          batch = sentPlacementRequest(request.bodyBytes);
+        } on PlacementBuildContractRequired {
+          // As the service answers a build it does not hold yet.
+          return http.Response('', PlacementBuildContractRequired.status);
+        }
         requests.add(batch);
         if (delay != null) await delay;
         if (delayEach != null) await delayEach();
@@ -1698,25 +3493,25 @@ PlacementBatchResolvedV1 _watchedFallback(PlacementBatchRequestV1 request,
       placement: PlacementIdentityV1(target: target, key: mount.key),
       hostContractHash: mount.hostContractHash);
   return PlacementBatchResolvedV1(
-      request: request,
-      expectedTarget: target,
-      decisions: [
-        PlacementBatchEntryV1.useFallback(descriptor, reason, const [],
-            watch: PlacementDeliveryWatchV1(
-                decisionIdentityDigest: CanonicalDigest('f' * 64),
-                channels: [
-                  PlacementDeliveryWatchChannelV1(
-                      scope: DeliveryPolicyScopeV1(
-                          root: DeliveryRootIdentityV1.placement(
-                              descriptor.placement),
-                          family: const DeliveryFamilySelectorV1.none()),
-                      token: token)
-                ]),
-            fallbackReceipt: fallbackReceipt,
-            selectedSurface: selectedSurface,
-            routeId: routeId)
-      ],
-      artifacts: const []);
+    request: request,
+    expectedTarget: target,
+    decisions: [
+      PlacementBatchEntryV1.useFallback(descriptor, reason, const [],
+          watch: PlacementDeliveryWatchV1(
+              decisionIdentityDigest: CanonicalDigest('f' * 64),
+              channels: [
+                PlacementDeliveryWatchChannelV1(
+                    scope: DeliveryPolicyScopeV1(
+                        root: DeliveryRootIdentityV1.placement(
+                            descriptor.placement),
+                        family: const DeliveryFamilySelectorV1.none()),
+                    token: token)
+              ]),
+          fallbackReceipt: fallbackReceipt,
+          selectedSurface: selectedSurface,
+          routeId: routeId)
+    ],
+  );
 }
 
 final class _PlacementPushChannel implements DeliveryUpdateChannel {
@@ -1776,4 +3571,141 @@ final class _ReconnectingChannel implements DeliveryUpdateChannel {
     _retries[scope] =
         Timer(const Duration(seconds: 60), () => unawaited(drop(scope)));
   }
+}
+
+/// A store whose writes take [delay].
+final class _FailingRowStore implements SurfaceArtifactStore {
+  bool failRows = false;
+  final _store = MemorySurfaceArtifactStore();
+  @override
+  Future<StoredSurface?> read(SurfaceStoreKey key) => _store.read(key);
+  @override
+  Future<void> write(SurfaceStoreKey key, StoredSurface value) async {
+    if (failRows && key.surfaceType == 'placementDecision') {
+      throw const FileSystemException('full');
+    }
+    await _store.write(key, value);
+  }
+
+  @override
+  Future<void> remove(SurfaceStoreKey key) => _store.remove(key);
+  @override
+  Future<List<SurfaceStoreKey>> keys() => _store.keys();
+  @override
+  Future<void> clear() => _store.clear();
+}
+
+final class _SlowWriteStore implements SurfaceArtifactStore {
+  _SlowWriteStore(this.delay);
+  final Duration delay;
+  Duration readDelay = Duration.zero;
+  Duration keysDelay = Duration.zero;
+  final _store = MemorySurfaceArtifactStore();
+  @override
+  Future<StoredSurface?> read(SurfaceStoreKey key) async {
+    await Future<void>.delayed(readDelay);
+    return _store.read(key);
+  }
+
+  @override
+  Future<void> write(SurfaceStoreKey key, StoredSurface value) async {
+    await Future<void>.delayed(delay);
+    await _store.write(key, value);
+  }
+
+  @override
+  Future<void> remove(SurfaceStoreKey key) => _store.remove(key);
+  @override
+  Future<List<SurfaceStoreKey>> keys() async {
+    await Future<void>.delayed(keysDelay);
+    return _store.keys();
+  }
+
+  @override
+  Future<void> clear() => _store.clear();
+}
+
+/// [utc] as read in a zone [offset] from UTC.
+final class _ZonedTime implements DateTime {
+  _ZonedTime(this._utc, this.timeZoneOffset);
+  final DateTime _utc;
+  @override
+  final Duration timeZoneOffset;
+  DateTime get _wall => _utc.add(timeZoneOffset);
+  @override
+  String get timeZoneName => 'UTC+${timeZoneOffset.inHours}';
+  @override
+  bool get isUtc => false;
+  @override
+  DateTime toUtc() => _utc;
+  @override
+  DateTime toLocal() => this;
+  @override
+  int get millisecondsSinceEpoch => _utc.millisecondsSinceEpoch;
+  @override
+  int get microsecondsSinceEpoch => _utc.microsecondsSinceEpoch;
+  @override
+  int get year => _wall.year;
+  @override
+  int get month => _wall.month;
+  @override
+  int get day => _wall.day;
+  @override
+  int get hour => _wall.hour;
+  @override
+  int get minute => _wall.minute;
+  @override
+  int get second => _wall.second;
+  @override
+  int get millisecond => _wall.millisecond;
+  @override
+  int get microsecond => _wall.microsecond;
+  @override
+  int get weekday => _wall.weekday;
+  @override
+  DateTime add(Duration duration) =>
+      _ZonedTime(_utc.add(duration), timeZoneOffset);
+  @override
+  DateTime subtract(Duration duration) =>
+      _ZonedTime(_utc.subtract(duration), timeZoneOffset);
+  @override
+  Duration difference(DateTime other) => _utc.difference(other.toUtc());
+  @override
+  bool isBefore(DateTime other) => _utc.isBefore(other.toUtc());
+  @override
+  bool isAfter(DateTime other) => _utc.isAfter(other.toUtc());
+  @override
+  bool isAtSameMomentAs(DateTime other) => _utc.isAtSameMomentAs(other.toUtc());
+  @override
+  int compareTo(DateTime other) => _utc.compareTo(other.toUtc());
+  @override
+  String toIso8601String() => _utc.toIso8601String();
+}
+
+Map<Object?, Object?> _builtInsOf(PlacementBatchRequestV1 request) =>
+    CanonicalJsonCodec.decode(base64Url.decode(
+        base64Url.normalize(request.sdkBuiltInsCanonicalBase64!))) as Map;
+
+// A memory store that reads its scopes as release builds do, off the frame
+// isolate.
+final class _OffIsolateStore
+    implements SurfaceArtifactStore, SurfaceArtifactScopeReader {
+  final _store = MemorySurfaceArtifactStore();
+  @override
+  bool get readsOffIsolate => true;
+  @override
+  Future<R> readScope<R>(String scope, Set<String> surfaceTypes,
+          R Function(StoredScopeRows rows) process) =>
+      readStoreScope(_store, scope, surfaceTypes, process);
+  @override
+  Future<StoredSurface?> read(SurfaceStoreKey key) => _store.read(key);
+  @override
+  Future<void> write(SurfaceStoreKey key, StoredSurface value) =>
+      _store.write(key, value);
+  @override
+  Future<void> remove(SurfaceStoreKey key) => _store.remove(key);
+  @override
+  Future<List<SurfaceStoreKey>> keys() => _store.keys();
+  @override
+  Future<void> clear() => _store.clear();
 }

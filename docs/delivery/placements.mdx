@@ -49,7 +49,7 @@ it. Inside an existing screen:
 AnnouncementSurface(
   title: 'Your workspace is ready',
   onEvent: (event) {
-    if (event is AnnouncementDismissEvent) hideAnnouncement();
+    if (event is AnnouncementSurfaceDismissEvent) hideAnnouncement();
   },
 )
 ```
@@ -74,7 +74,7 @@ Future<void> showAnnouncement(BuildContext context) => Restage.presentPlacement(
       builder: (_, presentation) => AnnouncementSurface(
         title: 'Your workspace is ready',
         onEvent: (event) {
-          if (event is AnnouncementDismissEvent) presentation.close();
+          if (event is AnnouncementSurfaceDismissEvent) presentation.close();
         },
       ),
     );

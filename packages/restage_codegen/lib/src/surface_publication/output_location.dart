@@ -10,6 +10,8 @@ import 'package:restage_codegen/src/analytics_id_control.dart'
     show kRestageAnalyticsIdMetadataFileName;
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart'
     show kRestageMeasurementOutputIndexFileName;
+import 'package:restage_codegen/src/surface_publication/surface_capture_plan.dart'
+    show kRestageSurfaceCapturePlanFileName;
 
 /// The reserved directory name collecting generated files for one source
 /// directory under the default [RestageSourceOutputLayout.generatedDirectory]
@@ -200,6 +202,10 @@ final class RestageOutputLocationPlan {
   String get analyticsIdMetadataPath =>
       _packageWidePath(kRestageAnalyticsIdMetadataFileName);
 
+  /// The local plan a push draws surface images from, beside the manifest.
+  String get capturePlanPath =>
+      _packageWidePath(kRestageSurfaceCapturePlanFileName);
+
   /// The generated custom widget catalog consumed by build tooling.
   String get customCatalogPath =>
       p.posix.join(outputRoot!, 'widget_catalog', 'catalog.json');
@@ -244,6 +250,7 @@ final class RestageOutputLocationPlan {
       publicationManifestPath,
       measurementOutputIndexPath,
       analyticsIdMetadataPath,
+      capturePlanPath,
       customCatalogPath,
     ];
     return extensions;

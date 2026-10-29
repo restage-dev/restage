@@ -36,6 +36,7 @@ void main() {
       expect(plan.source.startsWith(source), isTrue);
       expect(plan.addedPatterns, [
         '.restage/build/',
+        'restage.capture.json',
         '!assets/restage/bundles/**',
       ]);
       expect(planPortableOutputIgnores(plan.source).isNoOp, isTrue);
@@ -50,6 +51,7 @@ build/
 *.restage.md
 restage.outputs.json
 restage.publication.json
+restage.capture.json
 restage_a2ui_catalog.a2ui.json
 !assets/restage/bundles/**
 ''';
@@ -120,7 +122,11 @@ restage.publication.json
 
         final plan = planPortableOutputIgnores(source);
 
-        expect(plan.addedPatterns, ['!assets/restage/bundles/**']);
+        // A rule added since that header was written is still appended.
+        expect(plan.addedPatterns, [
+          'restage.capture.json',
+          '!assets/restage/bundles/**',
+        ]);
         expect(plan.source, isNot(contains('restage_a2ui_catalog.a2ui.json')));
         expect(planPortableOutputIgnores(plan.source).isNoOp, isTrue);
       },
@@ -164,6 +170,10 @@ restage.publication.json
       );
       expect(await ignored('lib/messages/a.rsbundle'), isTrue);
       expect(await ignored('restage.publication.json'), isTrue);
+      expect(
+        await ignored('tool/restage/metadata/restage.capture.json'),
+        isTrue,
+      );
     });
   });
 }

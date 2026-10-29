@@ -252,8 +252,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       <RestageFlowController<R>, FlowStarted>{};
   final Map<RestageFlowController<R>, MountAttributionSnapshotV1>
       _mountAttributions = {};
-  final Map<RestageFlowController<R>, SurfaceDeliveryReceiptHandle?>
-      _rootDeliveryReceipts = {};
+  final Map<RestageFlowController<R>, Object> _rootLeaves = {};
   final Expando<SurfaceEventHandler> _authoredEventHandlers =
       Expando<SurfaceEventHandler>();
 
@@ -985,13 +984,16 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       },
       onPainted: () {
         _placementDiscovery.markPainted();
-        _rootDeliveryReceipts[controller]?.paintedSinceOpened();
         if (_refreshHandle case final handle?) {
           SurfaceRefreshRegistry.instance.localValidityChanged(handle);
         }
         presentation.activate();
         experimentResolver?.publishHostedLastGood();
         onPainted?.call();
+        // Looked up now: a root reported only at paint opens its receipt above.
+        if (_rootLeaves[controller] case final leaf?) {
+          surfaceDeliveryReceiptFor(leaf)?.paintedSinceOpened();
+        }
       },
       afterCommit: () {
         if (mounted && isCurrent()) setState(() {});
@@ -1061,7 +1063,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     _rootFlowStarts.remove(controller);
     _ownedControllers.remove(controller);
     _mountAttributions.remove(controller);
-    _rootDeliveryReceipts.remove(controller);
+    _rootLeaves.remove(controller);
     if (identical(_activeMeasurementController, controller)) {
       _activeMeasurementController = null;
     }
@@ -1175,8 +1177,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         resolved: resolvedOrPayload);
     if (snapshot != null) _mountAttributions[controller] = snapshot;
     bindSurfaceDeliveryMountAttribution(resolvedOrPayload, snapshot);
-    _rootDeliveryReceipts[controller] =
-        surfaceDeliveryReceiptFor(placementResolvedLeaf(resolvedOrPayload));
+    _rootLeaves[controller] = placementResolvedLeaf(resolvedOrPayload);
     final session = MeasurementHostSessionController.openDeferred(
       resolvedOrPayload,
       mountAttribution: snapshot,

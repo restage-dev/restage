@@ -2,6 +2,29 @@ part of '../bare_surface.dart';
 
 // ignore_for_file: type=lint
 
+const _bareSurfaceFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Column': buildColumn,
+      'Padding': buildPadding,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Spacer': buildSpacer,
+      'Text': buildText,
+    },
+    material: {
+      'AppBar': buildAppBar,
+      'Icon': buildIcon,
+      'Scaffold': buildScaffold,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf157: IconData(0xf157, fontFamily: 'MaterialIcons'),
+    },
+  }),
+);
+
 const bareSurfaceFlowRef = SurfaceFlowRef<
     BareSurfaceResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'bare_surface',
@@ -20,28 +43,7 @@ const bareSurfaceFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '7c28ddf22a4d83f801ffb704c89dad2fa7f23e89b7bed19a7521c1e5a320d651',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Column': buildColumn,
-        'Padding': buildPadding,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Spacer': buildSpacer,
-        'Text': buildText,
-      },
-      material: {
-        'AppBar': buildAppBar,
-        'Icon': buildIcon,
-        'Scaffold': buildScaffold,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf157: IconData(0xf157, fontFamily: 'MaterialIcons'),
-      },
-    }),
-  ),
+  vocabulary: _bareSurfaceFlowRefVocabulary,
 );
 
 BareSurfaceResult _decodeBareSurfaceFlowResult(Map<String, Object?> result) {

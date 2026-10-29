@@ -228,6 +228,19 @@ final class DeliveryLocalClockV1 extends CanonicalValue
       };
 }
 
+/// The SDK built-in facts a delivery decision can depend on, by wire name.
+const Set<String> kDeliveryBuiltInFactNames = {
+  'appBuildOrdinal',
+  'channel',
+  'country',
+  'daysSinceInstall',
+  'deviceClass',
+  'language',
+  'osVersion',
+  'platform',
+  'sdkApiLevel',
+};
+
 /// Exact policy selections and bounds that qualify one cached delivery.
 final class DeliveryCacheValidityV1 extends CanonicalValue
     implements ImmutableCanonicalDocument {
@@ -242,7 +255,9 @@ final class DeliveryCacheValidityV1 extends CanonicalValue
     this.receiptExpiresAtMicros,
     this.assignmentExpiresAtMicros,
     this.contentExpiresAtMicros,
-  }) : policySelections = _freezePolicySelections(policySelections) {
+    List<String> consultedBuiltIns = const [],
+  })  : policySelections = _freezePolicySelections(policySelections),
+        consultedBuiltIns = _freezeConsultedBuiltIns(consultedBuiltIns) {
     if (notBeforeLocal != null &&
         expiresBeforeLocal != null &&
         notBeforeLocal!.compareTo(expiresBeforeLocal!) >= 0) {
@@ -277,6 +292,7 @@ final class DeliveryCacheValidityV1 extends CanonicalValue
       path,
       const {
         'policySelections',
+        'consultedBuiltIns',
         'hostContractHash',
         'installedCapabilityHash',
         'selectionIdentityDigest',
@@ -295,6 +311,7 @@ final class DeliveryCacheValidityV1 extends CanonicalValue
         'Cache validity accepts at most two policy selections',
       );
     }
+    final consulted = reader.list('consultedBuiltIns');
     final start = reader.optionalObject('notBeforeLocal');
     final end = reader.optionalObject('expiresBeforeLocal');
     return _constructCalendar(
@@ -305,6 +322,9 @@ final class DeliveryCacheValidityV1 extends CanonicalValue
             DeliveryPolicyDocumentSelectionV1.fromJson(
               requireCanonicalObject(selection, '$path.policySelections[]'),
             ),
+        ],
+        consultedBuiltIns: [
+          for (final name in consulted) _consultedName(name),
         ],
         notBeforeLocal:
             start == null ? null : LocalCivilDateTimeV1.fromJson(start),
@@ -326,6 +346,10 @@ final class DeliveryCacheValidityV1 extends CanonicalValue
 
   /// Optional placement selection followed by optional surface selection.
   final List<DeliveryPolicyDocumentSelectionV1> policySelections;
+
+  /// The built-in facts the decision read, sorted; a cached copy holds only
+  /// while each of them is unchanged.
+  final List<String> consultedBuiltIns;
 
   /// Inclusive local lower bound; absent for an unbounded start.
   final LocalCivilDateTimeV1? notBeforeLocal;
@@ -358,6 +382,7 @@ final class DeliveryCacheValidityV1 extends CanonicalValue
             policySelections.map((value) => value.toJson()).toList(
                   growable: false,
                 ),
+        'consultedBuiltIns': consultedBuiltIns,
         if (notBeforeLocal != null) 'notBeforeLocal': notBeforeLocal!.toJson(),
         if (expiresBeforeLocal != null)
           'expiresBeforeLocal': expiresBeforeLocal!.toJson(),
@@ -371,6 +396,22 @@ final class DeliveryCacheValidityV1 extends CanonicalValue
         'installedCapabilityHash': installedCapabilityHash,
         'selectionIdentityDigest': selectionIdentityDigest.hex,
       };
+}
+
+String _consultedName(Object? name) => name is String
+    ? name
+    : throw const CanonicalFormatException('Consulted built-ins must be names');
+
+List<String> _freezeConsultedBuiltIns(List<String> names) {
+  for (var index = 0; index < names.length; index++) {
+    if (!kDeliveryBuiltInFactNames.contains(names[index])) {
+      throw ArgumentError.value(names[index], 'consultedBuiltIns');
+    }
+    if (index > 0 && names[index - 1].compareTo(names[index]) >= 0) {
+      throw ArgumentError('Consulted built-ins must be sorted and unique');
+    }
+  }
+  return List.unmodifiable(names);
 }
 
 List<DeliveryPolicyDocumentSelectionV1> _freezePolicySelections(

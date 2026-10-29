@@ -68,6 +68,7 @@ export 'src/surface_contract/surface_screen_event_schema.dart';
 export 'src/surface_contract/surface_screen_host_data_schema.dart';
 export 'src/surface_delivery/surface_artifact_descriptor.dart';
 export 'src/surface_delivery/surface_registration.dart';
+export 'src/surface_document/measurement_tap_item.dart';
 export 'src/surface_document/publishable_draft.dart';
 export 'src/surface_document/surface_document.dart';
 export 'src/surface_document/surface_document_codec.dart';

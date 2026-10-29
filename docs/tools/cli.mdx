@@ -21,8 +21,15 @@ flutter pub get
 dart run melos run cli:install
 ```
 
-This compiles a native executable to `${PUB_CACHE:-$HOME/.pub-cache}/bin/restage`. Add
-that directory to your `PATH`, then check the install:
+This compiles a native executable to `${PUB_CACHE:-$HOME/.pub-cache}/bin/restage`. That
+directory is not on your `PATH` by default, so `restage` is not found until you add it.
+For example, add this line to your shell profile and open a new terminal:
+
+```sh
+export PATH="$PATH:${PUB_CACHE:-$HOME/.pub-cache}/bin"
+```
+
+Then check the install:
 
 ```sh
 restage --help
@@ -46,11 +53,14 @@ If your account has no organization yet, `init` stops and names the dashboard to
 create one in. `doctor` works offline, with no account. So does `init` when you pass
 `--organization`, `--project`, `--app` and `--env`.
 
-`init` writes `restage_config.yaml`, adds `restage` to your dependencies and
-`restage_codegen` and `build_runner` to your dev dependencies, adds `.restage/build/`
+`init` writes `restage_config.yaml`, adds `restage` and `restage_material` to your
+dependencies and `restage_codegen` and `build_runner` to your dev dependencies, adds `.restage/build/`
 to `.gitignore`, and writes a starter `@Paywall()` under `lib/paywalls/`. Pass
 `--no-add-deps` to leave `pubspec.yaml` alone, `--no-starter` to skip the starter, or
-`--dry-run` to see the changes without writing them. `init` also lists the `.restage/`
+`--dry-run` to see the changes without writing them. With `--yes` (or `--non-interactive`) and no `--env`, `init` takes the first environment
+on the sandbox side and says which one it picked; pass `--plane live` for the live side.
+`--env <name>` finds the side that environment is on, sandbox first. Pass `--preview-wrapper` to set the push-image wrapper described below.
+`init` also lists the `.restage/`
 files that keep surface and event ids stable in `build.yaml`, so the build tracks them. Generated mounts need no bundled surface assets; the
 [Quickstart](/quickstart) uses that default. See [Bundled assets](/delivery/bundled-assets)
 only if you want to ship RFW artifacts in the app.
@@ -304,12 +314,25 @@ supplies it, in `restage_config.yaml`:
 previewWrapper: lib/restage_preview.dart#wrapPreview
 ```
 
+`restage init --preview-wrapper lib/restage_preview.dart#wrapPreview` writes the same
+line.
+
+Sample values come from the surface's host data. A required field the surface does not
+declare as host data is drawn with a neutral value: `false`, `0`, an empty string, an
+empty collection, or an enum's first value. If a field's type can't be built that way,
+the push names it and goes ahead without the image; give that parameter a default value
+to draw the image. The push prints which fields were drawn with placeholder values.
+
 ```dart
 import 'package:flutter/widgets.dart';
 import 'package:my_app/app_scope.dart';
 
 Widget wrapPreview(Widget child) => AppScope.preview(child: child);
 ```
+
+The same function also wraps every dashboard and editor preview of the surface, so its
+file must compile for the web: a wrapper that imports `dart:io` or a plugin without web
+support fails `build push`.
 
 When a surface doesn't render, the push says what stopped it and goes ahead without
 its image.
@@ -409,12 +432,15 @@ restage slots list                   # product slots and their mappings
 restage slots set pro --entitlement pro --ios-product-id pro_monthly --android-product-id none
 restage stores list                  # store connections, without credentials
 restage keys list                    # an environment's API keys, by prefix
+restage keys mint --public           # mint a public key
 restage keys revoke 42
 restage keys resolve rs_pk_sandbox_staging_…   # where a key belongs
 ```
 
-`slots set` replaces a slot's whole mapping; pass `none` to unmap a store. Create API
-keys in the dashboard, where the secret is shown once. `keys resolve` names the
+`slots set` replaces a slot's whole mapping; pass `none` to unmap a store. `keys mint
+--public` mints a public key. The key prints in full; `keys list` shows it again by
+prefix. Secret keys are created in the
+dashboard, where the secret is shown once. `keys resolve` names the
 organization, project, app, environment, and side a key belongs to. It matches the key
 against key prefixes on your machine and never sends it.
 

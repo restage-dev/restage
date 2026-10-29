@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dart_mcp/client.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart' as http_testing;
 import 'package:restage_cli/api.dart';
 import 'package:restage_mcp/restage_mcp.dart';
 import 'package:test/test.dart';
@@ -49,6 +50,50 @@ void main() {
     );
   }
 
+  test(
+    'status re-resolves a stale cached organization id from its slug',
+    () async {
+      final project = Directory('${tempDir.path}/app')..createSync();
+      File('${project.path}/restage_config.yaml').writeAsStringSync(
+        'project: demo\napp: mobile\ndefaultEnvironment: staging\n'
+        'organization: acme\norganizationId: 99\n',
+      );
+      final inner = fakeBackend((_) async => http.Response('null', 200));
+      final connection = await connectServer(
+        store: store,
+        httpClient: http_testing.MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (body['organizationId'] == 99) {
+            return http.Response(
+              jsonEncode({
+                'className': 'OrganizationNotFoundException',
+                'data': {
+                  '__className__': 'OrganizationNotFoundException',
+                  'organizationId': 99,
+                },
+              }),
+              400,
+            );
+          }
+          return inner.post(
+            request.url,
+            headers: request.headers,
+            body: request.body,
+          );
+        }),
+      );
+
+      final status = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_status',
+          arguments: {'projectDirectory': project.path},
+        ),
+      );
+      expect(status.isError, isNot(true), reason: _text(status));
+      expect(_text(status), isNot(contains('No organization')));
+    },
+  );
+
   test('status, init and doctor run the CLI commands they mirror', () async {
     final (cli, runs) = recordingCli(output: 'signed in as a@b.c');
     final connection = await connectServer(
@@ -76,6 +121,7 @@ void main() {
           'environmentSlug': 'staging',
           'organizationId': 7,
           'runtimePlane': 'live',
+          'previewWrapper': 'lib/restage_preview.dart#wrapPreview',
           'starter': false,
           'dryRun': true,
         },
@@ -107,6 +153,8 @@ void main() {
         'acme',
         '--plane',
         'live',
+        '--preview-wrapper',
+        'lib/restage_preview.dart#wrapPreview',
         '--no-starter',
         '--dry-run',
       ],

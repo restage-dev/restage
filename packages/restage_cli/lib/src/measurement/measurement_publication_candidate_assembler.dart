@@ -415,7 +415,7 @@ void _validateDraftArtifactClosure({
 void _validateRouteClosure({
   required SurfacePublicationManifestEntry entry,
   required MeasurementPublicationDraftV1 draft,
-  required Map<String, String> carriersByArtifact,
+  required Map<String, _Carrier> carriersByArtifact,
   required Map<String, Uint8List> artifactBytes,
 }) {
   // Lifecycle and declared-answer routes belong to the typed host, not RFW
@@ -450,10 +450,18 @@ void _validateRouteClosure({
     final capture = route.orderedCaptureV1;
     final hostRoute =
         capture?.lifecycleChannel != null || capture?.declaredAnswerV1 != null;
-    if (expectedPath == null ||
-        (!hostRoute && carriersByArtifact[route.carrier] != expectedPath)) {
+    final emitted = carriersByArtifact[route.carrier];
+    if (expectedPath == null || (!hostRoute && emitted?.path != expectedPath)) {
       throw const FormatException(
         'a Measurement route carrier is attached to the wrong publication artifact',
+      );
+    }
+    if (emitted != null &&
+        emitted.items != (capture?.interactionItemsV1 ?? false)) {
+      throw const FormatException(
+        'Internal error: a generated event disagrees with its Measurement '
+        'route about an item. Rebuild with `dart run build_runner build`, and '
+        'report it if it happens again.',
       );
     }
     if (!hostRoute) continue;
@@ -490,11 +498,14 @@ void _validateRouteClosure({
   }
 }
 
-Map<String, String> _readCarriers(
+/// A carrier's artifact path and whether its taps carry an item.
+typedef _Carrier = ({String path, bool items});
+
+Map<String, _Carrier> _readCarriers(
   SurfacePublicationManifestEntry entry,
   Map<String, Uint8List> artifactBytes,
 ) {
-  final carriers = <String, String>{};
+  final carriers = <String, _Carrier>{};
   for (final artifact in entry.artifacts) {
     if (artifact.role != SurfacePublicationArtifactRole.screenBlob) continue;
     final bytes = artifactBytes[artifact.path];
@@ -520,34 +531,50 @@ Map<String, String> _readCarriers(
     }
 
     void recordEvent(rfw.EventHandler event) {
+      String? carrier;
+      Object? item;
       for (final argument in event.eventArguments.entries) {
-        if (!argument.key.startsWith(
-          kMeasurementPublicationReservedArgumentPrefixV1,
-        )) {
+        final key = argument.key;
+        if (!key.startsWith(kMeasurementPublicationReservedArgumentPrefixV1)) {
           visitValue(argument.value);
-          continue;
-        }
-        final carrier = argument.value;
-        if (argument.key != kMeasurementPublicationRouteArgumentKeyV1 ||
-            carrier is! String) {
+        } else if (key == kMeasurementPublicationRouteArgumentKeyV1 &&
+            argument.value is String) {
+          carrier = argument.value! as String;
+        } else if (key == kMeasurementPublicationItemArgumentKeyV1 &&
+            isMeasurementTapItemV1(argument.value)) {
+          item = argument.value;
+        } else {
           throw const FormatException(
             'a generated event contains a malformed Measurement argument',
           );
         }
-        try {
-          MeasurementPublicationRouteCarrierV1.parse(carrier);
-        } on ArgumentError {
-          throw const FormatException(
-            'a generated event contains a malformed Measurement carrier',
-          );
-        }
-        if (carriers.containsKey(carrier)) {
-          throw const FormatException(
-            'a Measurement route carrier occurs more than once',
-          );
-        }
-        carriers[carrier] = artifact.path;
       }
+      if (carrier == null) {
+        if (item != null) {
+          throw const FormatException(
+            'Internal error: a generated event carries a Measurement item '
+            'without a route. Rebuild with `dart run build_runner build`, and '
+            'report it if it happens again.',
+          );
+        }
+        return;
+      }
+      try {
+        MeasurementPublicationRouteCarrierV1.parse(carrier);
+      } on ArgumentError {
+        throw const FormatException(
+          'a generated event contains a malformed Measurement carrier',
+        );
+      }
+      final seen = carriers[carrier];
+      // Repeated elements share one item-bearing route within one artifact.
+      if (seen != null &&
+          (item == null || seen.path != artifact.path || !seen.items)) {
+        throw const FormatException(
+          'a Measurement route carrier occurs more than once',
+        );
+      }
+      carriers[carrier] = (path: artifact.path, items: item != null);
     }
 
     visitNode = (rfw.BlobNode node) {

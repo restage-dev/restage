@@ -22,6 +22,7 @@ class RenderHostApp extends StatefulWidget {
     required this.registerAppWidgets,
     this.supportedVersions = const <int>[renderProtocolV1],
     this.entryWidgetName,
+    this.wrap,
     RenderBundleRasterController? rasterController,
     super.key,
   }) : _rasterController = rasterController;
@@ -32,6 +33,9 @@ class RenderHostApp extends StatefulWidget {
   final VoidCallback registerAppWidgets;
   final List<int> supportedVersions;
   final String? entryWidgetName;
+
+  /// Places the app's own ancestors, such as its theme, above each surface.
+  final Widget Function(Widget child)? wrap;
   final RenderBundleRasterController? _rasterController;
 
   @override
@@ -268,6 +272,7 @@ class _RenderHostAppState extends State<RenderHostApp> {
         entryWidgetName: entryWidgetName,
         onRemoteEvent: _onSurfaceEvent,
         onRenderEvent: _onRenderEvent,
+        wrap: widget.wrap,
       );
     }
     return RawRfwRenderSurface.library(
@@ -280,6 +285,7 @@ class _RenderHostAppState extends State<RenderHostApp> {
       entryWidgetName: entryWidgetName,
       onRemoteEvent: _onSurfaceEvent,
       onRenderEvent: _onRenderEvent,
+      wrap: widget.wrap,
     );
   }
 }

@@ -61,25 +61,6 @@ class DiscoveryApi {
     ];
   }
 
-  /// Environments under [organizationId] and [projectSlug].
-  Future<List<EnvironmentSummary>> listEnvironments({
-    required int organizationId,
-    required String projectSlug,
-  }) async {
-    final raw = await _api.call(
-      'environment',
-      'listEnvironments',
-      <String, dynamic>{
-        'organizationId': organizationId,
-        'projectSlug': projectSlug,
-      },
-    );
-    return [
-      for (final item in raw as List<dynamic>)
-        EnvironmentSummary.fromJson(item as Map<String, dynamic>),
-    ];
-  }
-
   /// Existing active environment targets under one app.
   ///
   /// [appId] is additive for exact authority. Legacy integrations may omit it.

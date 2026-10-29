@@ -346,6 +346,69 @@ void main() {
     });
   });
 
+  group('restage login server errors', () {
+    test('a 403 from in front of the backend is not a stale sign-in', () async {
+      final client = _scriptedClient(<_ScriptStep>[
+        (_, _) => http.Response('Forbidden by proxy', 403),
+      ]);
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+        httpClient: client,
+        sleep: (_) async {},
+        openBrowser: (_) async {},
+      ).run(const ['login']);
+      expect(exit, 2);
+      expect(
+        stderr.toString(),
+        contains('The Restage backend returned an error (HTTP 403).'),
+      );
+      expect(stderr.toString(), isNot(contains('restage login')));
+    });
+
+    test('a typed refusal keeps its own sentence and exit 1', () async {
+      final client = _scriptedClient(<_ScriptStep>[
+        (_, _) => http.Response(
+          '{"className":"ProjectNotFoundException",'
+          '"data":{"slug":"nope"}}',
+          400,
+        ),
+      ]);
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+        httpClient: client,
+        sleep: (_) async {},
+        openBrowser: (_) async {},
+      ).run(const ['login']);
+      expect(exit, 1);
+      expect(stderr.toString(), contains('nope'));
+      expect(stderr.toString(), isNot(contains('HTTP 400')));
+    });
+
+    test('a failing device start exits 2 without echoing the body', () async {
+      final client = _scriptedClient(<_ScriptStep>[
+        (_, _) => http.Response('internal secret detail', 500),
+      ]);
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+        httpClient: client,
+        sleep: (_) async {},
+        openBrowser: (_) async {},
+      ).run(const ['login']);
+      expect(exit, 2);
+      expect(stderr.toString(), contains('(HTTP 500)'));
+      expect(stderr.toString(), isNot(contains('secret')));
+    });
+  });
+
   group('restage logout', () {
     test('with a stored credential: calls server logout and deletes the '
         'local file', () async {
@@ -629,6 +692,50 @@ environment:
       expect(exit, 1);
       expect(stderr.toString(), contains('no longer accepted'));
     });
+
+    test('an unreachable backend exits 2', () async {
+      await store.write(
+        const Credential(
+          endpoint: 'https://api.example.com/',
+          kind: CredentialKind.authKey,
+          authToken: '42:abc',
+        ),
+      );
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+        httpClient: _scriptedClient(<_ScriptStep>[
+          (_, _) => throw http.ClientException('tunnel failed'),
+        ]),
+      ).run(const ['whoami']);
+      expect(exit, 2);
+      expect(stderr.toString(), contains('Could not reach'));
+    });
+
+    test('server error: exit 2 without echoing the body', () async {
+      await store.write(
+        const Credential(
+          endpoint: 'https://api.example.com/',
+          kind: CredentialKind.authKey,
+          authToken: '42:abc',
+        ),
+      );
+      final client = _scriptedClient(<_ScriptStep>[
+        (_, _) => http.Response('internal secret detail', 500),
+      ]);
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+        httpClient: client,
+      ).run(const ['whoami']);
+      expect(exit, 2);
+      expect(stderr.toString(), contains('(HTTP 500)'));
+      expect(stderr.toString(), isNot(contains('secret')));
+    });
   });
 }
 
@@ -659,6 +766,7 @@ http.Client _ambiguousOrganizationsClient() => _scriptedClient(<_ScriptStep>[
       'apps': <Object>[],
       'environments': <Object>[],
       'environmentTargets': <Object>[],
+      'legacyDefaultTargetIds': <Object>[],
       'surfaces': <Object>[],
     });
   },

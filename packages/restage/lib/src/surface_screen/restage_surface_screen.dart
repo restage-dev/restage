@@ -5,13 +5,9 @@ import 'package:flutter/widgets.dart';
 import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart'
-    show
-        DynamicContent,
-        RemoteWidget,
-        Runtime,
-        WidgetLibrary,
-        decodeLibraryBlob;
+    show DynamicContent, RemoteWidget, Runtime, WidgetLibrary;
 
+import '../delivery/decoded_surface_library.dart';
 import '../delivery/delivered_fonts.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../delivery/surface_sections_carrier.dart';
@@ -148,6 +144,17 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   SurfaceDeliveryObservationCell? _observationCell;
   RenderDeadline? _renderDeadline;
 
+  /// Delivered content that arrived after the compiled fallback painted.
+  ({Object? version})? _late;
+
+  static Object? _versionOf(Object resolved) {
+    try {
+      return SingleSurfaceRenderContent.fromResolved(resolved).version;
+    } on Object {
+      return null;
+    }
+  }
+
   /// The compiled widget shown because nothing was ready by the deadline.
   bool _showDeadlineFallback = false;
   var _resolutionEpoch = 0;
@@ -229,8 +236,29 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     setState(() {
       _unavailableError = null;
       _showDeadlineFallback = false;
+      _late = null;
     });
-    unawaited(_resolveInScope(epoch));
+    if (!_presentHeld(epoch)) unawaited(_resolveInScope(epoch));
+  }
+
+  // Stages a decision this process already accepted before the first build.
+  // Fresh still answers, as it does after a local candidate wins the race.
+  bool _presentHeld(int epoch) {
+    final resolver = _resolver();
+    final cell = _presentationObservations();
+    return presentHeldPlacement<Object>(
+      racedResolverOf<Object>(resolver),
+      key: () => Restage.storeKeyFor(widget.screen, resolver: resolver),
+      inScope: <R>(R Function() body) =>
+          withSurfaceDeliveryObservations(cell: cell, resolve: body),
+      present: (held) => withSurfaceDeliveryObservations(
+          cell: cell, resolve: () => _stageResolved(epoch, held)),
+      // A stage that fails reports its own failure.
+      onPresentFailed: () {},
+      keyDeadline: _renderDeadline!.reached,
+      onLateFresh: (resolved, report) =>
+          _presentLateFresh(resolved, epoch, report),
+    );
   }
 
   Future<void> _resolveInScope(int epoch) => withSurfaceDeliveryObservations(
@@ -353,7 +381,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
           unawaited(_resolveLocalAfterInvalidation(epoch));
         },
       );
-      await _attachMeasurementSession(stage, resolved);
+      _attachMeasurementSession(stage, resolved);
       if (isRefresh &&
           (!_canRefreshPlacement() ||
               (placementAdmissionFor(resolved)?.isAssigned ?? false))) {
@@ -375,6 +403,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         _stage = stage;
         _unavailableError = null;
         _showDeadlineFallback = false;
+        _late = null;
       });
       if (previous != null && !isRefresh) {
         WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
@@ -583,7 +612,8 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       deadline: deadline,
       fresh: fresh,
       bestLocal: raced == null ? () async => null : () => raced.bestLocal(key!),
-      onLateFresh: (resolved) => _presentLateFresh(resolved, epoch, report),
+      onLateFresh: (resolved) => _presentLateFresh(resolved, epoch, report,
+          kept: () => reportLateAnswerKept(raced, key)),
     );
     if (!_isCurrent(epoch)) return null;
     switch (outcome) {
@@ -649,8 +679,20 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   void _presentLateFresh(
     Object resolved,
     int epoch,
-    void Function(Object?) report,
-  ) {
+    void Function(Object?) report, {
+    void Function()? kept,
+  }) {
+    if (_isCurrent(epoch) &&
+        _stage == null &&
+        _unavailableError == null &&
+        _showDeadlineFallback) {
+      kept?.call();
+      // The badge says delivered content is waiting for the next mount.
+      if (Restage.showSourceBadges) {
+        setState(() => _late = (version: _versionOf(resolved),));
+      }
+      return;
+    }
     if (!_isCurrent(epoch) ||
         _stage != null ||
         _unavailableError != null ||
@@ -669,10 +711,10 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   ///
   /// The controller owns all host-independent resolution and degrades to an
   /// inert session. Its failure must never make a validated screen unavailable.
-  Future<void> _attachMeasurementSession(
+  void _attachMeasurementSession(
     _ScreenStage stage,
     Object resolved,
-  ) async {
+  ) {
     try {
       stage.attachMeasurementSession(
         MeasurementHostSessionController.openDeferred(
@@ -718,7 +760,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
     final WidgetLibrary library;
     try {
-      library = decodeLibraryBlob(content.blob);
+      library = decodedSurfaceLibrary(content.blob);
     } on Object catch (error) {
       throw SurfaceScreenUnavailableError(
         reason: SurfaceScreenUnavailableReason.invalidPayload,
@@ -1003,11 +1045,17 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
           final fallback = widget.unavailable.fallbackBuilder!(context, error);
           // A parent-data fallback stays the direct child of its parent.
           if (fallback is ParentDataWidget) return fallback;
+          final late = _late;
           return withSourceBadge(
-              () => sourceBadgeLabel(null, null),
+              () => late == null
+                  ? sourceBadgeLabel(null, null)
+                  : lateSourceBadgeLabel(late.version),
               Listener(
                   onPointerDown: (_) => _placementInteracted = true,
-                  child: fallback));
+                  child: fallback),
+              description: () => late == null
+                  ? null
+                  : lateSourceBadgeDescription(late.version));
         }),
       );
     }

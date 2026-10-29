@@ -7182,6 +7182,35 @@ GestureDetector(
       );
     });
 
+    test('adjacent strings mixing text and values lower like one string',
+        () async {
+      const source = r'''
+        String hostText({String? key}) => "";
+        Object x() => Text(text: 'Only ' '${hostText(key: "pro")}' '/mo');
+      ''';
+      final expr = await parseExpressionFromSourceForTest(source);
+      final r = tInterp.translate(expr);
+      expect(r.issues, isEmpty);
+      expect(
+        r.dsl,
+        'TextRich(textSpan: { children: [{ text: "Only " }, '
+        '{ text: data.context.pro }, { text: "/mo" }] })',
+      );
+    });
+
+    test('adjacent plain parts join before an interpolated part', () async {
+      final expr = await parseExpressionForTest(
+        r"Text(text: 'Your trial: ' 'just ' '${trialLabel} left')",
+      );
+      final r = tInterp.translate(expr, rootState: [trialLabel]);
+      expect(r.issues, isEmpty);
+      expect(
+        r.dsl,
+        'TextRich(textSpan: { children: [{ text: "Your trial: just " }, '
+        '{ text: state.trialLabel }, { text: " left" }] })',
+      );
+    });
+
     test('single helper interpolation keeps plain Text fast path', () async {
       const source = r'''
         String hostText({String? key}) => "";

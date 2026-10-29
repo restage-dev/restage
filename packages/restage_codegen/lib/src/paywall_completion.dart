@@ -23,6 +23,19 @@ Set<String> paywallCompletionEvents(ClassElement paywall) {
   return const {};
 }
 
+/// The event names [callback] fires from any branch of a conditional.
+Set<String> authoredEventNames(Expression callback) {
+  final expression =
+      callback is ParenthesizedExpression ? callback.expression : callback;
+  if (expression is ConditionalExpression) {
+    return {
+      ...authoredEventNames(expression.thenExpression),
+      ...authoredEventNames(expression.elseExpression),
+    };
+  }
+  return {if (authoredEventName(expression) case final name?) name};
+}
+
 /// The event name a `paywallEvent('name')` or `surfaceEvent(event)` callback
 /// fires, or null for any other callback.
 String? authoredEventName(Expression callback) {

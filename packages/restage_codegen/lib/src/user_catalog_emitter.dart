@@ -1,5 +1,3 @@
-import 'package:restage_codegen/src/custom_structured_admissibility.dart'
-    show isBuiltInStructuredSlot;
 import 'package:restage_codegen/src/custom_preview_reservation.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_compiler_core/restage_compiler_core.dart'
@@ -160,10 +158,7 @@ void _rejectUnsupportedFullGraph(
       );
     }
     for (final property in widget.properties) {
-      if (!hasStructuredGraph &&
-          !isBuiltInStructuredSlot(property) &&
-          (property.structuredRef != null ||
-              _valueShapeNeedsGraph(property.valueShape))) {
+      if (!hasStructuredGraph && _needsOwnGraph(widget, property)) {
         throw UnsupportedError(
           'Custom catalog builder for ${widget.library.namespace}#'
           '${widget.name}.${property.name} carries a structured/union graph '
@@ -229,8 +224,7 @@ void _rejectUnsupportedWidgetOnlyGraph(List<WidgetEntry> widgets) {
       );
     }
     for (final property in widget.properties) {
-      if (property.structuredRef != null ||
-          _valueShapeNeedsGraph(property.valueShape)) {
+      if (_needsOwnGraph(widget, property)) {
         throw UnsupportedError(
           'Custom catalog builder for ${widget.library.namespace}#'
           '${widget.name}.${property.name} cannot preserve structured/union '
@@ -252,13 +246,19 @@ void _rejectUnsupportedWidgetOnlyGraph(List<WidgetEntry> widgets) {
   }
 }
 
-bool _valueShapeNeedsGraph(CatalogValueShape? shape) {
-  if (shape == null) return false;
-  return switch (shape) {
-    StructuredShape() || UnionShape() => true,
-    ListShape(:final itemShape) => _valueShapeNeedsGraph(itemShape),
-    ScalarShape() || EnumShape() => false,
-  };
+/// Whether [property] references a structured or union entry of its own
+/// widget's library; another library's entries, such as built-in TextStyle,
+/// live in that library's catalog.
+bool _needsOwnGraph(WidgetEntry widget, PropertyEntry property) {
+  final namespace = widget.library.namespace;
+  bool own(WireIdRef? ref) => ref != null && ref.library == namespace;
+  bool shapeNeeds(CatalogValueShape? shape) => switch (shape) {
+        null || ScalarShape() || EnumShape() => false,
+        StructuredShape(:final structuredRef) => own(structuredRef),
+        UnionShape(:final unionRef) => own(unionRef),
+        ListShape(:final itemShape) => shapeNeeds(itemShape),
+      };
+  return own(property.structuredRef) || shapeNeeds(property.valueShape);
 }
 
 void _writeWidgetEntry(

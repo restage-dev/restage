@@ -2,6 +2,40 @@ part of '../minimal_onboarding.dart';
 
 // ignore_for_file: type=lint
 
+const _minimalOnboardingFlowRefVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Expanded': buildExpanded,
+      'GestureDetector': buildGestureDetector,
+      'Padding': buildPadding,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SizedBox': buildSizedBox,
+      'Spacer': buildSpacer,
+      'Text': buildText,
+    },
+    material: {
+      'AppBar': buildAppBar,
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'Scaffold': buildScaffold,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xf724: IconData(0xf724, fontFamily: 'MaterialIcons'),
+      0xf0377: IconData(0xf0377, fontFamily: 'MaterialIcons'),
+    },
+  }, mirrored: {
+    'MaterialIcons': {
+      0xf63b: IconData(0xf63b,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+    },
+  }),
+);
+
 const minimalOnboardingFlowRef = SurfaceFlowRef<
     MinimalOnboardingResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_onboarding',
@@ -23,39 +57,7 @@ const minimalOnboardingFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '60ae6b67bcabff15a1413829ea1e877c9faf9a6881285b0c9a52cf925779b13b',
-  vocabulary: SurfaceVocabulary(
-    widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Column': buildColumn,
-        'Container': buildContainer,
-        'Expanded': buildExpanded,
-        'GestureDetector': buildGestureDetector,
-        'Padding': buildPadding,
-        'Row': buildRow,
-        'SafeArea': buildSafeArea,
-        'SizedBox': buildSizedBox,
-        'Spacer': buildSpacer,
-        'Text': buildText,
-      },
-      material: {
-        'AppBar': buildAppBar,
-        'FilledButton': buildFilledButton,
-        'Icon': buildIcon,
-        'Scaffold': buildScaffold,
-      },
-    ),
-    icons: RestageIconTable.fromFamilies(families: {
-      'MaterialIcons': {
-        0xf724: IconData(0xf724, fontFamily: 'MaterialIcons'),
-        0xf0377: IconData(0xf0377, fontFamily: 'MaterialIcons'),
-      },
-    }, mirrored: {
-      'MaterialIcons': {
-        0xf63b: IconData(0xf63b,
-            fontFamily: 'MaterialIcons', matchTextDirection: true),
-      },
-    }),
-  ),
+  vocabulary: _minimalOnboardingFlowRefVocabulary,
 );
 
 MinimalOnboardingResult _decodeMinimalOnboardingFlowResult(

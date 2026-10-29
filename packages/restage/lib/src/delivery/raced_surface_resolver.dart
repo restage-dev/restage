@@ -127,6 +127,15 @@ final class RacedSurfaceDelegate<T>
 
 /// Reports the candidate a mount rendered, exactly once per mount.
 ///
+/// Reports that [resolver]'s late answer for [key] waits for the next mount.
+@internal
+void reportLateAnswerKept<T>(
+    RacedSurfaceResolver<T>? resolver, SurfaceStoreKey? key) {
+  if (resolver is RacedSurfaceReporting<T> && key != null) {
+    (resolver as RacedSurfaceReporting<T>).lateAnswerKept(key);
+  }
+}
+
 /// A null [winner] means the host rendered its own fallback: no receipt opens,
 /// and the reason explains the next one for this surface.
 @internal
@@ -286,25 +295,30 @@ Future<({bool reusable, String? key, SurfaceAssignmentResolutionLease? lease})>
       : refused;
 }
 
-/// Persists an accepted delivery for [key]. A delivery fetched without an
-/// assignment key never replaces one stored under the key this device holds.
+/// Persists an accepted delivery for [key] and completes with whether it was
+/// written. A delivery fetched without an assignment key never replaces one
+/// stored under the key this device holds. A failed write completes with
+/// false, or with its error when [rethrowFailure] is set.
 @internal
-Future<void> persistAcceptedDelivery(
+Future<bool> persistAcceptedDelivery(
   SurfaceArtifactStore store,
   SurfaceStoreKey key,
   StoredSurface? stored, {
   bool Function()? publicationGuard,
+  bool rethrowFailure = false,
 }) {
-  if (stored == null) return Future<void>.value();
+  if (stored == null) return Future<bool>.value(false);
   // Persists for one key run one at a time, so a keyed entry written while a
   // keyless one checks the store is always seen by that check.
   final pending = _persists[store] ??= <SurfaceStoreKey, Future<void>>{};
   final previous = pending[key] ?? Future<void>.value();
-  final next = previous.then(
-      (_) => _persist(store, key, stored, publicationGuard: publicationGuard));
-  pending[key] = next;
-  unawaited(next.whenComplete(() {
-    if (identical(pending[key], next)) pending.remove(key);
+  final next = previous.then((_) => _persist(store, key, stored,
+      publicationGuard: publicationGuard, rethrowFailure: rethrowFailure));
+  // A failed persist never fails the ones queued behind it.
+  final settled = next.then<void>((_) {}, onError: (Object _) {});
+  pending[key] = settled;
+  unawaited(settled.whenComplete(() {
+    if (identical(pending[key], settled)) pending.remove(key);
   }));
   return next;
 }
@@ -333,27 +347,31 @@ Future<void> evictAcceptedDelivery(SurfaceArtifactStore store,
   return next;
 }
 
-Future<void> _persist(
+Future<bool> _persist(
   SurfaceArtifactStore store,
   SurfaceStoreKey key,
   StoredSurface stored, {
   bool Function()? publicationGuard,
+  bool rethrowFailure = false,
 }) async {
   try {
-    if (publicationGuard != null && !publicationGuard()) return;
+    if (publicationGuard != null && !publicationGuard()) return false;
     if (storedSurfaceAssignmentKey(stored) == null) {
       final existing = await store.read(key);
       final existingKey =
           existing == null ? null : storedSurfaceAssignmentKey(existing);
       if (existingKey != null &&
           existingKey == await SurfaceAssignmentKeyProvider.resolveLocal()) {
-        return;
+        return false;
       }
     }
-    if (publicationGuard != null && !publicationGuard()) return;
+    if (publicationGuard != null && !publicationGuard()) return false;
     await store.write(key, stored);
+    return true;
   } on Object {
     // A delivery that cannot be kept is still rendered.
+    if (rethrowFailure) rethrow;
+    return false;
   }
 }
 
@@ -390,6 +408,10 @@ mixin RacedSurfaceReporting<T> {
   void fallbackReportedWithoutReason(
       SurfaceStoreKey key, SurfaceResolutionSource source) {}
 
+  /// Called when an answer for [key] arrived after the mount showed its own
+  /// fallback and is kept for the next mount.
+  void lateAnswerKept(SurfaceStoreKey key) {}
+
   /// The store this resolver persists accepted deliveries in.
   SurfaceArtifactStore get store;
 
@@ -410,8 +432,8 @@ mixin RacedSurfaceReporting<T> {
   void freshRefused(SurfaceStoreKey key, SurfaceDeliveryReceiptReason reason) =>
       _freshRefusals[key] = reason;
 
-  /// Why a local candidate rendered for [key]: the fresh refusal, or offline
-  /// while fresh is still pending.
+  /// Why a local candidate rendered for [key]: the fresh refusal, or pending
+  /// while fresh has not answered.
   SurfaceDeliveryReceiptReason localReasonFor(SurfaceStoreKey key) =>
-      _freshRefusals[key] ?? SurfaceDeliveryReceiptReason.offline;
+      _freshRefusals[key] ?? SurfaceDeliveryReceiptReason.pending;
 }

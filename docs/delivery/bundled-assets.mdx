@@ -136,13 +136,13 @@ Mount it with `RestageScreen`. This works for every standalone screen, whatever 
 category:
 
 ```dart
-RestageScreen<FeatureAnnouncementEvent>(
+RestageScreen<FeatureAnnouncementSurfaceEvent>(
   screen: featureAnnouncementRef,
   unavailable: SurfaceScreenUnavailablePolicy.fallback(
     builder: (context, error) => const Text('Announcement unavailable'),
   ),
   onEvent: (event) {
-    if (event is FeatureAnnouncementDismissEvent) {
+    if (event is FeatureAnnouncementSurfaceDismissEvent) {
       Navigator.of(context).maybePop();
     }
   },

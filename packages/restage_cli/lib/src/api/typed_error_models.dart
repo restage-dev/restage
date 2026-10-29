@@ -174,6 +174,16 @@ enum UnauthorizedReason {
   );
 }
 
+/// The organization is missing or the caller is not a member; the backend
+/// answers both the same way.
+class OrganizationNotFound extends GenericTypedException {
+  /// Construct with the [organizationId] the caller named.
+  const OrganizationNotFound({required this.organizationId});
+
+  /// The organization id the caller sent.
+  final int organizationId;
+}
+
 /// The caller is not authorised to act on the named [resource]. Maps
 /// from the backend's `UnauthorizedException`.
 @experimental
@@ -330,6 +340,10 @@ GenericTypedException? decodeGenericTypedException(String body) {
       return AppNotFound(
         appSlug: data['appSlug'] as String,
         projectSlug: data['projectSlug'] as String,
+      );
+    case 'OrganizationNotFoundException':
+      return OrganizationNotFound(
+        organizationId: data['organizationId'] as int,
       );
     case 'UnauthorizedException':
       return UnauthorizedAccess(

@@ -10,6 +10,7 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceHostContractV1;
 
 import '../flow/flow_descriptors.dart';
+import '../surface_screen/surface_screen_runtime_provenance.dart';
 import 'surface_vocabulary.dart';
 
 /// The default surface and immutable host facts of a generated mount.
@@ -19,9 +20,24 @@ final class GeneratedPlacementDefinition implements RestageSurfaceRef {
     required this.defaultSurface,
     required this.defaultSurfaceLocator,
     required this.key,
-    required this.hostContract,
+    required SurfaceHostContractV1 hostContract,
     required this.vocabulary,
-  }) {
+  })  : _hostContract = hostContract,
+        _hostContractJson = null {
+    _check();
+  }
+
+  GeneratedPlacementDefinition._decoding({
+    required this.defaultSurface,
+    required this.defaultSurfaceLocator,
+    required this.key,
+    required Map<String, Object?> hostContractJson,
+    required this.vocabulary,
+  }) : _hostContractJson = hostContractJson {
+    _check();
+  }
+
+  void _check() {
     final (surfaceType, slug, family) = switch (defaultSurface) {
       PaywallRef(:final id) => (
           DeliverySurfaceTypeId(Surface.paywall.wireName),
@@ -67,14 +83,14 @@ final class GeneratedPlacementDefinition implements RestageSurfaceRef {
   }) {
     final locator =
         DeliverySurfaceLocatorV1.fromJson(defaultSurfaceLocatorJson);
-    return GeneratedPlacementDefinition(
+    return GeneratedPlacementDefinition._decoding(
       defaultSurface: defaultSurface,
       defaultSurfaceLocator: locator,
       key: PlacementKeyV1.generatedDefault(
         surfaceType: locator.surfaceType,
         slug: locator.slug,
       ),
-      hostContract: SurfaceHostContractV1.fromJson(hostContractJson),
+      hostContractJson: hostContractJson,
       vocabulary: vocabulary,
     );
   }
@@ -88,8 +104,32 @@ final class GeneratedPlacementDefinition implements RestageSurfaceRef {
   /// The default placement coordinate, namespaced by surface category.
   final PlacementKeyV1 key;
 
-  /// The host's statically declared input and output boundary.
-  final SurfaceHostContractV1 hostContract;
+  /// The host's statically declared input and output boundary, decoded
+  /// from the generated facts when first read.
+  SurfaceHostContractV1 get hostContract =>
+      _hostContract ??= SurfaceHostContractV1.fromJson(_hostContractJson!);
+  SurfaceHostContractV1? _hostContract;
+  final Map<String, Object?>? _hostContractJson;
+
+  /// The generated host facts not decoded yet, if any.
+  @internal
+  Map<String, Object?>? get undecodedHostContract =>
+      _hostContract == null ? _hostContractJson : null;
+
+  /// Takes [contract], decoded elsewhere from [undecodedHostContract].
+  @internal
+  void adoptHostContract(SurfaceHostContractV1 contract) =>
+      _hostContract ??= contract;
+
+  /// The default screen's provenance while its schemas are not decoded yet.
+  @internal
+  SurfaceScreenRuntimeProvenance? get undecodedScreen =>
+      switch (defaultSurface) {
+        SurfaceScreenRef<Object?>(:final provenance)
+            when provenance.undecodedContract != null =>
+          provenance,
+        _ => null,
+      };
 
   /// Widgets and icons the compiled default draws.
   final SurfaceVocabulary vocabulary;

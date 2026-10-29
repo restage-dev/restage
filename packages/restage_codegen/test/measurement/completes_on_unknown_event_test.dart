@@ -1,10 +1,11 @@
-// A paywall that names a completing event no tap fires fails its build.
+// A paywall's completing event must be fired by one of its taps.
 
 import 'dart:io';
 
 import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -12,11 +13,10 @@ import '../helpers.dart';
 
 const _fixtureRoot = 'test/fixtures/completes_on_unknown';
 const _package = 'apps_examples';
-const _fixtureDartPaths = <String>['lib/paywalls/stray_offer.dart'];
 
 void main() {
   test('completesOn naming an event no tap fires is a build error', () async {
-    final compiled = await _compileFixture();
+    final compiled = await _compileFixture('lib/paywalls/stray_offer.dart');
     expect(compiled.succeeded, isFalse);
     expect(
       compiled.log,
@@ -28,9 +28,36 @@ void main() {
       ),
     );
   });
+
+  test('a conditional tap fires its completing event', () async {
+    final compiled =
+        await _compileFixture('lib/paywalls/conditional_offer.dart');
+    expect(compiled.succeeded, isTrue, reason: compiled.log);
+    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+      compiled.readerWriter.testing.readBytes(
+        AssetId(_package, kRestageMeasurementCompilerOutputPath),
+      ),
+    );
+    final routes = output.publications.single.routePlan.routes
+        .where((route) => route.orderedCaptureV1?.lifecycleChannel == null);
+    expect(routes, hasLength(1));
+    expect(routes.single.orderedCaptureV1!.completesSurfaceV1, isTrue);
+  });
+
+  test('a tap whose branches disagree about completing is a build error',
+      () async {
+    final compiled = await _compileFixture('lib/paywalls/split_offer.dart');
+    expect(compiled.succeeded, isFalse);
+    expect(
+      compiled.log,
+      contains('This tap fires `start_trial` or `later`, and only '
+          '`start_trial` completes the surface.'),
+    );
+  });
 }
 
-Future<({bool succeeded, String log})> _compileFixture() async {
+Future<({bool succeeded, String log, TestReaderWriter readerWriter})>
+    _compileFixture(String path) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: _package,
   );
@@ -49,10 +76,7 @@ Future<({bool succeeded, String log})> _compileFixture() async {
       ),
       restageOutputsBuilder(_builderOptions('restage_codegen:outputs')),
     ],
-    {
-      for (final path in _fixtureDartPaths)
-        '$_package|$path': File(p.join(_fixtureRoot, path)).readAsStringSync(),
-    },
+    {'$_package|$path': File(p.join(_fixtureRoot, path)).readAsStringSync()},
     rootPackage: _package,
     readerWriter: readerWriter,
     flattenOutput: true,
@@ -62,6 +86,7 @@ Future<({bool succeeded, String log})> _compileFixture() async {
   return (
     succeeded: result.succeeded,
     log: [...logs, ...result.errors].join('\n'),
+    readerWriter: readerWriter,
   );
 }
 

@@ -334,7 +334,7 @@ final class OpaqueMeasurementRouteTokenV1 extends CanonicalValue
 }
 
 List<int> _decodeBase64UrlNoPadding(String value, {required String label}) {
-  if (value.isEmpty || !_base64UrlNoPaddingPattern.hasMatch(value)) {
+  if (!isUnpaddedBase64UrlAlphabet(value)) {
     throw ArgumentError.value(
       value,
       label,
@@ -350,5 +350,3 @@ List<int> _decodeBase64UrlNoPadding(String value, {required String label}) {
 
 String _base64UrlNoPadding(List<int> bytes) =>
     base64Url.encode(bytes).replaceAll('=', '');
-
-final RegExp _base64UrlNoPaddingPattern = RegExp(r'^[A-Za-z0-9_-]+$');

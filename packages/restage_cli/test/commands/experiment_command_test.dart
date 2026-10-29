@@ -1013,6 +1013,21 @@ void main() {
       },
     );
 
+    test('names the revision a superseded-revision refusal refuses', () async {
+      final result = await run(
+        ['activate', ..._selectors['activate']!],
+        reply: (method, sent) =>
+            _supersededActivationRefusal(sent.correlationId),
+      );
+
+      expect(result.code, 1);
+      expect(result.out, isEmpty);
+      expect(result.err.trim().split('\n'), [
+        'Refused activateDraft: revisionSuperseded.',
+        _supersededLine,
+      ]);
+    });
+
     test('a service-fault refusal exits with code two', () async {
       final result = await run(
         const ['read', '--experiment-id=experiment.checkout'],
@@ -1550,6 +1565,7 @@ http.Response? targetDirectoryResponse(String method) => switch (method) {
         {'id': 31, 'appId': 23, 'namedEnvironmentId': 37, 'slug': 'production'},
       ],
       'environmentTargets': [_experimentTarget],
+      'legacyDefaultTargetIds': <Object>[],
       'surfaces': <Object>[],
     }),
     200,
@@ -1633,6 +1649,32 @@ Uint8List _conflictActivationRefusal(String correlationId) =>
         'messageKey': 'experiment.authoring.validationBlocked',
         'retryable': false,
         'schemaVersion': kMeasurementSchemaVersion,
+      },
+      'schemaVersion': kMeasurementSchemaVersion,
+    }).canonicalBytes;
+
+const _supersededLine =
+    'Revision 3 of `weekly_recap` was pushed before version 2\'s contract '
+    "changed. Experiments can't use it. Use revision 5 or later.";
+
+Uint8List _supersededActivationRefusal(String correlationId) =>
+    ExperimentAuthoringResultV1.fromJson({
+      'correlationId': correlationId,
+      'kind': 'refused',
+      'operation': 'activateDraft',
+      'refusal': {
+        'code': 'revisionSuperseded',
+        'kind': 'experimentAuthoringRefusal',
+        'messageKey': 'experiment.authoring.revisionSuperseded',
+        'retryable': false,
+        'schemaVersion': kMeasurementSchemaVersion,
+        'supersededRevision': {
+          'contractVersion': 2,
+          'definedFromRevision': 5,
+          'kind': 'supersededRevision',
+          'publishedRevision': 3,
+          'surfaceSlug': 'weekly_recap',
+        },
       },
       'schemaVersion': kMeasurementSchemaVersion,
     }).canonicalBytes;

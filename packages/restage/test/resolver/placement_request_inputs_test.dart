@@ -23,6 +23,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart'
     show SurfaceScreenDeliveryDescriptorV1Codec;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 import '../surface_screen/surface_screen_test_support.dart';
 
@@ -382,6 +383,57 @@ void main() {
         first.toIso8601String());
   });
 
+  testWidgets(
+      'a first-launch read that never answers delays only the first request',
+      (tester) async {
+    debugResetInstallObservations(
+      nowUtc: () => DateTime.utc(2026, 10, 3, 12),
+      store: FirstLaunchStore(
+          preferences: () => Completer<SharedPreferences>().future),
+    );
+    _configure();
+    await tester.pump();
+
+    SurfaceDeliveryObservations? first;
+    unawaited(readSurfaceDeliveryObservations().then((o) => first = o));
+    await tester.pump(const Duration(milliseconds: 99));
+    expect(first, isNull);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(first?.daysSinceInstall, isNull);
+    expect(first, isNotNull);
+
+    SurfaceDeliveryObservations? second;
+    unawaited(readSurfaceDeliveryObservations().then((o) => second = o));
+    await tester.pump();
+    expect(second, isNotNull, reason: 'a read that timed out is not awaited');
+    expect(second!.daysSinceInstall, isNull);
+  });
+
+  test('a failed first install-date write is retried by later requests',
+      () async {
+    final first = DateTime.utc(2026, 10, 3, 12);
+    var now = first;
+    final storage = _FailFirstWrite();
+    SharedPreferencesStorePlatform.instance = storage;
+    debugResetInstallObservations(nowUtc: () => now);
+    _configure();
+    await pumpEventQueue();
+    expect(storage.writes, 1);
+    expect((await storage.getAll()).containsKey('flutter.$_firstLaunchKey'),
+        isFalse);
+
+    now = first.add(const Duration(minutes: 1));
+    expect((await readSurfaceDeliveryObservations()).daysSinceInstall, 0);
+    await pumpEventQueue();
+    now = first.add(const Duration(days: 1));
+    expect((await readSurfaceDeliveryObservations()).daysSinceInstall, 1);
+    await pumpEventQueue();
+
+    expect((await storage.getAll())['flutter.$_firstLaunchKey'],
+        first.toIso8601String());
+    expect(storage.writes, 2, reason: 'a stored origin is not rewritten');
+  });
+
   test('storage failure stays unknown and a later configure retries', () async {
     final first = DateTime.utc(2026, 10, 3, 12);
     final preferences = await SharedPreferences.getInstance();
@@ -475,6 +527,19 @@ void main() {
     }
   });
 
+  test('configure mints the registration before any mount', () async {
+    Restage.configure(
+        apiKey: _apiKey, baseUrl: _baseUrl, deliveryReceiptsEnabled: false);
+    Iterable<String> minted(SharedPreferences prefs) => prefs
+        .getKeys()
+        .where((key) => key.startsWith('restage.assignmentRegistration.'));
+    final prefs = await SharedPreferences.getInstance();
+    for (var i = 0; i < 100 && minted(prefs).isEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(minted(prefs), hasLength(1));
+  });
+
   testWidgets(
       'configure installs every listed flow and screen vocabulary before the '
       'first frame', (tester) async {
@@ -549,4 +614,16 @@ final class _Registration implements RestageWidgetRegistration {
   @override
   void call({required bool includeMaterial, required bool includeCupertino}) =>
       _register('outer.widgets');
+}
+
+final class _FailFirstWrite extends InMemorySharedPreferencesStore {
+  _FailFirstWrite() : super.empty();
+
+  int writes = 0;
+
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) async {
+    if (key.endsWith(_firstLaunchKey) && ++writes == 1) return false;
+    return super.setValue(valueType, key, value);
+  }
 }

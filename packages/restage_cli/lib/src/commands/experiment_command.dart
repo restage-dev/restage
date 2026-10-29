@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/experiment_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/superseded_revision_sentence.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/live_guard.dart';
@@ -278,6 +279,10 @@ abstract class _ExperimentSubcommand extends Command<int> {
     final headline =
         'Refused ${refused.operation.wireName}: ${refusal.code.wireName}'
         '${refusal.retryable ? " (retryable)" : ""}.';
+    final superseded = refusal.supersededRevision;
+    if (superseded != null) {
+      return '$headline\n${supersededRevisionSentence(superseded)}';
+    }
     final locator = refusal.locator;
     return locator == null
         ? headline

@@ -34,6 +34,7 @@ import '../support/placement_delivery_fixture.dart';
 import '../measurement/admitted_bundled_publication_fixture.dart';
 import '../measurement/measurement_host_construction_test_support.dart';
 import '../support/pump_until.dart';
+import '../support/sent_placement_request.dart';
 
 const _applicationToken = 'c9ea7617-468c-4be9-9430-080703537a9c';
 const _secondApplicationToken = '59eb1fa6-e556-46a4-9fb8-1f77244fe865';
@@ -1216,9 +1217,13 @@ void main() {
           analyticsEnabled: measurementEnabled,
           measurementEnabled: measurementEnabled);
       final fixture = readPlacementDeliveryFixture();
-      final artifacts = await assemblePlacementDeliveryArtifacts(
-          fixture.response,
-          publicationGuard: () => true);
+      final artifacts =
+          await assemblePlacementDeliveryArtifacts(fixture.response,
+              heldArtifactBytes: {
+                for (final artifact in fixture.artifacts)
+                  artifact.identity: artifact.bytes,
+              },
+              publicationGuard: () => true);
       final base =
           (fixture.response.decisions.first as PlacementBatchAvailableV1)
               .publicDelivery;
@@ -1339,11 +1344,12 @@ void main() {
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
         httpClient: MockClient((request) async {
+          final fixtureArtifact = placementFixtureArtifact(request);
+          if (fixtureArtifact != null) return fixtureArtifact;
           if (request.url.path.endsWith('/placements/resolve')) {
             return http.Response.bytes(
                 placementFixtureResponse(
-                        PlacementBatchRequestV1.fromCanonicalBytes(
-                            request.bodyBytes),
+                        sentPlacementRequest(request.bodyBytes),
                         routingSelectionReceipt: 'opaque.original.receipt')
                     .canonicalBytes,
                 200);
@@ -1544,13 +1550,14 @@ void main() {
           baseUrl: 'https://example.com',
           apiKey: 'rs_pk_test',
           httpClient: MockClient((request) async {
+            final fixtureArtifact = placementFixtureArtifact(request);
+            if (fixtureArtifact != null) return fixtureArtifact;
             if (!request.url.path.endsWith('/placements/resolve')) {
               return http.Response('{}', 200);
             }
             return http.Response.bytes(
                 placementFixtureResponse(
-                        PlacementBatchRequestV1.fromCanonicalBytes(
-                            request.bodyBytes),
+                        sentPlacementRequest(request.bodyBytes),
                         routingSelectionReceipt: 'opaque.original.receipt')
                     .canonicalBytes,
                 200);
@@ -1713,7 +1720,7 @@ void main() {
     final base = (fixture.response.decisions.first as PlacementBatchAvailableV1)
         .publicDelivery;
     final publication = AdmittedBundledPublicationFixture.build(
-        artifact: fixture.response.artifacts.single.bytes);
+        artifact: fixture.artifacts.single.bytes);
     final release = Completer<void>();
     final harness = AdmittedConstructionOwnerHostTestHarness.install(
         publicationContext: publication.publicationContextRef,
@@ -1733,13 +1740,13 @@ void main() {
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
         httpClient: MockClient((request) async {
+          final fixtureArtifact = placementFixtureArtifact(request);
+          if (fixtureArtifact != null) return fixtureArtifact;
           if (!request.url.path.endsWith('/placements/resolve')) {
             return http.Response('{}', 200);
           }
           return http.Response.bytes(
-              placementFixtureResponse(
-                      PlacementBatchRequestV1.fromCanonicalBytes(
-                          request.bodyBytes),
+              placementFixtureResponse(sentPlacementRequest(request.bodyBytes),
                       publicationOverride: actualPublication,
                       routingSelectionReceipt: 'opaque.original.receipt')
                   .canonicalBytes,

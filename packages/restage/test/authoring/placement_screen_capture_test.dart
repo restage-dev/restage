@@ -24,6 +24,7 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/placement_delivery_fixture.dart';
+import '../support/sent_placement_request.dart';
 
 void main() {
   final discovery = PlacementDiscovery.instance;
@@ -104,12 +105,17 @@ void main() {
     final requests = <http.Request>[];
     final events = <RestageEvent>[];
     final recordingClient = MockClient((request) async {
+      final fixtureArtifact = placementFixtureArtifact(request);
+      if (fixtureArtifact != null) return fixtureArtifact;
       requests.add(request);
       if (request.url.path == '/sdk/v1/placements/resolve') {
-        final batch =
-            PlacementBatchRequestV1.fromCanonicalBytes(request.bodyBytes);
+        final batch = sentPlacementRequest(request.bodyBytes);
         return http.Response.bytes(
             placementFixtureResponse(batch).canonicalBytes, 200);
+      }
+      // A report is accepted as the server accepts it.
+      if (request.url.path == '/sdk/v1/placements/report') {
+        return http.Response('{}', 200);
       }
       return http.Response('', 204);
     });
@@ -177,6 +183,56 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(requests, hasLength(count));
     expect(tester.takeException(), isNull);
+  });
+
+  pin('the first report names the build ordinal that lands after its debounce',
+      (tester) async {
+    _configureSdk(configured: true);
+    debugAppBuildNumberSource = () async {
+      await Future<void>.delayed(const Duration(seconds: 1));
+      return '42';
+    };
+    addTearDown(() => debugAppBuildNumberSource = null);
+    final reportBodies = <List<int>>[];
+    final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_capture',
+        httpClient: MockClient((request) async {
+          final fixtureArtifact = placementFixtureArtifact(request);
+          if (fixtureArtifact != null) return fixtureArtifact;
+          if (request.url.path == '/sdk/v1/placements/resolve') {
+            return http.Response.bytes(
+                placementFixtureResponse(
+                        sentPlacementRequest(request.bodyBytes))
+                    .canonicalBytes,
+                200);
+          }
+          if (request.url.path == '/sdk/v1/placements/report') {
+            reportBodies.add(request.bodyBytes);
+            return http.Response('{}', 200);
+          }
+          return http.Response('', 204);
+        }));
+    Restage.debugRestageRpcClient = client;
+    addTearDown(client.close);
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: RestagePaywall(
+        id: 'original_offer',
+        placementBinding: const PlacementMountBinding(
+            definition: _generatedOffer, name: 'offer_card'),
+        fallbackBuilder: (_) => const SizedBox(width: 80, height: 25),
+      ),
+    ));
+    for (var step = 0; step < 30; step++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(reportBodies, isNotEmpty);
+    expect(
+        PlacementDiscoveryReportV1.fromCanonicalBytes(reportBodies.first)
+            .buildContract
+            .buildOrdinal,
+        42);
   });
 
   pin('actual full-view PNG preserves fractional DPR ceil duplicate bounds and local export',
@@ -318,7 +374,8 @@ void main() {
           });
         })));
     await tester.pump();
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 251));
+    await tester.pump(const Duration(milliseconds: 251));
     expect(reports.single.bounds.single.logicalBounds.x, 0);
     update(() => offset = 17.5);
     await tester.pump();

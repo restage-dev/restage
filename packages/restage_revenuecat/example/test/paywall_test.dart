@@ -149,8 +149,25 @@ void main() {
         (2, 'featured_paywall', 2, '59,00 €'),
         (3, 'original_paywall', 1, '49,00 €'),
       ]) {
-        final previousRequests = requests.length;
+        // The startup request may answer the first mount.
+        final previousRequests = index == 1 ? 0 : requests.length;
         selected = (fixture: fixture, version: version);
+        // A mount paints what the app already accepted and keeps the fresh
+        // answer for the next one, so a changed publication shows on the
+        // mount after the one that fetched it.
+        if (index > 1) {
+          await tester.pumpWidget(MaterialApp(
+            home: Scaffold(
+              body: RevenueCatExample(
+                key: ValueKey('fetch$index'),
+                offering: offering,
+              ),
+            ),
+          ));
+          await tester.pumpAndSettle();
+          await tester.pumpWidget(const SizedBox());
+          await tester.pump();
+        }
         await tester.pumpWidget(MaterialApp(
           home: Scaffold(
             body: RevenueCatExample(key: ValueKey(index), offering: offering),

@@ -249,7 +249,33 @@ void main() {
           (3, 'store_upgrade', 1, r'$0.00'),
         ]) {
           selected = (fixture: fixture, version: version);
-          final previousRequests = requests.length;
+          // The startup request may answer the first mount.
+          final previousRequests = index == 1 ? 0 : requests.length;
+          // A mount paints what the app already accepted and keeps the fresh
+          // answer for the next one, so a changed publication shows on the
+          // mount after the one that fetched it.
+          if (index > 1) {
+            await tester.pumpWidget(
+              MaterialApp(
+                home: Scaffold(
+                  body: KeyedSubtree(
+                    key: ValueKey('fetch$index'),
+                    child: customStorePaywall(
+                      packages: packages,
+                      paywallPackages: paywallPackages,
+                      purchase: (product) async => null,
+                      restore: () async {},
+                      onError: (error, stack) =>
+                          Error.throwWithStackTrace(error, stack),
+                    ),
+                  ),
+                ),
+              ),
+            );
+            await tester.pumpAndSettle();
+            await tester.pumpWidget(const SizedBox());
+            await tester.pump();
+          }
           await tester.pumpWidget(
             MaterialApp(
               home: Scaffold(

@@ -57,6 +57,7 @@ String? emitUserFactoriesDart(
   bool installWholeCatalog = false,
   AppWidgetRegistrationSource? dependencyFactories,
   NativeCatalogIndex? builtInIndex,
+  bool declaresSurfaces = false,
 }) {
   validateCustomPreviewReservations(widgets);
   final plannedUris = referencedAppWidgetLibraryUris(
@@ -162,6 +163,7 @@ String? emitUserFactoriesDart(
   <String>{
     ...imports.importDirectivesFor(referencedUris),
     "import 'package:restage/restage.dart';",
+    if (declaresSurfaces) "import '$_kSurfaceListImport';",
     ...?dependencyFactories?.imports,
   }.forEach(buf.writeln);
   buf.writeln();
@@ -182,6 +184,7 @@ String? emitUserFactoriesDart(
   buf.writeln(
     '  kRestageAppVocabulary.addToInstalled(explicitSelection: true);',
   );
+  if (declaresSurfaces) buf.writeln(_kDeclareSurfaces);
   for (final library in orderedLibraries) {
     final entries = byLibrary[library]!;
     writeWidgetLibraryRegistration(
@@ -221,6 +224,7 @@ String emitEmptyUserFactoriesDart({
   SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
   bool installWholeCatalog = false,
   AppWidgetRegistrationSource? dependencyFactories,
+  bool declaresSurfaces = false,
 }) {
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
@@ -228,6 +232,7 @@ String emitEmptyUserFactoriesDart({
   buf.writeln();
   <String>{
     "import 'package:restage/restage.dart';",
+    if (declaresSurfaces) "import '$_kSurfaceListImport';",
     ...?dependencyFactories?.imports,
   }.forEach(buf.writeln);
   buf.writeln();
@@ -240,10 +245,11 @@ String emitEmptyUserFactoriesDart({
   if (dependencyFactories != null) {
     buf.writeln(dependencyFactories.registrations);
   }
+  buf.writeln(
+    '  kRestageAppVocabulary.addToInstalled(explicitSelection: true);',
+  );
+  if (declaresSurfaces) buf.writeln(_kDeclareSurfaces);
   buf
-    ..writeln(
-      '  kRestageAppVocabulary.addToInstalled(explicitSelection: true);',
-    )
     ..writeln('  }')
     ..writeln('}');
   _emitDeprecatedRegistrationAlias(buf);
@@ -252,6 +258,13 @@ String emitEmptyUserFactoriesDart({
   }
   return formatGeneratedDart(buf.toString());
 }
+
+/// The generated surface list, beside this file in `lib/`.
+const String _kSurfaceListImport = 'restage_surfaces.g.dart';
+
+/// Declares every placement the build can mount, so the first request
+/// describes the whole build.
+const String _kDeclareSurfaces = '  Restage.declareSurfaces(restageSurfaces);';
 
 /// Documents the matching configuration entrypoint on the registration helper.
 void _writeCatalogConfigurationDoc(StringBuffer buf, bool installWholeCatalog) {

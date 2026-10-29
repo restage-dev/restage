@@ -49,9 +49,12 @@ final class RenderBundleArchiveLimits {
 
 /// A local validation failure that is safe for callers to render generically.
 final class RenderBundleArchiveException implements Exception {
-  const RenderBundleArchiveException(this.reason);
+  const RenderBundleArchiveException(this.reason, {this.note});
 
   final String reason;
+
+  /// What broke the rule and what to do, when the rule can say.
+  final String? note;
 
   @override
   String toString() => 'RenderBundleArchiveException($reason)';
@@ -85,15 +88,24 @@ Future<Map<String, Uint8List>> collectRenderBundleDirectory(
       throw const RenderBundleArchiveException('duplicate_path');
     }
     if (files.length >= limits.maxFiles) {
-      throw const RenderBundleArchiveException('file_count');
+      throw RenderBundleArchiveException(
+        'file_count',
+        note: _tooManyFiles(limits),
+      );
     }
     final stat = await entity.stat();
     if (stat.type != FileSystemEntityType.file ||
         stat.size > limits.maxFileBytes) {
-      throw const RenderBundleArchiveException('file_too_large');
+      throw RenderBundleArchiveException(
+        'file_too_large',
+        note: _tooLarge(path, stat.size, limits),
+      );
     }
     if (payloadBytes > limits.maxTotalBytes - stat.size) {
-      throw const RenderBundleArchiveException('payload_too_large');
+      throw RenderBundleArchiveException(
+        'payload_too_large',
+        note: _payloadTooLarge(limits),
+      );
     }
     final bytes = await entity.readAsBytes();
     if (bytes.length != stat.size) {
@@ -122,7 +134,10 @@ Uint8List encodeRenderBundleArchive(
 }) {
   _validateLimits(limits);
   if (files.isEmpty || files.length > limits.maxFiles) {
-    throw const RenderBundleArchiveException('file_count');
+    throw RenderBundleArchiveException(
+      'file_count',
+      note: files.isEmpty ? null : _tooManyFiles(limits),
+    );
   }
   if (!files.containsKey('index.html') ||
       !files.containsKey(renderBundleCapabilityManifestPath)) {
@@ -140,10 +155,16 @@ Uint8List encodeRenderBundleArchive(
     _validatePath(path, limits);
     final bytes = files[path]!;
     if (bytes.length > limits.maxFileBytes) {
-      throw const RenderBundleArchiveException('file_too_large');
+      throw RenderBundleArchiveException(
+        'file_too_large',
+        note: _tooLarge(path, bytes.length, limits),
+      );
     }
     if (payloadBytes > limits.maxTotalBytes - bytes.length) {
-      throw const RenderBundleArchiveException('payload_too_large');
+      throw RenderBundleArchiveException(
+        'payload_too_large',
+        note: _payloadTooLarge(limits),
+      );
     }
     payloadBytes += bytes.length;
     entries.add(<String, Object?>{
@@ -163,7 +184,10 @@ Uint8List encodeRenderBundleArchive(
   }
   final total = _magic.length + 4 + manifest.length + payloadBytes;
   if (total > limits.maxTotalBytes) {
-    throw const RenderBundleArchiveException('archive_too_large');
+    throw RenderBundleArchiveException(
+      'archive_too_large',
+      note: _payloadTooLarge(limits),
+    );
   }
   final length = ByteData(4)..setUint32(0, manifest.length, Endian.big);
   final output = BytesBuilder(copy: false)
@@ -212,12 +236,17 @@ Uint8List createRenderBundleCapabilityManifest(
   return manifest;
 }
 
+/// Whether the bundle-relative [path] is a service worker, which a render
+/// bundle never serves.
+bool isRenderBundleServiceWorkerPath(String path) {
+  final lower = path.toLowerCase();
+  return lower.contains('service_worker') || lower.endsWith('serviceworker.js');
+}
+
 /// Verifies the artifact has no external-resource or service-worker escape.
 void validateOfflineRenderBundleFiles(Map<String, Uint8List> files) {
   for (final path in files.keys) {
-    final lower = path.toLowerCase();
-    if (lower.contains('service_worker') ||
-        lower.endsWith('serviceworker.js')) {
+    if (isRenderBundleServiceWorkerPath(path)) {
       throw const RenderBundleArchiveException('service_worker_forbidden');
     }
   }
@@ -575,3 +604,23 @@ const _credentialKeys = <String>{
   'apisecret',
   'signingsecret',
 };
+
+String _megabytes(int bytes) {
+  final value = bytes / (1024 * 1024);
+  return value == value.roundToDouble()
+      ? '${value.round()}'
+      : value.toStringAsFixed(1);
+}
+
+String _tooLarge(String path, int bytes, RenderBundleArchiveLimits limits) =>
+    '`$path` is ${_megabytes(bytes)} MB, over the '
+    '${_megabytes(limits.maxFileBytes)} MB limit for one file. Shrink or '
+    'remove it and push again.';
+
+String _payloadTooLarge(RenderBundleArchiveLimits limits) =>
+    'The bundle is over the ${_megabytes(limits.maxTotalBytes)} MB limit for '
+    'all files together. Shrink or remove assets and push again.';
+
+String _tooManyFiles(RenderBundleArchiveLimits limits) =>
+    'The bundle has more than ${limits.maxFiles} files. Remove some assets '
+    'and push again.';

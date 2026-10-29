@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 
 import 'surface_artifact_store_stub.dart'
     if (dart.library.io) 'surface_artifact_store_io.dart' as implementation;
+import 'placement_decision_store.dart';
 import 'surface_store_key.dart';
 
 export 'surface_store_key.dart';
@@ -51,16 +52,60 @@ abstract interface class SurfaceArtifactStore {
   Future<void> clear();
 }
 
+/// The entries of one scope and some surface types, as [readStoreScope]
+/// passes them.
+@internal
+typedef StoredScopeRows = List<(SurfaceStoreKey, StoredSurface)>;
+
+/// A store that reads a scope in one pass away from the frame isolate.
+@internal
+abstract interface class SurfaceArtifactScopeReader {
+  /// Whether [readScope] runs its pass away from the frame isolate.
+  bool get readsOffIsolate;
+
+  /// Reads [scope]'s entries of [surfaceTypes] and runs [process] on them in
+  /// the same pass; [process] must be sendable to another isolate.
+  Future<R> readScope<R>(String scope, Set<String> surfaceTypes,
+      R Function(StoredScopeRows rows) process);
+}
+
+/// [store]'s entries of [surfaceTypes] in [scope], run through [process]; an
+/// unreadable entry is left out.
+@internal
+Future<R> readStoreScope<R>(SurfaceArtifactStore store, String scope,
+    Set<String> surfaceTypes, R Function(StoredScopeRows rows) process) async {
+  if (store is SurfaceArtifactScopeReader) {
+    return (store as SurfaceArtifactScopeReader)
+        .readScope(scope, surfaceTypes, process);
+  }
+  final rows = <(SurfaceStoreKey, StoredSurface)>[];
+  for (final key in await store.keys()) {
+    if (key.scope != scope || !surfaceTypes.contains(key.surfaceType)) {
+      continue;
+    }
+    try {
+      final value = await store.read(key);
+      if (value != null) rows.add((key, value));
+    } on Object {
+      continue;
+    }
+  }
+  return process(rows);
+}
+
 /// The platform store: files under the application support directory on
 /// `dart:io` platforms, memory elsewhere.
 ///
 /// [directory] overrides where files go; it defaults to
-/// `<application support>/restage/surfaces`.
+/// `<application support>/restage/surfaces`. [readsOffIsolate] defaults to
+/// true outside debug builds.
 @internal
 SurfaceArtifactStore createSurfaceArtifactStore({
   Future<String> Function()? directory,
+  bool? readsOffIsolate,
 }) =>
-    implementation.createSurfaceArtifactStore(directory: directory);
+    implementation.createSurfaceArtifactStore(
+        directory: directory, readsOffIsolate: readsOffIsolate);
 
 SurfaceArtifactStore? _shared;
 
@@ -77,8 +122,11 @@ set sharedSurfaceArtifactStore(SurfaceArtifactStore? store) => _shared = store;
 /// Removes every stored surface, for reset and identity forget.
 @internal
 Future<void> clearSurfaceArtifactStores() async {
+  final store = sharedSurfaceArtifactStore;
   try {
-    await sharedSurfaceArtifactStore.clear();
+    // A delivery still being saved lands before the clear, never after it.
+    await PlacementDecisionStore.writesSettled(store);
+    await store.clear();
   } on Object {
     // Entries left behind are still re-gated on read.
   }

@@ -656,6 +656,7 @@ void main() {
                   'runtimePlane': 'sandbox',
                 },
               ],
+              'legacyDefaultTargetIds': <Object>[],
               'surfaces': <Object>[],
             }),
             200,

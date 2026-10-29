@@ -166,7 +166,7 @@ constructor input with the generated event handler at the app's mount:
 WelcomeBannerSurface(
   name: user.name,
   onEvent: (event) {
-    if (event is WelcomeBannerNextEvent) onContinue();
+    if (event is WelcomeBannerSurfaceNextEvent) onContinue();
   },
 )
 ```

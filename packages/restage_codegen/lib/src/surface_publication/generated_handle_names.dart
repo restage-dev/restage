@@ -49,3 +49,7 @@ String generatedSurfaceName(
   required String fallback,
 }) =>
     '${pascalIdentifier(declarationName, fallback: fallback)}Surface';
+
+/// The constant holding everything the steps of the flow whose handle is
+/// [refName] draw, which the flow reference installs.
+String flowStepVocabularyName(String refName) => '_${refName}Vocabulary';

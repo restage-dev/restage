@@ -24,6 +24,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../support/placement_delivery_fixture.dart';
 import '../surface_screen/surface_screen_test_support.dart';
 import '../support/pump_until.dart';
+import '../support/sent_placement_request.dart';
 
 void main() {
   for (final expireBeforeRefresh in [true, false]) {
@@ -75,8 +76,9 @@ void main() {
           baseUrl: 'https://example.com',
           apiKey: 'rs_pk_test',
           httpClient: MockClient((outgoing) async {
-            final request =
-                PlacementBatchRequestV1.fromCanonicalBytes(outgoing.bodyBytes);
+            final fixtureArtifact = placementFixtureArtifact(outgoing);
+            if (fixtureArtifact != null) return fixtureArtifact;
+            final request = sentPlacementRequest(outgoing.bodyBytes);
             requests.add(request);
             return http.Response.bytes(
                 placementFixtureResponse(request,
@@ -208,11 +210,12 @@ void main() {
           baseUrl: 'https://example.com',
           apiKey: 'rs_pk_test',
           httpClient: MockClient((outgoing) async {
+            final fixtureArtifact = placementFixtureArtifact(outgoing);
+            if (fixtureArtifact != null) return fixtureArtifact;
             if (!outgoing.url.path.endsWith('/placements/resolve')) {
               return http.Response('{}', 200);
             }
-            final request =
-                PlacementBatchRequestV1.fromCanonicalBytes(outgoing.bodyBytes);
+            final request = sentPlacementRequest(outgoing.bodyBytes);
             requests.add(request);
             return http.Response.bytes(
                 placementFixtureResponse(request,

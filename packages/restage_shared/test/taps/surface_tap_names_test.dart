@@ -149,6 +149,50 @@ TextButton(onPressed: event "go" {},
     });
   });
 
+  group('an element with no text of its own', () {
+    test('is named by its literal label, title or text argument', () {
+      expect(
+        surfaceTapElementName(
+          _root('TextLink(label: "Privacy Policy", onTap: event "open" {})'),
+          eventName: 'open',
+        ),
+        'Privacy Policy',
+      );
+      expect(
+        surfaceTapElementName(
+          _root('Tile(title: "Unlimited plants", onTap: event "pick" {})'),
+        ),
+        'Unlimited plants',
+      );
+    });
+
+    test('is named by its event when nothing literal names it', () {
+      expect(
+        surfaceTapElementName(
+          _root('ActionButton(label: data.buttonLabel, '
+              'onPressed: event "start_trial" {})'),
+          eventName: 'start_trial',
+        ),
+        'Start trial',
+      );
+      expect(
+        surfaceTapElementName(
+          _root('ActionButton(onPressed: event "start_trial" {})'),
+        ),
+        isNull,
+      );
+    });
+  });
+
+  test('distinctSurfaceTapNames numbers only names that repeat', () {
+    expect(
+      distinctSurfaceTapNames(
+        ['Close', 'Select plan', null, 'Select plan', 'Start trial'],
+      ),
+      ['Close', 'Select plan 1', null, 'Select plan 2', 'Start trial'],
+    );
+  });
+
   test('humaniseSurfaceId reads an id in words', () {
     expect(humaniseSurfaceId('paywall_annual_offer'), 'Annual offer');
     expect(humaniseSurfaceId('plans-page'), 'Plans page');
