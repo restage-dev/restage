@@ -14,6 +14,7 @@ import 'package:build_test/build_test.dart'
     hide resolveSources, testBuilder, testBuilders;
 import 'package:build_test/build_test.dart' as build_test
     show resolveSources, testBuilder, testBuilders;
+import 'package:glob/glob.dart';
 import 'package:logging/logging.dart';
 import 'package:package_config/package_config.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
@@ -1129,19 +1130,48 @@ Future<T> resolveSources<T>(
   FutureOr<void> Function(TestReaderWriter)? assetReaderChecks,
   Future<void>? tearDown,
   Resolvers? resolvers,
-}) =>
-    build_test.resolveSources(
-      inputs,
-      action,
-      packageConfig: packageConfig,
-      nonInputsToReadFromFilesystem: nonInputsToReadFromFilesystem,
-      readAllSourcesFromFilesystem: readAllSourcesFromFilesystem,
-      resolverFor: resolverFor,
-      rootPackage: rootPackage,
-      assetReaderChecks: assetReaderChecks,
-      tearDown: tearDown,
-      resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
-    );
+}) async {
+  // build_test's own enumeration walks `.dart_tool`, where a concurrent test
+  // process creates and renames the SDK summary, so a listed file can vanish
+  // before it is read.
+  final readAll = readAllSourcesFromFilesystem ?? false;
+  final extraSources = readAll
+      ? {
+          ...?nonInputsToReadFromFilesystem,
+          ...await _visibleFilesystemSources(
+            packageConfig ??
+                await loadPackageConfigUri((await Isolate.packageConfig)!),
+            rootPackage ?? AssetId.parse(inputs.keys.first).package,
+          ),
+        }
+      : nonInputsToReadFromFilesystem;
+  return await build_test.resolveSources(
+    inputs,
+    action,
+    packageConfig: packageConfig,
+    nonInputsToReadFromFilesystem: extraSources,
+    readAllSourcesFromFilesystem: readAll ? null : readAllSourcesFromFilesystem,
+    resolverFor: resolverFor,
+    rootPackage: rootPackage,
+    assetReaderChecks: assetReaderChecks,
+    tearDown: tearDown,
+    resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
+  );
+}
+
+/// Every file of every package outside dot-directories.
+Future<Set<AssetId>> _visibleFilesystemSources(
+  PackageConfig packageConfig,
+  String rootPackage,
+) async {
+  final reader = PackageAssetReader(packageConfig, rootPackage);
+  return {
+    for (final package in packageConfig.packages)
+      ...await reader
+          .findAssets(Glob('{*,[!.]*/**}'), package: package.name)
+          .toList(),
+  };
+}
 
 /// Resolves synthetic [inputs] (`'<package>|<path>'`-keyed) against the cached
 /// workspace sources and runs [action] with the resolver for [resolverFor].
