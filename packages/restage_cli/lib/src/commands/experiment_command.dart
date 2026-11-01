@@ -5,7 +5,9 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/experiment_api.dart';
+import 'package:restage_cli/src/api/experiment_refusal_sentences.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/api/superseded_revision_sentence.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
@@ -220,7 +222,15 @@ abstract class _ExperimentSubcommand extends Command<int> {
       if (drained != null) return _reportDrain(await drained, asJson: asJson);
 
       final result = await api.execute(request: request!, target: target);
-      return _report(result, asJson: asJson);
+      return _report(
+        result,
+        asJson: asJson,
+        draftId: switch (payload) {
+          {'draftId': final String id} => id,
+          {'sourceDraft': {'draftId': final String id}} => id,
+          _ => null,
+        },
+      );
     } on ExperimentResponseMismatchException catch (error) {
       _stderr.writeln(error);
       return 2;
@@ -228,25 +238,39 @@ abstract class _ExperimentSubcommand extends Command<int> {
       _stderr.writeln(error);
       return 2;
     } on RestageApiException catch (error) {
-      _stderr.writeln(
-        'The experiment route did not accept the request '
-        '(HTTP ${error.statusCode}). Confirm the selected target and '
-        'authorization, then retry.',
-      );
-      return error.statusCode >= 500 ? 2 : 1;
+      if (yesGiven(this) && decodeFitNeedsConfirmation(error.body) != null) {
+        _stderr.writeln(
+          'Restage asked to confirm again after --yes. Nothing changed. '
+          'Try again.',
+        );
+        return 1;
+      }
+      final outcome = renderApiError(error);
+      _stderr.writeln(outcome.message);
+      return error.statusCode < 500 ? 1 : outcome.exitCode;
     } on CanonicalFormatException {
-      _stderr.writeln('The service returned an invalid semantic result.');
+      _stderr.writeln(
+        operation?.requiresIdempotencyKey ?? false
+            ? unreadableWriteReplySentence(payload)
+            : "Restage's reply couldn't be read. Try again.",
+      );
       return 2;
     }
   }
 
-  int _report(ExperimentAuthoringResultV1 result, {required bool asJson}) {
+  int _report(
+    ExperimentAuthoringResultV1 result, {
+    required bool asJson,
+    String? draftId,
+  }) {
     if (asJson) {
       _stdout.writeln(jsonEncode(result.toJson()));
     } else if (result is ExperimentAuthoringAcceptedV1) {
       _stdout.writeln(renderAccepted(result));
     } else {
-      _stderr.writeln(_refusalLine(result as ExperimentAuthoringRefusedV1));
+      _stderr.writeln(
+        _refusalLine(result as ExperimentAuthoringRefusedV1, draftId: draftId),
+      );
     }
     if (result is! ExperimentAuthoringRefusedV1) return 0;
     return _refusalExitCode(result.refusal);
@@ -274,11 +298,17 @@ abstract class _ExperimentSubcommand extends Command<int> {
     }
   }
 
-  String _refusalLine(ExperimentAuthoringRefusedV1 refused) {
+  String _refusalLine(ExperimentAuthoringRefusedV1 refused, {String? draftId}) {
     final refusal = refused.refusal;
     final headline =
         'Refused ${refused.operation.wireName}: ${refusal.code.wireName}'
         '${refusal.retryable ? " (retryable)" : ""}.';
+    if (refusal.code == ExperimentAuthoringRefusalCodeV1.staleDraft) {
+      return '$headline\n${staleDraftSentence(draftId, refused.operation)}';
+    }
+    if (refusal.code == ExperimentAuthoringRefusalCodeV1.reviewStale) {
+      return '$headline\n${staleReviewSentence()}';
+    }
     final superseded = refusal.supersededRevision;
     if (superseded != null) {
       return '$headline\n${supersededRevisionSentence(superseded)}';

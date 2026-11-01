@@ -9,7 +9,7 @@ import 'tool_support.dart';
 const _payloadError =
     'The operation payload is not the exact semantic document this operation '
     'accepts.';
-const _resultError = 'The service returned an invalid semantic result.';
+const _resultError = "Restage's reply couldn't be read. Try again.";
 
 /// Every semantic operation, in the order the schema declares them.
 final List<String> _operations = [
@@ -166,19 +166,26 @@ Future<CallToolResult> handleExperimentApply(
         target: target,
         acceptFit: request.optBool('acceptFit') ?? false,
       );
-      return _success(result);
+      return _success(result, payload);
     } on ExperimentResponseMismatchException {
       return mcpError(_resultError);
     } on measurement.CanonicalFormatException {
-      return mcpError(_resultError);
+      return mcpError(
+        operation.requiresIdempotencyKey
+            ? unreadableWriteReplySentence(payload, syntax: SelectorSyntax.mcp)
+            : _resultError,
+      );
     }
   });
 }
 
-CallToolResult _success(measurement.ExperimentAuthoringResultV1 result) {
+CallToolResult _success(
+  measurement.ExperimentAuthoringResultV1 result,
+  Map<String, Object?> payload,
+) {
   final accepted = result is measurement.ExperimentAuthoringAcceptedV1;
   return CallToolResult(
-    content: [TextContent(text: _resultText(result))],
+    content: [TextContent(text: _resultText(result, payload))],
     structuredContent: {
       'outcome': accepted ? 'accepted' : 'refused',
       'operation': result.operation.wireName,
@@ -188,7 +195,10 @@ CallToolResult _success(measurement.ExperimentAuthoringResultV1 result) {
 }
 
 /// Renders the semantic result without making any delivery decision locally.
-String _resultText(measurement.ExperimentAuthoringResultV1 result) {
+String _resultText(
+  measurement.ExperimentAuthoringResultV1 result,
+  Map<String, Object?> payload,
+) {
   if (result case measurement.ExperimentAuthoringAcceptedV1(
     response: final measurement.ExperimentDeliveryOptionsViewV1 view,
   )) {
@@ -217,8 +227,19 @@ String _resultText(measurement.ExperimentAuthoringResultV1 result) {
   final supersededText = superseded == null
       ? ''
       : ' ${supersededRevisionSentence(superseded)}';
+  final stale = switch (refused.refusal.code) {
+    measurement.ExperimentAuthoringRefusalCodeV1.staleDraft =>
+      ' ${staleDraftSentence(switch (payload) {
+        {'draftId': final String id} => id,
+        {'sourceDraft': {'draftId': final String id}} => id,
+        _ => null,
+      }, result.operation, syntax: SelectorSyntax.mcp)}',
+    measurement.ExperimentAuthoringRefusalCodeV1.reviewStale =>
+      ' ${staleReviewSentence(syntax: SelectorSyntax.mcp)}',
+    _ => '',
+  };
   return 'Refused ${result.operation.wireName}: '
-      '${refused.refusal.code.wireName}.$conflict$supersededText';
+      '${refused.refusal.code.wireName}.$conflict$supersededText$stale';
 }
 
 String _deliveryArmPublication(measurement.ExperimentDeliveryArmV1 arm) =>

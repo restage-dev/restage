@@ -3102,6 +3102,20 @@ void main() {
       );
     });
 
+    test('complete choices and an experiment detail allow no description', () {
+      expect(
+        ExperimentDraftChoicesV1.fromJson(
+          _draftChoices()..['description'] = '',
+        ).description,
+        isEmpty,
+      );
+      expect(
+        ExperimentDetailV1.fromJson(_detail()..['description'] = '')
+            .description,
+        isEmpty,
+      );
+    });
+
     test('retains complete metric closure and resolved choices', () {
       final choices = ExperimentDraftChoicesV1.fromJson(_draftChoices());
       final primary = choices.metricBindings.first;

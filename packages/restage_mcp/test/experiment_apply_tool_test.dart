@@ -423,6 +423,126 @@ void main() {
       );
     });
 
+    test('a stale-draft refusal says how to get the current draft', () async {
+      final server = await connect(
+        reply: (method, sent) => _refusal(
+          method,
+          ExperimentAuthoringRefusalCodeV1.staleDraft,
+          sent.correlationId,
+        ),
+      );
+
+      final result = await server.connection.callTool(
+        CallToolRequest(
+          name: 'restage_experiment_apply',
+          arguments: arguments(
+            operation: 'activateDraft',
+            idempotencyKey: 'activation-stale-key',
+            payload: _payloadFor(ExperimentAuthoringOperationV1.activateDraft),
+          ),
+        ),
+      );
+
+      final text = (result.content.single as TextContent).text;
+      expect(
+        text,
+        contains(
+          'The draft changed after you read it. Call restage_experiment_apply '
+          'with operation resolveDraft and draftId ',
+        ),
+      );
+      expect(text, contains('review that revision, then activate it.'));
+      expect(text, isNot(contains('draft-revision.')));
+    });
+
+    test('a stale-review refusal says to review the draft again', () async {
+      final server = await connect(
+        reply: (method, sent) => _refusal(
+          method,
+          ExperimentAuthoringRefusalCodeV1.reviewStale,
+          sent.correlationId,
+        ),
+      );
+
+      final result = await server.connection.callTool(
+        CallToolRequest(
+          name: 'restage_experiment_apply',
+          arguments: arguments(
+            operation: 'activateDraft',
+            idempotencyKey: 'activation-review-stale-key',
+            payload: _payloadFor(ExperimentAuthoringOperationV1.activateDraft),
+          ),
+        ),
+      );
+
+      expect(
+        (result.content.single as TextContent).text,
+        endsWith(
+          "The draft's dependencies changed after the review. Call "
+          'restage_experiment_apply with operation reviewDraft, then activate.',
+        ),
+      );
+    });
+
+    test('a stale source draft on copy names the source target', () async {
+      final server = await connect(
+        reply: (method, sent) => _refusal(
+          method,
+          ExperimentAuthoringRefusalCodeV1.staleDraft,
+          sent.correlationId,
+        ),
+      );
+
+      final result = await server.connection.callTool(
+        CallToolRequest(
+          name: 'restage_experiment_apply',
+          arguments: arguments(
+            operation: 'copyDraftToTarget',
+            idempotencyKey: 'copy-stale-key',
+            payload: _payloadFor(
+              ExperimentAuthoringOperationV1.copyDraftToTarget,
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        (result.content.single as TextContent).text,
+        contains(
+          'The source draft changed after you read it. Call '
+          'restage_experiment_apply with operation resolveDraft and draftId ',
+        ),
+      );
+      expect(
+        (result.content.single as TextContent).text,
+        endsWith('with the source target, then copy again.'),
+      );
+    });
+
+    test('a write whose reply cannot be read says it may be applied', () async {
+      final server = await connect(
+        reply: (method, sent) => utf8.encode('{"kind":"unknown"}'),
+      );
+
+      final result = await server.connection.callTool(
+        CallToolRequest(
+          name: 'restage_experiment_apply',
+          arguments: arguments(
+            operation: 'activateDraft',
+            idempotencyKey: 'activation-unreadable-key',
+            payload: _payloadFor(ExperimentAuthoringOperationV1.activateDraft),
+          ),
+        ),
+      );
+
+      expect(result.isError, true);
+      final text = (result.content.single as TextContent).text;
+      expect(text, contains("Restage didn't confirm the change."));
+      expect(text, contains('operation resolveDraft and draftId '));
+      expect(text, endsWith('to check, then retry.'));
+      expect(text, isNot(contains('draft-revision.')));
+    });
+
     test(
       'reports an activation audience conflict refusal with its typed locator',
       () async {

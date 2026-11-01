@@ -64,6 +64,7 @@ export 'src/api/surface_funnel_api.dart';
 export 'src/api/surface_publication_api.dart';
 export 'src/api/surface_reach.dart';
 export 'src/api/surface_routing_api.dart';
+export 'src/api/experiment_refusal_sentences.dart';
 export 'src/api/superseded_revision_sentence.dart';
 export 'src/api/typed_error_models.dart' hide typedErrorListItems;
 export 'src/api/typed_error_renderer.dart'

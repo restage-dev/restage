@@ -256,13 +256,9 @@ Future<int> runAuthed(
 /// `--yes` (global or the command's own) goes ahead, an interactive run asks
 /// [question], and any other run reports the server's refusal.
 FitDecider _fitDecider(Command<int> command, CommandIo io, String question) {
-  bool yes(ArgResults? results) =>
-      results != null &&
-      results.options.contains('yes') &&
-      results['yes'] as bool;
   return (needs) async {
     final text = fitConfirmationSentence(needs);
-    if (yes(command.globalResults) || yes(command.argResults)) {
+    if (yesGiven(command)) {
       io.stderr.writeln(text);
       return true;
     }
@@ -272,6 +268,15 @@ FitDecider _fitDecider(Command<int> command, CommandIo io, String question) {
     io.stdout.writeln('Aborted.');
     throw const FitDeclinedException();
   };
+}
+
+/// Whether `--yes` was given globally or on [command] itself.
+bool yesGiven(Command<int> command) {
+  bool yes(ArgResults? results) =>
+      results != null &&
+      results.options.contains('yes') &&
+      results['yes'] as bool;
+  return yes(command.globalResults) || yes(command.argResults);
 }
 
 String? _option(ArgResults? argResults, String name) =>

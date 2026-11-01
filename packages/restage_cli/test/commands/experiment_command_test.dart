@@ -239,6 +239,7 @@ void main() {
     bool withYes = true,
     Map<String, String> environment = const {},
     http.Response? Function(Map<String, Object?> body)? raw,
+    bool sandbox = false,
   }) async {
     final methods = <String>[];
     final stdout = StringBuffer();
@@ -246,7 +247,10 @@ void main() {
     final client = MockClient((request) async {
       final body = jsonDecode(request.body) as Map<String, Object?>;
       final method = body['method']! as String;
-      final directory = targetDirectoryResponse(method);
+      final directory = targetDirectoryResponse(
+        method,
+        plane: sandbox ? 'sandbox' : 'live',
+      );
       if (directory != null) return directory;
       methods.add(method);
       if (raw?.call(body) case final response?) return response;
@@ -962,6 +966,54 @@ void main() {
     );
 
     test(
+      'a fit the route still holds reads as that fit, not an HTTP status',
+      () async {
+        final result = await run(
+          ['activate', ..._selectors['activate']!],
+          raw: (body) => http.Response(
+            jsonEncode({
+              'className': 'SurfaceFitNeedsConfirmationException',
+              'data': {
+                '__className__': 'SurfaceFitNeedsConfirmationException',
+                'verdict': 'someFit',
+                'environment': 'staging',
+                'share': 0.82,
+                'builds': {
+                  'items': [
+                    {
+                      'platform': 'ios',
+                      'appVersion': '2.3.0',
+                      'fits': false,
+                      'uploaded': false,
+                    },
+                  ],
+                },
+              },
+            }),
+            400,
+          ),
+        );
+
+        expect(result.code, 1);
+        expect(result.methods, ['activateDraft', 'activateDraft']);
+        expect(
+          'Not every app version can show this'.allMatches(result.err),
+          hasLength(1),
+        );
+        expect(result.err, contains('82%'));
+        expect(
+          result.err,
+          contains(
+            'Restage asked to confirm again after --yes. Nothing changed. '
+            'Try again.',
+          ),
+        );
+        expect(result.err, isNot(contains('Use --yes')));
+        expect(result.err, isNot(contains('HTTP')));
+      },
+    );
+
+    test(
       'renders an activation audience conflict refusal from its locator',
       () async {
         ExperimentAuthoringRequestV1? sentRequest;
@@ -1026,6 +1078,186 @@ void main() {
         'Refused activateDraft: revisionSuperseded.',
         _supersededLine,
       ]);
+    });
+
+    test('a stale-draft refusal says how to read the draft again', () async {
+      const reread =
+          'to read it again, then try again with the revision it returns.';
+      const draft =
+          'restage experiment resolve-draft --draft-id '
+          'experiment-draft-checkout --json';
+      final expected = {
+        'activate':
+            'The draft changed after you read it. Run `$draft` to '
+            'read it again, review that revision, then activate it.',
+        'save': 'The draft changed after you read it. Run `$draft` $reread',
+        'validate':
+            'The draft changed after you read it. Run `$draft` '
+            '$reread',
+        'copy':
+            'The source draft changed after you read it. Run `restage '
+            'experiment resolve-draft --draft-id draft` at its source target, '
+            'then copy again.',
+      };
+      for (final command in expected.keys) {
+        final result = await run(
+          [
+            command,
+            ..._selectors[command]!,
+            if (command == 'save') '--replacement=${replacementPath()}',
+          ],
+          reply: (method, sent) => refusalFor(
+            method,
+            ExperimentAuthoringRefusalCodeV1.staleDraft,
+            correlationId: sent.correlationId,
+          ),
+        );
+
+        expect(result.code, 1, reason: command);
+        expect(result.methods, hasLength(1), reason: command);
+        expect(
+          result.err.trim().split('\n').last,
+          expected[command],
+          reason: command,
+        );
+        expect(result.err, isNot(contains('draft-revision.')));
+      }
+    });
+
+    test('a stale-review refusal says to review the draft again', () async {
+      final result = await run(
+        ['activate', ..._selectors['activate']!],
+        reply: (method, sent) => refusalFor(
+          method,
+          ExperimentAuthoringRefusalCodeV1.reviewStale,
+          correlationId: sent.correlationId,
+        ),
+      );
+
+      expect(result.code, 1);
+      expect(result.err.trim().split('\n'), [
+        'Refused activateDraft: reviewStale.',
+        "The draft's dependencies changed after the review. Review the draft "
+            'again, then activate it.',
+      ]);
+    });
+
+    test('reads a draft whose description is empty', () async {
+      final result = await run(
+        ['read-draft', ..._selectors['read-draft']!],
+        reply: (method, sent) => ExperimentAuthoringResultV1.fromJson(
+          jsonDecode(
+                utf8
+                    .decode(
+                      acceptedFor(method, correlationId: sent.correlationId),
+                    )
+                    .replaceAll('Compare checkout surfaces.', ''),
+              )
+              as Map<String, Object?>,
+        ).canonicalBytes,
+      );
+
+      expect(result.err, isEmpty);
+      expect(result.code, 0);
+    });
+
+    test('a write whose reply cannot be read says it may be applied', () async {
+      final result = await run(
+        ['activate', ..._selectors['activate']!],
+        raw: (body) => http.Response(
+          jsonEncode(byteDataWire(utf8.encode('{"kind":"unknown"}'))),
+          200,
+        ),
+      );
+
+      expect(result.code, 2);
+      expect(
+        result.err.trim(),
+        "Restage didn't confirm the change. It may already be applied. Run "
+        '`restage experiment resolve-draft --draft-id '
+        'experiment-draft-checkout` to check, then retry.',
+      );
+      expect(result.err, isNot(contains('draft-revision.')));
+    });
+
+    test('an unreadable reply to a read says to try again', () async {
+      final result = await run(
+        const ['read', '--experiment-id=experiment.checkout'],
+        raw: (body) => http.Response(
+          jsonEncode(byteDataWire(utf8.encode('{"kind":"unknown"}'))),
+          200,
+        ),
+      );
+
+      expect(result.code, 2);
+      expect(result.err.trim(), "Restage's reply couldn't be read. Try again.");
+    });
+
+    test(
+      'an unreadable reply to a write without an id says to check',
+      () async {
+        final result = await run(
+          const ['create'],
+          raw: (body) => http.Response(
+            jsonEncode(byteDataWire(utf8.encode('{"kind":"unknown"}'))),
+            200,
+          ),
+        );
+
+        expect(result.code, 2);
+        expect(
+          result.err.trim(),
+          "Restage didn't confirm the change. It may already be applied. Check "
+          'before you retry.',
+        );
+      },
+    );
+
+    test('an untyped client error exits with code one', () async {
+      final result = await run([
+        'activate',
+        ..._selectors['activate']!,
+      ], raw: (body) => http.Response('nope', 404));
+
+      expect(result.code, 1);
+      expect(result.err, contains('HTTP 404'));
+    });
+
+    test('a fit refusal without --yes reads as the fit', () async {
+      final result = await run(
+        ['activate', ..._selectors['activate']!],
+        withYes: false,
+        sandbox: true,
+        raw: (body) => http.Response(
+          jsonEncode({
+            'className': 'SurfaceFitNeedsConfirmationException',
+            'data': {
+              '__className__': 'SurfaceFitNeedsConfirmationException',
+              'verdict': 'someFit',
+              'environment': 'staging',
+              'share': 0.82,
+              'builds': {
+                'items': [
+                  {
+                    'platform': 'ios',
+                    'appVersion': '2.3.0',
+                    'fits': false,
+                    'uploaded': false,
+                  },
+                ],
+              },
+            },
+          }),
+          400,
+        ),
+      );
+
+      expect(result.code, 1);
+      expect(result.methods, ['activateDraft']);
+      expect(result.err, contains('Not every app version can show this'));
+      expect(result.err, contains('82%'));
+      expect(result.err, contains('Use --yes to go ahead.'));
+      expect(result.err, isNot(contains('HTTP')));
     });
 
     test('a service-fault refusal exits with code two', () async {
@@ -1533,14 +1765,17 @@ List<String> _subcommandsInHelp(String help) {
 /// Answers the directory reads the shared target resolution performs.
 ///
 /// Returns null for anything else, so the caller handles the semantic route.
-const _experimentTarget = {
+Map<String, Object> _experimentTargetOn(String plane) => {
   'environmentTargetId': 31,
   'namedEnvironmentId': 37,
   'environmentSlug': 'production',
-  'runtimePlane': 'live',
+  'runtimePlane': plane,
 };
 
-http.Response? targetDirectoryResponse(String method) => switch (method) {
+http.Response? targetDirectoryResponse(
+  String method, {
+  String plane = 'live',
+}) => switch (method) {
   'read' => http.Response(
     jsonEncode({
       'organizationId': 11,
@@ -1564,7 +1799,7 @@ http.Response? targetDirectoryResponse(String method) => switch (method) {
       'environments': [
         {'id': 31, 'appId': 23, 'namedEnvironmentId': 37, 'slug': 'production'},
       ],
-      'environmentTargets': [_experimentTarget],
+      'environmentTargets': [_experimentTargetOn(plane)],
       'legacyDefaultTargetIds': <Object>[],
       'surfaces': <Object>[],
     }),
@@ -1583,7 +1818,7 @@ http.Response? targetDirectoryResponse(String method) => switch (method) {
     200,
   ),
   'listEnvironmentTargets' => http.Response(
-    jsonEncode([_experimentTarget]),
+    jsonEncode([_experimentTargetOn(plane)]),
     200,
   ),
   'resolveTarget' => http.Response(
@@ -1593,7 +1828,7 @@ http.Response? targetDirectoryResponse(String method) => switch (method) {
       'projectSlug': 'project',
       'appId': 23,
       'appSlug': 'app',
-      'target': _experimentTarget,
+      'target': _experimentTargetOn(plane),
     }),
     200,
   ),

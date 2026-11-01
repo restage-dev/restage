@@ -3684,6 +3684,7 @@ final class ExperimentDraftChoicesV1 extends ExperimentDraftReadChoicesV1 {
       description: _boundedString(
         reader.string('description'),
         '$path.description',
+        allowEmpty: true,
       ),
       diagnosticBindingIds: diagnosticBindingIds,
       guardrails: guardrails,
@@ -7987,6 +7988,7 @@ final class ExperimentDetailV1 extends ExperimentReadViewV1 {
       description: _boundedString(
         reader.string('description'),
         '$path.description',
+        allowEmpty: true,
       ),
       arms: arms,
     );

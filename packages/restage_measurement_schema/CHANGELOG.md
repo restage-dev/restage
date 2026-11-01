@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `ExperimentDraftChoicesV1` and `ExperimentDetailV1` accept an empty
+  `description`, as draft mutations and partial draft choices already did.
 - An experiment refusal can name a superseded revision: one published before
   its surface's contract version changed. The refusal code
   `revisionSuperseded` always carries `supersededRevision`
