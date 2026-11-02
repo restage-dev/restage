@@ -69,102 +69,105 @@ void main() {
       expect(source, contains('return SizedBox('));
     });
 
-    for (final realization in <({
-      String name,
-      String runtimeName,
-      String sourceUri,
-    })>[
-      (
-        name: 'Align',
-        runtimeName: 'RestageAlign',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-      (
-        name: 'AnimatedAlign',
-        runtimeName: 'RestageAnimatedAlign',
-        sourceUri: 'package:flutter/src/widgets/implicit_animations.dart',
-      ),
-      (
-        name: 'AnimatedPadding',
-        runtimeName: 'RestageAnimatedPadding',
-        sourceUri: 'package:flutter/src/widgets/implicit_animations.dart',
-      ),
-      (
-        name: 'AnimatedSize',
-        runtimeName: 'RestageAnimatedSize',
-        sourceUri: 'package:flutter/src/widgets/animated_size.dart',
-      ),
-      (
-        name: 'Center',
-        runtimeName: 'RestageCenter',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-      (
-        name: 'FractionallySizedBox',
-        runtimeName: 'RestageFractionallySizedBox',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-      (
-        name: 'ListView',
-        runtimeName: 'RestageListView',
-        sourceUri: 'package:flutter/src/widgets/scroll_view.dart',
-      ),
-      (
-        name: 'Padding',
-        runtimeName: 'RestagePadding',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-      (
-        name: 'IntrinsicWidth',
-        runtimeName: 'RestageIntrinsicWidth',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-      (
-        name: 'AspectRatio',
-        runtimeName: 'RestageAspectRatio',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-      (
-        name: 'FittedBox',
-        runtimeName: 'RestageFittedBox',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-      (
-        name: 'FadeInImageAssetNetwork',
-        runtimeName: 'RestageFadeInImage.assetNetwork',
-        sourceUri: 'package:flutter/src/widgets/fade_in_image.dart',
-      ),
-      (
-        name: 'Image',
-        runtimeName: 'RestageImage.network',
-        sourceUri: 'package:flutter/src/widgets/image.dart',
-      ),
-      (
-        name: 'ImageAsset',
-        runtimeName: 'RestageImage.asset',
-        sourceUri: 'package:flutter/src/widgets/image.dart',
-      ),
-      (
-        name: 'Row',
-        runtimeName: 'RestageRow',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-      (
-        name: 'Stack',
-        runtimeName: 'RestageStack',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-      (
-        name: 'Column',
-        runtimeName: 'RestageColumn',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-      (
-        name: 'Wrap',
-        runtimeName: 'RestageWrap',
-        sourceUri: 'package:flutter/src/widgets/basic.dart',
-      ),
-    ]) {
+    for (final realization
+        in <
+          ({
+            String name,
+            String runtimeName,
+            String sourceUri,
+          })
+        >[
+          (
+            name: 'Align',
+            runtimeName: 'RestageAlign',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+          (
+            name: 'AnimatedAlign',
+            runtimeName: 'RestageAnimatedAlign',
+            sourceUri: 'package:flutter/src/widgets/implicit_animations.dart',
+          ),
+          (
+            name: 'AnimatedPadding',
+            runtimeName: 'RestageAnimatedPadding',
+            sourceUri: 'package:flutter/src/widgets/implicit_animations.dart',
+          ),
+          (
+            name: 'AnimatedSize',
+            runtimeName: 'RestageAnimatedSize',
+            sourceUri: 'package:flutter/src/widgets/animated_size.dart',
+          ),
+          (
+            name: 'Center',
+            runtimeName: 'RestageCenter',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+          (
+            name: 'FractionallySizedBox',
+            runtimeName: 'RestageFractionallySizedBox',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+          (
+            name: 'ListView',
+            runtimeName: 'RestageListView',
+            sourceUri: 'package:flutter/src/widgets/scroll_view.dart',
+          ),
+          (
+            name: 'Padding',
+            runtimeName: 'RestagePadding',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+          (
+            name: 'IntrinsicWidth',
+            runtimeName: 'RestageIntrinsicWidth',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+          (
+            name: 'AspectRatio',
+            runtimeName: 'RestageAspectRatio',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+          (
+            name: 'FittedBox',
+            runtimeName: 'RestageFittedBox',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+          (
+            name: 'FadeInImageAssetNetwork',
+            runtimeName: 'RestageFadeInImage.assetNetwork',
+            sourceUri: 'package:flutter/src/widgets/fade_in_image.dart',
+          ),
+          (
+            name: 'Image',
+            runtimeName: 'RestageImage.network',
+            sourceUri: 'package:flutter/src/widgets/image.dart',
+          ),
+          (
+            name: 'ImageAsset',
+            runtimeName: 'RestageImage.asset',
+            sourceUri: 'package:flutter/src/widgets/image.dart',
+          ),
+          (
+            name: 'Row',
+            runtimeName: 'RestageRow',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+          (
+            name: 'Stack',
+            runtimeName: 'RestageStack',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+          (
+            name: 'Column',
+            runtimeName: 'RestageColumn',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+          (
+            name: 'Wrap',
+            runtimeName: 'RestageWrap',
+            sourceUri: 'package:flutter/src/widgets/basic.dart',
+          ),
+        ]) {
       test('keeps a same-named custom ${realization.name} qualified', () {
         const customUri = 'package:acme/widgets.dart';
         final source = emitFactoryFunction(
@@ -180,35 +183,39 @@ void main() {
         expect(source, isNot(contains('return ${realization.runtimeName}(')));
       });
 
-      test('keeps custom ${realization.name} with the framework source type',
-          () {
-        final source = emitFactoryFunction(
-          _entryFor(
-            realization.name,
-            library: const WidgetLibrary.custom('acme.widgets'),
-            flutterType: '${realization.sourceUri}#${realization.name}',
-          ),
-          aliases: {realization.sourceUri: 's0'},
-        )!;
+      test(
+        'keeps custom ${realization.name} with the framework source type',
+        () {
+          final source = emitFactoryFunction(
+            _entryFor(
+              realization.name,
+              library: const WidgetLibrary.custom('acme.widgets'),
+              flutterType: '${realization.sourceUri}#${realization.name}',
+            ),
+            aliases: {realization.sourceUri: 's0'},
+          )!;
 
-        expect(source, contains('return s0.${realization.name}('));
-        expect(source, isNot(contains('return ${realization.runtimeName}(')));
-      });
+          expect(source, contains('return s0.${realization.name}('));
+          expect(source, isNot(contains('return ${realization.runtimeName}(')));
+        },
+      );
 
-      test('keeps built-in ${realization.name} with a different source type',
-          () {
-        const otherUri = 'package:flutter/src/widgets/framework.dart';
-        final source = emitFactoryFunction(
-          _entryFor(
-            realization.name,
-            flutterType: '$otherUri#${realization.name}',
-          ),
-          aliases: const {otherUri: 's0'},
-        )!;
+      test(
+        'keeps built-in ${realization.name} with a different source type',
+        () {
+          const otherUri = 'package:flutter/src/widgets/framework.dart';
+          final source = emitFactoryFunction(
+            _entryFor(
+              realization.name,
+              flutterType: '$otherUri#${realization.name}',
+            ),
+            aliases: const {otherUri: 's0'},
+          )!;
 
-        expect(source, contains('return s0.${realization.name}('));
-        expect(source, isNot(contains('return ${realization.runtimeName}(')));
-      });
+          expect(source, contains('return s0.${realization.name}('));
+          expect(source, isNot(contains('return ${realization.runtimeName}(')));
+        },
+      );
     }
   });
 }
@@ -224,7 +231,8 @@ WidgetEntry _entryFor(
     library: library,
     category: WidgetCategory.decoration,
     description: 'Runtime realization routing fixture.',
-    flutterType: flutterType ??
+    flutterType:
+        flutterType ??
         switch (widgetName) {
           'AnimatedAlign' =>
             'package:flutter/src/widgets/implicit_animations.dart#AnimatedAlign',

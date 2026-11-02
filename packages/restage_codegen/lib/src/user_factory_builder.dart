@@ -52,8 +52,8 @@ final class UserFactoryBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['user_factories.g.dart'],
-      };
+    r'$lib$': ['user_factories.g.dart'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -73,13 +73,14 @@ final class UserFactoryBuilder implements Builder {
       buildStep,
       includeRoot: false,
     );
-    final dependencyFactories =
-        dependencies.isEmpty ? null : dependencies.registrationSource();
+    final dependencyFactories = dependencies.isEmpty
+        ? null
+        : dependencies.registrationSource();
     // The same condition under which `restage_surfaces.g.dart` is written.
-    final declaresSurfaces = (await readRestageCompilerHandoff(buildStep))
-            ?.manifest
-            ?.publications
-            .isNotEmpty ??
+    final declaresSurfaces =
+        (await readRestageCompilerHandoff(
+          buildStep,
+        ))?.manifest?.publications.isNotEmpty ??
         false;
 
     // The admitted structured graph is threaded to the inline reconstructor:

@@ -2,7 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui/genui.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:restage_a2ui/restage_a2ui.dart';
 import 'package:restage_shared/restage_shared.dart' show CapabilityManifest;
@@ -11,16 +12,20 @@ import 'package:restage_shared/restage_shared.dart' show CapabilityManifest;
 ///
 /// An app caches the serializable Restage sidecar JSON. Later — possibly on a
 /// newer or older binary — it replays the cached wrapper through the check
-/// before handing the payload to genui. These cases demonstrate that the stamp
+/// before handing the payload to a2ui_flutter. These cases demonstrate that the stamp
 /// + the existence walk together catch the drift the design rests on.
-Catalog _catalogOf(List<String> names) => Catalog([
-  for (final name in names)
-    CatalogItem(
-      name: name,
-      dataSchema: S.object(properties: const {}),
-      widgetBuilder: (_) => const SizedBox.shrink(),
-    ),
-]);
+CatalogImplementation _catalogOf(List<String> names) => CatalogImplementation(
+  id: 'cache-test',
+  protocolVersion: A2uiProtocolVersion.v1_0,
+  components: [
+    for (final name in names)
+      ComponentImplementation(
+        name: name,
+        schema: S.object(properties: const {}),
+        builder: (_, _, _, _) => const SizedBox.shrink(),
+      ),
+  ],
+);
 
 /// A cached sidecar (its JSON, as an app would persist it) requiring
 /// [builtInFloor] and referencing [types].
@@ -35,11 +40,13 @@ Map<String, Object?> _cachedSidecar({
     ),
     perItemSinceVersion: {for (final t in types) t: builtInFloor},
     a2ui: {
-      'version': 'v0.9',
-      'updateComponents': {
+      'version': 'v1.0',
+      'createSurface': {
+        'catalogId': 'cache-test',
         'surfaceId': 's',
         'components': [
-          for (final t in types) {'id': t, 'component': t},
+          for (final (i, t) in types.indexed)
+            {'id': i == 0 ? 'root' : t, 'component': t},
         ],
       },
     },
@@ -53,7 +60,9 @@ void main() {
     test('forward-compatible: a v1 payload renders on a v2 binary', () {
       // Binary installed catalog content version 2; cached payload needs 1.
       final check = RestageA2uiPreRenderCheck(
-        catalog: _catalogOf(['Text', 'Column']),
+        catalogs: [
+          _catalogOf(['Text', 'Column']),
+        ],
         installed: A2uiInstalledCapability(
           catalogContentVersion: 2,
           availableLibraries: const [],
@@ -70,7 +79,9 @@ void main() {
       // The existence walk alone could not catch this — every name still
       // exists — so the version stamp is what rejects it.
       final check = RestageA2uiPreRenderCheck(
-        catalog: _catalogOf(['Text', 'Column']),
+        catalogs: [
+          _catalogOf(['Text', 'Column']),
+        ],
         installed: A2uiInstalledCapability(
           catalogContentVersion: 1,
           availableLibraries: const [],
@@ -87,9 +98,11 @@ void main() {
       // Under the cumulative-render-support invariant, an incompatible change
       // to a component forks a new identity. The cached payload references the
       // OLD name, which the new binary's catalog no longer has — the existence
-      // walk rejects it before genui would throw.
+      // walk rejects it before a2ui_flutter would throw.
       final check = RestageA2uiPreRenderCheck(
-        catalog: _catalogOf(['Text', 'PriceTag_v2']),
+        catalogs: [
+          _catalogOf(['Text', 'PriceTag_v2']),
+        ],
         installed: A2uiInstalledCapability(
           catalogContentVersion: 2,
           availableLibraries: const [],

@@ -168,46 +168,44 @@ final class ResolvedStandaloneScreenContractInput
   /// of the bundle hashes cannot silently drop another resolved field.
   ResolvedStandaloneScreenContractInput withBundleEntryMetadata(
     ResolvedScreenBundleEntryMetadata bundleEntryMetadata,
-  ) =>
-      ResolvedStandaloneScreenContractInput(
-        assetId: assetId,
-        screen: screen,
-        surface: surface,
-        slug: slug,
-        contractVersion: contractVersion,
-        capabilities: capabilities,
-        rootParams: rootParams,
-        constructorParams: constructorParams,
-        mountConstructorProblem: mountConstructorProblem,
-        plan: plan,
-        hoisted: hoisted,
-        buildArguments: buildArguments,
-        bundleEntryMetadata: bundleEntryMetadata,
-        vocabulary: vocabulary,
-      );
+  ) => ResolvedStandaloneScreenContractInput(
+    assetId: assetId,
+    screen: screen,
+    surface: surface,
+    slug: slug,
+    contractVersion: contractVersion,
+    capabilities: capabilities,
+    rootParams: rootParams,
+    constructorParams: constructorParams,
+    mountConstructorProblem: mountConstructorProblem,
+    plan: plan,
+    hoisted: hoisted,
+    buildArguments: buildArguments,
+    bundleEntryMetadata: bundleEntryMetadata,
+    vocabulary: vocabulary,
+  );
 }
 
 /// Refuses each value [input] hoists when its mount is omitted for [reason].
 List<Issue> hoistedWithoutMountIssues(
   ResolvedWidgetMountInput input,
   String reason,
-) =>
-    [
-      for (final value in input.hoisted)
-        _issue(
-          input,
-          IssueCode.unrecognizedMethodCall,
-          "'${value.label}' is evaluated in the app, and this screen has no "
-          'generated mount: $reason.',
-        ),
-    ];
+) => [
+  for (final value in input.hoisted)
+    _issue(
+      input,
+      IssueCode.unrecognizedMethodCall,
+      "'${value.label}' is evaluated in the app, and this screen has no "
+      'generated mount: $reason.',
+    ),
+];
 
 /// Emits a typed paywall mount using the same constructor contract as screens.
 ///
 /// [appWidgetLibraries] returns the app widget registrations the mount
 /// installs, given the SDK prefix the part spells.
 ({String? source, String? omissionMessage, String? omissionReason})
-    emitPaywallMount(
+emitPaywallMount(
   ResolvedWidgetMountInput input, {
   required String id,
   FlowDocument? navigationFlow,
@@ -309,9 +307,9 @@ final class ResolvedStandaloneScreenContract {
     required List<_ResolvedScreenEvent> events,
     required _ResolvedScreenMount? mount,
     required this.mountOmissionMessage,
-  })  : _sdkPrefix = sdkPrefix,
-        _events = List.unmodifiable(events),
-        _mount = mount;
+  }) : _sdkPrefix = sdkPrefix,
+       _events = List.unmodifiable(events),
+       _mount = mount;
 
   /// Original resolved authoring input.
   final ResolvedStandaloneScreenContractInput input;
@@ -342,12 +340,12 @@ final class ResolvedStandaloneScreenContract {
 
   /// Exact top-level declarations emitted for this screen.
   Set<String> get generatedTopLevelSymbols => Set.unmodifiable(
-        _generatedTopLevelSymbols(
-          screen.name!,
-          _events,
-          _mount,
-        ),
-      );
+    _generatedTopLevelSymbols(
+      screen.name!,
+      _events,
+      _mount,
+    ),
+  );
 
   /// Resolved annotated screen class identity.
   ClassElement get screen => input.screen;
@@ -370,12 +368,11 @@ final class ResolvedStandaloneScreenContract {
   String emitReferenceDart({
     String? measurementPublicationDraftDigest,
     String? Function(String sdkPrefix)? appWidgetLibraries,
-  }) =>
-      _emitReferenceDart(
-        this,
-        measurementPublicationDraftDigest: measurementPublicationDraftDigest,
-        appWidgetLibraries: appWidgetLibraries?.call(_sdkPrefix),
-      );
+  }) => _emitReferenceDart(
+    this,
+    measurementPublicationDraftDigest: measurementPublicationDraftDigest,
+    appWidgetLibraries: appWidgetLibraries?.call(_sdkPrefix),
+  );
 }
 
 /// Inspects one analyzer-resolved categorized `@Screen` declaration.
@@ -539,8 +536,9 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
       payloadKind: SurfacePayloadKind.blob,
       capabilities: input.capabilities,
       eventContractHash: eventContractHash,
-      hostDataContractHash:
-          SurfaceScreenHostDataContractHash.hash(hostDataContract),
+      hostDataContractHash: SurfaceScreenHostDataContractHash.hash(
+        hostDataContract,
+      ),
     );
   } on FormatException catch (error) {
     issues.add(
@@ -558,9 +556,10 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
     final message when hostDataContract.isEmpty => message,
     // Without the generated mount, the declared host data reaches the screen
     // only when a hand-written host supplies it through its render context.
-    final message => '$message The screen declares host-supplied inputs; a '
-        'host mounting it directly must supply them through its render '
-        'context.',
+    final message =>
+      '$message The screen declares host-supplied inputs; a '
+          'host mounting it directly must supply them through its render '
+          'context.',
   };
 
   return StandaloneScreenContractInspection(
@@ -583,7 +582,7 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
 ///
 /// The same resolved type algebra builds standalone event contracts.
 ({SurfaceScreenEventSchema? schema, List<Issue> issues})
-    inspectScreenEventContract(ResolvedWidgetMountInput input) {
+inspectScreenEventContract(ResolvedWidgetMountInput input) {
   final issues = <Issue>[];
   final events = _inspectScreenEvents(input, issues);
   return (
@@ -602,10 +601,11 @@ List<_ResolvedScreenEvent> _inspectScreenEvents(
 ) {
   final screen = input.screen;
   final events = <_ResolvedScreenEvent>[];
-  final fields = screen.children.whereType<FieldElement>().where((field) {
-    return field.isStatic;
-  }).toList()
-    ..sort((left, right) => (left.name ?? '').compareTo(right.name ?? ''));
+  final fields =
+      screen.children.whereType<FieldElement>().where((field) {
+          return field.isStatic;
+        }).toList()
+        ..sort((left, right) => (left.name ?? '').compareTo(right.name ?? ''));
   for (final field in fields) {
     final type = field.type;
     if (!_hasSurfaceEventName(type)) continue;
@@ -847,13 +847,13 @@ void _reportDuplicateEventIds(
   for (final event in events) {
     (byId[event.id] ??= <_ResolvedScreenEvent>[]).add(event);
   }
-  final duplicateIds = byId.entries
-      .where((entry) => entry.value.length > 1)
-      .toList()
-    ..sort((left, right) => left.key.compareTo(right.key));
+  final duplicateIds =
+      byId.entries.where((entry) => entry.value.length > 1).toList()
+        ..sort((left, right) => left.key.compareTo(right.key));
   for (final entry in duplicateIds) {
-    final fields =
-        entry.value.map((event) => event.field.name ?? '<unnamed>').join(', ');
+    final fields = entry.value
+        .map((event) => event.field.name ?? '<unnamed>')
+        .join(', ');
     issues.add(
       _issue(
         input,
@@ -917,7 +917,8 @@ void _reportGeneratedSymbolCollisions(
   _ResolvedScreenMount? mount,
   String? message,
   String? reason,
-}) _resolveScreenMount(
+})
+_resolveScreenMount(
   ResolvedWidgetMountInput input, {
   required Set<String> reservedGeneratedSymbols,
   bool paywall = false,
@@ -943,8 +944,9 @@ void _reportGeneratedSymbolCollisions(
       return (
         mount: null,
         message: omitted(
-            'a native expression was planned for a different emission library'),
-        reason: omittedReason
+          'a native expression was planned for a different emission library',
+        ),
+        reason: omittedReason,
       );
     }
   }
@@ -1009,7 +1011,8 @@ void _reportGeneratedSymbolCollisions(
             {
               'restageHostValues',
               if (input.hoisted.any(
-                  (v) => v.computed || v.kind == HoistValueKind.textScaler))
+                (v) => v.computed || v.kind == HoistValueKind.textScaler,
+              ))
                 'restageNativeObjects',
             },
           ) !=
@@ -1023,9 +1026,11 @@ void _reportGeneratedSymbolCollisions(
       reason: omittedReason,
     );
   }
-  final needsNativeValues = input.hoisted.any((v) =>
-      v.kind == HoistValueKind.textScaler ||
-      v.kind == HoistValueKind.nativeBinding);
+  final needsNativeValues = input.hoisted.any(
+    (v) =>
+        v.kind == HoistValueKind.textScaler ||
+        v.kind == HoistValueKind.nativeBinding,
+  );
   final nativeScopePrefix = needsNativeValues
       ? namespace.prefixForOrigin('package:restage_core', {
           'RestageNativeValues',
@@ -1035,8 +1040,9 @@ void _reportGeneratedSymbolCollisions(
             'NativeCallAdapter',
         })
       : null;
-  final needsNativeBindings =
-      input.hoisted.any((v) => v.kind == HoistValueKind.nativeBinding);
+  final needsNativeBindings = input.hoisted.any(
+    (v) => v.kind == HoistValueKind.nativeBinding,
+  );
   final nativeContractPrefix = needsNativeBindings
       ? namespace.prefixForOrigin('package:restage_shared', {
           'NativeBindingContract',
@@ -1047,9 +1053,10 @@ void _reportGeneratedSymbolCollisions(
       needsNativeBindings && nativeContractPrefix == null) {
     return (
       mount: null,
-      message:
-          omitted('the owning library does not expose RestageNativeValues'),
-      reason: omittedReason
+      message: omitted(
+        'the owning library does not expose RestageNativeValues',
+      ),
+      reason: omittedReason,
     );
   }
   if (sdk == null) {
@@ -1113,9 +1120,9 @@ void _reportGeneratedSymbolCollisions(
     }
   }
 
-  final prefixCollision = _mountControlNames(paywall: paywall)
-      .where(namespace.prefixNames.contains)
-      .firstOrNull;
+  final prefixCollision = _mountControlNames(
+    paywall: paywall,
+  ).where(namespace.prefixNames.contains).firstOrNull;
   if (prefixCollision != null) {
     return (
       mount: null,
@@ -1138,7 +1145,7 @@ void _reportGeneratedSymbolCollisions(
         for (final argument in input.buildArguments) argument.name ?? '',
         for (final owner in [
           screen,
-          ...screen.allSupertypes.map((type) => type.element)
+          ...screen.allSupertypes.map((type) => type.element),
         ]) ...[
           for (final field in owner.fields) field.name ?? '',
           for (final method in owner.methods) method.name ?? '',
@@ -1164,7 +1171,8 @@ void _reportGeneratedSymbolCollisions(
 ({
   _ResolvedMountConstructorContract? constructor,
   String? reason,
-}) _resolveMountConstructorContract(
+})
+_resolveMountConstructorContract(
   ResolvedWidgetMountInput input, {
   required Set<String> reservedNames,
   bool paywall = false,
@@ -1176,14 +1184,15 @@ void _reportGeneratedSymbolCollisions(
       for (final typeParameter in screen.typeParameters) {
         final name = typeParameter.name;
         if (name != null &&
-            RegExp('(^|[^A-Za-z0-9_])${RegExp.escape(name)}'
-                    r'([^A-Za-z0-9_]|$)')
-                .hasMatch(typeCode)) {
+            RegExp(
+              '(^|[^A-Za-z0-9_])${RegExp.escape(name)}'
+              r'([^A-Za-z0-9_]|$)',
+            ).hasMatch(typeCode)) {
           return (
             constructor: null,
             reason:
                 '${dartStringLiteral(parameter.name)} depends on the screen '
-                    'type parameter ${dartStringLiteral(name)}',
+                'type parameter ${dartStringLiteral(name)}',
           );
         }
       }
@@ -1191,7 +1200,8 @@ void _reportGeneratedSymbolCollisions(
     final name = screen.typeParameters.first.name ?? '<unnamed>';
     return (
       constructor: null,
-      reason: '${screen.name} declares the screen type parameter '
+      reason:
+          '${screen.name} declares the screen type parameter '
           '${dartStringLiteral(name)}',
     );
   }
@@ -1256,14 +1266,16 @@ void _reportGeneratedSymbolCollisions(
     if (controls.contains(name) || isHoistedKey(name)) {
       return (
         constructor: null,
-        reason: '${screen.name} declares the reserved constructor parameter '
+        reason:
+            '${screen.name} declares the reserved constructor parameter '
             '${dartStringLiteral(name)}',
       );
     }
     if (root.mountDefaultProblem != null) {
       return (
         constructor: null,
-        reason: 'the default for ${dartStringLiteral(name)} has no visible '
+        reason:
+            'the default for ${dartStringLiteral(name)} has no visible '
             'spelling',
       );
     }
@@ -1277,11 +1289,13 @@ void _reportGeneratedSymbolCollisions(
             root.kind == RootContextParamKind.optionalPositional)) {
       return (
         constructor: null,
-        reason: 'its required non-nullable key cannot reach both the surface '
+        reason:
+            'its required non-nullable key cannot reach both the surface '
             'and its fallback widget; declare the key type as nullable',
       );
     }
-    final implicitSuperKey = root.forwardsFlutterKey &&
+    final implicitSuperKey =
+        root.forwardsFlutterKey &&
         root.usesStatelessWidgetSuperFormal &&
         !root.hasExplicitType;
     if ((typeCode == null || typeCode.trim().isEmpty) && !implicitSuperKey) {
@@ -1297,7 +1311,7 @@ void _reportGeneratedSymbolCollisions(
           constructor: null,
           reason:
               'the default for ${dartStringLiteral(name)} has no reusable Dart '
-                  'type spelling',
+              'type spelling',
         );
       }
       final bindingName = _mountDefaultBindingName(screen.name!, index);
@@ -1305,7 +1319,8 @@ void _reportGeneratedSymbolCollisions(
           captureNames.contains(bindingName)) {
         return (
           constructor: null,
-          reason: 'the generated default binding $bindingName is already '
+          reason:
+              'the generated default binding $bindingName is already '
               'visible in ${input.assetId.path}',
         );
       }
@@ -1358,10 +1373,10 @@ bool _redirectsToGenerativeConstructor(ConstructorElement constructor) {
 
 RootContextParamKind _mountParameterKind(FormalParameterElement parameter) =>
     parameter.isOptionalPositional
-        ? RootContextParamKind.optionalPositional
-        : parameter.isNamed
-            ? RootContextParamKind.named
-            : RootContextParamKind.requiredPositional;
+    ? RootContextParamKind.optionalPositional
+    : parameter.isNamed
+    ? RootContextParamKind.named
+    : RootContextParamKind.requiredPositional;
 
 String _emitReferenceDart(
   ResolvedStandaloneScreenContract contract, {
@@ -1428,7 +1443,7 @@ String _emitReferenceDart(
   final referenceConstructor = measurementPublicationDraftDigest == null
       ? '${sdk}SurfaceScreenRef<$referenceEventType>.generated'
       : '${sdk}SurfaceScreenRef<$referenceEventType>'
-          '.generatedWithMeasurementPublicationDraftDigest';
+            '.generatedWithMeasurementPublicationDraftDigest';
 
   // The event schema is emitted in its canonical encoded form rather than as a
   // Dart literal tree, so the value the runtime hashes is byte-identical to
@@ -1563,12 +1578,12 @@ String _emitReferenceDart(
 }
 
 Set<String> _mountControlNames({required bool paywall}) => {
-      'onEvent',
-      'resolver',
-      if (paywall) 'errorBuilder' else 'onUnavailable',
-      'loadingBuilder',
-      if (!paywall) 'unavailable',
-    };
+  'onEvent',
+  'resolver',
+  if (paywall) 'errorBuilder' else 'onUnavailable',
+  'loadingBuilder',
+  if (!paywall) 'unavailable',
+};
 
 void _emitScreenMount(
   StringBuffer buffer, {
@@ -1624,16 +1639,17 @@ void _emitScreenMount(
   final computedNatives = allocate('restageNativeObjects');
   final nativeHoisted = [
     for (final value in mount.hoisted)
-      if (value.kind == HoistValueKind.textScaler) value
+      if (value.kind == HoistValueKind.textScaler) value,
   ];
   final nativeBindings = [
     for (final value in mount.hoisted)
-      if (value.kind == HoistValueKind.nativeBinding) value
+      if (value.kind == HoistValueKind.nativeBinding) value,
   ];
   final hasNativeScope = nativeHoisted.isNotEmpty || nativeBindings.isNotEmpty;
   final placementArgument = allocate('restagePlacementId');
   final placementSlot = allocate('_restagePlacementName');
-  final namedPlacement = optionalPositional.isEmpty &&
+  final namedPlacement =
+      optionalPositional.isEmpty &&
       !parameters.any((parameter) => parameter.name == 'placement');
   final provider = placementDefinitionProviderName(screenName);
 
@@ -1644,13 +1660,17 @@ void _emitScreenMount(
     if (call == null && constant == null) continue;
     final name = allocate('_restage${mountName}${value.key}Native');
     nativeFactories[value.key] = name;
-    final nativePrefix = mount.nativeScopeType!
-        .replaceFirst(RegExp(r'RestageNativeValues$'), '');
-    final sharedPrefix = mount.nativeContractType!
-        .replaceFirst(RegExp(r'NativeBindingContract$'), '');
+    final nativePrefix = mount.nativeScopeType!.replaceFirst(
+      RegExp(r'RestageNativeValues$'),
+      '',
+    );
+    final sharedPrefix = mount.nativeContractType!.replaceFirst(
+      RegExp(r'NativeBindingContract$'),
+      '',
+    );
     final body =
         call?.adapterSource(core: nativePrefix, shared: sharedPrefix) ??
-            constant!.source;
+        constant!.source;
     final type = call == null
         ? constant!.resultDartType
         : '${nativePrefix}NativeCallAdapter';
@@ -1725,8 +1745,8 @@ void _emitScreenMount(
     final placementValue = atPlacement
         ? placementArgument
         : namedPlacement
-            ? 'placement'
-            : 'null';
+        ? 'placement'
+        : 'null';
     final initializers = <String>[
       for (final parameter in constructor.parameters.where(
         (parameter) => parameter.requiresStorage,
@@ -1767,9 +1787,9 @@ void _emitScreenMount(
     ..writeln(
       paywall
           ? '  final ${flutter}Widget Function(${flutter}BuildContext, '
-              '${sdk}RestagePaywallError)? errorBuilder;'
+                '${sdk}RestagePaywallError)? errorBuilder;'
           : '  final ${flutter}ValueChanged<'
-              '${sdk}SurfaceScreenUnavailableError>? onUnavailable;',
+                '${sdk}SurfaceScreenUnavailableError>? onUnavailable;',
     )
     ..writeln()
     ..writeln('  final ${flutter}WidgetBuilder? loadingBuilder;');
@@ -1815,32 +1835,38 @@ void _emitScreenMount(
   if (hasNativeScope) {
     final slots = {
       for (final parameter in constructor.values)
-        parameter.name: parameter.slotName
+        parameter.name: parameter.slotName,
     };
     if (nativeHoisted.isNotEmpty) {
       buffer.writeln('    final $nativeValues = ${sdk}restageNativeObjects({');
       for (final value in nativeHoisted) {
-        buffer.writeln('${dartStringLiteral(value.key)}: '
-            '(${_debugLabel(value)}, () => '
-            '${value.mountSource((name) => slots[name]!)}),');
+        buffer.writeln(
+          '${dartStringLiteral(value.key)}: '
+          '(${_debugLabel(value)}, () => '
+          '${value.mountSource((name) => slots[name]!)}),',
+        );
       }
       buffer.writeln('    });');
     }
     final computed = [
       for (final value in nativeBindings)
-        if (value.computed) value
+        if (value.computed) value,
     ];
     if (computed.isNotEmpty) {
-      buffer
-          .writeln('    final $computedNatives = ${sdk}restageNativeObjects({');
+      buffer.writeln(
+        '    final $computedNatives = ${sdk}restageNativeObjects({',
+      );
       for (final value in computed) {
-        final entry = '(${_debugLabel(value)}, () => '
+        final entry =
+            '(${_debugLabel(value)}, () => '
             '${value.mountSource((name) => slots[name]!, itemSource: 'restageItem')})';
-        buffer.writeln(value.item == null
-            ? '${dartStringLiteral(value.key)}: $entry,'
-            : 'for (final (restageIndex, restageItem) in '
-                '${slots[value.item]}.indexed) '
-                '${_itemNativeKey(value)}: $entry,');
+        buffer.writeln(
+          value.item == null
+              ? '${dartStringLiteral(value.key)}: $entry,'
+              : 'for (final (restageIndex, restageItem) in '
+                    '${slots[value.item]}.indexed) '
+                    '${_itemNativeKey(value)}: $entry,',
+        );
       }
       buffer.writeln('    });');
     }
@@ -1849,34 +1875,42 @@ void _emitScreenMount(
       buffer.writeln('      textScalers: $nativeValues,');
     }
     if (nativeBindings.isNotEmpty) {
-      final nativePrefix = mount.nativeScopeType!
-          .replaceFirst(RegExp(r'RestageNativeValues$'), '');
+      final nativePrefix = mount.nativeScopeType!.replaceFirst(
+        RegExp(r'RestageNativeValues$'),
+        '',
+      );
       buffer.writeln('      bindings: {');
       for (final value in nativeBindings) {
         final contract = value.nativeContract!;
-        final sharedPrefix = mount.nativeContractType!
-            .replaceFirst(RegExp(r'NativeBindingContract$'), '');
+        final sharedPrefix = mount.nativeContractType!.replaceFirst(
+          RegExp(r'NativeBindingContract$'),
+          '',
+        );
         final factory = nativeFactories[value.key];
         final installed = factory == null ? null : '$factory()';
         final key = value.item == null
             ? dartStringLiteral(value.key)
             : _itemNativeKey(value);
         buffer.writeln(
-            '${value.item == null ? '' : 'for (final (restageIndex, _) in ${slots[value.item]}.indexed) '}'
-            '${value.computed ? 'if ($computedNatives.containsKey($key)) ' : ''}'
-            '$key: ${nativePrefix}NativeBinding('
-            'contract: ${nativeContractSource(contract, sharedPrefix)}, '
-            'value: ${value.computed ? '$computedNatives[$key]' : installed ?? value.mountSource((name) => slots[name]!)}),');
+          '${value.item == null ? '' : 'for (final (restageIndex, _) in ${slots[value.item]}.indexed) '}'
+          '${value.computed ? 'if ($computedNatives.containsKey($key)) ' : ''}'
+          '$key: ${nativePrefix}NativeBinding('
+          'contract: ${nativeContractSource(contract, sharedPrefix)}, '
+          'value: ${value.computed ? '$computedNatives[$key]' : installed ?? value.mountSource((name) => slots[name]!)}),',
+        );
       }
       buffer.writeln('      },');
     }
     // Names each native value in debug builds' missing-value messages.
-    buffer
-        .writeln("      labels: const bool.fromEnvironment('dart.vm.product') "
-            '? const <String, String>{} : const <String, String>{');
+    buffer.writeln(
+      "      labels: const bool.fromEnvironment('dart.vm.product') "
+      '? const <String, String>{} : const <String, String>{',
+    );
     for (final value in [...nativeHoisted, ...nativeBindings]) {
-      buffer.writeln('        ${dartStringLiteral(value.key)}: '
-          '${dartStringLiteral(value.label)},');
+      buffer.writeln(
+        '        ${dartStringLiteral(value.key)}: '
+        '${dartStringLiteral(value.label)},',
+      );
     }
     buffer.writeln('      },');
     buffer.write('      child: ');
@@ -1892,14 +1926,17 @@ void _emitScreenMount(
           ? '      id: ${dartStringLiteral(paywallId)},'
           : '      screen: $refName,',
     )
-    ..writeln('      placementBinding: '
-        '$sdk${paywall ? 'RestagePaywall' : 'RestageScreen'}'
-        '.generatedPlacementBinding(')
+    ..writeln(
+      '      placementBinding: '
+      '$sdk${paywall ? 'RestagePaywall' : 'RestageScreen'}'
+      '.generatedPlacementBinding(',
+    )
     ..writeln('        definition: $provider,')
     ..writeln('        name: $placementSlot,')
     ..writeln('      ),');
-  final hostParameters =
-      constructor.values.where((parameter) => parameter.root.isHostData);
+  final hostParameters = constructor.values.where(
+    (parameter) => parameter.root.isHostData,
+  );
   final hoisted = mount.hoisted;
   if (hostParameters.isNotEmpty || hoisted.isNotEmpty) {
     buffer.writeln('      context: <String, Object?>{');
@@ -1940,14 +1977,10 @@ void _emitScreenMount(
           parameter.root.hostDataShape!,
           source,
           0,
-          itemValues.isEmpty && itemNatives.isEmpty
-              ? null
-              : _ItemEntries(
+          itemValues.isEmpty && itemNatives.isEmpty ? null : _ItemEntries(
                   (item, index) => [
-                    if (itemValues.isNotEmpty)
-                      hostValues(itemValues, item: item),
-                    for (final value in itemNatives)
-                      '${dartStringLiteral(value.key)}: '
+                    if (itemValues.isNotEmpty) hostValues(itemValues, item: item),
+                    for (final value in itemNatives) '${dartStringLiteral(value.key)}: '
                           '${_nativeReference(value, _itemNativeKey(value, index))}',
                   ].join(', '),
                   indexed: itemNatives.isNotEmpty,
@@ -1966,14 +1999,17 @@ void _emitScreenMount(
       buffer.writeln('        ${hostValues(topLevel)},');
     }
     for (final value in nativeHoisted) {
-      buffer
-          .writeln('        ${dartStringLiteral(value.key)}: <String, Object?>{'
-              '"kind": "native", "key": ${dartStringLiteral(value.key)}},');
+      buffer.writeln(
+        '        ${dartStringLiteral(value.key)}: <String, Object?>{'
+        '"kind": "native", "key": ${dartStringLiteral(value.key)}},',
+      );
     }
     for (final value in nativeBindings) {
       if (value.item != null) continue;
-      buffer.writeln('        ${dartStringLiteral(value.key)}: '
-          '${_nativeReference(value, dartStringLiteral(value.key))},');
+      buffer.writeln(
+        '        ${dartStringLiteral(value.key)}: '
+        '${_nativeReference(value, dartStringLiteral(value.key))},',
+      );
     }
     buffer.writeln('      },');
   }
@@ -1982,7 +2018,7 @@ void _emitScreenMount(
       paywall
           ? '      fallbackBuilder: (context) => $screenName('
           : '      unavailable: unavailable ?? '
-              '${sdk}SurfaceScreenUnavailablePolicy.fallback(',
+                '${sdk}SurfaceScreenUnavailablePolicy.fallback(',
     )
     ..write(
       paywall ? '' : '        builder: (context, error) => $screenName(\n',
@@ -2063,24 +2099,28 @@ String _mountNonNullHostDataValue(
     HostDataDateTimeShape() =>
       "<String, Object?>{'microsecondsSinceEpoch': $source.microsecondsSinceEpoch, "
           "'isUtc': $source.isUtc}",
-    HostDataObjectShape() =>
-      _mountObjectValue(shape, source, depth, itemEntries),
-    HostDataListShape(:final elementShape) => itemEntries?.indexed ?? false
-        ? '<Object?>[for (final (restageIndex$depth, $value) in $source.indexed) '
-            '${_mountHostDataValue(
-            elementShape,
-            value,
-            depth + 1,
-            _ItemEntries(
-                (item, _) => itemEntries!.entries(item, 'restageIndex$depth')),
-          )}]'
-        : '<Object?>[for (final $value in $source) '
-            '${_mountHostDataValue(
-            elementShape,
-            value,
-            depth + 1,
-            itemEntries,
-          )}]',
+    HostDataObjectShape() => _mountObjectValue(
+      shape,
+      source,
+      depth,
+      itemEntries,
+    ),
+    HostDataListShape(:final elementShape) =>
+      itemEntries?.indexed ?? false
+          ? '<Object?>[for (final (restageIndex$depth, $value) in $source.indexed) '
+                '${_mountHostDataValue(
+                  elementShape,
+                  value,
+                  depth + 1,
+                  _ItemEntries((item, _) => itemEntries!.entries(item, 'restageIndex$depth')),
+                )}]'
+          : '<Object?>[for (final $value in $source) '
+                '${_mountHostDataValue(
+                  elementShape,
+                  value,
+                  depth + 1,
+                  itemEntries,
+                )}]',
     HostDataMapShape(:final valueShape) =>
       '<String, Object?>{for (final $entry in $source.entries) '
           '$entry.key: '
@@ -2140,7 +2180,8 @@ String? _resolveBundleLocatorSource(
   final surfaceKey = contract.surface.wireName;
   final blobPath =
       metadata.blobPath ?? 'assets/$surfaceKey/screens/${contract.slug}.rfw';
-  final sidecarPath = metadata.sidecarPath ??
+  final sidecarPath =
+      metadata.sidecarPath ??
       'assets/$surfaceKey/screens/${contract.slug}.capability.json';
   final buffer = StringBuffer()
     ..writeln('${sdk}SurfaceScreenBundleLocator(')
@@ -2208,15 +2249,14 @@ List<String> _generatedTopLevelSymbols(
   String screenName,
   Iterable<_ResolvedScreenEvent> events,
   _ResolvedScreenMount? mount,
-) =>
-    [
-      ..._referenceGeneratedTopLevelSymbols(screenName, events),
-      if (mount != null) ...[
-        generatedSurfaceName(screenName, fallback: 'SurfaceScreen'),
-        ...placementDefinitionSymbols(screenName),
-        for (final binding in mount.constructor.defaultBindings) binding.name,
-      ],
-    ];
+) => [
+  ..._referenceGeneratedTopLevelSymbols(screenName, events),
+  if (mount != null) ...[
+    generatedSurfaceName(screenName, fallback: 'SurfaceScreen'),
+    ...placementDefinitionSymbols(screenName),
+    for (final binding in mount.constructor.defaultBindings) binding.name,
+  ],
+];
 
 String _mountDefaultBindingName(String screenName, int ordinal) =>
     '_${_lowerCamelIdentifier(screenName, fallback: 'surfaceScreen')}'
@@ -2397,8 +2437,7 @@ Issue _issue(
   ResolvedWidgetMountInput input,
   IssueCode code,
   String message,
-) =>
-    Issue(code: code, message: message, location: input.location);
+) => Issue(code: code, message: message, location: input.location);
 
 String _fileName(String path) {
   final slash = path.lastIndexOf('/');
@@ -2417,7 +2456,7 @@ String _fileStem(String path) {
 const String Function(String, {required String fallback}) _pascalIdentifier =
     pascalIdentifier;
 const String Function(String, {required String fallback})
-    _lowerCamelIdentifier = lowerCamelIdentifier;
+_lowerCamelIdentifier = lowerCamelIdentifier;
 
 final class _ResolvedScreenMount {
   const _ResolvedScreenMount({
@@ -2449,7 +2488,7 @@ final class _ResolvedScreenMount {
 
 final class _ResolvedMountConstructorContract {
   _ResolvedMountConstructorContract(List<_ResolvedMountParameter> parameters)
-      : parameters = List.unmodifiable(parameters);
+    : parameters = List.unmodifiable(parameters);
 
   final List<_ResolvedMountParameter> parameters;
 
@@ -2460,13 +2499,12 @@ final class _ResolvedMountConstructorContract {
       parameters.where((parameter) => !parameter.isKey);
 
   bool get hasKeyParameter => parameters.any(
-        (parameter) => parameter.isKey || parameter.name == 'key',
-      );
+    (parameter) => parameter.isKey || parameter.name == 'key',
+  );
 
   bool get hasOptionalPositional => parameters.any(
-        (parameter) =>
-            parameter.kind == RootContextParamKind.optionalPositional,
-      );
+    (parameter) => parameter.kind == RootContextParamKind.optionalPositional,
+  );
 
   bool get requiresKeyType => hasOptionalPositional && !hasKeyParameter;
 
@@ -2508,8 +2546,9 @@ final class _ResolvedMountParameter {
   String? get defaultValueCode => defaultBinding?.name;
 
   String get declarationSource {
-    final required =
-        isRequired && kind == RootContextParamKind.named ? 'required ' : '';
+    final required = isRequired && kind == RootContextParamKind.named
+        ? 'required '
+        : '';
     final defaultValue = defaultValueCode;
     final defaultSource = defaultValue == null ? '' : ' = $defaultValue';
     if (isKey && usesStatelessWidgetSuperFormal) {
@@ -2600,9 +2639,9 @@ final class _ResolvedScreenEvent {
   final _DartEventShape? dartShape;
 
   SurfaceScreenEvent get schemaEvent => SurfaceScreenEvent(
-        id: id,
-        arguments: arguments,
-      );
+    id: id,
+    arguments: arguments,
+  );
 }
 
 sealed class _DartEventShape {
@@ -2630,8 +2669,8 @@ final class _ScalarDartEventShape extends _DartEventShape {
   @override
   String decode(String source) =>
       scalar == SurfaceScreenEventScalarKind.jsonValue
-          ? source
-          : '$source as $dartType';
+      ? source
+      : '$source as $dartType';
 }
 
 final class _NullableDartEventShape extends _DartEventShape {
@@ -2665,10 +2704,10 @@ final class _ListDartEventShape extends _DartEventShape {
 
   @override
   String decode(String source) => <String>[
-        'List<${items.dartType}>.unmodifiable(',
-        '($source as List<Object?>).map((item) => ${items.decode('item')}),',
-        ')',
-      ].join();
+    'List<${items.dartType}>.unmodifiable(',
+    '($source as List<Object?>).map((item) => ${items.decode('item')}),',
+    ')',
+  ].join();
 }
 
 final class _MapDartEventShape extends _DartEventShape {
@@ -2685,11 +2724,11 @@ final class _MapDartEventShape extends _DartEventShape {
 
   @override
   String decode(String source) => <String>[
-        'Map<String, ${values.dartType}>.unmodifiable(',
-        '($source as Map<Object?, Object?>).map(',
-        '(key, mapValue) => MapEntry<String, ${values.dartType}>(',
-        'key as String, ${values.decode('mapValue')}),',
-        '),',
-        ')',
-      ].join();
+    'Map<String, ${values.dartType}>.unmodifiable(',
+    '($source as Map<Object?, Object?>).map(',
+    '(key, mapValue) => MapEntry<String, ${values.dartType}>(',
+    'key as String, ${values.decode('mapValue')}),',
+    '),',
+    ')',
+  ].join();
 }

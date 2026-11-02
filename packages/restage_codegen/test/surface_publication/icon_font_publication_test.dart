@@ -33,8 +33,9 @@ final class FavoritesNotice extends StatelessWidget {
 void main() {
   test('a surface with literal icons publishes their subset font', () async {
     final sources = {'apps_examples|lib/features/favorites.dart': _screen};
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
     final result = await testBuilder(
       const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
       sources,
@@ -48,7 +49,9 @@ void main() {
       jsonDecode(
         readerWriter.testing.readString(
           AssetId(
-              'apps_examples', kRestageSurfacePublicationCompilerBundlePath),
+            'apps_examples',
+            kRestageSurfacePublicationCompilerBundlePath,
+          ),
         ),
       ),
     );

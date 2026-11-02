@@ -26,13 +26,19 @@ Future<void> main(List<String> args) async {
 
   if (positional.length != 1) {
     stderr
-      ..writeln('Usage: dart run restage_codegen:measure_real_package_coverage '
-          '<package-path> [--json]')
+      ..writeln(
+        'Usage: dart run restage_codegen:measure_real_package_coverage '
+        '<package-path> [--json]',
+      )
       ..writeln()
-      ..writeln('Measures the @RestageWidget custom-widget inlinability of a '
-          'real on-disk Flutter package.')
-      ..writeln('The package must be fetched first (dart pub get / melos '
-          'bootstrap).');
+      ..writeln(
+        'Measures the @RestageWidget custom-widget inlinability of a '
+        'real on-disk Flutter package.',
+      )
+      ..writeln(
+        'The package must be fetched first (dart pub get / melos '
+        'bootstrap).',
+      );
     exitCode = 64; // EX_USAGE
     return;
   }

@@ -22,8 +22,8 @@ abstract final class RfwConstructorPresenceEncoder {
   /// Preserves constructor defaults and required nullable callback presence.
   static String encode(PropertyEntry property, String valueExpression) =>
       RfwConstructorPresenceProtocol.appliesTo(property)
-          ? supplied(valueExpression)
-          : valueExpression;
+      ? supplied(valueExpression)
+      : valueExpression;
 }
 
 /// Factory-emitter view of one constructor-presence read.
@@ -66,8 +66,10 @@ final class RfwConstructorPresenceFactoryPlan {
           'RFW constructor property names must be unique: ${property.name}.',
         );
       }
-      plans[property.name] =
-          RfwConstructorPresenceFactoryPlan._(property, localName);
+      plans[property.name] = RfwConstructorPresenceFactoryPlan._(
+        property,
+        localName,
+      );
       ordinal += 1;
     }
 

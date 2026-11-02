@@ -23,9 +23,9 @@ void main() {
   });
 
   test('the corpus contains every approved authoring shape', () {
-    final relative = _dartFiles(Directory(_root))
-        .map((file) => p.relative(file.path, from: _root))
-        .toSet();
+    final relative = _dartFiles(
+      Directory(_root),
+    ).map((file) => p.relative(file.path, from: _root)).toSet();
 
     expect(
       relative,
@@ -82,30 +82,33 @@ void main() {
     }
   });
 
-  test('the corpus includes neutral/general, paywall, and compatibility forms',
-      () {
-    final contents = _dartFiles(Directory(_root))
-        .map((file) => file.readAsStringSync())
-        .join('\n');
+  test(
+    'the corpus includes neutral/general, paywall, and compatibility forms',
+    () {
+      final contents = _dartFiles(
+        Directory(_root),
+      ).map((file) => file.readAsStringSync()).join('\n');
 
-    expect(contents, contains('@Screen(surface: Surface.general)'));
-    expect(contents, contains('@FlowGraph(surface: Surface.general)'));
-    expect(contents, contains('@Paywall('));
-    expect(contents, isNot(contains('@Paywall(surface:')));
-    expect(contents, contains('@Screen()'));
-    expect(contents, contains('@ScreenSource('));
-    expect(contents, contains('@PaywallSource('));
-    expect(contents, contains('@FlowSource('));
-    expect(contents, contains('const retryRef = NodeRef('));
-    expect(contents, contains('FlowStateRef<String>'));
-    expect(contents, contains('FlowActionRef<void, bool>'));
-    expect(contents, contains('Subflow('));
-  });
+      expect(contents, contains('@Screen(surface: Surface.general)'));
+      expect(contents, contains('@FlowGraph(surface: Surface.general)'));
+      expect(contents, contains('@Paywall('));
+      expect(contents, isNot(contains('@Paywall(surface:')));
+      expect(contents, contains('@Screen()'));
+      expect(contents, contains('@ScreenSource('));
+      expect(contents, contains('@PaywallSource('));
+      expect(contents, contains('@FlowSource('));
+      expect(contents, contains('const retryRef = NodeRef('));
+      expect(contents, contains('FlowStateRef<String>'));
+      expect(contents, contains('FlowActionRef<void, bool>'));
+      expect(contents, contains('Subflow('));
+    },
+  );
 }
 
-List<File> _dartFiles(Directory directory) => directory
-    .listSync(recursive: true)
-    .whereType<File>()
-    .where((file) => file.path.endsWith('.dart'))
-    .toList()
-  ..sort((left, right) => left.path.compareTo(right.path));
+List<File> _dartFiles(Directory directory) =>
+    directory
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .toList()
+      ..sort((left, right) => left.path.compareTo(right.path));

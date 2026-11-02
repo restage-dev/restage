@@ -49,44 +49,51 @@ Widget buildBadge(BuildContext context, DataSource source) {
     );
     expect(source, contains("marker: 'restageLibrary0.Marker'"));
     expect(factories.toJson()['libraries'], isNot(contains('restageLibrary0')));
-    expect(factories.registrationSource().imports.join('\n'),
-        isNot(contains('package:unused/types.dart')));
+    expect(
+      factories.registrationSource().imports.join('\n'),
+      isNot(contains('package:unused/types.dart')),
+    );
     expect(parseString(content: source).errors, isEmpty);
   });
 
-  test('merging sidecars renames import prefixes without changing literals',
-      () {
-    final first = _factories('alpha', 'Badge');
-    final second = _factories('zeta', 'Mark');
-    final merged =
-        AppWidgetMountFactories.merge({'zeta': second, 'alpha': first});
-    final json = merged.toJson();
-    expect(json['libraries'], {
-      r'_$restageLibrary0': 'package:alpha/widgets.dart',
-      r'_$restageLibrary1': 'package:zeta/widgets.dart',
-    });
-    final factories = json['factories']! as Map<String, Object?>;
-    final mark = factories['zeta.widgets:Mark']! as Map<String, Object?>;
-    expect(mark['source'], contains(r'_$restageLibrary1.Mark('));
-    expect(mark['source'], contains(r"label: r'_$restageLibrary0'"));
-    final startup = merged.registrationSource();
-    expect(startup.registrations, contains('Restage.registerWidgetLibrary('));
-    expect(
+  test(
+    'merging sidecars renames import prefixes without changing literals',
+    () {
+      final first = _factories('alpha', 'Badge');
+      final second = _factories('zeta', 'Mark');
+      final merged = AppWidgetMountFactories.merge({
+        'zeta': second,
+        'alpha': first,
+      });
+      final json = merged.toJson();
+      expect(json['libraries'], {
+        r'_$restageLibrary0': 'package:alpha/widgets.dart',
+        r'_$restageLibrary1': 'package:zeta/widgets.dart',
+      });
+      final factories = json['factories']! as Map<String, Object?>;
+      final mark = factories['zeta.widgets:Mark']! as Map<String, Object?>;
+      expect(mark['source'], contains(r'_$restageLibrary1.Mark('));
+      expect(mark['source'], contains(r"label: r'_$restageLibrary0'"));
+      final startup = merged.registrationSource();
+      expect(startup.registrations, contains('Restage.registerWidgetLibrary('));
+      expect(
         startup.registrations,
         contains(
           "RestageWidgetFactory(name: 'Mark', "
           r"builder: _restage$zeta$widgets$$Mark),",
-        ));
-    expect(
-      startup.registrations,
-      contains("WidgetLibrary.custom('zeta.widgets')"),
-    );
-    expect(startup.registrations, contains('capabilityVersion: 3'));
-    expect(startup.registrations, contains('compatibleSince: 2'));
-    expect(startup.registrations, isNot(contains('builtIn')));
-    expect(startup.declarations, contains(r'_restage$zeta$widgets$$Mark'));
-    expect(AppWidgetMountFactories.fromJson(json).toJson(), json);
-  });
+        ),
+      );
+      expect(
+        startup.registrations,
+        contains("WidgetLibrary.custom('zeta.widgets')"),
+      );
+      expect(startup.registrations, contains('capabilityVersion: 3'));
+      expect(startup.registrations, contains('compatibleSince: 2'));
+      expect(startup.registrations, isNot(contains('builtIn')));
+      expect(startup.declarations, contains(r'_restage$zeta$widgets$$Mark'));
+      expect(AppWidgetMountFactories.fromJson(json).toJson(), json);
+    },
+  );
 
   test('a single sidecar is returned unchanged', () {
     final sidecar = _factories('alpha', 'Badge');
@@ -142,15 +149,16 @@ import 'package:alpha/widgets.dart';
 """,
         },
         (resolver) async {
-          final library =
-              await resolver.libraryFor(AssetId('app', 'lib/surface.dart'));
-          final plan =
-              _factories('alpha', 'Badge', compatibleSince: since).plan(
-            ['alpha.widgets:Badge'],
-            library,
-            sdkPrefix: 'sdk.',
-            takenNames: {},
+          final library = await resolver.libraryFor(
+            AssetId('app', 'lib/surface.dart'),
           );
+          final plan = _factories('alpha', 'Badge', compatibleSince: since)
+              .plan(
+                ['alpha.widgets:Badge'],
+                library,
+                sdkPrefix: 'sdk.',
+                takenNames: {},
+              );
           expect(plan.problem, isNull);
           expect(
             plan.libraries,
@@ -180,12 +188,18 @@ import 'package:alpha/widgets.dart';
       'alpha|pubspec.yaml': 'name: alpha\n',
       'beta|pubspec.yaml': 'name: beta\n',
       'alpha|$kAppWidgetFactoriesPath': jsonEncode(
-        _factories('constructor_types', 'Badge', namespace: 'shared.widgets')
-            .toJson(),
+        _factories(
+          'constructor_types',
+          'Badge',
+          namespace: 'shared.widgets',
+        ).toJson(),
       ),
       'beta|$kAppWidgetFactoriesPath': jsonEncode(
-        _factories('constructor_types', 'Mark', namespace: 'shared.widgets')
-            .toJson(),
+        _factories(
+          'constructor_types',
+          'Mark',
+          namespace: 'shared.widgets',
+        ).toJson(),
       ),
     };
     final logs = <String>[];
@@ -207,10 +221,12 @@ import 'package:alpha/widgets.dart';
       'app|lib/input.dart': '',
       'app|pubspec.yaml': 'name: app\ndependencies:\n  alpha: any\n',
       'alpha|pubspec.yaml': 'name: alpha\n',
-      'app|$kAppWidgetFactoriesPath':
-          jsonEncode(_factories('app', 'Own').toJson()),
-      'alpha|$kAppWidgetFactoriesPath':
-          jsonEncode(_factories('alpha', 'Badge').toJson()),
+      'app|$kAppWidgetFactoriesPath': jsonEncode(
+        _factories('app', 'Own').toJson(),
+      ),
+      'alpha|$kAppWidgetFactoriesPath': jsonEncode(
+        _factories('alpha', 'Badge').toJson(),
+      ),
     };
     final result = await testBuilders(
       [_LoaderProbe(includeRoot: false)],
@@ -219,10 +235,13 @@ import 'package:alpha/widgets.dart';
       flattenOutput: true,
     );
     expect(result.succeeded, isTrue);
-    final json = jsonDecode(
-      result.readerWriter.testing
-          .readString(AssetId('app', 'lib/input.output')),
-    ) as Map<String, Object?>;
+    final json =
+        jsonDecode(
+              result.readerWriter.testing.readString(
+                AssetId('app', 'lib/input.output'),
+              ),
+            )
+            as Map<String, Object?>;
     expect((json['factories']! as Map).keys, ['alpha.widgets:Badge']);
   });
 }
@@ -245,7 +264,7 @@ AppWidgetMountFactories _factories(
         'function': 'build$name',
         'source':
             'Widget build$name(BuildContext context, DataSource source) => '
-                "_\$restageLibrary0.$name(label: r'_\$restageLibrary0');",
+            "_\$restageLibrary0.$name(label: r'_\$restageLibrary0');",
       },
     },
   });
@@ -257,13 +276,15 @@ final class _LoaderProbe implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.output'],
-      };
+    '.dart': ['.output'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {
-    final factories =
-        await loadAppWidgetFactories(step, includeRoot: includeRoot);
+    final factories = await loadAppWidgetFactories(
+      step,
+      includeRoot: includeRoot,
+    );
     await step.writeAsString(
       step.inputId.changeExtension('.output'),
       jsonEncode(factories.toJson()),

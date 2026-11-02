@@ -45,15 +45,18 @@ final class LoweringTarget {
 }
 
 /// The rich-text entry, whose catalog name derives from `Text.rich`.
-const LoweringTarget kTextRichLowering =
-    LoweringTarget('Text.rich', flutterTypeSuffix: '#Text.rich');
+const LoweringTarget kTextRichLowering = LoweringTarget(
+  'Text.rich',
+  flutterTypeSuffix: '#Text.rich',
+);
 
 /// The entry a `Text` wrapping an `intl` currency format is rewritten to.
 const LoweringTarget kPriceLowering = LoweringTarget('RestagePrice');
 
 /// The entry a `Text` wrapping a plain `intl` number format is rewritten to.
-const LoweringTarget kFormattedNumberLowering =
-    LoweringTarget('RestageFormattedNumber');
+const LoweringTarget kFormattedNumberLowering = LoweringTarget(
+  'RestageFormattedNumber',
+);
 
 /// The mask entry used by Flutter gradient masks and color filters.
 const LoweringTarget kShaderMaskLowering = LoweringTarget('RestageShaderMask');
@@ -62,27 +65,32 @@ const LoweringTarget kShaderMaskLowering = LoweringTarget('RestageShaderMask');
 const LoweringTarget kPagerLowering = LoweringTarget('RestagePager');
 
 /// The draggable-surface entry a `DraggableScrollableSheet` is emitted as.
-const LoweringTarget kDraggableSheetLowering =
-    LoweringTarget('RestageDraggableSheet');
+const LoweringTarget kDraggableSheetLowering = LoweringTarget(
+  'RestageDraggableSheet',
+);
 
 /// The declarative sheet entry a Flutter sheet call is emitted as.
 const LoweringTarget kModalSheetLowering = LoweringTarget('RestageModalSheet');
 
 /// The single-select entry a `RadioGroup` is emitted as.
-const LoweringTarget kRadioGroupLowering =
-    LoweringTarget('RestageRadioGroupString');
+const LoweringTarget kRadioGroupLowering = LoweringTarget(
+  'RestageRadioGroupString',
+);
 
 /// The single-select entry a `DropdownButton` is emitted as.
-const LoweringTarget kDropdownLowering =
-    LoweringTarget('RestageDropdownString');
+const LoweringTarget kDropdownLowering = LoweringTarget(
+  'RestageDropdownString',
+);
 
 /// The multi-toggle entry a `ToggleButtons` is emitted as.
-const LoweringTarget kToggleButtonsLowering =
-    LoweringTarget('RestageToggleButtons');
+const LoweringTarget kToggleButtonsLowering = LoweringTarget(
+  'RestageToggleButtons',
+);
 
 /// The segmented-button entry a `SegmentedButton` is emitted as.
-const LoweringTarget kSegmentedButtonLowering =
-    LoweringTarget('RestageSegmentedButtonString');
+const LoweringTarget kSegmentedButtonLowering = LoweringTarget(
+  'RestageSegmentedButtonString',
+);
 
 /// Catalog entries a Flutter widget with no catalog entry of its own is
 /// emitted as, keyed by the class name source spells. Every construction of
@@ -122,10 +130,10 @@ bool textLowersToRichText(InstanceCreationExpression expr) {
 /// Whether [expression] is a string literal with an interpolated part,
 /// directly or among adjacent strings.
 bool isInterpolatedString(AstNode? expression) => switch (expression) {
-      StringInterpolation() => true,
-      AdjacentStrings(:final strings) => strings.any(isInterpolatedString),
-      _ => false,
-    };
+  StringInterpolation() => true,
+  AdjacentStrings(:final strings) => strings.any(isInterpolatedString),
+  _ => false,
+};
 
 /// Whether [invocation] spells the `Text.rich` constructor. A named
 /// constructor stays a call where the analyzer has not rewritten it, so both

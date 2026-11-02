@@ -3,7 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui/genui.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:restage_a2ui/restage_a2ui.dart';
 import 'package:restage_shared/restage_shared.dart'
@@ -15,31 +16,37 @@ import 'package:restage_shared/restage_shared.dart'
 /// consumes it (via [A2uiInstalledCapability.fromStampJson]) as the available
 /// side, against a sidecar's required [CapabilityManifest]. These two shapes
 /// are produced by different packages that cannot import each other (the
-/// toolchain is genui-free; this package owns genui). This test pins the seam
+/// toolchain is a2ui_flutter-free; this package owns a2ui_flutter). This test pins the seam
 /// by reading the toolchain's REAL committed stamp output and proving the
 /// check reconciles with it — so a field rename on either side fails here.
 ///
 /// The fixture is the toolchain's golden A2UI catalog (drift-guarded in the
 /// emitter package); we read only its `restageCapability` block + component
-/// names — the contract surface, not the genui-specific schema body.
+/// names — the contract surface, not the a2ui_flutter-specific schema body.
 const _emittedCatalogPath =
     '../restage_codegen/test/a2ui/golden/sample_catalog.a2ui.json';
 
-Catalog _catalogOf(List<String> names) => Catalog([
-  for (final name in names)
-    CatalogItem(
-      name: name,
-      dataSchema: S.object(properties: const {}),
-      widgetBuilder: (_) => const SizedBox.shrink(),
-    ),
-]);
+CatalogImplementation _catalogOf(List<String> names) => CatalogImplementation(
+  id: 'cache-test',
+  protocolVersion: A2uiProtocolVersion.v1_0,
+  components: [
+    for (final name in names)
+      ComponentImplementation(
+        name: name,
+        schema: S.object(properties: const {}),
+        builder: (_, _, _, _) => const SizedBox.shrink(),
+      ),
+  ],
+);
 
 Map<String, Object?> _rawPayload(List<String> types) => {
-  'version': 'v0.9',
-  'updateComponents': {
+  'version': 'v1.0',
+  'createSurface': {
+    'catalogId': 'cache-test',
     'surfaceId': 's',
     'components': [
-      for (final t in types) {'id': t, 'component': t},
+      for (final (i, t) in types.indexed)
+        {'id': i == 0 ? 'root' : t, 'component': t},
     ],
   },
 };
@@ -76,7 +83,7 @@ void main() {
     test('a payload within the emitted catalog renders end-to-end', () {
       final installed = A2uiInstalledCapability.fromStampJson(stamp);
       final check = RestageA2uiPreRenderCheck(
-        catalog: _catalogOf(componentNames.keys.toList()),
+        catalogs: [_catalogOf(componentNames.keys.toList())],
         installed: installed,
       );
       // Requires exactly what the emitted catalog provides: built-in floor 2
@@ -98,7 +105,7 @@ void main() {
     test('a built-in floor above the emitted version is rejected', () {
       final installed = A2uiInstalledCapability.fromStampJson(stamp);
       final check = RestageA2uiPreRenderCheck(
-        catalog: _catalogOf(componentNames.keys.toList()),
+        catalogs: [_catalogOf(componentNames.keys.toList())],
         installed: installed,
       );
       final result = check.check(
@@ -113,7 +120,7 @@ void main() {
     test('a library above the emitted version is rejected', () {
       final installed = A2uiInstalledCapability.fromStampJson(stamp);
       final check = RestageA2uiPreRenderCheck(
-        catalog: _catalogOf(componentNames.keys.toList()),
+        catalogs: [_catalogOf(componentNames.keys.toList())],
         installed: installed,
       );
       final result = check.check(
@@ -134,7 +141,7 @@ void main() {
     test('a component absent from the emitted catalog is rejected', () {
       final installed = A2uiInstalledCapability.fromStampJson(stamp);
       final check = RestageA2uiPreRenderCheck(
-        catalog: _catalogOf(componentNames.keys.toList()),
+        catalogs: [_catalogOf(componentNames.keys.toList())],
         installed: installed,
       );
       final result = check.check(_rawPayload(['Text', 'NotInCatalog']));

@@ -14,67 +14,89 @@ import 'helpers.dart';
 void main() {
   group('themeReadSegments — no bindings (backward compatible)', () {
     test('Theme.of(c).colorScheme.primary → [colorScheme, primary]', () async {
-      final expr =
-          await parseExpressionForTest('Theme.of(context).colorScheme.primary');
+      final expr = await parseExpressionForTest(
+        'Theme.of(context).colorScheme.primary',
+      );
       expect(themeReadSegments(expr), ['colorScheme', 'primary']);
     });
 
     test('Theme.of(c).iconTheme.size → [iconTheme, size]', () async {
-      final expr =
-          await parseExpressionForTest('Theme.of(context).iconTheme.size');
+      final expr = await parseExpressionForTest(
+        'Theme.of(context).iconTheme.size',
+      );
       expect(themeReadSegments(expr), ['iconTheme', 'size']);
     });
 
-    test('DefaultTextStyle.of(c).style.color → [defaultTextStyle, color]',
-        () async {
-      final expr = await parseExpressionForTest(
-        'DefaultTextStyle.of(context).style.color',
-      );
-      expect(themeReadSegments(expr), ['defaultTextStyle', 'color']);
-    });
+    test(
+      'DefaultTextStyle.of(c).style.color → [defaultTextStyle, color]',
+      () async {
+        final expr = await parseExpressionForTest(
+          'DefaultTextStyle.of(context).style.color',
+        );
+        expect(themeReadSegments(expr), ['defaultTextStyle', 'color']);
+      },
+    );
 
     test('DefaultTextStyle.of(c).maxLines (no leading style) → null', () async {
-      final expr =
-          await parseExpressionForTest('DefaultTextStyle.of(context).maxLines');
+      final expr = await parseExpressionForTest(
+        'DefaultTextStyle.of(context).maxLines',
+      );
       expect(themeReadSegments(expr), isNull);
     });
 
-    test('a null-aware text-theme field read keeps the plain segments',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Theme.of(context).textTheme.titleLarge?.fontSize',
-      );
-      expect(themeReadSegments(expr), ['textTheme', 'titleLarge', 'fontSize']);
-    });
+    test(
+      'a null-aware text-theme field read keeps the plain segments',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Theme.of(context).textTheme.titleLarge?.fontSize',
+        );
+        expect(themeReadSegments(expr), [
+          'textTheme',
+          'titleLarge',
+          'fontSize',
+        ]);
+      },
+    );
 
-    test('a null-asserted text-theme field read keeps the plain segments',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Theme.of(context).textTheme.titleLarge!.fontSize',
-      );
-      expect(themeReadSegments(expr), ['textTheme', 'titleLarge', 'fontSize']);
-    });
+    test(
+      'a null-asserted text-theme field read keeps the plain segments',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Theme.of(context).textTheme.titleLarge!.fontSize',
+        );
+        expect(themeReadSegments(expr), [
+          'textTheme',
+          'titleLarge',
+          'fontSize',
+        ]);
+      },
+    );
 
     test('a non-theme PropertyAccess → null', () async {
       final expr = await parseExpressionForTest('someFn().length');
       expect(themeReadSegments(expr), isNull);
     });
 
-    test('a bound-local-shaped PrefixedIdentifier with NO bindings → null',
-        () async {
-      // `scheme.primary` is a PrefixedIdentifier; without a binding for the
-      // `scheme` prefix it is not a theme read and must not be recognised.
-      final expr = await parseExpressionForTest('scheme.primary');
-      expect(themeReadSegments(expr), isNull);
-    });
+    test(
+      'a bound-local-shaped PrefixedIdentifier with NO bindings → null',
+      () async {
+        // `scheme.primary` is a PrefixedIdentifier; without a binding for the
+        // `scheme` prefix it is not a theme read and must not be recognised.
+        final expr = await parseExpressionForTest('scheme.primary');
+        expect(themeReadSegments(expr), isNull);
+      },
+    );
 
-    test('isThemeReadChain agrees with themeReadSegments (no bindings)',
-        () async {
-      final themeExpr =
-          await parseExpressionForTest('Theme.of(context).colorScheme.primary');
-      final plainExpr = await parseExpressionForTest('someFn().length');
-      expect(isThemeReadChain(themeExpr), isTrue);
-      expect(isThemeReadChain(plainExpr), isFalse);
-    });
+    test(
+      'isThemeReadChain agrees with themeReadSegments (no bindings)',
+      () async {
+        final themeExpr = await parseExpressionForTest(
+          'Theme.of(context).colorScheme.primary',
+        );
+        final plainExpr = await parseExpressionForTest('someFn().length');
+        expect(isThemeReadChain(themeExpr), isTrue);
+        expect(isThemeReadChain(plainExpr), isFalse);
+      },
+    );
   });
 }

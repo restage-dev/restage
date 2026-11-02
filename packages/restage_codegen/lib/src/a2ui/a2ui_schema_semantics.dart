@@ -33,27 +33,19 @@ Map<String, String> assignA2uiSafeDefinitionKeys(
   return keys;
 }
 
-/// Whether [fieldName] collides with GenUI's flattened built-in component
-/// envelope.
-///
-/// Custom component fields live under `props` and do not use this
-/// reservation. For flat built-ins it applies only to top-level widget field
-/// roots; nested rich-data members remain ordinary schema fields.
-bool isReservedA2uiComponentEnvelopeField(String fieldName) =>
-    fieldName == 'id' || fieldName == 'component';
-
 /// Whether [node] is the analyzer/catalog leaf admitted as `List<scalar>`.
 bool isA2uiScalarListNode(A2uiSchemaNode? node) =>
     node is ListNode && node.element is ScalarNode;
 
-/// Whether a bound data field exposes GenUI's literal/path/call reference
+/// Whether a bound data field exposes A2UI's literal/`@path`/`@call` reference
 /// envelope in the emitted schema.
 ///
-/// Every scalar list is a reactive binding. Scalar and enum leaves expose the
-/// same envelope only when paired with a write-back callback.
+/// Scalar lists and scalar leaves always expose it; enum leaves only when
+/// paired with a write-back callback.
 bool a2uiUsesValueReferenceSchema(
   A2uiSchemaNode node, {
   required bool writeBack,
 }) =>
     isA2uiScalarListNode(node) ||
-    (writeBack && (node is ScalarNode || node is EnumNode));
+    node is ScalarNode ||
+    (writeBack && node is EnumNode);

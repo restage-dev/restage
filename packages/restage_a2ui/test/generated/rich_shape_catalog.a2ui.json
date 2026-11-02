@@ -13,13 +13,119 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31",
+    "$id": "restage:catalog/sha256/ca8f148a8b1ad4e46d46a77d8b4bfc3b2d3d861bbd39eba0b18ac8cf5753140b",
+    "protocolVersion": "1.0",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31",
-    "a2uiProtocolVersion": "0.9.1",
+    "catalogId": "restage:catalog/sha256/ca8f148a8b1ad4e46d46a77d8b4bfc3b2d3d861bbd39eba0b18ac8cf5753140b",
+    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/ca8f148a8b1ad4e46d46a77d8b4bfc3b2d3d861bbd39eba0b18ac8cf5753140b\".\nPlanCard constructor fields: plan => props_plan.\nFeatureGrid: A grid of plan features with inclusion flags.\nFeatureGrid constructor fields: features => props_features.\nGlossary constructor fields: terms => props_terms.\nMetaBar constructor fields: meta => props_meta.\nLinkCard constructor fields: link => props_link.\nCommentThread constructor fields: root => props_root.",
     "components": {
       "CommentThread": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/restage_component_CommentThread/$defs/__a2ui_root__"
+          }
+        ]
+      },
+      "FeatureGrid": {
+        "type": "object",
+        "description": "A grid of plan features with inclusion flags.",
+        "properties": {
+          "props_features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A list-of-objects element.",
+              "properties": {
+                "included": {
+                  "type": "boolean"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "included",
+                "label"
+              ]
+            }
+          }
+        },
+        "required": [
+          "props_features"
+        ]
+      },
+      "Glossary": {
+        "type": "object",
+        "properties": {
+          "props_terms": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "props_terms"
+        ]
+      },
+      "LinkCard": {
+        "type": "object",
+        "properties": {
+          "props_link": {
+            "type": "object",
+            "description": "A nested object whose own field is named `path`, which must not be read as a data binding. Direct reconstruction reads the field by name.",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "path"
+            ]
+          }
+        },
+        "required": [
+          "props_link"
+        ]
+      },
+      "MetaBar": {
+        "type": "object",
+        "properties": {
+          "props_meta": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "count",
+              "title"
+            ]
+          }
+        },
+        "required": [
+          "props_meta"
+        ]
+      },
+      "PlanCard": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/restage_component_PlanCard/$defs/__a2ui_root__"
+          }
+        ]
+      }
+    },
+    "$defs": {
+      "restage_component_CommentThread": {
         "$defs": {
           "Comment": {
             "type": "object",
@@ -29,7 +135,7 @@
                 "description": "The next reply in the thread.",
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/Comment"
+                    "$ref": "#/$defs/restage_component_CommentThread/$defs/Comment"
                   },
                   {
                     "type": "null"
@@ -48,147 +154,18 @@
           "__a2ui_root__": {
             "type": "object",
             "properties": {
-              "root": {
+              "props_root": {
                 "description": "The root comment of a recursive reply thread.",
-                "$ref": "#/$defs/Comment"
+                "$ref": "#/$defs/restage_component_CommentThread/$defs/Comment"
               }
             },
             "required": [
-              "root"
+              "props_root"
             ]
           }
-        },
-        "$ref": "#/$defs/__a2ui_root__",
-        "properties": {
-          "component": {
-            "type": "string",
-            "enum": [
-              "CommentThread"
-            ]
-          }
-        },
-        "required": [
-          "component"
-        ]
+        }
       },
-      "FeatureGrid": {
-        "type": "object",
-        "description": "A grid of plan features with inclusion flags.",
-        "properties": {
-          "features": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "description": "A list-of-objects element.",
-              "properties": {
-                "included": {
-                  "type": "boolean"
-                },
-                "label": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "included",
-                "label"
-              ]
-            }
-          },
-          "component": {
-            "type": "string",
-            "enum": [
-              "FeatureGrid"
-            ]
-          }
-        },
-        "required": [
-          "component",
-          "features"
-        ]
-      },
-      "Glossary": {
-        "type": "object",
-        "properties": {
-          "terms": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
-          },
-          "component": {
-            "type": "string",
-            "enum": [
-              "Glossary"
-            ]
-          }
-        },
-        "required": [
-          "component",
-          "terms"
-        ]
-      },
-      "LinkCard": {
-        "type": "object",
-        "properties": {
-          "link": {
-            "type": "object",
-            "description": "A nested object whose own field is named `path` — the exact shape genui's BoundObject would have misread as a `{path: ...}` binding. Direct reconstruction reads the field by name, so it renders correctly.",
-            "properties": {
-              "label": {
-                "type": "string"
-              },
-              "path": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "label",
-              "path"
-            ]
-          },
-          "component": {
-            "type": "string",
-            "enum": [
-              "LinkCard"
-            ]
-          }
-        },
-        "required": [
-          "component",
-          "link"
-        ]
-      },
-      "MetaBar": {
-        "type": "object",
-        "properties": {
-          "meta": {
-            "type": "object",
-            "properties": {
-              "count": {
-                "type": "integer"
-              },
-              "title": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "count",
-              "title"
-            ]
-          },
-          "component": {
-            "type": "string",
-            "enum": [
-              "MetaBar"
-            ]
-          }
-        },
-        "required": [
-          "component",
-          "meta"
-        ]
-      },
-      "PlanCard": {
+      "restage_component_PlanCard": {
         "$defs": {
           "PlanTier": {
             "type": "object",
@@ -234,34 +211,45 @@
           "__a2ui_root__": {
             "type": "object",
             "properties": {
-              "plan": {
+              "props_plan": {
                 "description": "The plan tier this card presents.",
-                "$ref": "#/$defs/PlanTier"
+                "$ref": "#/$defs/restage_component_PlanCard/$defs/PlanTier"
               }
             },
             "required": [
-              "plan"
+              "props_plan"
             ]
           }
-        },
-        "$ref": "#/$defs/__a2ui_root__",
-        "properties": {
-          "component": {
-            "type": "string",
-            "enum": [
-              "PlanCard"
-            ]
+        }
+      },
+      "anyComponent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/CommentThread"
+          },
+          {
+            "$ref": "#/components/FeatureGrid"
+          },
+          {
+            "$ref": "#/components/Glossary"
+          },
+          {
+            "$ref": "#/components/LinkCard"
+          },
+          {
+            "$ref": "#/components/MetaBar"
+          },
+          {
+            "$ref": "#/components/PlanCard"
           }
-        },
-        "required": [
-          "component"
-        ]
+        ],
+        "discriminator": {
+          "propertyName": "component"
+        }
+      },
+      "anyFunction": {
+        "not": {}
       }
-    },
-    "functions": {},
-    "systemPromptFragments": [
-      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31\".",
-      "FeatureGrid: A grid of plan features with inclusion flags."
-    ]
+    }
   }
 }

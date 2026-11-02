@@ -14,7 +14,8 @@ void main() {
       test(
         '$payload fails both builders before catalog/factory divergence',
         () async {
-          final source = '''
+          final source =
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A callback-contract probe.

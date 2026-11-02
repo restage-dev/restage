@@ -116,25 +116,24 @@ class RealCatalogEmitOutOfContract extends StatelessWidget {
 ''';
 
 Catalog _fixtureCatalog() => catalogWith(
-      [
-        for (final MapEntry(key: file, value: classes)
-            in _kFixtureStubs.entries)
-          for (final className in classes)
-            entry(
-              name: className,
-              properties: const [],
-              flutterType:
-                  'package:apps_examples/coverage_fixtures/$file#$className',
-            ),
-      ],
-      // The decompose-able structured types the real merged catalog declares —
-      // a construction of one is classifier-recognised composition (the A2
-      // reconciliation single-sources recognition off the catalog's
-      // structuredTypes). The entries are field-less stubs, preserving the
-      // snapshot's "classifier-recognised upper bound, not emit-confirmed"
-      // semantics.
-      structuredTypes: [structuredEntry('TextStyle')],
-    );
+  [
+    for (final MapEntry(key: file, value: classes) in _kFixtureStubs.entries)
+      for (final className in classes)
+        entry(
+          name: className,
+          properties: const [],
+          flutterType:
+              'package:apps_examples/coverage_fixtures/$file#$className',
+        ),
+  ],
+  // The decompose-able structured types the real merged catalog declares —
+  // a construction of one is classifier-recognised composition (the A2
+  // reconciliation single-sources recognition off the catalog's
+  // structuredTypes). The entries are field-less stubs, preserving the
+  // snapshot's "classifier-recognised upper bound, not emit-confirmed"
+  // semantics.
+  structuredTypes: [structuredEntry('TextStyle')],
+);
 
 void main() {
   test('coverage fixtures bucket to match the on-disk snapshot', () async {
@@ -165,7 +164,8 @@ void main() {
     expect(
       snapshotFile.existsSync(),
       isTrue,
-      reason: 'Snapshot missing at ${snapshotFile.path}; regenerate by '
+      reason:
+          'Snapshot missing at ${snapshotFile.path}; regenerate by '
           'running this test and copying the actual output into the file.',
     );
 
@@ -186,7 +186,8 @@ void main() {
     expect(
       actual,
       expected,
-      reason: 'Coverage bucketing drifted from the on-disk snapshot. If the '
+      reason:
+          'Coverage bucketing drifted from the on-disk snapshot. If the '
           'drift is intentional (a new fixture, a recognised mechanism that '
           'moved widgets between buckets), regenerate with '
           'REGEN_COVERAGE_SNAPSHOT=1 and update the accompanying coverage '
@@ -285,8 +286,8 @@ void main() {
       }) {
         expect(
           emitSnapshot[bucket.snapshotKey]!.toSet().difference(
-                upperBoundSnapshot[bucket.snapshotKey]!.toSet(),
-              ),
+            upperBoundSnapshot[bucket.snapshotKey]!.toSet(),
+          ),
           isEmpty,
           reason: '${bucket.snapshotKey} cannot gain widgets under emit',
         );
@@ -312,7 +313,8 @@ Future<Map<String, String>> _fixtureSources() async {
     expect(
       file.existsSync(),
       isTrue,
-      reason: 'Fixture missing at ${file.path}; check the fixture '
+      reason:
+          'Fixture missing at ${file.path}; check the fixture '
           'directory layout.',
     );
     sources[fixture.inputPath] = file.readAsStringSync();
@@ -380,8 +382,8 @@ class _MergedCatalogProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.noop'],
-      };
+    '.dart': ['.noop'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {

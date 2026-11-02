@@ -23,13 +23,13 @@ final class PaywallArtifactFile {
     required List<int> bytes,
     required SurfacePublicationArtifactRole role,
     String? id,
-  })  : bytes = Uint8List.fromList(bytes),
-        artifact = SurfacePublicationArtifact(
-          contentHash: CapabilitySidecar.hashBlob(bytes),
-          path: path,
-          role: role,
-          id: id,
-        );
+  }) : bytes = Uint8List.fromList(bytes),
+       artifact = SurfacePublicationArtifact(
+         contentHash: CapabilitySidecar.hashBlob(bytes),
+         path: path,
+         role: role,
+         id: id,
+       );
 
   final String path;
   final Uint8List bytes;
@@ -97,9 +97,9 @@ final class PaywallScreenArtifactFacts {
   final CapabilitySidecar sidecar;
 
   List<SurfacePublicationArtifact> get artifacts => [
-        blob.artifact,
-        capabilitySidecar.artifact,
-      ];
+    blob.artifact,
+    capabilitySidecar.artifact,
+  ];
 }
 
 /// The complete generated artifact closure for one canonical or legacy
@@ -311,8 +311,10 @@ abstract final class PaywallArtifactAdapter {
     );
 
     final flowBytes = files[flowDocumentPath];
-    final flowDocument =
-        _decodeOptionalFlowDocument(flowBytes, flowDocumentPath);
+    final flowDocument = _decodeOptionalFlowDocument(
+      flowBytes,
+      flowDocumentPath,
+    );
     final flowFile = flowDocument == null
         ? null
         : PaywallArtifactFile(
@@ -505,7 +507,8 @@ CapabilitySidecar _decodeSidecar(List<int> bytes, String path) {
     );
   }
   for (final requirement in requirements) {
-    final validKeys = requirement is Map &&
+    final validKeys =
+        requirement is Map &&
         setEquals(
           requirement.keys.toSet(),
           requirement.containsKey('minGenerated')

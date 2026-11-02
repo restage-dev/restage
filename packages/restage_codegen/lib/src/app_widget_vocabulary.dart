@@ -74,8 +74,10 @@ AppVocabularyDerivation deriveAppVocabulary(
   Iterable<ResolvedLibraryResult> libraries,
   Catalog catalog,
 ) {
-  final visitor =
-      _AppVocabularyVisitor(_qualifiedNamesByFlutterType(catalog), catalog);
+  final visitor = _AppVocabularyVisitor(
+    _qualifiedNamesByFlutterType(catalog),
+    catalog,
+  );
   for (final library in libraries) {
     visitor.libraryIdentity = library.element.identifier;
     for (final unit in library.units) {
@@ -103,8 +105,7 @@ AppVocabularyDerivation deriveAppVocabulary(
 WidgetVocabulary deriveAppWidgetVocabulary(
   Iterable<ResolvedLibraryResult> libraries,
   Catalog catalog,
-) =>
-    deriveAppVocabulary(libraries, catalog).vocabulary;
+) => deriveAppVocabulary(libraries, catalog).vocabulary;
 
 /// The vocabulary naming every widget in [entries], for folding the authored
 /// surfaces' referenced entries into an app vocabulary.

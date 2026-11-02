@@ -29,17 +29,19 @@ void main() {
       expect(libraryIsFlutter(prefix.element), isTrue);
     });
 
-    test('a custom look-alike class (not package:flutter/) is not recognised',
-        () async {
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'a custom look-alike class (not package:flutter/) is not recognised',
+      () async {
+        final expr = await parseExpressionFromSourceForTest('''
         class EdgeInsets {
           EdgeInsets._();
           static const int zero = 0;
         }
         Object x() => EdgeInsets.zero;
       ''');
-      final prefix = (expr as PrefixedIdentifier).prefix;
-      expect(libraryIsFlutter(prefix.element), isFalse);
-    });
+        final prefix = (expr as PrefixedIdentifier).prefix;
+        expect(libraryIsFlutter(prefix.element), isFalse);
+      },
+    );
   });
 }

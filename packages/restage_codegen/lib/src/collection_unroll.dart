@@ -58,17 +58,19 @@ final class CollectionResolvedHelper {
 }
 
 /// Resolves a named intermediate visible to collection-flow translation.
-typedef CollectionBindingResolver = Expression? Function(
-  SimpleIdentifier identifier,
-);
+typedef CollectionBindingResolver =
+    Expression? Function(
+      SimpleIdentifier identifier,
+    );
 
 /// Resolves a transparent authored source for typed-list inspection.
 typedef CollectionSourceResolver = Expression? Function(Expression expression);
 
 /// Resolves an inlinable helper invocation visible to translation.
-typedef CollectionHelperResolver = CollectionResolvedHelper? Function(
-  MethodInvocation invocation,
-);
+typedef CollectionHelperResolver =
+    CollectionResolvedHelper? Function(
+      MethodInvocation invocation,
+    );
 
 /// A bounded semantic view of every transparent expression translation can
 /// reach.
@@ -78,9 +80,9 @@ final class CollectionSemanticProbe {
     CollectionBindingResolver? bindingFor,
     CollectionHelperResolver? helperFor,
     CollectionSourceResolver? sourceFor,
-  })  : _bindingFor = bindingFor ?? _noBinding,
-        _helperFor = helperFor ?? _noHelper,
-        _sourceFor = sourceFor ?? _noSource;
+  }) : _bindingFor = bindingFor ?? _noBinding,
+       _helperFor = helperFor ?? _noHelper,
+       _sourceFor = sourceFor ?? _noSource;
 
   final CollectionBindingResolver _bindingFor;
   final CollectionHelperResolver _helperFor;
@@ -96,9 +98,13 @@ final class CollectionSemanticProbe {
     bool stopAtConditionals = false,
     bool preserveHelpers = false,
   }) {
-    final walk = _walk(expression, bindings, budget,
-        stopAtConditionals: stopAtConditionals,
-        preserveHelpers: preserveHelpers);
+    final walk = _walk(
+      expression,
+      bindings,
+      budget,
+      stopAtConditionals: stopAtConditionals,
+      preserveHelpers: preserveHelpers,
+    );
     if (walk.workLimitExceeded) {
       return CollectionExpressionResolution(
         expression: expression,
@@ -129,12 +135,11 @@ final class CollectionSemanticProbe {
     AstNode node, {
     required CollectionUnrollBudget budget,
     Map<Element, Expression> bindings = const {},
-  }) =>
-      _callbackSourcesIn(
-        node,
-        budget: budget,
-        bindings: bindings,
-      ).result;
+  }) => _callbackSourcesIn(
+    node,
+    budget: budget,
+    bindings: bindings,
+  ).result;
 
   /// Finds every exact callback expression reached through transparent edges.
   _CollectionCallbackSources _callbackSourcesIn(
@@ -266,7 +271,8 @@ final class CollectionSemanticProbe {
         }
         if (current is SimpleIdentifier) {
           final element = current.element;
-          final bound = (element == null ? null : activeBindings[element]) ??
+          final bound =
+              (element == null ? null : activeBindings[element]) ??
               _bindingFor(current);
           if (bound != null) {
             if (chargeEdge()) {
@@ -347,7 +353,8 @@ final class CollectionSemanticProbe {
             return fieldTerminals;
           }
         }
-        final source = _sourceFor(current) ??
+        final source =
+            _sourceFor(current) ??
             resolveConstDeclarationInitializer(current) ??
             resolveConstObjectFieldInitializer(current);
         if (source != null && !identical(source, current)) {
@@ -361,8 +368,8 @@ final class CollectionSemanticProbe {
                   kind: isConstObjectFieldAccess(current)
                       ? CollectionSemanticSourceKind.constObjectField
                       : constDeclarationElement(current) != null
-                          ? CollectionSemanticSourceKind.constDeclaration
-                          : CollectionSemanticSourceKind.source,
+                      ? CollectionSemanticSourceKind.constDeclaration
+                      : CollectionSemanticSourceKind.source,
                   source: current,
                   target: source,
                   element: _referencedElement(current),
@@ -585,17 +592,16 @@ enum CollectionSemanticSourceKind {
 
   /// Whether this entrance distinguishes a directly authored occurrence.
   bool get distinguishesDirectOccurrence => switch (this) {
-        CollectionSemanticSourceKind.helper => true,
-        CollectionSemanticSourceKind.parentheses ||
-        CollectionSemanticSourceKind.receiver ||
-        CollectionSemanticSourceKind.binding ||
-        CollectionSemanticSourceKind.source ||
-        CollectionSemanticSourceKind.constDeclaration ||
-        CollectionSemanticSourceKind.constObjectField ||
-        CollectionSemanticSourceKind.conditionalThen ||
-        CollectionSemanticSourceKind.conditionalElse =>
-          false,
-      };
+    CollectionSemanticSourceKind.helper => true,
+    CollectionSemanticSourceKind.parentheses ||
+    CollectionSemanticSourceKind.receiver ||
+    CollectionSemanticSourceKind.binding ||
+    CollectionSemanticSourceKind.source ||
+    CollectionSemanticSourceKind.constDeclaration ||
+    CollectionSemanticSourceKind.constObjectField ||
+    CollectionSemanticSourceKind.conditionalThen ||
+    CollectionSemanticSourceKind.conditionalElse => false,
+  };
 }
 
 /// One exact transparent edge in an occurrence's source provenance.
@@ -636,7 +642,7 @@ final class _CollectionSemanticWalk {
 /// Callback identity shared by every semantic leaf in one source artifact.
 final class CollectionSemanticTraversalSession {
   final Map<Expression, CollectionSemanticOccurrence>
-      _firstOccurrenceByCallbackSource =
+  _firstOccurrenceByCallbackSource =
       HashMap<Expression, CollectionSemanticOccurrence>.identity();
   final Map<Expression, ForElement> _repeatingLoopByCallbackSource =
       HashMap<Expression, ForElement>.identity();
@@ -750,8 +756,8 @@ final class CollectionSemanticTraversalSession {
       location: identical(priorOccurrence, occurrence)
           ? callback.authoredExpression
           : occurrence.structuralPath.isEmpty
-              ? occurrence.authoredExpression
-              : occurrence.structuralPath.first.node,
+          ? occurrence.authoredExpression
+          : occurrence.structuralPath.first.node,
     );
   }
 }
@@ -785,7 +791,8 @@ final class CollectionUnrollBudget {
     if (_emittedCount >= emittedCeiling) {
       return CollectionUnrollRefused(
         reason: CollectionUnrollRefusal.ceilingExceeded,
-        detail: 'A list with collection flow exceeds the supported maximum of '
+        detail:
+            'A list with collection flow exceeds the supported maximum of '
             '$emittedCeiling emitted elements. Use a shorter list.',
         location: location,
       );
@@ -810,7 +817,8 @@ final class CollectionUnrollBudget {
   CollectionUnrollRefused workRefusal(AstNode location) =>
       CollectionUnrollRefused(
         reason: CollectionUnrollRefusal.workLimitExceeded,
-        detail: 'A collection-flow list exceeds the supported limit of '
+        detail:
+            'A collection-flow list exceeds the supported limit of '
             '$workCeiling static expansion steps. Use a smaller static '
             'collection.',
         location: location,
@@ -884,10 +892,10 @@ final class CollectionSemanticOccurrence {
   /// Source entrances that distinguish this persistent occurrence.
   Iterable<CollectionSemanticSourceStep> get identitySourceProvenance =>
       isDirectListElement
-          ? sourceProvenance.where(
-              (step) => step.kind.distinguishesDirectOccurrence,
-            )
-          : sourceProvenance;
+      ? sourceProvenance.where(
+          (step) => step.kind.distinguishesDirectOccurrence,
+        )
+      : sourceProvenance;
 
   /// Exact structural path that produced this occurrence.
   final List<CollectionStructuralOccurrenceStep> structuralPath;
@@ -1184,9 +1192,9 @@ CollectionListTraversal traverseCollectionList(
     ).expand();
     switch (result) {
       case CollectionUnrollExpansion(
-          :final occurrences,
-          entries: final expanded
-        ):
+        :final occurrences,
+        entries: final expanded,
+      ):
         entries.addAll(expanded ?? occurrences.map(CollectionListElement.new));
       case CollectionUnrollRefused():
         entries.add(CollectionListRefusal(result));
@@ -1230,10 +1238,10 @@ Element? _referencedElement(Expression expression) {
 }
 
 Expression? _fieldAccessReceiver(Expression expression) => switch (expression) {
-      PrefixedIdentifier(:final prefix) => prefix,
-      PropertyAccess(:final target) => target,
-      _ => null,
-    };
+  PrefixedIdentifier(:final prefix) => prefix,
+  PropertyAccess(:final target) => target,
+  _ => null,
+};
 
 bool _hasConstValueProvenance(
   Expression expression,
@@ -1304,9 +1312,10 @@ const String _kCallbackSourceReusedDetail =
     'occurrences would share one callback identity. Write distinct elements, '
     'or bind the list to host-supplied data where supported.';
 
-typedef _SemanticOccurrenceConsumer = CollectionUnrollRefused? Function(
-  CollectionSemanticOccurrence occurrence,
-);
+typedef _SemanticOccurrenceConsumer =
+    CollectionUnrollRefused? Function(
+      CollectionSemanticOccurrence occurrence,
+    );
 
 final class _CollectionUnroller {
   _CollectionUnroller(
@@ -1346,8 +1355,10 @@ final class _CollectionUnroller {
     );
     if (refusal != null) return refusal;
     if (_entries case [CollectionListRefusal(:final refusal)]) return refusal;
-    return CollectionUnrollExpansion(occurrences,
-        entries: List.unmodifiable(_entries));
+    return CollectionUnrollExpansion(
+      occurrences,
+      entries: List.unmodifiable(_entries),
+    );
   }
 
   CollectionUnrollRefused? _expandElement(
@@ -1361,8 +1372,14 @@ final class _CollectionUnroller {
     final saved = _activeRepeatedBy;
     _activeRepeatedBy = repeatedBy;
     try {
-      final refusal = _expandRawElement(element, bindings, structuralPath, emit,
-          repeatedBy: repeatedBy, ledgerCallbacks: ledgerCallbacks);
+      final refusal = _expandRawElement(
+        element,
+        bindings,
+        structuralPath,
+        emit,
+        repeatedBy: repeatedBy,
+        ledgerCallbacks: ledgerCallbacks,
+      );
       if (ledgerCallbacks &&
           refusal != null &&
           (refusal.runtimeIf != null || refusal.runtimeLoop != null)) {
@@ -1411,7 +1428,8 @@ final class _CollectionUnroller {
           _semantics,
           _budget,
           repeatedBy: repeatedBy,
-          rootWorkAlreadyCharged: repeatedBy == null &&
+          rootWorkAlreadyCharged:
+              repeatedBy == null &&
               identical(
                 occurrence.authoredExpression,
                 occurrence.terminalExpression,
@@ -1647,7 +1665,7 @@ final class _CollectionUnroller {
   }
 
   ({CollectionRuntimeIfCandidate? candidate, CollectionUnrollRefused? refusal})
-      _runtimeIfCandidate(
+  _runtimeIfCandidate(
     IfElement element,
     Expression condition,
     Map<Element, Expression> bindings,
@@ -1695,7 +1713,7 @@ final class _CollectionUnroller {
   }
 
   ({CollectionRuntimeBranch? branch, CollectionUnrollRefused? refusal})
-      _runtimeIfBranch(
+  _runtimeIfBranch(
     IfElement element,
     CollectionElement branch,
     Map<Element, Expression> bindings,
@@ -1722,7 +1740,7 @@ final class _CollectionUnroller {
   }
 
   ({CollectionRuntimeBranch? branch, CollectionUnrollRefused? refusal})
-      _runtimeBranchAt(
+  _runtimeBranchAt(
     CollectionElement element,
     CollectionElement branch,
     Map<Element, Expression> bindings,
@@ -1750,7 +1768,7 @@ final class _CollectionUnroller {
             ? (branch: null, refusal: refusal)
             : (
                 branch: CollectionRuntimeIteration(candidate, refusal),
-                refusal: null
+                refusal: null,
               );
       }
       final members = <CollectionRuntimeBranch>[];
@@ -1771,8 +1789,14 @@ final class _CollectionUnroller {
       return (branch: CollectionRuntimeGroup(members), refusal: null);
     }
     if (branch is SpreadElement) {
-      return _runtimeSpreadBranch(element, branch, branch.expression, bindings,
-          branchPath, ledgerCallbacks);
+      return _runtimeSpreadBranch(
+        element,
+        branch,
+        branch.expression,
+        bindings,
+        branchPath,
+        ledgerCallbacks,
+      );
     }
     if (branch is IfElement && branch.caseClause == null) {
       final resolution = _semantics.resolve(
@@ -1818,7 +1842,7 @@ final class _CollectionUnroller {
       }
       return (
         branch: CollectionRuntimeConditional(nested.candidate!),
-        refusal: null
+        refusal: null,
       );
     }
     if (branch is! Expression) {
@@ -1861,7 +1885,7 @@ final class _CollectionUnroller {
   }
 
   ({CollectionRuntimeBranch? branch, CollectionUnrollRefused? refusal})
-      _runtimeSpreadBranch(
+  _runtimeSpreadBranch(
     CollectionElement element,
     SpreadElement spread,
     Expression expression,
@@ -1869,8 +1893,12 @@ final class _CollectionUnroller {
     List<CollectionStructuralOccurrenceStep> path,
     bool ledgerCallbacks,
   ) {
-    final resolution = _semantics.resolve(expression, bindings, _budget,
-        stopAtConditionals: true);
+    final resolution = _semantics.resolve(
+      expression,
+      bindings,
+      _budget,
+      stopAtConditionals: true,
+    );
     if (resolution.workLimitExceeded) {
       return (branch: null, refusal: _budget.workRefusal(spread));
     }
@@ -1879,8 +1907,11 @@ final class _CollectionUnroller {
       return (branch: const CollectionRuntimeGroup([]), refusal: null);
     }
     if (value is ConditionalExpression) {
-      final condition =
-          _semantics.resolve(value.condition, resolution.bindings, _budget);
+      final condition = _semantics.resolve(
+        value.condition,
+        resolution.bindings,
+        _budget,
+      );
       if (condition.workLimitExceeded) {
         return (branch: null, refusal: _budget.workRefusal(spread));
       }
@@ -1888,62 +1919,66 @@ final class _CollectionUnroller {
       final branches = <CollectionRuntimeBranch>[];
       for (final (then, arm) in [
         (true, value.thenExpression),
-        (false, value.elseExpression)
+        (false, value.elseExpression),
       ]) {
         if (folded is bool && folded != then) continue;
         final result = _runtimeSpreadBranch(
-            element,
-            spread,
-            arm,
-            resolution.bindings,
-            [
-              ...path,
-              CollectionStructuralOccurrenceStep(
-                  kind: then
-                      ? CollectionStructuralOccurrenceKind.selectedThen
-                      : CollectionStructuralOccurrenceKind.selectedElse,
-                  node: value,
-                  ordinal: then ? 0 : 1)
-            ],
-            ledgerCallbacks);
+          element,
+          spread,
+          arm,
+          resolution.bindings,
+          [
+            ...path,
+            CollectionStructuralOccurrenceStep(
+              kind: then
+                  ? CollectionStructuralOccurrenceKind.selectedThen
+                  : CollectionStructuralOccurrenceKind.selectedElse,
+              node: value,
+              ordinal: then ? 0 : 1,
+            ),
+          ],
+          ledgerCallbacks,
+        );
         if (result.refusal != null) return result;
         branches.add(result.branch!);
       }
       return (
         branch: folded is bool
             ? branches.single
-            : CollectionRuntimeConditional(CollectionRuntimeIfCandidate(
-                condition: condition.expression,
-                bindings: condition.bindings,
-                thenBranch: branches[0],
-                elseBranch: branches[1])),
-        refusal: null
+            : CollectionRuntimeConditional(
+                CollectionRuntimeIfCandidate(
+                  condition: condition.expression,
+                  bindings: condition.bindings,
+                  thenBranch: branches[0],
+                  elseBranch: branches[1],
+                ),
+              ),
+        refusal: null,
       );
     }
     if (value is! ListLiteral) {
       return (
         branch: null,
-        refusal: _nonListRefusal(value, spread,
-            staticDetail: _kStaticSpreadDetail,
-            runtimeDetail: _kRuntimeSpreadDetail)
+        refusal: _nonListRefusal(
+          value,
+          spread,
+          staticDetail: _kStaticSpreadDetail,
+          runtimeDetail: _kRuntimeSpreadDetail,
+        ),
       );
     }
     final members = <CollectionRuntimeBranch>[];
     for (final (index, member) in value.elements.indexed) {
       final charged = _budget.chargeWork(member);
       if (charged != null) return (branch: null, refusal: charged);
-      final result = _runtimeBranchAt(
-          element,
-          member,
-          resolution.bindings,
-          [
-            ...path,
-            CollectionStructuralOccurrenceStep(
-                kind: CollectionStructuralOccurrenceKind.listElement,
-                node: member,
-                ordinal: index)
-          ],
-          ledgerCallbacks);
+      final result = _runtimeBranchAt(element, member, resolution.bindings, [
+        ...path,
+        CollectionStructuralOccurrenceStep(
+          kind: CollectionStructuralOccurrenceKind.listElement,
+          node: member,
+          ordinal: index,
+        ),
+      ], ledgerCallbacks);
       if (result.refusal != null) return result;
       members.add(result.branch!);
     }
@@ -1958,8 +1993,15 @@ final class _CollectionUnroller {
     ForElement? repeatedBy,
     bool ledgerCallbacks,
   ) {
-    return _expandSpreadValue(element, element.expression, bindings,
-        structuralPath, emit, repeatedBy, ledgerCallbacks);
+    return _expandSpreadValue(
+      element,
+      element.expression,
+      bindings,
+      structuralPath,
+      emit,
+      repeatedBy,
+      ledgerCallbacks,
+    );
   }
 
   CollectionUnrollRefused? _expandSpreadValue(
@@ -1981,40 +2023,55 @@ final class _CollectionUnroller {
     final iterable = resolution.expression;
     if (element.isNullAware && iterable is NullLiteral) return null;
     if (iterable is ConditionalExpression) {
-      final condition =
-          _semantics.resolve(iterable.condition, resolution.bindings, _budget);
+      final condition = _semantics.resolve(
+        iterable.condition,
+        resolution.bindings,
+        _budget,
+      );
       if (condition.workLimitExceeded) return _budget.workRefusal(element);
       final selected = tryFoldConstant(condition.expression);
       if (selected is bool) {
         return _expandSpreadValue(
-            element,
-            selected ? iterable.thenExpression : iterable.elseExpression,
-            resolution.bindings,
-            [
-              ...structuralPath,
-              CollectionStructuralOccurrenceStep(
-                  kind: selected
-                      ? CollectionStructuralOccurrenceKind.selectedThen
-                      : CollectionStructuralOccurrenceKind.selectedElse,
-                  node: iterable,
-                  ordinal: selected ? 0 : 1)
-            ],
-            emit,
-            repeatedBy,
-            ledgerCallbacks);
+          element,
+          selected ? iterable.thenExpression : iterable.elseExpression,
+          resolution.bindings,
+          [
+            ...structuralPath,
+            CollectionStructuralOccurrenceStep(
+              kind: selected
+                  ? CollectionStructuralOccurrenceKind.selectedThen
+                  : CollectionStructuralOccurrenceKind.selectedElse,
+              node: iterable,
+              ordinal: selected ? 0 : 1,
+            ),
+          ],
+          emit,
+          repeatedBy,
+          ledgerCallbacks,
+        );
       }
-      final branch = _runtimeSpreadBranch(element, element, iterable,
-          resolution.bindings, structuralPath, ledgerCallbacks);
+      final branch = _runtimeSpreadBranch(
+        element,
+        element,
+        iterable,
+        resolution.bindings,
+        structuralPath,
+        ledgerCallbacks,
+      );
       if (branch.refusal != null) return branch.refusal;
       if (branch.branch case CollectionRuntimeConditional(:final candidate)) {
         return CollectionUnrollRefused(
-            reason: CollectionUnrollRefusal.runtimeValue,
-            detail: _kRuntimeSpreadDetail,
-            location: element,
-            runtimeIf: candidate);
+          reason: CollectionUnrollRefusal.runtimeValue,
+          detail: _kRuntimeSpreadDetail,
+          location: element,
+          runtimeIf: candidate,
+        );
       }
-      return _refuse(CollectionUnrollRefusal.unsupportedShape,
-          _kRuntimeSpreadDetail, element);
+      return _refuse(
+        CollectionUnrollRefusal.unsupportedShape,
+        _kRuntimeSpreadDetail,
+        element,
+      );
     }
 
     if (iterable is MethodInvocation ||
@@ -2050,7 +2107,8 @@ final class _CollectionUnroller {
     CollectionUnrollRefused? Function(
       CollectionSemanticOccurrence occurrence,
       int index,
-    ) emit, {
+    )
+    emit, {
     required ForElement? repeatedBy,
     required bool ledgerCallbacks,
   }) {
@@ -2079,12 +2137,11 @@ final class _CollectionUnroller {
     CollectionUnrollRefusal reason,
     String detail,
     AstNode location,
-  ) =>
-      CollectionUnrollRefused(
-        reason: reason,
-        detail: detail,
-        location: location,
-      );
+  ) => CollectionUnrollRefused(
+    reason: reason,
+    detail: detail,
+    location: location,
+  );
 
   CollectionUnrollRefused _nonListRefusal(
     Expression expression,
@@ -2198,7 +2255,8 @@ final class _SemanticCallbackVisitor extends UnifyingAstVisitor<void> {
           state.exhausted = true;
           return;
         }
-        final unchanged = walk.terminals.length == 1 &&
+        final unchanged =
+            walk.terminals.length == 1 &&
             identical(walk.terminals.single.expression, node) &&
             identical(walk.terminals.single.bindings, bindings);
         if (!unchanged) {

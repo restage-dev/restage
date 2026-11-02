@@ -20,28 +20,27 @@ WidgetEntry _widget(
   bool required = true,
   bool constructorNullable = false,
   DartConstValue? constructorDefault,
-}) =>
-    WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: 'FieldNotes',
-      library: const WidgetLibrary.custom('acme.design_system'),
-      category: WidgetCategory.layout,
-      description: 'A widget.',
-      flutterType: _fqn,
-      childrenSlot: ChildrenSlot.none,
-      properties: [
-        PropertyEntry(
-          wireId: WireId.unallocatedProperty,
-          name: propName,
-          type: PropertyType.unknown,
-          description: '',
-          required: required,
-          constructorNullable: constructorNullable,
-          constructorDefault: constructorDefault,
-          valueShape: ScalarShape.opaqueStringKeyedMap(),
-        ),
-      ],
-    );
+}) => WidgetEntry(
+  wireId: WireId.unallocatedWidget,
+  name: 'FieldNotes',
+  library: const WidgetLibrary.custom('acme.design_system'),
+  category: WidgetCategory.layout,
+  description: 'A widget.',
+  flutterType: _fqn,
+  childrenSlot: ChildrenSlot.none,
+  properties: [
+    PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: propName,
+      type: PropertyType.unknown,
+      description: '',
+      required: required,
+      constructorNullable: constructorNullable,
+      constructorDefault: constructorDefault,
+      valueShape: ScalarShape.opaqueStringKeyedMap(),
+    ),
+  ],
+);
 
 const MapKeyPlan _stringKey = (enumRef: null);
 const MapKeyPlan _toneKey = (
@@ -84,33 +83,33 @@ String _emitOptionalScalarMap({bool constructorNullable = false}) {
 
 /// A `Map<String, String>` slot — one key layer, scalar value.
 String _emitScalarMap() => _emit(
-      'glossary',
-      (
-        keys: const [_stringKey],
-        valueShape: const ScalarShape(propertyType: PropertyType.string),
-        valueSourceType: null,
-      ),
-    );
+  'glossary',
+  (
+    keys: const [_stringKey],
+    valueShape: const ScalarShape(propertyType: PropertyType.string),
+    valueSourceType: null,
+  ),
+);
 
 /// A `Map<String, Map<String, int>>` slot — two key layers.
 String _emitNestedMap() => _emit(
-      'nested',
-      (
-        keys: const [_stringKey, _stringKey],
-        valueShape: const ScalarShape(propertyType: PropertyType.integer),
-        valueSourceType: null,
-      ),
-    );
+  'nested',
+  (
+    keys: const [_stringKey, _stringKey],
+    valueShape: const ScalarShape(propertyType: PropertyType.integer),
+    valueSourceType: null,
+  ),
+);
 
 /// A `Map<Tone, String>` slot — one enum key layer, scalar value.
 String _emitEnumKeyedMap() => _emit(
-      'tones',
-      (
-        keys: const [_toneKey],
-        valueShape: const ScalarShape(propertyType: PropertyType.string),
-        valueSourceType: null,
-      ),
-    );
+  'tones',
+  (
+    keys: const [_toneKey],
+    valueShape: const ScalarShape(propertyType: PropertyType.string),
+    valueSourceType: null,
+  ),
+);
 
 void main() {
   group('the five reconstruction guards are emitted', () {
@@ -247,8 +246,7 @@ void main() {
     );
   });
 
-  test(
-      'a supplied nonnullable optional map never defaults on no-value or '
+  test('a supplied nonnullable optional map never defaults on no-value or '
       'wrong shape', () {
     final flat = _emitOptionalScalarMap().replaceAll(RegExp(r'\s+'), ' ');
 
@@ -273,11 +271,11 @@ void main() {
     expect(flat, isNot(contains(': const {}')));
   });
 
-  test(
-      'a supplied nullable optional map maps no-value to null but throws on '
+  test('a supplied nullable optional map maps no-value to null but throws on '
       'wrong shape', () {
-    final flat = _emitOptionalScalarMap(constructorNullable: true)
-        .replaceAll(RegExp(r'\s+'), ' ');
+    final flat = _emitOptionalScalarMap(
+      constructorNullable: true,
+    ).replaceAll(RegExp(r'\s+'), ' ');
 
     expect(flat, contains('restagePresenceGlossary.hasValue ?'));
     expect(

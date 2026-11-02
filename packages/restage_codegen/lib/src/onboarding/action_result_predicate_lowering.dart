@@ -14,11 +14,10 @@ const String kActionResultPredicateForms =
 /// Lowers a `continueWhen` predicate over a result of [resultType], or
 /// returns why it cannot.
 ({FlowActionResultPredicate? predicate, String? refusal})
-    lowerActionResultPredicate(Expression? expression, DartType? resultType) {
+lowerActionResultPredicate(Expression? expression, DartType? resultType) {
   ({FlowActionResultPredicate? predicate, String? refusal}) refuse(
     String why,
-  ) =>
-      (predicate: null, refusal: '$why $kActionResultPredicateForms');
+  ) => (predicate: null, refusal: '$why $kActionResultPredicateForms');
 
   if (expression is! FunctionExpression ||
       expression.parameters?.parameters.length != 1 ||
@@ -120,8 +119,9 @@ final class _Lowering {
     }
     final subject = this.subject(unwrapped);
     if (subject == null) return null;
-    final type =
-        subject.field == null ? resultType : _fieldType(subject.field!);
+    final type = subject.field == null
+        ? resultType
+        : _fieldType(subject.field!);
     if (type == null ||
         !type.isDartCoreBool ||
         type.nullabilitySuffix != NullabilitySuffix.none) {
@@ -224,12 +224,18 @@ final class _Lowering {
   LiteralFlowValueSource? _literal(Expression expression) {
     final value = tryFoldScalarConstant(_unwrap(expression));
     return switch (value) {
-      final bool flag =>
-        LiteralFlowValueSource(type: FlowDataType.bool, value: flag),
-      final int number =>
-        LiteralFlowValueSource(type: FlowDataType.int, value: number),
-      final String text =>
-        LiteralFlowValueSource(type: FlowDataType.string, value: text),
+      final bool flag => LiteralFlowValueSource(
+        type: FlowDataType.bool,
+        value: flag,
+      ),
+      final int number => LiteralFlowValueSource(
+        type: FlowDataType.int,
+        value: number,
+      ),
+      final String text => LiteralFlowValueSource(
+        type: FlowDataType.string,
+        value: text,
+      ),
       _ => null,
     };
   }

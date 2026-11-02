@@ -55,7 +55,8 @@ void main() {
             expect(
               _measurementSegments(oldCanonical[path]!),
               isEmpty,
-              reason: 'unresolved deprecated fixture must carry no Measurement '
+              reason:
+                  'unresolved deprecated fixture must carry no Measurement '
                   'at $path',
             );
             if (_measurementSegments(newCanonical[path]!).isNotEmpty) {
@@ -175,8 +176,9 @@ void main() {
     for (final MapEntry(key: scenario, value: syntax)
         in _languageFormScenarios.entries) {
       test('$scenario compiles like its long-form twin', () async {
-        final newSyntax =
-            _loadScenario('language_forms/$scenario/short').values.join('\n');
+        final newSyntax = _loadScenario(
+          'language_forms/$scenario/short',
+        ).values.join('\n');
         for (final pattern in syntax) {
           expect(
             newSyntax,
@@ -259,19 +261,19 @@ String _readableProduct(String encoded) {
 }
 
 Map<String, String> _languageFormOutputs(TestBuilderResult result) => {
-      ..._productOutputs(result),
-      ..._encodedOutputs(
-        result,
-        (path) => path == 'lib/user_factories.g.dart',
-      ),
-    };
+  ..._productOutputs(result),
+  ..._encodedOutputs(
+    result,
+    (path) => path == 'lib/user_factories.g.dart',
+  ),
+};
 
 List<Builder> _languageFormBuilders() => [
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      userCatalogBuilder(BuilderOptions.empty),
-      userFactoryBuilder(BuilderOptions.empty),
-      ..._defaultBuilders(),
-    ];
+  userCatalogJsonBuilder(BuilderOptions.empty),
+  userCatalogBuilder(BuilderOptions.empty),
+  userFactoryBuilder(BuilderOptions.empty),
+  ..._defaultBuilders(),
+];
 const _measurementIndexPath =
     '.restage/build/metadata/restage.measurement.index.json';
 const _primaryConstructorScenarios = <String>[
@@ -295,8 +297,9 @@ typedef _LanguageProbe = ({
 Future<_PrimaryConstructorPair> _compilePrimaryConstructorPair(
   String scenario,
 ) async {
-  final builders =
-      scenario == 'configuration' ? _configurationBuilders : _catalogBuilders;
+  final builders = scenario == 'configuration'
+      ? _configurationBuilders
+      : _catalogBuilders;
   return (
     classic: await _compileScenario(
       'primary_constructor/$scenario/classic',
@@ -372,8 +375,8 @@ void _expectConcretePrimaryConstructorOutput(
       final catalog = _jsonProduct(outputs, _catalogPath);
       final structured = catalog['structuredTypes']! as List<Object?>;
       final badge = structured.cast<Map<String, dynamic>>().singleWhere(
-            (entry) => entry['name'] == 'Badge',
-          );
+        (entry) => entry['name'] == 'Badge',
+      );
       final fields = badge['fields']! as List<Object?>;
       expect(
         fields.cast<Map<String, dynamic>>().map((field) => field['name']),
@@ -408,19 +411,18 @@ Iterable<Object?> _widgetPropertyNames(
   final catalog = _jsonProduct(outputs, _catalogPath);
   final widgets = catalog['widgets']! as List<Object?>;
   final widget = widgets.cast<Map<String, dynamic>>().singleWhere(
-        (entry) => entry['name'] == widgetName,
-      );
+    (entry) => entry['name'] == widgetName,
+  );
   final properties = widget['properties']! as List<Object?>;
   return properties.cast<Map<String, dynamic>>().map(
-        (property) => property['name'],
-      );
+    (property) => property['name'],
+  );
 }
 
 Map<String, dynamic> _jsonProduct(
   Map<String, String> outputs,
   String path,
-) =>
-    jsonDecode(_textProduct(outputs, path))! as Map<String, dynamic>;
+) => jsonDecode(_textProduct(outputs, path))! as Map<String, dynamic>;
 
 String _textProduct(Map<String, String> outputs, String path) {
   final value = outputs[path];
@@ -451,11 +453,10 @@ Map<String, String> _productOutputs(TestBuilderResult result) =>
 Map<String, String> _encodedOutputs(
   TestBuilderResult result,
   bool Function(String path) where,
-) =>
-    {
-      for (final id in _sortedOutputs(result, where))
-        id.path: base64Encode(result.readerWriter.testing.readBytes(id)),
-    };
+) => {
+  for (final id in _sortedOutputs(result, where))
+    id.path: base64Encode(result.readerWriter.testing.readBytes(id)),
+};
 
 List<AssetId> _sortedOutputs(
   TestBuilderResult result,
@@ -481,8 +482,9 @@ Future<Map<String, _LanguageProbe>> _languageProbes(
           AssetId('apps_examples', 'lib/$name.dart'),
           allowSyntaxErrors: true,
         );
-        final result =
-            await library.session.getResolvedLibraryByElement(library);
+        final result = await library.session.getResolvedLibraryByElement(
+          library,
+        );
         if (result is! ResolvedLibraryResult) {
           throw StateError('Could not resolve the language control $name.');
         }
@@ -529,19 +531,19 @@ Future<TestBuilderResult> _compileScenario(
 }
 
 List<Builder> _defaultBuilders() => [
-      restageCodegenBuilder(BuilderOptions.empty),
-      paywallFlowBuilder(BuilderOptions.empty),
-      onboardingScreenBuilder(BuilderOptions.empty),
-      onboardingFlowBuilder(BuilderOptions.empty),
-      messageScreenBuilder(BuilderOptions.empty),
-      messageFlowBuilder(BuilderOptions.empty),
-      surveyScreenBuilder(BuilderOptions.empty),
-      surveyFlowBuilder(BuilderOptions.empty),
-      // Supplies the compiler result needed to emit `.restage.g.dart`.
-      // Without it, descriptor assertions would pass over an empty set.
-      restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-      restageGeneratedDartBuilder(BuilderOptions.empty),
-    ];
+  restageCodegenBuilder(BuilderOptions.empty),
+  paywallFlowBuilder(BuilderOptions.empty),
+  onboardingScreenBuilder(BuilderOptions.empty),
+  onboardingFlowBuilder(BuilderOptions.empty),
+  messageScreenBuilder(BuilderOptions.empty),
+  messageFlowBuilder(BuilderOptions.empty),
+  surveyScreenBuilder(BuilderOptions.empty),
+  surveyFlowBuilder(BuilderOptions.empty),
+  // Supplies the compiler result needed to emit `.restage.g.dart`.
+  // Without it, descriptor assertions would pass over an empty set.
+  restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+  restageGeneratedDartBuilder(BuilderOptions.empty),
+];
 
 final _logs = <TestBuilderResult, String>{};
 
@@ -582,31 +584,31 @@ Future<TestReaderWriter> _readerWriterWith(Map<String, String> sources) async {
 }
 
 Map<String, String> _outputs(TestBuilderResult result) => {
-      ..._encodedOutputs(result, Glob('assets/**').matches),
-      for (final id in _sortedOutputs(result, Glob('lib/**/*.g.dart').matches))
-        id.path: result.readerWriter.testing.readString(id),
-    };
+  ..._encodedOutputs(result, Glob('assets/**').matches),
+  for (final id in _sortedOutputs(result, Glob('lib/**/*.g.dart').matches))
+    id.path: result.readerWriter.testing.readString(id),
+};
 
-Map<String, String> _canonicalArtifacts(Map<String, String> outputs) =>
-    outputs.entries
-        .where(
+Map<String, String> _canonicalArtifacts(Map<String, String> outputs) => outputs
+    .entries
+    .where(
       (entry) =>
           entry.key.endsWith('.flow.json') ||
           entry.key.endsWith('.rfwtxt') ||
           entry.key.endsWith('.rfw') ||
           entry.key.endsWith('.capability.json'),
     )
-        .fold(<String, String>{}, (result, entry) {
+    .fold(<String, String>{}, (result, entry) {
       result[entry.key] = entry.value;
       return result;
     });
 
-Map<String, String> _descriptorArtifacts(Map<String, String> outputs) =>
-    outputs.entries
-        .where(
+Map<String, String> _descriptorArtifacts(Map<String, String> outputs) => outputs
+    .entries
+    .where(
       (entry) => entry.key.endsWith(kNeutralGeneratedPartSuffix),
     )
-        .fold(<String, String>{}, (result, entry) {
+    .fold(<String, String>{}, (result, entry) {
       result[entry.key] = entry.value;
       return result;
     });
@@ -715,9 +717,9 @@ final class _MeasurementParityNormalization {
     required Map<String, String> oldArtifacts,
     required Map<String, String> newArtifacts,
     required Set<String> measurementBlobPaths,
-  })  : _oldArtifacts = oldArtifacts,
-        _newArtifacts = newArtifacts,
-        _measurementBlobPaths = Set.unmodifiable(measurementBlobPaths) {
+  }) : _oldArtifacts = oldArtifacts,
+       _newArtifacts = newArtifacts,
+       _measurementBlobPaths = Set.unmodifiable(measurementBlobPaths) {
     _oldFlowDocuments = _flowDocuments(_oldArtifacts);
     _newFlowDocuments = _flowDocuments(_newArtifacts);
     _measurementFlowPaths = _findMeasurementFlowPaths();
@@ -766,12 +768,13 @@ final class _MeasurementParityNormalization {
             _flowScreenBlobPath(path, artifact.path, _oldArtifacts.keys),
           ),
         );
-        final measuredSubFlow =
-            document.states.values.whereType<SubFlowState>().any(
-                  (state) => paths.contains(
-                    _subFlowArtifactPath(path, state.flow, _oldArtifacts.keys),
-                  ),
-                );
+        final measuredSubFlow = document.states.values
+            .whereType<SubFlowState>()
+            .any(
+              (state) => paths.contains(
+                _subFlowArtifactPath(path, state.flow, _oldArtifacts.keys),
+              ),
+            );
         if (measuredScreen || measuredSubFlow) {
           paths.add(path);
           found = true;
@@ -871,12 +874,12 @@ final class _MeasurementParityNormalization {
 }
 
 Map<String, FlowDocument> _flowDocuments(Map<String, String> artifacts) => {
-      for (final entry in artifacts.entries)
-        if (entry.key.endsWith('.flow.json'))
-          entry.key: FlowDocumentCodec.decodeJson(
-            utf8.decode(base64Decode(entry.value)),
-          ),
-    };
+  for (final entry in artifacts.entries)
+    if (entry.key.endsWith('.flow.json'))
+      entry.key: FlowDocumentCodec.decodeJson(
+        utf8.decode(base64Decode(entry.value)),
+      ),
+};
 
 String _withoutMeasurementRfw(String value) {
   final library = fmt.decodeLibraryBlob(
@@ -923,11 +926,10 @@ String _subFlowArtifactPath(
   String flowPath,
   String flowId,
   Iterable<String> paths,
-) =>
-    _singleArtifactPath(
-      paths,
-      p.posix.join(p.posix.dirname(flowPath), '$flowId.flow.json'),
-    );
+) => _singleArtifactPath(
+  paths,
+  p.posix.join(p.posix.dirname(flowPath), '$flowId.flow.json'),
+);
 
 String _singleArtifactPath(Iterable<String> paths, String basePath) {
   final matches = measurementArtifactPaths(paths, basePath).toList();

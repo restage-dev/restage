@@ -539,13 +539,12 @@ enum IssueCode {
   /// fatal in a paywall (a silent drop). Only a true emitted-alongside-success
   /// annotation belongs here.
   bool get isBuildNotice => switch (this) {
-        IssueCode.idiomAutoSubstituted ||
-        IssueCode.navigationStandaloneArtifactSkipped ||
-        IssueCode.customWidgetAppFactoryUsed ||
-        IssueCode.interactionItemUnavailable =>
-          true,
-        _ => false,
-      };
+    IssueCode.idiomAutoSubstituted ||
+    IssueCode.navigationStandaloneArtifactSkipped ||
+    IssueCode.customWidgetAppFactoryUsed ||
+    IssueCode.interactionItemUnavailable => true,
+    _ => false,
+  };
 
   /// Whether this code records a recognised-but-deferred design decision that
   /// belongs on the build's audit trail rather than failing it.
@@ -562,155 +561,152 @@ enum IssueCode {
   /// silently default to one disposition and latently break a downstream
   /// consumer's own exhaustive switch.
   bool get isInformational => switch (this) {
-        // Policy exclusions / opt-outs — the curation deliberately omitted
-        // these; recorded for the audit trail, not a regression.
-        IssueCode.denylistedPropertyType ||
-        IssueCode.denylistedWidget ||
-        IssueCode.denylistedProperty ||
-        IssueCode.rfwIncompatibleAnnotated ||
-        // A structured-type walk boundary (a cycle or a depth cap) — the walker
-        // stops and records, it does not fail.
-        IssueCode.structuredCycle ||
-        IssueCode.structuredDepthExceeded ||
-        // An abstract base awaiting union resolution — a normal mid-walk state.
-        IssueCode.abstractTypeAwaitingUnion ||
-        // A ctor default the mechanical pass cannot bake, or a per-property
-        // stability annotation with no schema field yet — catalog-completeness
-        // to-dos (a curation gap), not curator errors.
-        IssueCode.unrepresentableCtorDefault ||
-        IssueCode.stablePropertyDeferred ||
-        // Custom-widget inlining is recognised but the inlining path / this
-        // transpiler increment cannot bring the widget in yet — a deferral with
-        // a deferred-blob disposition, not a regression.
-        IssueCode.customWidgetInliningDeferred ||
-        IssueCode.customWidgetUnsupportedReducible ||
-        // The announced-rewrite build notice for an auto-substituted idiom —
-        // a disclosed, semantically-equivalent rewrite, recorded on the audit
-        // trail, never a failure.
-        IssueCode.idiomAutoSubstituted ||
-        IssueCode.navigationStandaloneArtifactSkipped ||
-        IssueCode.customWidgetAppFactoryUsed ||
-        IssueCode.interactionItemUnavailable =>
-          true,
-        // Everything below is a real codegen error the author must resolve.
-        IssueCode.annotationEvaluationFailed ||
-        IssueCode.runtimeWidgetUsedAsAnnotation ||
-        IssueCode.duplicateId ||
-        IssueCode.measurementConfigurationInvalid ||
-        IssueCode.unsupportedBaseClass ||
-        IssueCode.buildMethodMissing ||
-        IssueCode.buildMethodTooComplex ||
-        IssueCode.unsupportedActionResultPredicate ||
-        IssueCode.unsupportedActionContract ||
-        IssueCode.analyzerResolutionFailed ||
-        IssueCode.filenameMismatch ||
-        IssueCode.unresolvedIdentifier ||
-        // An icon whose fields this build cannot rebuild faithfully; rebuilding
-        // it partly would change how it renders.
-        IssueCode.unreconstructableIconData ||
-        // Two icons the delivered surface cannot tell apart; installing either
-        // would silently change how the other one renders.
-        IssueCode.collidingIconCodePoints ||
-        IssueCode.unrecognizedMethodCall ||
-        IssueCode.constObjectFieldUnresolved ||
-        IssueCode.integerLiteralOverflow ||
-        IssueCode.nonFiniteNumericValue ||
-        IssueCode.unsupportedCollectionFlow ||
-        IssueCode.unsupportedInterpolation ||
-        IssueCode.unsupportedHelperPosition ||
-        IssueCode.unsupportedCommerceAuthoring ||
-        IssueCode.unknownWidget ||
-        IssueCode.namedConstructorUnsupported ||
-        // Not a capability gap: nothing about the source needs to change, the
-        // toolchain's own identity mapping does. It is an error because the
-        // alternative is rendering the wrong type.
-        IssueCode.designPackageIdentityDrift ||
-        IssueCode.pageViewFormUnsupported ||
-        IssueCode.shaderMaskFormUnsupported ||
-        IssueCode.modalSheetFormUnsupported ||
-        IssueCode.navigationFormUnsupported ||
-        IssueCode.draggableSheetFormUnsupported ||
-        IssueCode.singleSelectFormUnsupported ||
-        IssueCode.toggleButtonsFormUnsupported ||
-        IssueCode.segmentedButtonFormUnsupported ||
-        IssueCode.intStateConditionUnsupported ||
-        IssueCode.customLibraryMissingCapabilityVersion ||
-        IssueCode.ambiguousWidgetName ||
-        IssueCode.unknownProperty ||
-        IssueCode.invalidAnalyticsId ||
-        // A wrong-typed literal the runtime decode would silently null — a real
-        // build error, never informational.
-        IssueCode.propertyValueTypeMismatch ||
-        IssueCode.missingRequiredSlot ||
-        IssueCode.missingAnnotationField ||
-        IssueCode.unknownEnumValue ||
-        IssueCode.invalidDefault ||
-        IssueCode.invalidSynthetic ||
-        IssueCode.conflictingDefaultStrategy ||
-        IssueCode.conflictingValidationStrategy ||
-        IssueCode.invalidConstraintValue ||
-        IssueCode.unsupportedPropertyType ||
-        IssueCode.structuredFactoryUnsupportedParam ||
-        IssueCode.duplicateWidgetName ||
-        IssueCode.invalidWidgetClass ||
-        IssueCode.invalidWidgetConstructorInput ||
-        IssueCode.missingCatalogDescription ||
-        IssueCode.conflictingTargetConfig ||
-        IssueCode.duplicateTargetConfig ||
-        IssueCode.invalidTargetConfigPlacement ||
-        IssueCode.invalidTargetConfigReference ||
-        IssueCode.invalidEventConfiguration ||
-        IssueCode.incoherentUnion ||
-        IssueCode.unresolvedUnionBase ||
-        IssueCode.inertThemeBindingSeed ||
-        IssueCode.malformedTranslatorOutput ||
-        IssueCode.malformedRawDsl ||
-        IssueCode.malformedSourceInput ||
-        IssueCode.invalidScreenSourceLocation ||
-        IssueCode.invalidScreenSourceCount ||
-        IssueCode.missingPartDirective ||
-        IssueCode.generatedSymbolCollision ||
-        IssueCode.missingScreenDescriptor ||
-        IssueCode.unsupportedFlowRuntimeFeature ||
-        IssueCode.generalAnalyticsSinkStateRef ||
-        IssueCode.generalHostSeededResultRef ||
-        // A custom widget that cannot be expressed, could not be classified,
-        // would emit an ambiguous name, or fails translator-side reconciliation
-        // — all real failures the author must resolve.
-        IssueCode.customWidgetImperative ||
-        IssueCode.customWidgetUnclassified ||
-        IssueCode.customWidgetNameCollision ||
-        IssueCode.themeReadOutOfContract ||
-        IssueCode.themeReadIntermediateVariable ||
-        IssueCode.stateShapeUnsupported ||
-        IssueCode.surfaceFitUnavailable =>
-          false,
-      };
+    // Policy exclusions / opt-outs — the curation deliberately omitted
+    // these; recorded for the audit trail, not a regression.
+    IssueCode.denylistedPropertyType ||
+    IssueCode.denylistedWidget ||
+    IssueCode.denylistedProperty ||
+    IssueCode.rfwIncompatibleAnnotated ||
+    // A structured-type walk boundary (a cycle or a depth cap) — the walker
+    // stops and records, it does not fail.
+    IssueCode.structuredCycle ||
+    IssueCode.structuredDepthExceeded ||
+    // An abstract base awaiting union resolution — a normal mid-walk state.
+    IssueCode.abstractTypeAwaitingUnion ||
+    // A ctor default the mechanical pass cannot bake, or a per-property
+    // stability annotation with no schema field yet — catalog-completeness
+    // to-dos (a curation gap), not curator errors.
+    IssueCode.unrepresentableCtorDefault ||
+    IssueCode.stablePropertyDeferred ||
+    // Custom-widget inlining is recognised but the inlining path / this
+    // transpiler increment cannot bring the widget in yet — a deferral with
+    // a deferred-blob disposition, not a regression.
+    IssueCode.customWidgetInliningDeferred ||
+    IssueCode.customWidgetUnsupportedReducible ||
+    // The announced-rewrite build notice for an auto-substituted idiom —
+    // a disclosed, semantically-equivalent rewrite, recorded on the audit
+    // trail, never a failure.
+    IssueCode.idiomAutoSubstituted ||
+    IssueCode.navigationStandaloneArtifactSkipped ||
+    IssueCode.customWidgetAppFactoryUsed ||
+    IssueCode.interactionItemUnavailable => true,
+    // Everything below is a real codegen error the author must resolve.
+    IssueCode.annotationEvaluationFailed ||
+    IssueCode.runtimeWidgetUsedAsAnnotation ||
+    IssueCode.duplicateId ||
+    IssueCode.measurementConfigurationInvalid ||
+    IssueCode.unsupportedBaseClass ||
+    IssueCode.buildMethodMissing ||
+    IssueCode.buildMethodTooComplex ||
+    IssueCode.unsupportedActionResultPredicate ||
+    IssueCode.unsupportedActionContract ||
+    IssueCode.analyzerResolutionFailed ||
+    IssueCode.filenameMismatch ||
+    IssueCode.unresolvedIdentifier ||
+    // An icon whose fields this build cannot rebuild faithfully; rebuilding
+    // it partly would change how it renders.
+    IssueCode.unreconstructableIconData ||
+    // Two icons the delivered surface cannot tell apart; installing either
+    // would silently change how the other one renders.
+    IssueCode.collidingIconCodePoints ||
+    IssueCode.unrecognizedMethodCall ||
+    IssueCode.constObjectFieldUnresolved ||
+    IssueCode.integerLiteralOverflow ||
+    IssueCode.nonFiniteNumericValue ||
+    IssueCode.unsupportedCollectionFlow ||
+    IssueCode.unsupportedInterpolation ||
+    IssueCode.unsupportedHelperPosition ||
+    IssueCode.unsupportedCommerceAuthoring ||
+    IssueCode.unknownWidget ||
+    IssueCode.namedConstructorUnsupported ||
+    // Not a capability gap: nothing about the source needs to change, the
+    // toolchain's own identity mapping does. It is an error because the
+    // alternative is rendering the wrong type.
+    IssueCode.designPackageIdentityDrift ||
+    IssueCode.pageViewFormUnsupported ||
+    IssueCode.shaderMaskFormUnsupported ||
+    IssueCode.modalSheetFormUnsupported ||
+    IssueCode.navigationFormUnsupported ||
+    IssueCode.draggableSheetFormUnsupported ||
+    IssueCode.singleSelectFormUnsupported ||
+    IssueCode.toggleButtonsFormUnsupported ||
+    IssueCode.segmentedButtonFormUnsupported ||
+    IssueCode.intStateConditionUnsupported ||
+    IssueCode.customLibraryMissingCapabilityVersion ||
+    IssueCode.ambiguousWidgetName ||
+    IssueCode.unknownProperty ||
+    IssueCode.invalidAnalyticsId ||
+    // A wrong-typed literal the runtime decode would silently null — a real
+    // build error, never informational.
+    IssueCode.propertyValueTypeMismatch ||
+    IssueCode.missingRequiredSlot ||
+    IssueCode.missingAnnotationField ||
+    IssueCode.unknownEnumValue ||
+    IssueCode.invalidDefault ||
+    IssueCode.invalidSynthetic ||
+    IssueCode.conflictingDefaultStrategy ||
+    IssueCode.conflictingValidationStrategy ||
+    IssueCode.invalidConstraintValue ||
+    IssueCode.unsupportedPropertyType ||
+    IssueCode.structuredFactoryUnsupportedParam ||
+    IssueCode.duplicateWidgetName ||
+    IssueCode.invalidWidgetClass ||
+    IssueCode.invalidWidgetConstructorInput ||
+    IssueCode.missingCatalogDescription ||
+    IssueCode.conflictingTargetConfig ||
+    IssueCode.duplicateTargetConfig ||
+    IssueCode.invalidTargetConfigPlacement ||
+    IssueCode.invalidTargetConfigReference ||
+    IssueCode.invalidEventConfiguration ||
+    IssueCode.incoherentUnion ||
+    IssueCode.unresolvedUnionBase ||
+    IssueCode.inertThemeBindingSeed ||
+    IssueCode.malformedTranslatorOutput ||
+    IssueCode.malformedRawDsl ||
+    IssueCode.malformedSourceInput ||
+    IssueCode.invalidScreenSourceLocation ||
+    IssueCode.invalidScreenSourceCount ||
+    IssueCode.missingPartDirective ||
+    IssueCode.generatedSymbolCollision ||
+    IssueCode.missingScreenDescriptor ||
+    IssueCode.unsupportedFlowRuntimeFeature ||
+    IssueCode.generalAnalyticsSinkStateRef ||
+    IssueCode.generalHostSeededResultRef ||
+    // A custom widget that cannot be expressed, could not be classified,
+    // would emit an ambiguous name, or fails translator-side reconciliation
+    // — all real failures the author must resolve.
+    IssueCode.customWidgetImperative ||
+    IssueCode.customWidgetUnclassified ||
+    IssueCode.customWidgetNameCollision ||
+    IssueCode.themeReadOutOfContract ||
+    IssueCode.themeReadIntermediateVariable ||
+    IssueCode.stateShapeUnsupported ||
+    IssueCode.surfaceFitUnavailable => false,
+  };
 
   /// Whether this code means the author hit a Restage/codegen capability gap
   /// rather than an author-fixable source error.
   bool get isCapabilityGap => switch (this) {
-        // Source shapes the transpiler may learn to lower in a later increment.
-        IssueCode.unrecognizedMethodCall ||
-        IssueCode.intStateConditionUnsupported ||
-        IssueCode.unsupportedCollectionFlow ||
-        IssueCode.unsupportedInterpolation ||
-        IssueCode.unsupportedHelperPosition ||
-        IssueCode.unknownWidget ||
-        IssueCode.namedConstructorUnsupported ||
-        IssueCode.pageViewFormUnsupported ||
-        IssueCode.shaderMaskFormUnsupported ||
-        IssueCode.navigationFormUnsupported ||
-        IssueCode.draggableSheetFormUnsupported ||
-        IssueCode.unsupportedFlowRuntimeFeature ||
-        // Custom-widget diagnostics that are backlog/indeterminate, not the
-        // genuine RFW dead-end bucket.
-        IssueCode.customWidgetInliningDeferred ||
-        IssueCode.customWidgetUnsupportedReducible ||
-        IssueCode.customWidgetUnclassified =>
-          true,
-        _ => false,
-      };
+    // Source shapes the transpiler may learn to lower in a later increment.
+    IssueCode.unrecognizedMethodCall ||
+    IssueCode.intStateConditionUnsupported ||
+    IssueCode.unsupportedCollectionFlow ||
+    IssueCode.unsupportedInterpolation ||
+    IssueCode.unsupportedHelperPosition ||
+    IssueCode.unknownWidget ||
+    IssueCode.namedConstructorUnsupported ||
+    IssueCode.pageViewFormUnsupported ||
+    IssueCode.shaderMaskFormUnsupported ||
+    IssueCode.navigationFormUnsupported ||
+    IssueCode.draggableSheetFormUnsupported ||
+    IssueCode.unsupportedFlowRuntimeFeature ||
+    // Custom-widget diagnostics that are backlog/indeterminate, not the
+    // genuine RFW dead-end bucket.
+    IssueCode.customWidgetInliningDeferred ||
+    IssueCode.customWidgetUnsupportedReducible ||
+    IssueCode.customWidgetUnclassified => true,
+    _ => false,
+  };
 }
 
 /// Structured diagnostic emitted during a codegen build pass.
@@ -724,16 +720,16 @@ final class Issue {
     required this.location,
     this.capabilityGapSubject,
     this.buildNoticeIdentity,
-  })  : assert(message.length > 0, 'Issue.message must not be empty'),
-        assert(location.length > 0, 'Issue.location must not be empty'),
-        assert(
-          capabilityGapSubject != '',
-          'Issue.capabilityGapSubject must not be empty',
-        ),
-        assert(
-          buildNoticeIdentity != '',
-          'Issue.buildNoticeIdentity must not be empty',
-        );
+  }) : assert(message.length > 0, 'Issue.message must not be empty'),
+       assert(location.length > 0, 'Issue.location must not be empty'),
+       assert(
+         capabilityGapSubject != '',
+         'Issue.capabilityGapSubject must not be empty',
+       ),
+       assert(
+         buildNoticeIdentity != '',
+         'Issue.buildNoticeIdentity must not be empty',
+       );
 
   /// Categorical code identifying the kind of issue.
   final IssueCode code;
@@ -812,7 +808,8 @@ final class Issue {
   }
 
   String _capabilityGapIssueBody(String sdkVersion) {
-    const reproductionPrompt = 'Add any minimal reproduction details you are '
+    const reproductionPrompt =
+        'Add any minimal reproduction details you are '
         'comfortable sharing before submitting.';
     final detail = _trimCapabilityGapDetail(message);
     final payload = <String, String>{
@@ -864,8 +861,10 @@ void logBuildNoticeOnce(
 }
 
 String _trimCapabilityGapDetail(String detail) {
-  final normalized =
-      detail.replaceAll('```', '` ` `').replaceAll(RegExp(r'\s+'), ' ').trim();
+  final normalized = detail
+      .replaceAll('```', '` ` `')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
   if (normalized.length <= _capabilityGapDetailLimit) return normalized;
   return '${normalized.substring(0, _capabilityGapDetailLimit).trimRight()}...';
 }

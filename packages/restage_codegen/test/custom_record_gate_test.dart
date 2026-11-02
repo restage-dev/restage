@@ -18,10 +18,12 @@ import 'helpers.dart';
 /// type it cannot infer; routing records to an exclusion instead of that
 /// failure is part of the contract, not an accident.
 Future<
-    ({
-      CustomStructuredAdmission admission,
-      WidgetVisitorResult result,
-    })> _admit(Map<String, String> sources) async {
+  ({
+    CustomStructuredAdmission admission,
+    WidgetVisitorResult result,
+  })
+>
+_admit(Map<String, String> sources) async {
   final result = await runWidgetVisitorOn(sources);
   return (
     admission: computeAdmission(
@@ -52,7 +54,8 @@ const _dataClass = '''
   }
 ''';
 
-String _widget(String propertyDeclaration) => '''
+String _widget(String propertyDeclaration) =>
+    '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   $_tone
   $_dataClass
@@ -65,7 +68,8 @@ String _widget(String propertyDeclaration) => '''
   }
 ''';
 
-String _nestedWidget(String fieldDeclaration) => '''
+String _nestedWidget(String fieldDeclaration) =>
+    '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   $_tone
   $_dataClass
@@ -93,10 +97,12 @@ void main() {
       CustomStructuredAdmission admission,
       String propertyName,
     ) {
-      final widget =
-          admission.admitted.firstWhere((w) => w.name == 'SectionHeader');
-      final prop =
-          widget.properties.where((p) => p.name == propertyName).toList();
+      final widget = admission.admitted.firstWhere(
+        (w) => w.name == 'SectionHeader',
+      );
+      final prop = widget.properties
+          .where((p) => p.name == propertyName)
+          .toList();
       expect(
         prop,
         hasLength(1),
@@ -120,8 +126,9 @@ void main() {
 
     test('an ENUM label ADMITS the owning widget', () async {
       final r = await _admit({
-        'lib/header.dart':
-            _widget('final ({String title, Tone tone}) heading;'),
+        'lib/header.dart': _widget(
+          'final ({String title, Tone tone}) heading;',
+        ),
       });
       expect(
         r.admission.admitted.map((w) => w.name),
@@ -153,30 +160,35 @@ void main() {
       expectRecordSlot(r.admission, 'heading');
     });
 
-    test('a record FIELD nested in a data class ADMITS the owning widget',
-        () async {
-      final r = await _admit({
-        'lib/header.dart':
-            _nestedWidget('final ({int order, bool pinned}) meta;'),
-      });
-      expect(
-        r.admission.admitted.map((w) => w.name),
-        contains('SectionHeader'),
-      );
-      expect(r.admission.excluded, isEmpty);
-      // The nested record rides the data class's field list, so the evidence
-      // is on the STRUCTURED entry, not the widget property.
-      final entry =
-          r.result.structuredTypes.firstWhere((s) => s.name == 'Entry');
-      final field = entry.fields.where((f) => f.name == 'meta').toList();
-      expect(
-        field,
-        hasLength(1),
-        reason: 'the nested record field must survive the walk, not be dropped',
-      );
-      expect(field.single.type, PropertyType.unknown);
-      expect(isCustomRecordFieldSlot(field.single), isTrue);
-    });
+    test(
+      'a record FIELD nested in a data class ADMITS the owning widget',
+      () async {
+        final r = await _admit({
+          'lib/header.dart': _nestedWidget(
+            'final ({int order, bool pinned}) meta;',
+          ),
+        });
+        expect(
+          r.admission.admitted.map((w) => w.name),
+          contains('SectionHeader'),
+        );
+        expect(r.admission.excluded, isEmpty);
+        // The nested record rides the data class's field list, so the evidence
+        // is on the STRUCTURED entry, not the widget property.
+        final entry = r.result.structuredTypes.firstWhere(
+          (s) => s.name == 'Entry',
+        );
+        final field = entry.fields.where((f) => f.name == 'meta').toList();
+        expect(
+          field,
+          hasLength(1),
+          reason:
+              'the nested record field must survive the walk, not be dropped',
+        );
+        expect(field.single.type, PropertyType.unknown);
+        expect(isCustomRecordFieldSlot(field.single), isTrue);
+      },
+    );
   });
 
   group('excluded-loud — outside the boundary, and the build CONTINUES', () {
@@ -192,7 +204,8 @@ void main() {
       expect(
         _hasBuildFatalPropertyIssue(r.result),
         isFalse,
-        reason: 'an out-of-boundary record must EXCLUDE the widget, not fail '
+        reason:
+            'an out-of-boundary record must EXCLUDE the widget, not fail '
             'the build',
       );
     }
@@ -207,8 +220,9 @@ void main() {
     test('a NULLABLE label is excluded, naming the label', () async {
       await expectExcluded(
         {
-          'lib/header.dart':
-              _widget('final ({String title, int? step}) heading;'),
+          'lib/header.dart': _widget(
+            'final ({String title, int? step}) heading;',
+          ),
         },
         reasonContains: 'step',
       );
@@ -217,8 +231,9 @@ void main() {
     test('a PRIVATE label is excluded, naming the label', () async {
       await expectExcluded(
         {
-          'lib/header.dart':
-              _widget('final ({String title, int _step}) heading;'),
+          'lib/header.dart': _widget(
+            'final ({String title, int _step}) heading;',
+          ),
         },
         reasonContains: '_step',
       );
@@ -232,8 +247,9 @@ void main() {
       // like it was enforcing the rule.
       await expectExcluded(
         {
-          'lib/header.dart':
-              _widget('final ({String title, Map<String, int> data}) heading;'),
+          'lib/header.dart': _widget(
+            'final ({String title, Map<String, int> data}) heading;',
+          ),
         },
         reasonContains: 'data',
       );
@@ -242,8 +258,9 @@ void main() {
     test('a NON-SCALAR label is excluded, naming the label', () async {
       await expectExcluded(
         {
-          'lib/header.dart':
-              _widget('final ({String title, Plan plan}) heading;'),
+          'lib/header.dart': _widget(
+            'final ({String title, Plan plan}) heading;',
+          ),
         },
         reasonContains: 'plan',
       );
@@ -263,15 +280,15 @@ void main() {
     test('a NULLABLE record SLOT is excluded', () async {
       await expectExcluded(
         {
-          'lib/header.dart':
-              _widget('final ({String title, int step})? heading;'),
+          'lib/header.dart': _widget(
+            'final ({String title, int step})? heading;',
+          ),
         },
         reasonContains: 'heading',
       );
     });
 
-    test(
-        'a nullable record slot behind a TYPE ALIAS is excluded — alias '
+    test('a nullable record slot behind a TYPE ALIAS is excluded — alias '
         'unwrapping must not strip the slot nullability', () async {
       // Alias unwrapping instantiates with a non-nullable suffix, so the outer
       // `?` on `Heading?` is lost if the nullability is only read AFTER the
@@ -294,39 +311,42 @@ void main() {
       );
     });
 
-    test('the record contract does NOT leak into the OTHER emit target',
-        () async {
-      // The two targets resolve custom data shapes through different
-      // substrates and their admitted boundaries differ deliberately. The
-      // opaque-record marker is a shape of THIS target's wire; it must not
-      // appear on the other target's catalog entries, and a record must not
-      // change that target's exclusion behaviour either.
-      final r = await runWidgetVisitorOn(
-        {
-          'lib/header.dart':
-              _widget('final ({String title, int step}) heading;'),
-        },
-        target: WidgetVisitorTarget.a2ui,
-      );
-      final leaked = r.widgets
-          .expand((w) => w.properties)
-          .where(isCustomRecordPropertySlot)
-          .toList();
-      expect(
-        leaked,
-        isEmpty,
-        reason: 'the opaque-record shape must be scoped to this wire target',
-      );
-      expect(r.widgetUnrenderable, isEmpty);
-    });
-
     test(
-        'an out-of-boundary record NESTED in a data class excludes the owner, '
+      'the record contract does NOT leak into the OTHER emit target',
+      () async {
+        // The two targets resolve custom data shapes through different
+        // substrates and their admitted boundaries differ deliberately. The
+        // opaque-record marker is a shape of THIS target's wire; it must not
+        // appear on the other target's catalog entries, and a record must not
+        // change that target's exclusion behaviour either.
+        final r = await runWidgetVisitorOn(
+          {
+            'lib/header.dart': _widget(
+              'final ({String title, int step}) heading;',
+            ),
+          },
+          target: WidgetVisitorTarget.a2ui,
+        );
+        final leaked = r.widgets
+            .expand((w) => w.properties)
+            .where(isCustomRecordPropertySlot)
+            .toList();
+        expect(
+          leaked,
+          isEmpty,
+          reason: 'the opaque-record shape must be scoped to this wire target',
+        );
+        expect(r.widgetUnrenderable, isEmpty);
+      },
+    );
+
+    test('an out-of-boundary record NESTED in a data class excludes the owner, '
         'build continues', () async {
       await expectExcluded(
         {
-          'lib/header.dart':
-              _nestedWidget('final ({int order, bool? pinned}) meta;'),
+          'lib/header.dart': _nestedWidget(
+            'final ({int order, bool? pinned}) meta;',
+          ),
         },
         reasonContains: 'meta',
       );

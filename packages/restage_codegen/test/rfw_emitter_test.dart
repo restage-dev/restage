@@ -50,8 +50,9 @@ widget Paywall = Scaffold(body: Text(text: "hi"));
         ),
       );
       final lib = parseLibraryFile(text, sourceIdentifier: 'test');
-      final paywall =
-          lib.widgets.singleWhere((widget) => widget.name == 'Paywall');
+      final paywall = lib.widgets.singleWhere(
+        (widget) => widget.name == 'Paywall',
+      );
       expect(paywall.initialState, isNotNull);
       expect(paywall.initialState!['label'], 'ready');
     });
@@ -112,13 +113,13 @@ widget Paywall = Scaffold(body: Text(text: "hi"));
       );
     });
 
-    test(
-        'renders a stateful definition with the initial-state map between '
+    test('renders a stateful definition with the initial-state map between '
         'the name and `=`', () {
       final text = emitPaywallLibrary(
         'AcmeToggle()',
         widgetDefinitions: {
-          'AcmeToggle': 'Text(text: switch state.on { true: "on", '
+          'AcmeToggle':
+              'Text(text: switch state.on { true: "on", '
               'false: "off" })',
         },
         widgetDefinitionStates: const {
@@ -140,8 +141,7 @@ widget Paywall = Scaffold(body: Text(text: "hi"));
       expect(toggle.initialState!['on'], isFalse);
     });
 
-    test(
-        'renders multiple state fields in declaration order with their '
+    test('renders multiple state fields in declaration order with their '
         'literal values', () {
       final text = emitPaywallLibrary(
         'AcmeMulti()',
@@ -175,25 +175,26 @@ widget Paywall = Scaffold(body: Text(text: "hi"));
     });
 
     test(
-        'a stateful widget whose state map is empty emits no state block — '
-        "the binary form makes 'no state' and 'empty state' indistinguishable",
-        () {
-      final text = emitPaywallLibrary(
-        'AcmeStateless()',
-        widgetDefinitions: const {
-          'AcmeStateless': 'Text(text: "hello")',
-        },
-        widgetDefinitionStates: const {
-          'AcmeStateless': <String, String>{},
-        },
-      );
-      // No `{ }` block in the emitted line — same shape a stateless
-      // definition would have.
-      expect(
-        text,
-        contains('widget AcmeStateless = Text(text: "hello");'),
-      );
-      expect(text, isNot(contains('AcmeStateless {')));
-    });
+      'a stateful widget whose state map is empty emits no state block — '
+      "the binary form makes 'no state' and 'empty state' indistinguishable",
+      () {
+        final text = emitPaywallLibrary(
+          'AcmeStateless()',
+          widgetDefinitions: const {
+            'AcmeStateless': 'Text(text: "hello")',
+          },
+          widgetDefinitionStates: const {
+            'AcmeStateless': <String, String>{},
+          },
+        );
+        // No `{ }` block in the emitted line — same shape a stateless
+        // definition would have.
+        expect(
+          text,
+          contains('widget AcmeStateless = Text(text: "hello");'),
+        );
+        expect(text, isNot(contains('AcmeStateless {')));
+      },
+    );
   });
 }

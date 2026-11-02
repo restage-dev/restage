@@ -7,10 +7,12 @@ import 'package:test/test.dart';
 import 'helpers.dart';
 
 Future<
-    ({
-      CustomStructuredAdmission admission,
-      WidgetVisitorResult result,
-    })> _admit(Map<String, String> sources) async {
+  ({
+    CustomStructuredAdmission admission,
+    WidgetVisitorResult result,
+  })
+>
+_admit(Map<String, String> sources) async {
   final result = await runWidgetVisitorOn(sources);
   return (
     admission: computeAdmission(
@@ -30,7 +32,8 @@ Future<
 bool _hasBuildFatalPropertyIssue(WidgetVisitorResult result) =>
     result.issues.any((i) => i.code == IssueCode.unsupportedPropertyType);
 
-String _widget(String propertyDeclaration) => '''
+String _widget(String propertyDeclaration) =>
+    '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   @RestageWidget(name: 'MapWidget',
     library: WidgetLibrary.custom('acme.design_system'),
@@ -47,10 +50,12 @@ void main() {
       'lib/map_widget.dart': _widget('final Map<String, String> values;'),
     });
 
-    final widget =
-        r.admission.admitted.firstWhere((w) => w.name == 'MapWidget');
-    final properties =
-        widget.properties.where((prop) => prop.name == 'values').toList();
+    final widget = r.admission.admitted.firstWhere(
+      (w) => w.name == 'MapWidget',
+    );
+    final properties = widget.properties
+        .where((prop) => prop.name == 'values')
+        .toList();
     expect(
       properties,
       hasLength(1),
@@ -80,7 +85,8 @@ void main() {
       expect(
         _hasBuildFatalPropertyIssue(r.result),
         isFalse,
-        reason: 'an unsupported map must exclude the widget, not fail the '
+        reason:
+            'an unsupported map must exclude the widget, not fail the '
             'build',
       );
     },
@@ -110,7 +116,8 @@ void main() {
       expect(
         _hasBuildFatalPropertyIssue(r.result),
         isFalse,
-        reason: 'a record-valued map must exclude the widget, not fail the '
+        reason:
+            'a record-valued map must exclude the widget, not fail the '
             'build',
       );
     },
@@ -142,11 +149,12 @@ void main() {
       target: WidgetVisitorTarget.a2ui,
     );
 
-    final mapMarkedProperties =
-        result.widgets.expand((widget) => widget.properties).where((prop) {
-      final shape = prop.valueShape;
-      return shape is ScalarShape && shape.isOpaqueStringKeyedMap;
-    });
+    final mapMarkedProperties = result.widgets
+        .expand((widget) => widget.properties)
+        .where((prop) {
+          final shape = prop.valueShape;
+          return shape is ScalarShape && shape.isOpaqueStringKeyedMap;
+        });
     expect(mapMarkedProperties, isEmpty);
   });
 }

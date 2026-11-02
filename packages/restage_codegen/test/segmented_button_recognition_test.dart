@@ -21,9 +21,10 @@ import 'helpers.dart';
 /// widget must not ship.
 void main() {
   group('recogniseSegmentedButton — the canonical lower-able form', () {
-    test('extracts segments + selected + onSelectionChanged in source order',
-        () async {
-      final outcome = await _segmented('''
+    test(
+      'extracts segments + selected + onSelectionChanged in source order',
+      () async {
+        final outcome = await _segmented('''
 SegmentedButton<String>(
   segments: [
     ButtonSegment<String>(value: 'day', label: Text('Day')),
@@ -35,14 +36,15 @@ SegmentedButton<String>(
 )
 ''');
 
-      final recognised = _expectRecognised(outcome);
-      expect(recognised.segments, hasLength(3));
-      expect(recognised.segments[0].value.toSource(), "'day'");
-      expect(recognised.segments[0].label.toSource(), "'Day'");
-      expect(recognised.segments[2].value.toSource(), "'month'");
-      expect(recognised.selectedValues.map((e) => e.toSource()), ["'week'"]);
-      expect(recognised.onSelectionChanged, isNotNull);
-    });
+        final recognised = _expectRecognised(outcome);
+        expect(recognised.segments, hasLength(3));
+        expect(recognised.segments[0].value.toSource(), "'day'");
+        expect(recognised.segments[0].label.toSource(), "'Day'");
+        expect(recognised.segments[2].value.toSource(), "'month'");
+        expect(recognised.selectedValues.map((e) => e.toSource()), ["'week'"]);
+        expect(recognised.onSelectionChanged, isNotNull);
+      },
+    );
 
     test('a list-literal selected (not a set) recognises', () async {
       final outcome = await _segmented('''
@@ -61,19 +63,21 @@ SegmentedButton<String>(
       );
     });
 
-    test('a missing selected/onSelectionChanged recognises (display-only)',
-        () async {
-      final outcome = await _segmented('''
+    test(
+      'a missing selected/onSelectionChanged recognises (display-only)',
+      () async {
+        final outcome = await _segmented('''
 SegmentedButton<String>(
   segments: [
     ButtonSegment<String>(value: 'a', label: Text('A')),
   ],
 )
 ''');
-      final recognised = _expectRecognised(outcome);
-      expect(recognised.selectedValues, isEmpty);
-      expect(recognised.onSelectionChanged, isNull);
-    });
+        final recognised = _expectRecognised(outcome);
+        expect(recognised.selectedValues, isEmpty);
+        expect(recognised.onSelectionChanged, isNull);
+      },
+    );
 
     test('the declarative bools are carried when authored', () async {
       final outcome = await _segmented('''
@@ -184,8 +188,7 @@ SegmentedButton<String>(
       _expectDeferred(outcome, reasonContains: 'literal Text');
     });
 
-    test(
-        'a styled Text label (extra args) defers loud — never a plain '
+    test('a styled Text label (extra args) defers loud — never a plain '
         'string that silently drops the style', () async {
       // The flat surface carries only the label STRING; a
       // `Text('Pro', style: ...)` would silently drop the style. Reject

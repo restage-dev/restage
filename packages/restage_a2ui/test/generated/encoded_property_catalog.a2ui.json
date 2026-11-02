@@ -1,0 +1,106 @@
+{
+  "restageCapability": {
+    "catalogContentVersion": 1,
+    "availableLibraries": [
+      {
+        "namespace": "encoded.proof",
+        "version": 1
+      }
+    ],
+    "perItemSinceVersion": {
+      "EncodedPropertyProbe": 1
+    }
+  },
+  "a2uiCatalog": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "restage:catalog/sha256/07c891ac5871d41a5038bb07eba7afa3f196a606480c72a08c08000e5bff2b31",
+    "protocolVersion": "1.0",
+    "title": "Restage A2UI Catalog",
+    "description": "A2UI component catalog generated from Restage widget source.",
+    "catalogId": "restage:catalog/sha256/07c891ac5871d41a5038bb07eba7afa3f196a606480c72a08c08000e5bff2b31",
+    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/07c891ac5871d41a5038bb07eba7afa3f196a606480c72a08c08000e5bff2b31\".\nEncodedPropertyProbe: Proves exact Dart names and valid component property names.\nEncodedPropertyProbe constructor fields: $value => props_encoded_002400760061006c00750065, encoded_002400760061006c00750065 => props_encoded_0065006e0063006f006400650064005f003000300032003400300030003700360030003000360031003000300036006300300030003700350030003000360035, value => props_value, details => props_details.",
+    "components": {
+      "EncodedPropertyProbe": {
+        "type": "object",
+        "description": "Proves exact Dart names and valid component property names.",
+        "properties": {
+          "props_encoded_002400760061006c00750065": {
+            "description": "The controlled dollar-named value.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_encoded_0065006e0063006f006400650064005f003000300032003400300030003700360030003000360031003000300036006300300030003700350030003000360035": {
+            "description": "A source name resembling an encoded suffix.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_value": {
+            "description": "An ordinary unencoded constructor input.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_details": {
+            "type": "object",
+            "description": "Nested business data keeps its dollar key.",
+            "properties": {
+              "$value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "$value"
+            ]
+          }
+        },
+        "required": [
+          "props_encoded_002400760061006c00750065",
+          "props_encoded_0065006e0063006f006400650064005f003000300032003400300030003700360030003000360031003000300036006300300030003700350030003000360035",
+          "props_value",
+          "props_details"
+        ]
+      }
+    },
+    "$defs": {
+      "anyComponent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/EncodedPropertyProbe"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "component"
+        }
+      },
+      "anyFunction": {
+        "not": {}
+      }
+    }
+  }
+}

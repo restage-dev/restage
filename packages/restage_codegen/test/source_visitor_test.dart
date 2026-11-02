@@ -8,10 +8,12 @@ import 'helpers.dart';
 
 void main() {
   group('visitPaywallSources', () {
-    test('finds @PaywallSource classes and extracts build() expression',
-        () async {
-      final result = await runVisitorOn({
-        'lib/foo.dart': '''
+    test(
+      'finds @PaywallSource classes and extracts build() expression',
+      () async {
+        final result = await runVisitorOn({
+          'lib/foo.dart':
+              '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'foo')
@@ -20,17 +22,19 @@ void main() {
             Widget build(BuildContext context) => 42;
           }
         ''',
-      });
-      expect(result.issues, isEmpty);
-      expect(result.sources, hasLength(1));
-      expect(result.sources.first.id, 'foo');
-      expect(result.sources.first.className, 'FooPaywall');
-      expect(result.sources.first.rootExpression, isNotNull);
-    });
+        });
+        expect(result.issues, isEmpty);
+        expect(result.sources, hasLength(1));
+        expect(result.sources.first.id, 'foo');
+        expect(result.sources.first.className, 'FooPaywall');
+        expect(result.sources.first.rootExpression, isNotNull);
+      },
+    );
 
     test('carries root constructor params through @PaywallSource', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'foo')
@@ -52,7 +56,8 @@ void main() {
 
     test('extracts root expression from single-return block body', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'foo')
@@ -72,7 +77,8 @@ void main() {
 
     test('captures slot annotation field', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'foo', slot: 'primary')
@@ -87,7 +93,8 @@ void main() {
 
     test('accepts supported StatefulWidget roots', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           abstract class StatefulWidget extends Widget {
@@ -127,7 +134,8 @@ void main() {
 
     test('emits unsupportedBaseClass for non-StatelessWidget base', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           class OtherBase {}
@@ -148,7 +156,8 @@ void main() {
 
     test('emits buildMethodMissing when no build()', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'foo')
@@ -165,7 +174,8 @@ void main() {
 
     test('emits buildMethodTooComplex on a reassignable local', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'foo')
@@ -186,7 +196,8 @@ void main() {
 
     test('emits buildMethodTooComplex on control flow in build()', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'foo')
@@ -209,7 +220,8 @@ void main() {
 
     test('extracts the root expression past a leading final local', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'foo')
@@ -230,7 +242,8 @@ void main() {
     test('extracts the root expression past leading const locals', () async {
       // Const locals fold at use sites and are not captured as bindings.
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'foo')
@@ -251,7 +264,8 @@ void main() {
 
     test('emits duplicateId when two classes share the same id', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'shared')
@@ -277,7 +291,8 @@ void main() {
 
     test('classes without @PaywallSource are ignored', () async {
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           class NotAPaywall extends StatelessWidget {
@@ -290,15 +305,15 @@ void main() {
       expect(result.issues, isEmpty);
     });
 
-    test(
-        'emits annotationEvaluationFailed when @PaywallSource has '
+    test('emits annotationEvaluationFailed when @PaywallSource has '
         'non-const argument', () async {
       // PaywallSource(id: MyIds.pro) — the getter is non-const so
       // computeConstantValue() returns null. The slow-path source-text check
       // still recognises the annotation as PaywallSource and the visitor
       // must emit annotationEvaluationFailed rather than silently skipping.
       final result = await runVisitorOn({
-        'lib/foo.dart': '''
+        'lib/foo.dart':
+            '''
           $kStubAnnotationsAndBases
 
           class MyIds {
@@ -320,14 +335,16 @@ void main() {
       expect(result.sources, isEmpty);
     });
 
-    test('two distinct @PaywallSource classes in one file both extract',
-        () async {
-      // The resolved-library lookup is awaited inside the per-class
-      // loop; this confirms the await-in-for chain extracts both
-      // root expressions in source order rather than dropping or
-      // re-ordering one if a future change parallelises the loop.
-      final result = await runVisitorOn({
-        'lib/foo.dart': '''
+    test(
+      'two distinct @PaywallSource classes in one file both extract',
+      () async {
+        // The resolved-library lookup is awaited inside the per-class
+        // loop; this confirms the await-in-for chain extracts both
+        // root expressions in source order rather than dropping or
+        // re-ordering one if a future change parallelises the loop.
+        final result = await runVisitorOn({
+          'lib/foo.dart':
+              '''
           $kStubAnnotationsAndBases
 
           @PaywallSource(id: 'first')
@@ -342,21 +359,23 @@ void main() {
             Widget build(BuildContext context) => 2;
           }
         ''',
-      });
-      expect(result.issues, isEmpty);
-      expect(result.sources, hasLength(2));
-      expect(result.sources[0].id, 'first');
-      expect(result.sources[0].className, 'FirstPaywall');
-      expect(result.sources[0].rootExpression, isNotNull);
-      expect(result.sources[1].id, 'second');
-      expect(result.sources[1].className, 'SecondPaywall');
-      expect(result.sources[1].rootExpression, isNotNull);
-    });
+        });
+        expect(result.issues, isEmpty);
+        expect(result.sources, hasLength(2));
+        expect(result.sources[0].id, 'first');
+        expect(result.sources[0].className, 'FirstPaywall');
+        expect(result.sources[0].rootExpression, isNotNull);
+        expect(result.sources[1].id, 'second');
+        expect(result.sources[1].className, 'SecondPaywall');
+        expect(result.sources[1].rootExpression, isNotNull);
+      },
+    );
 
-    test('recognizes resolved canonical @Paywall and derives the file id',
-        () async {
-      final result = await _runCanonicalVisitorOn({
-        'lib/feature_notice.dart': '''
+    test(
+      'recognizes resolved canonical @Paywall and derives the file id',
+      () async {
+        final result = await _runCanonicalVisitorOn({
+          'lib/feature_notice.dart': '''
           import 'package:flutter/widgets.dart';
           import 'package:restage/restage.dart';
 
@@ -368,20 +387,22 @@ void main() {
             Widget build(BuildContext context) => const SizedBox();
           }
         ''',
-      });
+        });
 
-      expect(result.issues, isEmpty);
-      final source = result.sources.single;
-      expect(source.id, 'feature_notice');
-      expect(source.isCanonical, isTrue);
-      expect(source.hasExplicitId, isFalse);
-      expect(source.slot, isNull);
-    });
+        expect(result.issues, isEmpty);
+        final source = result.sources.single;
+        expect(source.id, 'feature_notice');
+        expect(source.isCanonical, isTrue);
+        expect(source.hasExplicitId, isFalse);
+        expect(source.slot, isNull);
+      },
+    );
 
-    test('canonical explicit id is authoritative when it differs from file',
-        () async {
-      final result = await _runCanonicalVisitorOn({
-        'lib/moved_paywall.dart': '''
+    test(
+      'canonical explicit id is authoritative when it differs from file',
+      () async {
+        final result = await _runCanonicalVisitorOn({
+          'lib/moved_paywall.dart': '''
           import 'package:flutter/widgets.dart';
           import 'package:restage/restage.dart';
 
@@ -393,13 +414,14 @@ void main() {
             Widget build(BuildContext context) => const SizedBox();
           }
         ''',
-      });
+        });
 
-      expect(result.issues, isEmpty);
-      expect(result.sources.single.id, 'stable_paywall');
-      expect(result.sources.single.isCanonical, isTrue);
-      expect(result.sources.single.hasExplicitId, isTrue);
-    });
+        expect(result.issues, isEmpty);
+        expect(result.sources.single.id, 'stable_paywall');
+        expect(result.sources.single.isCanonical, isTrue);
+        expect(result.sources.single.hasExplicitId, isTrue);
+      },
+    );
 
     test('two canonical implicit ids fail as ambiguous declarations', () async {
       final result = await _runCanonicalVisitorOn({
@@ -507,12 +529,12 @@ final class _VisitorProbeBuilder implements Builder {
   _VisitorProbeBuilder(this.onLibrary);
 
   final Future<void> Function(LibraryElement library, AssetId assetId)
-      onLibrary;
+  onLibrary;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.paywall_probe'],
-      };
+    '.dart': ['.paywall_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

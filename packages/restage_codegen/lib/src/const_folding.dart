@@ -122,8 +122,8 @@ Object? _foldConstReference(Element? element) {
 /// the build environment — see [dependsOnBuildEnvironment].
 Object? _foldConstValue(VariableElement element) =>
     dependsOnBuildEnvironment(element)
-        ? null
-        : decodeConstScalar(element.computeConstantValue());
+    ? null
+    : decodeConstScalar(element.computeConstantValue());
 
 /// Decodes a constant [value] to a plain scalar — [int], [double], [bool], or
 /// [String] — or `null` for any other shape. Shared with the
@@ -213,8 +213,9 @@ final class _BuildEnvironmentScan extends RecursiveAstVisitor<void> {
 String? enumConstantName(Expression expr) {
   if (expr is! PrefixedIdentifier) return null;
   final element = expr.identifier.element;
-  final resolved =
-      element is PropertyAccessorElement ? element.variable : element;
+  final resolved = element is PropertyAccessorElement
+      ? element.variable
+      : element;
   if (resolved is FieldElement && resolved.isEnumConstant) {
     return expr.identifier.name;
   }
@@ -317,8 +318,8 @@ Expression? resolveConstObjectFieldInitializerFromReceiver(
   if (field is! FieldElement) return null;
   final ctorCall =
       resolvedReceiver is InstanceCreationExpression && receiverIsConstValue
-          ? resolvedReceiver
-          : _receiverInstanceCreation(resolvedReceiver);
+      ? resolvedReceiver
+      : _receiverInstanceCreation(resolvedReceiver);
   return ctorCall == null ? null : _boundArgumentForField(ctorCall, field);
 }
 
@@ -350,8 +351,7 @@ Object? tryScalarFoldConstObjectField(Expression expr) {
 Object? tryFoldScalarConstant(
   Expression expr, {
   Map<Element, Expression> localBindings = const <Element, Expression>{},
-}) =>
-    _ScalarConstantFolder(localBindings).fold(expr);
+}) => _ScalarConstantFolder(localBindings).fold(expr);
 
 /// Resolves active scalar bindings and folds the expression when supported.
 ({bool complete, Expression expression, Object? value}) inspectScalarConstant(
@@ -421,8 +421,10 @@ final class _ScalarConstantFolder {
     }
     final fieldAccess = _asFieldAccess(expr);
     if (fieldAccess != null && canResolveConstObjectFieldReceiver(expr)) {
-      final receiverValue =
-          _boundConstReceiverValue(fieldAccess.receiver, depth);
+      final receiverValue = _boundConstReceiverValue(
+        fieldAccess.receiver,
+        depth,
+      );
       return receiverValue == null
           ? null
           : decodeConstScalar(receiverValue.getField(fieldAccess.fieldName));
@@ -462,8 +464,10 @@ final class _ScalarConstantFolder {
         !canResolveConstObjectFieldReceiver(resolvedReceiver)) {
       return null;
     }
-    return _boundConstReceiverValue(access.receiver, depth)
-        ?.getField(access.fieldName);
+    return _boundConstReceiverValue(
+      access.receiver,
+      depth,
+    )?.getField(access.fieldName);
   }
 
   ({Element element, Expression expression})? _bindingFor(
@@ -533,8 +537,9 @@ Expression? _evaluatedLiteral(DartObject? value, Expression anchor) {
   return literal;
 }
 
-final Expando<Expression> _evaluatedLiterals =
-    Expando<Expression>('evaluated constant literals');
+final Expando<Expression> _evaluatedLiterals = Expando<Expression>(
+  'evaluated constant literals',
+);
 
 /// Resolves a same-unit const declaration to its authored initializer.
 Expression? resolveConstDeclarationInitializer(Expression expr) {
@@ -697,8 +702,7 @@ DartObject? _computeConstValue(Element element) {
 VariableDeclaration? _findVariableDeclaration(
   Element target,
   CompilationUnit unit,
-) =>
-    (_constVariableIndexes[unit] ??= _ConstVariableIndex(unit))[target];
+) => (_constVariableIndexes[unit] ??= _ConstVariableIndex(unit))[target];
 
 final Expando<_ConstVariableIndex> _constVariableIndexes =
     Expando<_ConstVariableIndex>('const variable declarations');

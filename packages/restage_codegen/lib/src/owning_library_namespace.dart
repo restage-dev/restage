@@ -15,15 +15,15 @@ final class OwningLibraryNamespace {
 
   /// Import prefixes declared by the owning library.
   Set<String> get prefixNames => {
-        for (final prefix in library.firstFragment.prefixes)
-          if (prefix.name case final name? when name.isNotEmpty) name,
-      };
+    for (final prefix in library.firstFragment.prefixes)
+      if (prefix.name case final name? when name.isNotEmpty) name,
+  };
 
   /// Names contributed by visible unprefixed imports.
   Set<String> get unprefixedImportNames => {
-        for (final import in library.firstFragment.libraryImports)
-          if (import.prefix == null) ...import.namespace.definedNames2.keys,
-      };
+    for (final import in library.firstFragment.libraryImports)
+      if (import.prefix == null) ...import.namespace.definedNames2.keys,
+  };
 
   /// Public names visible to importers of the owning library.
   Set<String> publicNamespaceNames({bool Function(Element)? exclude}) {
@@ -89,11 +89,11 @@ final class OwningLibraryNamespace {
 
   /// Returns an exact reusable spelling of [type], when one is visible.
   String? typeCode(DartType type) => _typeCode(
-        type,
-        const {},
-        _visibleAliases(),
-        const {},
-      );
+    type,
+    const {},
+    _visibleAliases(),
+    const {},
+  );
 
   /// Returns the visible spelling of [element], when one exists.
   String? elementName(Element element) => _visibleElementName(element);
@@ -143,8 +143,8 @@ final class OwningLibraryNamespace {
     final aliases = shadowed.isEmpty
         ? allAliases
         : allAliases
-            .where((alias) => !shadowed.contains(alias.name.split('.').first))
-            .toList(growable: false);
+              .where((alias) => !shadowed.contains(alias.name.split('.').first))
+              .toList(growable: false);
     final alias = type.alias;
     if (alias != null) {
       final code = _attachedAliasCode(
@@ -160,32 +160,32 @@ final class OwningLibraryNamespace {
       DynamicType() => 'dynamic',
       VoidType() => 'void',
       NeverType() => _namedType(
-          type,
-          const [],
-          localTypeParameters,
-          aliases,
-          activeAliases,
-        ),
+        type,
+        const [],
+        localTypeParameters,
+        aliases,
+        activeAliases,
+      ),
       InterfaceType(:final typeArguments) => _namedType(
-          type,
-          typeArguments,
-          localTypeParameters,
-          aliases,
-          activeAliases,
-        ),
+        type,
+        typeArguments,
+        localTypeParameters,
+        aliases,
+        activeAliases,
+      ),
       TypeParameterType() => _typeParameterType(type, localTypeParameters),
       FunctionType() => _functionType(
-          type,
-          localTypeParameters,
-          aliases,
-          activeAliases,
-        ),
+        type,
+        localTypeParameters,
+        aliases,
+        activeAliases,
+      ),
       RecordType() => _recordType(
-          type,
-          localTypeParameters,
-          aliases,
-          activeAliases,
-        ),
+        type,
+        localTypeParameters,
+        aliases,
+        activeAliases,
+      ),
       InvalidType() => null,
       _ => null,
     };
@@ -453,7 +453,8 @@ final class OwningLibraryNamespace {
     if (prefix == null && element.library?.identifier == 'dart:core') {
       return true;
     }
-    final imports = prefix?.imports ??
+    final imports =
+        prefix?.imports ??
         library.firstFragment.libraryImports.where(
           (import) => import.prefix == null,
         );
@@ -603,8 +604,9 @@ bool _matchAliasType(
   Set<TypeParameterElement> parameters,
   Map<TypeParameterElement, DartType> bindings,
 ) {
-  if (pattern case TypeParameterType(:final element)
-      when parameters.contains(element.baseElement)) {
+  if (pattern case TypeParameterType(
+    :final element,
+  ) when parameters.contains(element.baseElement)) {
     if (pattern.nullabilitySuffix != NullabilitySuffix.none) return false;
     final parameter = element.baseElement;
     final existing = bindings[parameter];
@@ -770,7 +772,7 @@ Element _referencedElement(Element element) =>
         .baseElement;
 
 String? _nullabilitySuffix(NullabilitySuffix suffix) => switch (suffix) {
-      NullabilitySuffix.none => '',
-      NullabilitySuffix.question => '?',
-      NullabilitySuffix.star => null,
-    };
+  NullabilitySuffix.none => '',
+  NullabilitySuffix.question => '?',
+  NullabilitySuffix.star => null,
+};

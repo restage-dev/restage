@@ -225,7 +225,8 @@ final class MeasurementResolvedOpaqueCustomWidgetEvent
 
   /// Human-inspectable compiler identity, outside wire/hash domains.
   @override
-  String get resolvedSemanticIdentity => '$widgetLibraryUri#$widgetClassName|'
+  String get resolvedSemanticIdentity =>
+      '$widgetLibraryUri#$widgetClassName|'
       '${declarationProvenance.libraryUri}#'
       '${declarationProvenance.className}.${declarationProvenance.memberName}|'
       '$catalogLibraryNamespace:${catalogWidgetWireId.value}';
@@ -297,11 +298,11 @@ InterfaceElement? _annotationClass(ElementAnnotation annotation) {
 }
 
 bool _spellsSourceRootAnnotation(String source) => _sourceRootKinds.keys.any(
-      (name) =>
-          source.startsWith('@$name') &&
-          (source.length == name.length + 1 ||
-              !_isIdentifierPart(source.codeUnitAt(name.length + 1))),
-    );
+  (name) =>
+      source.startsWith('@$name') &&
+      (source.length == name.length + 1 ||
+          !_isIdentifierPart(source.codeUnitAt(name.length + 1))),
+);
 
 bool _isIdentifierPart(int unit) =>
     (unit >= 0x30 && unit <= 0x39) ||

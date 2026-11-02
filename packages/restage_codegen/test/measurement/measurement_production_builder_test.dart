@@ -471,13 +471,15 @@ void main() {
           .where((route) => route.orderedCaptureV1?.lifecycleChannel == null)
           .toList();
       expect(
-          allRoutes.where(
-              (route) => route.orderedCaptureV1?.lifecycleChannel != null),
-          hasLength(2));
+        allRoutes.where(
+          (route) => route.orderedCaptureV1?.lifecycleChannel != null,
+        ),
+        hasLength(2),
+      );
       expect(
-          routes.single.orderedCaptureV1?.channels
-              .map((channel) => channel.name),
-          unorderedEquals(['presentation', 'interaction']));
+        routes.single.orderedCaptureV1?.channels.map((channel) => channel.name),
+        unorderedEquals(['presentation', 'interaction']),
+      );
       expect(routes, hasLength(1));
       expect(routes.single.generatedReferenceId.value, isNotEmpty);
     },
@@ -487,11 +489,13 @@ void main() {
     'a locally held widget list matches its publication twin',
     () async {
       Future<
-          ({
-            Uint8List measurementBytes,
-            String publicationBundle,
-            RestageMeasurementCompilerOutputV1 output,
-          })> compile(String source) async {
+        ({
+          Uint8List measurementBytes,
+          String publicationBundle,
+          RestageMeasurementCompilerOutputV1 output,
+        })
+      >
+      compile(String source) async {
         final readerWriter = await readerWriterWithFilesystemSources(
           rootPackage: 'apps_examples',
         );
@@ -533,8 +537,10 @@ void main() {
         orderedEquals(literal.measurementBytes),
       );
       expect(local.publicationBundle, literal.publicationBundle);
-      expect(_authoredRoutes(local.output.publications.single.routePlan.routes),
-          hasLength(1));
+      expect(
+        _authoredRoutes(local.output.publications.single.routePlan.routes),
+        hasLength(1),
+      );
       expect(
         local.output.ledgerNodes
             .where(_isAuthoredEventNode)
@@ -589,8 +595,10 @@ void main() {
       );
 
       expect(output.valid, isTrue);
-      expect(_authoredRoutes(output.publications.single.routePlan.routes),
-          hasLength(1));
+      expect(
+        _authoredRoutes(output.publications.single.routePlan.routes),
+        hasLength(1),
+      );
       expect(
         output.ledgerNodes
             .where(_isAuthoredEventNode)
@@ -648,21 +656,22 @@ void main() {
       final publication = output.publications.single;
       expect(_authoredRoutes(publication.routePlan.routes), hasLength(12));
       expect(
-        _authoredRoutes(publication.routePlan.routes)
-            .map((route) => route.generatedReferenceId.value)
-            .toSet(),
+        _authoredRoutes(
+          publication.routePlan.routes,
+        ).map((route) => route.generatedReferenceId.value).toSet(),
         hasLength(12),
       );
 
       final bundle = RestageSurfacePublicationBundle.fromJson(
         jsonDecode(
-          readerWriter.testing.readString(
-            AssetId(
-              'apps_examples',
-              kRestageSurfacePublicationCompilerBundlePath,
-            ),
-          ),
-        ) as Map<String, Object?>,
+              readerWriter.testing.readString(
+                AssetId(
+                  'apps_examples',
+                  kRestageSurfacePublicationCompilerBundlePath,
+                ),
+              ),
+            )
+            as Map<String, Object?>,
       );
       final manifestEntry = bundle.manifest!.publications.single;
       final blobPath = manifestEntry.artifacts
@@ -794,22 +803,22 @@ void main() {
 
       final compilerOutput =
           RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-        readerWriter.testing.readBytes(
-          AssetId(
-            'apps_examples',
-            kRestageMeasurementCompilerOutputPath,
-          ),
-        ),
-      );
+            readerWriter.testing.readBytes(
+              AssetId(
+                'apps_examples',
+                kRestageMeasurementCompilerOutputPath,
+              ),
+            ),
+          );
       expect(compilerOutput.valid, isTrue);
       expect(compilerOutput.publications, hasLength(1));
       final publication = compilerOutput.publications.single;
       expect(_authoredRoutes(publication.routePlan.routes), hasLength(7));
       expect(publication.routePlan.presentationRoutes, hasLength(11));
       expect(
-        _authoredRoutes(publication.routePlan.routes)
-            .map((route) => route.generatedReferenceId.value)
-            .toSet(),
+        _authoredRoutes(
+          publication.routePlan.routes,
+        ).map((route) => route.generatedReferenceId.value).toSet(),
         hasLength(7),
       );
 
@@ -847,7 +856,8 @@ void main() {
           'Text',
           'Text',
         ]),
-        reason: 'only final RFW catalog occurrences are presented: outer '
+        reason:
+            'only final RFW catalog occurrences are presented: outer '
             'app-defined calls stay distinct, repeated sibling calls stay '
             'distinct, and the generated InlineAction body remains opaque',
       );
@@ -858,14 +868,16 @@ void main() {
             'the generated local definition is not an independent presentation '
             'occurrence; only the outer InlineAction call is wrapped',
       );
-      final carriers = _eventHandlers(
-        decodedBlob,
-      )
-          .map(
-            (handler) => handler.eventArguments[kMeasurementRouteArgumentKeyV1],
-          )
-          .whereType<String>()
-          .toList();
+      final carriers =
+          _eventHandlers(
+                decodedBlob,
+              )
+              .map(
+                (handler) =>
+                    handler.eventArguments[kMeasurementRouteArgumentKeyV1],
+              )
+              .whereType<String>()
+              .toList();
       expect(carriers, hasLength(7));
       expect(carriers.toSet(), hasLength(7));
       expect(
@@ -917,7 +929,8 @@ void main() {
       expect(
         generatedPart,
         contains('generatedWithMeasurementPublicationDraftDigest'),
-        reason: 'the delivered generated ScreenSource receives only the final '
+        reason:
+            'the delivered generated ScreenSource receives only the final '
             'compiler-owned draft closure carrier',
       );
       expect(
@@ -952,8 +965,9 @@ void main() {
         measurementIndexBytes,
         orderedEquals(compilerOutput.outputIndexBytes('apps_examples')),
       );
-      final measurementIndex = jsonDecode(utf8.decode(measurementIndexBytes))
-          as Map<String, Object?>;
+      final measurementIndex =
+          jsonDecode(utf8.decode(measurementIndexBytes))
+              as Map<String, Object?>;
       expect(
         measurementIndex.keys.toSet(),
         {'entries', 'kind', 'package', 'schemaVersion'},
@@ -1015,13 +1029,13 @@ void main() {
 
       final compilerOutput =
           RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-        readerWriter.testing.readBytes(
-          AssetId(
-            'apps_examples',
-            kRestageMeasurementCompilerOutputPath,
-          ),
-        ),
-      );
+            readerWriter.testing.readBytes(
+              AssetId(
+                'apps_examples',
+                kRestageMeasurementCompilerOutputPath,
+              ),
+            ),
+          );
       expect(compilerOutput.valid, isTrue);
       expect(compilerOutput.policy, isNotNull);
       expect(compilerOutput.policy!.toJson(), <String, Object?>{
@@ -1056,8 +1070,7 @@ void main() {
     },
   );
 
-  test(
-      'records exact alias targets through analyzer translation and frozen '
+  test('records exact alias targets through analyzer translation and frozen '
       'RFW resolution', () async {
     final screen = await _compileAliasOccurrenceScreen();
     final occurrenceSet = screen.rfwCatalogOccurrenceSet;
@@ -1083,8 +1096,9 @@ void main() {
       );
     }
     expect(
-      occurrenceSet.occurrences
-          .map((occurrence) => occurrence.constructorCall.name),
+      occurrenceSet.occurrences.map(
+        (occurrence) => occurrence.constructorCall.name,
+      ),
       isNot(contains('PageView')),
     );
     expect(
@@ -1111,31 +1125,33 @@ void main() {
     );
   });
 
-  test('final paywall forms require their own frozen occurrence evidence',
-      () async {
-    final standalone = await _compilePaywallWithoutFrozenOccurrenceEvidence(
-      adapter: false,
-    );
-    final adapter = await _compilePaywallWithoutFrozenOccurrenceEvidence(
-      adapter: true,
-    );
-
-    for (final result in [standalone, adapter]) {
-      expect(result.paywalls, isEmpty);
-      expect(
-        result.issues.map((issue) => issue.code),
-        contains(IssueCode.missingScreenDescriptor),
+  test(
+    'final paywall forms require their own frozen occurrence evidence',
+    () async {
+      final standalone = await _compilePaywallWithoutFrozenOccurrenceEvidence(
+        adapter: false,
       );
-    }
-    expect(
-      standalone.issues.map((issue) => issue.message).join('\n'),
-      contains('standalone paywall'),
-    );
-    expect(
-      adapter.issues.map((issue) => issue.message).join('\n'),
-      contains('adapter paywall'),
-    );
-  });
+      final adapter = await _compilePaywallWithoutFrozenOccurrenceEvidence(
+        adapter: true,
+      );
+
+      for (final result in [standalone, adapter]) {
+        expect(result.paywalls, isEmpty);
+        expect(
+          result.issues.map((issue) => issue.code),
+          contains(IssueCode.missingScreenDescriptor),
+        );
+      }
+      expect(
+        standalone.issues.map((issue) => issue.message).join('\n'),
+        contains('standalone paywall'),
+      );
+      expect(
+        adapter.issues.map((issue) => issue.message).join('\n'),
+        contains('adapter paywall'),
+      );
+    },
+  );
 
   test(
     'finalized generated source carriers rebuild byte-identically and track '
@@ -1260,15 +1276,17 @@ const offer = FlowDefinition(
         (publication) => publication.selector.slug == 'offer',
       );
       expect(
-          _authoredRoutes(paywallPublication.routePlan.routes), hasLength(1));
+        _authoredRoutes(paywallPublication.routePlan.routes),
+        hasLength(1),
+      );
       expect(_authoredRoutes(flowPublication.routePlan.routes), hasLength(1));
       expect(
-        _authoredRoutes(paywallPublication.routePlan.routes)
-            .single
-            .generatedReferenceId,
-        _authoredRoutes(flowPublication.routePlan.routes)
-            .single
-            .generatedReferenceId,
+        _authoredRoutes(
+          paywallPublication.routePlan.routes,
+        ).single.generatedReferenceId,
+        _authoredRoutes(
+          flowPublication.routePlan.routes,
+        ).single.generatedReferenceId,
         reason: 'one source event keeps one compiler-ledger reference',
       );
       expect(
@@ -1304,9 +1322,11 @@ const offer = FlowDefinition(
             artifact.role == SurfacePublicationArtifactRole.screenBlob &&
             artifact.id == 'paywall_premium',
       );
-      final paywallBlob = handoff.artifacts[paywallBlobArtifact.path] ??
+      final paywallBlob =
+          handoff.artifacts[paywallBlobArtifact.path] ??
           handoff.borrowedArtifacts[paywallBlobArtifact.path]!;
-      final flowBlob = handoff.artifacts[flowBlobArtifact.path] ??
+      final flowBlob =
+          handoff.artifacts[flowBlobArtifact.path] ??
           handoff.borrowedArtifacts[flowBlobArtifact.path]!;
       final paywallBlobEdge = paywallPublication.routePlan.artifacts
           .singleWhere(
@@ -1339,24 +1359,26 @@ const offer = FlowDefinition(
         {
           for (final route
               in paywallPublication.routePlan.presentationRoutes.where(
-            (route) => route.artifactOccurrenceEdgeToken == paywallBlobEdge,
-          ))
+                (route) => route.artifactOccurrenceEdgeToken == paywallBlobEdge,
+              ))
             route.carrier,
         },
       );
       expect(
         flowPresentationCarriers,
         {
-          for (final route in flowPublication.routePlan.presentationRoutes
-              .where(
-                  (route) => route.artifactOccurrenceEdgeToken == flowBlobEdge))
+          for (final route
+              in flowPublication.routePlan.presentationRoutes.where(
+                (route) => route.artifactOccurrenceEdgeToken == flowBlobEdge,
+              ))
             route.carrier,
         },
       );
       expect(
         paywallPresentationCarriers,
         isNot(equals(flowPresentationCarriers)),
-        reason: 'the standalone and flow-adapter blobs must compose their own '
+        reason:
+            'the standalone and flow-adapter blobs must compose their own '
             'frozen RFW occurrence sets, not rebind one form against the other',
       );
       final emittedCarriers = <String>[];
@@ -1552,8 +1574,9 @@ final class UnmeasuredParent extends RestageFlow {
       );
       expect(_authoredRoutes(childPublication.routePlan.routes), isNotEmpty);
       expect(
-        measurement.publications
-            .map((publication) => publication.selector.slug),
+        measurement.publications.map(
+          (publication) => publication.selector.slug,
+        ),
         isNot(contains('unmeasured_parent')),
       );
 
@@ -1608,8 +1631,10 @@ final class UnmeasuredParent extends RestageFlow {
       );
       for (final id in readerWriter.testing.assets) {
         if (id.path.startsWith('.dart_tool/')) continue;
-        outputsReaderWriter.testing
-            .writeBytes(id, readerWriter.testing.readBytes(id));
+        outputsReaderWriter.testing.writeBytes(
+          id,
+          readerWriter.testing.readBytes(id),
+        );
       }
       final outputsResult = await testBuilder(
         RestageOutputsBuilder(_bundledPolicyOptions),
@@ -1763,12 +1788,12 @@ final class WelcomeFlow extends RestageFlow {
       expect(_authoredRoutes(screenPublication.routePlan.routes), hasLength(1));
       expect(_authoredRoutes(flowPublication.routePlan.routes), hasLength(1));
       expect(
-        _authoredRoutes(screenPublication.routePlan.routes)
-            .single
-            .generatedReferenceId,
-        _authoredRoutes(flowPublication.routePlan.routes)
-            .single
-            .generatedReferenceId,
+        _authoredRoutes(
+          screenPublication.routePlan.routes,
+        ).single.generatedReferenceId,
+        _authoredRoutes(
+          flowPublication.routePlan.routes,
+        ).single.generatedReferenceId,
       );
       expect(
         _authoredRoutes(screenPublication.routePlan.routes).single.carrier,
@@ -1798,7 +1823,8 @@ final class WelcomeFlow extends RestageFlow {
           (artifact) =>
               artifact.role == SurfacePublicationArtifactRole.screenBlob,
         )) {
-          final blob = handoff.artifacts[artifact.path] ??
+          final blob =
+              handoff.artifacts[artifact.path] ??
               handoff.borrowedArtifacts[artifact.path]!;
           for (final handler in _eventHandlers(
             fmt.decodeLibraryBlob(Uint8List.fromList(blob)),
@@ -1846,9 +1872,10 @@ final class WelcomeFlow extends RestageFlow {
     },
   );
 
-  test('normal compiled survey retains declared answer route metadata',
-      () async {
-    const screen = '''
+  test(
+    'normal compiled survey retains declared answer route metadata',
+    () async {
+      const screen = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 part 'restage.generated/answer_screen.restage.g.dart';
@@ -1860,7 +1887,7 @@ final class AnswerScreen extends StatelessWidget {
   Widget build(BuildContext context) => FilledButton(onPressed: surfaceEvent(answer, 'cost'), child: const Text('Cost'));
 }
 ''';
-    const flow = '''
+      const flow = '''
 import 'package:restage/restage.dart';
 import '../screens/answer_screen.dart';
 part 'restage.generated/answer_flow.restage.g.dart';
@@ -1868,36 +1895,50 @@ const reason = FlowStateRef<String>('reason', classification: FlowStateClassific
 @FlowGraph(id: 'answer_flow', surface: Surface.survey)
 final answerFlow = FlowDefinition(start: AnswerScreen, state: [reason], transitions: [Transition.complete(AnswerScreen.answer, capture: reason)], outbound: FlowOutboundPolicy(surveyAnswers: {'reason': reason}, measurementAnswers: {'reason': FlowAnswerMeasurement.category(outcomeKey: 'survey.reason', propertyName: 'reason', categoryLabels: {'cost': 'Too expensive', 'other': 'Other'})}));
 ''';
-    final sources = <String, String>{
-      'apps_examples|lib/survey/screens/answer_screen.dart': screen,
-      'apps_examples|lib/survey/flows/answer_flow.dart': flow
-    };
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-    for (final builder in [
-      onboardingScreenBuilder(BuilderOptions.empty),
-      onboardingFlowBuilder(BuilderOptions.empty),
-      const PackageSurfaceCompilerBuilder(_policyOptions)
-    ]) {
-      final result = await testBuilder(builder, sources,
+      final sources = <String, String>{
+        'apps_examples|lib/survey/screens/answer_screen.dart': screen,
+        'apps_examples|lib/survey/flows/answer_flow.dart': flow,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      for (final builder in [
+        onboardingScreenBuilder(BuilderOptions.empty),
+        onboardingFlowBuilder(BuilderOptions.empty),
+        const PackageSurfaceCompilerBuilder(_policyOptions),
+      ]) {
+        final result = await testBuilder(
+          builder,
+          sources,
           rootPackage: 'apps_examples',
           readerWriter: readerWriter,
-          flattenOutput: true);
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    }
-    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+          flattenOutput: true,
+        );
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      }
+      final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
         readerWriter.testing.readBytes(
-            AssetId('apps_examples', kRestageMeasurementCompilerOutputPath)));
-    final publication = output.publications.singleWhere((publication) =>
-        publication.selector.sourceKind == SurfaceSourceKind.flowGraph);
-    final answerRoute = publication.routePlan.routes.singleWhere(
-        (route) => route.orderedCaptureV1?.declaredAnswerV1 != null);
-    expect(answerRoute.orderedCaptureV1!.declaredAnswerV1!.outcomeKey,
-        'survey.reason');
-    expect(answerRoute.orderedCaptureV1!.declaredAnswerV1!.categoryLabels,
-        {'cost': 'Too expensive', 'other': 'Other'});
-    expect(answerRoute.carrier, isNotEmpty);
-  });
+          AssetId('apps_examples', kRestageMeasurementCompilerOutputPath),
+        ),
+      );
+      final publication = output.publications.singleWhere(
+        (publication) =>
+            publication.selector.sourceKind == SurfaceSourceKind.flowGraph,
+      );
+      final answerRoute = publication.routePlan.routes.singleWhere(
+        (route) => route.orderedCaptureV1?.declaredAnswerV1 != null,
+      );
+      expect(
+        answerRoute.orderedCaptureV1!.declaredAnswerV1!.outcomeKey,
+        'survey.reason',
+      );
+      expect(answerRoute.orderedCaptureV1!.declaredAnswerV1!.categoryLabels, {
+        'cost': 'Too expensive',
+        'other': 'Other',
+      });
+      expect(answerRoute.carrier, isNotEmpty);
+    },
+  );
 
   test('a builder-authored flow declares the same answer routes', () async {
     const screen = '''
@@ -1946,29 +1987,38 @@ final class AnswerFlow extends RestageFlow {
     Future<MeasurementDeclaredAnswerV1> declared(String flow) async {
       final sources = <String, String>{
         'apps_examples|lib/survey/screens/answer_screen.dart': screen,
-        'apps_examples|lib/survey/flows/answer_flow.dart': flow
+        'apps_examples|lib/survey/flows/answer_flow.dart': flow,
       };
-      final readerWriter =
-          await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
       for (final builder in [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        const PackageSurfaceCompilerBuilder(_policyOptions)
+        const PackageSurfaceCompilerBuilder(_policyOptions),
       ]) {
-        final result = await testBuilder(builder, sources,
-            rootPackage: 'apps_examples',
-            readerWriter: readerWriter,
-            flattenOutput: true);
+        final result = await testBuilder(
+          builder,
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
         expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
       }
       final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-          readerWriter.testing.readBytes(
-              AssetId('apps_examples', kRestageMeasurementCompilerOutputPath)));
-      final publication = output.publications.singleWhere((publication) =>
-          publication.selector.sourceKind == SurfaceSourceKind.flowGraph);
+        readerWriter.testing.readBytes(
+          AssetId('apps_examples', kRestageMeasurementCompilerOutputPath),
+        ),
+      );
+      final publication = output.publications.singleWhere(
+        (publication) =>
+            publication.selector.sourceKind == SurfaceSourceKind.flowGraph,
+      );
       return publication.routePlan.routes
           .singleWhere(
-              (route) => route.orderedCaptureV1?.declaredAnswerV1 != null)
+            (route) => route.orderedCaptureV1?.declaredAnswerV1 != null,
+          )
           .orderedCaptureV1!
           .declaredAnswerV1!;
     }
@@ -1976,12 +2026,13 @@ final class AnswerFlow extends RestageFlow {
     final fromDefinition = await declared(definitionFlow);
     final fromBuilder = await declared(builderFlow);
     expect(fromBuilder, fromDefinition);
-    expect(fromBuilder.categoryLabels,
-        {'cost': 'Too expensive', 'other': 'Other'});
+    expect(fromBuilder.categoryLabels, {
+      'cost': 'Too expensive',
+      'other': 'Other',
+    });
   });
 
-  test(
-      'an onboarding answer routes through the flow publication when the '
+  test('an onboarding answer routes through the flow publication when the '
       'flow embeds a measured paywall', () async {
     const paywall = '''
 import 'package:flutter/material.dart';
@@ -2021,62 +2072,93 @@ final welcome = FlowDefinition(start: GoalScreen, state: [goal], transitions: [T
       'apps_examples|lib/screens/goal_screen.dart': goalScreen,
       'apps_examples|lib/journeys/welcome.dart': flow,
     };
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
     for (final builder in [
       onboardingScreenBuilder(BuilderOptions.empty),
       onboardingFlowBuilder(BuilderOptions.empty),
-      const PackageSurfaceCompilerBuilder(_policyOptions)
+      const PackageSurfaceCompilerBuilder(_policyOptions),
     ]) {
-      final result = await testBuilder(builder, sources,
-          rootPackage: 'apps_examples',
-          readerWriter: readerWriter,
-          flattenOutput: true);
+      final result = await testBuilder(
+        builder,
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
       expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
     }
     final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-        readerWriter.testing.readBytes(
-            AssetId('apps_examples', kRestageMeasurementCompilerOutputPath)));
-    final handoff = RestageSurfacePublicationBundle.fromJson(jsonDecode(
-        readerWriter.testing.readString(AssetId(
-            'apps_examples', kRestageSurfacePublicationCompilerBundlePath))));
-    final paywallPublication = output.publications.singleWhere((publication) =>
-        publication.selector.sourceKind == SurfaceSourceKind.paywall);
-    final flowPublication = output.publications
-        .singleWhere((publication) => publication.selector.slug == 'welcome');
-    final flowEntry = handoff.manifest!.publications
-        .singleWhere((entry) => entry.publication.slug == 'welcome');
+      readerWriter.testing.readBytes(
+        AssetId('apps_examples', kRestageMeasurementCompilerOutputPath),
+      ),
+    );
+    final handoff = RestageSurfacePublicationBundle.fromJson(
+      jsonDecode(
+        readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            kRestageSurfacePublicationCompilerBundlePath,
+          ),
+        ),
+      ),
+    );
+    final paywallPublication = output.publications.singleWhere(
+      (publication) =>
+          publication.selector.sourceKind == SurfaceSourceKind.paywall,
+    );
+    final flowPublication = output.publications.singleWhere(
+      (publication) => publication.selector.slug == 'welcome',
+    );
+    final flowEntry = handoff.manifest!.publications.singleWhere(
+      (entry) => entry.publication.slug == 'welcome',
+    );
     ArtifactOccurrenceEdgeToken flowEdge(
-            bool Function(SurfacePublicationArtifact artifact) test) =>
-        flowPublication.routePlan.artifacts
-            .singleWhere((artifact) =>
-                artifact.artifactId ==
-                measurementArtifactIdForPublicationArtifactV1(
-                    flowPublication.selector,
-                    flowEntry.artifacts.singleWhere(test)))
-            .occurrenceEdgeToken;
-    final documentEdge = flowEdge((artifact) =>
-        artifact.role == SurfacePublicationArtifactRole.flowDocument);
-    final paywallScreenEdge = flowEdge((artifact) =>
-        artifact.role == SurfacePublicationArtifactRole.screenBlob &&
-        artifact.id == 'paywall_welcome_offer');
+      bool Function(SurfacePublicationArtifact artifact) test,
+    ) => flowPublication.routePlan.artifacts
+        .singleWhere(
+          (artifact) =>
+              artifact.artifactId ==
+              measurementArtifactIdForPublicationArtifactV1(
+                flowPublication.selector,
+                flowEntry.artifacts.singleWhere(test),
+              ),
+        )
+        .occurrenceEdgeToken;
+    final documentEdge = flowEdge(
+      (artifact) =>
+          artifact.role == SurfacePublicationArtifactRole.flowDocument,
+    );
+    final paywallScreenEdge = flowEdge(
+      (artifact) =>
+          artifact.role == SurfacePublicationArtifactRole.screenBlob &&
+          artifact.id == 'paywall_welcome_offer',
+    );
 
     final answerRoute = flowPublication.routePlan.routes.singleWhere(
-        (route) => route.orderedCaptureV1?.declaredAnswerV1 != null);
+      (route) => route.orderedCaptureV1?.declaredAnswerV1 != null,
+    );
     expect(answerRoute.orderedCaptureV1!.declaredAnswerV1!.questionId, 'goal');
-    expect(answerRoute.orderedCaptureV1!.declaredAnswerV1!.outcomeKey,
-        'onboarding.goal');
+    expect(
+      answerRoute.orderedCaptureV1!.declaredAnswerV1!.outcomeKey,
+      'onboarding.goal',
+    );
     expect(answerRoute.artifactOccurrenceEdgeToken, documentEdge);
     expect(answerRoute.artifactOccurrenceEdgeToken, isNot(paywallScreenEdge));
     expect(
-        flowPublication.routePlan.routes.where(
-            (route) => route.artifactOccurrenceEdgeToken == paywallScreenEdge),
-        isNotEmpty,
-        reason: 'the embedded paywall keeps its own measured routes');
+      flowPublication.routePlan.routes.where(
+        (route) => route.artifactOccurrenceEdgeToken == paywallScreenEdge,
+      ),
+      isNotEmpty,
+      reason: 'the embedded paywall keeps its own measured routes',
+    );
     expect(
-        paywallPublication.routePlan.routes
-            .where((route) => route.orderedCaptureV1?.declaredAnswerV1 != null),
-        isEmpty);
+      paywallPublication.routePlan.routes.where(
+        (route) => route.orderedCaptureV1?.declaredAnswerV1 != null,
+      ),
+      isEmpty,
+    );
   });
 
   test(
@@ -2179,9 +2261,11 @@ final class QuietFlow extends RestageFlow {
       for (final publication in [screenPublication, flowPublication]) {
         expect(publication.routePlan.routes, isNotEmpty);
         expect(
-            publication.routePlan.routes.every(
-                (route) => route.orderedCaptureV1?.lifecycleChannel != null),
-            isTrue);
+          publication.routePlan.routes.every(
+            (route) => route.orderedCaptureV1?.lifecycleChannel != null,
+          ),
+          isTrue,
+        );
         expect(publication.routePlan.presentationRoutes, isNotEmpty);
       }
 
@@ -2203,21 +2287,20 @@ final class QuietFlow extends RestageFlow {
       );
       Set<String> presentationCarriersFor(
         SurfacePublicationManifestEntry entry,
-      ) =>
-          {
-            for (final artifact in entry.artifacts.where(
-              (artifact) =>
-                  artifact.role == SurfacePublicationArtifactRole.screenBlob,
-            ))
-              ..._presentationRouteCarriers(
-                fmt.decodeLibraryBlob(
-                  Uint8List.fromList(
-                    handoff.artifacts[artifact.path] ??
-                        handoff.borrowedArtifacts[artifact.path]!,
-                  ),
-                ),
+      ) => {
+        for (final artifact in entry.artifacts.where(
+          (artifact) =>
+              artifact.role == SurfacePublicationArtifactRole.screenBlob,
+        ))
+          ..._presentationRouteCarriers(
+            fmt.decodeLibraryBlob(
+              Uint8List.fromList(
+                handoff.artifacts[artifact.path] ??
+                    handoff.borrowedArtifacts[artifact.path]!,
               ),
-          };
+            ),
+          ),
+      };
       expect(
         presentationCarriersFor(screenManifestEntry),
         {
@@ -2241,19 +2324,21 @@ final class QuietFlow extends RestageFlow {
         String descriptor,
         String expectedDigest,
       ) {
-        final part =
-            generatedParts.where((part) => part.contains(descriptor)).single;
+        final part = generatedParts
+            .where((part) => part.contains(descriptor))
+            .single;
         expect(
           part,
           contains('generatedWithMeasurementPublicationDraftDigest'),
         );
-        final embeddedDigests = RegExp(
-          'measurementPublicationDraftDigest:\\s*[\'"]([^\'"]+)[\'"],',
-        )
-            .allMatches(part)
-            .map((match) => match.group(1))
-            .whereType<String>()
-            .toList();
+        final embeddedDigests =
+            RegExp(
+                  'measurementPublicationDraftDigest:\\s*[\'"]([^\'"]+)[\'"],',
+                )
+                .allMatches(part)
+                .map((match) => match.group(1))
+                .whereType<String>()
+                .toList();
         expect(embeddedDigests, [expectedDigest]);
       }
 
@@ -2290,77 +2375,81 @@ final class QuietFlow extends RestageFlow {
     },
   );
 
-  test('semantic collection entrances retain distinct measurement identities',
-      () async {
-    final ordinaryInline = await _compileMeasuredScreenSource(
-      _semanticEntranceSource(mixed: false, includeHelper: false),
-    );
-    final expandedInline = await _compileMeasuredScreenSource(
-      _semanticEntranceSource(mixed: true, includeHelper: false),
-    );
-    final compiled = await _compileMeasuredScreenSource(
-      _semanticEntranceSource(mixed: true),
-    );
+  test(
+    'semantic collection entrances retain distinct measurement identities',
+    () async {
+      final ordinaryInline = await _compileMeasuredScreenSource(
+        _semanticEntranceSource(mixed: false, includeHelper: false),
+      );
+      final expandedInline = await _compileMeasuredScreenSource(
+        _semanticEntranceSource(mixed: true, includeHelper: false),
+      );
+      final compiled = await _compileMeasuredScreenSource(
+        _semanticEntranceSource(mixed: true),
+      );
 
-    expect(
-      (
-        compiled.output.valid,
-        compiled.output.publications.length,
-        compiled.output.proposals.length,
-        compiled.output.errors.length,
-      ),
-      (true, 1, 0, 0),
-    );
-    expect(
-      (
-        ordinaryInline.output.valid,
-        ordinaryInline.output.publications.length,
-        expandedInline.output.valid,
-        expandedInline.output.publications.length,
-      ),
-      (true, 1, true, 1),
-    );
-    const source = 'package:apps_examples/features/measured.dart#Welcome';
-    const column = 'package:flutter/src/widgets/basic.dart#Column';
-    const button =
-        'package:flutter/src/material/elevated_button.dart#ElevatedButton';
-    const custom = 'package:apps_examples/features/measured.dart#InlineAction';
-    final eventNodes = compiled.output.ledgerNodes
-        .where(
-          (node) =>
-              node.active &&
-              _isAuthoredEventNode(node) &&
-              node.events.any((event) => event.active),
-        )
-        .toList();
-    const listRoot = '$source|child:$column:$column.children';
-    final distinctLocators = {
-      '$listRoot[0]|helper:$source.action|widget:$button',
-      '$listRoot[1]|inline:$custom|inlinedBody:$custom|widget:$button',
-    };
-    const selectedLocator = '$listRoot[2]|collection:listElement[2]|'
-        'collection:selectedThen[0]|widget:$button';
-    expect(
-      eventNodes.map((node) => node.structuralOccurrenceKey).toSet(),
-      {
-        ...distinctLocators,
-        selectedLocator,
-      },
-    );
-    expect(
-      eventNodes.map((node) => node.codeIdentityId.value).toSet(),
-      hasLength(3),
-    );
-    const inlineOnlyLocator =
-        '$listRoot[0]|inline:$custom|inlinedBody:$custom|widget:$button';
-    final ordinaryInlineNode = ordinaryInline.output.ledgerNodes.singleWhere(
-      (node) => node.structuralOccurrenceKey == inlineOnlyLocator,
-    );
-    final expandedInlineNode = expandedInline.output.ledgerNodes.singleWhere(
-      (node) => node.structuralOccurrenceKey == inlineOnlyLocator,
-    );
-    expect(expandedInlineNode.toJson(), ordinaryInlineNode.toJson());
-  });
+      expect(
+        (
+          compiled.output.valid,
+          compiled.output.publications.length,
+          compiled.output.proposals.length,
+          compiled.output.errors.length,
+        ),
+        (true, 1, 0, 0),
+      );
+      expect(
+        (
+          ordinaryInline.output.valid,
+          ordinaryInline.output.publications.length,
+          expandedInline.output.valid,
+          expandedInline.output.publications.length,
+        ),
+        (true, 1, true, 1),
+      );
+      const source = 'package:apps_examples/features/measured.dart#Welcome';
+      const column = 'package:flutter/src/widgets/basic.dart#Column';
+      const button =
+          'package:flutter/src/material/elevated_button.dart#ElevatedButton';
+      const custom =
+          'package:apps_examples/features/measured.dart#InlineAction';
+      final eventNodes = compiled.output.ledgerNodes
+          .where(
+            (node) =>
+                node.active &&
+                _isAuthoredEventNode(node) &&
+                node.events.any((event) => event.active),
+          )
+          .toList();
+      const listRoot = '$source|child:$column:$column.children';
+      final distinctLocators = {
+        '$listRoot[0]|helper:$source.action|widget:$button',
+        '$listRoot[1]|inline:$custom|inlinedBody:$custom|widget:$button',
+      };
+      const selectedLocator =
+          '$listRoot[2]|collection:listElement[2]|'
+          'collection:selectedThen[0]|widget:$button';
+      expect(
+        eventNodes.map((node) => node.structuralOccurrenceKey).toSet(),
+        {
+          ...distinctLocators,
+          selectedLocator,
+        },
+      );
+      expect(
+        eventNodes.map((node) => node.codeIdentityId.value).toSet(),
+        hasLength(3),
+      );
+      const inlineOnlyLocator =
+          '$listRoot[0]|inline:$custom|inlinedBody:$custom|widget:$button';
+      final ordinaryInlineNode = ordinaryInline.output.ledgerNodes.singleWhere(
+        (node) => node.structuralOccurrenceKey == inlineOnlyLocator,
+      );
+      final expandedInlineNode = expandedInline.output.ledgerNodes.singleWhere(
+        (node) => node.structuralOccurrenceKey == inlineOnlyLocator,
+      );
+      expect(expandedInlineNode.toJson(), ordinaryInlineNode.toJson());
+    },
+  );
 
   test(
     'a reviewed introduction mints a new identity and retires the candidate',
@@ -2548,23 +2637,26 @@ final class QuietFlow extends RestageFlow {
 
       final firstReference = first.output.ledgerNodes
           .expand((node) => node.events)
-          .singleWhere((event) =>
-              event.active && event.sourceEventIdentity.value == 'onPressed')
+          .singleWhere(
+            (event) =>
+                event.active && event.sourceEventIdentity.value == 'onPressed',
+          )
           .generatedReferenceId;
       final movedReference = moved.output.ledgerNodes
           .expand((node) => node.events)
-          .singleWhere((event) =>
-              event.active && event.sourceEventIdentity.value == 'onPressed')
+          .singleWhere(
+            (event) =>
+                event.active && event.sourceEventIdentity.value == 'onPressed',
+          )
           .generatedReferenceId;
       expect(movedReference, firstReference);
       Set<String> sourceCodeIdentities(
         RestageMeasurementCompilerOutputV1 output,
-      ) =>
-          {
-            for (final node in output.ledgerNodes)
-              if (node.active && node.structuralOccurrenceKey.contains('|'))
-                node.codeIdentityId.value,
-          };
+      ) => {
+        for (final node in output.ledgerNodes)
+          if (node.active && node.structuralOccurrenceKey.contains('|'))
+            node.codeIdentityId.value,
+      };
       expect(
         sourceCodeIdentities(moved.output),
         containsAll(sourceCodeIdentities(first.output)),
@@ -2572,8 +2664,7 @@ final class QuietFlow extends RestageFlow {
     },
   );
 
-  test(
-      'ambiguous structural movement proposes candidates and accepts reviewed '
+  test('ambiguous structural movement proposes candidates and accepts reviewed '
       'relocations', () async {
     final first = await _compileLedgerSource(
       _ledgerSource(repeated: true),
@@ -2643,56 +2734,57 @@ final class QuietFlow extends RestageFlow {
     }
   });
 
-  test('tracked builder rejects malformed committed ledger authority',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(_policyOptions),
-      {
-        'apps_examples|lib/features/ledger.dart': _ledgerSource(),
-        'apps_examples|$kRestageMeasurementCompilerLedgerSourcePath': '{}',
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+  test(
+    'tracked builder rejects malformed committed ledger authority',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(_policyOptions),
+        {
+          'apps_examples|lib/features/ledger.dart': _ledgerSource(),
+          'apps_examples|$kRestageMeasurementCompilerLedgerSourcePath': '{}',
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    expect(result.succeeded, isFalse);
-    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-      readerWriter.testing.readBytes(
-        AssetId(
-          'apps_examples',
-          kRestageMeasurementCompilerOutputPath,
+      expect(result.succeeded, isFalse);
+      final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        readerWriter.testing.readBytes(
+          AssetId(
+            'apps_examples',
+            kRestageMeasurementCompilerOutputPath,
+          ),
         ),
-      ),
-    );
-    expect(output.valid, isFalse);
-    expect(
-      output.errors.join('\n'),
-      contains('Measurement compiler state is invalid'),
-    );
-  });
+      );
+      expect(output.valid, isFalse);
+      expect(
+        output.errors.join('\n'),
+        contains('Measurement compiler state is invalid'),
+      );
+    },
+  );
 }
 
 Map<String, Object?> _activeLedgerIdentityProjection(
   RestageMeasurementCompilerOutputV1 output,
-) =>
-    {
-      for (final node in output.ledgerNodes.where((node) => node.active))
-        node.structuralOccurrenceKey: {
-          'codeIdentityId': node.codeIdentityId.value,
-          'canonicalNodeTokenId': node.canonicalNodeTokenId.value,
-          'events': {
-            for (final event in node.events.where((event) => event.active))
-              event.resolvedEventLocator: {
-                'generatedReferenceId': event.generatedReferenceId.value,
-                'lineageId': event.lineageId.value,
-              },
+) => {
+  for (final node in output.ledgerNodes.where((node) => node.active))
+    node.structuralOccurrenceKey: {
+      'codeIdentityId': node.codeIdentityId.value,
+      'canonicalNodeTokenId': node.canonicalNodeTokenId.value,
+      'events': {
+        for (final event in node.events.where((event) => event.active))
+          event.resolvedEventLocator: {
+            'generatedReferenceId': event.generatedReferenceId.value,
+            'lineageId': event.lineageId.value,
           },
-        },
-    };
+      },
+    },
+};
 
 String _ledgerSource({bool wrapped = false, bool repeated = false}) {
   final button = '''
@@ -2704,8 +2796,8 @@ FilledButton(
   final body = repeated
       ? 'Column(children: [$button, $button])'
       : wrapped
-          ? 'Padding(padding: const EdgeInsets.all(8), child: $button)'
-          : button;
+      ? 'Padding(padding: const EdgeInsets.all(8), child: $button)'
+      : button;
   return '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -2725,10 +2817,12 @@ final class LedgerScreen extends StatelessWidget {
 }
 
 Future<
-    ({
-      TestBuilderResult result,
-      RestageMeasurementCompilerOutputV1 output,
-    })> _compileLedgerSource(
+  ({
+    TestBuilderResult result,
+    RestageMeasurementCompilerOutputV1 output,
+  })
+>
+_compileLedgerSource(
   String source, {
   RestageMeasurementCompilerOutputV1? priorOutput,
   String asset = 'apps_examples|lib/features/ledger.dart',
@@ -2737,10 +2831,11 @@ Future<
     asset: source,
     // The surface has been pushed, so ambiguous matches need review.
     'apps_examples|.restage/receipts/acme/main/app/surface/general/ledger/'
-        'production/push-r1.json': '{}',
+            'production/push-r1.json':
+        '{}',
     if (priorOutput != null)
-      'apps_examples|$kRestageMeasurementCompilerLedgerSourcePath':
-          priorOutput.encodeCanonicalJson(),
+      'apps_examples|$kRestageMeasurementCompilerLedgerSourcePath': priorOutput
+          .encodeCanonicalJson(),
   };
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: 'apps_examples',
@@ -2771,8 +2866,9 @@ Future<void> _expectParenthesizedActionLedgerCompatibility({
     utf8.encode(File(fixturePath).readAsStringSync().trim()),
   );
   expect(
-    prior.publications.single.draft.lineageIntents
-        .map((intent) => intent.operation),
+    prior.publications.single.draft.lineageIntents.map(
+      (intent) => intent.operation,
+    ),
     [LineageOperation.create],
   );
   final compiled = await _compileLedgerSource(
@@ -2838,7 +2934,8 @@ Future<void> _expectParenthesizedActionLedgerCompatibility({
   expect(currentSubtree, priorSubtree);
 }
 
-String _parenthesizedActionSource({required bool mixed}) => '''
+String _parenthesizedActionSource({required bool mixed}) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -2927,11 +3024,13 @@ if (true)
 ''';
 
 Future<
-    ({
-      RestageMeasurementCompilerOutputV1 output,
-      RestageSurfacePublicationBundle handoff,
-      String handoffJson,
-    })> _compileMeasuredScreenSource(String source) async {
+  ({
+    RestageMeasurementCompilerOutputV1 output,
+    RestageSurfacePublicationBundle handoff,
+    String handoffJson,
+  })
+>
+_compileMeasuredScreenSource(String source) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: 'apps_examples',
   );
@@ -3014,7 +3113,7 @@ Future<CompiledResolvedScreen> _compileAliasOccurrenceScreen() async {
 }
 
 Future<ResolvedScreenCompilationResult>
-    _compileScreenWithoutFrozenOccurrenceEvidence() async {
+_compileScreenWithoutFrozenOccurrenceEvidence() async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: 'apps_examples',
   );
@@ -3025,8 +3124,11 @@ Future<ResolvedScreenCompilationResult>
     readerWriter: readerWriter,
     flattenOutput: true,
   );
-  expect(catalogBuild.succeeded, isTrue,
-      reason: catalogBuild.errors.join('\n'));
+  expect(
+    catalogBuild.succeeded,
+    isTrue,
+    reason: catalogBuild.errors.join('\n'),
+  );
   ResolvedScreenCompilationResult? compilation;
   await testBuilder(
     _MissingFrozenScreenProbeBuilder((candidate) {
@@ -3044,7 +3146,7 @@ Future<ResolvedScreenCompilationResult>
 }
 
 Future<ResolvedPaywallCompilationResult>
-    _compilePaywallWithoutFrozenOccurrenceEvidence({
+_compilePaywallWithoutFrozenOccurrenceEvidence({
   required bool adapter,
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
@@ -3078,12 +3180,13 @@ final class _AliasOccurrenceProbeBuilder implements Builder {
   final void Function(
     ResolvedScreenInspectionResult inspection,
     ResolvedScreenCompilationResult? compilation,
-  ) onResult;
+  )
+  onResult;
 
   @override
   Map<String, List<String>> get buildExtensions => const <String, List<String>>{
-        '.dart': <String>['.alias_occurrence_probe'],
-      };
+    '.dart': <String>['.alias_occurrence_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -3110,8 +3213,8 @@ final class _MissingFrozenScreenProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const <String, List<String>>{
-        '.dart': <String>['.missing_frozen_screen_probe'],
-      };
+    '.dart': <String>['.missing_frozen_screen_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -3130,7 +3233,8 @@ final class _MissingFrozenScreenProbeBuilder implements Builder {
         inspection.screens,
         measurementRoutePlans: <String, MeasurementRouteEmissionPlan>{
           input.declarationIdentity: MeasurementRouteEmissionPlan(
-              const <MeasurementRouteEmissionBinding>[]),
+            const <MeasurementRouteEmissionBinding>[],
+          ),
         },
       ),
     );
@@ -3148,8 +3252,8 @@ final class _MissingFrozenPaywallProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const <String, List<String>>{
-        '.dart': <String>['.missing_frozen_paywall_probe'],
-      };
+    '.dart': <String>['.missing_frozen_paywall_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -3163,7 +3267,8 @@ final class _MissingFrozenPaywallProbeBuilder implements Builder {
     final declarationIdentity = '${library.identifier}#${source.className}';
     final routePlans = <String, MeasurementRouteEmissionPlan>{
       declarationIdentity: MeasurementRouteEmissionPlan(
-          const <MeasurementRouteEmissionBinding>[]),
+        const <MeasurementRouteEmissionBinding>[],
+      ),
     };
     onResult(
       await compileResolvedPaywalls(
@@ -3173,13 +3278,13 @@ final class _MissingFrozenPaywallProbeBuilder implements Builder {
         sources: visited.sources,
         canonicalPaywallIdFor: (_) => source.id,
         measurementRoutePlans: routePlans,
-        measurementRouteOwnership: <String,
-            MeasurementPaywallRouteEmissionOwnership>{
-          declarationIdentity: MeasurementPaywallRouteEmissionOwnership(
-            standalone: !adapter,
-            adapter: adapter,
-          ),
-        },
+        measurementRouteOwnership:
+            <String, MeasurementPaywallRouteEmissionOwnership>{
+              declarationIdentity: MeasurementPaywallRouteEmissionOwnership(
+                standalone: !adapter,
+                adapter: adapter,
+              ),
+            },
       ),
     );
   }
@@ -3351,28 +3456,31 @@ Set<String> _presentationRouteCarriers(fmt.RemoteWidgetLibrary library) {
 }
 
 Set<String> _allJsonKeys(Object? value) => switch (value) {
-      Map<String, Object?>() => {
-          ...value.keys,
-          for (final child in value.values) ..._allJsonKeys(child),
-        },
-      List<Object?>() => {
-          for (final child in value) ..._allJsonKeys(child),
-        },
-      _ => const {},
-    };
+  Map<String, Object?>() => {
+    ...value.keys,
+    for (final child in value.values) ..._allJsonKeys(child),
+  },
+  List<Object?>() => {
+    for (final child in value) ..._allJsonKeys(child),
+  },
+  _ => const {},
+};
 
 // Physical compiler lifecycle routes are declared separately from authored
 // callbacks. Keep the existing event ownership/count assertions about those
 // callbacks and pin that the new lifecycle routes remain explicitly admitted.
 List<MeasurementPublicationDraftRouteV1> _authoredRoutes(
-    List<MeasurementPublicationDraftRouteV1> routes) {
+  List<MeasurementPublicationDraftRouteV1> routes,
+) {
   final lifecycle = routes
       .where((route) => route.orderedCaptureV1?.lifecycleChannel != null)
       .toList();
   expect(lifecycle, isNotEmpty);
   for (final route in lifecycle) {
-    expect(route.orderedCaptureV1!.channels,
-        contains(route.orderedCaptureV1!.lifecycleChannel));
+    expect(
+      route.orderedCaptureV1!.channels,
+      contains(route.orderedCaptureV1!.lifecycleChannel),
+    );
   }
   return routes
       .where((route) => route.orderedCaptureV1?.lifecycleChannel == null)

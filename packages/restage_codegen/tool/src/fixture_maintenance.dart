@@ -79,15 +79,14 @@ final class HistoricalFixtureArchive {
 
   /// Identity of every archived author source, excluding the three catalogs.
   String get authorDigest => fixtureSourceDigest({
-        for (final entry in sources.entries)
-          if (!historicalCatalogAssets.contains(entry.key))
-            entry.key: entry.value,
-      });
+    for (final entry in sources.entries)
+      if (!historicalCatalogAssets.contains(entry.key)) entry.key: entry.value,
+  });
 
   /// Identity of the one shared installed catalog set.
   String get catalogDigest => fixtureSourceDigest({
-        for (final key in historicalCatalogAssets) key: sources[key]!,
-      });
+    for (final key in historicalCatalogAssets) key: sources[key]!,
+  });
 
   /// Replaces only catalog entries, retaining every archived author byte.
   HistoricalFixtureArchive withCatalogs(Map<String, String> catalogs) {

@@ -217,6 +217,6 @@ final class _A2uiLegacyConstraintParser {
       _fail('unsupported validation function "$name"');
 
   Never _fail(String detail) => throw A2uiLegacyConstraintParseException(
-        '$detail at character ${_index + 1}',
-      );
+    '$detail at character ${_index + 1}',
+  );
 }

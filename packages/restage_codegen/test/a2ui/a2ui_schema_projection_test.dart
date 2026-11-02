@@ -11,22 +11,24 @@ import '../helpers.dart';
 /// reflector: an unhandled node fails loud, never a permissive schema.
 void main() {
   group('a2uiDataSchemaExpression — scalars + enums', () {
-    test('scalar occurrence descriptions project and absence stays omitted',
-        () {
-      expect(
-        a2uiDataSchemaExpression(
-          const ScalarNode(
-            A2uiScalarType.string,
-            occurrenceDescription: 'Nested label.',
+    test(
+      'scalar occurrence descriptions project and absence stays omitted',
+      () {
+        expect(
+          a2uiDataSchemaExpression(
+            const ScalarNode(
+              A2uiScalarType.string,
+              occurrenceDescription: 'Nested label.',
+            ),
           ),
-        ),
-        "S.string(description: 'Nested label.')",
-      );
-      expect(
-        a2uiDataSchemaExpression(const ScalarNode(A2uiScalarType.string)),
-        'S.string()',
-      );
-    });
+          "S.string(description: 'Nested label.')",
+        );
+        expect(
+          a2uiDataSchemaExpression(const ScalarNode(A2uiScalarType.string)),
+          'S.string()',
+        );
+      },
+    );
 
     test('described scalar is identical in expression and standalone map', () {
       const node = ScalarNode(
@@ -51,54 +53,56 @@ void main() {
             emission: A2uiDataField(node),
           ),
         ]),
-        "S.object(properties: {'label': "
-        "S.string(description: 'Nested label.')}, required: <String>[],)",
+        r"""S.object(properties: {'props_label': S.combined(description: 'Nested label.', oneOf: [S.string(), S.combined($ref: r'common_types.json#/$defs/DataBinding'), S.combined($ref: r'common_types.json#/$defs/FunctionCall')])}, required: <String>[],)""",
       );
       expect(
         (a2uiWidgetDataSchemaMapForPlan(plan)['properties']!
-            as Map<String, Object?>)['label'],
-        const {
+            as Map<String, Object?>)['props_label'],
+        _dynamic({
           'type': 'string',
           'description': 'Nested label.',
-        },
+        }),
       );
-    });
-
-    test('outer property description replaces a plain scalar occurrence once',
-        () {
-      const node = ScalarNode(
-        A2uiScalarType.number,
-        preserveNumericRuntimeType: true,
-        occurrenceDescription: 'Inner plain scalar.',
-      );
-      final plan = _scalarPlan(
-        node: node,
-        propertyType: PropertyType.real,
-        outerDescription: 'Outer plain scalar.',
-      );
-
-      final expression = _scalarExpression(
-        plan,
-        outerDescription: 'Outer plain scalar.',
-      );
-      expect(
-        expression,
-        "S.object(properties: {'value': S.number(description: "
-        "'Outer plain scalar.')}, required: <String>['value'],)",
-      );
-      _expectSingleOuterDescription(
-        expression,
-        outer: 'Outer plain scalar.',
-        inner: 'Inner plain scalar.',
-      );
-      expect(_scalarMap(plan), {
-        'type': 'number',
-        'description': 'Outer plain scalar.',
-      });
     });
 
     test(
-        'outer property description replaces a constrained nullable scalar '
+      'outer property description replaces a plain scalar occurrence once',
+      () {
+        const node = ScalarNode(
+          A2uiScalarType.number,
+          preserveNumericRuntimeType: true,
+          occurrenceDescription: 'Inner plain scalar.',
+        );
+        final plan = _scalarPlan(
+          node: node,
+          propertyType: PropertyType.real,
+          outerDescription: 'Outer plain scalar.',
+        );
+
+        final expression = _scalarExpression(
+          plan,
+          outerDescription: 'Outer plain scalar.',
+        );
+        expect(
+          expression,
+          r"""S.object(properties: {'props_value': S.combined(description: 'Outer plain scalar.', oneOf: [S.number(), S.combined($ref: r'common_types.json#/$defs/DataBinding'), S.combined($ref: r'common_types.json#/$defs/FunctionCall')])}, required: <String>['props_value'],)""",
+        );
+        _expectSingleOuterDescription(
+          expression,
+          outer: 'Outer plain scalar.',
+          inner: 'Inner plain scalar.',
+        );
+        expect(
+          _scalarMap(plan),
+          _dynamic({
+            'type': 'number',
+            'description': 'Outer plain scalar.',
+          }),
+        );
+      },
+    );
+
+    test('outer property description replaces a constrained nullable scalar '
         'occurrence once', () {
       const node = ScalarNode(
         A2uiScalarType.string,
@@ -118,34 +122,30 @@ void main() {
       );
       expect(
         expression,
-        [
-          "S.object(properties: {'value': S.combined(",
-          "description: 'Outer constrained scalar.', anyOf: [",
-          'S.fromMap(<String, Object?>{...S.string().value, ',
-          "'minLength': 2, 'maxLength': 5}), S.nil()])}, ",
-          "required: <String>['value'],)",
-        ].join(),
+        r"""S.object(properties: {'props_value': S.combined(description: 'Outer constrained scalar.', oneOf: [S.combined(anyOf: [S.fromMap(<String, Object?>{...S.string().value, 'minLength': 2, 'maxLength': 5}), S.nil()]), S.combined($ref: r'common_types.json#/$defs/DataBinding'), S.combined($ref: r'common_types.json#/$defs/FunctionCall')])}, required: <String>['props_value'],)""",
       );
       _expectSingleOuterDescription(
         expression,
         outer: 'Outer constrained scalar.',
         inner: 'Inner constrained scalar.',
       );
-      expect(_scalarMap(plan), {
-        'description': 'Outer constrained scalar.',
-        'anyOf': [
-          {
-            'type': 'string',
-            'minLength': 2,
-            'maxLength': 5,
-          },
-          {'type': 'null'},
-        ],
-      });
+      expect(
+        _scalarMap(plan),
+        _dynamic({
+          'description': 'Outer constrained scalar.',
+          'anyOf': [
+            {
+              'type': 'string',
+              'minLength': 2,
+              'maxLength': 5,
+            },
+            {'type': 'null'},
+          ],
+        }),
+      );
     });
 
-    test(
-        'outer property description replaces a write-back scalar occurrence '
+    test('outer property description replaces a write-back scalar occurrence '
         'once', () {
       const node = ScalarNode(
         A2uiScalarType.boolean,
@@ -165,12 +165,7 @@ void main() {
       );
       expect(
         expression,
-        "S.object(properties: {'value': S.combined(description: "
-        "'Outer write-back scalar.', oneOf: [S.boolean(), "
-        "S.object(properties: {'path': S.string()}, required: "
-        "<String>['path']), S.object(properties: {'call': S.string(), "
-        "'args': S.object(additionalProperties: true)}, required: "
-        "<String>['call'])])}, required: <String>['value'],)",
+        r"""S.object(properties: {'props_value': S.combined(description: 'Outer write-back scalar.', oneOf: [S.boolean(), S.combined($ref: r'common_types.json#/$defs/DataBinding'), S.combined($ref: r'common_types.json#/$defs/FunctionCall')])}, required: <String>['props_value'],)""",
       );
       _expectSingleOuterDescription(
         expression,
@@ -181,21 +176,8 @@ void main() {
         'description': 'Outer write-back scalar.',
         'oneOf': [
           {'type': 'boolean'},
-          {
-            'type': 'object',
-            'properties': {
-              'path': {'type': 'string'},
-            },
-            'required': ['path'],
-          },
-          {
-            'type': 'object',
-            'properties': {
-              'call': {'type': 'string'},
-              'args': {'type': 'object', 'additionalProperties': true},
-            },
-            'required': ['call'],
-          },
+          {r'$ref': r'common_types.json#/$defs/DataBinding'},
+          {r'$ref': r'common_types.json#/$defs/FunctionCall'},
         ],
       });
     });
@@ -207,25 +189,29 @@ void main() {
       );
     });
 
-    test('an enum with a resolved member set → S.string(enumValues: [...])',
-        () {
-      expect(
-        a2uiDataSchemaExpression(
-          EnumNode(members: const ['small', 'large'], dartTypeName: 'Size'),
-        ),
-        "S.string(enumValues: <Object?>['small', 'large'])",
-      );
-    });
+    test(
+      'an enum with a resolved member set → S.string(enumValues: [...])',
+      () {
+        expect(
+          a2uiDataSchemaExpression(
+            EnumNode(members: const ['small', 'large'], dartTypeName: 'Size'),
+          ),
+          "S.string(enumValues: <Object?>['small', 'large'])",
+        );
+      },
+    );
 
-    test('an enum with NO member set → S.string() (byte-neutral catalog path)',
-        () {
-      expect(
-        a2uiDataSchemaExpression(
-          EnumNode(members: const [], dartTypeName: 'Size'),
-        ),
-        'S.string()',
-      );
-    });
+    test(
+      'an enum with NO member set → S.string() (byte-neutral catalog path)',
+      () {
+        expect(
+          a2uiDataSchemaExpression(
+            EnumNode(members: const [], dartTypeName: 'Size'),
+          ),
+          'S.string()',
+        );
+      },
+    );
 
     test('enum occurrence descriptions project without changing members', () {
       expect(
@@ -270,8 +256,10 @@ void main() {
       );
       expect(
         a2uiDataSchemaExpression(node),
-        contains("'inner': S.object(properties: {'x': S.number()}, "
-            "required: <String>['x'],)"),
+        contains(
+          "'inner': S.object(properties: {'x': S.number()}, "
+          "required: <String>['x'],)",
+        ),
       );
     });
   });
@@ -327,255 +315,234 @@ void main() {
       );
     });
 
-    test('described scalar-list composition is identical in expression + map',
-        () {
-      const node = ListNode(
-        element: ScalarNode(
-          A2uiScalarType.string,
-          occurrenceDescription: 'One tag.',
-        ),
-        occurrenceDescription: 'Visible tags.',
-        nullable: true,
-      );
-      final plan = classifyA2uiCatalogDart(
-        catalogWith([
-          entry(
-            name: 'TagList',
-            properties: [prop('tags', PropertyType.structured)],
+    test(
+      'described scalar-list composition is identical in expression + map',
+      () {
+        const node = ListNode(
+          element: ScalarNode(
+            A2uiScalarType.string,
+            occurrenceDescription: 'One tag.',
           ),
-        ]),
-        richShapes: const {('TagList', 'tags'): node},
-      ).widgets.single;
-
-      final expression = a2uiWidgetDataSchemaExpression(const [
-        (
-          name: 'tags',
-          required: false,
-          emission: A2uiDataField(node),
-        ),
-      ]);
-      expect(
-        expression,
-        [
-          "S.object(properties: {'tags': S.combined(description: ",
-          "'Visible tags.', oneOf: [S.combined(anyOf: [S.list(",
-          "items: S.string(description: 'One tag.')), S.nil()]), ",
-          "S.object(properties: {'path': S.string()}, ",
-          "required: <String>['path']), S.object(properties: {'call': ",
-          "S.string(), 'args': S.object(additionalProperties: true)}, ",
-          "required: <String>['call'])])}, required: <String>[],)",
-        ].join(),
-      );
-      expect(
-        (a2uiWidgetDataSchemaMapForPlan(plan)['properties']!
-            as Map<String, Object?>)['tags'],
-        {
-          'description': 'Visible tags.',
-          'oneOf': [
-            {
-              'anyOf': [
-                {
-                  'type': 'array',
-                  'items': {
-                    'type': 'string',
-                    'description': 'One tag.',
-                  },
-                },
-                {'type': 'null'},
-              ],
-            },
-            {
-              'type': 'object',
-              'properties': {
-                'path': {'type': 'string'},
-              },
-              'required': ['path'],
-            },
-            {
-              'type': 'object',
-              'properties': {
-                'call': {'type': 'string'},
-                'args': {'type': 'object', 'additionalProperties': true},
-              },
-              'required': ['call'],
-            },
-          ],
-        },
-      );
-    });
-
-    test('nullable carrier descriptions decorate the outer composed schema',
-        () {
-      const node = MapNode(
-        valueType: ScalarNode(
-          A2uiScalarType.string,
-          occurrenceDescription: 'One label.',
-        ),
-        occurrenceDescription: 'Labels by locale.',
-        nullable: true,
-      );
-      final plan = classifyA2uiCatalogDart(
-        catalogWith([
-          entry(
-            name: 'LabelMap',
-            properties: [prop('labels', PropertyType.structured)],
-          ),
-        ]),
-        richShapes: const {('LabelMap', 'labels'): node},
-      ).widgets.single;
-
-      expect(
-        a2uiDataSchemaExpression(node),
-        [
-          "S.combined(description: 'Labels by locale.', anyOf: [",
-          'S.object(additionalProperties: ',
-          "S.string(description: 'One label.')), S.nil()])",
-        ].join(),
-      );
-      expect(
-        (a2uiWidgetDataSchemaMapForPlan(plan)['properties']!
-            as Map<String, Object?>)['labels'],
-        {
-          'description': 'Labels by locale.',
-          'anyOf': [
-            {
-              'type': 'object',
-              'additionalProperties': {
-                'type': 'string',
-                'description': 'One label.',
-              },
-            },
-            {'type': 'null'},
-          ],
-        },
-      );
-    });
-
-    test('outer property descriptions replace enum, map, and list roots once',
-        () {
-      final enumNode = EnumNode(
-        members: const ['soft', 'loud'],
-        dartTypeName: 'Tone',
-        occurrenceDescription: 'Inner enum.',
-      );
-      const mapNode = MapNode(
-        valueType: ScalarNode(
-          A2uiScalarType.string,
-          occurrenceDescription: 'One map value.',
-        ),
-        occurrenceDescription: 'Inner map.',
-      );
-      final listNode = ListNode(
-        occurrenceDescription: 'Inner list.',
-        element: ObjectNode(
-          occurrenceDescription: 'One item.',
-          fields: const {
-            'label': ScalarNode(
-              A2uiScalarType.string,
-              occurrenceDescription: 'Item label.',
-            ),
-          },
-          required: const {'label'},
-        ),
-      );
-      final fields = <A2uiWidgetField>[
-        (name: 'tone', required: false, emission: A2uiDataField(enumNode)),
-        (
-          name: 'labels',
-          required: false,
-          emission: const A2uiDataField(mapNode),
-        ),
-        (name: 'items', required: false, emission: A2uiDataField(listNode)),
-      ];
-      Map<String, Object?> projectedProperty(
-        A2uiSchemaNode node,
-        String description,
-      ) {
+          occurrenceDescription: 'Visible tags.',
+          nullable: true,
+        );
         final plan = classifyA2uiCatalogDart(
           catalogWith([
             entry(
-              name: 'CarrierCard',
-              properties: [
-                prop(
-                  'value',
-                  PropertyType.structured,
-                  description: description,
-                  required: true,
-                ),
-              ],
+              name: 'TagList',
+              properties: [prop('tags', PropertyType.structured)],
             ),
           ]),
-          richShapes: {('CarrierCard', 'value'): node},
+          richShapes: const {('TagList', 'tags'): node},
         ).widgets.single;
-        final properties = a2uiWidgetDataSchemaMapForPlan(plan)['properties']!
-            as Map<String, Object?>;
-        return properties['value']! as Map<String, Object?>;
-      }
 
-      final expression = a2uiWidgetDataSchemaExpression(
-        fields,
-        fieldDescription: (name) => switch (name) {
-          'tone' => 'Outer enum.',
-          'labels' => 'Outer map.',
-          'items' => 'Outer list.',
-          _ => null,
-        },
-      );
-      expect(
-        expression,
-        "S.object(properties: {'tone': S.string(description: 'Outer enum.', "
-        "enumValues: <Object?>['soft', 'loud']), 'labels': "
-        "S.object(description: 'Outer map.', additionalProperties: "
-        "S.string(description: 'One map value.')), 'items': "
-        "S.list(description: 'Outer list.', items: "
-        "S.object(description: 'One item.', properties: {'label': "
-        "S.string(description: 'Item label.')}, required: "
-        "<String>['label'],))}, required: <String>[],)",
-      );
-      for (final description in const [
-        'Outer enum.',
-        'Outer map.',
-        'Outer list.',
-      ]) {
-        expect(description.allMatches(expression), hasLength(1));
-      }
-      for (final replaced in const [
-        'Inner enum.',
-        'Inner map.',
-        'Inner list.',
-      ]) {
-        expect(expression, isNot(contains(replaced)));
-      }
-
-      expect(projectedProperty(enumNode, 'Outer enum.'), {
-        'type': 'string',
-        'description': 'Outer enum.',
-        'enum': ['soft', 'loud'],
-      });
-      expect(projectedProperty(mapNode, 'Outer map.'), {
-        'type': 'object',
-        'description': 'Outer map.',
-        'additionalProperties': {
-          'type': 'string',
-          'description': 'One map value.',
-        },
-      });
-      expect(projectedProperty(listNode, 'Outer list.'), {
-        'type': 'array',
-        'description': 'Outer list.',
-        'items': {
-          'type': 'object',
-          'description': 'One item.',
-          'properties': {
-            'label': {
-              'type': 'string',
-              'description': 'Item label.',
-            },
+        final expression = a2uiWidgetDataSchemaExpression(const [
+          (
+            name: 'tags',
+            required: false,
+            emission: A2uiDataField(node),
+          ),
+        ]);
+        expect(
+          expression,
+          r"""S.object(properties: {'props_tags': S.combined(description: 'Visible tags.', oneOf: [S.combined(anyOf: [S.list(items: S.string(description: 'One tag.')), S.nil()]), S.combined($ref: r'common_types.json#/$defs/DataBinding'), S.combined($ref: r'common_types.json#/$defs/FunctionCall')])}, required: <String>[],)""",
+        );
+        expect(
+          (a2uiWidgetDataSchemaMapForPlan(plan)['properties']!
+              as Map<String, Object?>)['props_tags'],
+          {
+            'description': 'Visible tags.',
+            'oneOf': [
+              {
+                'anyOf': [
+                  {
+                    'type': 'array',
+                    'items': {
+                      'type': 'string',
+                      'description': 'One tag.',
+                    },
+                  },
+                  {'type': 'null'},
+                ],
+              },
+              {r'$ref': r'common_types.json#/$defs/DataBinding'},
+              {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+            ],
           },
-          'required': ['label'],
-        },
-      });
-    });
+        );
+      },
+    );
+
+    test(
+      'nullable carrier descriptions decorate the outer composed schema',
+      () {
+        const node = MapNode(
+          valueType: ScalarNode(
+            A2uiScalarType.string,
+            occurrenceDescription: 'One label.',
+          ),
+          occurrenceDescription: 'Labels by locale.',
+          nullable: true,
+        );
+        final plan = classifyA2uiCatalogDart(
+          catalogWith([
+            entry(
+              name: 'LabelMap',
+              properties: [prop('labels', PropertyType.structured)],
+            ),
+          ]),
+          richShapes: const {('LabelMap', 'labels'): node},
+        ).widgets.single;
+
+        expect(
+          a2uiDataSchemaExpression(node),
+          [
+            "S.combined(description: 'Labels by locale.', anyOf: [",
+            'S.object(additionalProperties: ',
+            "S.string(description: 'One label.')), S.nil()])",
+          ].join(),
+        );
+        expect(
+          (a2uiWidgetDataSchemaMapForPlan(plan)['properties']!
+              as Map<String, Object?>)['props_labels'],
+          {
+            'description': 'Labels by locale.',
+            'anyOf': [
+              {
+                'type': 'object',
+                'additionalProperties': {
+                  'type': 'string',
+                  'description': 'One label.',
+                },
+              },
+              {'type': 'null'},
+            ],
+          },
+        );
+      },
+    );
+
+    test(
+      'outer property descriptions replace enum, map, and list roots once',
+      () {
+        final enumNode = EnumNode(
+          members: const ['soft', 'loud'],
+          dartTypeName: 'Tone',
+          occurrenceDescription: 'Inner enum.',
+        );
+        const mapNode = MapNode(
+          valueType: ScalarNode(
+            A2uiScalarType.string,
+            occurrenceDescription: 'One map value.',
+          ),
+          occurrenceDescription: 'Inner map.',
+        );
+        final listNode = ListNode(
+          occurrenceDescription: 'Inner list.',
+          element: ObjectNode(
+            occurrenceDescription: 'One item.',
+            fields: const {
+              'label': ScalarNode(
+                A2uiScalarType.string,
+                occurrenceDescription: 'Item label.',
+              ),
+            },
+            required: const {'label'},
+          ),
+        );
+        final fields = <A2uiWidgetField>[
+          (name: 'tone', required: false, emission: A2uiDataField(enumNode)),
+          (
+            name: 'labels',
+            required: false,
+            emission: const A2uiDataField(mapNode),
+          ),
+          (name: 'items', required: false, emission: A2uiDataField(listNode)),
+        ];
+        Map<String, Object?> projectedProperty(
+          A2uiSchemaNode node,
+          String description,
+        ) {
+          final plan = classifyA2uiCatalogDart(
+            catalogWith([
+              entry(
+                name: 'CarrierCard',
+                properties: [
+                  prop(
+                    'value',
+                    PropertyType.structured,
+                    description: description,
+                    required: true,
+                  ),
+                ],
+              ),
+            ]),
+            richShapes: {('CarrierCard', 'value'): node},
+          ).widgets.single;
+          final properties =
+              a2uiWidgetDataSchemaMapForPlan(plan)['properties']!
+                  as Map<String, Object?>;
+          return properties['props_value']! as Map<String, Object?>;
+        }
+
+        final expression = a2uiWidgetDataSchemaExpression(
+          fields,
+          fieldDescription: (name) => switch (name) {
+            'tone' => 'Outer enum.',
+            'labels' => 'Outer map.',
+            'items' => 'Outer list.',
+            _ => null,
+          },
+        );
+        expect(
+          expression,
+          """S.object(properties: {'props_tone': S.string(description: 'Outer enum.', enumValues: <Object?>['soft', 'loud']), 'props_labels': S.object(description: 'Outer map.', additionalProperties: S.string(description: 'One map value.')), 'props_items': S.list(description: 'Outer list.', items: S.object(description: 'One item.', properties: {'label': S.string(description: 'Item label.')}, required: <String>['label'],))}, required: <String>[],)""",
+        );
+        for (final description in const [
+          'Outer enum.',
+          'Outer map.',
+          'Outer list.',
+        ]) {
+          expect(description.allMatches(expression), hasLength(1));
+        }
+        for (final replaced in const [
+          'Inner enum.',
+          'Inner map.',
+          'Inner list.',
+        ]) {
+          expect(expression, isNot(contains(replaced)));
+        }
+
+        expect(projectedProperty(enumNode, 'Outer enum.'), {
+          'type': 'string',
+          'description': 'Outer enum.',
+          'enum': ['soft', 'loud'],
+        });
+        expect(projectedProperty(mapNode, 'Outer map.'), {
+          'type': 'object',
+          'description': 'Outer map.',
+          'additionalProperties': {
+            'type': 'string',
+            'description': 'One map value.',
+          },
+        });
+        expect(projectedProperty(listNode, 'Outer list.'), {
+          'type': 'array',
+          'description': 'Outer list.',
+          'items': {
+            'type': 'object',
+            'description': 'One item.',
+            'properties': {
+              'label': {
+                'type': 'string',
+                'description': 'Item label.',
+              },
+            },
+            'required': ['label'],
+          },
+        });
+      },
+    );
   });
 
   group('a2uiDataSchemaExpression — fail-closed preservation', () {
@@ -606,88 +573,89 @@ void main() {
       );
     });
 
-    test('cycle-aware enum/list/map descriptions keep their schema locations',
-        () {
-      const treeId = 'package:x/x.dart#TreeNode';
-      final tree = ObjectNode(
-        defId: treeId,
-        definitionDescription: 'Canonical tree.',
-        fields: {
-          'tone': EnumNode(
-            members: const ['soft', 'loud'],
-            dartTypeName: 'Tone',
-            occurrenceDescription: 'Tree tone.',
-          ),
-          'children': const ListNode(
-            occurrenceDescription: 'Direct children.',
-            element: RefNode(
-              treeId,
-              occurrenceDescription: 'One child.',
-            ),
-          ),
-          'lookup': const MapNode(
-            occurrenceDescription: 'Children by key.',
-            nullable: true,
-            valueType: RefNode(
-              treeId,
-              occurrenceDescription: 'One keyed child.',
-            ),
-          ),
-        },
-        required: const {'tone', 'children'},
-      );
-      final expression = a2uiDataSchemaExpression(tree);
-      final plan = classifyA2uiCatalogDart(
-        catalogWith([
-          entry(
-            name: 'TreeCard',
-            properties: [
-              prop('tree', PropertyType.structured, required: true),
-            ],
-          ),
-        ]),
-        richShapes: {('TreeCard', 'tree'): tree},
-      ).widgets.single;
-      final document = a2uiWidgetDataSchemaMapForPlan(plan);
-      final defs = document[r'$defs']! as Map<String, Object?>;
-      final treeSchema = defs['TreeNode']! as Map<String, Object?>;
-      final properties = treeSchema['properties']! as Map<String, Object?>;
-
-      for (final description in const [
-        'Canonical tree.',
-        'Tree tone.',
-        'Direct children.',
-        'One child.',
-        'Children by key.',
-        'One keyed child.',
-      ]) {
-        expect(description.allMatches(expression), hasLength(1));
-      }
-      expect(treeSchema['description'], 'Canonical tree.');
-      expect(
-        (properties['tone']! as Map<String, Object?>)['description'],
-        'Tree tone.',
-      );
-      final children = properties['children']! as Map<String, Object?>;
-      expect(children['description'], 'Direct children.');
-      expect(
-        (children['items']! as Map<String, Object?>)['description'],
-        'One child.',
-      );
-      final lookup = properties['lookup']! as Map<String, Object?>;
-      final nonNullLookup =
-          (lookup['anyOf']! as List<Object?>).first! as Map<String, Object?>;
-      expect(lookup['description'], 'Children by key.');
-      expect(nonNullLookup, isNot(contains('description')));
-      expect(
-        (nonNullLookup['additionalProperties']!
-            as Map<String, Object?>)['description'],
-        'One keyed child.',
-      );
-    });
-
     test(
-        'mutual recursion: only the genuine cycle target gets a '
+      'cycle-aware enum/list/map descriptions keep their schema locations',
+      () {
+        const treeId = 'package:x/x.dart#TreeNode';
+        final tree = ObjectNode(
+          defId: treeId,
+          definitionDescription: 'Canonical tree.',
+          fields: {
+            'tone': EnumNode(
+              members: const ['soft', 'loud'],
+              dartTypeName: 'Tone',
+              occurrenceDescription: 'Tree tone.',
+            ),
+            'children': const ListNode(
+              occurrenceDescription: 'Direct children.',
+              element: RefNode(
+                treeId,
+                occurrenceDescription: 'One child.',
+              ),
+            ),
+            'lookup': const MapNode(
+              occurrenceDescription: 'Children by key.',
+              nullable: true,
+              valueType: RefNode(
+                treeId,
+                occurrenceDescription: 'One keyed child.',
+              ),
+            ),
+          },
+          required: const {'tone', 'children'},
+        );
+        final expression = a2uiDataSchemaExpression(tree);
+        final plan = classifyA2uiCatalogDart(
+          catalogWith([
+            entry(
+              name: 'TreeCard',
+              properties: [
+                prop('tree', PropertyType.structured, required: true),
+              ],
+            ),
+          ]),
+          richShapes: {('TreeCard', 'tree'): tree},
+        ).widgets.single;
+        final document = a2uiWidgetDataSchemaMapForPlan(plan);
+        final defs = document[r'$defs']! as Map<String, Object?>;
+        final treeSchema = defs['TreeNode']! as Map<String, Object?>;
+        final properties = treeSchema['properties']! as Map<String, Object?>;
+
+        for (final description in const [
+          'Canonical tree.',
+          'Tree tone.',
+          'Direct children.',
+          'One child.',
+          'Children by key.',
+          'One keyed child.',
+        ]) {
+          expect(description.allMatches(expression), hasLength(1));
+        }
+        expect(treeSchema['description'], 'Canonical tree.');
+        expect(
+          (properties['tone']! as Map<String, Object?>)['description'],
+          'Tree tone.',
+        );
+        final children = properties['children']! as Map<String, Object?>;
+        expect(children['description'], 'Direct children.');
+        expect(
+          (children['items']! as Map<String, Object?>)['description'],
+          'One child.',
+        );
+        final lookup = properties['lookup']! as Map<String, Object?>;
+        final nonNullLookup =
+            (lookup['anyOf']! as List<Object?>).first! as Map<String, Object?>;
+        expect(lookup['description'], 'Children by key.');
+        expect(nonNullLookup, isNot(contains('description')));
+        expect(
+          (nonNullLookup['additionalProperties']!
+              as Map<String, Object?>)['description'],
+          'One keyed child.',
+        );
+      },
+    );
+
+    test('mutual recursion: only the genuine cycle target gets a '
         r'$def; the intermediary is inlined', () {
       const aId = 'package:x/x.dart#A';
       const bId = 'package:x/x.dart#B';
@@ -721,7 +689,7 @@ void main() {
         fields: {'a': inner, 'b': inner},
       );
       final schema = a2uiDataSchemaExpression(node);
-      expect(schema, isNot(contains(r'$defs')));
+      expect(schema, isNot(contains(r'$defs:')));
       expect(schema, isNot(contains(r'$ref')));
       expect(
         schema,
@@ -732,8 +700,7 @@ void main() {
       );
     });
 
-    test(
-        'two recursive types sharing a symbol name across libraries get '
+    test('two recursive types sharing a symbol name across libraries get '
         r'distinct collision-safe $defs keys', () {
       const aId = 'package:a/a.dart#Node';
       const bId = 'package:b/b.dart#Node';
@@ -764,8 +731,7 @@ void main() {
       expect(schema, contains(r"'self': S.combined($ref: '#/\$defs/Node_2')"));
     });
 
-    test(
-        'a non-recursive object carrying a defId still projects bare '
+    test('a non-recursive object carrying a defId still projects bare '
         r'(no $defs — byte-neutral)', () {
       final node = ObjectNode(
         defId: 'package:x/x.dart#Plain',
@@ -790,8 +756,7 @@ void main() {
       );
     });
 
-    test(
-        'a required-but-nullable field is present AND null-allowed '
+    test('a required-but-nullable field is present AND null-allowed '
         '(nullability is not presence)', () {
       final node = ObjectNode(
         required: const {'note'},
@@ -806,8 +771,7 @@ void main() {
       );
     });
 
-    test(
-        'a nullable field OF A RECURSIVE TYPE → anyOf[ref, nil] at the '
+    test('a nullable field OF A RECURSIVE TYPE → anyOf[ref, nil] at the '
         r'occurrence while the $def stays non-null', () {
       const aId = 'package:x/x.dart#A';
       final node = ObjectNode(
@@ -819,21 +783,24 @@ void main() {
       // The occurrence carries nullability.
       expect(
         schema,
-        contains(r"'next': S.combined(anyOf: [S.combined($ref: "
-            r"'#/\$defs/A'), S.nil()])"),
+        contains(
+          r"'next': S.combined(anyOf: [S.combined($ref: "
+          r"'#/\$defs/A'), S.nil()])",
+        ),
       );
       // The $def itself is a bare non-null S.object (no anyOf wrapper).
       expect(
         schema,
-        startsWith(r"S.combined($ref: '#/\$defs/A', $defs: {'A': "
-            'S.object(properties: {'),
+        startsWith(
+          r"S.combined($ref: '#/\$defs/A', $defs: {'A': "
+          'S.object(properties: {',
+        ),
       );
     });
   });
 
   group('a2uiWidgetDataSchemaExpression — the widget-root two-pass', () {
-    test(
-        r'non-recursive fields → a bare widget S.object (no $defs, '
+    test(r'non-recursive fields → a bare widget S.object (no $defs, '
         'byte-neutral)', () {
       final schema = a2uiWidgetDataSchemaExpression(const [
         (
@@ -847,16 +814,14 @@ void main() {
           emission: A2uiChildField(A2uiChildNode()),
         ),
       ]);
-      expect(schema, isNot(contains(r'$defs')));
       expect(
         schema,
-        "S.object(properties: {'msg': S.string(), 'child': S.string()}, "
-        "required: <String>['msg'],)",
+        r"""S.object(properties: {'props_msg': S.combined(oneOf: [S.string(), S.combined($ref: r'common_types.json#/$defs/DataBinding'), S.combined($ref: r'common_types.json#/$defs/FunctionCall')]), 'props_child': CommonSchemas.componentId}, required: <String>['props_msg'],)""",
       );
+      expect(schema, isNot(contains(r'$defs:')));
     });
 
-    test(
-        r'two fields of the SAME recursive type share ONE $def with two '
+    test(r'two fields of the SAME recursive type share ONE $def with two '
         r'$refs (cross-field dedup at the document root)', () {
       const treeId = 'package:x/x.dart#TreeNode';
       final tree = ObjectNode(
@@ -876,11 +841,11 @@ void main() {
       // Both fields reference it.
       expect(
         schema,
-        contains(r"'first': S.combined($ref: '#/\$defs/TreeNode')"),
+        contains(r"'props_first': S.combined($ref: '#/\$defs/TreeNode')"),
       );
       expect(
         schema,
-        contains(r"'second': S.combined($ref: '#/\$defs/TreeNode')"),
+        contains(r"'props_second': S.combined($ref: '#/\$defs/TreeNode')"),
       );
     });
   });
@@ -927,28 +892,29 @@ A2uiDartWidgetPlan _scalarPlan({
             ),
           }
         : null,
-    pairingSeam:
-        writeBack ? const {('ScalarCard', 'onChanged'): 'value'} : null,
+    pairingSeam: writeBack
+        ? const {('ScalarCard', 'onChanged'): 'value'}
+        : null,
   ).widgets.single;
 }
 
 String _scalarExpression(
   A2uiDartWidgetPlan plan, {
   required String outerDescription,
-}) =>
-    a2uiWidgetDataSchemaExpression(
-      [
-        (
-          name: 'value',
-          required: true,
-          emission: plan.fields.single.emission,
-        ),
-      ],
-      fieldDescription: (_) => outerDescription,
-    );
+}) => a2uiWidgetDataSchemaExpression(
+  [
+    (
+      name: 'value',
+      required: true,
+      emission: plan.fields.single.emission,
+    ),
+  ],
+  fieldDescription: (_) => outerDescription,
+);
 
 Map<String, Object?> _scalarMap(A2uiDartWidgetPlan plan) =>
-    ((a2uiWidgetDataSchemaMapForPlan(plan)['properties']! as Map)['value']!
+    ((a2uiWidgetDataSchemaMapForPlan(plan)['properties']!
+                as Map)['props_value']!
             as Map)
         .cast<String, Object?>();
 
@@ -961,3 +927,12 @@ void _expectSingleOuterDescription(
   expect('description:'.allMatches(expression), hasLength(1));
   expect(expression, isNot(contains(inner)));
 }
+
+Map<String, Object?> _dynamic(Map<String, Object?> literal) => {
+  if (literal['description'] != null) 'description': literal['description'],
+  'oneOf': [
+    Map<String, Object?>.of(literal)..remove('description'),
+    {r'$ref': r'common_types.json#/$defs/DataBinding'},
+    {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+  ],
+};

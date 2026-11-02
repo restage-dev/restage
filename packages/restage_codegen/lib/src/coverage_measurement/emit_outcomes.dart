@@ -43,8 +43,8 @@ Map<String, EmitOutcome> computeEmitOutcomes(
     final result = translator.attemptInlineEmit(classification, blueprint);
     outcomes[entry.key] =
         result.issues.isEmpty && result.widgetDefinitions.isNotEmpty
-            ? EmitOutcome.confirmed
-            : EmitOutcome.failed;
+        ? EmitOutcome.confirmed
+        : EmitOutcome.failed;
   }
   return outcomes;
 }

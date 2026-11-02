@@ -7,8 +7,7 @@ import 'helpers.dart';
 
 void main() {
   group('custom record value encode', () {
-    test(
-        'an admitted named record emits a canonical label-keyed map with '
+    test('an admitted named record emits a canonical label-keyed map with '
         'slot-aware values', () async {
       final expr = await parseExpressionFromSourceForTest('''
         enum Tone { soft, loud }
@@ -110,9 +109,10 @@ void main() {
       );
     });
 
-    test('a bad prefixed record label suppresses the complete record',
-        () async {
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'a bad prefixed record label suppresses the complete record',
+      () async {
+        final expr = await parseExpressionFromSourceForTest('''
         class Config {
           static String get currentLabel => 'runtime';
         }
@@ -122,14 +122,15 @@ void main() {
           label: Config.currentLabel,
         );
       ''');
-      final result = ExpressionTranslator(
-        catalog: kEmptyCatalog,
-        helpers: HelperRegistry(),
-      ).translate(expr);
+        final result = ExpressionTranslator(
+          catalog: kEmptyCatalog,
+          helpers: HelperRegistry(),
+        ).translate(expr);
 
-      expect(result.issues, isNotEmpty);
-      expect(result.dsl, '');
-      expect(result.dsl, isNot(contains('currentLabel')));
-    });
+        expect(result.issues, isNotEmpty);
+        expect(result.dsl, '');
+        expect(result.dsl, isNot(contains('currentLabel')));
+      },
+    );
   });
 }

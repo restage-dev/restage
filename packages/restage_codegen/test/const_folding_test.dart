@@ -63,13 +63,17 @@ void main() {
       expect(await _fold('enum E { a, b } Object x() => E.a;'), isNull);
     });
 
-    test('returns null for truncating division by zero (does not throw)',
-        () async {
-      expect(
-        await _fold('const int a = 1; const int b = 0; Object x() => a ~/ b;'),
-        isNull,
-      );
-    });
+    test(
+      'returns null for truncating division by zero (does not throw)',
+      () async {
+        expect(
+          await _fold(
+            'const int a = 1; const int b = 0; Object x() => a ~/ b;',
+          ),
+          isNull,
+        );
+      },
+    );
 
     test('returns null for modulo by zero (does not throw)', () async {
       expect(
@@ -182,38 +186,44 @@ void main() {
       );
     });
 
-    test('returns null for a constant derived from the build environment',
-        () async {
-      expect(
-        await _fold(
-          "const int build = int.fromEnvironment('BUILD'); "
-          'const int next = build + 1; Object x() => next;',
-        ),
-        isNull,
-      );
-    });
+    test(
+      'returns null for a constant derived from the build environment',
+      () async {
+        expect(
+          await _fold(
+            "const int build = int.fromEnvironment('BUILD'); "
+            'const int next = build + 1; Object x() => next;',
+          ),
+          isNull,
+        );
+      },
+    );
 
-    test('returns null for an operation over a build-environment operand',
-        () async {
-      expect(
-        await _fold(
-          "const int build = int.fromEnvironment('BUILD'); "
-          'const int base = 2; Object x() => base + build;',
-        ),
-        isNull,
-      );
-    });
+    test(
+      'returns null for an operation over a build-environment operand',
+      () async {
+        expect(
+          await _fold(
+            "const int build = int.fromEnvironment('BUILD'); "
+            'const int base = 2; Object x() => base + build;',
+          ),
+          isNull,
+        );
+      },
+    );
 
-    test('still folds a const whose initializer names another plain const',
-        () async {
-      expect(
-        await _fold(
-          'const int base = 2; const int total = base + 3; '
-          'Object x() => total;',
-        ),
-        5,
-      );
-    });
+    test(
+      'still folds a const whose initializer names another plain const',
+      () async {
+        expect(
+          await _fold(
+            'const int base = 2; const int total = base + 3; '
+            'Object x() => total;',
+          ),
+          5,
+        );
+      },
+    );
   });
 
   group('tryFoldScalarConstant', () {
@@ -238,21 +248,21 @@ const skin = Skin(prefix: 'restage');
           'Object value(int a, int b, int c) => a * b + c; '
               'Object x() => value(6, 7, 1);',
           'Object x() => 6 * 7 + 1;',
-          43
+          43,
         ),
         (
           'boolean',
           'Object value(bool enabled) => enabled; '
               'Object x() => value(true);',
           'Object x() => true;',
-          true
+          true,
         ),
         (
           'const object field',
           '$skin\nObject value(String p, String s) => p + s; '
               "Object x() => value(skin.prefix, 'Nav0');",
           "$skin\nObject x() => skin.prefix + 'Nav0';",
-          'restageNav0'
+          'restageNav0',
         ),
         (
           'const object local receiver',
@@ -264,7 +274,7 @@ Object value() {
 }
 Object x() => value();''',
           "$skin\nObject x() => skin.prefix + 'Nav0';",
-          'restageNav0'
+          'restageNav0',
         ),
         (
           'const object parameter receiver',
@@ -273,21 +283,21 @@ $skin
 Object value(Skin selected) => selected.prefix + 'Nav0';
 Object x() => value(skin);''',
           "$skin\nObject x() => skin.prefix + 'Nav0';",
-          'restageNav0'
+          'restageNav0',
         ),
         (
           'conditional',
           "Object value(bool pick) => pick ? 'first' : 'second'; "
               'Object x() => value(true);',
           "Object x() => true ? 'first' : 'second';",
-          null
+          null,
         ),
         (
           'interpolation',
           r"Object value(String p) => '${p}Nav0'; "
               "Object x() => value('restage');",
           r"Object x() => '${'restage'}Nav0';",
-          null
+          null,
         ),
       ];
       for (final (name, boundSource, inlineSource, expected) in cases) {
@@ -367,18 +377,19 @@ Object x() => value(skin);''',
         'Object x(${names.map((name) => 'String $name').join(', ')}) => '
         '[${names.join(', ')}, "ready"];',
       );
-      final values = (expression as ListLiteral)
-          .elements
+      final values = (expression as ListLiteral).elements
           .whereType<SimpleIdentifier>()
           .toList(growable: false);
-      final terminal =
-          expression.elements.whereType<SimpleStringLiteral>().single;
+      final terminal = expression.elements
+          .whereType<SimpleStringLiteral>()
+          .single;
 
       Map<Element, Expression> chain(int count) {
         final bindings = Map<Element, Expression>.identity();
         for (var index = 0; index < count; index++) {
-          bindings[values[index].element!] =
-              index + 1 == count ? terminal : values[index + 1];
+          bindings[values[index].element!] = index + 1 == count
+              ? terminal
+              : values[index + 1];
         }
         return bindings;
       }
@@ -407,40 +418,42 @@ Object x() => value(skin);''',
       );
     });
 
-    test('does not use a same-spelling binding for an unresolved name',
-        () async {
-      final probe = await _boundScalarProbe(
-        'Object value(String value) => value; '
-        "Object x() => value('ready');",
-      );
-      final unresolved = await parseExpressionFromSourceForTest(
-        'Object x() => value;',
-      );
-      expect((unresolved as SimpleIdentifier).element, isNull);
-      expect(
-        tryFoldScalarConstant(
+    test(
+      'does not use a same-spelling binding for an unresolved name',
+      () async {
+        final probe = await _boundScalarProbe(
+          'Object value(String value) => value; '
+          "Object x() => value('ready');",
+        );
+        final unresolved = await parseExpressionFromSourceForTest(
+          'Object x() => value;',
+        );
+        expect((unresolved as SimpleIdentifier).element, isNull);
+        expect(
+          tryFoldScalarConstant(
+            unresolved,
+            localBindings: probe.bindings,
+          ),
+          isNull,
+        );
+        final inspection = inspectScalarConstant(
           unresolved,
           localBindings: probe.bindings,
-        ),
-        isNull,
-      );
-      final inspection = inspectScalarConstant(
-        unresolved,
-        localBindings: probe.bindings,
-      );
-      expect(inspection.complete, isTrue);
-      expect(inspection.expression, same(unresolved));
-    });
+        );
+        expect(inspection.complete, isTrue);
+        expect(inspection.expression, same(unresolved));
+      },
+    );
   });
 }
 
 Future<({Expression expression, Map<Element, Expression> bindings})>
-    _boundScalarProbe(String source) async {
+_boundScalarProbe(String source) async {
   final call = await parseExpressionFromSourceForTest(source);
   final unit = call.root as CompilationUnit;
-  final helper = unit.declarations
-      .whereType<FunctionDeclaration>()
-      .singleWhere((declaration) => declaration.name.lexeme == 'value');
+  final helper = unit.declarations.whereType<FunctionDeclaration>().singleWhere(
+    (declaration) => declaration.name.lexeme == 'value',
+  );
   final helperBody = extractInlinableBuildBody(
     helper.functionExpression.body,
   )!;

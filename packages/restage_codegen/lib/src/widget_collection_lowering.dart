@@ -16,7 +16,7 @@ final class WidgetCollectionLowering {
   final BuilderResult Function(Expression) resultFor;
   final Expression Function(Expression)? resolve;
   final BuilderResult Function(Expression, BuilderResult Function(Expression))?
-      withResolvedSpread;
+  withResolvedSpread;
   int _iteration = 0;
   final Set<Expression> _spreads = {};
 
@@ -24,15 +24,17 @@ final class WidgetCollectionLowering {
   BuilderResult lowerSource(Expression source) => _spread(source, false);
 
   BuilderResult lower(ListLiteral literal) => BuilderResult.sequence([
-        for (final element in literal.elements) _element(element),
-      ]);
+    for (final element in literal.elements) _element(element),
+  ]);
 
   BuilderResult _element(CollectionElement element) {
     if (element is Expression) return resultFor(element);
     if (element is IfElement) {
       if (element.caseClause != null) {
         throw BuilderLoweringException(
-            element, 'Collection patterns are unsupported');
+          element,
+          'Collection patterns are unsupported',
+        );
       }
       return BuilderResult.branch(
         expressions.lower(element.expression),
@@ -47,7 +49,9 @@ final class WidgetCollectionLowering {
     }
     if (element is ForElement) return _for(element);
     throw BuilderLoweringException(
-        element, 'Unsupported widget collection element');
+      element,
+      'Unsupported widget collection element',
+    );
   }
 
   BuilderResult _spread(Expression source, bool nullAware) {
@@ -83,7 +87,9 @@ final class WidgetCollectionLowering {
       );
     }
     throw BuilderLoweringException(
-        source, 'Widget spreads require an analyzable list expression');
+      source,
+      'Widget spreads require an analyzable list expression',
+    );
   }
 
   BuilderResult? _mapped(Expression expression) {
@@ -95,7 +101,9 @@ final class WidgetCollectionLowering {
       for (final argument in source.argumentList.arguments) {
         if (argument is! NamedArgument || argument.name.lexeme != 'growable')
           throw BuilderLoweringException(
-              argument, 'Unsupported widget materialization argument');
+            argument,
+            'Unsupported widget materialization argument',
+          );
         eager.add(expressions.lower(argument.argumentExpression));
       }
       source = source.target!;
@@ -104,37 +112,49 @@ final class WidgetCollectionLowering {
         source.methodName.name != 'map' ||
         source.methodName.element?.library?.identifier != 'dart:core' ||
         source.target == null ||
-        source.argumentList.arguments.length != 1) return null;
+        source.argumentList.arguments.length != 1)
+      return null;
     final callback = source.argumentList.arguments.single.argumentExpression;
     final resolved = callback is FunctionExpression
         ? (
             body: callback.body,
             parameters: callback.parameters!.parameters
                 .map((p) => p.declaredFragment!.element)
-                .toList()
+                .toList(),
           )
         : pureBuilderCallbackFor(
-            callback, callback is SimpleIdentifier ? callback.element : null);
+            callback,
+            callback is SimpleIdentifier ? callback.element : null,
+          );
     if (resolved == null || resolved.parameters.length != 1)
       throw BuilderLoweringException(
-          callback, 'Widget map requires a resolved callback');
+        callback,
+        'Widget map requires a resolved callback',
+      );
     final receiver = expressions.lower(source.target!);
     final type = expressions.nodes[receiver].type;
     if (!{'list', 'iterable'}.contains(type.kind) || type.nullable)
       throw BuilderLoweringException(
-          source, 'Widget map requires a finite native sequence');
+        source,
+        'Widget map requires a finite native sequence',
+      );
     String parameter;
     do {
       parameter = 'collection${_iteration++}';
     } while (expressions.parameters.containsKey(parameter));
-    final closed = ClosedCallbackLowering<BuilderResult>(expressions,
-        result: resultFor,
-        sequence: BuilderResult.let,
-        branch: BuilderResult.branch);
+    final closed = ClosedCallbackLowering<BuilderResult>(
+      expressions,
+      result: resultFor,
+      sequence: BuilderResult.let,
+      branch: BuilderResult.branch,
+    );
     var result = closed.scoped(() {
       expressions.parameter(resolved.parameters.single, parameter, type.item!);
       return BuilderResult.forEachItem(
-          receiver, parameter, closed.body(resolved.body));
+        receiver,
+        parameter,
+        closed.body(resolved.body),
+      );
     });
     for (final node in eager.reversed) result = BuilderResult.let(node, result);
     return BuilderResult.let(receiver, result);
@@ -144,18 +164,24 @@ final class WidgetCollectionLowering {
     final parts = element.forLoopParts;
     if (element.awaitKeyword != null || parts is! ForEachPartsWithDeclaration) {
       throw BuilderLoweringException(
-          element, 'Widget collection loops require a synchronous for-in');
+        element,
+        'Widget collection loops require a synchronous for-in',
+      );
     }
     final variable = parts.loopVariable.declaredFragment?.element;
     if (variable == null) {
       throw BuilderLoweringException(
-          parts.loopVariable, 'Unresolved collection loop variable');
+        parts.loopVariable,
+        'Unresolved collection loop variable',
+      );
     }
     final source = expressions.lower(parts.iterable);
     final type = expressions.nodes[source].type;
     if (!{'list', 'iterable'}.contains(type.kind) || type.nullable) {
       throw BuilderLoweringException(
-          parts.iterable, 'Widget collection iteration requires a finite List');
+        parts.iterable,
+        'Widget collection iteration requires a finite List',
+      );
     }
     String parameter;
     do {
@@ -166,9 +192,9 @@ final class WidgetCollectionLowering {
       expressions.parameter(variable, parameter, type.item!);
       try {
         return BuilderResult.let(
-            source,
-            BuilderResult.forEachItem(
-                source, parameter, _element(element.body)));
+          source,
+          BuilderResult.forEachItem(source, parameter, _element(element.body)),
+        );
       } finally {
         expressions.bindings
           ..clear()
@@ -176,16 +202,19 @@ final class WidgetCollectionLowering {
       }
     }
     expressions.parameters[parameter] = ValueType.integer;
-    final index = expressions
-        .add(ValueNode('parameter', ValueType.integer, name: parameter));
-    final item = expressions
-        .add(ValueNode('index', type.item!, inputs: [source, index]));
+    final index = expressions.add(
+      ValueNode('parameter', ValueType.integer, name: parameter),
+    );
+    final item = expressions.add(
+      ValueNode('index', type.item!, inputs: [source, index]),
+    );
     final saved = Map.of(expressions.bindings);
     expressions.bindings[variable] = item;
     try {
       final body = _element(element.body);
-      final length = expressions
-          .add(ValueNode('length', ValueType.integer, inputs: [source]));
+      final length = expressions.add(
+        ValueNode('length', ValueType.integer, inputs: [source]),
+      );
       return BuilderResult.let(
         source,
         BuilderResult.forEach(length, parameter, BuilderResult.let(item, body)),

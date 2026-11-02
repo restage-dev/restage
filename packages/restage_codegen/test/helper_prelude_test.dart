@@ -8,7 +8,8 @@ import 'helpers.dart';
 
 const String _package = 'apps_examples';
 
-String _paywall(String name, String build, {String helper = ''}) => '''
+String _paywall(String name, String build, {String helper = ''}) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -275,7 +276,8 @@ abstract final class Spacing {
   static EdgeInsets badge() => const EdgeInsets.symmetric(horizontal: 6);
 }
 ''';
-    String paywall(String body) => '''
+    String paywall(String body) =>
+        '''
 // @dart=3.13
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -339,9 +341,9 @@ $body
 
     test('inline like their hand-written twin', () async {
       List<Builder> builders() => [
-            userCatalogJsonBuilder(BuilderOptions.empty),
-            restageCodegenBuilder(BuilderOptions.empty),
-          ];
+        userCatalogJsonBuilder(BuilderOptions.empty),
+        restageCodegenBuilder(BuilderOptions.empty),
+      ];
       final (calledResult, calledLogs) = await compile(called, builders());
       final (inlinedResult, inlinedLogs) = await compile(inlined, builders());
       expect(
@@ -372,14 +374,16 @@ $body
         logs.join('\n'),
         isNot(contains('Measurement is unavailable')),
       );
-      final ledger = jsonDecode(
-        result.readerWriter.testing.readString(
-          AssetId(
-            _package,
-            'lib/src/measurement/restage.measurement.compiler.json',
-          ),
-        ),
-      ) as Map<String, Object?>;
+      final ledger =
+          jsonDecode(
+                result.readerWriter.testing.readString(
+                  AssetId(
+                    _package,
+                    'lib/src/measurement/restage.measurement.compiler.json',
+                  ),
+                ),
+              )
+              as Map<String, Object?>;
       final events = [
         for (final node in ledger['ledgerNodes']! as List<Object?>)
           for (final event
@@ -475,7 +479,8 @@ class FancyHelper extends StatelessWidget {
     });
 
     test('inline into an onboarding screen', () async {
-      String screen(String body) => '''
+      String screen(String body) =>
+          '''
 // @dart=3.13
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';

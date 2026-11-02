@@ -3,12 +3,14 @@ import 'package:test/test.dart';
 
 void main() {
   group('A2uiSchemaNode', () {
-    test('ScalarNode carries its primitive type and is non-nullable by default',
-        () {
-      const node = ScalarNode(A2uiScalarType.boolean);
-      expect(node.type, A2uiScalarType.boolean);
-      expect(node.nullable, isFalse);
-    });
+    test(
+      'ScalarNode carries its primitive type and is non-nullable by default',
+      () {
+        const node = ScalarNode(A2uiScalarType.boolean);
+        expect(node.type, A2uiScalarType.boolean);
+        expect(node.nullable, isFalse);
+      },
+    );
 
     test('ScalarNode value-equals an identical node and differs on type', () {
       expect(
@@ -125,12 +127,12 @@ void main() {
 
     test('ObjectNode carries fields + required and equals deeply', () {
       ObjectNode build() => ObjectNode(
-            fields: const {
-              'name': ScalarNode(A2uiScalarType.string),
-              'count': ScalarNode(A2uiScalarType.number),
-            },
-            required: const {'name'},
-          );
+        fields: const {
+          'name': ScalarNode(A2uiScalarType.string),
+          'count': ScalarNode(A2uiScalarType.number),
+        },
+        required: const {'name'},
+      );
       expect(build().fields.keys, ['name', 'count']);
       expect(build().required, {'name'});
       expect(build(), equals(build()));
@@ -200,17 +202,17 @@ void main() {
 
     test('UnionNode carries variants + discriminator and equals deeply', () {
       UnionNode build() => UnionNode(
-            variants: [
-              ObjectNode(
-                fields: const {'type': ScalarNode(A2uiScalarType.string)},
-                required: const {'type'},
-              ),
-            ],
-            discriminatorField: 'type',
-            defId: 'package:example/example.dart#Result',
-            definitionDescription: 'Canonical result.',
-            occurrenceDescription: 'Checkout result.',
-          );
+        variants: [
+          ObjectNode(
+            fields: const {'type': ScalarNode(A2uiScalarType.string)},
+            required: const {'type'},
+          ),
+        ],
+        discriminatorField: 'type',
+        defId: 'package:example/example.dart#Result',
+        definitionDescription: 'Canonical result.',
+        occurrenceDescription: 'Checkout result.',
+      );
       expect(build().discriminatorField, 'type');
       expect(build().variants, hasLength(1));
       expect(build().definitionDescription, 'Canonical result.');
@@ -238,40 +240,42 @@ void main() {
       expect(const RefNode('Lesson'), isNot(equals(const RefNode('Other'))));
     });
 
-    test('the sealed hierarchy supports an exhaustive switch (no default arm)',
-        () {
-      String describe(A2uiSchemaNode node) => switch (node) {
-            ScalarNode() => 'scalar',
-            EnumNode() => 'enum',
-            ListNode() => 'list',
-            ObjectNode() => 'object',
-            MapNode() => 'map',
-            UnionNode() => 'union',
-            RefNode() => 'ref',
-          };
-      expect(describe(const ScalarNode(A2uiScalarType.boolean)), 'scalar');
-      expect(
-        describe(EnumNode(members: const ['x'], dartTypeName: 'E')),
-        'enum',
-      );
-      expect(
-        describe(const ListNode(element: ScalarNode(A2uiScalarType.string))),
-        'list',
-      );
-      expect(
-        describe(ObjectNode(fields: const {}, required: const {})),
-        'object',
-      );
-      expect(
-        describe(const MapNode(valueType: ScalarNode(A2uiScalarType.string))),
-        'map',
-      );
-      expect(
-        describe(UnionNode(variants: const [], discriminatorField: 'type')),
-        'union',
-      );
-      expect(describe(const RefNode('X')), 'ref');
-    });
+    test(
+      'the sealed hierarchy supports an exhaustive switch (no default arm)',
+      () {
+        String describe(A2uiSchemaNode node) => switch (node) {
+          ScalarNode() => 'scalar',
+          EnumNode() => 'enum',
+          ListNode() => 'list',
+          ObjectNode() => 'object',
+          MapNode() => 'map',
+          UnionNode() => 'union',
+          RefNode() => 'ref',
+        };
+        expect(describe(const ScalarNode(A2uiScalarType.boolean)), 'scalar');
+        expect(
+          describe(EnumNode(members: const ['x'], dartTypeName: 'E')),
+          'enum',
+        );
+        expect(
+          describe(const ListNode(element: ScalarNode(A2uiScalarType.string))),
+          'list',
+        );
+        expect(
+          describe(ObjectNode(fields: const {}, required: const {})),
+          'object',
+        );
+        expect(
+          describe(const MapNode(valueType: ScalarNode(A2uiScalarType.string))),
+          'map',
+        );
+        expect(
+          describe(UnionNode(variants: const [], discriminatorField: 'type')),
+          'union',
+        );
+        expect(describe(const RefNode('X')), 'ref');
+      },
+    );
   });
 
   group('A2uiChildSlot', () {
@@ -288,9 +292,9 @@ void main() {
 
     test('the child-slot hierarchy supports an exhaustive switch', () {
       String describe(A2uiChildSlot slot) => switch (slot) {
-            A2uiChildNode() => 'child',
-            A2uiChildrenNode() => 'children',
-          };
+        A2uiChildNode() => 'child',
+        A2uiChildrenNode() => 'children',
+      };
       expect(describe(const A2uiChildNode()), 'child');
       expect(describe(const A2uiChildrenNode()), 'children');
     });

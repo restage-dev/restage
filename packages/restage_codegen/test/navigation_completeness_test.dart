@@ -60,14 +60,16 @@ Future<List<String>> _resolvedRouteSignatureParamNames(
 ) async {
   final expr = await parseExpressionFromSourceForTest(
     switch (routeType) {
-      NavigationRouteType.materialPageRoute => '''
+      NavigationRouteType.materialPageRoute =>
+        '''
 import 'package:flutter/material.dart';
 
 Object x() => MaterialPageRoute<void>(
   builder: (_) => const SizedBox(),
 );
 ''',
-      NavigationRouteType.cupertinoPageRoute => '''
+      NavigationRouteType.cupertinoPageRoute =>
+        '''
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/widgets.dart';
 
@@ -100,7 +102,8 @@ void _expectDispositionCompleteness({
   expect(
     table.keys,
     unorderedEquals(signature),
-    reason: '${routeType.name} must account for every current Flutter '
+    reason:
+        '${routeType.name} must account for every current Flutter '
         'constructor parameter in the production disposition table.',
   );
 

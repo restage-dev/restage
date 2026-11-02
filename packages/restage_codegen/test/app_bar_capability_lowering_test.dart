@@ -70,7 +70,8 @@ void main() {
   ]) {
     test('AppBar lowers ${scenario.name} from Flutter authoring', () async {
       final id = 'app_bar_${scenario.name}';
-      final source = '''
+      final source =
+          '''
         import 'package:flutter/material.dart';
 
         class PaywallSource {
@@ -258,8 +259,10 @@ void main() {
         includeFlutter: true,
       );
       for (final source in sources.entries) {
-        readerWriter.testing
-            .writeString(AssetId.parse(source.key), source.value);
+        readerWriter.testing.writeString(
+          AssetId.parse(source.key),
+          source.value,
+        );
       }
       result = await testBuilder(
         restageCodegenBuilder(BuilderOptions.empty),
@@ -359,8 +362,11 @@ void main() {
       );
       expect(
         _resolveHeight(scaffold.arguments['appBar'], {'showBar': true}),
-        isA<fmt.ConstructorCall>()
-            .having((value) => value.name, 'name', 'AppBar'),
+        isA<fmt.ConstructorCall>().having(
+          (value) => value.name,
+          'name',
+          'AppBar',
+        ),
       );
     });
 
@@ -386,31 +392,37 @@ void main() {
       }
       expect(
         _resolveHeight(scaffold.arguments['appBar'], {'showBar': false}),
-        isA<fmt.ConstructorCall>()
-            .having((value) => value.name, 'name', 'PreferredSize'),
+        isA<fmt.ConstructorCall>().having(
+          (value) => value.name,
+          'name',
+          'PreferredSize',
+        ),
       );
     });
 
-    test('multi-arm string AppBar branches preserve native height metadata',
-        () {
-      final scaffold = _heightScaffold(result, 'multi_arm_app_bar');
-      for (final branch in <String, double?>{
-        'a': null,
-        'b': 40,
-        'other': 60,
-      }.entries) {
-        final context = {'mode': branch.key};
-        expect(_heights(scaffold, context), {
-          'height': null,
-          'toolbar': branch.value,
-          'bottom': 0.0,
-        });
-        final appBar = _resolveHeight(scaffold.arguments['appBar'], context)!
-            as fmt.ConstructorCall;
-        expect(appBar.name, 'AppBar');
-        expect(appBar.arguments['toolbarHeight'], branch.value);
-      }
-    });
+    test(
+      'multi-arm string AppBar branches preserve native height metadata',
+      () {
+        final scaffold = _heightScaffold(result, 'multi_arm_app_bar');
+        for (final branch in <String, double?>{
+          'a': null,
+          'b': 40,
+          'other': 60,
+        }.entries) {
+          final context = {'mode': branch.key};
+          expect(_heights(scaffold, context), {
+            'height': null,
+            'toolbar': branch.value,
+            'bottom': 0.0,
+          });
+          final appBar =
+              _resolveHeight(scaffold.arguments['appBar'], context)!
+                  as fmt.ConstructorCall;
+          expect(appBar.name, 'AppBar');
+          expect(appBar.arguments['toolbarHeight'], branch.value);
+        }
+      },
+    );
 
     test('multi-arm string bottoms preserve each preferred height', () {
       final scaffold = _heightScaffold(result, 'multi_arm_bottom');
@@ -507,30 +519,34 @@ void main() {
       }
     });
 
-    test('nested AppBar with explicit null uses its native preferred height',
-        () {
-      final scaffold = _heightScaffold(result, 'nested_null_height');
-      final appBar = scaffold.arguments['appBar']! as fmt.ConstructorCall;
-      final bottom = appBar.arguments['bottom']! as fmt.ConstructorCall;
-      expect(_heights(scaffold), {
-        'height': null,
-        'toolbar': null,
-        'bottom': 56.0,
-      });
-      expect(appBar.arguments['bottomHeight'], 56.0);
-      expect(bottom.name, 'AppBar');
-      expect(bottom.arguments['toolbarHeight'], isNull);
-    });
+    test(
+      'nested AppBar with explicit null uses its native preferred height',
+      () {
+        final scaffold = _heightScaffold(result, 'nested_null_height');
+        final appBar = scaffold.arguments['appBar']! as fmt.ConstructorCall;
+        final bottom = appBar.arguments['bottom']! as fmt.ConstructorCall;
+        expect(_heights(scaffold), {
+          'height': null,
+          'toolbar': null,
+          'bottom': 56.0,
+        });
+        expect(appBar.arguments['bottomHeight'], 56.0);
+        expect(bottom.name, 'AppBar');
+        expect(bottom.arguments['toolbarHeight'], isNull);
+      },
+    );
 
     for (final entry in {'preferred_size': 90.0, 'tab_bar': 48.0}.entries) {
-      test('${entry.key} uses its total height without native AppBar metadata',
-          () {
-        expect(_heights(_heightScaffold(result, entry.key)), {
-          'height': entry.value,
-          'toolbar': null,
-          'bottom': null,
-        });
-      });
+      test(
+        '${entry.key} uses its total height without native AppBar metadata',
+        () {
+          expect(_heights(_heightScaffold(result, entry.key)), {
+            'height': entry.value,
+            'toolbar': null,
+            'bottom': null,
+          });
+        },
+      );
     }
 
     test('native AppBar height metadata requires capability floor 12', () {
@@ -548,11 +564,16 @@ void main() {
         'nested_nullable_height',
       ]) {
         for (final path in [id, 'screens/paywall_$id']) {
-          final sidecar = jsonDecode(
-            result.readerWriter.testing.readString(
-              AssetId('apps_examples', 'assets/paywalls/$path.capability.json'),
-            ),
-          ) as Map<String, dynamic>;
+          final sidecar =
+              jsonDecode(
+                    result.readerWriter.testing.readString(
+                      AssetId(
+                        'apps_examples',
+                        'assets/paywalls/$path.capability.json',
+                      ),
+                    ),
+                  )
+                  as Map<String, dynamic>;
           final manifest = sidecar['manifest'] as Map<String, dynamic>;
           expect(manifest['builtInFloor'], 12, reason: path);
         }
@@ -561,7 +582,8 @@ void main() {
   });
 }
 
-String _heightSource(String id, String appBar, {String prelude = ''}) => '''
+String _heightSource(String id, String appBar, {String prelude = ''}) =>
+    '''
   import 'package:flutter/material.dart';
   import 'package:flutter/material.dart' as material;
 
@@ -609,14 +631,11 @@ fmt.ConstructorCall _heightScaffold(TestBuilderResult result, String id) {
 Map<String, Object?> _heights(
   fmt.ConstructorCall scaffold, [
   Map<String, Object?> context = const {},
-]) =>
-    {
-      'height': _resolveHeight(scaffold.arguments['appBarHeight'], context),
-      'toolbar':
-          _resolveHeight(scaffold.arguments['appBarToolbarHeight'], context),
-      'bottom':
-          _resolveHeight(scaffold.arguments['appBarBottomHeight'], context),
-    };
+]) => {
+  'height': _resolveHeight(scaffold.arguments['appBarHeight'], context),
+  'toolbar': _resolveHeight(scaffold.arguments['appBarToolbarHeight'], context),
+  'bottom': _resolveHeight(scaffold.arguments['appBarBottomHeight'], context),
+};
 
 Object? _resolveHeight(Object? value, Map<String, Object?> context) {
   if (value is fmt.DataReference) {

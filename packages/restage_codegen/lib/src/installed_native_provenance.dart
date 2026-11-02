@@ -36,12 +36,16 @@ Expression installedNativeConstantExpression(Expression expression) {
     if (element is! LocalVariableElement || !element.isConst) return expression;
     if (!seen.add(element) || seen.length > 64) {
       throw BuilderLoweringException(
-          expression, 'Native constant alias exceeds its declaration limit');
+        expression,
+        'Native constant alias exceeds its declaration limit',
+      );
     }
     final initializer = resolveConstDeclarationInitializer(expression);
     if (initializer == null) {
-      throw BuilderLoweringException(expression,
-          'Native constant alias requires its original declaration');
+      throw BuilderLoweringException(
+        expression,
+        'Native constant alias requires its original declaration',
+      );
     }
     expression = initializer;
   }
@@ -65,8 +69,9 @@ String? installedIntlLookupFamily(Element? element) {
 
 /// Qualifies callable values before any inputs or adapters are installed.
 List<InstalledNativeInvocation> qualifyInstalledNativeCallables(
-    Expression expression,
-    {required bool Function(Expression) isDeclaredCallable}) {
+  Expression expression, {
+  required bool Function(Expression) isDeclaredCallable,
+}) {
   final visitor = _NativeCallables(expression, isDeclaredCallable);
   expression.accept(visitor);
   return visitor.invocations;
@@ -84,14 +89,16 @@ ExecutableElement? installedNativeCallableDeclaration(Expression expression) {
 
 /// A statically resolved invocation; unknown callable values remain unproved.
 InstalledNativeInvocation? installedNativeFixedInvocation(
-    Expression expression) {
+  Expression expression,
+) {
   final Expression reference;
   final ArgumentList arguments;
   if (expression is FunctionExpressionInvocation) {
     reference = expression.function;
     arguments = expression.argumentList;
   } else if (expression is MethodInvocation) {
-    reference = expression.methodName.name == 'call' &&
+    reference =
+        expression.methodName.name == 'call' &&
             _callableType(expression.target?.staticType)
         ? expression.target!
         : expression.methodName;
@@ -107,11 +114,11 @@ bool _callableType(DartType? type) =>
     type is FunctionType || type?.isDartCoreFunction == true;
 
 Element? _referenceElement(Expression expression) => switch (expression) {
-      SimpleIdentifier() => expression.element,
-      PrefixedIdentifier() => expression.identifier.element,
-      PropertyAccess() => expression.propertyName.element,
-      _ => null,
-    };
+  SimpleIdentifier() => expression.element,
+  PrefixedIdentifier() => expression.identifier.element,
+  PropertyAccess() => expression.propertyName.element,
+  _ => null,
+};
 
 final class _NativeCallables extends GeneralizingAstVisitor<void> {
   _NativeCallables(this.root, this.isDeclaredCallable);
@@ -121,8 +128,10 @@ final class _NativeCallables extends GeneralizingAstVisitor<void> {
   final qualified = <Expression>{};
   final resolving = <Element>{};
 
-  Never refuse(AstNode node) => throw BuilderLoweringException(node,
-      'Native callable requires a fixed declaration or an existing typed native binding');
+  Never refuse(AstNode node) => throw BuilderLoweringException(
+    node,
+    'Native callable requires a fixed declaration or an existing typed native binding',
+  );
 
   ExecutableElement? callable(Expression value, {bool invoked = false}) {
     qualified.add(value);
@@ -194,12 +203,17 @@ final class _NativeCallables extends GeneralizingAstVisitor<void> {
     return offset != null && offset >= root.offset && offset < root.end;
   }
 
-  ExecutableElement fixed(ExecutableElement target, AstNode source,
-      {required bool invoked}) {
+  ExecutableElement fixed(
+    ExecutableElement target,
+    AstNode source, {
+    required bool invoked,
+  }) {
     _requireClosedNativeCallable(target, source);
     if (!invoked && installedIntlLookupFamily(target) != null) {
       throw BuilderLoweringException(
-          source, 'Intl lookup tearoffs require a fixed validated invocation');
+        source,
+        'Intl lookup tearoffs require a fixed validated invocation',
+      );
     }
     return target;
   }
@@ -266,7 +280,8 @@ final class _NativeCallables extends GeneralizingAstVisitor<void> {
   void visitNode(AstNode node) {
     if (node is Expression && !qualified.contains(node)) {
       final parent = node.parent;
-      final selector = node is SimpleIdentifier &&
+      final selector =
+          node is SimpleIdentifier &&
           (node.inDeclarationContext() ||
               parent is PrefixedIdentifier && parent.identifier == node ||
               parent is PropertyAccess && parent.propertyName == node ||
@@ -276,9 +291,13 @@ final class _NativeCallables extends GeneralizingAstVisitor<void> {
         if (_callableType(node.staticType)) {
           callable(node);
         } else if (installedNativeConstantValue(node) case final constant?) {
-          _constantIdentity(constant, node, onCallable: (target) {
-            fixed(target, node, invoked: false);
-          });
+          _constantIdentity(
+            constant,
+            node,
+            onCallable: (target) {
+              fixed(target, node, invoked: false);
+            },
+          );
         }
       }
     }
@@ -303,59 +322,74 @@ void _requireClosedNativeCallable(Element? element, AstNode source) {
   if (declaration?.library?.identifier == 'dart:core' &&
       declaration?.enclosingElement?.name == 'Function' &&
       declaration?.name == 'apply') {
-    throw BuilderLoweringException(source,
-        'Function.apply generic dispatch is outside closed typed native calls');
+    throw BuilderLoweringException(
+      source,
+      'Function.apply generic dispatch is outside closed typed native calls',
+    );
   }
 }
 
 String _elementIdentity(Element element) {
   final names = <String>[];
-  for (Element? current = element.baseElement;
-      current != null && current is! LibraryElement;
-      current = current.enclosingElement) {
+  for (
+    Element? current = element.baseElement;
+    current != null && current is! LibraryElement;
+    current = current.enclosingElement
+  ) {
     names.add(current.name ?? '<unnamed>');
   }
   return '${element.library?.identifier}#${names.reversed.join('.')}';
 }
 
 Object? _typeIdentity(DartType type) => {
-      'kind': type.getDisplayString(),
-      if (type.alias case final alias?)
-        'alias': [
-          _elementIdentity(alias.element),
-          ...alias.typeArguments.map(_typeIdentity)
-        ],
-      if (type is InterfaceType) ...{
-        'element': _elementIdentity(type.element),
-        'arguments': type.typeArguments.map(_typeIdentity).toList(),
-      },
-      if (type is FunctionType) ...{
-        'return': _typeIdentity(type.returnType),
-        'parameters':
-            type.formalParameters.map((p) => _typeIdentity(p.type)).toList(),
-      },
-      if (type is RecordType) ...{
-        'positional':
-            type.positionalFields.map((p) => _typeIdentity(p.type)).toList(),
-        'named': {
-          for (final p in type.namedFields) p.name: _typeIdentity(p.type)
-        },
-      },
-      if (type is TypeParameterType)
-        'parameter': _elementIdentity(type.element),
-    };
+  'kind': type.getDisplayString(),
+  if (type.alias case final alias?)
+    'alias': [
+      _elementIdentity(alias.element),
+      ...alias.typeArguments.map(_typeIdentity),
+    ],
+  if (type is InterfaceType) ...{
+    'element': _elementIdentity(type.element),
+    'arguments': type.typeArguments.map(_typeIdentity).toList(),
+  },
+  if (type is FunctionType) ...{
+    'return': _typeIdentity(type.returnType),
+    'parameters': type.formalParameters
+        .map((p) => _typeIdentity(p.type))
+        .toList(),
+  },
+  if (type is RecordType) ...{
+    'positional': type.positionalFields
+        .map((p) => _typeIdentity(p.type))
+        .toList(),
+    'named': {for (final p in type.namedFields) p.name: _typeIdentity(p.type)},
+  },
+  if (type is TypeParameterType) 'parameter': _elementIdentity(type.element),
+};
 
-Object? _constantIdentity(DartObject value, AstNode source,
-    {int depth = 0, void Function(ExecutableElement)? onCallable}) {
+Object? _constantIdentity(
+  DartObject value,
+  AstNode source, {
+  int depth = 0,
+  void Function(ExecutableElement)? onCallable,
+}) {
   if (depth > 128)
     throw BuilderLoweringException(
-        source, 'Native constant exceeds identity depth');
+      source,
+      'Native constant exceeds identity depth',
+    );
   Object? nested(DartObject? child) {
     if (child == null)
       throw BuilderLoweringException(
-          source, 'Native constant identity is unresolved');
-    return _constantIdentity(child, source,
-        depth: depth + 1, onCallable: onCallable);
+        source,
+        'Native constant identity is unresolved',
+      );
+    return _constantIdentity(
+      child,
+      source,
+      depth: depth + 1,
+      onCallable: onCallable,
+    );
   }
 
   if (value.isNull) return null;
@@ -369,7 +403,9 @@ Object? _constantIdentity(DartObject value, AstNode source,
   if (typeValue != null) return {'type': _typeIdentity(typeValue)};
   if (!value.hasKnownValue)
     throw BuilderLoweringException(
-        source, 'Native constant identity is unresolved');
+      source,
+      'Native constant identity is unresolved',
+    );
   final type = value.type;
   final Object? state;
   if (value.toBoolValue() case final scalar?) {
@@ -382,8 +418,10 @@ Object? _constantIdentity(DartObject value, AstNode source,
     state = scalar;
   } else if (value.toSymbolValue() case final scalar?) {
     if (scalar.split('.').any((part) => part.startsWith('_'))) {
-      throw BuilderLoweringException(source,
-          'Private Symbol constants require their declaring-library identity');
+      throw BuilderLoweringException(
+        source,
+        'Private Symbol constants require their declaring-library identity',
+      );
     }
     state = {'symbol': scalar};
   } else if (value.toListValue() case final list?) {
@@ -392,30 +430,33 @@ Object? _constantIdentity(DartObject value, AstNode source,
     state = set.map(nested).toList();
   } else if (value.toMapValue() case final map?) {
     state = [
-      for (final entry in map.entries) [nested(entry.key), nested(entry.value)]
+      for (final entry in map.entries) [nested(entry.key), nested(entry.value)],
     ];
   } else if (value.toRecordValue() case final record?) {
     state = {
       'positional': record.positional.map(nested).toList(),
       'named': {
         for (final name in record.named.keys.toList()..sort())
-          name: nested(record.named[name])
-      }
+          name: nested(record.named[name]),
+      },
     };
   } else if (type is InterfaceType) {
-    final fields = type.element.fields
-        .where((f) => !f.isStatic && f.isOriginDeclaration)
-        .toList()
-      ..sort((a, b) => a.name!.compareTo(b.name!));
+    final fields =
+        type.element.fields
+            .where((f) => !f.isStatic && f.isOriginDeclaration)
+            .toList()
+          ..sort((a, b) => a.name!.compareTo(b.name!));
     state = {
       for (final field in fields)
         field.name!: nested(value.getField(field.name!)),
       if (value.getField('(super)') case final superclass?)
-        '(super)': nested(superclass)
+        '(super)': nested(superclass),
     };
   } else {
     throw BuilderLoweringException(
-        source, 'Native constant identity is unsupported');
+      source,
+      'Native constant identity is unsupported',
+    );
   }
   return {'type': type == null ? null : _typeIdentity(type), 'value': state};
 }
@@ -430,17 +471,21 @@ final class _Provenance extends GeneralizingAstVisitor<void> {
     if (element == null) return;
     _requireClosedNativeCallable(element, source);
     symbols.add(_elementIdentity(element));
-    final variable =
-        element is PropertyAccessorElement ? element.variable : element;
+    final variable = element is PropertyAccessorElement
+        ? element.variable
+        : element;
     if (variable is VariableElement &&
         variable.isConst &&
         constants.add(variable)) {
       final value = variable.computeConstantValue();
       if (value == null)
         throw BuilderLoweringException(
-            source, 'Native constant identity is unresolved');
+          source,
+          'Native constant identity is unresolved',
+        );
       symbols.add(
-          'constant:${_elementIdentity(variable)}:${jsonEncode(_constantIdentity(value, source))}');
+        'constant:${_elementIdentity(variable)}:${jsonEncode(_constantIdentity(value, source))}',
+      );
     }
   }
 
@@ -469,7 +514,9 @@ final class _Provenance extends GeneralizingAstVisitor<void> {
       final value = installedNativeConstantValue(node);
       if (value == null)
         throw BuilderLoweringException(
-            node, 'Native constant identity is unresolved');
+          node,
+          'Native constant identity is unresolved',
+        );
       symbols.add('constant:${jsonEncode(_constantIdentity(value, node))}');
     }
     super.visitNode(node);

@@ -108,14 +108,14 @@ Map<String, Object?> _appBar(TestBuilderResult result, String id) {
 }
 
 Object? _atBrightness(Object? value, String brightness) => _resolve(value, {
-      'theme': {'brightness': brightness},
-    });
+  'theme': {'brightness': brightness},
+});
 
 Matcher _dataReference(List<String> parts) => isA<fmt.DataReference>().having(
-      (reference) => reference.parts,
-      'parts',
-      parts,
-    );
+  (reference) => reference.parts,
+  'parts',
+  parts,
+);
 
 Object? _resolve(Object? value, Map<String, Object?> data) {
   if (value is fmt.DataReference) {
@@ -480,21 +480,23 @@ void main() {
       );
     });
 
-    test('omitted and null styles remain unset while empty styles stay maps',
-        () {
-      final omitted = _appBar(result, 'omitted_styles');
-      final empty = _appBar(result, 'empty_styles');
-      final explicitNull = _appBar(result, 'null_styles');
-      for (final field in [
-        'systemOverlayStyle',
-        'iconTheme',
-        'actionsIconTheme',
-      ]) {
-        expect(omitted.containsKey(field), isFalse, reason: field);
-        expect(explicitNull[field], isNull, reason: field);
-        expect(empty[field], <String, Object?>{}, reason: field);
-      }
-    });
+    test(
+      'omitted and null styles remain unset while empty styles stay maps',
+      () {
+        final omitted = _appBar(result, 'omitted_styles');
+        final empty = _appBar(result, 'empty_styles');
+        final explicitNull = _appBar(result, 'null_styles');
+        for (final field in [
+          'systemOverlayStyle',
+          'iconTheme',
+          'actionsIconTheme',
+        ]) {
+          expect(omitted.containsKey(field), isFalse, reason: field);
+          expect(explicitNull[field], isNull, reason: field);
+          expect(empty[field], <String, Object?>{}, reason: field);
+        }
+      },
+    );
 
     test('explicit null fields never acquire compiler defaults', () {
       final appBar = _appBar(result, 'null_style_fields');
@@ -544,105 +546,125 @@ void main() {
       });
     });
 
-    test('prefixes and type aliases preserve constants and chained copyWith',
-        () {
-      final appBar = _appBar(result, 'prefixed_style_aliases');
-      expect(appBar['systemOverlayStyle'], {
-        ..._dark,
-        'copyWith': [
-          {'statusBarColor': 0},
-          {'systemStatusBarContrastEnforced': false},
-        ],
-      });
-      expect(appBar['iconTheme'], {'size': 22.0, 'applyTextScaling': false});
-      expect(appBar['actionsIconTheme'], {'size': 18.0});
-      expect(
-        _appBar(result, 'prefixed_overlay_constructor')['systemOverlayStyle'],
-        {
-          'statusBarColor': 0xFF123456,
-          'statusBarIconBrightness': 'dark',
-          'copyWith': [<String, Object?>{}],
-        },
-      );
-    });
+    test(
+      'prefixes and type aliases preserve constants and chained copyWith',
+      () {
+        final appBar = _appBar(result, 'prefixed_style_aliases');
+        expect(appBar['systemOverlayStyle'], {
+          ..._dark,
+          'copyWith': [
+            {'statusBarColor': 0},
+            {'systemStatusBarContrastEnforced': false},
+          ],
+        });
+        expect(appBar['iconTheme'], {'size': 22.0, 'applyTextScaling': false});
+        expect(appBar['actionsIconTheme'], {'size': 18.0});
+        expect(
+          _appBar(result, 'prefixed_overlay_constructor')['systemOverlayStyle'],
+          {
+            'statusBarColor': 0xFF123456,
+            'statusBarIconBrightness': 'dark',
+            'copyWith': [<String, Object?>{}],
+          },
+        );
+      },
+    );
 
     test('runtime brightness selects the matching native overlay constant', () {
-      final overlay =
-          _appBar(result, 'runtime_overlay_choice')['systemOverlayStyle'];
+      final overlay = _appBar(
+        result,
+        'runtime_overlay_choice',
+      )['systemOverlayStyle'];
       expect(_atBrightness(overlay, 'dark'), _light);
       expect(_atBrightness(overlay, 'light'), _dark);
     });
 
-    test('runtime receivers preserve their bases and nullable override layers',
-        () {
-      final overlay =
-          _appBar(result, 'runtime_overlay_copy')['systemOverlayStyle'];
-      expect(_atBrightness(overlay, 'dark'), {
-        ..._light,
-        'copyWith': [
-          {
-            'statusBarColor': 0xFF123456,
-            'systemNavigationBarContrastEnforced': true,
-          },
-          {
-            'statusBarColor': null,
-            'statusBarIconBrightness': 'dark',
-            'systemNavigationBarContrastEnforced': false,
-          },
-        ],
-      });
-      expect(_atBrightness(overlay, 'light'), {
-        ..._dark,
-        'copyWith': [
-          {
-            'statusBarColor': 0xFF123456,
-            'systemNavigationBarContrastEnforced': true,
-          },
-          {
-            'statusBarColor': 0,
-            'statusBarIconBrightness': null,
-            'systemNavigationBarContrastEnforced': null,
-          },
-        ],
-      });
-    });
+    test(
+      'runtime receivers preserve their bases and nullable override layers',
+      () {
+        final overlay = _appBar(
+          result,
+          'runtime_overlay_copy',
+        )['systemOverlayStyle'];
+        expect(_atBrightness(overlay, 'dark'), {
+          ..._light,
+          'copyWith': [
+            {
+              'statusBarColor': 0xFF123456,
+              'systemNavigationBarContrastEnforced': true,
+            },
+            {
+              'statusBarColor': null,
+              'statusBarIconBrightness': 'dark',
+              'systemNavigationBarContrastEnforced': false,
+            },
+          ],
+        });
+        expect(_atBrightness(overlay, 'light'), {
+          ..._dark,
+          'copyWith': [
+            {
+              'statusBarColor': 0xFF123456,
+              'systemNavigationBarContrastEnforced': true,
+            },
+            {
+              'statusBarColor': 0,
+              'statusBarIconBrightness': null,
+              'systemNavigationBarContrastEnforced': null,
+            },
+          ],
+        });
+      },
+    );
 
-    test('nullable host booleans remain separate from previous copy layers',
-        () {
-      final overlay =
-          _appBar(result, 'nullable_overlay_override')['systemOverlayStyle'];
-      expect(overlay, {
-        ..._dark,
-        'copyWith': [
-          {
-            'systemNavigationBarContrastEnforced': true,
-            'systemStatusBarContrastEnforced': false,
-          },
-          {
-            'systemNavigationBarContrastEnforced':
-                _dataReference(['context', 'contrast']),
-            'systemStatusBarContrastEnforced':
-                _dataReference(['context', 'contrast']),
-          },
-        ],
-      });
-    });
+    test(
+      'nullable host booleans remain separate from previous copy layers',
+      () {
+        final overlay = _appBar(
+          result,
+          'nullable_overlay_override',
+        )['systemOverlayStyle'];
+        expect(overlay, {
+          ..._dark,
+          'copyWith': [
+            {
+              'systemNavigationBarContrastEnforced': true,
+              'systemStatusBarContrastEnforced': false,
+            },
+            {
+              'systemNavigationBarContrastEnforced': _dataReference([
+                'context',
+                'contrast',
+              ]),
+              'systemStatusBarContrastEnforced': _dataReference([
+                'context',
+                'contrast',
+              ]),
+            },
+          ],
+        });
+      },
+    );
 
-    test('a nullable override on an empty receiver remains in its copy layer',
-        () {
-      final overlay = _appBar(
-        result,
-        'nullable_empty_overlay_override',
-      )['systemOverlayStyle'];
-      expect(overlay, {
-        'copyWith': [
-          {
-            'systemNavigationBarContrastEnforced':
-                _dataReference(['context', 'contrast']),
-          },
-        ],
-      });
-    });
+    test(
+      'a nullable override on an empty receiver remains in its copy layer',
+      () {
+        final overlay = _appBar(
+          result,
+          'nullable_empty_overlay_override',
+        )['systemOverlayStyle'];
+        expect(overlay, {
+          'copyWith': [
+            {
+              'systemNavigationBarContrastEnforced': _dataReference([
+                'context',
+                'contrast',
+              ]),
+            },
+          ],
+        });
+      },
+    );
 
     test('conditional null fields remain nullable in style constructors', () {
       final appBar = _appBar(result, 'conditional_nullable_fields');
@@ -666,25 +688,29 @@ void main() {
       });
     });
 
-    test('ordinary helpers preserve nullable overrides and overlay receivers',
-        () {
-      final overlay =
-          _appBar(result, 'helper_overlay_copy')['systemOverlayStyle'];
-      expect(_atBrightness(overlay, 'dark'), {
-        ..._light,
-        'copyWith': [
-          {'statusBarColor': 0xFF123456},
-          {'statusBarColor': _canonicalRed},
-        ],
-      });
-      expect(_atBrightness(overlay, 'light'), {
-        ..._dark,
-        'copyWith': [
-          {'statusBarColor': 0xFF123456},
-          {'statusBarColor': null},
-        ],
-      });
-    });
+    test(
+      'ordinary helpers preserve nullable overrides and overlay receivers',
+      () {
+        final overlay = _appBar(
+          result,
+          'helper_overlay_copy',
+        )['systemOverlayStyle'];
+        expect(_atBrightness(overlay, 'dark'), {
+          ..._light,
+          'copyWith': [
+            {'statusBarColor': 0xFF123456},
+            {'statusBarColor': _canonicalRed},
+          ],
+        });
+        expect(_atBrightness(overlay, 'light'), {
+          ..._dark,
+          'copyWith': [
+            {'statusBarColor': 0xFF123456},
+            {'statusBarColor': null},
+          ],
+        });
+      },
+    );
 
     test('copyWith with no arguments preserves an empty override layer', () {
       expect(_appBar(result, 'overlay_empty_copy')['systemOverlayStyle'], {
@@ -704,8 +730,12 @@ void main() {
             },
             {'statusBarColor': 0xFF123456},
             {
-              'statusBarColor':
-                  _dataReference(['theme', 'textTheme', 'bodyMedium', 'color']),
+              'statusBarColor': _dataReference([
+                'theme',
+                'textTheme',
+                'bodyMedium',
+                'color',
+              ]),
             },
           ],
         },
@@ -713,11 +743,16 @@ void main() {
     });
 
     test('the delivered style properties require capability version 12', () {
-      final sidecar = jsonDecode(
-        result.readerWriter.testing.readString(
-          AssetId(_package, 'assets/paywalls/all_style_fields.capability.json'),
-        ),
-      ) as Map<String, dynamic>;
+      final sidecar =
+          jsonDecode(
+                result.readerWriter.testing.readString(
+                  AssetId(
+                    _package,
+                    'assets/paywalls/all_style_fields.capability.json',
+                  ),
+                ),
+              )
+              as Map<String, dynamic>;
       final manifest = sidecar['manifest'] as Map<String, dynamic>;
       expect(manifest['builtInFloor'], 12);
       expect(
@@ -749,22 +784,24 @@ void main() {
 
   for (final field in overlayColorFields) {
     for (final (readName, expression, parts) in nullableThemeColors) {
-      test('nullable color $readName preserves the $field base and copy layer',
-          () async {
-        final id = 'nullable_color_${readName}_$field';
-        final source = _source(id, '''
+      test(
+        'nullable color $readName preserves the $field base and copy layer',
+        () async {
+          final id = 'nullable_color_${readName}_$field';
+          final source = _source(id, '''
           systemOverlayStyle: const SystemUiOverlayStyle($field: Colors.red)
               .copyWith($field: $expression),
         ''');
-        final result = await _build({id: source});
-        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-        expect(_appBar(result, id)['systemOverlayStyle'], {
-          field: _canonicalRed,
-          'copyWith': [
-            {field: _dataReference(parts)},
-          ],
-        });
-      });
+          final result = await _build({id: source});
+          expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+          expect(_appBar(result, id)['systemOverlayStyle'], {
+            field: _canonicalRed,
+            'copyWith': [
+              {field: _dataReference(parts)},
+            ],
+          });
+        },
+      );
     }
   }
 
@@ -800,8 +837,9 @@ void main() {
       for (final form in ['constructor', 'empty_copy', 'null_copy']) {
         test('$readName $form preserves all three theme color references', () {
           final id = 'nullable_color_${readName}_$form';
-          final overlay = _appBar(result, id)['systemOverlayStyle']!
-              as Map<String, Object?>;
+          final overlay =
+              _appBar(result, id)['systemOverlayStyle']!
+                  as Map<String, Object?>;
           final references = {
             for (final field in overlayColorFields)
               field: _dataReference(parts),
@@ -842,8 +880,10 @@ void main() {
       kMaxStructuredCopyWithLayers + 1,
       '.copyWith()',
     ).join();
-    final source =
-        _source(id, 'systemOverlayStyle: SystemUiOverlayStyle.dark$chain,');
+    final source = _source(
+      id,
+      'systemOverlayStyle: SystemUiOverlayStyle.dark$chain,',
+    );
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: _package,
       includeFlutter: true,
@@ -980,21 +1020,23 @@ void main() {
       });
     });
 
-    test('copyWith chains keep ordered layers, zero, false and empty lists',
-        () {
-      final appBar = _appBar(result, 'icon_copy_chain');
-      expect(appBar['iconTheme'], {
-        'size': 20.0,
-        'fill': 1.0,
-        'copyWith': [
-          {'size': 0.0},
-          {'applyTextScaling': false, 'shadows': <Object?>[]},
-        ],
-      });
-      expect(appBar['actionsIconTheme'], {
-        'copyWith': [<String, Object?>{}],
-      });
-    });
+    test(
+      'copyWith chains keep ordered layers, zero, false and empty lists',
+      () {
+        final appBar = _appBar(result, 'icon_copy_chain');
+        expect(appBar['iconTheme'], {
+          'size': 20.0,
+          'fill': 1.0,
+          'copyWith': [
+            {'size': 0.0},
+            {'applyTextScaling': false, 'shadows': <Object?>[]},
+          ],
+        });
+        expect(appBar['actionsIconTheme'], {
+          'copyWith': [<String, Object?>{}],
+        });
+      },
+    );
 
     test('lerp keeps null endpoints, extrapolation and nested operations', () {
       final appBar = _appBar(result, 'icon_lerp_nulls');
@@ -1082,11 +1124,13 @@ void main() {
         'icon_lerp_nulls',
         'icon_helper',
       ]) {
-        final sidecar = jsonDecode(
-          result.readerWriter.testing.readString(
-            AssetId(_package, 'assets/paywalls/$id.capability.json'),
-          ),
-        ) as Map<String, dynamic>;
+        final sidecar =
+            jsonDecode(
+                  result.readerWriter.testing.readString(
+                    AssetId(_package, 'assets/paywalls/$id.capability.json'),
+                  ),
+                )
+                as Map<String, dynamic>;
         final manifest = sidecar['manifest'] as Map<String, dynamic>;
         expect(manifest['builtInFloor'], 12, reason: id);
       }
@@ -1097,28 +1141,30 @@ void main() {
     ('theme_read', 'Theme.of(context).iconTheme.copyWith(size: 18)'),
     ('named_lerp', 'IconThemeData.lerp(null, null, 0.5).merge(null)'),
   ]) {
-    test('unsupported IconThemeData $name refuses instead of losing fields',
-        () async {
-      final id = 'unsupported_icon_$name';
-      final source = _source(id, 'iconTheme: $expression,');
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: _package,
-        includeFlutter: true,
-      );
-      final sourceId = AssetId(_package, 'lib/paywalls/$id.dart');
-      readerWriter.testing.writeString(sourceId, source);
-      final messages = <String>[];
-      final result = await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {sourceId.toString(): source},
-        rootPackage: _package,
-        readerWriter: readerWriter,
-        onLog: (record) => messages.add(record.message),
-        outputs: const {},
-      );
-      expect(result.succeeded, isFalse, reason: messages.join('\n'));
-      expect(messages.join('\n'), contains('IconThemeData'));
-    });
+    test(
+      'unsupported IconThemeData $name refuses instead of losing fields',
+      () async {
+        final id = 'unsupported_icon_$name';
+        final source = _source(id, 'iconTheme: $expression,');
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: _package,
+          includeFlutter: true,
+        );
+        final sourceId = AssetId(_package, 'lib/paywalls/$id.dart');
+        readerWriter.testing.writeString(sourceId, source);
+        final messages = <String>[];
+        final result = await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {sourceId.toString(): source},
+          rootPackage: _package,
+          readerWriter: readerWriter,
+          onLog: (record) => messages.add(record.message),
+          outputs: const {},
+        );
+        expect(result.succeeded, isFalse, reason: messages.join('\n'));
+        expect(messages.join('\n'), contains('IconThemeData'));
+      },
+    );
   }
 
   group('AppBar notification predicate', () {
@@ -1138,13 +1184,13 @@ void main() {
       'predicate_constant': (
         '(n) => n.depth == nested,',
         'const nested = 3;',
-        ''
+        '',
       ),
       'predicate_default': ('defaultScrollNotificationPredicate,', '', ''),
       'predicate_bound': (
         'predicate,',
         '',
-        'final predicate = (ScrollNotification n) => n.depth == 1;'
+        'final predicate = (ScrollNotification n) => n.depth == 1;',
       ),
     };
 
@@ -1188,11 +1234,13 @@ void main() {
 
     test('predicates stay within capability version 12', () {
       for (final id in accepted.keys) {
-        final sidecar = jsonDecode(
-          result.readerWriter.testing.readString(
-            AssetId(_package, 'assets/paywalls/$id.capability.json'),
-          ),
-        ) as Map<String, dynamic>;
+        final sidecar =
+            jsonDecode(
+                  result.readerWriter.testing.readString(
+                    AssetId(_package, 'assets/paywalls/$id.capability.json'),
+                  ),
+                )
+                as Map<String, dynamic>;
         final manifest = sidecar['manifest'] as Map<String, dynamic>;
         expect(manifest['builtInFloor'], 12, reason: id);
       }
@@ -1249,26 +1297,28 @@ void main() {
       (
         'overlay_constructor',
         'const SystemUiOverlayStyle()',
-        'systemOverlayStyle'
+        'systemOverlayStyle',
       ),
       ('overlay_constant', 'SystemUiOverlayStyle.dark', 'systemOverlayStyle'),
       (
         'overlay_copy',
         'SystemUiOverlayStyle.dark.copyWith()',
-        'systemOverlayStyle'
+        'systemOverlayStyle',
       ),
       ('overlay_alias', 'Overlay.dark', 'systemOverlayStyle'),
       ('icon_constructor', 'const IconThemeData()', 'iconTheme'),
       ('actions_icon_constructor', 'const IconThemeData()', 'actionsIconTheme'),
     ]) {
-      test('an app-defined $name cannot impersonate the Flutter type',
-          () async {
-        final id = 'lookalike_$name';
-        final source = _source(
-          id,
-          '$slot: $expression,',
-          imports: "import 'package:flutter/material.dart' hide IconThemeData;",
-          declarations: '''
+      test(
+        'an app-defined $name cannot impersonate the Flutter type',
+        () async {
+          final id = 'lookalike_$name';
+          final source = _source(
+            id,
+            '$slot: $expression,',
+            imports:
+                "import 'package:flutter/material.dart' hide IconThemeData;",
+            declarations: '''
             class SystemUiOverlayStyle {
               const SystemUiOverlayStyle();
               static const dark = SystemUiOverlayStyle();
@@ -1279,40 +1329,41 @@ void main() {
               const IconThemeData();
             }
           ''',
-        );
-        final readerWriter = await readerWriterWithFilesystemSources(
-          rootPackage: _package,
-          includeFlutter: true,
-        );
-        final sourceId = AssetId(_package, 'lib/paywalls/$id.dart');
-        readerWriter.testing.writeString(sourceId, source);
-        final messages = <String>[];
-        final result = await testBuilder(
-          restageCodegenBuilder(BuilderOptions.empty),
-          {sourceId.toString(): source},
-          rootPackage: _package,
-          readerWriter: readerWriter,
-          onLog: (record) => messages.add(record.message),
-          outputs: const {},
-        );
-        expect(result.succeeded, isFalse, reason: messages.join('\n'));
-        final code = switch (name) {
-          'overlay_constant' || 'overlay_alias' => 'unresolvedIdentifier',
-          'overlay_copy' => 'unrecognizedMethodCall',
-          _ => 'unknownWidget',
-        };
-        expect(
-          messages.join('\n'),
-          allOf(
-            contains('[$code]'),
-            contains(
-              slot == 'systemOverlayStyle'
-                  ? 'SystemUiOverlayStyle'
-                  : 'IconThemeData',
+          );
+          final readerWriter = await readerWriterWithFilesystemSources(
+            rootPackage: _package,
+            includeFlutter: true,
+          );
+          final sourceId = AssetId(_package, 'lib/paywalls/$id.dart');
+          readerWriter.testing.writeString(sourceId, source);
+          final messages = <String>[];
+          final result = await testBuilder(
+            restageCodegenBuilder(BuilderOptions.empty),
+            {sourceId.toString(): source},
+            rootPackage: _package,
+            readerWriter: readerWriter,
+            onLog: (record) => messages.add(record.message),
+            outputs: const {},
+          );
+          expect(result.succeeded, isFalse, reason: messages.join('\n'));
+          final code = switch (name) {
+            'overlay_constant' || 'overlay_alias' => 'unresolvedIdentifier',
+            'overlay_copy' => 'unrecognizedMethodCall',
+            _ => 'unknownWidget',
+          };
+          expect(
+            messages.join('\n'),
+            allOf(
+              contains('[$code]'),
+              contains(
+                slot == 'systemOverlayStyle'
+                    ? 'SystemUiOverlayStyle'
+                    : 'IconThemeData',
+              ),
             ),
-          ),
-        );
-      });
+          );
+        },
+      );
     }
   });
 }

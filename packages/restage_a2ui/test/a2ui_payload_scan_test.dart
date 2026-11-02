@@ -1,98 +1,61 @@
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_a2ui/src/a2ui_payload_scan.dart';
 
 void main() {
-  group('a2uiReferencedWidgetTypes', () {
-    test('collects types from an UpdateComponents wire message', () {
-      final types = a2uiReferencedWidgetTypes(const {
-        'version': 'v0.9',
-        'updateComponents': {
-          'surfaceId': 's',
-          'components': [
-            {
-              'id': 'root',
-              'component': 'Column',
-              'children': ['a', 'b'],
-            },
-            {'id': 'a', 'component': 'Text', 'text': 'Hi'},
-            {'id': 'b', 'component': 'FilledButton'},
-          ],
-        },
-      });
-      expect(types, {'Column', 'Text', 'FilledButton'});
-    });
-
-    test('collects types from a SurfaceDefinition (components map)', () {
-      final types = a2uiReferencedWidgetTypes(const {
-        'surfaceId': 's',
-        'catalogId': 'restage:catalog/1',
-        'components': {
-          'root': {'id': 'root', 'component': 'Card'},
-          'a': {'id': 'a', 'component': 'Text'},
-        },
-      });
-      expect(types, {'Card', 'Text'});
-    });
-
-    test('collects types nested inside component properties', () {
-      final types = a2uiReferencedWidgetTypes(const {
-        'components': [
-          {
-            'id': 'root',
-            'component': 'Wrapper',
-            'child': {'id': 'inner', 'component': 'Badge'},
-          },
-        ],
-      });
-      expect(types, {'Wrapper', 'Badge'});
-    });
-
-    test('does not collect instance ids or child id references as types', () {
-      final types = a2uiReferencedWidgetTypes(const {
-        'components': [
-          {
-            'id': 'root',
-            'component': 'Column',
-            'children': ['a', 'b', 'c'],
-          },
-        ],
-      });
-      // Only the `component` discriminator value — never `id` / child ids.
-      expect(types, {'Column'});
-    });
-
-    test('does not collect a `component` key inside a property value', () {
-      // A real component object always carries both `id` and `component`
-      // (genui's Component.fromJson requires both). A `component` key buried in
-      // a property bag (no `id`) is arbitrary data, NOT a referenced type —
-      // collecting it would falsely reject a valid payload.
-      final types = a2uiReferencedWidgetTypes(const {
-        'components': [
-          {
-            'id': 'root',
-            'component': 'Box',
-            'decoration': {'component': 'not-a-widget-type'},
-            'label': {'component': 'also-not-a-type', 'value': 'x'},
-          },
-        ],
-      });
-      expect(types, {'Box'});
-    });
-
-    test('returns empty for component-less / malformed / non-map input', () {
-      expect(a2uiReferencedWidgetTypes(const {'surfaceId': 's'}), isEmpty);
-      expect(a2uiReferencedWidgetTypes(null), isEmpty);
-      expect(a2uiReferencedWidgetTypes('a string'), isEmpty);
-      expect(a2uiReferencedWidgetTypes(const [1, 2, 3]), isEmpty);
-      // A non-string `component` value is skipped, never throws.
+  const message = {
+    'version': 'v1.0',
+    'createSurface': {'surfaceId': 's'},
+  };
+  test('parses a single v1 message and a flat bundle', () {
+    expect(
+      parseA2uiV1Messages(message).messages.single,
+      isA<CreateSurfaceMessage>(),
+    );
+    expect(parseA2uiV1Messages([message]).messages, hasLength(1));
+    expect(
+      parseA2uiV1Messages({
+        'messages': [message],
+      }).messages,
+      hasLength(1),
+    );
+  });
+  test('rejects malformed containers and legacy versions', () {
+    for (final payload in <Object?>[
+      null,
+      'text',
+      [null],
+      [
+        [message],
+      ],
+      {1: 'value'},
+      {'messages': 'not a list'},
+      {
+        'messages': [message],
+        'extra': 1,
+      },
+      {...message, 'version': 'v0.9'},
+    ]) {
       expect(
-        a2uiReferencedWidgetTypes(const {
-          'components': [
-            {'id': 'x', 'component': 42},
-          ],
-        }),
-        isEmpty,
+        () => parseA2uiV1Messages(payload),
+        throwsA(anything),
+        reason: '$payload',
       );
+    }
+  });
+  test('preserves arbitrary business data without recursive scanning', () {
+    final parsed = parseA2uiV1Messages({
+      'version': 'v1.0',
+      'updateDataModel': {
+        'surfaceId': 's',
+        'path': '/data',
+        'value': {'id': 'x', 'component': 'NotAWidget', 'path': 'business'},
+      },
+    });
+    expect((parsed.messages.single as UpdateDataModelMessage).value, {
+      'id': 'x',
+      'component': 'NotAWidget',
+      'path': 'business',
     });
   });
 }

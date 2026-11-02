@@ -14,9 +14,11 @@ const _policyOptions = BuilderOptions({
 const _firstAsset = 'apps_examples|lib/features/first.dart';
 const _secondAsset = 'apps_examples|lib/features/second.dart';
 
-const _firstReceipt = 'apps_examples|.restage/receipts/acme/main/app/surface/'
+const _firstReceipt =
+    'apps_examples|.restage/receipts/acme/main/app/surface/'
     'general/first/production/push-r1.json';
-const _secondReceipt = 'apps_examples|.restage/receipts/acme/main/app/'
+const _secondReceipt =
+    'apps_examples|.restage/receipts/acme/main/app/'
     'surface/general/second/production/push-r1.json';
 
 const _text = 'package:flutter/src/widgets/text.dart#Text';
@@ -42,7 +44,8 @@ FilledButton(
   ),
 )''';
 
-const _panel = '''
+const _panel =
+    '''
 SafeArea(
   child: Padding(
     padding: const EdgeInsets.all(16),
@@ -63,17 +66,19 @@ SafeArea(
 )''';
 
 void main() {
-  test('inserting an ancestor above a screen body keeps every identity',
-      () async {
-    final first = await _compile({
-      _firstAsset: _screen(body: 'Scaffold(body: $_panel)'),
-    });
-    expect(first.result.succeeded, isTrue);
+  test(
+    'inserting an ancestor above a screen body keeps every identity',
+    () async {
+      final first = await _compile({
+        _firstAsset: _screen(body: 'Scaffold(body: $_panel)'),
+      });
+      expect(first.result.succeeded, isTrue);
 
-    final wrapped = await _compile(
-      {
-        _firstAsset: _screen(
-          body: '''
+      final wrapped = await _compile(
+        {
+          _firstAsset: _screen(
+            body:
+                '''
 Scaffold(
   body: Column(
     children: [
@@ -82,77 +87,80 @@ Scaffold(
     ],
   ),
 )''',
+          ),
+        },
+        priorOutput: first.output,
+      );
+      expect(
+        wrapped.result.succeeded,
+        isTrue,
+        reason: wrapped.result.errors.join('\n'),
+      );
+      expect(wrapped.output.valid, isTrue);
+      expect(wrapped.output.proposals, isEmpty);
+      expect(wrapped.output.errors, isEmpty);
+
+      // Every element the screen already had keeps its identity and references.
+      final before = _screenNodes(first.output, _firstScreen);
+      final after = _screenNodes(wrapped.output, _firstScreen);
+      expect(before, hasLength(greaterThan(8)));
+      expect(
+        after.map((node) => node.codeIdentityId.value).toSet(),
+        containsAll(before.map((node) => node.codeIdentityId.value)),
+      );
+      expect(
+        _referenceIds(after),
+        containsAll(_referenceIds(before)),
+      );
+      // Only the four inserted elements are new.
+      expect(after, hasLength(before.length + 4));
+      final introduced = after.where(
+        (node) => !before
+            .map((prior) => prior.codeIdentityId.value)
+            .contains(node.codeIdentityId.value),
+      );
+      expect(
+        introduced
+            .map(
+              (node) => node.structuralOccurrenceKey.split('|').last,
+            )
+            .toSet(),
+        {
+          'widget:package:flutter/src/widgets/basic.dart#Column',
+          'widget:package:flutter/src/material/app_bar.dart#AppBar',
+          'widget:$_text',
+          'widget:package:flutter/src/widgets/basic.dart#Expanded',
+        },
+      );
+    },
+  );
+
+  test(
+    'two identical siblings changing container still propose candidates',
+    () async {
+      final first = await _compile({
+        _firstAsset: _screen(body: 'Column(children: [$_button, $_button])'),
+      });
+      expect(first.result.succeeded, isTrue);
+
+      final swapped = await _compile(
+        {
+          _firstAsset: _screen(body: 'Row(children: [$_button, $_button])'),
+          _firstReceipt: '{}',
+        },
+        priorOutput: first.output,
+      );
+      expect(swapped.result.succeeded, isFalse);
+      expect(swapped.output.valid, isFalse);
+      expect(
+        swapped.output.proposals.any(
+          (proposal) =>
+              proposal.candidatePriorStructuralOccurrenceKeys.length > 1,
         ),
-      },
-      priorOutput: first.output,
-    );
-    expect(
-      wrapped.result.succeeded,
-      isTrue,
-      reason: wrapped.result.errors.join('\n'),
-    );
-    expect(wrapped.output.valid, isTrue);
-    expect(wrapped.output.proposals, isEmpty);
-    expect(wrapped.output.errors, isEmpty);
-
-    // Every element the screen already had keeps its identity and references.
-    final before = _screenNodes(first.output, _firstScreen);
-    final after = _screenNodes(wrapped.output, _firstScreen);
-    expect(before, hasLength(greaterThan(8)));
-    expect(
-      after.map((node) => node.codeIdentityId.value).toSet(),
-      containsAll(before.map((node) => node.codeIdentityId.value)),
-    );
-    expect(
-      _referenceIds(after),
-      containsAll(_referenceIds(before)),
-    );
-    // Only the four inserted elements are new.
-    expect(after, hasLength(before.length + 4));
-    final introduced = after.where(
-      (node) => !before
-          .map((prior) => prior.codeIdentityId.value)
-          .contains(node.codeIdentityId.value),
-    );
-    expect(
-      introduced
-          .map(
-            (node) => node.structuralOccurrenceKey.split('|').last,
-          )
-          .toSet(),
-      {
-        'widget:package:flutter/src/widgets/basic.dart#Column',
-        'widget:package:flutter/src/material/app_bar.dart#AppBar',
-        'widget:$_text',
-        'widget:package:flutter/src/widgets/basic.dart#Expanded',
-      },
-    );
-  });
-
-  test('two identical siblings changing container still propose candidates',
-      () async {
-    final first = await _compile({
-      _firstAsset: _screen(body: 'Column(children: [$_button, $_button])'),
-    });
-    expect(first.result.succeeded, isTrue);
-
-    final swapped = await _compile(
-      {
-        _firstAsset: _screen(body: 'Row(children: [$_button, $_button])'),
-        _firstReceipt: '{}',
-      },
-      priorOutput: first.output,
-    );
-    expect(swapped.result.succeeded, isFalse);
-    expect(swapped.output.valid, isFalse);
-    expect(
-      swapped.output.proposals.any(
-        (proposal) =>
-            proposal.candidatePriorStructuralOccurrenceKeys.length > 1,
-      ),
-      isTrue,
-    );
-  });
+        isTrue,
+      );
+    },
+  );
 
   test('an ambiguous match on a surface never pushed settles itself', () async {
     final first = await _compile({
@@ -184,8 +192,10 @@ Scaffold(
   test('a retired element in another screen is never a candidate', () async {
     final first = await _compile({
       _firstAsset: _screen(body: "Column(children: [Text('a'), Text('b')])"),
-      _secondAsset:
-          _screen(name: 'Second', body: "Column(children: [Text('c')])"),
+      _secondAsset: _screen(
+        name: 'Second',
+        body: "Column(children: [Text('c')])",
+      ),
     });
     expect(first.result.succeeded, isTrue);
 
@@ -236,18 +246,17 @@ Scaffold(
 List<MeasurementCompilerLedgerNode> _screenNodes(
   RestageMeasurementCompilerOutputV1 output,
   String screen,
-) =>
-    [
-      for (final node in output.ledgerNodes)
-        if (node.active && node.structuralOccurrenceKey.startsWith('$screen|'))
-          node,
-    ];
+) => [
+  for (final node in output.ledgerNodes)
+    if (node.active && node.structuralOccurrenceKey.startsWith('$screen|'))
+      node,
+];
 
 Set<String> _referenceIds(List<MeasurementCompilerLedgerNode> nodes) => {
-      for (final node in nodes)
-        for (final event in node.events)
-          if (event.active) event.generatedReferenceId.value,
-    };
+  for (final node in nodes)
+    for (final event in node.events)
+      if (event.active) event.generatedReferenceId.value,
+};
 
 String _screen({required String body, String name = 'First'}) {
   final file = name.toLowerCase();
@@ -270,10 +279,12 @@ final class ${name}Screen extends StatelessWidget {
 }
 
 Future<
-    ({
-      TestBuilderResult result,
-      RestageMeasurementCompilerOutputV1 output,
-    })> _compile(
+  ({
+    TestBuilderResult result,
+    RestageMeasurementCompilerOutputV1 output,
+  })
+>
+_compile(
   Map<String, String> sources, {
   RestageMeasurementCompilerOutputV1? priorOutput,
 }) async {

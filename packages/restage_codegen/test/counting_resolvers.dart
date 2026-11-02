@@ -36,9 +36,9 @@ typedef ResolverUse = ({String api, AssetId? asset});
 final class CountingResolvers extends build_runner_internal.ResolversImpl {
   /// Creates a counting wrapper around a fresh analysis driver.
   CountingResolvers()
-      : super(
-          analysisDriverModel: build_runner_internal.AnalysisDriverModel(),
-        );
+    : super(
+        analysisDriverModel: build_runner_internal.AnalysisDriverModel(),
+      );
 
   final List<ResolverUse> _uses = <ResolverUse>[];
 
@@ -62,14 +62,14 @@ final class CountingResolvers extends build_runner_internal.ResolversImpl {
   /// package's own assets. A use that names no asset cannot be excluded that
   /// way and is therefore always reported.
   List<ResolverUse> usesIn(String package) => [
-        for (final use in _uses)
-          if (use.asset == null || use.asset!.package == package) use,
-      ];
+    for (final use in _uses)
+      if (use.asset == null || use.asset!.package == package) use,
+  ];
 
   /// A short, readable description of [usesIn], for a failure message.
-  String describe(String package) => usesIn(package)
-      .map((use) => '${use.api}(${use.asset?.path ?? '-'})')
-      .join(', ');
+  String describe(String package) => usesIn(
+    package,
+  ).map((use) => '${use.api}(${use.asset?.path ?? '-'})').join(', ');
 
   @override
   Future<BuildStepResolver> get(BuildStep buildStep) async =>

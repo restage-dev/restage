@@ -85,15 +85,16 @@ final class A2uiCallbackWriteBack extends A2uiCallbackSignature {
 
   @override
   int get hashCode => Object.hash(
-        valueType,
-        nullable,
-        isList,
-        elementNullable,
-        preserveNumericRuntimeType,
-      );
+    valueType,
+    nullable,
+    isList,
+    elementNullable,
+    preserveNumericRuntimeType,
+  );
 
   @override
-  String toString() => 'A2uiCallbackWriteBack($valueType, '
+  String toString() =>
+      'A2uiCallbackWriteBack($valueType, '
       'nullable: $nullable, isList: $isList, '
       'elementNullable: $elementNullable, '
       'preserveNumericRuntimeType: $preserveNumericRuntimeType)';

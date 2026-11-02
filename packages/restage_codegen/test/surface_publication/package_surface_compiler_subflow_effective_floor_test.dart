@@ -23,8 +23,9 @@ void main() {
     () {
       final parent = fixture.flow('effective_parent');
       final authoredReference = parent.graph!.childFlows.values.single;
-      final authoredState =
-          parent.graph!.states.values.whereType<SubFlowState>().single;
+      final authoredState = parent.graph!.states.values
+          .whereType<SubFlowState>()
+          .single;
       expect(authoredReference.minClient, 1);
       expect(authoredState.minClient, 1);
       expect(
@@ -51,8 +52,9 @@ void main() {
         utf8.decode(childBytes),
       );
       final parentDocument = _flowDocument(bundle, 'effective_parent');
-      final childState =
-          parentDocument.states.values.whereType<SubFlowState>().single;
+      final childState = parentDocument.states.values
+          .whereType<SubFlowState>()
+          .single;
       expect(childDocument.minClient, 3);
       expect(childDocument.screenArtifacts['child_screen']!.minClient, 3);
       expect(childState.minClient, childDocument.minClient);
@@ -164,103 +166,99 @@ RestageSourceDeclaration _screenDeclaration(
   LibraryElement library,
   ClassElement declaration,
   String id,
-) =>
-    RestageSourceDeclaration.frozen(
-      kind: RestageRosterSourceKind.screen,
-      libraryIdentity: library.identifier,
-      libraryPath: 'lib/subflow_authoring.dart',
-      declarationIdentity: _identity(declaration),
-      sourcePath: 'lib/subflow_authoring.dart',
-      explicitId: id,
-      span: _span,
-      identityClaims: [
-        RestageIdentityClaim(namespace: 'test/screen/neutral', key: id),
-      ],
-      outputs: [
-        RestageOutputClaim(
-          path: 'lib/subflow_authoring.rsscreen.g.dart',
-          role: 'screen-descriptor',
-          builder: 'test',
-          ownershipKey: 'library:${library.identifier}',
-        ),
-        RestageOutputClaim(
-          path: 'assets/restage/generated/neutral/$id/screen.rfwtxt',
-          role: 'screen-text',
-          builder: 'test',
-          ownershipKey: 'publication:neutral/$id',
-        ),
-        RestageOutputClaim(
-          path: 'assets/restage/generated/neutral/$id/screen.rfw',
-          role: 'screen-blob',
-          builder: 'test',
-          ownershipKey: 'publication:neutral/$id',
-        ),
-        RestageOutputClaim(
-          path: 'assets/restage/generated/neutral/$id/screen.capability.json',
-          role: 'capability-sidecar',
-          builder: 'test',
-          ownershipKey: 'publication:neutral/$id',
-        ),
-      ],
-      isCanonical: true,
-    );
+) => RestageSourceDeclaration.frozen(
+  kind: RestageRosterSourceKind.screen,
+  libraryIdentity: library.identifier,
+  libraryPath: 'lib/subflow_authoring.dart',
+  declarationIdentity: _identity(declaration),
+  sourcePath: 'lib/subflow_authoring.dart',
+  explicitId: id,
+  span: _span,
+  identityClaims: [
+    RestageIdentityClaim(namespace: 'test/screen/neutral', key: id),
+  ],
+  outputs: [
+    RestageOutputClaim(
+      path: 'lib/subflow_authoring.rsscreen.g.dart',
+      role: 'screen-descriptor',
+      builder: 'test',
+      ownershipKey: 'library:${library.identifier}',
+    ),
+    RestageOutputClaim(
+      path: 'assets/restage/generated/neutral/$id/screen.rfwtxt',
+      role: 'screen-text',
+      builder: 'test',
+      ownershipKey: 'publication:neutral/$id',
+    ),
+    RestageOutputClaim(
+      path: 'assets/restage/generated/neutral/$id/screen.rfw',
+      role: 'screen-blob',
+      builder: 'test',
+      ownershipKey: 'publication:neutral/$id',
+    ),
+    RestageOutputClaim(
+      path: 'assets/restage/generated/neutral/$id/screen.capability.json',
+      role: 'capability-sidecar',
+      builder: 'test',
+      ownershipKey: 'publication:neutral/$id',
+    ),
+  ],
+  isCanonical: true,
+);
 
 RestageSourceDeclaration _flowDeclaration(
   LibraryElement library,
   NormalizedFlowSource flow,
-) =>
-    RestageSourceDeclaration.frozen(
-      kind: RestageRosterSourceKind.flow,
-      libraryIdentity: library.identifier,
-      libraryPath: 'lib/subflow_authoring.dart',
-      declarationIdentity: flow.declarationIdentity,
-      sourcePath: 'lib/subflow_authoring.dart',
-      explicitId: flow.id,
-      span: _span,
-      identityClaims: [
-        RestageIdentityClaim(namespace: 'test/flow/general', key: flow.id),
-      ],
-      outputs: [
-        const RestageOutputClaim(
-          path: 'lib/subflow_authoring.rsflow.g.dart',
-          role: 'flow-descriptor',
-          builder: 'test',
-          ownershipKey: 'library:subflow-authoring',
-        ),
-        RestageOutputClaim(
-          path: _flowDocumentPath(flow.id),
-          role: 'flow-document',
-          builder: 'test',
-          ownershipKey: 'publication:general/${flow.id}',
-        ),
-      ],
-      surface: Surface.general,
-      delivery: flow.delivery,
-      minClient: flow.minClient,
-      isCanonical: true,
-    );
+) => RestageSourceDeclaration.frozen(
+  kind: RestageRosterSourceKind.flow,
+  libraryIdentity: library.identifier,
+  libraryPath: 'lib/subflow_authoring.dart',
+  declarationIdentity: flow.declarationIdentity,
+  sourcePath: 'lib/subflow_authoring.dart',
+  explicitId: flow.id,
+  span: _span,
+  identityClaims: [
+    RestageIdentityClaim(namespace: 'test/flow/general', key: flow.id),
+  ],
+  outputs: [
+    const RestageOutputClaim(
+      path: 'lib/subflow_authoring.rsflow.g.dart',
+      role: 'flow-descriptor',
+      builder: 'test',
+      ownershipKey: 'library:subflow-authoring',
+    ),
+    RestageOutputClaim(
+      path: _flowDocumentPath(flow.id),
+      role: 'flow-document',
+      builder: 'test',
+      ownershipKey: 'publication:general/${flow.id}',
+    ),
+  ],
+  surface: Surface.general,
+  delivery: flow.delivery,
+  minClient: flow.minClient,
+  isCanonical: true,
+);
 
 CompiledSurfaceArtifact _artifact(
   ClassElement declaration, {
   required String id,
   required Uint8List blob,
   required int builtInFloor,
-}) =>
-    CompiledSurfaceArtifact(
-      declaration: declaration,
-      blob: blob,
-      capabilitySidecar: _sidecarBytes(blob, builtInFloor),
-      flowArtifactPath: '$id.rfw',
-      rfwText: utf8.encode('remote widget $id'),
-    );
+}) => CompiledSurfaceArtifact(
+  declaration: declaration,
+  blob: blob,
+  capabilitySidecar: _sidecarBytes(blob, builtInFloor),
+  flowArtifactPath: '$id.rfw',
+  rfwText: utf8.encode('remote widget $id'),
+);
 
 FlowDocument _flowDocument(
   PackageSurfaceCompilationBundle bundle,
   String flowId,
-) =>
-    FlowDocumentCodec.decodeJson(
-      utf8.decode(bundle.outputFiles[_flowDocumentPath(flowId)]!),
-    );
+) => FlowDocumentCodec.decodeJson(
+  utf8.decode(bundle.outputFiles[_flowDocumentPath(flowId)]!),
+);
 
 String _flowDocumentPath(String flowId) =>
     'assets/restage/generated/general/$flowId/flow.json';
@@ -272,16 +270,16 @@ String _identity(Element element) =>
     '${element.library!.identifier}#${element.name ?? '<unnamed>'}';
 
 List<int> _sidecarBytes(List<int> blob, int builtInFloor) => utf8.encode(
-      jsonEncode(
-        CapabilitySidecar(
-          blobSha256: CapabilitySidecar.hashBlob(blob),
-          manifest: CapabilityManifest(
-            builtInFloor: builtInFloor,
-            requiredLibraries: const [],
-          ),
-        ).toJson(),
+  jsonEncode(
+    CapabilitySidecar(
+      blobSha256: CapabilitySidecar.hashBlob(blob),
+      manifest: CapabilityManifest(
+        builtInFloor: builtInFloor,
+        requiredLibraries: const [],
       ),
-    );
+    ).toJson(),
+  ),
+);
 
 const _span = RestageSourceSpan(
   path: 'lib/subflow_authoring.dart',
@@ -295,12 +293,12 @@ final class _ProbeBuilder implements Builder {
   const _ProbeBuilder(this.onLibrary);
 
   final Future<void> Function(LibraryElement library, AssetId assetId)
-      onLibrary;
+  onLibrary;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.aggregate_probe'],
-      };
+    '.dart': ['.aggregate_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

@@ -108,8 +108,7 @@ class PriceTag extends StatelessWidget {
 }
 ''';
 
-  test(
-      'WITHOUT catalog.json the paywall build cannot resolve the app-backed '
+  test('WITHOUT catalog.json the paywall build cannot resolve the app-backed '
       'widget '
       '(the bug: inline attempt fails, no blob)', () async {
     final rw = await readerWriterWithFilesystemSources(
@@ -130,8 +129,7 @@ class PriceTag extends StatelessWidget {
     expect(logs.join('\n'), contains('[customWidgetImperative]'));
   });
 
-  test(
-      'WITH the package-emitted catalog.json the paywall REFERENCES the '
+  test('WITH the package-emitted catalog.json the paywall REFERENCES the '
       'app-backed '
       'widget and emits a blob + capability manifest', () async {
     final rw = await readerWriterWithFilesystemSources(
@@ -189,8 +187,9 @@ class PriceTag extends StatelessWidget {
           ),
         ),
         'apps_examples|assets/paywalls/streak.rfw': isNotEmpty,
-        'apps_examples|assets/paywalls/streak.capability.json':
-            decodedMatches(contains('acme.ds')),
+        'apps_examples|assets/paywalls/streak.capability.json': decodedMatches(
+          contains('acme.ds'),
+        ),
         'apps_examples|assets/paywalls/screens/paywall_streak.rfw': anything,
         'apps_examples|assets/paywalls/screens/paywall_streak.capability.json':
             anything,
@@ -205,8 +204,10 @@ class PriceTag extends StatelessWidget {
     expect(notices.single, contains("Custom widget 'StreakBadge'"));
     expect(
       notices.single,
-      contains("renders from your app's compiled code because build() uses "
-          'CustomPaint'),
+      contains(
+        "renders from your app's compiled code because build() uses "
+        'CustomPaint',
+      ),
     );
     expect(notices.single, contains('still set its arguments'));
     expect(notices.single, contains('ship with your next app release'));
@@ -225,8 +226,9 @@ class PriceTag extends StatelessWidget {
       verbose: true,
       flattenOutput: true,
       outputs: {
-        'apps_examples|assets/paywalls/price_tag.rfwtxt':
-            decodedMatches(contains('intl.number.format')),
+        'apps_examples|assets/paywalls/price_tag.rfwtxt': decodedMatches(
+          contains('intl.number.format'),
+        ),
         'apps_examples|assets/paywalls/price_tag.rfw': isNotEmpty,
         'apps_examples|assets/paywalls/price_tag.capability.json': anything,
         'apps_examples|assets/paywalls/screens/paywall_price_tag.rfw': anything,
@@ -397,14 +399,16 @@ class BWeekOffer extends StatelessWidget {
     );
 
     expect(result.succeeded, isTrue, reason: logs.join('\n'));
-    final bundle = jsonDecode(
-      readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/src/surface_publication/surface_publication.compiler.json',
-        ),
-      ),
-    ) as Map<String, Object?>;
+    final bundle =
+        jsonDecode(
+              readerWriter.testing.readString(
+                AssetId(
+                  'apps_examples',
+                  'lib/src/surface_publication/surface_publication.compiler.json',
+                ),
+              ),
+            )
+            as Map<String, Object?>;
     final artifactPaths = [
       for (final artifact in bundle['artifacts']! as List<Object?>)
         (artifact! as Map<String, Object?>)['path'],

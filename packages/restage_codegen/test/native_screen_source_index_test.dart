@@ -21,8 +21,10 @@ void main() {
       test('rejects an id that differs from the input file stem', () async {
         final probe = await runIndexProbe(
           {
-            'lib/onboarding/screens/expected_id.dart':
-                _screenSource('actual_id', generatedPartStem: 'expected_id'),
+            'lib/onboarding/screens/expected_id.dart': _screenSource(
+              'actual_id',
+              generatedPartStem: 'expected_id',
+            ),
           },
           consumer: consumer,
           addGeneratedPartDirective: false,
@@ -36,8 +38,10 @@ void main() {
       test('rejects a missing generated RFW part directive', () async {
         final probe = await runIndexProbe(
           {
-            'lib/onboarding/screens/missing_part.dart':
-                _screenSource('missing_part', includeGeneratedPart: false),
+            'lib/onboarding/screens/missing_part.dart': _screenSource(
+              'missing_part',
+              includeGeneratedPart: false,
+            ),
           },
           consumer: consumer,
           addGeneratedPartDirective: false,
@@ -133,7 +137,8 @@ void main() {
         "import 'package:rfw_catalog_schema/widgetbook.dart' as target;",
   }.entries) {
     test('rejects ${config.key}.Config.enabled on ScreenSource', () async {
-      final source = '''
+      final source =
+          '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 ${config.value}
@@ -194,8 +199,7 @@ class EnabledNullScreen extends StatelessWidget {
     expect(probe.logs.join('\n'), contains('invalidTargetConfigPlacement'));
   });
 
-  test(
-      'rejects inherited property placement of class-only enabled on '
+  test('rejects inherited property placement of class-only enabled on '
       'ScreenSource', () async {
     const base = '''
 import 'package:flutter/widgets.dart';
@@ -239,8 +243,7 @@ class InheritedEnabledScreen extends BaseScreen {
     );
   });
 
-  test('retains exact native screen identity and shared source facts',
-      () async {
+  test('retains exact native screen identity and shared source facts', () async {
     const source = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart' as restage;
@@ -318,9 +321,10 @@ class ProofScreen extends StatelessWidget {
     );
   });
 
-  test('indexes a prefixed canonical SurfaceEvent through its concrete type',
-      () async {
-    const source = '''
+  test(
+    'indexes a prefixed canonical SurfaceEvent through its concrete type',
+    () async {
+      const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' as restage;
 
@@ -335,17 +339,19 @@ class PrefixedSurfaceEventScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/onboarding/screens/prefixed_surface_event.dart': source,
-    });
+      final probe = await runIndexProbe({
+        'lib/onboarding/screens/prefixed_surface_event.dart': source,
+      });
 
-    expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
-    expect(probe.output, contains('events=continueEvent:continue:String'));
-  });
+      expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+      expect(probe.output, contains('events=continueEvent:continue:String'));
+    },
+  );
 
-  test('indexes a prefixed deprecated OnboardingEvent alias through type.alias',
-      () async {
-    const source = '''
+  test(
+    'indexes a prefixed deprecated OnboardingEvent alias through type.alias',
+    () async {
+      const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' as restage;
 
@@ -360,13 +366,14 @@ class PrefixedOnboardingEventScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/onboarding/screens/prefixed_onboarding_event.dart': source,
-    });
+      final probe = await runIndexProbe({
+        'lib/onboarding/screens/prefixed_onboarding_event.dart': source,
+      });
 
-    expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
-    expect(probe.output, contains('events=continueEvent:continue:String'));
-  });
+      expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+      expect(probe.output, contains('events=continueEvent:continue:String'));
+    },
+  );
 
   test('A2UI consumption is not gated by Widgetbook-only config', () async {
     const source = '''
@@ -396,9 +403,10 @@ class A2uiIndependentScreen extends StatelessWidget {
     expect(probe.output, contains('id=a2ui_independent'));
   });
 
-  test('Widgetbook screen indexing ignores unevaluable A2UI-only config',
-      () async {
-    const source = '''
+  test(
+    'Widgetbook screen indexing ignores unevaluable A2UI-only config',
+    () async {
+      const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
@@ -422,17 +430,19 @@ class WidgetbookIndependentScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/onboarding/screens/widgetbook_independent.dart': source,
-    });
+      final probe = await runIndexProbe({
+        'lib/onboarding/screens/widgetbook_independent.dart': source,
+      });
 
-    expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
-    expect(probe.output, contains('id=widgetbook_independent'));
-  });
+      expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+      expect(probe.output, contains('id=widgetbook_independent'));
+    },
+  );
 
-  test('uses the owning library identity for aliased annotations and parts',
-      () async {
-    const library = '''
+  test(
+    'uses the owning library identity for aliased annotations and parts',
+    () async {
+      const library = '''
 library shared_screens;
 
 import 'package:flutter/widgets.dart';
@@ -440,7 +450,7 @@ import 'package:restage/restage.dart' as rs;
 
 part '../../src/part_screen.dart';
 ''';
-    const part = '''
+      const part = '''
 part of '../onboarding/screens/part_screen.dart';
 
 /// A screen declared in a part.
@@ -456,32 +466,34 @@ class PartScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/onboarding/screens/part_screen.dart': library,
-      'lib/src/part_screen.dart': part,
-    });
+      final probe = await runIndexProbe({
+        'lib/onboarding/screens/part_screen.dart': library,
+        'lib/src/part_screen.dart': part,
+      });
 
-    expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
-    expect(
-      probe.output,
-      allOf(
-        contains(
-          'identity=package:apps_examples/onboarding/screens/part_screen.dart#'
-          'PartScreen',
+      expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+      expect(
+        probe.output,
+        allOf(
+          contains(
+            'identity=package:apps_examples/onboarding/screens/part_screen.dart#'
+            'PartScreen',
+          ),
+          contains('source=lib/onboarding/screens/part_screen.dart'),
+          contains('declaration=lib/src/part_screen.dart'),
+          contains(
+            'import=package:apps_examples/onboarding/screens/part_screen.dart',
+          ),
+          isNot(contains('package:apps_examples/src/part_screen.dart')),
         ),
-        contains('source=lib/onboarding/screens/part_screen.dart'),
-        contains('declaration=lib/src/part_screen.dart'),
-        contains(
-          'import=package:apps_examples/onboarding/screens/part_screen.dart',
-        ),
-        isNot(contains('package:apps_examples/src/part_screen.dart')),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('rejects dual ScreenSource and RestageWidget annotation by identity',
-      () async {
-    const source = '''
+  test(
+    'rejects dual ScreenSource and RestageWidget annotation by identity',
+    () async {
+      const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -500,27 +512,27 @@ class DualSource extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/onboarding/screens/screen-contract.dart': source,
-    });
+      final probe = await runIndexProbe({
+        'lib/onboarding/screens/screen-contract.dart': source,
+      });
 
-    expect(probe.result.succeeded, isFalse);
-    expect(
-      probe.logs.join('\n'),
-      allOf(
-        contains('@ScreenSource'),
-        contains('@RestageWidget'),
-        contains(
-          'package:apps_examples/onboarding/screens/screen-contract.dart#'
-          'DualSource',
+      expect(probe.result.succeeded, isFalse);
+      expect(
+        probe.logs.join('\n'),
+        allOf(
+          contains('@ScreenSource'),
+          contains('@RestageWidget'),
+          contains(
+            'package:apps_examples/onboarding/screens/screen-contract.dart#'
+            'DualSource',
+          ),
+          contains('lib/onboarding/screens/screen-contract.dart'),
         ),
-        contains('lib/onboarding/screens/screen-contract.dart'),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('rejects duplicate exact screen IDs across libraries and parts',
-      () async {
+  test('rejects duplicate exact screen IDs across libraries and parts', () async {
     const firstLibrary = '''
 library shared_screens;
 
@@ -588,9 +600,10 @@ class SecondScreen extends StatelessWidget {
     );
   });
 
-  test('rejects an exact screen and custom A2UI component name collision',
-      () async {
-    const screen = '''
+  test(
+    'rejects an exact screen and custom A2UI component name collision',
+    () async {
+      const screen = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -602,7 +615,7 @@ class NativeScreen extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-    const widget = '''
+      const widget = '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -619,40 +632,42 @@ class CustomComponent extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe(
-      {
-        'lib/onboarding/screens/shared_component.dart': screen,
-        'lib/custom_component.dart': widget,
-      },
-      validateA2uiNamespace: true,
-    );
+      final probe = await runIndexProbe(
+        {
+          'lib/onboarding/screens/shared_component.dart': screen,
+          'lib/custom_component.dart': widget,
+        },
+        validateA2uiNamespace: true,
+      );
 
-    expect(probe.result.succeeded, isFalse);
-    expect(
-      probe.logs.join('\n'),
-      allOf(
-        contains('A2UI component name "shared_component"'),
-        contains('@ScreenSource'),
-        contains(
-          'package:apps_examples/onboarding/screens/shared_component.dart#'
-          'NativeScreen',
+      expect(probe.result.succeeded, isFalse);
+      expect(
+        probe.logs.join('\n'),
+        allOf(
+          contains('A2UI component name "shared_component"'),
+          contains('@ScreenSource'),
+          contains(
+            'package:apps_examples/onboarding/screens/shared_component.dart#'
+            'NativeScreen',
+          ),
+          contains('lib/onboarding/screens/shared_component.dart'),
+          contains('@RestageWidget'),
+          contains(
+            'package:apps_examples/custom_component.dart#CustomComponent',
+          ),
+          contains('lib/custom_component.dart'),
         ),
-        contains('lib/onboarding/screens/shared_component.dart'),
-        contains('@RestageWidget'),
-        contains(
-          'package:apps_examples/custom_component.dart#CustomComponent',
-        ),
-        contains('lib/custom_component.dart'),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('canonicalizes same-package relative imports without traversal',
-      () async {
-    const model = '''
+  test(
+    'canonicalizes same-package relative imports without traversal',
+    () async {
+      const model = '''
 enum ScreenTone { calm, urgent }
 ''';
-    const screen = '''
+      const screen = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import '../../model.dart';
@@ -668,23 +683,27 @@ class RelativeImportScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/model.dart': model,
-      'lib/onboarding/screens/relative_import.dart': screen,
-    });
+      final probe = await runIndexProbe({
+        'lib/model.dart': model,
+        'lib/onboarding/screens/relative_import.dart': screen,
+      });
 
-    expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
-    expect(
-      probe.output,
-      contains('imports=package:apps_examples/model.dart,'
-          'package:apps_examples/onboarding/screens/relative_import.dart'),
-    );
-    expect(probe.output, isNot(contains('../')));
-  });
+      expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+      expect(
+        probe.output,
+        contains(
+          'imports=package:apps_examples/model.dart,'
+          'package:apps_examples/onboarding/screens/relative_import.dart',
+        ),
+      );
+      expect(probe.output, isNot(contains('../')));
+    },
+  );
 
-  test('retains a non-core dart import required by a constructor default',
-      () async {
-    const screen = '''
+  test(
+    'retains a non-core dart import required by a constructor default',
+    () async {
+      const screen = '''
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
@@ -701,17 +720,20 @@ class DartImportScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/onboarding/screens/dart_import.dart': screen,
-    });
+      final probe = await runIndexProbe({
+        'lib/onboarding/screens/dart_import.dart': screen,
+      });
 
-    expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
-    expect(
-      probe.output,
-      contains('imports=dart:math,'
-          'package:apps_examples/onboarding/screens/dart_import.dart'),
-    );
-  });
+      expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+      expect(
+        probe.output,
+        contains(
+          'imports=dart:math,'
+          'package:apps_examples/onboarding/screens/dart_import.dart',
+        ),
+      );
+    },
+  );
 
   test('rejects a dependency-private constructor import', () async {
     const screen = '''
@@ -745,9 +767,10 @@ class PrivateDependencyScreen extends StatelessWidget {
     );
   });
 
-  test('rejects a constructor import from an undeclared direct dependency',
-      () async {
-    const screen = '''
+  test(
+    'rejects a constructor import from an undeclared direct dependency',
+    () async {
+      const screen = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -763,25 +786,27 @@ class TransitiveDependencyScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe(
-      {'lib/onboarding/screens/transitive_dependency.dart': screen},
-      dependencies: const {'flutter', 'restage'},
-    );
+      final probe = await runIndexProbe(
+        {'lib/onboarding/screens/transitive_dependency.dart': screen},
+        dependencies: const {'flutter', 'restage'},
+      );
 
-    expect(probe.result.succeeded, isFalse);
-    expect(
-      probe.logs.join('\n'),
-      allOf(
-        contains('declared direct dependency'),
-        contains('rfw_catalog_schema'),
-        contains('TransitiveDependencyScreen.category'),
-      ),
-    );
-  });
+      expect(probe.result.succeeded, isFalse);
+      expect(
+        probe.logs.join('\n'),
+        allOf(
+          contains('declared direct dependency'),
+          contains('rfw_catalog_schema'),
+          contains('TransitiveDependencyScreen.category'),
+        ),
+      );
+    },
+  );
 
-  test('rejects a private annotated screen class for native siblings',
-      () async {
-    const screen = '''
+  test(
+    'rejects a private annotated screen class for native siblings',
+    () async {
+      const screen = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -794,29 +819,31 @@ class _PrivateScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/onboarding/screens/private_screen.dart': screen,
-    });
+      final probe = await runIndexProbe({
+        'lib/onboarding/screens/private_screen.dart': screen,
+      });
 
-    expect(probe.result.succeeded, isFalse);
-    expect(
-      probe.logs.join('\n'),
-      allOf(
-        contains('private annotated screen class'),
-        contains(
-          'package:apps_examples/onboarding/screens/private_screen.dart#'
-          '_PrivateScreen',
+      expect(probe.result.succeeded, isFalse);
+      expect(
+        probe.logs.join('\n'),
+        allOf(
+          contains('private annotated screen class'),
+          contains(
+            'package:apps_examples/onboarding/screens/private_screen.dart#'
+            '_PrivateScreen',
+          ),
+          contains(
+            'lib/onboarding/screens/private_screen.dart#_PrivateScreen',
+          ),
         ),
-        contains(
-          'lib/onboarding/screens/private_screen.dart#_PrivateScreen',
-        ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('rejects an abstract Flutter ScreenSource for native siblings',
-      () async {
-    const screen = '''
+  test(
+    'rejects an abstract Flutter ScreenSource for native siblings',
+    () async {
+      const screen = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' as restage;
 
@@ -826,23 +853,27 @@ abstract class AbstractScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/onboarding/screens/abstract_screen.dart': screen,
-    });
+      final probe = await runIndexProbe({
+        'lib/onboarding/screens/abstract_screen.dart': screen,
+      });
 
-    expect(probe.result.succeeded, isFalse);
-    expect(
-      probe.logs.join('\n'),
-      allOf(
-        contains('has no build() method'),
-        contains('lib/onboarding/screens/abstract_screen.dart#AbstractScreen'),
-      ),
-    );
-  });
+      expect(probe.result.succeeded, isFalse);
+      expect(
+        probe.logs.join('\n'),
+        allOf(
+          contains('has no build() method'),
+          contains(
+            'lib/onboarding/screens/abstract_screen.dart#AbstractScreen',
+          ),
+        ),
+      );
+    },
+  );
 
-  test('rejects a non-Widget ScreenSource by exact analyzer identity',
-      () async {
-    const screen = '''
+  test(
+    'rejects a non-Widget ScreenSource by exact analyzer identity',
+    () async {
+      const screen = '''
 import 'package:restage/restage.dart' as restage;
 
 class StatelessWidget {}
@@ -853,25 +884,27 @@ class NotAWidgetScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/onboarding/screens/not_a_widget.dart': screen,
-    });
+      final probe = await runIndexProbe({
+        'lib/onboarding/screens/not_a_widget.dart': screen,
+      });
 
-    expect(probe.result.succeeded, isFalse);
-    expect(
-      probe.logs.join('\n'),
-      allOf(
-        contains('has no build() method'),
-        contains(
-          'lib/onboarding/screens/not_a_widget.dart#NotAWidgetScreen',
+      expect(probe.result.succeeded, isFalse);
+      expect(
+        probe.logs.join('\n'),
+        allOf(
+          contains('has no build() method'),
+          contains(
+            'lib/onboarding/screens/not_a_widget.dart#NotAWidgetScreen',
+          ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('accepts a concrete ScreenSource through a Flutter Widget subclass',
-      () async {
-    const screen = '''
+  test(
+    'accepts a concrete ScreenSource through a Flutter Widget subclass',
+    () async {
+      const screen = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' as restage;
 
@@ -888,13 +921,14 @@ final class ConcreteScreen extends ScreenBase {
 }
 ''';
 
-    final probe = await runIndexProbe({
-      'lib/onboarding/screens/concrete_screen.dart': screen,
-    });
+      final probe = await runIndexProbe({
+        'lib/onboarding/screens/concrete_screen.dart': screen,
+      });
 
-    expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
-    expect(probe.output, contains('id=concrete_screen'));
-  });
+      expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+      expect(probe.output, contains('id=concrete_screen'));
+    },
+  );
 
   test('rejects a private same-library constructor type', () async {
     const screen = '''
@@ -1039,9 +1073,10 @@ dependencies: {flutter: any, restage: any, rfw_catalog_schema: any}
     expect(probe.output, contains('id=flow_yaml'));
   });
 
-  test('normalizes an ordinary dual Flutter barrel to the defining area',
-      () async {
-    const screen = '''
+  test(
+    'normalizes an ordinary dual Flutter barrel to the defining area',
+    () async {
+      const screen = '''
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/widgets.dart' as widgets;
 import 'package:restage/restage.dart';
@@ -1057,20 +1092,21 @@ class AmbiguousImportScreen extends widgets.StatelessWidget {
 }
 ''';
 
-    final probe = await runIndexProbe(
-      {'lib/onboarding/screens/ambiguous_import.dart': screen},
-    );
+      final probe = await runIndexProbe(
+        {'lib/onboarding/screens/ambiguous_import.dart': screen},
+      );
 
-    expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
-    expect(
-      probe.output,
-      contains(
-        'imports=package:apps_examples/onboarding/screens/ambiguous_import.dart,'
-        'package:flutter/widgets.dart',
-      ),
-    );
-    expect(probe.output, isNot(contains('package:flutter/material.dart')));
-  });
+      expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+      expect(
+        probe.output,
+        contains(
+          'imports=package:apps_examples/onboarding/screens/ambiguous_import.dart,'
+          'package:flutter/widgets.dart',
+        ),
+      );
+      expect(probe.output, isNot(contains('package:flutter/material.dart')));
+    },
+  );
 }
 
 String _screenSource(

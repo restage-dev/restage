@@ -93,7 +93,8 @@ Future<List<String>> _resolvedFlutterSignatureParamNames(
 ) async {
   final expr = await parseExpressionFromSourceForTest(
     switch (function) {
-      ModalSheetFunction.showModalBottomSheet => '''
+      ModalSheetFunction.showModalBottomSheet =>
+        '''
 import 'package:flutter/material.dart';
 
 Object x(BuildContext context) => showModalBottomSheet<void>(
@@ -101,7 +102,8 @@ Object x(BuildContext context) => showModalBottomSheet<void>(
   builder: (_) => const SizedBox(),
 );
 ''',
-      ModalSheetFunction.showCupertinoSheet => '''
+      ModalSheetFunction.showCupertinoSheet =>
+        '''
 import 'package:flutter/widgets.dart';
 import 'package:flutter/cupertino.dart' as cupertino;
 
@@ -113,8 +115,9 @@ Object x(BuildContext context) => cupertino.showCupertinoSheet<void>(
     },
     rootPackage: 'apps_examples',
   );
-  final invocation =
-      expr is MethodInvocation ? expr : _MethodInvocationFinder.find(expr);
+  final invocation = expr is MethodInvocation
+      ? expr
+      : _MethodInvocationFinder.find(expr);
   expect(invocation, isNotNull);
 
   final element = invocation!.methodName.element;
@@ -143,7 +146,8 @@ void _expectDispositionCompleteness({
   expect(
     table.keys,
     unorderedEquals(signature),
-    reason: '${function.name} must account for every current Flutter '
+    reason:
+        '${function.name} must account for every current Flutter '
         'signature parameter in the production disposition table.',
   );
 

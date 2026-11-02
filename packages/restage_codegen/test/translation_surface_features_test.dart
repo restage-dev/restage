@@ -16,39 +16,48 @@ import 'helpers.dart';
 
 void main() {
   ExpressionTranslator translator() => ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
-        ]),
-        helpers: HelperRegistry()..registerAll(paywallHelpers),
-      );
+    catalog: probeCatalogWith([
+      entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
+    ]),
+    helpers: HelperRegistry()..registerAll(paywallHelpers),
+  );
 
-  test('a surface without local values or items needs no feature floor',
-      () async {
-    final expr = await parseExpressionForTest("Text(text: 'Hi')");
-    final result = translator().translate(expr);
-    expect(result.issues, isEmpty);
-    expect(result.localSeeds, isEmpty);
-    expect(result.usesLocalValues, isFalse);
-    expect(result.emitsInteractionItems, isFalse);
-    expect(result.requiresSurfaceFeatureFloor, isFalse);
-  });
+  test(
+    'a surface without local values or items needs no feature floor',
+    () async {
+      final expr = await parseExpressionForTest("Text(text: 'Hi')");
+      final result = translator().translate(expr);
+      expect(result.issues, isEmpty);
+      expect(result.localSeeds, isEmpty);
+      expect(result.usesLocalValues, isFalse);
+      expect(result.emitsInteractionItems, isFalse);
+      expect(result.requiresSurfaceFeatureFloor, isFalse);
+    },
+  );
 
   test('either feature requires the surface feature floor', () {
     expect(
-      TranslationResult(dsl: 'x', issues: const [], usesLocalValues: true)
-          .requiresSurfaceFeatureFloor,
+      TranslationResult(
+        dsl: 'x',
+        issues: const [],
+        usesLocalValues: true,
+      ).requiresSurfaceFeatureFloor,
       isTrue,
     );
     expect(
-      TranslationResult(dsl: 'x', issues: const [], emitsInteractionItems: true)
-          .requiresSurfaceFeatureFloor,
+      TranslationResult(
+        dsl: 'x',
+        issues: const [],
+        emitsInteractionItems: true,
+      ).requiresSurfaceFeatureFloor,
       isTrue,
     );
   });
 
-  test('a measured tap in a static loop records each element as an item',
-      () async {
-    final root = await parseExpressionFromSourceForTest('''
+  test(
+    'a measured tap in a static loop records each element as an item',
+    () async {
+      final root = await parseExpressionFromSourceForTest('''
       class Probe {
         const Probe({this.onPressed});
         final void Function()? onPressed;
@@ -66,90 +75,92 @@ void main() {
               Probe(onPressed: paywallEvent(name)),
           ]);
     ''');
-    final column = root as InstanceCreationExpression;
-    final childrenArgument =
-        column.argumentList.arguments.whereType<NamedArgument>().single;
-    final list = childrenArgument.argumentExpression as ListLiteral;
-    final occurrence =
-        (traverseCollectionList(list).entries.first as CollectionListElement)
-            .occurrence;
-    final probe = occurrence.terminalExpression as InstanceCreationExpression;
-    final eventOccurrence = MeasurementOccurrenceScope.root('test#Source')
-        .widget(column.constructorName.type.element! as InterfaceElement)
-        .widgetList(childrenArgument.correspondingParameter!)
-        .element(0, collectionOccurrence: occurrence)
-        .widget(probe.constructorName.type.element! as InterfaceElement)
-        .event(
-          probe.argumentList.arguments
-              .whereType<NamedArgument>()
-              .single
-              .correspondingParameter!,
-        );
-    final translator = ExpressionTranslator(
-      catalog: probeCatalogWith([
-        entry(
-          name: 'Column',
-          flutterType: '$kSyntheticProbeLibraryUri#Column',
-          properties: [prop('children', PropertyType.widgetList)],
-        ),
-        entry(
-          name: 'Probe',
-          flutterType: '$kSyntheticProbeLibraryUri#Probe',
-          properties: [prop('onPressed', PropertyType.event)],
-        ),
-      ]),
-      helpers: HelperRegistry()
-        ..registerAll([
-          HelperDefinition(
-            name: 'paywallEvent',
-            libraryOrigin: 'package:restage_codegen',
-            returnCategory: HelperReturnCategory.voidCallback,
-            translate: (args) => 'event ${args.positional.single} {}',
+      final column = root as InstanceCreationExpression;
+      final childrenArgument = column.argumentList.arguments
+          .whereType<NamedArgument>()
+          .single;
+      final list = childrenArgument.argumentExpression as ListLiteral;
+      final occurrence =
+          (traverseCollectionList(list).entries.first as CollectionListElement)
+              .occurrence;
+      final probe = occurrence.terminalExpression as InstanceCreationExpression;
+      final eventOccurrence = MeasurementOccurrenceScope.root('test#Source')
+          .widget(column.constructorName.type.element! as InterfaceElement)
+          .widgetList(childrenArgument.correspondingParameter!)
+          .element(0, collectionOccurrence: occurrence)
+          .widget(probe.constructorName.type.element! as InterfaceElement)
+          .event(
+            probe.argumentList.arguments
+                .whereType<NamedArgument>()
+                .single
+                .correspondingParameter!,
+          );
+      final translator = ExpressionTranslator(
+        catalog: probeCatalogWith([
+          entry(
+            name: 'Column',
+            flutterType: '$kSyntheticProbeLibraryUri#Column',
+            properties: [prop('children', PropertyType.widgetList)],
+          ),
+          entry(
+            name: 'Probe',
+            flutterType: '$kSyntheticProbeLibraryUri#Probe',
+            properties: [prop('onPressed', PropertyType.event)],
           ),
         ]),
-      measurementRouteEmissionPlan: MeasurementRouteEmissionPlan([
-        MeasurementRouteEmissionBinding(
-          occurrence: eventOccurrence,
-          generatedReferenceId: GeneratedReferenceId('reference.items'),
+        helpers: HelperRegistry()
+          ..registerAll([
+            HelperDefinition(
+              name: 'paywallEvent',
+              libraryOrigin: 'package:restage_codegen',
+              returnCategory: HelperReturnCategory.voidCallback,
+              translate: (args) => 'event ${args.positional.single} {}',
+            ),
+          ]),
+        measurementRouteEmissionPlan: MeasurementRouteEmissionPlan([
+          MeasurementRouteEmissionBinding(
+            occurrence: eventOccurrence,
+            generatedReferenceId: GeneratedReferenceId('reference.items'),
+          ),
+        ]),
+      );
+
+      final result = translator.translate(root);
+
+      expect(result.issues, isEmpty);
+      expect(result.emitsInteractionItems, isTrue);
+      expect(result.requiresSurfaceFeatureFloor, isTrue);
+      expect(
+        result.dsl,
+        allOf(
+          contains('$kMeasurementPublicationItemArgumentKeyV1: "1"'),
+          contains('$kMeasurementPublicationItemArgumentKeyV1: "2"'),
         ),
-      ]),
-    );
-
-    final result = translator.translate(root);
-
-    expect(result.issues, isEmpty);
-    expect(result.emitsInteractionItems, isTrue);
-    expect(result.requiresSurfaceFeatureFloor, isTrue);
-    expect(
-      result.dsl,
-      allOf(
-        contains('$kMeasurementPublicationItemArgumentKeyV1: "1"'),
-        contains('$kMeasurementPublicationItemArgumentKeyV1: "2"'),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   group('value callbacks write screen-local values', () {
     ExpressionTranslator localTranslator() => ExpressionTranslator(
-          catalog: probeCatalogWith([
-            entry(
-              name: 'Text',
-              properties: [prop('text', PropertyType.string)],
-            ),
-            entry(
-              name: 'Toggle',
-              properties: [
-                prop('value', PropertyType.boolean),
-                prop('onChanged', PropertyType.event),
-              ],
-            ),
-            entry(
-              name: 'Column',
-              properties: [prop('children', PropertyType.widgetList)],
-            ),
-          ]),
-          helpers: HelperRegistry()..registerAll(paywallHelpers),
-        );
+      catalog: probeCatalogWith([
+        entry(
+          name: 'Text',
+          properties: [prop('text', PropertyType.string)],
+        ),
+        entry(
+          name: 'Toggle',
+          properties: [
+            prop('value', PropertyType.boolean),
+            prop('onChanged', PropertyType.event),
+          ],
+        ),
+        entry(
+          name: 'Column',
+          properties: [prop('children', PropertyType.widgetList)],
+        ),
+      ]),
+      helpers: HelperRegistry()..registerAll(paywallHelpers),
+    );
 
     const reminders = CustomWidgetStateField(
       name: 'reminders',

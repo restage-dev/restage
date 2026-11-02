@@ -62,8 +62,10 @@ void main() {
           fixture,
         );
         if (expose) {
-          readerWriter.testing
-              .writeString(AssetId(package, path), file.readAsStringSync());
+          readerWriter.testing.writeString(
+            AssetId(package, path),
+            file.readAsStringSync(),
+          );
         }
         logs.clear();
         final result = await testBuilder(
@@ -80,9 +82,11 @@ void main() {
         return (
           succeeded: result.succeeded,
           catalog: result.succeeded
-              ? decodeCatalog(readerWriter.testing.readString(
-                  AssetId(package, 'lib/src/widget_catalog/catalog.json'),
-                ))
+              ? decodeCatalog(
+                  readerWriter.testing.readString(
+                    AssetId(package, 'lib/src/widget_catalog/catalog.json'),
+                  ),
+                )
               : null,
         );
       }
@@ -93,11 +97,10 @@ void main() {
           ? LibraryContractSnapshot.of(
               baseline.catalog!,
               WidgetLibrary.custom(namespace),
-            )!
-              .encode()
+            )!.encode()
           : '{"kind":"alloc","type":"widget","id":"w0042","name":"Badge",'
-              '"source":"package:$package/visibility.dart#Badge",'
-              '"at":"2026-10-09T00:00:00Z","by":"test"}\n';
+                '"source":"package:$package/visibility.dart#Badge",'
+                '"at":"2026-10-09T00:00:00Z","by":"test"}\n';
       file.parent.createSync(recursive: true);
       file.createSync(exclusive: true);
       try {
@@ -105,15 +108,18 @@ void main() {
         final hidden = await build();
         expect(hidden.succeeded, isFalse);
         expect(
-            logs.join('\n'),
-            allOf([
-              contains('$package must expose $path as a build input.'),
-              contains('additional_public_assets: [.restage/**]'),
-              contains('If the target restricts sources, '
-                  'include `.restage/**` there too.'),
-              if (state == 'legacy widget IDs')
-                contains('Also include `wire_ids.events.jsonl`'),
-            ]));
+          logs.join('\n'),
+          allOf([
+            contains('$package must expose $path as a build input.'),
+            contains('additional_public_assets: [.restage/**]'),
+            contains(
+              'If the target restricts sources, '
+              'include `.restage/**` there too.',
+            ),
+            if (state == 'legacy widget IDs')
+              contains('Also include `wire_ids.events.jsonl`'),
+          ]),
+        );
         for (final isRoot in [false, true]) {
           final visible = await build(isRoot: isRoot, expose: !isRoot);
           expect(visible.succeeded, isTrue, reason: logs.join('\n'));
@@ -130,8 +136,9 @@ void main() {
 
   Future<Catalog> runJsonBuilder([String? src]) async {
     final s = src ?? source;
-    final rw =
-        await readerWriterWithFilesystemSources(rootPackage: 'restage_codegen');
+    final rw = await readerWriterWithFilesystemSources(
+      rootPackage: 'restage_codegen',
+    );
     rw.testing.writeString(AssetId('apps_examples', 'lib/widgets.dart'), s);
     String? captured;
     await testBuilder(
@@ -157,8 +164,7 @@ void main() {
     return requireNativeCatalog(decodeCatalog(captured!));
   }
 
-  test(
-      'UserCatalogJsonBuilder emits lib/src/widget_catalog/catalog.json with '
+  test('UserCatalogJsonBuilder emits lib/src/widget_catalog/catalog.json with '
       'allocated wire IDs', () async {
     final catalog = await runJsonBuilder();
     final badge = catalog.widgets.firstWhere((w) => w.name == 'Badge');
@@ -175,16 +181,18 @@ void main() {
     expect(analyticsId.wireId.isUnallocated, isFalse);
   });
 
-  test(
-      'the emitted catalog.json carries the SAME widget/property wire IDs as '
+  test('the emitted catalog.json carries the SAME widget/property wire IDs as '
       'user_catalog.g.dart (one deterministic allocation)', () async {
     final catalog = await runJsonBuilder();
     final badge = catalog.widgets.firstWhere((w) => w.name == 'Badge');
 
-    final rw =
-        await readerWriterWithFilesystemSources(rootPackage: 'restage_codegen');
-    rw.testing
-        .writeString(AssetId('apps_examples', 'lib/widgets.dart'), source);
+    final rw = await readerWriterWithFilesystemSources(
+      rootPackage: 'restage_codegen',
+    );
+    rw.testing.writeString(
+      AssetId('apps_examples', 'lib/widgets.dart'),
+      source,
+    );
     String? dartSource;
     await testBuilder(
       const UserCatalogBuilder(BuilderOptions.empty),

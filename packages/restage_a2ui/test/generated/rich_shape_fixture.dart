@@ -2,10 +2,10 @@
 // and annotates with `@RestageWidget`. The data-shape fidelity proof resolves
 // THIS source with the analyzer, reflects each widget's constructor parameters
 // into rich data-shape nodes, runs them through the production A2UI emitter,
-// and renders the generated catalog against real genui. The widgets render
+// and renders the generated catalog against the real A2UI runtime. The widgets render
 // their reconstructed data as text so the render assertions can read the values
-// that arrived. (The `@RestageWidget` annotation itself is build-phase discovery
-// — a tracked follow-up — and is not needed to reflect the parameter types.)
+// that arrived. (The `@RestageWidget` annotation is not needed to reflect the parameter
+// types.)
 import 'package:flutter/widgets.dart';
 
 /// A nullable enum field inside a nested data class.
@@ -34,9 +34,8 @@ class PlanFeature {
   final bool included;
 }
 
-/// A nested object whose own field is named `path` — the exact shape genui's
-/// BoundObject would have misread as a `{path: ...}` binding. Direct
-/// reconstruction reads the field by name, so it renders correctly.
+/// A nested object whose own field is named `path`, which must not be read as a
+/// data binding. Direct reconstruction reads the field by name.
 class LinkData {
   const LinkData({required this.path, required this.label});
 

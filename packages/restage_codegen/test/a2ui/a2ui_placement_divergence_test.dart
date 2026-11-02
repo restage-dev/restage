@@ -71,15 +71,17 @@ Future<({bool succeeded, List<String> logs})> _run({
 
 void main() {
   group('A2UI catalog builder — placement options divergence', () {
-    test('custom JSON retains defaults with bundled optional targets',
-        () async {
-      final result = await _run(
-        compilerOptions: const {'bundled_runtime': true},
-        a2uiOptions: const {'bundled_runtime': true},
-        catalogOptions: BuilderOptions.empty,
-      );
-      expect(result.succeeded, isTrue, reason: result.logs.join('\n'));
-    });
+    test(
+      'custom JSON retains defaults with bundled optional targets',
+      () async {
+        final result = await _run(
+          compilerOptions: const {'bundled_runtime': true},
+          a2uiOptions: const {'bundled_runtime': true},
+          catalogOptions: BuilderOptions.empty,
+        );
+        expect(result.succeeded, isTrue, reason: result.logs.join('\n'));
+      },
+    );
 
     test('custom JSON agrees on configured output_root', () async {
       final result = await _run(
@@ -90,40 +92,45 @@ void main() {
       expect(result.succeeded, isTrue, reason: result.logs.join('\n'));
     });
 
-    test('a surface-free package still diverges loudly on a conflicting key',
-        () async {
-      final result = await _run(
-        compilerOptions: const {},
-        a2uiOptions: const {'output_root': 'tool/restage'},
-      );
+    test(
+      'a surface-free package still diverges loudly on a conflicting key',
+      () async {
+        final result = await _run(
+          compilerOptions: const {},
+          a2uiOptions: const {'output_root': 'tool/restage'},
+        );
 
-      expect(
-        result.succeeded,
-        isFalse,
-        reason: 'A2UI resolving a different placement than another Restage '
-            'builder key must fail the build, never emit at its own root and '
-            'leave the package with a split layout.',
-      );
-      final report = result.logs.join('\n');
-      expect(
-        report,
-        contains('Placement options divergence between Restage builder '
-            'targets'),
-      );
-      // The report must name BOTH resolutions — a diagnostic that says only
-      // "they disagree" leaves the developer to guess which key to change.
-      expect(report, contains('output_root=.restage/build'));
-      expect(report, contains('output_root=tool/restage'));
-      // The remedy must name the disagreeing builder keys and steer away
-      // from global_options, never toward it: root global_options overrides
-      // the options every package in the build sets for itself.
-      expect(
-        report,
-        contains('restage_codegen:restage_package_surface_compiler'),
-      );
-      expect(report, contains('restage_codegen:user_a2ui_catalog'));
-      expect(report, contains('Do not set them under global_options'));
-    });
+        expect(
+          result.succeeded,
+          isFalse,
+          reason:
+              'A2UI resolving a different placement than another Restage '
+              'builder key must fail the build, never emit at its own root and '
+              'leave the package with a split layout.',
+        );
+        final report = result.logs.join('\n');
+        expect(
+          report,
+          contains(
+            'Placement options divergence between Restage builder '
+            'targets',
+          ),
+        );
+        // The report must name BOTH resolutions — a diagnostic that says only
+        // "they disagree" leaves the developer to guess which key to change.
+        expect(report, contains('output_root=.restage/build'));
+        expect(report, contains('output_root=tool/restage'));
+        // The remedy must name the disagreeing builder keys and steer away
+        // from global_options, never toward it: root global_options overrides
+        // the options every package in the build sets for itself.
+        expect(
+          report,
+          contains('restage_codegen:restage_package_surface_compiler'),
+        );
+        expect(report, contains('restage_codegen:user_a2ui_catalog'));
+        expect(report, contains('Do not set them under global_options'));
+      },
+    );
 
     test('identical options on both keys build cleanly', () async {
       // The guard must not fire on the configuration the divergence message
@@ -153,8 +160,10 @@ void main() {
       expect(result.succeeded, isFalse);
       expect(
         result.logs.join('\n'),
-        contains('Placement options divergence between Restage builder '
-            'targets'),
+        contains(
+          'Placement options divergence between Restage builder '
+          'targets',
+        ),
       );
     });
   });

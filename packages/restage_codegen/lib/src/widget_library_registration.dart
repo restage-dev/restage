@@ -7,13 +7,12 @@ import 'package:restage_compiler_core/restage_compiler_core.dart'
 List<String> widgetLibraryVersionArguments({
   int? capabilityVersion,
   int? compatibleSince,
-}) =>
-    [
-      if (capabilityVersion != null) 'capabilityVersion: $capabilityVersion,',
-      if (compatibleSince != null && compatibleSince > 1)
-        'compatibleSince: $compatibleSince,',
-      'generatedVersion: $kGeneratedVocabularyVersion,',
-    ];
+}) => [
+  if (capabilityVersion != null) 'capabilityVersion: $capabilityVersion,',
+  if (compatibleSince != null && compatibleSince > 1)
+    'compatibleSince: $compatibleSince,',
+  'generatedVersion: $kGeneratedVocabularyVersion,',
+];
 
 /// Writes one custom library registration for the startup helper.
 void writeWidgetLibraryRegistration(

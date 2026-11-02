@@ -71,24 +71,26 @@ final class CompiledSurfaceArtifact {
     this.nativeMountInput,
     this.compiledScreenInput,
     Map<String, ResolvedRfwCatalogOccurrenceSet>
-        rfwCatalogOccurrenceSetsByOutputRole = const {},
+        rfwCatalogOccurrenceSetsByOutputRole =
+        const {},
     List<int>? rfwText,
     List<int>? navigationPlan,
     Map<String, Object> localSeeds = const {},
     Map<String, Object> standaloneLocalSeeds = const {},
-  })  : _blob = Uint8List.fromList(blob),
-        localSeeds = Map.unmodifiable(localSeeds),
-        standaloneLocalSeeds = Map.unmodifiable(standaloneLocalSeeds),
-        _capabilitySidecar = Uint8List.fromList(capabilitySidecar),
-        packageWidgetNames = List.unmodifiable(
-          packageWidgetNames.toSet().toList()..sort(),
-        ),
-        rfwCatalogOccurrenceSetsByOutputRole = Map.unmodifiable(
-          Map.of(rfwCatalogOccurrenceSetsByOutputRole),
-        ),
-        _rfwText = rfwText == null ? null : Uint8List.fromList(rfwText),
-        _navigationPlan =
-            navigationPlan == null ? null : Uint8List.fromList(navigationPlan);
+  }) : _blob = Uint8List.fromList(blob),
+       localSeeds = Map.unmodifiable(localSeeds),
+       standaloneLocalSeeds = Map.unmodifiable(standaloneLocalSeeds),
+       _capabilitySidecar = Uint8List.fromList(capabilitySidecar),
+       packageWidgetNames = List.unmodifiable(
+         packageWidgetNames.toSet().toList()..sort(),
+       ),
+       rfwCatalogOccurrenceSetsByOutputRole = Map.unmodifiable(
+         Map.of(rfwCatalogOccurrenceSetsByOutputRole),
+       ),
+       _rfwText = rfwText == null ? null : Uint8List.fromList(rfwText),
+       _navigationPlan = navigationPlan == null
+           ? null
+           : Uint8List.fromList(navigationPlan);
 
   /// Bridges the C2c-owned paywall adapter into the category-neutral package
   /// compiler without letting this module derive any paywall sibling path.
@@ -104,28 +106,27 @@ final class CompiledSurfaceArtifact {
     List<int>? rfwText,
     List<int>? navigationPlan,
     Map<String, ResolvedRfwCatalogOccurrenceSet>
-        rfwCatalogOccurrenceSetsByOutputRole = const {},
+        rfwCatalogOccurrenceSetsByOutputRole =
+        const {},
     Map<String, Object> localSeeds = const {},
     Map<String, Object> standaloneLocalSeeds = const {},
-  }) =>
-      CompiledSurfaceArtifact(
-        declaration: declaration,
-        blob: facts.adapter.blob.bytes,
-        capabilitySidecar: facts.adapter.capabilitySidecar.bytes,
-        flowArtifactPath: flowArtifactPath,
-        flowScreenId: facts.adapter.id,
-        paywallFacts: facts,
-        mountVocabulary: mountVocabulary,
-        packageWidgetNames: packageWidgetNames,
-        nativeMountInput: nativeMountInput,
-        compiledScreenInput: compiledScreenInput,
-        rfwText: rfwText,
-        navigationPlan: navigationPlan,
-        rfwCatalogOccurrenceSetsByOutputRole:
-            rfwCatalogOccurrenceSetsByOutputRole,
-        localSeeds: localSeeds,
-        standaloneLocalSeeds: standaloneLocalSeeds,
-      );
+  }) => CompiledSurfaceArtifact(
+    declaration: declaration,
+    blob: facts.adapter.blob.bytes,
+    capabilitySidecar: facts.adapter.capabilitySidecar.bytes,
+    flowArtifactPath: flowArtifactPath,
+    flowScreenId: facts.adapter.id,
+    paywallFacts: facts,
+    mountVocabulary: mountVocabulary,
+    packageWidgetNames: packageWidgetNames,
+    nativeMountInput: nativeMountInput,
+    compiledScreenInput: compiledScreenInput,
+    rfwText: rfwText,
+    navigationPlan: navigationPlan,
+    rfwCatalogOccurrenceSetsByOutputRole: rfwCatalogOccurrenceSetsByOutputRole,
+    localSeeds: localSeeds,
+    standaloneLocalSeeds: standaloneLocalSeeds,
+  );
 
   /// The resolved authored `@Screen` or `@Paywall` class.
   final ClassElement declaration;
@@ -177,7 +178,7 @@ final class CompiledSurfaceArtifact {
   /// A paywall can publish a standalone blob and an adapter blob with distinct
   /// local declaration topology, so each role retains its own frozen set.
   final Map<String, ResolvedRfwCatalogOccurrenceSet>
-      rfwCatalogOccurrenceSetsByOutputRole;
+  rfwCatalogOccurrenceSetsByOutputRole;
 
   Uint8List get blob => Uint8List.fromList(_blob);
 
@@ -209,35 +210,37 @@ final class PackageSurfaceCompilationInput {
     Iterable<LegacyStandaloneScreenContract> legacyStandaloneScreens = const [],
     Iterable<CompiledFlowArtifact> precompiledFlows = const [],
     Map<String, MeasurementPublicationRoutePlanV1>
-        measurementRoutePlansByPublicationKey = const {},
+        measurementRoutePlansByPublicationKey =
+        const {},
     Map<String, MeasurementRfwPresentationPublicationPlan>
-        measurementPresentationPlansByPublicationKey = const {},
+        measurementPresentationPlansByPublicationKey =
+        const {},
     Map<String, ResolvedRfwCatalogOccurrenceSet>
-        rfwCatalogOccurrenceSetsByArtifactPath = const {},
+        rfwCatalogOccurrenceSetsByArtifactPath =
+        const {},
     Map<String, String> generatedSourceCarrierDraftDigestsByPublicationKey =
         const {},
     AppWidgetMountFactories? appWidgets,
     IconFontSubsetter? iconFontSubsetter,
-  })  : appWidgets = appWidgets ?? AppWidgetMountFactories.none,
-        iconFontSubsetter =
-            iconFontSubsetter ?? FlutterIconFontSubsetter.shared,
-        flows = List.unmodifiable(flows),
-        renderedSources = List.unmodifiable(renderedSources),
-        standaloneScreens = List.unmodifiable(standaloneScreens),
-        legacyStandaloneScreens = List.unmodifiable(legacyStandaloneScreens),
-        precompiledFlows = List.unmodifiable(precompiledFlows),
-        measurementRoutePlansByPublicationKey = Map.unmodifiable(
-          measurementRoutePlansByPublicationKey,
-        ),
-        measurementPresentationPlansByPublicationKey = Map.unmodifiable(
-          measurementPresentationPlansByPublicationKey,
-        ),
-        rfwCatalogOccurrenceSetsByArtifactPath = Map.unmodifiable(
-          rfwCatalogOccurrenceSetsByArtifactPath,
-        ),
-        generatedSourceCarrierDraftDigestsByPublicationKey = Map.unmodifiable(
-          generatedSourceCarrierDraftDigestsByPublicationKey,
-        );
+  }) : appWidgets = appWidgets ?? AppWidgetMountFactories.none,
+       iconFontSubsetter = iconFontSubsetter ?? FlutterIconFontSubsetter.shared,
+       flows = List.unmodifiable(flows),
+       renderedSources = List.unmodifiable(renderedSources),
+       standaloneScreens = List.unmodifiable(standaloneScreens),
+       legacyStandaloneScreens = List.unmodifiable(legacyStandaloneScreens),
+       precompiledFlows = List.unmodifiable(precompiledFlows),
+       measurementRoutePlansByPublicationKey = Map.unmodifiable(
+         measurementRoutePlansByPublicationKey,
+       ),
+       measurementPresentationPlansByPublicationKey = Map.unmodifiable(
+         measurementPresentationPlansByPublicationKey,
+       ),
+       rfwCatalogOccurrenceSetsByArtifactPath = Map.unmodifiable(
+         rfwCatalogOccurrenceSetsByArtifactPath,
+       ),
+       generatedSourceCarrierDraftDigestsByPublicationKey = Map.unmodifiable(
+         generatedSourceCarrierDraftDigestsByPublicationKey,
+       );
 
   /// Canonical package source/output ownership record.
   final RestageSourceRoster roster;
@@ -270,15 +273,15 @@ final class PackageSurfaceCompilationInput {
 
   /// Carrier-independent route plans keyed by exact publication selector.
   final Map<String, MeasurementPublicationRoutePlanV1>
-      measurementRoutePlansByPublicationKey;
+  measurementRoutePlansByPublicationKey;
 
   /// Reconciled RFW presentation reservations keyed by publication selector.
   final Map<String, MeasurementRfwPresentationPublicationPlan>
-      measurementPresentationPlansByPublicationKey;
+  measurementPresentationPlansByPublicationKey;
 
   /// Frozen RFW catalog occurrences keyed by exact emitted artifact path.
   final Map<String, ResolvedRfwCatalogOccurrenceSet>
-      rfwCatalogOccurrenceSetsByArtifactPath;
+  rfwCatalogOccurrenceSetsByArtifactPath;
 
   /// Final draft digests the compiler attaches only to generated source
   /// descriptors after exact Measurement artifact finalization.
@@ -297,11 +300,11 @@ final class CompiledFlowArtifact {
     required Iterable<String> generatedTopLevelSymbols,
     this.generatedPart,
     Map<String, MeasurementDeclaredAnswerV1> measurementAnswers = const {},
-  })  : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
-        generatedTopLevelSymbols = Set.unmodifiable(
-          generatedTopLevelSymbols,
-        ),
-        measurementAnswers = Map.unmodifiable(measurementAnswers);
+  }) : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
+       generatedTopLevelSymbols = Set.unmodifiable(
+         generatedTopLevelSymbols,
+       ),
+       measurementAnswers = Map.unmodifiable(measurementAnswers);
 
   final Element declaration;
   final Uint8List flowDocumentBytes;
@@ -331,25 +334,26 @@ final class PackageSurfaceCompilationBundle {
     Iterable<String> surfaceWidgetNames = const [],
     Iterable<MeasurementCompilerPublication> measurementPublications = const [],
     Iterable<MeasurementRfwPresentationArtifactMaterialization>
-        measurementPresentationMaterializations = const [],
-  })  : _outputFiles = _freezeFileMap(outputFiles),
-        _aggregateOwnedOutputPaths = Set.unmodifiable(
-          aggregateOwnedOutputPaths,
-        ),
-        _artifactLibraryPaths = Map.unmodifiable(
-          Map.of(artifactLibraryPaths),
-        ),
-        generatedParts = Map.unmodifiable(Map.of(generatedParts)),
-        surfaceWidgetNames = List.unmodifiable(
-          surfaceWidgetNames.toSet().toList()..sort(),
-        ),
-        measurementPublications = List.unmodifiable(measurementPublications),
-        measurementPresentationMaterializations = List.unmodifiable(
-          measurementPresentationMaterializations,
-        ),
-        manifestJson = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
-          manifest,
-        );
+        measurementPresentationMaterializations =
+        const [],
+  }) : _outputFiles = _freezeFileMap(outputFiles),
+       _aggregateOwnedOutputPaths = Set.unmodifiable(
+         aggregateOwnedOutputPaths,
+       ),
+       _artifactLibraryPaths = Map.unmodifiable(
+         Map.of(artifactLibraryPaths),
+       ),
+       generatedParts = Map.unmodifiable(Map.of(generatedParts)),
+       surfaceWidgetNames = List.unmodifiable(
+         surfaceWidgetNames.toSet().toList()..sort(),
+       ),
+       measurementPublications = List.unmodifiable(measurementPublications),
+       measurementPresentationMaterializations = List.unmodifiable(
+         measurementPresentationMaterializations,
+       ),
+       manifestJson = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
+         manifest,
+       );
 
   /// Strict shared DTO used by publication and delivery consumers.
   final SurfacePublicationManifest manifest;
@@ -372,10 +376,10 @@ final class PackageSurfaceCompilationBundle {
 
   /// Outputs physically owned by the aggregate dynamic writer.
   Map<String, Uint8List> get aggregateOwnedOutputFiles => Map.unmodifiable({
-        for (final entry in _outputFiles.entries)
-          if (_aggregateOwnedOutputPaths.contains(entry.key))
-            entry.key: Uint8List.fromList(entry.value),
-      });
+    for (final entry in _outputFiles.entries)
+      if (_aggregateOwnedOutputPaths.contains(entry.key))
+        entry.key: Uint8List.fromList(entry.value),
+  });
 
   /// The exact strict closure selected by [manifest].
   ///
@@ -400,16 +404,16 @@ final class PackageSurfaceCompilationBundle {
   }
 
   Map<String, Uint8List> get aggregateOwnedManifestFiles => Map.unmodifiable({
-        for (final entry in manifestFiles.entries)
-          if (_aggregateOwnedOutputPaths.contains(entry.key))
-            entry.key: Uint8List.fromList(entry.value),
-      });
+    for (final entry in manifestFiles.entries)
+      if (_aggregateOwnedOutputPaths.contains(entry.key))
+        entry.key: Uint8List.fromList(entry.value),
+  });
 
   Map<String, Uint8List> get borrowedManifestFiles => Map.unmodifiable({
-        for (final entry in manifestFiles.entries)
-          if (!_aggregateOwnedOutputPaths.contains(entry.key))
-            entry.key: Uint8List.fromList(entry.value),
-      });
+    for (final entry in manifestFiles.entries)
+      if (!_aggregateOwnedOutputPaths.contains(entry.key))
+        entry.key: Uint8List.fromList(entry.value),
+  });
 
   /// The authored Dart library path that produced each output file this
   /// compiler wrote, sorted by logical path.
@@ -447,7 +451,7 @@ final class PackageSurfaceCompilationBundle {
 
   /// Same-pass parsed RFW joins available to adjacent compiler lowering.
   final List<MeasurementRfwPresentationArtifactMaterialization>
-      measurementPresentationMaterializations;
+  measurementPresentationMaterializations;
 
   /// Resolves one captured RFW handle against an authoritative final manifest.
   ///
@@ -479,8 +483,8 @@ final class PackageSurfaceCompilationResult {
     required this.bundle,
     required List<Issue> issues,
     List<String> warnings = const [],
-  })  : issues = List.unmodifiable(issues),
-        warnings = List.unmodifiable(warnings);
+  }) : issues = List.unmodifiable(issues),
+       warnings = List.unmodifiable(warnings);
 
   /// Non-null only when every output family and manifest closure validated.
   final PackageSurfaceCompilationBundle? bundle;
@@ -501,10 +505,10 @@ final class CanonicalFlowArtifactCompilation {
     required List<int> flowDocumentBytes,
     required this.generatedPart,
     required Iterable<String> generatedTopLevelSymbols,
-  })  : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
-        generatedTopLevelSymbols = Set.unmodifiable(
-          generatedTopLevelSymbols,
-        );
+  }) : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
+       generatedTopLevelSymbols = Set.unmodifiable(
+         generatedTopLevelSymbols,
+       );
 
   final Uint8List flowDocumentBytes;
   final String generatedPart;
@@ -541,7 +545,8 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
     _addIssue(
       issues,
       code: IssueCode.unsupportedFlowRuntimeFeature,
-      message: 'Canonical per-source compilation requires a normalized '
+      message:
+          'Canonical per-source compilation requires a normalized '
           'FlowDefinition graph.',
       location: source.span.location,
     );
@@ -560,7 +565,8 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
     _addIssue(
       issues,
       code: IssueCode.annotationEvaluationFailed,
-      message: 'Normalized flow ${flow.id} does not match its roster-owned '
+      message:
+          'Normalized flow ${flow.id} does not match its roster-owned '
           'source facts.',
       location: source.span.location,
     );
@@ -576,7 +582,8 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
     _addIssue(
       issues,
       code: IssueCode.missingScreenDescriptor,
-      message: 'Flow ${flow.id} requires the exact complete screen artifact '
+      message:
+          'Flow ${flow.id} requires the exact complete screen artifact '
           'set ${expectedIds.toList()..sort()}.',
       location: source.span.location,
     );
@@ -617,8 +624,10 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
       declarationName,
       fallback: 'SurfaceFlow',
     );
-    final refName =
-        generatedHandleName(declarationName, fallback: 'surfaceFlow');
+    final refName = generatedHandleName(
+      declarationName,
+      fallback: 'surfaceFlow',
+    );
     final resultName = '${flowStem}Result';
     final decoderName = '_decode${flowStem}Result';
     final seedName = '${flowStem}Seed';
@@ -648,7 +657,8 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
       _addIssue(
         issues,
         code: IssueCode.analyzerResolutionFailed,
-        message: 'The flow library must import package:restage with a '
+        message:
+            'The flow library must import package:restage with a '
             'namespace that exposes the generated reference types.',
         location: source.span.location,
       );
@@ -665,8 +675,9 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
             descendants: {
               for (final entry in childFlowDocuments.entries)
                 if (entry.key.surface == flow.surface)
-                  entry.key.id:
-                      FlowDocumentCodec.decodeJson(utf8.decode(entry.value)),
+                  entry.key.id: FlowDocumentCodec.decodeJson(
+                    utf8.decode(entry.value),
+                  ),
             },
             nativeScreens: {
               for (final screen in effectiveGraph.screens.values)
@@ -733,13 +744,12 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
 int _precompiledFlowMinClient(
   NormalizedFlowSource flow,
   Map<String, MeasurementDeclaredAnswerV1> measurementAnswers,
-) =>
-    flowDocumentMinClient(
-      declared: flow.minClient,
-      surface: flow.surface,
-      delivery: flow.delivery,
-      measuresAnswers: measurementAnswers.isNotEmpty,
-    );
+) => flowDocumentMinClient(
+  declared: flow.minClient,
+  surface: flow.surface,
+  delivery: flow.delivery,
+  measuresAnswers: measurementAnswers.isNotEmpty,
+);
 
 NormalizedFlowGraph _withEffectiveScreenFloor(
   NormalizedFlowGraph graph,
@@ -799,7 +809,8 @@ NormalizedFlowGraph? _withResolvedSubflowHashes(
       _addIssue(
         issues,
         code: IssueCode.missingScreenDescriptor,
-        message: 'Flow ${flow.id} requires analyzer-resolved child flow '
+        message:
+            'Flow ${flow.id} requires analyzer-resolved child flow '
             'identity ${childIdentity.surface.wireName}/${childIdentity.id}.',
         location: source.span.location,
       );
@@ -810,7 +821,8 @@ NormalizedFlowGraph? _withResolvedSubflowHashes(
       _addIssue(
         issues,
         code: IssueCode.missingScreenDescriptor,
-        message: 'Flow ${flow.id} requires hash-bound child flow '
+        message:
+            'Flow ${flow.id} requires hash-bound child flow '
             '${state.flow}.',
         location: source.span.location,
       );
@@ -819,7 +831,7 @@ NormalizedFlowGraph? _withResolvedSubflowHashes(
     final child = FlowDocumentCodec.decodeJson(utf8.decode(childBytes));
     final materializeEffectiveFloor =
         declarationBoundChildFlowIdentities?.contains(childIdentity) ??
-            _referencesAnalyzerFlowDeclaration(flow, childReference);
+        _referencesAnalyzerFlowDeclaration(flow, childReference);
     final childFloorMatches = materializeEffectiveFloor
         ? child.minClient >= childReference.minClient
         : child.minClient == childReference.minClient;
@@ -831,7 +843,8 @@ NormalizedFlowGraph? _withResolvedSubflowHashes(
       _addIssue(
         issues,
         code: IssueCode.annotationEvaluationFailed,
-        message: 'Child flow ${state.flow} does not match its declared '
+        message:
+            'Child flow ${state.flow} does not match its declared '
             'version or minimum client.',
         location: source.span.location,
       );
@@ -961,7 +974,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.duplicateId,
-        message: 'The source roster contains duplicate declaration identity '
+        message:
+            'The source roster contains duplicate declaration identity '
             '${source.declarationIdentity}.',
         location: source.span.location,
       );
@@ -1073,10 +1087,11 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           .map((output) => output.path)
           .toSet();
       final sdkPrefix = _sdkPrefixFor(library, registrationSymbols);
-      final name = '${lowerCamelIdentifier(
-        screen.name ?? '',
-        fallback: 'screen',
-      )}AppWidgets';
+      final name =
+          '${lowerCamelIdentifier(
+            screen.name ?? '',
+            fallback: 'screen',
+          )}AppWidgets';
       final screenName = namespace.elementName(screen);
       final dot = screenName?.lastIndexOf('.') ?? -1;
       final prefix = dot < 0 ? null : screenName!.substring(0, dot);
@@ -1085,8 +1100,10 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         problem = 'no generated part of ${library.uri} can declare them';
       } else if (screenName == null) {
         problem = '${flowLibrary.uri} cannot name ${screen.name}';
-      } else if (_topLevelNames(library, source: artifact.source)
-          .contains(name)) {
+      } else if (_topLevelNames(
+        library,
+        source: artifact.source,
+      ).contains(name)) {
         problem = '${library.uri} already declares $name';
       } else if (constLibraries[name] case final other? when other != library) {
         problem = '${other.uri} declares $name too';
@@ -1096,7 +1113,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         prefix: prefix,
         name: name,
       )) {
-        problem = '${flowLibrary.uri} cannot see $name, which a part of '
+        problem =
+            '${flowLibrary.uri} cannot see $name, which a part of '
             '${library.uri} declares; import that library without a show or '
             'hide combinator that excludes it';
       }
@@ -1125,7 +1143,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         path: partPaths.single,
         source: artifact.source,
         library: library,
-        fragment: 'const $name = '
+        fragment:
+            'const $name = '
             '<${sdkPrefix}RestageWidgetLibraryRegistration>$libraries;\n',
       );
       spreads.add('...${prefix == null ? '' : '$prefix.'}$name');
@@ -1162,7 +1181,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.unresolvedIdentifier,
-        message: 'Rendered source '
+        message:
+            'Rendered source '
             '${suppliedRendered.declaration.name ?? '<unnamed>'} '
             'is absent from the canonical source roster.',
         location: identity,
@@ -1175,7 +1195,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.annotationEvaluationFailed,
-        message: 'Only screen or paywall roster declarations may supply '
+        message:
+            'Only screen or paywall roster declarations may supply '
             'rendered source bytes.',
         location: source.span.location,
       );
@@ -1195,14 +1216,16 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.annotationEvaluationFailed,
-        message: 'Flow artifact path "${rendered.flowArtifactPath}" must be '
+        message:
+            'Flow artifact path "${rendered.flowArtifactPath}" must be '
             'a canonical relative path.',
         location: source.span.location,
       );
       continue;
     }
 
-    final isPaywallAdapter = source.kind == RestageRosterSourceKind.paywall &&
+    final isPaywallAdapter =
+        source.kind == RestageRosterSourceKind.paywall &&
         rendered.paywallFacts != null;
     final blobPaths = _outputPaths(
       source,
@@ -1232,7 +1255,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.missingScreenDescriptor,
-        message: 'Rendered source ${source.effectiveId} requires matching '
+        message:
+            'Rendered source ${source.effectiveId} requires matching '
             'roster-owned blob and capability-sidecar output claims.',
         location: source.span.location,
       );
@@ -1243,7 +1267,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.missingScreenDescriptor,
-        message: 'Rendered source ${source.effectiveId} is missing its '
+        message:
+            'Rendered source ${source.effectiveId} is missing its '
             'roster-owned screen-text artifact.',
         location: source.span.location,
       );
@@ -1367,8 +1392,10 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       }
     }
 
-    if ((rendered.paywallFacts, rendered.compiledScreenInput)
-        case (_?, final screenInput?)) {
+    if ((rendered.paywallFacts, rendered.compiledScreenInput) case (
+      _?,
+      final screenInput?,
+    )) {
       paywallHostDataByIdentity[identity] = screenInput.hostDataContract;
     }
     if (rendered.nativeMountInput case final mountInput?) {
@@ -1436,7 +1463,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         _addIssue(
           issues,
           code: IssueCode.generatedSymbolCollision,
-          message: 'A generated neutral screen reference requires a named '
+          message:
+              'A generated neutral screen reference requires a named '
               'screen class.',
           location: source.span.location,
         );
@@ -1495,7 +1523,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         _addIssue(
           issues,
           code: IssueCode.missingScreenDescriptor,
-          message: 'Adapter-only paywall ${source.effectiveId} is not '
+          message:
+              'Adapter-only paywall ${source.effectiveId} is not '
               'referenced by a generated paywall flow closure.',
           location: source.span.location,
         );
@@ -1527,7 +1556,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.duplicateId,
-        message: 'More than one standalone screen contract was supplied for '
+        message:
+            'More than one standalone screen contract was supplied for '
             '$identity.',
         location: contract.input.location,
       );
@@ -1542,7 +1572,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.missingScreenDescriptor,
-        message: 'Standalone screen ${contract.slug} requires one rendered '
+        message:
+            'Standalone screen ${contract.slug} requires one rendered '
             'source artifact admitted by the canonical roster.',
         location: contract.input.location,
       );
@@ -1556,7 +1587,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.annotationEvaluationFailed,
-        message: 'Standalone screen ${contract.slug} does not match its '
+        message:
+            'Standalone screen ${contract.slug} does not match its '
             'roster-owned source identity, category, or contract version.',
         location: source.span.location,
       );
@@ -1568,7 +1600,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.generatedSymbolCollision,
-        message: 'A generated standalone screen reference requires a named '
+        message:
+            'A generated standalone screen reference requires a named '
             'screen class.',
         location: source.span.location,
       );
@@ -1616,7 +1649,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.duplicateId,
-        message: 'More than one standalone screen contract was supplied for '
+        message:
+            'More than one standalone screen contract was supplied for '
             '$identity.',
         location: contract.input.location,
       );
@@ -1631,7 +1665,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.missingScreenDescriptor,
-        message: 'Legacy standalone screen ${contract.slug} requires one '
+        message:
+            'Legacy standalone screen ${contract.slug} requires one '
             'rendered source artifact admitted by the package roster.',
         location: contract.input.location,
       );
@@ -1645,7 +1680,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.annotationEvaluationFailed,
-        message: 'Legacy standalone screen ${contract.slug} does not match '
+        message:
+            'Legacy standalone screen ${contract.slug} does not match '
             'its roster-owned identity, category, or contract version.',
         location: source.span.location,
       );
@@ -1707,7 +1743,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.duplicateId,
-        message: 'More than one precompiled flow artifact was supplied for '
+        message:
+            'More than one precompiled flow artifact was supplied for '
             '${precompiled.declarationIdentity}.',
         location: precompiled.declarationIdentity,
       );
@@ -1717,10 +1754,10 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   }
   final precompiledFlowDocumentsByIdentity =
       _indexPrecompiledClassFlowDocuments(
-    input.flows,
-    precompiledFlowsByIdentity,
-    issues: issues,
-  );
+        input.flows,
+        precompiledFlowsByIdentity,
+        issues: issues,
+      );
   if (issues.isNotEmpty) return _invalidResult(issues);
 
   final compiledFlowDocuments = _compileCanonicalFlowDocuments(
@@ -1739,7 +1776,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.duplicateId,
-        message: 'More than one normalized flow was supplied for '
+        message:
+            'More than one normalized flow was supplied for '
             '${flow.declarationIdentity}.',
         location: flow.declarationIdentity,
       );
@@ -1749,7 +1787,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.unresolvedIdentifier,
-        message: 'Normalized flow ${flow.id} is absent from the canonical '
+        message:
+            'Normalized flow ${flow.id} is absent from the canonical '
             'source roster.',
         location: flow.declarationIdentity,
       );
@@ -1764,7 +1803,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.annotationEvaluationFailed,
-        message: 'Normalized flow ${flow.id} does not match its roster-owned '
+        message:
+            'Normalized flow ${flow.id} does not match its roster-owned '
             'identity, surface, version, minimum client, or delivery mode.',
         location: source.span.location,
       );
@@ -1784,14 +1824,15 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         _addIssue(
           issues,
           code: IssueCode.unsupportedFlowRuntimeFeature,
-          message: 'Class-shaped flow ${flow.id} was admitted by the source '
+          message:
+              'Class-shaped flow ${flow.id} was admitted by the source '
               'roster but has no exact precompiled artifact.',
           location: source.span.location,
         );
         continue;
       }
-      for (final symbol in precompiled.generatedTopLevelSymbols.toList()
-        ..sort()) {
+      for (final symbol
+          in precompiled.generatedTopLevelSymbols.toList()..sort()) {
         _claimGeneratedSymbol(
           claimedSymbols,
           source: source,
@@ -1853,15 +1894,17 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
             flow.declaration.name!,
             fallback: 'surfaceFlow',
           );
-          final sdkPrefix =
-              _sdkPrefixFor(flowLibrary, const {'SurfaceVocabulary'});
+          final sdkPrefix = _sdkPrefixFor(flowLibrary, const {
+            'SurfaceVocabulary',
+          });
           // A canonical class flow reference installs this constant.
           if (fragment.contains(flowStepVocabularyName(refName)) &&
               sdkPrefix == null) {
             _addIssue(
               issues,
               code: IssueCode.analyzerResolutionFailed,
-              message: 'The flow library must import package:restage with a '
+              message:
+                  'The flow library must import package:restage with a '
                   'namespace that exposes SurfaceVocabulary.',
               location: source.span.location,
             );
@@ -1953,7 +1996,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.analyzerResolutionFailed,
-        message: 'The flow declaration no longer has an owning analyzer '
+        message:
+            'The flow declaration no longer has an owning analyzer '
             'library.',
         location: source.span.location,
       );
@@ -1993,7 +2037,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _addIssue(
         issues,
         code: IssueCode.analyzerResolutionFailed,
-        message: 'The flow library must import package:restage with a '
+        message:
+            'The flow library must import package:restage with a '
             'namespace that exposes the generated reference types.',
         location: source.span.location,
       );
@@ -2036,7 +2081,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           _addIssue(
             issues,
             code: IssueCode.missingScreenDescriptor,
-            message: 'Admitted screen ${source.effectiveId} has no complete '
+            message:
+                'Admitted screen ${source.effectiveId} has no complete '
                 'compiled artifact family.',
             location: source.span.location,
           );
@@ -2045,7 +2091,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           _addIssue(
             issues,
             code: IssueCode.missingScreenDescriptor,
-            message: 'Standalone screen ${source.effectiveId} has no '
+            message:
+                'Standalone screen ${source.effectiveId} has no '
                 'analyzer-resolved typed event contract.',
             location: source.span.location,
           );
@@ -2055,7 +2102,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           _addIssue(
             issues,
             code: IssueCode.missingScreenDescriptor,
-            message: 'Admitted paywall ${source.effectiveId} has no complete '
+            message:
+                'Admitted paywall ${source.effectiveId} has no complete '
                 'specialized artifact family.',
             location: source.span.location,
           );
@@ -2065,7 +2113,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           _addIssue(
             issues,
             code: IssueCode.unsupportedFlowRuntimeFeature,
-            message: 'Admitted flow ${source.effectiveId} was not compiled '
+            message:
+                'Admitted flow ${source.effectiveId} was not compiled '
                 'into the aggregate publication contract.',
             location: source.span.location,
           );
@@ -2156,8 +2205,9 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         ..clear()
         ..addAll(finalized.inputs);
       measurementPublications.addAll(finalized.publications);
-      measurementPresentationMaterializations
-          .addAll(finalized.presentationMaterializations);
+      measurementPresentationMaterializations.addAll(
+        finalized.presentationMaterializations,
+      );
       _stripMeasurementMarkersFromInspectionOutputs(outputFiles);
       _embedFinalizedFlowDocuments(
         precompiledFlowParts,
@@ -2191,7 +2241,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     _addIssue(
       issues,
       code: IssueCode.annotationEvaluationFailed,
-      message: 'Generated Measurement source carrier for ${carrier.key} does '
+      message:
+          'Generated Measurement source carrier for ${carrier.key} does '
           'not match the exact final publication draft.',
       location: 'the package Measurement publication closure',
     );
@@ -2213,8 +2264,9 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     issues: issues,
   );
   if (manifest == null || issues.isNotEmpty) return _invalidResult(issues);
-  warnings
-      .addAll(_unhandledFlowEventWarnings(manifest.manifest, manifestInputs));
+  warnings.addAll(
+    _unhandledFlowEventWarnings(manifest.manifest, manifestInputs),
+  );
 
   final carrierDraftDigestsByPublicationKey =
       input.generatedSourceCarrierDraftDigestsByPublicationKey;
@@ -2236,19 +2288,19 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       path: pending.partPath,
       source: pending.source,
       library: contract.input.screen.library,
-      fragment: '${_withoutPartHeader(
-        contract.emitReferenceDart(
-          measurementPublicationDraftDigest:
-              carrierDraftDigestsByPublicationKey[selector.key],
-          appWidgetLibraries: (sdkPrefix) => appWidgetLibraries(
-            contract.input.vocabulary,
-            library: contract.input.screen.library,
-            sdkPrefix: sdkPrefix,
-            partPath: pending.partPath,
-            source: pending.source,
-          ),
-        ),
-      )}\n\n',
+      fragment:
+          '${_withoutPartHeader(
+            contract.emitReferenceDart(
+              measurementPublicationDraftDigest: carrierDraftDigestsByPublicationKey[selector.key],
+              appWidgetLibraries: (sdkPrefix) => appWidgetLibraries(
+                contract.input.vocabulary,
+                library: contract.input.screen.library,
+                sdkPrefix: sdkPrefix,
+                partPath: pending.partPath,
+                source: pending.source,
+              ),
+            ),
+          )}\n\n',
     );
   }
   for (final pending in pendingCompatibilityScreenParts) {
@@ -2300,8 +2352,9 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     final surface = sourcesByIdentity[child.declarationIdentity]?.surface;
     final descendants = descendantsBySurface[surface];
     if (descendants == null) continue;
-    final compiled =
-        FlowDocumentCodec.decodeJson(utf8.decode(child.flowDocumentBytes));
+    final compiled = FlowDocumentCodec.decodeJson(
+      utf8.decode(child.flowDocumentBytes),
+    );
     descendants[compiled.flow] = shipped(
       precompiledFlowDocumentPaths[child.declarationIdentity] ??
           pendingPaths[surface]?[compiled.flow],
@@ -2354,8 +2407,9 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       sdkPrefix: pending.sdkPrefix,
       source: pending.source,
       vocabularyName: flowStepVocabularyName(pending.refName),
-      measurementPublicationDraftDigest: carrierDraftDigestsByPublicationKey[
-          pending.measurementPublicationKey],
+      measurementPublicationDraftDigest:
+          carrierDraftDigestsByPublicationKey[pending
+              .measurementPublicationKey],
       issues: issues,
     );
     if (reference == null) continue;
@@ -2445,7 +2499,7 @@ bool _isReferencedByAnotherPaywallFlow(
         missing[output.path] = source.isCanonical
             ? 'it has no typed screen contract'
             : 'it is declared with a deprecated annotation, which has no '
-                'typed screen contract; use @Paywall or @Screen';
+                  'typed screen contract; use @Paywall or @Screen';
       }
       continue;
     }
@@ -2453,7 +2507,8 @@ bool _isReferencedByAnotherPaywallFlow(
     final events = inspected.schema;
     if (events == null) {
       for (final output in source.outputs) {
-        missing[output.path] = 'its typed events do not resolve: '
+        missing[output.path] =
+            'its typed events do not resolve: '
             '${inspected.issues.map((issue) => issue.message).join(' ')}';
       }
       continue;
@@ -2470,16 +2525,18 @@ bool _isReferencedByAnotherPaywallFlow(
       final origins = occurrenceSet.input.catalogConstructors;
       final entries = [
         for (final origin in origins)
-          catalog.findByName(origin.constructorName,
-              WidgetLibrary.fromNamespace(origin.catalogLibraryNamespace)),
+          catalog.findByName(
+            origin.constructorName,
+            WidgetLibrary.fromNamespace(origin.catalogLibraryNamespace),
+          ),
       ];
       if (entries.any((entry) => entry == null)) {
-        missing[output.path] = 'the catalog has no entry for '
+        missing[output.path] =
+            'the catalog has no entry for '
             '${[
-          for (final (index, origin) in origins.indexed)
-            if (entries[index] == null)
-              '${origin.catalogLibraryNamespace}:${origin.constructorName}',
-        ].join(', ')}';
+              for (final (index, origin) in origins.indexed)
+                if (entries[index] == null) '${origin.catalogLibraryNamespace}:${origin.constructorName}',
+            ].join(', ')}';
         continue;
       }
       final selectedLibraries = entries.map((entry) => entry!.library).toSet();
@@ -2488,14 +2545,15 @@ bool _isReferencedByAnotherPaywallFlow(
         events: events,
         catalogResolution: occurrenceSet.input,
         catalog: Catalog(
-            schemaVersion: catalog.schemaVersion,
-            generatedAt: catalog.generatedAt,
-            flutterVersion: catalog.flutterVersion,
-            libraries: {
-              for (final library in selectedLibraries)
-                if (catalog.libraries[library] case final info?) library: info
-            },
-            widgets: entries.nonNulls.toList()),
+          schemaVersion: catalog.schemaVersion,
+          generatedAt: catalog.generatedAt,
+          flutterVersion: catalog.flutterVersion,
+          libraries: {
+            for (final library in selectedLibraries)
+              if (catalog.libraries[library] case final info?) library: info,
+          },
+          widgets: entries.nonNulls.toList(),
+        ),
       );
     }
   }
@@ -2507,10 +2565,12 @@ bool _isReferencedByAnotherPaywallFlow(
     for (final artifact in assembly.artifacts) {
       if (artifact.role != SurfacePublicationArtifactRole.screenBlob) continue;
       final matches = templates.entries
-          .where((entry) =>
-              entry.key == artifact.path ||
-              _measurementPublicationOwnedPath(entry.key, selector) ==
-                  artifact.path)
+          .where(
+            (entry) =>
+                entry.key == artifact.path ||
+                _measurementPublicationOwnedPath(entry.key, selector) ==
+                    artifact.path,
+          )
           .toList();
       if (matches.length != 1) {
         missing.putIfAbsent(
@@ -2527,13 +2587,14 @@ bool _isReferencedByAnotherPaywallFlow(
       // source-selected catalog/local input is resolved on the final bytes.
       try {
         ResolvedRfwCatalogOccurrenceSet.resolve(
-            parsedLibrary: library,
-            input: contract.catalogResolution,
-            operations: nativeCallOperations(contract.context, const {
-              ...kCollectionValueOperations,
-              ...kGridValueOperations,
-              ...kIntlValueOperations
-            })).inspectFinalBody(library);
+          parsedLibrary: library,
+          input: contract.catalogResolution,
+          operations: nativeCallOperations(contract.context, const {
+            ...kCollectionValueOperations,
+            ...kGridValueOperations,
+            ...kIntlValueOperations,
+          }),
+        ).inspectFinalBody(library);
       } on FormatException catch (error) {
         missing[artifact.path] = error.message;
         continue;
@@ -2544,30 +2605,37 @@ bool _isReferencedByAnotherPaywallFlow(
       if (previous != null &&
           (jsonEncode(previous.context.toJson()) !=
                   jsonEncode(contract.context.toJson()) ||
-              jsonEncode(SurfaceScreenEventSchemaV1Codec.encode(
-                      previous.events)) !=
-                  jsonEncode(SurfaceScreenEventSchemaV1Codec.encode(
-                      contract.events)))) {
+              jsonEncode(
+                    SurfaceScreenEventSchemaV1Codec.encode(previous.events),
+                  ) !=
+                  jsonEncode(
+                    SurfaceScreenEventSchemaV1Codec.encode(contract.events),
+                  ))) {
         // One byte-identical body with conflicting typed source facts cannot
         // supply a complete contract for this publication.
         contracts.remove(hash);
         conflictingHashes.add(hash);
-        missing[artifact.path] = 'another screen with the same bytes declares '
+        missing[artifact.path] =
+            'another screen with the same bytes declares '
             'different typed events or host data';
         continue;
       }
       contracts[hash] = contract;
     }
     final declaration = _assemblyDeclaration(assembly, input);
-    final element =
-        declaration == null ? null : elements[declaration.declarationIdentity];
+    final element = declaration == null
+        ? null
+        : elements[declaration.declarationIdentity];
     assemblies[index] = assembly.withCompiledContracts(
-        contracts: contracts,
-        presentation:
-            element == null ? null : _declaredSurfacePresentation(element));
+      contracts: contracts,
+      presentation: element == null
+          ? null
+          : _declaredSurfacePresentation(element),
+    );
   }
-  final manifest =
-      SurfacePublicationManifestAssembler.assemble(assemblies).manifest;
+  final manifest = SurfacePublicationManifestAssembler.assemble(
+    assemblies,
+  ).manifest;
   final bytes = <String, List<int>>{
     for (final assembly in assemblies)
       for (final artifact in assembly.artifacts) artifact.path: artifact.bytes,
@@ -2580,56 +2648,67 @@ bool _isReferencedByAnotherPaywallFlow(
     final document = closure.flowDocument;
     if (document == null) continue;
     final libraries = closure.assemblePayload().requiredLibraries;
-    documents.add(flow_experiment.FlowExperimentDocumentContract(
-      surfaceType: closure.publication.surface,
-      flowId: document.flow,
-      version: document.version,
-      schemaVersion: document.schemaVersion,
-      minClient: document.minClient,
-      contentHash: FlowContentHash.compute(
-          FlowDocumentCodec.encodeCanonicalJson(document)),
-      requiredLibraries: libraries,
-      flowDocument: document,
-    ));
+    documents.add(
+      flow_experiment.FlowExperimentDocumentContract(
+        surfaceType: closure.publication.surface,
+        flowId: document.flow,
+        version: document.version,
+        schemaVersion: document.schemaVersion,
+        minClient: document.minClient,
+        contentHash: FlowContentHash.compute(
+          FlowDocumentCodec.encodeCanonicalJson(document),
+        ),
+        requiredLibraries: libraries,
+        flowDocument: document,
+      ),
+    );
     closureByDocument[(
-      closure.publication.surface,
-      document.flow,
-      document.version
-    )] = closure;
+          closure.publication.surface,
+          document.flow,
+          document.version,
+        )] =
+        closure;
   }
   final issues = <Issue>[];
   final warnings = <String>[];
   for (var index = 0; index < assemblies.length; index++) {
     final assembly = assemblies[index];
-    final closure = closures.firstWhere((closure) =>
-        closure.publication.surface == assembly.surface &&
-        closure.publication.slug == assembly.slug);
+    final closure = closures.firstWhere(
+      (closure) =>
+          closure.publication.surface == assembly.surface &&
+          closure.publication.slug == assembly.slug,
+    );
     try {
       final document = closure.flowDocument;
       final selected = document == null
           ? <SurfacePublicationArtifactClosure>[]
-          : flow_experiment.FlowExperimentDocumentContract
-                  .selectCompleteClosure(
-              surfaceType: assembly.surface,
-              deliveryMode: document.deliveryMode,
-              descriptor: flow_experiment.FlowExperimentDescriptor(
-                  id: document.flow,
-                  version: document.version,
-                  minClient: document.minClient),
-              documents: documents,
-            )
-              .map((node) => closureByDocument[(
-                    node.surfaceType,
-                    node.flowId,
-                    node.version
-                  )]!)
-              .where((node) => !identical(node, closure))
-              .toList();
+          : flow_experiment
+                    .FlowExperimentDocumentContract.selectCompleteClosure(
+                  surfaceType: assembly.surface,
+                  deliveryMode: document.deliveryMode,
+                  descriptor: flow_experiment.FlowExperimentDescriptor(
+                    id: document.flow,
+                    version: document.version,
+                    minClient: document.minClient,
+                  ),
+                  documents: documents,
+                )
+                .map(
+                  (node) =>
+                      closureByDocument[(
+                        node.surfaceType,
+                        node.flowId,
+                        node.version,
+                      )]!,
+                )
+                .where((node) => !identical(node, closure))
+                .toList();
       final requirement = closure.projectFitRequirement(subflows: selected);
       assemblies[index] = assembly.withCompiledContracts(
-          contracts: assembly.compiledScreenContracts,
-          presentation: assembly.declaredPresentation,
-          requirement: requirement);
+        contracts: assembly.compiledScreenContracts,
+        presentation: assembly.declaredPresentation,
+        requirement: requirement,
+      );
     } on FormatException catch (error) {
       final reasons = {
         for (final artifact in assembly.artifacts)
@@ -2647,7 +2726,8 @@ bool _isReferencedByAnotherPaywallFlow(
       issues.add(
         Issue(
           code: IssueCode.surfaceFitUnavailable,
-          message: "The ${assembly.surface.wireName} '${assembly.slug}' "
+          message:
+              "The ${assembly.surface.wireName} '${assembly.slug}' "
               'cannot be delivered: Restage cannot work out what it needs '
               'from the app (${error.message})'
               '${reasons.isEmpty ? '' : '. ${reasons.join('. ')}'}.',
@@ -2666,32 +2746,31 @@ RestageSourceDeclaration? _assemblyDeclaration(
   PackageSurfaceCompilationInput input,
 ) {
   final roots = input.roster.declarations
-      .where((source) =>
-          source.effectiveId == assembly.slug &&
-          source.surface == assembly.surface &&
-          source.kind ==
-              switch (assembly.sourceKind) {
-                SurfaceSourceKind.screen => RestageRosterSourceKind.screen,
-                SurfaceSourceKind.paywall => RestageRosterSourceKind.paywall,
-                SurfaceSourceKind.flowGraph => RestageRosterSourceKind.flow,
-              })
+      .where(
+        (source) =>
+            source.effectiveId == assembly.slug &&
+            source.surface == assembly.surface &&
+            source.kind ==
+                switch (assembly.sourceKind) {
+                  SurfaceSourceKind.screen => RestageRosterSourceKind.screen,
+                  SurfaceSourceKind.paywall => RestageRosterSourceKind.paywall,
+                  SurfaceSourceKind.flowGraph => RestageRosterSourceKind.flow,
+                },
+      )
       .toList();
   return roots.length == 1 ? roots.single : null;
 }
 
 SurfacePresentationV1? _declaredSurfacePresentation(Element declaration) {
-  final annotation = firstAnnotationFromOriginAny(
-      declaration,
-      const {
-        'Screen',
-        'ScreenSource',
-        'OnboardingSource',
-        'Paywall',
-        'PaywallSource',
-        'FlowGraph',
-        'FlowSource'
-      },
-      'package:restage');
+  final annotation = firstAnnotationFromOriginAny(declaration, const {
+    'Screen',
+    'ScreenSource',
+    'OnboardingSource',
+    'Paywall',
+    'PaywallSource',
+    'FlowGraph',
+    'FlowSource',
+  }, 'package:restage');
   final index = annotation
       ?.computeConstantValue()
       ?.getField('presentation')
@@ -2701,8 +2780,9 @@ SurfacePresentationV1? _declaredSurfacePresentation(Element declaration) {
     null || 0 => null,
     1 => SurfacePresentationV1.inline,
     2 => SurfacePresentationV1.presented,
-    _ =>
-      throw const FormatException('Unknown surface presentation requirement.'),
+    _ => throw const FormatException(
+      'Unknown surface presentation requirement.',
+    ),
   };
 }
 
@@ -2743,8 +2823,9 @@ SurfacePublicationAssemblyInput? _assemblePaywallPublication({
         }
       }
     }
-    final declarations =
-        facts.hasFlow ? facts.flowArtifacts : facts.standaloneArtifacts;
+    final declarations = facts.hasFlow
+        ? facts.flowArtifacts
+        : facts.standaloneArtifacts;
     if (declarations.isEmpty) {
       throw const FormatException(
         'Paywall adapter did not expose a publishable artifact closure.',
@@ -2782,8 +2863,9 @@ SurfacePublicationAssemblyInput? _assemblePaywallPublication({
       surface: Surface.paywall,
       slug: facts.slug,
       sourceKind: SurfaceSourceKind.paywall,
-      payloadKind:
-          facts.hasFlow ? SurfacePayloadKind.flow : SurfacePayloadKind.blob,
+      payloadKind: facts.hasFlow
+          ? SurfacePayloadKind.flow
+          : SurfacePayloadKind.blob,
       artifacts: inputs,
       sources: _authoringSources([source]),
       mountName: mountName,
@@ -2816,7 +2898,8 @@ SurfacePublicationAssemblyInput? _assembleStandalonePublication({
     _addIssue(
       issues,
       code: IssueCode.annotationEvaluationFailed,
-      message: 'Standalone screen ${contract.slug} capability sidecar does '
+      message:
+          'Standalone screen ${contract.slug} capability sidecar does '
           'not match its resolved generated contract.',
       location: source.span.location,
     );
@@ -2859,7 +2942,8 @@ SurfacePublicationAssemblyInput? _assembleLegacyStandalonePublication({
     _addIssue(
       issues,
       code: IssueCode.annotationEvaluationFailed,
-      message: 'Legacy standalone screen ${contract.slug} capability '
+      message:
+          'Legacy standalone screen ${contract.slug} capability '
           'sidecar does not match its resolved publication contract.',
       location: source.span.location,
     );
@@ -2883,7 +2967,8 @@ SurfacePublicationAssemblyInput? _assembleLegacyStandalonePublication({
     _addIssue(
       issues,
       code: IssueCode.annotationEvaluationFailed,
-      message: 'Could not assemble legacy standalone screen '
+      message:
+          'Could not assemble legacy standalone screen '
           '${contract.slug}: $error',
       location: source.span.location,
     );
@@ -2909,13 +2994,12 @@ SurfacePublicationAssemblyInput? _assembleLegacyStandalonePublication({
 /// so the producer's rule and the constructor's gate cannot drift apart.
 List<String> _authoringSources(
   Iterable<RestageSourceDeclaration> declarations,
-) =>
-    <String>[
-      for (final declaration in declarations) ...<String>[
-        declaration.sourcePath,
-        declaration.libraryPath,
-      ],
-    ].where(_isRepresentableDartPath).toList();
+) => <String>[
+  for (final declaration in declarations) ...<String>[
+    declaration.sourcePath,
+    declaration.libraryPath,
+  ],
+].where(_isRepresentableDartPath).toList();
 
 bool _isRepresentableDartPath(String value) =>
     value.endsWith('.dart') &&
@@ -2928,7 +3012,7 @@ Map<NormalizedFlowIdentity, Uint8List> _compileCanonicalFlowDocuments(
   required Map<String, RestageSourceDeclaration> sourcesByIdentity,
   required Map<String, List<_ResolvedArtifact>> artifactsByIdentity,
   required Map<NormalizedFlowIdentity, Uint8List>
-      precompiledFlowDocumentsByIdentity,
+  precompiledFlowDocumentsByIdentity,
   required List<Issue> issues,
 }) {
   final normalizedFlows = flows.toList(growable: false);
@@ -2940,7 +3024,8 @@ Map<NormalizedFlowIdentity, Uint8List> _compileCanonicalFlowDocuments(
       _addIssue(
         issues,
         code: IssueCode.duplicateId,
-        message: 'Flow identity ${flow.surface.wireName}/${flow.id} has both '
+        message:
+            'Flow identity ${flow.surface.wireName}/${flow.id} has both '
             'a normalized graph and a precompiled class-flow document.',
         location: flow.declarationIdentity,
       );
@@ -2952,7 +3037,8 @@ Map<NormalizedFlowIdentity, Uint8List> _compileCanonicalFlowDocuments(
       _addIssue(
         issues,
         code: IssueCode.duplicateId,
-        message: 'Multiple canonical flows share identity '
+        message:
+            'Multiple canonical flows share identity '
             '${flow.surface.wireName}/${flow.id}.',
         location: flow.declarationIdentity,
       );
@@ -2990,7 +3076,8 @@ Map<NormalizedFlowIdentity, Uint8List> _compileCanonicalFlowDocuments(
         _addIssue(
           issues,
           code: IssueCode.duplicateId,
-          message: 'Child flow ${reference.identity.surface.wireName}/'
+          message:
+              'Child flow ${reference.identity.surface.wireName}/'
               '${reference.identity.id} has both a normalized graph and a '
               'precompiled class-flow document.',
           location: source.span.location,
@@ -3001,7 +3088,8 @@ Map<NormalizedFlowIdentity, Uint8List> _compileCanonicalFlowDocuments(
         _addIssue(
           issues,
           code: IssueCode.missingScreenDescriptor,
-          message: 'Flow ${flow.id} references unavailable child flow '
+          message:
+              'Flow ${flow.id} references unavailable child flow '
               '${reference.identity.surface.wireName}/'
               '${reference.identity.id}.',
           location: source.span.location,
@@ -3011,7 +3099,8 @@ Map<NormalizedFlowIdentity, Uint8List> _compileCanonicalFlowDocuments(
       final bytes = child == null ? precompiledChild : compile(child);
       if (bytes != null) {
         childDocuments[reference.identity] = bytes;
-        final aggregateDeclarationIdentity = child?.declarationIdentity ??
+        final aggregateDeclarationIdentity =
+            child?.declarationIdentity ??
             normalizedFlows
                 .where(
                   (candidate) =>
@@ -3067,13 +3156,12 @@ Map<NormalizedFlowIdentity, Uint8List> _compileCanonicalFlowDocuments(
     return bytes;
   }
 
-  (byIdentity.values.toList()
-        ..sort((left, right) {
-          final bySurface = left.surface.wireName.compareTo(
-            right.surface.wireName,
-          );
-          return bySurface != 0 ? bySurface : left.id.compareTo(right.id);
-        }))
+  (byIdentity.values.toList()..sort((left, right) {
+        final bySurface = left.surface.wireName.compareTo(
+          right.surface.wireName,
+        );
+        return bySurface != 0 ? bySurface : left.id.compareTo(right.id);
+      }))
       .forEach(compile);
   return compiled;
 }
@@ -3095,7 +3183,8 @@ Map<NormalizedFlowIdentity, Uint8List> _indexPrecompiledClassFlowDocuments(
       _addIssue(
         issues,
         code: IssueCode.unresolvedIdentifier,
-        message: 'Precompiled flow ${entry.key} is absent from the '
+        message:
+            'Precompiled flow ${entry.key} is absent from the '
             'normalized flow index.',
         location: entry.key,
       );
@@ -3105,7 +3194,8 @@ Map<NormalizedFlowIdentity, Uint8List> _indexPrecompiledClassFlowDocuments(
       _addIssue(
         issues,
         code: IssueCode.duplicateId,
-        message: 'Precompiled flow ${flow.id} also has a normalized graph; '
+        message:
+            'Precompiled flow ${flow.id} also has a normalized graph; '
             'only class-shaped flows may supply precompiled documents.',
         location: flow.declarationIdentity,
       );
@@ -3130,7 +3220,8 @@ Map<NormalizedFlowIdentity, Uint8List> _indexPrecompiledClassFlowDocuments(
       _addIssue(
         issues,
         code: IssueCode.unsupportedFlowRuntimeFeature,
-        message: 'Could not validate exact precompiled flow ${flow.id}: '
+        message:
+            'Could not validate exact precompiled flow ${flow.id}: '
             '$error',
         location: flow.declarationIdentity,
       );
@@ -3142,7 +3233,8 @@ Map<NormalizedFlowIdentity, Uint8List> _indexPrecompiledClassFlowDocuments(
       _addIssue(
         issues,
         code: IssueCode.duplicateId,
-        message: 'More than one precompiled flow document was supplied for '
+        message:
+            'More than one precompiled flow document was supplied for '
             '${flow.surface.wireName}/${flow.id}.',
         location: flow.declarationIdentity,
       );
@@ -3188,7 +3280,8 @@ _FlowAssembly? _assembleFlowPublication({
       _addIssue(
         issues,
         code: IssueCode.missingScreenDescriptor,
-        message: 'Flow ${flow.id} references ${reference.id}, but no '
+        message:
+            'Flow ${flow.id} references ${reference.id}, but no '
             'rendered roster-owned source artifact was supplied.',
         location: source.span.location,
       );
@@ -3198,7 +3291,8 @@ _FlowAssembly? _assembleFlowPublication({
       _addIssue(
         issues,
         code: IssueCode.duplicateId,
-        message: 'Flow ${flow.id} resolves multiple screen declarations to '
+        message:
+            'Flow ${flow.id} resolves multiple screen declarations to '
             'the same screen ID ${reference.id}.',
         location: source.span.location,
       );
@@ -3308,19 +3402,23 @@ _FlowAssembly? _assemblePrecompiledFlowPublication({
     final entries = document.screenArtifacts.entries.toList()
       ..sort((left, right) => left.key.compareTo(right.key));
     for (final entry in entries) {
-      final candidates = allArtifacts.where((artifact) {
-        final rendered = artifact.rendered;
-        final idMatches = rendered.flowScreenId == entry.key ||
-            (rendered.flowScreenId == null &&
-                artifact.source.effectiveId == entry.key);
-        if (!idMatches ||
-            rendered.flowArtifactPath != entry.value.path ||
-            FlowContentHash.compute(rendered.blob) != entry.value.contentHash) {
-          return false;
-        }
-        return artifact.source.kind == RestageRosterSourceKind.paywall ||
-            artifact.surface == flow.surface;
-      }).toList(growable: false);
+      final candidates = allArtifacts
+          .where((artifact) {
+            final rendered = artifact.rendered;
+            final idMatches =
+                rendered.flowScreenId == entry.key ||
+                (rendered.flowScreenId == null &&
+                    artifact.source.effectiveId == entry.key);
+            if (!idMatches ||
+                rendered.flowArtifactPath != entry.value.path ||
+                FlowContentHash.compute(rendered.blob) !=
+                    entry.value.contentHash) {
+              return false;
+            }
+            return artifact.source.kind == RestageRosterSourceKind.paywall ||
+                artifact.surface == flow.surface;
+          })
+          .toList(growable: false);
       if (candidates.length != 1) {
         throw StateError(
           'Precompiled flow screen ${entry.key} resolved to '
@@ -3385,7 +3483,8 @@ bool _matchesFlowReference({
     _addIssue(
       issues,
       code: IssueCode.annotationEvaluationFailed,
-      message: 'Flow ${flow.id} reference ${reference.id} does not match the '
+      message:
+          'Flow ${flow.id} reference ${reference.id} does not match the '
           'rendered source ID, version, or minimum client.',
       location: source.span.location,
     );
@@ -3398,7 +3497,8 @@ bool _matchesFlowReference({
       _addIssue(
         issues,
         code: IssueCode.annotationEvaluationFailed,
-        message: 'Flow ${flow.id} marks ${reference.id} as a paywall, but '
+        message:
+            'Flow ${flow.id} marks ${reference.id} as a paywall, but '
             'its rendered source is not the matching roster-owned paywall '
             'adapter.',
         location: source.span.location,
@@ -3412,7 +3512,8 @@ bool _matchesFlowReference({
     _addIssue(
       issues,
       code: IssueCode.annotationEvaluationFailed,
-      message: 'Flow ${flow.id} references ${reference.id} as an ordinary '
+      message:
+          'Flow ${flow.id} references ${reference.id} as an ordinary '
           'screen, but its rendered source has another source kind.',
       location: source.span.location,
     );
@@ -3423,7 +3524,8 @@ bool _matchesFlowReference({
     _addIssue(
       issues,
       code: IssueCode.annotationEvaluationFailed,
-      message: 'Flow ${flow.id} reference ${reference.id} does not match the '
+      message:
+          'Flow ${flow.id} reference ${reference.id} does not match the '
           'rendered ordinary screen identity.',
       location: source.span.location,
     );
@@ -3434,7 +3536,8 @@ bool _matchesFlowReference({
     _addIssue(
       issues,
       code: IssueCode.annotationEvaluationFailed,
-      message: 'Categorized screen ${reference.id} '
+      message:
+          'Categorized screen ${reference.id} '
           '(${reference.declaredSurface!.wireName}) cannot be included in '
           'flow ${flow.id} (${flow.surface.wireName}).',
       location: source.span.location,
@@ -3445,7 +3548,8 @@ bool _matchesFlowReference({
     _addIssue(
       issues,
       code: IssueCode.annotationEvaluationFailed,
-      message: 'Roster category ${source.surface!.wireName} for screen '
+      message:
+          'Roster category ${source.surface!.wireName} for screen '
           '${reference.id} does not match flow ${flow.id} '
           '(${flow.surface.wireName}).',
       location: source.span.location,
@@ -3475,7 +3579,8 @@ Map<String, String?> _iconFontPackages(
             _addIssue(
               issues,
               code: IssueCode.collidingIconCodePoints,
-              message: "Icon font family '$family' comes from more than one "
+              message:
+                  "Icon font family '$family' comes from more than one "
                   'package, so its delivered font is ambiguous.',
               location: artifact.declaration.name ?? family,
             );
@@ -3536,7 +3641,8 @@ void _attachIconFonts(
           codePoints: codePoints[family]!,
         );
         final id = iconFontArtifactId(family, fontPackage);
-        final path = '${_artifactStem(primary)}.icon-fonts/$id'
+        final path =
+            '${_artifactStem(primary)}.icon-fonts/$id'
             '${subsetter.extension(family: family, fontPackage: fontPackage)}';
         _putOutputFile(
           outputFiles,
@@ -3559,7 +3665,8 @@ void _attachIconFonts(
         _addIssue(
           issues,
           code: IssueCode.annotationEvaluationFailed,
-          message: 'Could not build the $family icon font for '
+          message:
+              'Could not build the $family icon font for '
               '${input.slug}: $error',
           location: owner.span.location,
         );
@@ -3616,8 +3723,8 @@ void _attachLocalSeeds(
       final root = input.payloadKind == SurfacePayloadKind.flow
           ? artifact.id!
           : input.sourceKind == SurfaceSourceKind.paywall
-              ? paywallRootWidgetName
-              : onboardingScreenRootWidgetName;
+          ? paywallRootWidgetName
+          : onboardingScreenRootWidgetName;
       seeds[root] = values;
     }
     if (seeds.isEmpty) continue;
@@ -3731,7 +3838,8 @@ String? _emitNeutralReference({
     _addIssue(
       issues,
       code: IssueCode.analyzerResolutionFailed,
-      message: 'The neutral screen library must import package:restage with '
+      message:
+          'The neutral screen library must import package:restage with '
           'a namespace that exposes generated reference types.',
       location: descriptor,
     );
@@ -3772,7 +3880,8 @@ String? _emitCompatibilityScreenDescriptor({
     _addIssue(
       issues,
       code: IssueCode.analyzerResolutionFailed,
-      message: 'The screen library must expose NeutralFlowScreenRef for its '
+      message:
+          'The screen library must expose NeutralFlowScreenRef for its '
           'advanced compatibility descriptor.',
       location: source.span.location,
     );
@@ -3781,11 +3890,11 @@ String? _emitCompatibilityScreenDescriptor({
   final referenceConstructor = measurementPublicationDraftDigest == null
       ? '${sdkPrefix}NeutralFlowScreenRef'
       : '${sdkPrefix}NeutralFlowScreenRef'
-          '.generatedWithMeasurementPublicationDraftDigest';
+            '.generatedWithMeasurementPublicationDraftDigest';
   final carrierArgument = measurementPublicationDraftDigest == null
       ? ''
       : '    measurementPublicationDraftDigest: '
-          '${dartStringLiteral(measurementPublicationDraftDigest)},\n';
+            '${dartStringLiteral(measurementPublicationDraftDigest)},\n';
   return '''
 abstract final class $descriptor {
   const $descriptor._();
@@ -3814,16 +3923,14 @@ List<String> _packageSurfaceWidgetNames(PackageSurfaceCompilationInput input) {
       ...artifact.packageWidgetNames,
     for (final screen in input.standaloneScreens)
       ...screen.input.vocabulary.widgetNames,
-  }.toList()
-    ..sort();
+  }.toList()..sort();
   return names;
 }
 
 /// The declarations of a normalized flow's step screens.
 List<String> _graphStepIdentities(NormalizedFlowGraph graph) => [
-      for (final reference in graph.screens.values)
-        reference.declarationIdentity,
-    ];
+  for (final reference in graph.screens.values) reference.declarationIdentity,
+];
 
 /// The union of the vocabularies of the [stepIdentities] screens, ordered so
 /// two runs over one input fold the same set.
@@ -3853,7 +3960,8 @@ SurfaceVocabularyReferences _flowScreenVocabulary(
           code: failure is IconCodePointCollision
               ? IssueCode.collidingIconCodePoints
               : IssueCode.unreconstructableIconData,
-          message: 'Flow $flowId reaches screen $identity, but '
+          message:
+              'Flow $flowId reaches screen $identity, but '
               '${failure.reason}.$origin',
           location: location,
         );
@@ -3887,8 +3995,10 @@ String? _emitFlowReference({
     screens: nativeScreens,
     library: flow.declaration.library!,
     refName: refName,
-    mountName:
-        generatedSurfaceName(flow.declaration.name!, fallback: 'SurfaceFlow'),
+    mountName: generatedSurfaceName(
+      flow.declaration.name!,
+      fallback: 'SurfaceFlow',
+    ),
     resultType: flow.delivery == FlowDeliveryMode.general
         ? 'Map<String, Object?>'
         : resultName,
@@ -3897,13 +4007,13 @@ String? _emitFlowReference({
   final vocabularyArgument = '  vocabulary: $vocabularyName,\n';
   String referenceConstructor(String resultType) =>
       measurementPublicationDraftDigest == null
-          ? '${sdkPrefix}SurfaceFlowRef<$resultType>'
-          : '${sdkPrefix}SurfaceFlowRef<$resultType>'
-              '.generatedWithMeasurementPublicationDraftDigest';
+      ? '${sdkPrefix}SurfaceFlowRef<$resultType>'
+      : '${sdkPrefix}SurfaceFlowRef<$resultType>'
+            '.generatedWithMeasurementPublicationDraftDigest';
   final carrierArgument = measurementPublicationDraftDigest == null
       ? ''
       : '  measurementPublicationDraftDigest: '
-          '${dartStringLiteral(measurementPublicationDraftDigest)},\n';
+            '${dartStringLiteral(measurementPublicationDraftDigest)},\n';
   // The argument is emitted only when this flow enters a child flow.
   final childFlows = graph.childFlows.entries.toList()
     ..sort((left, right) => left.key.key.compareTo(right.key.key));
@@ -3914,7 +4024,8 @@ String? _emitFlowReference({
       _addIssue(
         issues,
         code: IssueCode.unsupportedFlowRuntimeFeature,
-        message: 'Flow ${flow.id} enters the flow "${child.key.id}" on the '
+        message:
+            'Flow ${flow.id} enters the flow "${child.key.id}" on the '
             '${child.key.surface.name} surface, but the generated reference '
             'for that flow cannot be named from here, so the child flow '
             'would be delivered without its own vocabulary.',
@@ -3924,8 +4035,9 @@ String? _emitFlowReference({
     }
     subFlowNames.add(name);
   }
-  final subFlowsArgument =
-      subFlowNames.isEmpty ? '' : '  subFlows: [${subFlowNames.join(', ')}],\n';
+  final subFlowsArgument = subFlowNames.isEmpty
+      ? ''
+      : '  subFlows: [${subFlowNames.join(', ')}],\n';
   if (flow.delivery == FlowDeliveryMode.general) {
     return '''
 const $refName = ${referenceConstructor('Map<String, Object?>')}(
@@ -3950,7 +4062,8 @@ $support''';
       _addIssue(
         issues,
         code: IssueCode.unsupportedFlowRuntimeFeature,
-        message: 'Flow ${flow.id} terminal result key "${field.key}" cannot '
+        message:
+            'Flow ${flow.id} terminal result key "${field.key}" cannot '
             'be represented by a typed Dart result field.',
         location: source.span.location,
       );
@@ -4019,15 +4132,18 @@ String _emitCanonicalActions(
       '${resultName.substring(0, resultName.length - 'Result'.length)}Actions';
   final entries = actions.entries.toList()
     ..sort((left, right) => left.key.compareTo(right.key));
-  final parameters = entries.map((entry) {
-    final parameter = _lowerCamelIdentifier(entry.key, fallback: 'action');
-    return '    required ${sdkPrefix}FlowActionHandler<Object?, Object?> '
-        '$parameter,';
-  }).join('\n');
-  final bindings = entries.map((entry) {
-    final parameter = _lowerCamelIdentifier(entry.key, fallback: 'action');
-    final descriptor = '${parameter}Descriptor';
-    return '''
+  final parameters = entries
+      .map((entry) {
+        final parameter = _lowerCamelIdentifier(entry.key, fallback: 'action');
+        return '    required ${sdkPrefix}FlowActionHandler<Object?, Object?> '
+            '$parameter,';
+      })
+      .join('\n');
+  final bindings = entries
+      .map((entry) {
+        final parameter = _lowerCamelIdentifier(entry.key, fallback: 'action');
+        final descriptor = '${parameter}Descriptor';
+        return '''
       ${dartStringLiteral(entry.key)}:
           ${sdkPrefix}FlowActionBinding<Object?, Object?>(
         descriptor: $descriptor,
@@ -4041,12 +4157,14 @@ String _emitCanonicalActions(
         decodeArgs: (value) => value,
         encodeResult: (value) => value,
       ),''';
-  }).join('\n');
-  final descriptors = entries.map((entry) {
-    final descriptor =
-        '${_lowerCamelIdentifier(entry.key, fallback: 'action')}Descriptor';
-    final contract = entry.value;
-    return '''
+      })
+      .join('\n');
+  final descriptors = entries
+      .map((entry) {
+        final descriptor =
+            '${_lowerCamelIdentifier(entry.key, fallback: 'action')}Descriptor';
+        final contract = entry.value;
+        return '''
   static final ${sdkPrefix}FlowActionDescriptor<Object?, Object?> $descriptor =
       ${sdkPrefix}FlowActionDescriptor<Object?, Object?>(
     actionName: ${dartStringLiteral(contract.actionName)},
@@ -4056,7 +4174,8 @@ String _emitCanonicalActions(
     minClient: ${contract.minClient},
     idempotent: ${contract.idempotent},
   );''';
-  }).join('\n\n');
+      })
+      .join('\n\n');
   return '''
 final class $className implements ${sdkPrefix}FlowActionRegistry {
   $className({
@@ -4083,19 +4202,21 @@ String _flowActionSchemaSource(FlowActionSchema schema, String sdkPrefix) {
       }
       final entries = fields.entries.toList()
         ..sort((left, right) => left.key.compareTo(right.key));
-      final values = entries.map((entry) {
-        final fieldType = '${sdkPrefix}FlowActionSchemaField';
-        final fieldSchema = _flowActionSchemaSource(
-          entry.value.schema,
-          sdkPrefix,
-        );
-        return [
-          '${dartStringLiteral(entry.key)}: $fieldType(',
-          'required: ${entry.value.required},',
-          'schema: $fieldSchema,',
-          ')',
-        ].join(' ');
-      }).join(', ');
+      final values = entries
+          .map((entry) {
+            final fieldType = '${sdkPrefix}FlowActionSchemaField';
+            final fieldSchema = _flowActionSchemaSource(
+              entry.value.schema,
+              sdkPrefix,
+            );
+            return [
+              '${dartStringLiteral(entry.key)}: $fieldType(',
+              'required: ${entry.value.required},',
+              'schema: $fieldSchema,',
+              ')',
+            ].join(' ');
+          })
+          .join(', ');
       return 'const ${sdkPrefix}FlowActionSchema.object({$values})';
     case FlowBoolActionSchema():
       return 'const ${sdkPrefix}FlowActionSchema.bool()';
@@ -4134,16 +4255,19 @@ $resultName $decoderName(Map<String, Object?> result) {
   final missing = fields
       .map((field) => '!result.containsKey(${dartStringLiteral(field.key)})')
       .join(' || ');
-  final reads = fields.map((field) {
-    final type = _dartType(field.value.type);
-    return '''
+  final reads = fields
+      .map((field) {
+        final type = _dartType(field.value.type);
+        return '''
     final ${field.key} = result[${dartStringLiteral(field.key)}];
     if (${field.key} is! $type) {
       throw const FormatException('Expected result field ${field.key} to be $type.');
     }''';
-  }).join('\n');
-  final arguments =
-      fields.map((field) => '${field.key}: ${field.key}').join(', ');
+      })
+      .join('\n');
+  final arguments = fields
+      .map((field) => '${field.key}: ${field.key}')
+      .join(', ');
   return '''
 $resultName $decoderName(Map<String, Object?> result) {
     if (result.length != ${fields.length} || $missing) {
@@ -4164,8 +4288,9 @@ final class $resultName {
   const $resultName();
 }''';
   }
-  final parameters =
-      fields.map((field) => 'required this.${field.key}').join(', ');
+  final parameters = fields
+      .map((field) => 'required this.${field.key}')
+      .join(', ');
   final members = fields
       .map((field) => '  final ${_dartType(field.value.type)} ${field.key};')
       .join('\n');
@@ -4182,22 +4307,23 @@ String _emitSeedClass(
   Map<String, FlowStateDeclaration> flowState,
   String sdkPrefix,
 ) {
-  final seedable = flowState.entries
-      .where((entry) => entry.value.hostSeedable)
-      .toList()
-    ..sort((left, right) => left.key.compareTo(right.key));
+  final seedable =
+      flowState.entries.where((entry) => entry.value.hostSeedable).toList()
+        ..sort((left, right) => left.key.compareTo(right.key));
   if (seedable.isEmpty) return '';
   if (seedable.any((entry) => !_isSafeGeneratedIdentifier(entry.key))) {
     return '';
   }
-  final parameters =
-      seedable.map((entry) => '    this.${entry.key},').join('\n');
+  final parameters = seedable
+      .map((entry) => '    this.${entry.key},')
+      .join('\n');
   final fields = seedable
       .map((entry) => '  final ${_dartType(entry.value.type)}? ${entry.key};')
       .join('\n');
   final values = seedable
       .map(
-        (entry) => '        if (${entry.key} != null) '
+        (entry) =>
+            '        if (${entry.key} != null) '
             '${dartStringLiteral(entry.key)}: ${entry.key},',
       )
       .join('\n');
@@ -4218,10 +4344,10 @@ $values
 }
 
 String _dartType(FlowDataType type) => switch (type) {
-      FlowDataType.bool => 'bool',
-      FlowDataType.int => 'int',
-      FlowDataType.string => 'String',
-    };
+  FlowDataType.bool => 'bool',
+  FlowDataType.int => 'int',
+  FlowDataType.string => 'String',
+};
 
 List<SurfacePublicationArtifactInput> _screenClosureInputs(
   _ResolvedArtifact artifact, {
@@ -4260,7 +4386,8 @@ ResolvedStandaloneScreenContract? _refreshStandaloneContractBundleMetadata(
     _addIssue(
       issues,
       code: IssueCode.missingScreenDescriptor,
-      message: 'Standalone screen ${contract.slug} must resolve exactly one '
+      message:
+          'Standalone screen ${contract.slug} must resolve exactly one '
           'final publication before generated reference emission.',
       location: contract.input.location,
     );
@@ -4278,7 +4405,8 @@ ResolvedStandaloneScreenContract? _refreshStandaloneContractBundleMetadata(
     _addIssue(
       issues,
       code: IssueCode.missingScreenDescriptor,
-      message: 'Standalone screen ${contract.slug} must resolve one final '
+      message:
+          'Standalone screen ${contract.slug} must resolve one final '
           'blob and capability sidecar before generated reference emission.',
       location: contract.input.location,
     );
@@ -4306,12 +4434,13 @@ List<String> _outputPaths(
   RestageSourceDeclaration source, {
   required Set<String> roles,
 }) {
-  final paths = source.outputs
-      .where((output) => roles.contains(output.role))
-      .map((output) => output.path)
-      .toSet()
-      .toList()
-    ..sort();
+  final paths =
+      source.outputs
+          .where((output) => roles.contains(output.role))
+          .map((output) => output.path)
+          .toSet()
+          .toList()
+        ..sort();
   return paths;
 }
 
@@ -4329,13 +4458,15 @@ Surface? _artifactSurfaceFromPath(
       if (surface.wireName == wireName) return surface;
     }
   }
-  final inherited =
-      flowReferences.map((reference) => reference.effectiveSurface).toSet();
+  final inherited = flowReferences
+      .map((reference) => reference.effectiveSurface)
+      .toSet();
   if (inherited.length == 1) return inherited.single;
   _addIssue(
     issues,
     code: IssueCode.annotationEvaluationFailed,
-    message: 'Roster artifact path "$path" has no supported surface '
+    message:
+        'Roster artifact path "$path" has no supported surface '
         'identity.',
     location: source.span.location,
   );
@@ -4350,7 +4481,7 @@ String? _matchingSidecarPath(
 }) {
   final expected = blobPath.endsWith('.rfw')
       ? '${blobPath.substring(0, blobPath.length - '.rfw'.length)}'
-          '.capability.json'
+            '.capability.json'
       : null;
   final matches = expected == null
       ? const <String>[]
@@ -4359,7 +4490,8 @@ String? _matchingSidecarPath(
   _addIssue(
     issues,
     code: IssueCode.missingScreenDescriptor,
-    message: 'Roster blob "$blobPath" requires its exact capability '
+    message:
+        'Roster blob "$blobPath" requires its exact capability '
         'sidecar; found ${matches.length}.',
     location: source.span.location,
   );
@@ -4443,11 +4575,11 @@ CapabilitySidecar? _decodeSidecar(
 _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
   required List<SurfacePublicationAssemblyInput> inputs,
   required Map<String, MeasurementPublicationRoutePlanV1>
-      routePlansByPublicationKey,
+  routePlansByPublicationKey,
   required Map<String, MeasurementRfwPresentationPublicationPlan>
-      presentationPlansByPublicationKey,
+  presentationPlansByPublicationKey,
   required Map<String, ResolvedRfwCatalogOccurrenceSet>
-      rfwCatalogOccurrenceSetsByArtifactPath,
+  rfwCatalogOccurrenceSetsByArtifactPath,
   required Map<String, RestageSourceDeclaration> sourcesByOutputPath,
 }) {
   final pathClaims = <String, int>{};
@@ -4547,9 +4679,9 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
             );
           }(),
         _ => MeasurementRfwRouteComposer.composeBlob(
-            blob: entry.value.bytes,
-            routePlan: routePlan,
-          ),
+          blob: entry.value.bytes,
+          routePlan: routePlan,
+        ),
       };
       final duplicate = consumed.intersection(composition.generatedReferences);
       if (duplicate.isNotEmpty) {
@@ -4758,31 +4890,34 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
     );
     finalizedInputs.add(input.withArtifacts(finalArtifacts));
   }
-  final missingPlans = routePlansByPublicationKey.keys
-      .where((key) => !claimedPlans.contains(key))
-      .toList()
-    ..sort();
+  final missingPlans =
+      routePlansByPublicationKey.keys
+          .where((key) => !claimedPlans.contains(key))
+          .toList()
+        ..sort();
   if (missingPlans.isNotEmpty) {
     throw FormatException(
       'Measurement route plans have no exact publication: $missingPlans',
     );
   }
-  final missingPresentationPlans = routePlansByPublicationKey.entries
-      .where((entry) => entry.value.presentationRoutes.isNotEmpty)
-      .map((entry) => entry.key)
-      .where((key) => !presentationPlansByPublicationKey.containsKey(key))
-      .toList()
-    ..sort();
+  final missingPresentationPlans =
+      routePlansByPublicationKey.entries
+          .where((entry) => entry.value.presentationRoutes.isNotEmpty)
+          .map((entry) => entry.key)
+          .where((key) => !presentationPlansByPublicationKey.containsKey(key))
+          .toList()
+        ..sort();
   if (missingPresentationPlans.isNotEmpty) {
     throw FormatException(
       'Measurement RFW presentation plans are missing: '
       '$missingPresentationPlans',
     );
   }
-  final unclaimedPresentationPlans = presentationPlansByPublicationKey.keys
-      .where((key) => !claimedPlans.contains(key))
-      .toList()
-    ..sort();
+  final unclaimedPresentationPlans =
+      presentationPlansByPublicationKey.keys
+          .where((key) => !claimedPlans.contains(key))
+          .toList()
+        ..sort();
   if (unclaimedPresentationPlans.isNotEmpty) {
     throw FormatException(
       'Measurement RFW presentation plans have no exact publication: '
@@ -4802,13 +4937,12 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
 
 MeasurementPublicationSelectorV1 _measurementSelectorForAssembly(
   SurfacePublicationAssemblyInput input,
-) =>
-    MeasurementPublicationSelectorV1(
-      surface: input.surface,
-      slug: input.slug,
-      sourceKind: input.sourceKind,
-      contractVersion: input.screenContractFacts?.contractVersion,
-    );
+) => MeasurementPublicationSelectorV1(
+  surface: input.surface,
+  slug: input.slug,
+  sourceKind: input.sourceKind,
+  contractVersion: input.screenContractFacts?.contractVersion,
+);
 
 void _stripMeasurementMarkersFromInspectionOutputs(
   Map<String, Uint8List> outputFiles,
@@ -4830,8 +4964,7 @@ void _stripMeasurementMarkersFromInspectionOutputs(
 String _measurementArtifactSlot(
   SurfacePublicationArtifactRole role,
   String? id,
-) =>
-    '${role.wireName}:${id ?? ''}';
+) => '${role.wireName}:${id ?? ''}';
 
 String _measurementPublicationOwnedPath(
   String original,
@@ -4966,7 +5099,7 @@ final class _FinalizedMeasurementAssemblies {
   final List<String> reconciledUnmeasuredOutputPaths;
   final List<MeasurementCompilerPublication> publications;
   final List<MeasurementRfwPresentationArtifactMaterialization>
-      presentationMaterializations;
+  presentationMaterializations;
 }
 
 final class _FinalizedMeasurementArtifact {
@@ -5026,7 +5159,8 @@ String? _requiredOutputPath(
   _addIssue(
     issues,
     code: IssueCode.missingScreenDescriptor,
-    message: 'Roster declaration ${source.effectiveId} is missing its '
+    message:
+        'Roster declaration ${source.effectiveId} is missing its '
         'required $role output claim.',
     location: source.span.location,
   );
@@ -5045,7 +5179,8 @@ String? _requiredOutputPathAny(
     code: paths.isEmpty
         ? IssueCode.missingScreenDescriptor
         : IssueCode.generatedSymbolCollision,
-    message: 'Roster declaration ${source.effectiveId} requires exactly one '
+    message:
+        'Roster declaration ${source.effectiveId} requires exactly one '
         '${roles.toList()..sort()} output claim; found ${paths.length}.',
     location: source.span.location,
   );
@@ -5057,17 +5192,19 @@ String? _optionalOutputPath(
   required String role,
   required List<Issue> issues,
 }) {
-  final paths = source.outputs
-      .where((output) => output.role == role)
-      .map((output) => output.path)
-      .toSet()
-      .toList()
-    ..sort();
+  final paths =
+      source.outputs
+          .where((output) => output.role == role)
+          .map((output) => output.path)
+          .toSet()
+          .toList()
+        ..sort();
   if (paths.length <= 1) return paths.firstOrNull;
   _addIssue(
     issues,
     code: IssueCode.generatedSymbolCollision,
-    message: 'Roster declaration ${source.effectiveId} has more than one '
+    message:
+        'Roster declaration ${source.effectiveId} has more than one '
         '$role output path: ${paths.join(', ')}.',
     location: source.span.location,
   );
@@ -5081,16 +5218,15 @@ void _putOutputFile(
   required RestageSourceDeclaration source,
   required List<Issue> issues,
   required Map<String, String> libraryPaths,
-}) =>
-    _putFile(
-      files,
-      path: path,
-      bytes: bytes,
-      source: source,
-      issues: issues,
-      label: 'output',
-      libraryPaths: libraryPaths,
-    );
+}) => _putFile(
+  files,
+  path: path,
+  bytes: bytes,
+  source: source,
+  issues: issues,
+  label: 'output',
+  libraryPaths: libraryPaths,
+);
 
 void _putFile(
   Map<String, Uint8List> files, {
@@ -5183,7 +5319,8 @@ void _claimGeneratedSymbol(
     _addIssue(
       issues,
       code: IssueCode.generatedSymbolCollision,
-      message: 'Generated symbol $symbol already exists in '
+      message:
+          'Generated symbol $symbol already exists in '
           '${source.libraryPath}.',
       location: source.span.location,
     );
@@ -5195,7 +5332,8 @@ void _claimGeneratedSymbol(
     _addIssue(
       issues,
       code: IssueCode.generatedSymbolCollision,
-      message: 'Generated symbol $symbol is shared by $existing and '
+      message:
+          'Generated symbol $symbol is shared by $existing and '
           '${source.declarationIdentity}.',
       location: source.span.location,
     );
@@ -5216,15 +5354,15 @@ void _claimGeneratedSymbol(
 Set<String> topLevelNamesForGeneratedSymbolCollision(
   LibraryElement library,
   RestageSourceDeclaration source,
-) =>
-    _topLevelNames(library, source: source);
+) => _topLevelNames(library, source: source);
 
 Set<String> _topLevelNames(
   LibraryElement library, {
   RestageSourceDeclaration? source,
 }) {
-  final ownedGeneratedPart =
-      source == null ? null : _ownedGeneratedPartAsset(library, source);
+  final ownedGeneratedPart = source == null
+      ? null
+      : _ownedGeneratedPartAsset(library, source);
   return (_topLevelNamesByLibrary[library] ??= {})[ownedGeneratedPart] ??=
       Set.unmodifiable(_computeTopLevelNames(library, ownedGeneratedPart));
 }
@@ -5353,8 +5491,9 @@ bool _combinatorsAdmit(List<NamespaceCombinator> combinators, String name) =>
     combinators.every(
       (combinator) => switch (combinator) {
         ShowElementCombinator(:final shownNames) => shownNames.contains(name),
-        HideElementCombinator(:final hiddenNames) =>
-          !hiddenNames.contains(name),
+        HideElementCombinator(:final hiddenNames) => !hiddenNames.contains(
+          name,
+        ),
       },
     );
 
@@ -5410,8 +5549,9 @@ String _partOfHeader({
   required LibraryElement library,
 }) {
   final override = library.languageVersion.override;
-  final version =
-      override == null ? '' : '// @dart=${override.major}.${override.minor}\n';
+  final version = override == null
+      ? ''
+      : '// @dart=${override.major}.${override.minor}\n';
   return '${version}part of ${dartStringLiteral(
     p.posix.relative(libraryPath, from: p.posix.dirname(partPath)),
   )};\n\n$_kGeneratedPartLintOptOut';
@@ -5425,14 +5565,16 @@ const String _kGeneratedPartLintOptOut = '// ignore_for_file: type=lint';
 const String Function(String, {required String fallback}) _pascalIdentifier =
     pascalIdentifier;
 const String Function(String, {required String fallback})
-    _lowerCamelIdentifier = lowerCamelIdentifier;
+_lowerCamelIdentifier = lowerCamelIdentifier;
 
 bool _isDeliveryArtifactPath(String path) {
   if (path.isEmpty || path.trim() != path || path.startsWith('/')) {
     return false;
   }
   if (path.contains(r'\')) return false;
-  return path.split('/').every(
+  return path
+      .split('/')
+      .every(
         (segment) => segment.isNotEmpty && segment != '.' && segment != '..',
       );
 }
@@ -5730,7 +5872,7 @@ void _embedFinalizedFlowDocuments(
         shipped = id == null
             ? null
             : outputFiles[documentPathsById[(part.surface, id)]] ??
-                shippedById[id];
+                  shippedById[id];
       }
       root = false;
       final replacement = shipped == null

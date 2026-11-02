@@ -68,10 +68,12 @@ Expression? constValueAnchor(AstNode node) {
   return root is CompilationUnit ? _anchors[root] : null;
 }
 
-final Expando<ConstructorElement> _constructors =
-    Expando<ConstructorElement>('constant constructors');
-final Expando<DartObject> _nativeValues =
-    Expando<DartObject>('constant native values');
+final Expando<ConstructorElement> _constructors = Expando<ConstructorElement>(
+  'constant constructors',
+);
+final Expando<DartObject> _nativeValues = Expando<DartObject>(
+  'constant native values',
+);
 final Expando<Expression> _anchors = Expando<Expression>('constant anchors');
 final Expando<Element> _elements = Expando<Element>('constant members');
 
@@ -157,8 +159,9 @@ final class _LiteralWriter {
         PropertyAccess(:final propertyName) => propertyName.element,
         _ => null,
       };
-      final next =
-          element is PropertyAccessorElement ? element.variable : element;
+      final next = element is PropertyAccessorElement
+          ? element.variable
+          : element;
       current = next is VariableElement && next.isConst ? next : null;
     }
     return null;
@@ -219,23 +222,27 @@ final class _LiteralWriter {
   /// Ordinary subtype paint aliases keep their established ARGB spelling;
   /// typed destinations inspect the provenance before accepting that spelling.
   String? _color(DartObject value, InterfaceType type) {
-    final base = type.element.name == 'Color' &&
+    final base =
+        type.element.name == 'Color' &&
         type.element.library.identifier == 'dart:ui';
     if (!base &&
-        !type.allSupertypes.any((type) =>
-            type.element.name == 'Color' &&
-            type.element.library.identifier == 'dart:ui')) return null;
+        !type.allSupertypes.any(
+          (type) =>
+              type.element.name == 'Color' &&
+              type.element.library.identifier == 'dart:ui',
+        ))
+      return null;
     final argb = _argb(value);
     final components = [
       for (final name in ['a', 'r', 'g', 'b'])
-        _field(value, name)?.toDoubleValue()
+        _field(value, name)?.toDoubleValue(),
     ];
     if (argb != null &&
         (!base ||
             components.every((value) => value == null) ||
             [
               for (var i = 0; i < 4; i++)
-                components[i] == ((argb >> (24 - i * 8)) & 0xff) / 255
+                components[i] == ((argb >> (24 - i * 8)) & 0xff) / 255,
             ].every((exact) => exact))) {
       nativeValues[constructors.length] = value;
       constructors.add(base ? type.element.unnamedConstructor : null);
@@ -276,9 +283,11 @@ final class _LiteralWriter {
 
   /// A field of [value], looked up through its superclasses.
   DartObject? _field(DartObject value, String name) {
-    for (DartObject? current = value;
-        current != null;
-        current = current.getField('(super)')) {
+    for (
+      DartObject? current = value;
+      current != null;
+      current = current.getField('(super)')
+    ) {
       final field = current.getField(name);
       if (field != null) return field;
     }
@@ -326,14 +335,15 @@ final class _LiteralWriter {
       if (source == null) return fail();
       arguments.add('$key: $source');
     }
-    final callee =
-        name == null || name.isEmpty || name == 'new' ? type : '$type.$name';
+    final callee = name == null || name.isEmpty || name == 'new'
+        ? type
+        : '$type.$name';
     return 'const $callee(${arguments.join(', ')})';
   }
 
   bool _isWidget(InterfaceType type) => [type, ...type.allSupertypes].any(
-        (candidate) =>
-            candidate.element.name == 'Widget' &&
-            isFrameworkValueTypeLibrary(candidate.element),
-      );
+    (candidate) =>
+        candidate.element.name == 'Widget' &&
+        isFrameworkValueTypeLibrary(candidate.element),
+  );
 }

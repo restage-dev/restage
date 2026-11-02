@@ -1,8 +1,7 @@
-import 'package:a2ui_core/a2ui_core.dart'
-    show A2uiMessage, CreateSurfaceMessage, UpdateComponentsMessage;
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui/genui.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:restage_a2ui/restage_a2ui.dart';
 import 'package:restage_a2ui_example/lessons.dart';
 import 'package:restage_a2ui_example/generated/restage_a2ui_catalog.g.dart';
@@ -12,17 +11,7 @@ import 'package:restage_shared/restage_shared.dart'
 
 import 'a2ui_proof_support.dart';
 
-/// The full-chain proof: a golden `updateComponents` + `createSurface` payload
-/// referencing the generated DOMAIN components → wrapped in a Restage sidecar →
-/// passed through `RestageA2uiPreRenderCheck` (expected renderable) → rendered
-/// through genui's REAL `SurfaceController`/`Surface` runtime (0.10.1). The
-/// custom lesson widgets render through the real surface — compile-and-run,
-/// not a static source assertion.
-///
-/// The golden payload ([goldenLessonComponents]): a `ComparisonPanel` root whose
-/// `introduction`, `examples`, and `conclusion` inputs compose the remaining
-/// custom components. Every exact constructor input is nested under `props`
-/// and every child is referenced by string id in one flat component list.
+/// Checks a complete cached v1 bundle before rendering the real custom surface.
 void main() {
   test('the generated catalog exposes both libraries\' widgets', () {
     final items = buildRestageCatalogItems();
@@ -75,12 +64,17 @@ void main() {
   });
 
   testWidgets('a golden payload renders the custom lesson components through '
-      'the REAL genui SurfaceController/Surface after passing the pre-render '
+      'the REAL MessageProcessor/A2uiSurface after passing the pre-render '
       'check', (tester) async {
     const surfaceId = 'lesson-surface';
     const catalogId = 'test_catalog';
 
-    final catalog = Catalog(buildRestageCatalogItems(), catalogId: catalogId);
+    final catalog = CatalogImplementation(
+      id: catalogId,
+      components: buildRestageCatalogItems(),
+      definitions: buildRestageCatalogDefinitions(),
+      protocolVersion: A2uiProtocolVersion.v1_0,
+    );
 
     // The installed capability = the committed stamp's restageCapability block.
     final installed = A2uiInstalledCapability.fromStampJson(
@@ -108,8 +102,9 @@ void main() {
     // Pre-render check MUST accept: every referenced component exists and the
     // capability is satisfied by the installed catalog.
     final check = RestageA2uiPreRenderCheck(
-      catalog: catalog,
+      catalogs: [catalog],
       installed: installed,
+      validationConfig: ValidationConfig.strict,
     );
     final verdict = check.check(sidecar.toJson());
     expect(
@@ -118,24 +113,26 @@ void main() {
       reason: 'golden payload should be renderable, got: $verdict',
     );
 
-    // Drive genui's REAL surface runtime with the decoded messages.
-    final controller = SurfaceController(catalogs: [catalog]);
+    // Drive A2UI's REAL surface runtime with the decoded messages.
+    final controller = MessageProcessor<ComponentImplementation>(
+      defaultVersion: A2uiProtocolVersion.v1_0,
+      validationConfig: ValidationConfig.strict,
+      catalogs: [catalog],
+    );
     addTearDown(controller.dispose);
     for (final raw in messages) {
-      controller.handleMessage(
-        A2uiMessage.fromJson(raw! as Map<String, Object?>),
-      );
+      controller.processMessages(raw! as Map<String, Object?>);
     }
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Surface(surfaceContext: controller.contextFor(surfaceId)),
+        home: A2uiSurface(surface: controller.model.getSurface(surfaceId)!),
       ),
     );
     await tester.pumpAndSettle();
 
-    // A CLEAN render — no component fell back to a genui error widget.
-    expect(find.byType(FallbackWidget), findsNothing);
+    // A CLEAN render — no component fell back to a A2UI error widget.
+    expect(find.byType(ErrorWidget), findsNothing);
     // The custom lesson components rendered through the real surface.
     expect(find.byType(ComparisonPanel), findsOneWidget);
     expect(find.byType(Callout), findsOneWidget);
@@ -158,33 +155,25 @@ void main() {
   testWidgets('real Surface retains an IntegerListPicker literal override for '
       'the same component identity', (tester) async {
     const surfaceId = 'integer-list-surface';
-    final controller = SurfaceController(catalogs: [buildRestageCatalog()]);
+    final controller = MessageProcessor<ComponentImplementation>(
+      defaultVersion: A2uiProtocolVersion.v1_0,
+      validationConfig: ValidationConfig.strict,
+      catalogs: [buildRestageCatalog()],
+    );
     addTearDown(controller.dispose);
-    controller
-      ..handleMessage(
-        CreateSurfaceMessage(
-          surfaceId: surfaceId,
-          catalogId: restageA2uiCatalogId,
-        ),
-      )
-      ..handleMessage(
-        UpdateComponentsMessage(
-          surfaceId: surfaceId,
-          components: const [
-            {
-              'id': 'root',
-              'component': 'IntegerListPicker',
-              'props': {
-                'selected': <int>[1, 2],
-              },
-            },
-          ],
-        ),
-      );
+    controller.processMessages(
+      sidecarMessages(surfaceId, restageA2uiCatalogId, [
+        {
+          'id': 'root',
+          'component': 'IntegerListPicker',
+          'props_selected': [1, 2],
+        },
+      ]),
+    );
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Surface(surfaceContext: controller.contextFor(surfaceId)),
+        home: A2uiSurface(surface: controller.model.getSurface(surfaceId)!),
       ),
     );
     await tester.pump();
@@ -195,22 +184,21 @@ void main() {
     await tester.pump();
     expect(find.text('selected:1,2,3'), findsOneWidget);
 
-    controller.handleMessage(
-      UpdateComponentsMessage(
-        surfaceId: surfaceId,
-        components: const [
+    controller.processMessages({
+      'version': 'v1.0',
+      'updateComponents': {
+        'surfaceId': surfaceId,
+        'components': [
           {
             'id': 'root',
             'component': 'IntegerListPicker',
-            'props': {
-              'selected': <int>[9],
-            },
+            'props_selected': [9],
           },
         ],
-      ),
-    );
+      },
+    });
     await tester.pump();
     expect(find.text('selected:1,2,3'), findsOneWidget);
-    expect(find.byType(FallbackWidget), findsNothing);
+    expect(find.byType(ErrorWidget), findsNothing);
   });
 }

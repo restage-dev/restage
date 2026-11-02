@@ -92,8 +92,9 @@ void main() {
         '$_package|lib/features/styled_notice.dart': _screen,
         '$_package|lib/features/first_run.dart': _flow,
       };
-      final readerWriter =
-          await readerWriterWithFilesystemSources(rootPackage: _package);
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: _package,
+      );
       final result = await testBuilders(
         [
           restageSourceRosterBuilder(BuilderOptions.forRoot),
@@ -115,17 +116,21 @@ void main() {
 
       String part(String path) =>
           readerWriter.testing.readString(AssetId(_package, path));
-      final flow =
-          part('lib/features/restage.generated/first_run.restage.g.dart');
-      final step =
-          part('lib/features/restage.generated/styled_notice.restage.g.dart');
+      final flow = part(
+        'lib/features/restage.generated/first_run.restage.g.dart',
+      );
+      final step = part(
+        'lib/features/restage.generated/styled_notice.restage.g.dart',
+      );
       // The flow reference itself names its step's app widgets, so a prefetch
       // installs them before any step builds.
       expect(flow, contains('vocabulary: _firstRunRefVocabulary,'));
       expect(
         flow,
-        contains('const _firstRunRefVocabulary = SurfaceVocabulary(\n'
-            '  libraries: [...styledNoticeAppWidgets],'),
+        contains(
+          'const _firstRunRefVocabulary = SurfaceVocabulary(\n'
+          '  libraries: [...styledNoticeAppWidgets],',
+        ),
       );
       expect(step, contains('const styledNoticeAppWidgets ='));
       expect(step, contains("WidgetLibrary.custom('acme.ui')"));

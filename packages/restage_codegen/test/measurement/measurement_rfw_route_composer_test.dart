@@ -414,21 +414,21 @@ fmt.RemoteWidgetLibrary _compose(
 }
 
 fmt.RemoteWidgetLibrary _library(fmt.BlobNode root) => fmt.RemoteWidgetLibrary(
-      const [
-        fmt.Import(fmt.LibraryName(<String>['restage', 'core'])),
-      ],
-      [fmt.WidgetDeclaration('Root', null, root)],
-    );
+  const [
+    fmt.Import(fmt.LibraryName(<String>['restage', 'core'])),
+  ],
+  [fmt.WidgetDeclaration('Root', null, root)],
+);
 
 fmt.EventHandler _markedEvent(String generatedReference) => fmt.EventHandler(
-      'activate',
-      <String, Object?>{
-        kMeasurementRouteReferenceMarkerKeyV1:
-            MeasurementRouteEmissionPlan.markerForGeneratedReference(
+  'activate',
+  <String, Object?>{
+    kMeasurementRouteReferenceMarkerKeyV1:
+        MeasurementRouteEmissionPlan.markerForGeneratedReference(
           GeneratedReferenceId(generatedReference),
         ),
-      },
-    );
+  },
+);
 
 MeasurementPublicationRoutePlanV1 _routePlan(List<String> references) {
   final edge = ArtifactOccurrenceEdgeToken('edge.presentation-root');

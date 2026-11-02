@@ -18,7 +18,7 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
-/// The interactivity proof — the real-reflector + annotation-read + real-emit
+/// The interactivity proof — the real-reflector + annotation-read + real- emit
 /// legs.
 ///
 /// Resolves the REAL committed interactive `@RestageWidget`-style fixture in
@@ -29,21 +29,22 @@ import '../helpers.dart';
 ///   its [A2uiCallbackSignature] (the same reflector leg the data-shape proof
 ///   uses for rich shapes);
 /// - the PAIRING seam — each widget's resolved
-///   `@a2ui.Config.writeBackValues` target configuration, the production-read
-///   leg the multi-control case exercises (condition #2: real reflector + real
+///   `@a2ui.Config.writeBackValues` target configuration, the production-
+/// read
+///   leg the multi-control case exercises (condition #2: real reflector +
+/// real
 ///   annotation metadata, not a hand-constructed seam).
 ///
 /// It then runs the catalog through the PRODUCTION emitter and regenerates the
-/// committed `.g.dart` that `restage_a2ui` renders+drives against real genui.
-/// The only test-boundary normalization is rewriting the resolved `file://`
-/// fixture URI to the relative import the committed file uses. (The reflector
-/// is not yet build-wired; the build-phase auto-wiring — all three read legs —
-/// is a tracked follow-up.)
+/// committed `.g.dart` that `restage_a2ui` renders and drives against the real
+/// A2UI runtime. The only test-boundary normalization is rewriting the resolved
+/// `file://` fixture URI to the relative import the committed file uses. (The
+/// reflector is not build-wired.)
 const _fixtureRelativePath =
     '../restage_a2ui/test/generated/interactive_fixture.dart';
 
-/// The committed generated catalog lives in restage_a2ui (which has the genui
-/// dependency), beside the fixture it imports.
+/// The committed generated catalog lives in restage_a2ui (which has the A2UI
+/// runtime dependency), beside the fixture it imports.
 const _generatedPath =
     '../restage_a2ui/test/generated/interactive_catalog.g.dart';
 
@@ -53,59 +54,66 @@ const _fixtureImport = 'interactive_fixture.dart';
 
 /// The committed standalone A2UI document for the same interactive fixture. Its
 /// per-component schemas carry the write-back value-reference `oneOf` shape.
-/// The `restage_a2ui` doc-tie test ties them — against the real genui SDK — to
-/// the generated catalog's `CatalogItem.dataSchema`, so the interactive
-/// (write-back / dispatch) document projection cannot drift from genui.
+/// The `restage_a2ui` doc-tie test ties them, through the real A2UI core, to
+/// the generated catalog, so the interactive (write-back / dispatch) document
+/// projection cannot drift from the runtime.
 const _manifestPath =
     '../restage_a2ui/test/generated/interactive_catalog.a2ui.json';
 
 /// One value property: its catalog name and JSON-shape property type.
 typedef _ValueProp = (String name, PropertyType type);
 
-/// Each proof widget: its genui catalog name, the fixture widget class the
+/// Each proof widget: its A2UI catalog name, the fixture widget class the
 /// emitter constructs, the value properties carried by the catalog, and the
 /// callback parameters the reflector/annotation legs read.
-const _interactiveWidgets = <({
-  String catalogName,
-  String widgetClass,
-  List<_ValueProp> valueProps,
-  List<String> callbacks,
-})>[
-  // Auto single-pair: one ValueChanged<int> + one matching int value prop, no
-  // annotation (the zero-annotation acceptance bar).
-  (
-    catalogName: 'QuickCheck',
-    widgetClass: 'QuickCheckFixture',
-    valueProps: [('selected', PropertyType.integer)],
-    callbacks: ['onSelected'],
-  ),
-  // List write-back: ValueChanged<List<String>> + a stringList value prop.
-  (
-    catalogName: 'MultiSelect',
-    widgetClass: 'MultiSelectFixture',
-    valueProps: [('chosen', PropertyType.stringList)],
-    callbacks: ['onChosen'],
-  ),
-  // Dispatch: a VoidCallback (no value to control).
-  (
-    catalogName: 'ActionButton',
-    widgetClass: 'ActionButtonFixture',
-    valueProps: [('label', PropertyType.string)],
-    callbacks: ['onPressed'],
-  ),
-  // Multi-control: auto single-pair fails (two callbacks); each callback's
-  // `@a2ui.Config.writeBackValues` names each callback's value prop.
-  (
-    catalogName: 'Range',
-    widgetClass: 'RangeFixture',
-    valueProps: [('low', PropertyType.integer), ('high', PropertyType.integer)],
-    callbacks: ['onLow', 'onHigh'],
-  ),
-];
+const _interactiveWidgets =
+    <
+      ({
+        String catalogName,
+        String widgetClass,
+        List<_ValueProp> valueProps,
+        List<String> callbacks,
+      })
+    >[
+      // Auto single-pair: one ValueChanged<int> + one matching int value prop,
+      // no annotation (the zero-annotation acceptance bar).
+      (
+        catalogName: 'QuickCheck',
+        widgetClass: 'QuickCheckFixture',
+        valueProps: [('selected', PropertyType.integer)],
+        callbacks: ['onSelected'],
+      ),
+      // List write-back: ValueChanged<List<String>> + a stringList value prop.
+      (
+        catalogName: 'MultiSelect',
+        widgetClass: 'MultiSelectFixture',
+        valueProps: [('chosen', PropertyType.stringList)],
+        callbacks: ['onChosen'],
+      ),
+      // Dispatch: a VoidCallback (no value to control).
+      (
+        catalogName: 'ActionButton',
+        widgetClass: 'ActionButtonFixture',
+        valueProps: [('label', PropertyType.string)],
+        callbacks: ['onPressed'],
+      ),
+      // Multi-control: auto single-pair fails (two callbacks); each callback's
+      // `@a2ui.Config.writeBackValues` names each callback's value prop.
+      (
+        catalogName: 'Range',
+        widgetClass: 'RangeFixture',
+        valueProps: [
+          ('low', PropertyType.integer),
+          ('high', PropertyType.integer),
+        ],
+        callbacks: ['onLow', 'onHigh'],
+      ),
+    ];
 
 Future<ResolvedLibraryResult> _resolveFixture() async {
-  final abs = File('${Directory.current.path}/$_fixtureRelativePath')
-      .resolveSymbolicLinksSync();
+  final abs = File(
+    '${Directory.current.path}/$_fixtureRelativePath',
+  ).resolveSymbolicLinksSync();
   final collection = AnalysisContextCollection(includedPaths: [abs]);
   final context = collection.contextFor(abs);
   final resolved = await context.currentSession.getResolvedLibrary(abs);
@@ -127,10 +135,10 @@ ClassElement _classFor(ResolvedLibraryResult library, String widgetClass) =>
 /// catalog `flutterType` so the emitter imports + constructs the real fixture.
 /// The fixture is one library by construction, so any class's identifier is the
 /// same URI.
-String _fixtureUri(ResolvedLibraryResult library) =>
-    _classFor(library, _interactiveWidgets.first.widgetClass)
-        .library
-        .identifier;
+String _fixtureUri(ResolvedLibraryResult library) => _classFor(
+  library,
+  _interactiveWidgets.first.widgetClass,
+).library.identifier;
 
 /// The EVENT seam — `reflectType` over each callback constructor parameter into
 /// its classified [A2uiCallbackSignature] (the reflector production-read leg).
@@ -189,33 +197,32 @@ A2uiPairingSeam _pairingSeam(ResolvedLibraryResult library) {
 /// A developer-authored description for `QuickCheck`'s write-back value
 /// property, so the described-schema path is exercised over a write-back
 /// (value-reference `oneOf`) field, not just plain scalar/object fields — the
-/// same real-genui document-tie test pins this against
-/// `CatalogItem.dataSchema`.
+/// same document-tie test pins this against the generated component schema.
 const _valuePropDescription = 'The currently selected option index.';
 
 /// A test-built catalog whose entries name the fixture widget classes (the
 /// emitter constructs them) and carry each value property + each callback (as a
 /// required event property the seams then lower).
 Catalog _proofCatalog(String fixtureUri) => catalogWith([
-      for (final w in _interactiveWidgets)
-        entry(
-          name: w.catalogName,
-          flutterType: '$fixtureUri#${w.widgetClass}',
-          properties: [
-            for (final v in w.valueProps)
-              prop(
-                v.$1,
-                v.$2,
-                required: true,
-                description: w.catalogName == 'QuickCheck' && v.$1 == 'selected'
-                    ? _valuePropDescription
-                    : '',
-              ),
-            for (final c in w.callbacks)
-              prop(c, PropertyType.event, required: true),
-          ],
-        ),
-    ]);
+  for (final w in _interactiveWidgets)
+    entry(
+      name: w.catalogName,
+      flutterType: '$fixtureUri#${w.widgetClass}',
+      properties: [
+        for (final v in w.valueProps)
+          prop(
+            v.$1,
+            v.$2,
+            required: true,
+            description: w.catalogName == 'QuickCheck' && v.$1 == 'selected'
+                ? _valuePropDescription
+                : '',
+          ),
+        for (final c in w.callbacks)
+          prop(c, PropertyType.event, required: true),
+      ],
+    ),
+]);
 
 /// The production-emitted interactive catalog, normalized at the test boundary
 /// (the resolved `file://` fixture URI → the committed relative import).
@@ -293,8 +300,7 @@ void main() {
       );
     });
 
-    test(
-        'the pairing seam reads ONLY the annotated multi-control callbacks '
+    test('the pairing seam reads ONLY the annotated multi-control callbacks '
         '(@a2ui.Config.writeBackValues metadata)', () {
       final seam = _pairingSeam(library);
       // Exactly the two annotated Range callbacks — the auto-pair / dispatch
@@ -306,116 +312,133 @@ void main() {
     });
   });
 
-  group('interactive proof — the production emitter regenerates the catalog',
-      () {
-    test('the committed generated interactive catalog is current (drift guard)',
+  group(
+    'interactive proof — the production emitter regenerates the catalog',
+    () {
+      test(
+        'the committed generated interactive catalog is current (drift guard)',
         () {
-      final emission = _emitNormalized(library);
-      final normalized = emission.source;
+          final emission = _emitNormalized(library);
+          final normalized = emission.source;
 
-      expect(
-        normalized,
-        contains("import '$_fixtureImport' as p0;"),
-        reason: 'the emitter should import + prefix the fixture library',
-      );
-      expect(
-        normalized,
-        contains('p0.QuickCheckFixture('),
-        reason: 'the widget constructor should carry the import prefix',
-      );
+          expect(
+            normalized,
+            contains("import '$_fixtureImport' as p0;"),
+            reason: 'the emitter should import + prefix the fixture library',
+          );
+          expect(
+            normalized,
+            contains('p0.QuickCheckFixture('),
+            reason: 'the widget constructor should carry the import prefix',
+          );
 
-      final file = File(_generatedPath);
-      if (Platform.environment['REGEN_A2UI_DART_GOLDEN'] == '1') {
-        file.parent.createSync(recursive: true);
-        file.writeAsStringSync('$normalized\n');
-      }
-      expect(
-        file.existsSync(),
-        isTrue,
-        reason: 'run with REGEN_A2UI_DART_GOLDEN=1 to generate $_generatedPath',
-      );
-      expect(
-        normalized,
-        file.readAsStringSync().trimRight(),
-        reason: 'the committed interactive catalog has drifted from the '
-            'emitter; regenerate with REGEN_A2UI_DART_GOLDEN=1',
-      );
+          final file = File(_generatedPath);
+          if (Platform.environment['REGEN_A2UI_DART_GOLDEN'] == '1') {
+            file.parent.createSync(recursive: true);
+            file.writeAsStringSync('$normalized\n');
+          }
+          expect(
+            file.existsSync(),
+            isTrue,
+            reason:
+                'run with REGEN_A2UI_DART_GOLDEN=1 to generate $_generatedPath',
+          );
+          expect(
+            normalized,
+            file.readAsStringSync().trimRight(),
+            reason:
+                'the committed interactive catalog has drifted from the '
+                'emitter; regenerate with REGEN_A2UI_DART_GOLDEN=1',
+          );
 
-      // The standalone A2UI document for the SAME interactive fixture/seams —
-      // its per-component schemas carry the write-back `oneOf` value-reference
-      // shape. Emitted from the SAME seams so the document and the `.g.dart`
-      // CatalogItem schema agree; the restage_a2ui document-tie pins that
-      // against real genui. No URI normalization (the document carries no
-      // import URIs).
-      const encoder = JsonEncoder.withIndent('  ');
-      final manifestJson = encoder.convert(emission.registration.toJson());
-      final manifestFile = File(_manifestPath);
-      if (Platform.environment['REGEN_A2UI_GOLDEN'] == '1') {
-        manifestFile.parent.createSync(recursive: true);
-        manifestFile.writeAsStringSync('$manifestJson\n');
-      }
-      expect(
-        manifestFile.existsSync(),
-        isTrue,
-        reason: 'run with REGEN_A2UI_GOLDEN=1 to generate $_manifestPath',
+          // The standalone A2UI document for the SAME interactive fixture/seams
+          // — its per-component schemas carry the write-back `oneOf` value-
+          // reference shape. Emitted from the SAME seams so the document and
+          // the `.g.dart` CatalogItem schema agree; the restage_a2ui
+          // document-tie pins that against the real A2UI core. No URI
+          // normalization (the document carries no import URIs).
+          const encoder = JsonEncoder.withIndent('  ');
+          final manifestJson = encoder.convert(emission.registration.toJson());
+          final manifestFile = File(_manifestPath);
+          if (Platform.environment['REGEN_A2UI_GOLDEN'] == '1') {
+            manifestFile.parent.createSync(recursive: true);
+            manifestFile.writeAsStringSync('$manifestJson\n');
+          }
+          expect(
+            manifestFile.existsSync(),
+            isTrue,
+            reason: 'run with REGEN_A2UI_GOLDEN=1 to generate $_manifestPath',
+          );
+          expect(
+            manifestJson,
+            manifestFile.readAsStringSync().trimRight(),
+            reason:
+                'the committed interactive A2UI document has drifted from the '
+                'emitter; regenerate with REGEN_A2UI_GOLDEN=1',
+          );
+        },
       );
-      expect(
-        manifestJson,
-        manifestFile.readAsStringSync().trimRight(),
-        reason: 'the committed interactive A2UI document has drifted from the '
-            'emitter; regenerate with REGEN_A2UI_GOLDEN=1',
-      );
-    });
-  });
+    },
+  );
 
-  group('interactive proof — scope-correctness vocabulary (the inert subset)',
-      () {
-    // A codegen-correctness guard: the emitter produces EXACTLY the designed
-    // designed interactive vocabulary — controlled write-back through the
-    // shared source/override helper, dispatch (a compile-fixed
-    // `dispatchEvent(UserActionEvent)`), and the value-reference oneOf schema —
-    // and NONE of the genui producer-driven action surface (a genui `action()`
-    // schema, a producer `functionCall` action, or a dynamic/producer-supplied
-    // event name). No compliance positioning: A2UI is an emit target.
-    late String source;
+  group(
+    'interactive proof — scope-correctness vocabulary (the inert subset)',
+    () {
+      // A codegen-correctness guard: the emitter produces EXACTLY the designed
+      // designed interactive vocabulary — controlled write-back through the
+      // shared source/override helper, dispatch (a compile-fixed
+      // `dispatchEvent(UserActionEvent)`), and the value-reference oneOf schema
+      // — and NONE of a producer-driven action surface (a producer-supplied
+      // action schema, a producer function-call action, or a dynamic event
+      // name).
+      late String source;
 
-    setUpAll(() {
-      source = _emitNormalized(library).source;
-    });
+      setUpAll(() {
+        source = _emitNormalized(library).source;
+      });
 
-    test('it emits the shared controlled write-back vocabulary', () {
-      expect(source, contains("source: data['selected']"));
-      expect(source, contains('selfPath: restageA2uiSelfPathSelected'));
-      expect(
-        source,
-        contains('onSelected: restageA2uiWriteSelected'),
-      );
-    });
+      test('it emits the shared controlled write-back vocabulary', () {
+        expect(
+          source,
+          contains(
+            "source: itemContext.componentModel.properties['props_selected']",
+          ),
+        );
+        expect(source, contains('selfPath: restageA2uiSelfPathSelected'));
+        expect(
+          source,
+          contains('onSelected: restageA2uiWriteSelected'),
+        );
+      });
 
-    test('it emits the dispatch vocabulary with a COMPILE-FIXED event name',
+      test(
+        'it emits the dispatch vocabulary with a COMPILE-FIXED event name',
         () {
-      expect(source, contains('itemContext.dispatchEvent(UserActionEvent('));
-      expect(source, contains("name: 'onPressed'"));
-      expect(source, contains('sourceComponentId: itemContext.id'));
-    });
+          expect(source, contains('itemContext.dispatchAction('));
+          expect(source, contains("'name': 'onPressed'"));
+          expect(source, isNot(contains("'name': data[")));
+        },
+      );
 
-    test('it emits the value-reference (oneOf) schema for a write-back value',
+      test(
+        'it emits the value-reference (oneOf) schema for a write-back value',
         () {
-      expect(source, contains('oneOf:'));
-      expect(source, contains("'path': S.string()"));
-    });
+          expect(source, contains('oneOf:'));
+          expect(source, contains(r'common_types.json#/$defs/DataBinding'));
+        },
+      );
 
-    test('it emits NONE of the genui producer-driven action surface', () {
-      // No genui schema helper (we replicate the value-reference shape raw),
-      // and therefore no genui `action()` / producer `functionCall` ACTION.
-      expect(source, isNot(contains('A2uiSchemas')));
-      expect(source, isNot(contains('action(')));
-      // The dispatch event name is a fixed string literal, never a runtime
-      // value / producer-supplied name.
-      expect(source, isNot(contains('name: data[')));
-      expect(source, isNot(contains(r'name: $')));
-    });
-  });
+      test('it emits NONE of a producer-driven action surface', () {
+        // No schema helper and no producer-supplied action.
+        expect(source, isNot(contains('A2uiSchemas')));
+        expect(source, isNot(contains('action(')));
+        // The dispatch event name is a fixed string literal, never a runtime
+        // value / producer-supplied name.
+        expect(source, isNot(contains('name: data[')));
+        expect(source, isNot(contains(r'name: $')));
+      });
+    },
+  );
 
   group('interactive proof — multi-control distinct paths + census', () {
     late A2uiDartCatalogPlan plan;
@@ -430,13 +453,22 @@ void main() {
       source = _emitNormalized(library).source;
     });
 
-    test('the multi-control widget allocates two DISTINCT write-back paths',
-        () {
+    test('two controls allocate distinct write-back paths', () {
       // The explicit pairings (low/high) resolve to two distinct self paths —
       // no cross-wiring. (A duplicate path is a fail-loud throw by construction
       // — see _writeBackPreludeStatements.)
-      expect(source, contains(r"'${itemContext.id}.low'"));
-      expect(source, contains(r"'${itemContext.id}.high'"));
+      expect(
+        source,
+        contains(
+          r"'/restage_${Uri.encodeComponent(itemContext.componentModel.id)}${itemContext.dataContext.path == '/' ? '' : '/context_${Uri.encodeComponent(itemContext.dataContext.path)}'}/props_low'",
+        ),
+      );
+      expect(
+        source,
+        contains(
+          r"'/restage_${Uri.encodeComponent(itemContext.componentModel.id)}${itemContext.dataContext.path == '/' ? '' : '/context_${Uri.encodeComponent(itemContext.dataContext.path)}'}/props_high'",
+        ),
+      );
       expect(source, contains('selfPath: restageA2uiSelfPathLow'));
       expect(source, contains('selfPath: restageA2uiSelfPathHigh'));
       expect(

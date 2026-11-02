@@ -7,8 +7,7 @@ import 'helpers.dart';
 
 void main() {
   group('recogniseDraggableSheetBuilder — the canonical lower-able form', () {
-    test(
-        'expression body: SingleChildScrollView(controller: sc, child: X) '
+    test('expression body: SingleChildScrollView(controller: sc, child: X) '
         'recognises X as the child content', () async {
       final outcome = await _recognise(
         '(context, sc) => SingleChildScrollView(controller: sc, '
@@ -21,18 +20,20 @@ void main() {
       );
     });
 
-    test('block body with a single return recognises the same content',
-        () async {
-      final outcome = await _recognise(
-        '(context, sc) { return SingleChildScrollView(controller: sc, '
-        'child: Text("hi")); }',
-      );
-      expect(outcome, isA<DraggableSheetRecognised>());
-      expect(
-        (outcome as DraggableSheetRecognised).content.toSource(),
-        'Text("hi")',
-      );
-    });
+    test(
+      'block body with a single return recognises the same content',
+      () async {
+        final outcome = await _recognise(
+          '(context, sc) { return SingleChildScrollView(controller: sc, '
+          'child: Text("hi")); }',
+        );
+        expect(outcome, isA<DraggableSheetRecognised>());
+        expect(
+          (outcome as DraggableSheetRecognised).content.toSource(),
+          'Text("hi")',
+        );
+      },
+    );
 
     test('a key argument on the scroll view is allowed (dropped)', () async {
       final outcome = await _recognise(
@@ -47,34 +48,35 @@ void main() {
     });
   });
 
-  group('recogniseDraggableSheetBuilder — strict-arg-subset (correction #2)',
-      () {
-    for (final arg in const [
-      'padding: EdgeInsets.zero',
-      'physics: const NeverScrollableScrollPhysics()',
-      'reverse: true',
-      'scrollDirection: Axis.horizontal',
-      'primary: false',
-      'clipBehavior: Clip.none',
-      'dragStartBehavior: DragStartBehavior.down',
-    ]) {
-      test('a SingleChildScrollView carrying `$arg` fatal-defers', () async {
-        final outcome = await _recognise(
-          '(context, sc) => SingleChildScrollView(controller: sc, $arg, '
-          'child: Text("x"))',
-        );
-        expect(outcome, isA<DraggableSheetDeferred>());
-        expect(
-          (outcome as DraggableSheetDeferred).reason,
-          kDraggableSheetScrollViewArgUnsupportedReason,
-        );
-      });
-    }
-  });
+  group(
+    'recogniseDraggableSheetBuilder — strict-arg-subset (correction #2)',
+    () {
+      for (final arg in const [
+        'padding: EdgeInsets.zero',
+        'physics: const NeverScrollableScrollPhysics()',
+        'reverse: true',
+        'scrollDirection: Axis.horizontal',
+        'primary: false',
+        'clipBehavior: Clip.none',
+        'dragStartBehavior: DragStartBehavior.down',
+      ]) {
+        test('a SingleChildScrollView carrying `$arg` fatal-defers', () async {
+          final outcome = await _recognise(
+            '(context, sc) => SingleChildScrollView(controller: sc, $arg, '
+            'child: Text("x"))',
+          );
+          expect(outcome, isA<DraggableSheetDeferred>());
+          expect(
+            (outcome as DraggableSheetDeferred).reason,
+            kDraggableSheetScrollViewArgUnsupportedReason,
+          );
+        });
+      }
+    },
+  );
 
   group('recogniseDraggableSheetBuilder — non-canonical scroll bodies', () {
-    test(
-        'ListView(controller: sc, children: [...]) fatal-defers '
+    test('ListView(controller: sc, children: [...]) fatal-defers '
         '(correction #1 — NOT lowered to a bare Column)', () async {
       final outcome = await _recognise(
         '(context, sc) => ListView(controller: sc, children: [Text("a")])',
@@ -86,32 +88,35 @@ void main() {
       );
     });
 
-    test('a body that ignores the controller (0 references) fatal-defers',
-        () async {
-      final outcome = await _recognise(
-        '(context, sc) => Column(children: [Text("a")])',
-      );
-      expect(outcome, isA<DraggableSheetDeferred>());
-      expect(
-        (outcome as DraggableSheetDeferred).reason,
-        kDraggableSheetScrollableChildUnsupportedReason,
-      );
-    });
-
-    test('CustomScrollView(controller: sc, slivers: [...]) fatal-defers',
-        () async {
-      final outcome = await _recognise(
-        '(context, sc) => CustomScrollView(controller: sc, slivers: [])',
-      );
-      expect(outcome, isA<DraggableSheetDeferred>());
-      expect(
-        (outcome as DraggableSheetDeferred).reason,
-        kDraggableSheetScrollableChildUnsupportedReason,
-      );
-    });
+    test(
+      'a body that ignores the controller (0 references) fatal-defers',
+      () async {
+        final outcome = await _recognise(
+          '(context, sc) => Column(children: [Text("a")])',
+        );
+        expect(outcome, isA<DraggableSheetDeferred>());
+        expect(
+          (outcome as DraggableSheetDeferred).reason,
+          kDraggableSheetScrollableChildUnsupportedReason,
+        );
+      },
+    );
 
     test(
-        'a SingleChildScrollView whose controller is not the sc formal '
+      'CustomScrollView(controller: sc, slivers: [...]) fatal-defers',
+      () async {
+        final outcome = await _recognise(
+          '(context, sc) => CustomScrollView(controller: sc, slivers: [])',
+        );
+        expect(outcome, isA<DraggableSheetDeferred>());
+        expect(
+          (outcome as DraggableSheetDeferred).reason,
+          kDraggableSheetScrollableChildUnsupportedReason,
+        );
+      },
+    );
+
+    test('a SingleChildScrollView whose controller is not the sc formal '
         'fatal-defers', () async {
       final outcome = await _recognise(
         '(context, sc) => SingleChildScrollView(controller: other, '
@@ -136,8 +141,7 @@ void main() {
       );
     });
 
-    test(
-        'the sc formal captured into the child only (scroll view has no '
+    test('the sc formal captured into the child only (scroll view has no '
         'controller) fatal-defers', () async {
       final outcome = await _recognise(
         '(context, sc) => SingleChildScrollView(child: '
@@ -162,66 +166,74 @@ void main() {
     });
   });
 
-  group('recogniseDraggableSheetBuilder — malformed builders (NotRecognised)',
-      () {
-    test('a non-closure builder is not recognised', () async {
-      final outcome = await _recognise('someBuilder');
-      expect(outcome, isA<DraggableSheetNotRecognised>());
-    });
+  group(
+    'recogniseDraggableSheetBuilder — malformed builders (NotRecognised)',
+    () {
+      test('a non-closure builder is not recognised', () async {
+        final outcome = await _recognise('someBuilder');
+        expect(outcome, isA<DraggableSheetNotRecognised>());
+      });
 
-    test('an async builder is not recognised', () async {
-      final outcome = await _recognise(
-        '(context, sc) async => SingleChildScrollView(controller: sc, '
-        'child: Text("x"))',
-      );
-      expect(outcome, isA<DraggableSheetNotRecognised>());
-    });
+      test('an async builder is not recognised', () async {
+        final outcome = await _recognise(
+          '(context, sc) async => SingleChildScrollView(controller: sc, '
+          'child: Text("x"))',
+        );
+        expect(outcome, isA<DraggableSheetNotRecognised>());
+      });
 
-    test('a single-parameter builder (wrong arity) is not recognised',
+      test(
+        'a single-parameter builder (wrong arity) is not recognised',
         () async {
-      final outcome = await _recognise(
-        '(context) => SingleChildScrollView(child: Text("x"))',
+          final outcome = await _recognise(
+            '(context) => SingleChildScrollView(child: Text("x"))',
+          );
+          expect(outcome, isA<DraggableSheetNotRecognised>());
+        },
       );
-      expect(outcome, isA<DraggableSheetNotRecognised>());
-    });
 
-    test('a multi-statement block body is not recognised', () async {
-      final outcome = await _recognise(
-        '(context, sc) { final x = 1; '
-        'return SingleChildScrollView(controller: sc, child: Text("x")); }',
-      );
-      expect(outcome, isA<DraggableSheetNotRecognised>());
-    });
+      test('a multi-statement block body is not recognised', () async {
+        final outcome = await _recognise(
+          '(context, sc) { final x = 1; '
+          'return SingleChildScrollView(controller: sc, child: Text("x")); }',
+        );
+        expect(outcome, isA<DraggableSheetNotRecognised>());
+      });
 
-    test('a conditional return is not recognised', () async {
-      final outcome = await _recognise(
-        '(context, sc) => cond '
-        '? SingleChildScrollView(controller: sc, child: Text("a")) '
-        ': Text("b")',
-      );
-      expect(outcome, isA<DraggableSheetNotRecognised>());
-    });
-  });
+      test('a conditional return is not recognised', () async {
+        final outcome = await _recognise(
+          '(context, sc) => cond '
+          '? SingleChildScrollView(controller: sc, child: Text("a")) '
+          ': Text("b")',
+        );
+        expect(outcome, isA<DraggableSheetNotRecognised>());
+      });
+    },
+  );
 
   group('disposition table', () {
-    test('covers the current Flutter DraggableScrollableSheet signature',
-        timeout: const Timeout(Duration(minutes: 3)), () async {
-      // Resolves the live Flutter signature through the heavier
-      // Flutter-resolution build harness, which is slow on a cold cache.
-      final signature = await _resolvedDraggableSheetParamNames();
-      expect(
-        kDraggableSheetArgumentDispositions.keys,
-        unorderedEquals(signature),
-        reason: 'the disposition table must account for every current Flutter '
-            'DraggableScrollableSheet constructor parameter',
-      );
-    });
+    test(
+      'covers the current Flutter DraggableScrollableSheet signature',
+      timeout: const Timeout(Duration(minutes: 3)),
+      () async {
+        // Resolves the live Flutter signature through the heavier
+        // Flutter-resolution build harness, which is slow on a cold cache.
+        final signature = await _resolvedDraggableSheetParamNames();
+        expect(
+          kDraggableSheetArgumentDispositions.keys,
+          unorderedEquals(signature),
+          reason:
+              'the disposition table must account for every current Flutter '
+              'DraggableScrollableSheet constructor parameter',
+        );
+      },
+    );
 
     test('classifies each parameter as the design specifies', () {
       Set<String> withDisposition(DraggableSheetArgumentDisposition d) => {
-            for (final e in kDraggableSheetArgumentDispositions.entries)
-              if (e.value == d) e.key,
-          };
+        for (final e in kDraggableSheetArgumentDispositions.entries)
+          if (e.value == d) e.key,
+      };
       expect(
         withDisposition(DraggableSheetArgumentDisposition.map),
         {
@@ -255,8 +267,7 @@ void main() {
     });
   });
 
-  group('reason strings describe supported behavior and corrective actions',
-      () {
+  group('reason strings describe supported behavior and corrective actions', () {
     final reasons = <String>[
       kDraggableSheetSnapSizesUnsupportedReason,
       kDraggableSheetControllerUnsupportedReason,

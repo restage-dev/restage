@@ -143,7 +143,7 @@ enum RouteArgumentDisposition {
 /// Per-route argument disposition tables. Keeping the tables public within
 /// the package lets tests pin completeness without duplicating the list.
 const Map<NavigationRouteType, Map<String, RouteArgumentDisposition>>
-    kRouteArgumentDispositions = {
+kRouteArgumentDispositions = {
   NavigationRouteType.materialPageRoute: {
     'builder': RouteArgumentDisposition.builder,
     'settings': RouteArgumentDisposition.defer,
@@ -279,11 +279,11 @@ NavigationTriggerOutcome recogniseNavigationTrigger(
         canonicalPaywallIdFor: canonicalPaywallIdFor,
       )) {
         case _RouteRecognised(
-            :final routeType,
-            :final route,
-            :final pushedScreen,
-            :final paywallSourceId,
-          ):
+          :final routeType,
+          :final route,
+          :final pushedScreen,
+          :final paywallSourceId,
+        ):
           return NavigationRecognised(
             RecognisedNavigation(
               routeType: routeType,

@@ -29,11 +29,11 @@ final class StructuredValueEmitter {
     required Expression Function(Expression) resolveBoundIdentifier,
     CollectionSemanticProbe Function()? collectionSemanticProbe,
     required bool Function(InstanceCreationExpression)
-        isResolvedNonFrameworkCtor,
+    isResolvedNonFrameworkCtor,
     required String Function(PrefixedIdentifier, String, String, List<Issue>)
-        deferFrameworkConstLookalike,
+    deferFrameworkConstLookalike,
     required String Function(InstanceCreationExpression, String, List<Issue>)
-        deferFrameworkCtorLookalike,
+    deferFrameworkCtorLookalike,
     required String Function(AstNode) locationOf,
     String Function(Expression, List<Issue>)? translateDoubleLiteral,
     TranslateBoundSlotCallback? translateSlotElement,
@@ -42,57 +42,64 @@ final class StructuredValueEmitter {
       ConditionalExpression,
       List<Issue>,
       String Function(Expression),
-    )? conditionalSwitch,
+    )?
+    conditionalSwitch,
     void Function(Expression, PropertyType, List<Issue>)?
-        validateThemeValueForSlot,
-  })  : _translate = translate,
-        _translateSlotValue = translateSlotValue ??
-            ((expr, type, issues) {
-              validateThemeValueForSlot?.call(expr, type, issues);
-              if (expr is ConditionalExpression && conditionalSwitch != null) {
-                return conditionalSwitch(
-                  expr,
-                  issues,
-                  (branch) => translate(branch, issues),
-                );
-              }
-              return translate(expr, issues);
-            }),
-        _translateDoubleScalar = translateDoubleScalar,
-        _translateDoubleElement = translateDoubleElement ??
-            ((expr, _, issues) => translateDoubleScalar(expr, issues)),
-        _resolveDoubleListSource = resolveDoubleListSource ??
-            ((source) => DoubleListSourceResolution(
-                  source: source,
-                  disposition: DoubleListSourceDisposition.ordinary,
-                )),
-        _translateDoubleLiteral =
-            translateDoubleLiteral ?? translateDoubleScalar,
-        _translateSlotElement = translateSlotElement ??
-            ((expr, _, type, issues) => (translateSlotValue ??
-                    ((expr, _, issues) => translate(expr, issues)))(
-                  expr,
-                  type,
-                  issues,
-                )),
-        _translateTypedListTerminal = translateTypedListTerminal ??
-            ((expr, _, issues) => translate(expr, issues)),
-        _stripParens = stripParens,
-        _stringLiteral = stringLiteral,
-        _frameworkOrUnresolved = frameworkOrUnresolved,
-        _resolveBoundIdentifier = resolveBoundIdentifier,
-        _collectionSemanticProbe =
-            collectionSemanticProbe ?? (() => CollectionSemanticProbe()),
-        _isResolvedNonFrameworkCtor = isResolvedNonFrameworkCtor,
-        _deferFrameworkConstLookalike = deferFrameworkConstLookalike,
-        _deferFrameworkCtorLookalike = deferFrameworkCtorLookalike,
-        _locationOf = locationOf;
+    validateThemeValueForSlot,
+  }) : _translate = translate,
+       _translateSlotValue =
+           translateSlotValue ??
+           ((expr, type, issues) {
+             validateThemeValueForSlot?.call(expr, type, issues);
+             if (expr is ConditionalExpression && conditionalSwitch != null) {
+               return conditionalSwitch(
+                 expr,
+                 issues,
+                 (branch) => translate(branch, issues),
+               );
+             }
+             return translate(expr, issues);
+           }),
+       _translateDoubleScalar = translateDoubleScalar,
+       _translateDoubleElement =
+           translateDoubleElement ??
+           ((expr, _, issues) => translateDoubleScalar(expr, issues)),
+       _resolveDoubleListSource =
+           resolveDoubleListSource ??
+           ((source) => DoubleListSourceResolution(
+             source: source,
+             disposition: DoubleListSourceDisposition.ordinary,
+           )),
+       _translateDoubleLiteral =
+           translateDoubleLiteral ?? translateDoubleScalar,
+       _translateSlotElement =
+           translateSlotElement ??
+           ((expr, _, type, issues) =>
+               (translateSlotValue ??
+               ((expr, _, issues) => translate(expr, issues)))(
+                 expr,
+                 type,
+                 issues,
+               )),
+       _translateTypedListTerminal =
+           translateTypedListTerminal ??
+           ((expr, _, issues) => translate(expr, issues)),
+       _stripParens = stripParens,
+       _stringLiteral = stringLiteral,
+       _frameworkOrUnresolved = frameworkOrUnresolved,
+       _resolveBoundIdentifier = resolveBoundIdentifier,
+       _collectionSemanticProbe =
+           collectionSemanticProbe ?? (() => CollectionSemanticProbe()),
+       _isResolvedNonFrameworkCtor = isResolvedNonFrameworkCtor,
+       _deferFrameworkConstLookalike = deferFrameworkConstLookalike,
+       _deferFrameworkCtorLookalike = deferFrameworkCtorLookalike,
+       _locationOf = locationOf;
 
   /// Translates an arbitrary expression to its RFW DSL fragment.
   final String Function(Expression, List<Issue>) _translate;
 
   final String Function(Expression, PropertyType, List<Issue>)
-      _translateSlotValue;
+  _translateSlotValue;
 
   /// Translates an expression to an RFW scalar that strict-decodes as a
   /// `double` (an author-written `int` literal is forced to a double literal).
@@ -130,11 +137,11 @@ final class StructuredValueEmitter {
 
   /// Emits the deferral diagnostic for a non-framework constant look-alike.
   final String Function(PrefixedIdentifier, String, String, List<Issue>)
-      _deferFrameworkConstLookalike;
+  _deferFrameworkConstLookalike;
 
   /// Emits the deferral diagnostic for a non-framework constructor look-alike.
   final String Function(InstanceCreationExpression, String, List<Issue>)
-      _deferFrameworkCtorLookalike;
+  _deferFrameworkCtorLookalike;
 
   /// Resolves the pre-computed source location string for a node.
   final String Function(AstNode) _locationOf;
@@ -211,7 +218,8 @@ final class StructuredValueEmitter {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
-            message: 'Unsupported EdgeInsets factory: EdgeInsets.$method. '
+            message:
+                'Unsupported EdgeInsets factory: EdgeInsets.$method. '
                 'Supported: all, symmetric, fromLTRB, only.',
             location: loc,
           ),
@@ -268,8 +276,7 @@ final class StructuredValueEmitter {
               'topEnd',
               'bottomStart',
               'bottomEnd',
-            ])
-              '$key: ${asDoubleLiteral(radius)}',
+            ]) '$key: ${asDoubleLiteral(radius)}',
           ].join(', ')})'
         : radius;
     switch (method) {
@@ -291,7 +298,8 @@ final class StructuredValueEmitter {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
-            message: 'Unsupported BorderRadius factory: BorderRadius.$method. '
+            message:
+                'Unsupported BorderRadius factory: BorderRadius.$method. '
                 'Supported: circular, all, only, vertical, horizontal.',
             location: loc,
           ),
@@ -348,13 +356,15 @@ final class StructuredValueEmitter {
     String loc,
   ) {
     final positional = args.whereType<Expression>().toList();
-    final scalar =
-        positional.length == 1 ? _radiusCircularScalar(positional.first) : null;
+    final scalar = positional.length == 1
+        ? _radiusCircularScalar(positional.first)
+        : null;
     if (scalar == null) {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'BorderRadius.all(...) supports a single '
+          message:
+              'BorderRadius.all(...) supports a single '
               'Radius.circular(...) radius only; an elliptical, non-static, '
               'or otherwise unsupported radius is not representable.',
           location: loc,
@@ -428,7 +438,8 @@ final class StructuredValueEmitter {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
-            message: 'BorderRadius.$method(...) supports statically '
+            message:
+                'BorderRadius.$method(...) supports statically '
                 'extractable Radius.circular(...) corners only; an elliptical, '
                 'non-static, or otherwise unsupported corner radius defers the '
                 'whole value.',
@@ -698,7 +709,8 @@ final class StructuredValueEmitter {
             issues.add(
               Issue(
                 code: IssueCode.unrecognizedMethodCall,
-                message: 'BorderSide.style must be a BorderStyle member '
+                message:
+                    'BorderSide.style must be a BorderStyle member '
                     '(solid or none). Got: ${e.toSource()}.',
                 location: loc,
               ),
@@ -745,10 +757,12 @@ final class StructuredValueEmitter {
     required List<Issue> issues,
     required String loc,
   }) {
-    final shapeType =
-        prefix != null && constructorName == null ? prefix : typeName;
-    final variant =
-        prefix != null && constructorName == null ? typeName : constructorName;
+    final shapeType = prefix != null && constructorName == null
+        ? prefix
+        : typeName;
+    final variant = prefix != null && constructorName == null
+        ? typeName
+        : constructorName;
     final before = issues.length;
 
     String done(String value) => issues.length == before ? value : '';
@@ -867,8 +881,9 @@ final class StructuredValueEmitter {
         case 'borderRadius':
           if (supportsBorderRadius) {
             final constValue = frameworkStaticConst(a.argumentExpression);
-            final encoded =
-                constValue == null ? null : encodeFrameworkConst(constValue);
+            final encoded = constValue == null
+                ? null
+                : encodeFrameworkConst(constValue);
             final radius = encoded?.kind == FrameworkConstKind.borderRadius
                 ? encoded!.dsl
                 : _translate(a.argumentExpression, issues);
@@ -928,7 +943,8 @@ final class StructuredValueEmitter {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'Unsupported LinearBorder factory: LinearBorder.$variant. '
+          message:
+              'Unsupported LinearBorder factory: LinearBorder.$variant. '
               'Supported: default, start, end, top, bottom.',
           location: loc,
         ),
@@ -1045,7 +1061,8 @@ final class StructuredValueEmitter {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'Unsupported StarBorder factory: StarBorder.$variant. '
+          message:
+              'Unsupported StarBorder factory: StarBorder.$variant. '
               'Supported: default and polygon.',
           location: loc,
         ),
@@ -1056,7 +1073,7 @@ final class StructuredValueEmitter {
     final supported = polygon
         ? 'side, sides, pointRounding, rotation, squash'
         : 'side, points, innerRadiusRatio, pointRounding, valleyRounding, '
-            'rotation, squash';
+              'rotation, squash';
     for (final a in args.whereType<NamedArgument>()) {
       final name = a.name.lexeme;
       switch (name) {
@@ -1134,8 +1151,7 @@ final class StructuredValueEmitter {
     String name,
     Expression expr,
     List<Issue> issues,
-  ) =>
-      '$name: ${_translateDoubleScalar(expr, issues)}';
+  ) => '$name: ${_translateDoubleScalar(expr, issues)}';
 
   String _shapeMap(List<String> parts) => '{${parts.join(', ')}}';
 
@@ -1223,7 +1239,8 @@ final class StructuredValueEmitter {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
-            message: 'Unsupported Paint cascade section: '
+            message:
+                'Unsupported Paint cascade section: '
                 '${section.toSource()}.',
             location: loc,
           ),
@@ -1236,7 +1253,8 @@ final class StructuredValueEmitter {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
-            message: 'Unsupported Paint cascade target: '
+            message:
+                'Unsupported Paint cascade target: '
                 '${section.leftHandSide.toSource()}.',
             location: loc,
           ),
@@ -1401,7 +1419,8 @@ final class StructuredValueEmitter {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
-            message: 'FontFeature.$constructorName() requires one string '
+            message:
+                'FontFeature.$constructorName() requires one string '
                 'feature argument.',
             location: loc,
           ),
@@ -1420,7 +1439,8 @@ final class StructuredValueEmitter {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'Unsupported FontFeature constructor: '
+          message:
+              'Unsupported FontFeature constructor: '
               'FontFeature.$constructorName.',
           location: loc,
         ),
@@ -1527,9 +1547,9 @@ final class StructuredValueEmitter {
       args.whereType<Expression>().toList();
 
   Map<String, Expression> _namedArgs(Iterable<Argument> args) => {
-        for (final a in args.whereType<NamedArgument>())
-          a.name.lexeme: a.argumentExpression,
-      };
+    for (final a in args.whereType<NamedArgument>())
+      a.name.lexeme: a.argumentExpression,
+  };
 
   String? _stringValue(Expression? expr) {
     if (expr == null) return null;
@@ -1584,8 +1604,9 @@ final class StructuredValueEmitter {
       return '';
     }
     final constValue = frameworkStaticConst(expr);
-    final encoded =
-        constValue == null ? null : encodeFrameworkConst(constValue);
+    final encoded = constValue == null
+        ? null
+        : encodeFrameworkConst(constValue);
     if (encoded != null &&
         (encoded.kind == FrameworkConstKind.alignment ||
             encoded.kind == FrameworkConstKind.directionalAlignment)) {
@@ -1666,11 +1687,11 @@ final class StructuredValueEmitter {
               : IssueCode.unresolvedIdentifier,
           message: framework
               ? 'Unsupported alignment expression: ${expr.toSource()}. '
-                  'Use an Alignment.<name> member or Alignment(x, y).'
+                    'Use an Alignment.<name> member or Alignment(x, y).'
               : "Cannot fold the const reference '${expr.toSource()}' to an "
-                  'alignment: it is declared in another file. Inline the '
-                  'Alignment.<name> member at the use site, or move the const '
-                  'into the same file.',
+                    'alignment: it is declared in another file. Inline the '
+                    'Alignment.<name> member at the use site, or move the const '
+                    'into the same file.',
           location: loc,
         ),
       );
@@ -1679,7 +1700,8 @@ final class StructuredValueEmitter {
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
-        message: 'Unsupported alignment expression: ${expr.toSource()}. '
+        message:
+            'Unsupported alignment expression: ${expr.toSource()}. '
             'Use an Alignment.<name> member or Alignment(x, y).',
         location: loc,
       ),
@@ -1710,7 +1732,8 @@ final class StructuredValueEmitter {
     issues.add(
       Issue(
         code: IssueCode.unresolvedIdentifier,
-        message: "Unsupported Alignment member 'Alignment.$member'. "
+        message:
+            "Unsupported Alignment member 'Alignment.$member'. "
             'Supported: ${_kAlignmentMembers.keys.join(", ")}.',
         location: loc,
       ),

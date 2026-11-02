@@ -25,8 +25,7 @@ import 'helpers.dart';
 
 void main() {
   group('Navigation lowering translation', () {
-    test(
-        'a const-object-field event name is collected so the synthetic nav '
+    test('a const-object-field event name is collected so the synthetic nav '
         'minter does not reuse it', () async {
       // The authored `paywallEvent(_skin.nav)` folds to 'restageNav0'. The
       // scanner must see that folded name (via the unified scalar boundary) so
@@ -228,19 +227,22 @@ Object x(BuildContext context) => Column(
       expect(
         (
           event: translation.navigation!.transitions.single.event,
-          authoredHandlers:
-              RegExp(r'event "restageNav0" \{\}').allMatches(emitted).length,
-          generatedHandlers:
-              RegExp(r'event "restageNav1" \{\}').allMatches(emitted).length,
+          authoredHandlers: RegExp(
+            r'event "restageNav0" \{\}',
+          ).allMatches(emitted).length,
+          generatedHandlers: RegExp(
+            r'event "restageNav1" \{\}',
+          ).allMatches(emitted).length,
         ),
         (event: 'restageNav1', authoredHandlers: 1, generatedHandlers: 1),
       );
     });
 
-    test('a false collection branch leaves the first navigation name free',
-        () async {
-      final translation = await _translateCustomBuildEntry(
-        _navigationActionSource('''
+    test(
+      'a false collection branch leaves the first navigation name free',
+      () async {
+        final translation = await _translateCustomBuildEntry(
+          _navigationActionSource('''
 Column(
   children: [
     if (false)
@@ -252,37 +254,40 @@ Column(
   ],
 )
 '''),
-      );
+        );
 
-      expect(translation.issues, isEmpty);
-      final definition = translation.widgetDefinitions['TermsAction']!;
-      expect(
-        (
-          definition: definition,
-          authoredHandlers:
-              RegExp(r'event "restageNav0" \{\}').allMatches(definition).length,
-          generatedHandlers: RegExp(r'event "restageNav0" \{\}')
-              .allMatches(translation.dsl)
-              .length,
-          nextHandlers: RegExp(r'event "restageNav1" \{\}')
-              .allMatches(translation.dsl)
-              .length,
-          event: translation.navigation!.transitions.single.event,
-        ),
-        (
-          definition: 'Column(children: [Text(text: "Terms")])',
-          authoredHandlers: 0,
-          generatedHandlers: 1,
-          nextHandlers: 0,
-          event: 'restageNav0',
-        ),
-      );
-    });
+        expect(translation.issues, isEmpty);
+        final definition = translation.widgetDefinitions['TermsAction']!;
+        expect(
+          (
+            definition: definition,
+            authoredHandlers: RegExp(
+              r'event "restageNav0" \{\}',
+            ).allMatches(definition).length,
+            generatedHandlers: RegExp(
+              r'event "restageNav0" \{\}',
+            ).allMatches(translation.dsl).length,
+            nextHandlers: RegExp(
+              r'event "restageNav1" \{\}',
+            ).allMatches(translation.dsl).length,
+            event: translation.navigation!.transitions.single.event,
+          ),
+          (
+            definition: 'Column(children: [Text(text: "Terms")])',
+            authoredHandlers: 0,
+            generatedHandlers: 1,
+            nextHandlers: 0,
+            event: 'restageNav0',
+          ),
+        );
+      },
+    );
 
-    test('a true collection branch reserves its authored navigation name',
-        () async {
-      final translation = await _translateCustomBuildEntry(
-        _navigationActionSource('''
+    test(
+      'a true collection branch reserves its authored navigation name',
+      () async {
+        final translation = await _translateCustomBuildEntry(
+          _navigationActionSource('''
 Column(
   children: [
     if (true)
@@ -293,29 +298,32 @@ Column(
   ],
 )
 '''),
-      );
+        );
 
-      expect(translation.issues, isEmpty);
-      final definition = translation.widgetDefinitions['TermsAction']!;
-      expect(
-        (
-          definition: definition,
-          authoredHandlers:
-              RegExp(r'event "restageNav0" \{\}').allMatches(definition).length,
-          generatedHandlers: RegExp(r'event "restageNav1" \{\}')
-              .allMatches(translation.dsl)
-              .length,
-          event: translation.navigation!.transitions.single.event,
-        ),
-        (
-          definition: 'Column(children: [ElevatedButton(onPressed: event '
-              '"restageNav0" {}, child: Text(text: "Terms"))])',
-          authoredHandlers: 1,
-          generatedHandlers: 1,
-          event: 'restageNav1',
-        ),
-      );
-    });
+        expect(translation.issues, isEmpty);
+        final definition = translation.widgetDefinitions['TermsAction']!;
+        expect(
+          (
+            definition: definition,
+            authoredHandlers: RegExp(
+              r'event "restageNav0" \{\}',
+            ).allMatches(definition).length,
+            generatedHandlers: RegExp(
+              r'event "restageNav1" \{\}',
+            ).allMatches(translation.dsl).length,
+            event: translation.navigation!.transitions.single.event,
+          ),
+          (
+            definition:
+                'Column(children: [ElevatedButton(onPressed: event '
+                '"restageNav0" {}, child: Text(text: "Terms"))])',
+            authoredHandlers: 1,
+            generatedHandlers: 1,
+            event: 'restageNav1',
+          ),
+        );
+      },
+    );
 
     test('a collection branch reserves only its selected event name', () async {
       final translation = await _translateCustomBuildEntry(
@@ -342,17 +350,20 @@ Column(
       expect(
         (
           definition: definition,
-          firstHandlers:
-              RegExp(r'event "restageNav0" \{\}').allMatches(definition).length,
-          selectedHandlers:
-              RegExp(r'event "restageNav2" \{\}').allMatches(definition).length,
-          generatedHandlers: RegExp(r'event "restageNav0" \{\}')
-              .allMatches(translation.dsl)
-              .length,
+          firstHandlers: RegExp(
+            r'event "restageNav0" \{\}',
+          ).allMatches(definition).length,
+          selectedHandlers: RegExp(
+            r'event "restageNav2" \{\}',
+          ).allMatches(definition).length,
+          generatedHandlers: RegExp(
+            r'event "restageNav0" \{\}',
+          ).allMatches(translation.dsl).length,
           event: translation.navigation!.transitions.single.event,
         ),
         (
-          definition: 'Column(children: [ElevatedButton(onPressed: event '
+          definition:
+              'Column(children: [ElevatedButton(onPressed: event '
               '"restageNav2" {}, child: Text(text: "Second"))])',
           firstHandlers: 0,
           selectedHandlers: 1,
@@ -432,15 +443,15 @@ Object x(BuildContext context) => Column(
       expect(translation.issues, isEmpty);
       expect(
         (
-          spreadHandlers: RegExp(r'event "restageNav0" \{\}')
-              .allMatches(translation.widgetDefinitions['TermsGroup']!)
-              .length,
-          loopHandlers: RegExp(r'event "restageNav1" \{\}')
-              .allMatches(translation.widgetDefinitions['TermsAction']!)
-              .length,
-          generatedHandlers: RegExp(r'event "restageNav2" \{\}')
-              .allMatches(translation.dsl)
-              .length,
+          spreadHandlers: RegExp(
+            r'event "restageNav0" \{\}',
+          ).allMatches(translation.widgetDefinitions['TermsGroup']!).length,
+          loopHandlers: RegExp(
+            r'event "restageNav1" \{\}',
+          ).allMatches(translation.widgetDefinitions['TermsAction']!).length,
+          generatedHandlers: RegExp(
+            r'event "restageNav2" \{\}',
+          ).allMatches(translation.dsl).length,
           event: translation.navigation!.transitions.single.event,
         ),
         (
@@ -452,9 +463,10 @@ Object x(BuildContext context) => Column(
       );
     });
 
-    test('a nested action reached through a helper list reserves its name',
-        () async {
-      final translation = await _translateCustomBuildEntry('''
+    test(
+      'a nested action reached through a helper list reserves its name',
+      () async {
+        final translation = await _translateCustomBuildEntry('''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -515,19 +527,21 @@ Object x(BuildContext context) => Column(
 );
 ''');
 
-      expect(translation.issues, isEmpty);
-      expect(
-        translation.widgetDefinitions['TermsAction'],
-        contains('event "restageNav0" {}'),
-      );
-      expect(translation.widgetDefinitions, contains('TermsGroup'));
-      expect(translation.navigation!.transitions.single.event, 'restageNav1');
-    });
+        expect(translation.issues, isEmpty);
+        expect(
+          translation.widgetDefinitions['TermsAction'],
+          contains('event "restageNav0" {}'),
+        );
+        expect(translation.widgetDefinitions, contains('TermsGroup'));
+        expect(translation.navigation!.transitions.single.event, 'restageNav1');
+      },
+    );
 
-    test('an unused inlined action does not reserve a navigation name',
-        () async {
-      final translation = await _translateCustomBuildEntry(
-        '''
+    test(
+      'an unused inlined action does not reserve a navigation name',
+      () async {
+        final translation = await _translateCustomBuildEntry(
+          '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -571,17 +585,19 @@ Object x(BuildContext context) => Column(
 
 Object unused() => const UnusedAction();
 ''',
-        additionalFunctions: const ['unused'],
-      );
+          additionalFunctions: const ['unused'],
+        );
 
-      expect(translation.issues, isEmpty);
-      expect(translation.widgetDefinitions, isEmpty);
-      expect(translation.navigation!.transitions.single.event, 'restageNav0');
-    });
+        expect(translation.issues, isEmpty);
+        expect(translation.widgetDefinitions, isEmpty);
+        expect(translation.navigation!.transitions.single.event, 'restageNav0');
+      },
+    );
 
-    test('a parenthesized final chain reserves the exact shadowed name',
-        () async {
-      final translation = await _translateBuildEntry('''
+    test(
+      'a parenthesized final chain reserves the exact shadowed name',
+      () async {
+        final translation = await _translateBuildEntry('''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -619,18 +635,19 @@ Object x(BuildContext context) {
 }
 ''');
 
-      expect(translation.issues, isEmpty);
-      expect(
-        RegExp(r'event "restageNav0" \{\}').allMatches(translation.dsl),
-        hasLength(1),
-      );
-      expect(
-        RegExp(r'event "restageNav1" \{\}').allMatches(translation.dsl),
-        hasLength(1),
-      );
-      expect(translation.dsl, isNot(contains('restageNav9')));
-      expect(translation.navigation!.transitions.single.event, 'restageNav1');
-    });
+        expect(translation.issues, isEmpty);
+        expect(
+          RegExp(r'event "restageNav0" \{\}').allMatches(translation.dsl),
+          hasLength(1),
+        );
+        expect(
+          RegExp(r'event "restageNav1" \{\}').allMatches(translation.dsl),
+          hasLength(1),
+        );
+        expect(translation.dsl, isNot(contains('restageNav9')));
+        expect(translation.navigation!.transitions.single.event, 'restageNav1');
+      },
+    );
 
     test('bound event names match inline navigation bytes', () async {
       const skin = '''
@@ -642,19 +659,19 @@ const skin = Skin(prefix: 'restage');
 ''';
       for (final (declarations, prelude, inlineName)
           in <(String, String, String)>[
-        (
-          '',
-          "final prefix = 'restage';\n"
-              "final eventName = prefix + 'Nav0';",
-          "'restage' + 'Nav0'",
-        ),
-        (
-          skin,
-          'final selected = skin;\n'
-              "final eventName = selected.prefix + 'Nav0';",
-          "skin.prefix + 'Nav0'",
-        ),
-      ]) {
+            (
+              '',
+              "final prefix = 'restage';\n"
+                  "final eventName = prefix + 'Nav0';",
+              "'restage' + 'Nav0'",
+            ),
+            (
+              skin,
+              'final selected = skin;\n'
+                  "final eventName = selected.prefix + 'Nav0';",
+              "skin.prefix + 'Nav0'",
+            ),
+          ]) {
         final bound = await _translateBuildEntry(
           _paywallSourceWithRoot(
             _eventNavigationRoot('eventName'),
@@ -688,20 +705,21 @@ const skin = Skin(prefix: 'restage');
       }
     });
 
-    test('reserved event names keep their diagnostic through bindings',
-        () async {
-      final inline = await _translateBuildEntry(
-        _paywallSourceWithRoot(
-          _eventButton("false ? 'continue' : 'restore'"),
-        ),
-      );
-      final local = await _translateBuildEntry(
-        _paywallSourceWithRoot(
-          _eventButton('eventName'),
-          prelude: "final eventName = false ? 'continue' : 'restore';",
-        ),
-      );
-      final formal = await _translateCustomBuildEntry('''
+    test(
+      'reserved event names keep their diagnostic through bindings',
+      () async {
+        final inline = await _translateBuildEntry(
+          _paywallSourceWithRoot(
+            _eventButton("false ? 'continue' : 'restore'"),
+          ),
+        );
+        final local = await _translateBuildEntry(
+          _paywallSourceWithRoot(
+            _eventButton('eventName'),
+            prelude: "final eventName = false ? 'continue' : 'restore';",
+          ),
+        );
+        final formal = await _translateCustomBuildEntry('''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -726,7 +744,7 @@ class RestoreHelperAction extends StatelessWidget {
 
 Object x(BuildContext context) => const RestoreHelperAction();
 ''');
-      final inlined = await _translateCustomBuildEntry('''
+        final inlined = await _translateCustomBuildEntry('''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -752,50 +770,52 @@ class RestoreAction extends StatelessWidget {
 Object x(BuildContext context) => const RestoreAction();
 ''');
 
-      const expectedMessage =
-          "The event name 'restore' is reserved for commerce. The reserved "
-          'names are purchase, restore, restage.purchase, restage.restore and '
-          'their outcome events such as restage.purchase.failed. Rename the '
-          "event, for example to 'restore_tapped'; any other name works. "
-          'Authored surfaces cannot initiate purchases or restores. '
-          'Applications '
-          'invoke the typed commerce boundary from explicit host-controlled '
-          'code. The current facade is unavailable until activated.';
-      expect(
-        [
-          for (final (name, result) in <(String, TranslationResult)>[
-            ('inline', inline),
-            ('local', local),
-            ('formal', formal),
-            ('inlined', inlined),
-          ])
-            (
-              name,
-              result.dsl,
-              result.issues.single.code,
-              result.issues.single.message,
-            ),
-        ],
-        [
-          for (final name in <String>['inline', 'local', 'formal', 'inlined'])
-            (
-              name,
-              '',
-              IssueCode.unsupportedCommerceAuthoring,
-              expectedMessage,
-            ),
-        ],
-      );
-    });
+        const expectedMessage =
+            "The event name 'restore' is reserved for commerce. The reserved "
+            'names are purchase, restore, restage.purchase, restage.restore and '
+            'their outcome events such as restage.purchase.failed. Rename the '
+            "event, for example to 'restore_tapped'; any other name works. "
+            'Authored surfaces cannot initiate purchases or restores. '
+            'Applications '
+            'invoke the typed commerce boundary from explicit host-controlled '
+            'code. The current facade is unavailable until activated.';
+        expect(
+          [
+            for (final (name, result) in <(String, TranslationResult)>[
+              ('inline', inline),
+              ('local', local),
+              ('formal', formal),
+              ('inlined', inlined),
+            ])
+              (
+                name,
+                result.dsl,
+                result.issues.single.code,
+                result.issues.single.message,
+              ),
+          ],
+          [
+            for (final name in <String>['inline', 'local', 'formal', 'inlined'])
+              (
+                name,
+                '',
+                IssueCode.unsupportedCommerceAuthoring,
+                expectedMessage,
+              ),
+          ],
+        );
+      },
+    );
 
-    test('runtime and conditional event-name values refuse identically',
-        () async {
-      for (final initializer in <String>[
-        'runtimeName()',
-        "true ? 'first' : 'second'",
-        r"'${'custom'}Event'",
-      ]) {
-        final translation = await _translateBuildEntry('''
+    test(
+      'runtime and conditional event-name values refuse identically',
+      () async {
+        for (final initializer in <String>[
+          'runtimeName()',
+          "true ? 'first' : 'second'",
+          r"'${'custom'}Event'",
+        ]) {
+          final translation = await _translateBuildEntry('''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -810,22 +830,24 @@ Object x(BuildContext context) {
 }
 ''');
 
-        expect(translation.dsl, isEmpty, reason: initializer);
-        expect(translation.issues, hasLength(1), reason: initializer);
-        expect(
-          (translation.issues.single.code, translation.issues.single.message),
-          (
-            IssueCode.unrecognizedMethodCall,
-            'paywallEvent requires a statically resolved String name.',
-          ),
-          reason: initializer,
-        );
-      }
-    });
+          expect(translation.dsl, isEmpty, reason: initializer);
+          expect(translation.issues, hasLength(1), reason: initializer);
+          expect(
+            (translation.issues.single.code, translation.issues.single.message),
+            (
+              IssueCode.unrecognizedMethodCall,
+              'paywallEvent requires a statically resolved String name.',
+            ),
+            reason: initializer,
+          );
+        }
+      },
+    );
 
-    test('a dismiss event inside a build local terminates navigation',
-        () async {
-      final translation = await _translateBuildEntry('''
+    test(
+      'a dismiss event inside a build local terminates navigation',
+      () async {
+        final translation = await _translateBuildEntry('''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -855,14 +877,15 @@ Object x(BuildContext context) {
 }
 ''');
 
-      expect(translation.issues, isEmpty);
-      expect(translation.dsl, contains('event "restageNav0" {}'));
-      expect(translation.dsl, contains('event "skip" {}'));
-      expect(translation.dsl, contains('Text(text: "Choose")'));
-      expect(translation.dsl, contains('Text(text: "Dismiss")'));
-      expect(translation.navigation!.transitions.single.event, 'restageNav0');
-      expect(translation.navigation!.terminatingEvent, 'skip');
-    });
+        expect(translation.issues, isEmpty);
+        expect(translation.dsl, contains('event "restageNav0" {}'));
+        expect(translation.dsl, contains('event "skip" {}'));
+        expect(translation.dsl, contains('Text(text: "Choose")'));
+        expect(translation.dsl, contains('Text(text: "Dismiss")'));
+        expect(translation.navigation!.transitions.single.event, 'restageNav0');
+        expect(translation.navigation!.terminatingEvent, 'skip');
+      },
+    );
 
     test('a navigation trigger held in a build local refuses', () async {
       final translation = await _translateBuildEntry('''
@@ -928,10 +951,11 @@ Object x(BuildContext context) {
       expect(translation.navigation, isNull);
     });
 
-    test('root push rewrites both artifacts and exposes a navigation plan',
-        () async {
-      final standalone = await _translateEntry(
-        _paywallSourceWithRoot('''
+    test(
+      'root push rewrites both artifacts and exposes a navigation plan',
+      () async {
+        final standalone = await _translateEntry(
+          _paywallSourceWithRoot('''
 Column(
   children: [
     ElevatedButton(
@@ -948,9 +972,9 @@ Column(
   ],
 )
 '''),
-      );
-      final adapter = await _translateEntry(
-        _paywallSourceWithRoot('''
+        );
+        final adapter = await _translateEntry(
+          _paywallSourceWithRoot('''
 Column(
   children: [
     ElevatedButton(
@@ -967,30 +991,32 @@ Column(
   ],
 )
 '''),
-        flowScreenContext: true,
-      );
-
-      for (final translation in [standalone, adapter]) {
-        expect(translation.issues, isEmpty);
-        expect(translation.dsl, contains('event "restageNav0" {}'));
-        expect(translation.navigation, isNotNull);
-        expect(translation.navigation!.entryId, 'entry');
-        expect(translation.navigation!.terminatingEvent, 'skip');
-        expect(translation.navigation!.transitions, hasLength(1));
-        expect(
-          translation.navigation!.transitions.single.event,
-          'restageNav0',
+          flowScreenContext: true,
         );
-        expect(
-          translation.navigation!.transitions.single.pushedId,
-          'choose_plan',
-        );
-      }
-    });
 
-    test('canonical pushed paywalls lower identically to legacy sources',
-        () async {
-      const root = '''
+        for (final translation in [standalone, adapter]) {
+          expect(translation.issues, isEmpty);
+          expect(translation.dsl, contains('event "restageNav0" {}'));
+          expect(translation.navigation, isNotNull);
+          expect(translation.navigation!.entryId, 'entry');
+          expect(translation.navigation!.terminatingEvent, 'skip');
+          expect(translation.navigation!.transitions, hasLength(1));
+          expect(
+            translation.navigation!.transitions.single.event,
+            'restageNav0',
+          );
+          expect(
+            translation.navigation!.transitions.single.pushedId,
+            'choose_plan',
+          );
+        }
+      },
+    );
+
+    test(
+      'canonical pushed paywalls lower identically to legacy sources',
+      () async {
+        const root = '''
 Column(
   children: [
     ElevatedButton(
@@ -1007,108 +1033,131 @@ Column(
   ],
 )
 ''';
-      final legacy = await _translateEntry(_paywallSourceWithRoot(root));
-      final canonical = await _translateEntry(
-        _paywallSourceWithRoot(root, annotation: '@Paywall()'),
-        canonicalPaywallIdFor: (declaration) =>
-            declaration.name == 'ChoosePlan' ? 'choose_plan' : null,
-      );
+        final legacy = await _translateEntry(_paywallSourceWithRoot(root));
+        final canonical = await _translateEntry(
+          _paywallSourceWithRoot(root, annotation: '@Paywall()'),
+          canonicalPaywallIdFor: (declaration) =>
+              declaration.name == 'ChoosePlan' ? 'choose_plan' : null,
+        );
 
-      expect(canonical.issues, legacy.issues);
-      expect(canonical.suppressed, legacy.suppressed);
-      expect(canonical.dsl, legacy.dsl);
-      expect(canonical.navigation?.entryId, legacy.navigation?.entryId);
-      expect(
-        [
-          for (final transition in canonical.navigation!.transitions)
-            (transition.event, transition.pushedId),
-        ],
-        [
-          for (final transition in legacy.navigation!.transitions)
-            (transition.event, transition.pushedId),
-        ],
-      );
-    });
+        expect(canonical.issues, legacy.issues);
+        expect(canonical.suppressed, legacy.suppressed);
+        expect(canonical.dsl, legacy.dsl);
+        expect(canonical.navigation?.entryId, legacy.navigation?.entryId);
+        expect(
+          [
+            for (final transition in canonical.navigation!.transitions)
+              (transition.event, transition.pushedId),
+          ],
+          [
+            for (final transition in legacy.navigation!.transitions)
+              (transition.event, transition.pushedId),
+          ],
+        );
+      },
+    );
 
-    test('Navigator.pop is back in the adapter and suppresses standalone',
-        () async {
-      final source = _paywallSourceWithRoot('''
+    test(
+      'Navigator.pop is back in the adapter and suppresses standalone',
+      () async {
+        final source = _paywallSourceWithRoot('''
 GestureDetector(
   onTap: () => Navigator.pop(context),
   child: const Text('Back'),
 )
 ''');
 
-      final adapter = await _translateEntry(source, flowScreenContext: true);
-      expect(adapter.issues, isEmpty);
-      expect(adapter.dsl, contains('event "back" {}'));
-      expect(adapter.navigation, isNull);
-      expect(adapter.suppressed, isFalse);
+        final adapter = await _translateEntry(source, flowScreenContext: true);
+        expect(adapter.issues, isEmpty);
+        expect(adapter.dsl, contains('event "back" {}'));
+        expect(adapter.navigation, isNull);
+        expect(adapter.suppressed, isFalse);
 
-      final standalone = await _translateEntry(source);
-      expect(standalone.dsl, isEmpty);
-      expect(standalone.suppressed, isTrue);
-      expect(
-        standalone.issues.map((issue) => issue.code),
-        contains(IssueCode.navigationStandaloneArtifactSkipped),
-      );
-      expect(standalone.issues.single.code.isBuildNotice, isTrue);
-      expect(
-        standalone.issues.single.message,
-        'this paywall uses an in-flow Navigator.pop (back); its standalone '
-        'blob is not emitted — it renders as a flow screen. Use '
-        "paywallEvent('close') for a standalone dismiss, or present it via "
-        'a flow.',
-      );
-      expect(standalone.navigation, isNull);
-    });
+        final standalone = await _translateEntry(source);
+        expect(standalone.dsl, isEmpty);
+        expect(standalone.suppressed, isTrue);
+        expect(
+          standalone.issues.map((issue) => issue.code),
+          contains(IssueCode.navigationStandaloneArtifactSkipped),
+        );
+        expect(standalone.issues.single.code.isBuildNotice, isTrue);
+        expect(
+          standalone.issues.single.message,
+          'this paywall uses an in-flow Navigator.pop (back); its standalone '
+          'blob is not emitted — it renders as a flow screen. Use '
+          "paywallEvent('close') for a standalone dismiss, or present it via "
+          'a flow.',
+        );
+        expect(standalone.navigation, isNull);
+      },
+    );
 
-    test('mount navigation pop preserves suppression and adapter context',
-        () async {
-      final source = _paywallSourceWithRoot('''
+    test(
+      'mount navigation pop preserves suppression and adapter context',
+      () async {
+        final source = _paywallSourceWithRoot('''
 GestureDetector(
   onTap: () => Navigator.pop(context),
   child: const Text('Back'),
 )
 ''');
-      final standalone = await _translateEntry(source, hoistInMount: true);
-      expect(standalone.dsl, isEmpty);
-      expect(standalone.suppressed, isTrue);
-      expect(standalone.issues.map((issue) => issue.code),
-          [IssueCode.navigationStandaloneArtifactSkipped]);
-      expect(standalone.hoisted.where((value) => value.nativeCall != null),
-          isEmpty);
-      final adapter = await _translateEntry(source,
-          flowScreenContext: true, hoistInMount: true);
-      expect(adapter.issues, isEmpty);
-      expect(adapter.dsl, contains('event "back" {}'));
-      expect(adapter.suppressed, isFalse);
-      expect(
-          adapter.hoisted.where((value) => value.nativeCall != null), isEmpty);
-    });
+        final standalone = await _translateEntry(source, hoistInMount: true);
+        expect(standalone.dsl, isEmpty);
+        expect(standalone.suppressed, isTrue);
+        expect(standalone.issues.map((issue) => issue.code), [
+          IssueCode.navigationStandaloneArtifactSkipped,
+        ]);
+        expect(
+          standalone.hoisted.where((value) => value.nativeCall != null),
+          isEmpty,
+        );
+        final adapter = await _translateEntry(
+          source,
+          flowScreenContext: true,
+          hoistInMount: true,
+        );
+        expect(adapter.issues, isEmpty);
+        expect(adapter.dsl, contains('event "back" {}'));
+        expect(adapter.suppressed, isFalse);
+        expect(
+          adapter.hoisted.where((value) => value.nativeCall != null),
+          isEmpty,
+        );
+      },
+    );
 
     test('mount navigation pop keeps non-build context refusal', () async {
-      final translation = await _translateEntry('''
+      final translation = await _translateEntry(
+        '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 Object x(BuildContext context, BuildContext rootContext) => GestureDetector(
   onTap: () => Navigator.pop(rootContext),
   child: const Text('Back'),
 );
-''', flowScreenContext: true, hoistInMount: true);
+''',
+        flowScreenContext: true,
+        hoistInMount: true,
+      );
       expect(translation.dsl, isEmpty);
       expect(translation.suppressed, isFalse);
-      expect(translation.issues.map((issue) => issue.code),
-          [IssueCode.navigationFormUnsupported]);
-      expect(translation.issues.single.message,
-          contains('non-build-context targets a different navigator'));
-      expect(translation.hoisted.where((value) => value.nativeCall != null),
-          isEmpty);
+      expect(translation.issues.map((issue) => issue.code), [
+        IssueCode.navigationFormUnsupported,
+      ]);
+      expect(
+        translation.issues.single.message,
+        contains('non-build-context targets a different navigator'),
+      );
+      expect(
+        translation.hoisted.where((value) => value.nativeCall != null),
+        isEmpty,
+      );
     });
 
-    test('mount navigation does not authorize independent root native context',
-        () async {
-      final translation = await _translateEntry('''
+    test(
+      'mount navigation does not authorize independent root native context',
+      () async {
+        final translation = await _translateEntry('''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 Object x(BuildContext context) => GestureDetector(
@@ -1116,21 +1165,28 @@ Object x(BuildContext context) => GestureDetector(
   child: const Text('Unfocus'),
 );
 ''', hoistInMount: true);
-      expect(translation.dsl, isEmpty);
-      expect(translation.suppressed, isFalse);
-      expect(translation.issues.map((issue) => issue.code),
-          [IssueCode.propertyValueTypeMismatch]);
-      expect(
+        expect(translation.dsl, isEmpty);
+        expect(translation.suppressed, isFalse);
+        expect(translation.issues.map((issue) => issue.code), [
+          IssueCode.propertyValueTypeMismatch,
+        ]);
+        expect(
           translation.issues.single.message,
           contains(
-              'Native inputs require an existing callback or helper frame'));
-      expect(translation.hoisted.where((value) => value.nativeCall != null),
-          isEmpty);
-    });
+            'Native inputs require an existing callback or helper frame',
+          ),
+        );
+        expect(
+          translation.hoisted.where((value) => value.nativeCall != null),
+          isEmpty,
+        );
+      },
+    );
 
-    test('const-authored events are skipped when minting navigation events',
-        () async {
-      final translation = await _translateEntry('''
+    test(
+      'const-authored events are skipped when minting navigation events',
+      () async {
+        final translation = await _translateEntry('''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1163,21 +1219,23 @@ Object x(BuildContext context) => Column(
 );
 ''');
 
-      expect(translation.issues, isEmpty);
-      expect(translation.dsl, contains('event "restageNav0" {}'));
-      expect(translation.dsl, contains('event "restageNav1" {}'));
-      expect(translation.navigation, isNotNull);
-      expect(translation.navigation!.transitions.single.event, 'restageNav1');
-      expect(
-        translation.navigation!.transitions.single.pushedId,
-        'choose_plan',
-      );
-    });
+        expect(translation.issues, isEmpty);
+        expect(translation.dsl, contains('event "restageNav0" {}'));
+        expect(translation.dsl, contains('event "restageNav1" {}'));
+        expect(translation.navigation, isNotNull);
+        expect(translation.navigation!.transitions.single.event, 'restageNav1');
+        expect(
+          translation.navigation!.transitions.single.pushedId,
+          'choose_plan',
+        );
+      },
+    );
 
-    test('adapter pop through a root navigator context is not lowered',
-        () async {
-      final translation = await _translateEntry(
-        '''
+    test(
+      'adapter pop through a root navigator context is not lowered',
+      () async {
+        final translation = await _translateEntry(
+          '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1188,14 +1246,15 @@ Object x(BuildContext context) => GestureDetector(
   child: const Text('Back'),
 );
 ''',
-        flowScreenContext: true,
-      );
+          flowScreenContext: true,
+        );
 
-      expect(translation.dsl, isEmpty);
-      expect(translation.dsl, isNot(contains('event "back" {}')));
-      expect(translation.issues, isNotEmpty);
-      expect(translation.navigation, isNull);
-    });
+        expect(translation.dsl, isEmpty);
+        expect(translation.dsl, isNot(contains('event "back" {}')));
+        expect(translation.issues, isNotEmpty);
+        expect(translation.navigation, isNull);
+      },
+    );
 
     test('adapter pop through a captured context fatal-defers', () async {
       final translation = await _translateEntry(
@@ -1246,9 +1305,10 @@ ElevatedButton(
       expect(translation.navigation, isNull);
     });
 
-    test('an entry paywall Navigator.pop fatal-defers (not a flow back)',
-        () async {
-      final source = _paywallSourceWithRoot('''
+    test(
+      'an entry paywall Navigator.pop fatal-defers (not a flow back)',
+      () async {
+        final source = _paywallSourceWithRoot('''
 Column(
   children: [
     ElevatedButton(
@@ -1270,34 +1330,39 @@ Column(
 )
 ''');
 
-      // The paywall has a recognised push, so it is a flow ENTRY. Its
-      // Navigator.pop is a host dismiss, not a flow back, and must fatal-defer
-      // in BOTH artifacts rather than silently lower to a no-op `back`.
-      for (final flowScreenContext in [true, false]) {
-        final translation = await _translateEntry(
-          source,
-          flowScreenContext: flowScreenContext,
-          hoistInMount: true,
-        );
-        expect(
-          translation.issues.map((issue) => issue.code),
-          contains(IssueCode.navigationFormUnsupported),
-          reason: 'entry pop must fatal-defer (flowScreenContext='
-              '$flowScreenContext)',
-        );
-        expect(
-          translation.issues.map((issue) => issue.message).join('\n'),
-          contains("paywallEvent('skip')"),
-        );
-        expect(translation.dsl, isNot(contains('event "back"')));
-        expect(translation.hoisted.where((value) => value.nativeCall != null),
-            isEmpty);
-      }
-    });
+        // The paywall has a recognised push, so it is a flow ENTRY. Its
+        // Navigator.pop is a host dismiss, not a flow back, and must fatal-defer
+        // in BOTH artifacts rather than silently lower to a no-op `back`.
+        for (final flowScreenContext in [true, false]) {
+          final translation = await _translateEntry(
+            source,
+            flowScreenContext: flowScreenContext,
+            hoistInMount: true,
+          );
+          expect(
+            translation.issues.map((issue) => issue.code),
+            contains(IssueCode.navigationFormUnsupported),
+            reason:
+                'entry pop must fatal-defer (flowScreenContext='
+                '$flowScreenContext)',
+          );
+          expect(
+            translation.issues.map((issue) => issue.message).join('\n'),
+            contains("paywallEvent('skip')"),
+          );
+          expect(translation.dsl, isNot(contains('event "back"')));
+          expect(
+            translation.hoisted.where((value) => value.nativeCall != null),
+            isEmpty,
+          );
+        }
+      },
+    );
 
-    test('captured context identifiers do not satisfy the build context',
-        () async {
-      final translation = await _translateEntry('''
+    test(
+      'captured context identifiers do not satisfy the build context',
+      () async {
+        final translation = await _translateEntry('''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1324,17 +1389,18 @@ Object x(BuildContext context, BuildContext rootContext) => Column(
 );
 ''');
 
-      expect(translation.dsl, isEmpty);
-      expect(
-        translation.issues.map((issue) => issue.code),
-        contains(IssueCode.navigationFormUnsupported),
-      );
-      expect(
-        translation.issues.single.message,
-        contains('build method BuildContext'),
-      );
-      expect(translation.navigation, isNull);
-    });
+        expect(translation.dsl, isEmpty);
+        expect(
+          translation.issues.map((issue) => issue.code),
+          contains(IssueCode.navigationFormUnsupported),
+        );
+        expect(
+          translation.issues.single.message,
+          contains('build method BuildContext'),
+        );
+        expect(translation.navigation, isNull);
+      },
+    );
 
     test('multiple pushes mint distinct events and transitions', () async {
       final translation = await _translateEntry('''
@@ -1476,15 +1542,17 @@ class ChoosePlan extends StatelessWidget {
           'apps_examples|assets/paywalls/screens/paywall_entry.capability.json':
               anything,
           'apps_examples|assets/paywalls/screens/paywall_entry.rfw': isNotEmpty,
-          'apps_examples|assets/paywalls/entry.navplan.json':
-              decodedMatches(const _NavPlanMatcher()),
+          'apps_examples|assets/paywalls/entry.navplan.json': decodedMatches(
+            const _NavPlanMatcher(),
+          ),
         },
       );
     });
 
-    test('captured context through the builder fatal-defers with no outputs',
-        () async {
-      const entrySource = '''
+    test(
+      'captured context through the builder fatal-defers with no outputs',
+      () async {
+        const entrySource = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1512,7 +1580,7 @@ class EntryPaywall extends StatelessWidget {
   );
 }
 ''';
-      const choosePlanSource = '''
+        const choosePlanSource = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1522,26 +1590,30 @@ class ChoosePlan extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox();
 }
 ''';
-      final sources = {
-        'apps_examples|lib/paywalls/entry.dart': entrySource,
-        'apps_examples|lib/screens/choose_plan.dart': choosePlanSource,
-      };
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: true,
-      );
-      for (final entry in sources.entries) {
-        readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
-      }
+        final sources = {
+          'apps_examples|lib/paywalls/entry.dart': entrySource,
+          'apps_examples|lib/screens/choose_plan.dart': choosePlanSource,
+        };
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: true,
+        );
+        for (final entry in sources.entries) {
+          readerWriter.testing.writeString(
+            AssetId.parse(entry.key),
+            entry.value,
+          );
+        }
 
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: const {},
-      );
-    });
+        await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: const {},
+        );
+      },
+    );
 
     test('pop-only paywall emits adapter but suppresses standalone', () async {
       const entrySource = '''
@@ -1694,7 +1766,8 @@ Future<TranslationResult> _translateCustomBuildEntry(
     Expression rootExpression,
     Element? buildContextParameter,
     Map<Element, Expression> localBindings,
-  }) functionBuild(String name) {
+  })
+  functionBuild(String name) {
     final function = library.topLevelFunctions.singleWhere(
       (element) => element.name == name,
     );
@@ -1706,7 +1779,8 @@ Future<TranslationResult> _translateCustomBuildEntry(
     if (extracted == null) {
       throw StateError('Navigation widget fixture has no $name() value.');
     }
-    final parameters = node.functionExpression.parameters?.parameters ??
+    final parameters =
+        node.functionExpression.parameters?.parameters ??
         const <FormalParameter>[];
     final contextParameter = parameters
         .where((parameter) => parameter.name?.lexeme == 'context')
@@ -1748,7 +1822,8 @@ Future<TranslationResult> _translateCustomBuildEntry(
   );
 }
 
-String _navigationActionSource(String body) => '''
+String _navigationActionSource(String body) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -1790,11 +1865,13 @@ Object x(BuildContext context) => Column(
 ''';
 
 Future<
-    ({
-      Expression rootExpression,
-      Element? buildContextParameter,
-      Map<Element, Expression> localBindings,
-    })> _parseEntryBuildRoot(String source) async {
+  ({
+    Expression rootExpression,
+    Element? buildContextParameter,
+    Map<Element, Expression> localBindings,
+  })
+>
+_parseEntryBuildRoot(String source) async {
   final assetId = AssetId('apps_examples', 'lib/navigation_build_probe.dart');
   late final LibraryElement library;
   late final ResolvedLibraryResult resolved;
@@ -1822,7 +1899,8 @@ Future<
   if (extracted == null) {
     throw StateError('Navigation fixture has no supported build body.');
   }
-  final parameters = node.functionExpression.parameters?.parameters ??
+  final parameters =
+      node.functionExpression.parameters?.parameters ??
       const <FormalParameter>[];
   final contextParameter = parameters
       .where((parameter) => parameter.name?.lexeme == 'context')
@@ -1835,7 +1913,7 @@ Future<
 }
 
 Future<({Expression rootExpression, Element? buildContextParameter})>
-    _parseEntryRoot(String source) async {
+_parseEntryRoot(String source) async {
   final rootExpression = await parseExpressionFromSourceForTest(
     source,
     rootPackage: 'apps_examples',
@@ -1845,7 +1923,8 @@ Future<({Expression rootExpression, Element? buildContextParameter})>
     node = node.parent;
   }
   final declaration = node as FunctionDeclaration?;
-  final parameters = declaration?.functionExpression.parameters?.parameters ??
+  final parameters =
+      declaration?.functionExpression.parameters?.parameters ??
       const <FormalParameter>[];
   final contextParameter = parameters
       .where((parameter) => parameter.name?.lexeme == 'context')
@@ -1885,7 +1964,8 @@ $function
 ''';
 }
 
-String _eventNavigationRoot(String eventName) => '''
+String _eventNavigationRoot(String eventName) =>
+    '''
 Column(children: [
   ElevatedButton(
     onPressed: () => Navigator.push<void>(context,
@@ -1898,7 +1978,8 @@ Column(children: [
 ])
 ''';
 
-String _eventButton(String eventName) => '''
+String _eventButton(String eventName) =>
+    '''
 ElevatedButton(
   onPressed: paywallEvent($eventName),
   child: const Text('Restore'),
@@ -2020,7 +2101,9 @@ class _RfwBlobContainsMatcher extends Matcher {
 
   @override
   Description describe(Description description) {
-    return description.add('an RFW blob containing ').addDescriptionOf(
+    return description
+        .add('an RFW blob containing ')
+        .addDescriptionOf(
           expected,
         );
   }

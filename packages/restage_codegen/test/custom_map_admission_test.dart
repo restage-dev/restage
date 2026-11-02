@@ -23,23 +23,25 @@ import 'helpers.dart';
 /// The inline reconstruction context, assembled from [result] the same way the
 /// walker assembles it before handing it to the emittability check.
 CustomReconstruction _reconstructionContext(WidgetVisitorResult result) => (
-      structuredBySourceType: {
-        for (final structured in result.structuredTypes)
-          structured.sourceType: structured,
-      },
-      plansBySourceType: result.reconstructionPlans,
-      mapPlans: result.mapPlans,
-      recordPlans: result.recordPlans,
-      slotTargets: result.slotTargets,
-      nullableStructuredSlots: result.nullableStructuredSlots,
-      aliases: const <String, String>{},
-    );
+  structuredBySourceType: {
+    for (final structured in result.structuredTypes)
+      structured.sourceType: structured,
+  },
+  plansBySourceType: result.reconstructionPlans,
+  mapPlans: result.mapPlans,
+  recordPlans: result.recordPlans,
+  slotTargets: result.slotTargets,
+  nullableStructuredSlots: result.nullableStructuredSlots,
+  aliases: const <String, String>{},
+);
 
 Future<
-    ({
-      CustomStructuredAdmission admission,
-      WidgetVisitorResult result,
-    })> _admitThroughFactoryEmittability(Map<String, String> sources) async {
+  ({
+    CustomStructuredAdmission admission,
+    WidgetVisitorResult result,
+  })
+>
+_admitThroughFactoryEmittability(Map<String, String> sources) async {
   final result = await runWidgetVisitorOn(sources);
   final context = _reconstructionContext(result);
   return (
@@ -79,7 +81,8 @@ void main() {
       expect(
         r.admission.excluded,
         isEmpty,
-        reason: 'the widget must not be excluded; got '
+        reason:
+            'the widget must not be excluded; got '
             '${r.admission.excluded.map((e) => e.reason).toList()}',
       );
       expect(r.admission.admitted.map((w) => w.name), ['FieldNotes']);
@@ -87,8 +90,9 @@ void main() {
       // Assert the SLOT SURVIVED carrying the map contract, not merely that
       // the widget was admitted: a dropped property leaves a widget with no
       // slot to object to, which is admitted for the wrong reason.
-      final prop = r.admission.admitted.single.properties
-          .singleWhere((p) => p.name == 'glossary');
+      final prop = r.admission.admitted.single.properties.singleWhere(
+        (p) => p.name == 'glossary',
+      );
       expect(prop.type, PropertyType.unknown);
       expect((prop.valueShape! as ScalarShape).isOpaqueStringKeyedMap, isTrue);
     },
@@ -120,7 +124,8 @@ void main() {
       expect(
         r.admission.excluded,
         isEmpty,
-        reason: 'the widget must not be excluded; got '
+        reason:
+            'the widget must not be excluded; got '
             '${r.admission.excluded.map((e) => e.reason).toList()}',
       );
       expect(r.admission.admitted.map((w) => w.name), ['FieldNotes']);
@@ -128,10 +133,12 @@ void main() {
       // The map field must have MATERIALIZED on the owning type carrying the
       // map contract. Asserting only that nothing was marked unrenderable
       // would also pass if the field had vanished silently.
-      final section = r.result.structuredTypes
-          .singleWhere((entry) => entry.sourceType.endsWith('#Section'));
-      final field =
-          section.fields.singleWhere((field) => field.name == 'glossary');
+      final section = r.result.structuredTypes.singleWhere(
+        (entry) => entry.sourceType.endsWith('#Section'),
+      );
+      final field = section.fields.singleWhere(
+        (field) => field.name == 'glossary',
+      );
       expect(field.type, PropertyType.unknown);
       expect((field.valueShape! as ScalarShape).isOpaqueStringKeyedMap, isTrue);
     },

@@ -21,10 +21,11 @@ void main() {
     );
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
     return jsonDecode(
-      readerWriter.testing.readString(
-        AssetId('apps_examples', kRestageSurfaceCapturePlanCompilerPath),
-      ),
-    ) as Map<String, Object?>;
+          readerWriter.testing.readString(
+            AssetId('apps_examples', kRestageSurfaceCapturePlanCompilerPath),
+          ),
+        )
+        as Map<String, Object?>;
   }
 
   test('plans a widget from its resolved constructor', () async {
@@ -81,15 +82,14 @@ final class Checklist extends StatelessWidget {
       Map<String, Object?> type, {
       bool required = true,
       String? sampleKey,
-    }) =>
-        {
-          'name': name,
-          'named': true,
-          'required': required,
-          'hasDefault': false,
-          'sampleKey': sampleKey ?? name,
-          'type': type,
-        };
+    }) => {
+      'name': name,
+      'named': true,
+      'required': required,
+      'hasDefault': false,
+      'sampleKey': sampleKey ?? name,
+      'type': type,
+    };
     const string = {'kind': 'string'};
     expect(plan, {
       'general.checklist': {
@@ -164,10 +164,11 @@ final class Offer extends StatelessWidget {
     expect(((offer['parameters']! as List)[1] as Map)['sampleKey'], 'price');
   });
 
-  test('an unbound parameter has no sample key; a private class is named',
-      () async {
-    final plan = await plans({
-      'apps_examples|lib/screens/offer.dart': r'''
+  test(
+    'an unbound parameter has no sample key; a private class is named',
+    () async {
+      final plan = await plans({
+        'apps_examples|lib/screens/offer.dart': r'''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -224,22 +225,26 @@ final class Offer extends StatelessWidget {
       );
 }
 ''',
-    });
+      });
 
-    final offer = plan['general.offer']! as Map<String, Object?>;
-    Map<Object?, Object?> type(String name) => (offer['parameters']! as List)
-            .cast<Map<Object?, Object?>>()
-            .singleWhere((parameter) => parameter['name'] == name)['type']!
-        as Map<Object?, Object?>;
-    Object? sampleKey(String name) =>
-        ((type(name)['parameters']! as List).single as Map)['sampleKey'];
-    // A transformed value is held by no field of the parameter's name.
-    expect(sampleKey('price'), isNull);
-    expect(sampleKey('fallback'), isNull);
-    // A field of the same name holds it through the redirect.
-    expect(sampleKey('redirect'), 'text');
-    expect(type('hidden'), {'kind': 'private', 'name': '_Hidden'});
-  });
+      final offer = plan['general.offer']! as Map<String, Object?>;
+      Map<Object?, Object?> type(String name) =>
+          (offer['parameters']! as List)
+                  .cast<Map<Object?, Object?>>()
+                  .singleWhere(
+                    (parameter) => parameter['name'] == name,
+                  )['type']!
+              as Map<Object?, Object?>;
+      Object? sampleKey(String name) =>
+          ((type(name)['parameters']! as List).single as Map)['sampleKey'];
+      // A transformed value is held by no field of the parameter's name.
+      expect(sampleKey('price'), isNull);
+      expect(sampleKey('fallback'), isNull);
+      // A field of the same name holds it through the redirect.
+      expect(sampleKey('redirect'), 'text');
+      expect(type('hidden'), {'kind': 'private', 'name': '_Hidden'});
+    },
+  );
 
   test('a paywall and a screen sharing an id each plan their own', () async {
     final plan = await plans({

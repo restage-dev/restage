@@ -97,13 +97,12 @@ enum CoverageBucket {
   /// `classifierOnly` is deliberately excluded: it is recognised-but-not-
   /// emit-confirmed, so it does not count toward inlinability.
   bool get isInlinable => switch (this) {
-        inlinableComposition ||
-        inlinableConstantFold ||
-        inlinableThemeAsData ||
-        inlinableDeclarativeState =>
-          true,
-        classifierOnly || deferred || structural => false,
-      };
+    inlinableComposition ||
+    inlinableConstantFold ||
+    inlinableThemeAsData ||
+    inlinableDeclarativeState => true,
+    classifierOnly || deferred || structural => false,
+  };
 }
 
 /// The translator's strict-emit verdict for a widget the harness measured —
@@ -139,10 +138,10 @@ enum EmitOutcome {
 @immutable
 class CoverageReport {
   CoverageReport._(Map<CoverageBucket, List<String>> entries)
-      : _entries = {
-          for (final bucket in CoverageBucket.values)
-            bucket: List.unmodifiable(entries[bucket] ?? const <String>[]),
-        };
+    : _entries = {
+        for (final bucket in CoverageBucket.values)
+          bucket: List.unmodifiable(entries[bucket] ?? const <String>[]),
+      };
 
   /// Buckets [classifications] (keyed by widget identity — typically the
   /// classifier's `classKey`) into a [CoverageReport]. Widget keys
@@ -205,7 +204,7 @@ class CoverageReport {
   /// widget moves out, another moves in, count unchanged) shows up
   /// in the keys but not in the count, so the snapshot catches it.
   Map<String, List<String>> toSnapshotJson() => <String, List<String>>{
-        for (final bucket in CoverageBucket.values)
-          bucket.snapshotKey: widgetsIn(bucket),
-      };
+    for (final bucket in CoverageBucket.values)
+      bucket.snapshotKey: widgetsIn(bucket),
+  };
 }

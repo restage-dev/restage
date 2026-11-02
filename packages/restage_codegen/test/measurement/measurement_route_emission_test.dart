@@ -74,9 +74,10 @@ void main() {
     );
   });
 
-  test('production event lowering rejects authored reserved arguments',
-      () async {
-    final root = await parseExpressionFromSourceForTest('''
+  test(
+    'production event lowering rejects authored reserved arguments',
+    () async {
+      final root = await parseExpressionFromSourceForTest('''
       class Probe {
         const Probe({this.onPressed});
         final void Function()? onPressed;
@@ -86,48 +87,50 @@ void main() {
 
       Object x() => Probe(onPressed: paywallEvent('activate'));
     ''');
-    final widget = root as InstanceCreationExpression;
-    final eventParameter = widget.argumentList.arguments
-        .whereType<NamedArgument>()
-        .single
-        .correspondingParameter!;
-    final eventOccurrence = MeasurementOccurrenceScope.root('test#Source')
-        .widget(widget.constructorName.type.element! as InterfaceElement)
-        .event(eventParameter);
-    final translator = ExpressionTranslator(
-      catalog: catalogWith([
-        entry(
-          name: 'Probe',
-          flutterType: _probeFlutterType,
-          properties: [prop('onPressed', PropertyType.event)],
-        ),
-      ]),
-      helpers: HelperRegistry()
-        ..registerAll([
-          HelperDefinition(
-            name: 'paywallEvent',
-            libraryOrigin: 'package:restage_codegen',
-            returnCategory: HelperReturnCategory.voidCallback,
-            translate: (_) => 'event "activate" '
-                '{ __restage_measurement_custom_key: "bad" }',
+      final widget = root as InstanceCreationExpression;
+      final eventParameter = widget.argumentList.arguments
+          .whereType<NamedArgument>()
+          .single
+          .correspondingParameter!;
+      final eventOccurrence = MeasurementOccurrenceScope.root('test#Source')
+          .widget(widget.constructorName.type.element! as InterfaceElement)
+          .event(eventParameter);
+      final translator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Probe',
+            flutterType: _probeFlutterType,
+            properties: [prop('onPressed', PropertyType.event)],
           ),
         ]),
-      measurementRouteEmissionPlan: MeasurementRouteEmissionPlan([
-        MeasurementRouteEmissionBinding(
-          occurrence: eventOccurrence,
-          generatedReferenceId: GeneratedReferenceId(
-            'reference.route-authored-reserved',
+        helpers: HelperRegistry()
+          ..registerAll([
+            HelperDefinition(
+              name: 'paywallEvent',
+              libraryOrigin: 'package:restage_codegen',
+              returnCategory: HelperReturnCategory.voidCallback,
+              translate: (_) =>
+                  'event "activate" '
+                  '{ __restage_measurement_custom_key: "bad" }',
+            ),
+          ]),
+        measurementRouteEmissionPlan: MeasurementRouteEmissionPlan([
+          MeasurementRouteEmissionBinding(
+            occurrence: eventOccurrence,
+            generatedReferenceId: GeneratedReferenceId(
+              'reference.route-authored-reserved',
+            ),
           ),
-        ),
-      ]),
-    );
+        ]),
+      );
 
-    final result = translator.translate(root);
+      final result = translator.translate(root);
 
-    expect(result.dsl, isEmpty);
-    expect(
-      result.issues.map((issue) => issue.code),
-      contains(IssueCode.invalidEventConfiguration),
-    );
-  });
+      expect(result.dsl, isEmpty);
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.invalidEventConfiguration),
+      );
+    },
+  );
 }

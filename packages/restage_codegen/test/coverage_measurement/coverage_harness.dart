@@ -113,8 +113,8 @@ class _CoverageProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.coverageprobe'],
-      };
+    '.dart': ['.coverageprobe'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {
@@ -130,8 +130,9 @@ class _CoverageProbeBuilder implements Builder {
       if (firstAnnotation(cls, 'RestageWidget') == null) continue;
       await classifier.classify(cls);
     }
-    final classifications =
-        Map<String, WidgetClassification>.unmodifiable(classifier.results);
+    final classifications = Map<String, WidgetClassification>.unmodifiable(
+      classifier.results,
+    );
     onResults(
       CoverageProbe(
         classifications,

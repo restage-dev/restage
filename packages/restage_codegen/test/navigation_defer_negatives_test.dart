@@ -89,14 +89,16 @@ void main() {
 ''',
       ),
     ]) {
-      test('${scenario.name} fatal-defers as unsupported navigation form',
-          () async {
-        final outcome = recogniseNavigationTrigger(
-          await _parseNavigationSlot(scenario.callback),
-        );
+      test(
+        '${scenario.name} fatal-defers as unsupported navigation form',
+        () async {
+          final outcome = recogniseNavigationTrigger(
+            await _parseNavigationSlot(scenario.callback),
+          );
 
-        _expectNavigationUnsupported(outcome);
-      });
+          _expectNavigationUnsupported(outcome);
+        },
+      );
     }
 
     for (final scenario in <({String name, String callback})>[
@@ -435,11 +437,12 @@ Object x(BuildContext context) => () => Navigator.push<void>(
       expect(outcome, isA<NavigationNotRecognised>());
     });
 
-    test('custom look-alike @PaywallSource pushed screen fatal-defers',
-        () async {
-      final outcome = recogniseNavigationTrigger(
-        await parseExpressionFromSourceForTest(
-          '''
+    test(
+      'custom look-alike @PaywallSource pushed screen fatal-defers',
+      () async {
+        final outcome = recogniseNavigationTrigger(
+          await parseExpressionFromSourceForTest(
+            '''
 import 'package:flutter/material.dart';
 
 class PaywallSource {
@@ -458,12 +461,16 @@ Object x(BuildContext context) => () => Navigator.push<void>(
   MaterialPageRoute<void>(builder: (_) => const FakeScreen()),
 );
 ''',
-          rootPackage: 'apps_examples',
-        ),
-      );
+            rootPackage: 'apps_examples',
+          ),
+        );
 
-      _expectNavigationUnsupported(outcome, messageContains: '@PaywallSource');
-    });
+        _expectNavigationUnsupported(
+          outcome,
+          messageContains: '@PaywallSource',
+        );
+      },
+    );
 
     test('non-navigation call is not recognised', () async {
       final outcome = recogniseNavigationTrigger(

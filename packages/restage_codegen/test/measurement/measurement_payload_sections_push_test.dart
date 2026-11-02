@@ -68,8 +68,9 @@ void main() {
         '$_package|lib/features/star_notice.dart': _iconScreen,
         '$_package|lib/features/reminder_toggle.dart': _localWriteScreen,
       };
-      final readerWriter =
-          await readerWriterWithFilesystemSources(rootPackage: _package);
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: _package,
+      );
       final result = await testBuilders(
         [
           restageSourceRosterBuilder(const BuilderOptions({}, isRoot: true)),
@@ -95,8 +96,9 @@ void main() {
       );
       final root = await Directory.systemTemp.createTemp('sections_push_');
       addTearDown(() => root.delete(recursive: true));
-      File(p.join(root.path, 'pubspec.yaml'))
-          .writeAsStringSync('name: $_package\n');
+      File(
+        p.join(root.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: $_package\n');
       for (final path in {
         kRestageSurfacePublicationCompilerBundlePath,
         kRestageMeasurementCompilerOutputPath,

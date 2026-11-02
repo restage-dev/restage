@@ -108,7 +108,8 @@ SingleSelectOutcome recogniseRadioGroup(InstanceCreationExpression creation) {
       case 'key':
         if (!isLegacyScalarWidgetKey(arg.argumentExpression)) {
           return const SingleSelectDeferred(
-              'a native key requires the original widget owner');
+            'a native key requires the original widget owner',
+          );
         }
         break;
       case 'groupValue':
@@ -173,7 +174,8 @@ SingleSelectOutcome recogniseDropdown(InstanceCreationExpression creation) {
       case 'key':
         if (!isLegacyScalarWidgetKey(arg.argumentExpression)) {
           return const SingleSelectDeferred(
-              'a native key requires the original widget owner');
+            'a native key requires the original widget owner',
+          );
         }
         break;
       case 'value':
@@ -267,12 +269,11 @@ SingleSelectOutcome? _typeArgumentGate(
 SingleSelectDeferred _nonStringTypeArgDefer(
   String widgetName,
   String typeArgName,
-) =>
-    SingleSelectDeferred(
-      '$widgetName<$typeArgName> is not supported — only the String-keyed '
-      'single-select lowers (rewrite as $widgetName<String> with string '
-      'option values)',
-    );
+) => SingleSelectDeferred(
+  '$widgetName<$typeArgName> is not supported — only the String-keyed '
+  'single-select lowers (rewrite as $widgetName<String> with string '
+  'option values)',
+);
 
 /// Common close-out: rejects an empty option set and duplicate values, then
 /// wraps the options into a recognised result.
@@ -377,7 +378,8 @@ _LeafOutcome _optionFromCarrier(
     } else if (name == 'key') {
       if (!isLegacyScalarWidgetKey(arg.argumentExpression)) {
         return const _LeafDeferred(
-            'a native key requires the original widget owner');
+          'a native key requires the original widget owner',
+        );
       }
       continue;
     } else {
@@ -444,9 +446,12 @@ List<Expression>? _staticChildLeaves(Expression child) {
   // bare type name, the same affordance the leaf carrier gate uses.
   final element = creation.constructorName.type.element;
   if (element != null && !libraryIsFlutter(element)) return null;
-  if (creation.argumentList.arguments.whereType<NamedArgument>().any((arg) =>
-      arg.name.lexeme == 'key' &&
-      !isLegacyScalarWidgetKey(arg.argumentExpression))) return null;
+  if (creation.argumentList.arguments.whereType<NamedArgument>().any(
+    (arg) =>
+        arg.name.lexeme == 'key' &&
+        !isLegacyScalarWidgetKey(arg.argumentExpression),
+  ))
+    return null;
   for (final arg in creation.argumentList.arguments) {
     if (arg is NamedArgument && arg.name.lexeme == 'children') {
       final list = arg.argumentExpression;
@@ -503,9 +508,12 @@ Expression? _literalTextContent(Expression label) {
   final element = creation.constructorName.type.element;
   if (element != null && !libraryIsFlutter(element)) return null;
   final args = creation.argumentList.arguments;
-  if (args.whereType<NamedArgument>().any((arg) =>
-      arg.name.lexeme == 'key' &&
-      !isLegacyScalarWidgetKey(arg.argumentExpression))) return null;
+  if (args.whereType<NamedArgument>().any(
+    (arg) =>
+        arg.name.lexeme == 'key' &&
+        !isLegacyScalarWidgetKey(arg.argumentExpression),
+  ))
+    return null;
   if (args.isEmpty) return null;
   final first = args.first;
   // The data is the first positional argument.

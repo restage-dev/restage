@@ -13,14 +13,22 @@ import 'package:test/test.dart';
 
 import 'helpers.dart';
 
-final _catalog = requireNativeCatalog(decodeCatalog(
-  File('../restage_core/lib/src/widget_catalog/catalog.json')
-      .readAsStringSync(),
-));
+final _catalog = requireNativeCatalog(
+  decodeCatalog(
+    File(
+      '../restage_core/lib/src/widget_catalog/catalog.json',
+    ).readAsStringSync(),
+  ),
+);
 
-Future<TranslationResult> _translate(String body,
-    {bool mount = true, String declarations = '', String prelude = ''}) async {
-  final expr = await parseExpressionFromSourceForTest('''
+Future<TranslationResult> _translate(
+  String body, {
+  bool mount = true,
+  String declarations = '',
+  String prelude = '',
+}) async {
+  final expr = await parseExpressionFromSourceForTest(
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:flutter/widgets.dart' as f;
 $declarations
@@ -34,7 +42,10 @@ class Probe extends StatelessWidget {
   }
   Object x() => const SizedBox();
 }
-''', rootPackage: 'apps_examples', enclosingClassName: 'Probe');
+''',
+    rootPackage: 'apps_examples',
+    enclosingClassName: 'Probe',
+  );
   final method = expr
       .thisOrAncestorOfType<ClassDeclaration>()!
       .body
@@ -43,12 +54,16 @@ class Probe extends StatelessWidget {
       .singleWhere((method) => method.name.lexeme == 'source');
   final bodySource = extractInlinableBuildBody(method.body)!;
   final definitions = inlinableHelperDefinitionsIn(expr);
-  return ExpressionTranslator(catalog: _catalog, helpers: HelperRegistry())
-      .translate(
+  return ExpressionTranslator(
+    catalog: _catalog,
+    helpers: HelperRegistry(),
+  ).translate(
     bodySource.expression,
     rootInlined: InlinedDefinitions(
-      localBindings:
-          withHelperLocals(bodySource.localBindings, definitions.values),
+      localBindings: withHelperLocals(
+        bodySource.localBindings,
+        definitions.values,
+      ),
       helpers: definitions,
     ),
     hoistInMount: mount,
@@ -67,12 +82,15 @@ void main() {
       'boldText',
       'disableAnimations',
       'accessibleNavigation',
-      'highContrast'
+      'highContrast',
     ]) {
-      final result = deriveCapabilityManifest(parseLibraryFile('''
+      final result = deriveCapabilityManifest(
+        parseLibraryFile('''
 import restage.core;
 widget Root = Text(text: "Hi", softWrap: data.device.$path);
-'''), _catalog);
+'''),
+        _catalog,
+      );
       expect(result.manifest!.builtInFloor, 18, reason: path);
     }
   });
@@ -80,14 +98,18 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
   test('device kinds accept only matching scalar slots', () {
     for (final type in PropertyType.values) {
       expect(
-          propertyTypeAcceptsDeviceKind(type, DeviceContractValueKind.boolean),
-          type == PropertyType.boolean,
-          reason: type.name);
+        propertyTypeAcceptsDeviceKind(type, DeviceContractValueKind.boolean),
+        type == PropertyType.boolean,
+        reason: type.name,
+      );
     }
     expect(
-        propertyTypeAcceptsDeviceKind(
-            PropertyType.boolean, DeviceContractValueKind.size),
-        isFalse);
+      propertyTypeAcceptsDeviceKind(
+        PropertyType.boolean,
+        DeviceContractValueKind.size,
+      ),
+      isFalse,
+    );
   });
 
   for (final source in [
@@ -121,80 +143,100 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
       ("Text('Hi', softWrap: withLocal(context))", ''),
       (
         "Text('Hi', softWrap: !flag || highContrast(root))",
-        'final root = context; final flag = bold(root);'
+        'final root = context; final flag = bold(root);',
       ),
     ]) {
       test(expression, () async {
-        final result = await _translate(expression,
-            declarations: declarations, prelude: prelude);
+        final result = await _translate(
+          expression,
+          declarations: declarations,
+          prelude: prelude,
+        );
         expect(result.issues, isEmpty, reason: '${result.issues}');
         expect(result.hoisted, hasLength(1));
         expect(result.hoisted.single.kind, HoistValueKind.scalar);
         expect(
-            result.dsl, contains('data.context.${result.hoisted.single.key}'));
+          result.dsl,
+          contains('data.context.${result.hoisted.single.key}'),
+        );
         expect(result.dsl, isNot(contains('data.device.')));
         final capability = deriveCapabilityManifest(
-            parseLibraryFile(
-                'import restage.core; widget Root = ${result.dsl};'),
-            _catalog);
+          parseLibraryFile('import restage.core; widget Root = ${result.dsl};'),
+          _catalog,
+        );
         expect(capability.manifest!.builtInFloor, lessThan(18));
       });
     }
-    test('same helper spelling without a native read stays in the payload',
-        () async {
-      final result = await _translate("Text('Hi', softWrap: bold(context))",
-          declarations: 'bool bold(BuildContext c) => false;');
-      expect(result.issues, isEmpty);
-      expect(result.hoisted, isEmpty);
-      expect(result.dsl, contains('softWrap: false'));
-    });
-    test('a helper reading an independent context cannot use the root binding',
-        () async {
-      final result = await _translate("Text('Hi', softWrap: bold(local))",
-          declarations: declarations);
-      expect(result.issues, isNotEmpty);
-      expect(result.hoisted, isEmpty);
-    });
+    test(
+      'same helper spelling without a native read stays in the payload',
+      () async {
+        final result = await _translate(
+          "Text('Hi', softWrap: bold(context))",
+          declarations: 'bool bold(BuildContext c) => false;',
+        );
+        expect(result.issues, isEmpty);
+        expect(result.hoisted, isEmpty);
+        expect(result.dsl, contains('softWrap: false'));
+      },
+    );
+    test(
+      'a helper reading an independent context cannot use the root binding',
+      () async {
+        final result = await _translate(
+          "Text('Hi', softWrap: bold(local))",
+          declarations: declarations,
+        );
+        expect(result.issues, isNotEmpty);
+        expect(result.hoisted, isEmpty);
+      },
+    );
   });
 
   group('nested scalar helper provenance', () {
-    const declarations = 'bool pass(bool value) => value; '
+    const declarations =
+        'bool pass(bool value) => value; '
         'bool ignore(bool value) => true;';
     for (final (expression, prelude) in [
       ("Text('Hi', softWrap: pass(pass(MediaQuery.boldTextOf(context))))", ''),
       (
         "Text('Hi', softWrap: pass(pass(value)))",
-        'final value = MediaQuery.boldTextOf(context);'
+        'final value = MediaQuery.boldTextOf(context);',
       ),
       (
         "Text('Hi', softWrap: ignore(pass(MediaQuery.boldTextOf(context))))",
-        ''
+        '',
       ),
       (
         "Text('Hi', softWrap: pass(pass(false)) || pass(pass(value)))",
-        'final value = MediaQuery.boldTextOf(context);'
+        'final value = MediaQuery.boldTextOf(context);',
       ),
     ]) {
       test(expression, () async {
-        final result = await _translate(expression,
-            declarations: declarations, prelude: prelude);
+        final result = await _translate(
+          expression,
+          declarations: declarations,
+          prelude: prelude,
+        );
         expect(result.issues, isEmpty, reason: '${result.issues}');
         final capability = deriveCapabilityManifest(
-            parseLibraryFile(
-                'import restage.core; widget Root = ${result.dsl};'),
-            _catalog);
+          parseLibraryFile('import restage.core; widget Root = ${result.dsl};'),
+          _catalog,
+        );
         expect(capability.manifest!.builtInFloor, lessThan(18));
         expect(result.hoisted, hasLength(1));
         expect(result.hoisted.single.kind, HoistValueKind.scalar);
-        expect(result.hoisted.single.mountSource((name) => name),
-            contains('MediaQuery.boldTextOf(context)'));
+        expect(
+          result.hoisted.single.mountSource((name) => name),
+          contains('MediaQuery.boldTextOf(context)'),
+        );
         expect(result.dsl, isNot(contains('data.device.')));
       });
     }
     test('nested named arguments keep their caller bindings', () async {
       final result = await _translate(
-          "Text('Hi', softWrap: pass(value: pass(value: MediaQuery.boldTextOf(context))))",
-          declarations: 'bool pass({required bool value}) => value;');
+        "Text('Hi', softWrap: pass(value: pass(value: MediaQuery.boldTextOf(context))))",
+        declarations: 'bool pass({required bool value}) => value;',
+      );
       expect(result.issues, isEmpty, reason: '${result.issues}');
       expect(result.hoisted, hasLength(1));
       expect(result.hoisted.single.kind, HoistValueKind.scalar);
@@ -203,10 +245,12 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
     test('negative helper chains stay in the payload', () async {
       for (final source in [
         'pass(pass(pass(false)))',
-        'ignore(pass(pass(false)))'
+        'ignore(pass(pass(false)))',
       ]) {
-        final result = await _translate("Text('Hi', softWrap: $source)",
-            declarations: declarations);
+        final result = await _translate(
+          "Text('Hi', softWrap: $source)",
+          declarations: declarations,
+        );
         expect(result.issues, isEmpty, reason: '${result.issues}');
         expect(result.hoisted, isEmpty);
         expect(result.dsl, isNot(contains('data.device.')));
@@ -214,18 +258,20 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
     });
     test('a shadowing helper resolves to its own body', () async {
       final result = await _translate(
-          "Text('Hi', softWrap: Other.pass(context))",
-          declarations:
-              'bool pass(BuildContext c) => MediaQuery.boldTextOf(c); '
-              'class Other { static bool pass(BuildContext c) => false; }');
+        "Text('Hi', softWrap: Other.pass(context))",
+        declarations:
+            'bool pass(BuildContext c) => MediaQuery.boldTextOf(c); '
+            'class Other { static bool pass(BuildContext c) => false; }',
+      );
       expect(result.issues, isEmpty);
       expect(result.hoisted, isEmpty);
       expect(result.dsl, contains('softWrap: false'));
     });
     test('nested arguments retain independent-context refusal', () async {
       final result = await _translate(
-          "Text('Hi', softWrap: pass(pass(MediaQuery.boldTextOf(local))))",
-          declarations: declarations);
+        "Text('Hi', softWrap: pass(pass(MediaQuery.boldTextOf(local))))",
+        declarations: declarations,
+      );
       expect(result.issues, isNotEmpty);
       expect(result.hoisted, isEmpty);
     });
@@ -242,11 +288,14 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
       expect(result.hoisted.single.kind, HoistValueKind.textScaler);
       final value = result.hoisted.single;
       expect(result.dsl, contains('textScaler: data.context.${value.key}'));
-      expect(value.shape.toJson(),
-          containsPair('fields', containsPair('key', {'kind': 'string'})));
+      expect(
+        value.shape.toJson(),
+        containsPair('fields', containsPair('key', {'kind': 'string'})),
+      );
       final capability = deriveCapabilityManifest(
-          parseLibraryFile('import restage.core; widget Root = ${result.dsl};'),
-          _catalog);
+        parseLibraryFile('import restage.core; widget Root = ${result.dsl};'),
+        _catalog,
+      );
       expect(capability.manifest!.builtInFloor, 18);
     });
   }
@@ -263,25 +312,31 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
     });
   }
 
-  test('an app-defined nonlinear scaler uses the same native binding',
-      () async {
-    final result = await _translate(
+  test(
+    'an app-defined nonlinear scaler uses the same native binding',
+    () async {
+      final result = await _translate(
         "Text('Hi', textScaler: const CustomScaler())",
         declarations:
             'class CustomScaler extends f.TextScaler { const CustomScaler(); '
             'double scale(double size) => size + size * size / 100; '
-            'double get textScaleFactor => 1.14; }');
-    expect(result.issues, isEmpty, reason: '${result.issues}');
-    expect(result.hoisted.single.kind, HoistValueKind.textScaler);
-    expect(result.hoisted.single.mountSource((name) => name),
-        'const CustomScaler()');
-  });
+            'double get textScaleFactor => 1.14; }',
+      );
+      expect(result.issues, isEmpty, reason: '${result.issues}');
+      expect(result.hoisted.single.kind, HoistValueKind.textScaler);
+      expect(
+        result.hoisted.single.mountSource((name) => name),
+        'const CustomScaler()',
+      );
+    },
+  );
 
   test('a TextScaler lookalike cannot use the framework recipe', () async {
     final result = await _translate(
-        "Text('Hi', textScaler: TextScaler.linear(1.4))",
-        declarations:
-            'class TextScaler { const TextScaler.linear(double factor); }');
+      "Text('Hi', textScaler: TextScaler.linear(1.4))",
+      declarations:
+          'class TextScaler { const TextScaler.linear(double factor); }',
+    );
     expect(result.issues, isNotEmpty);
     expect(result.hoisted, isEmpty);
     expect(result.dsl, isNot(contains('kind: "linear"')));
@@ -321,8 +376,7 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
     );
   });
 
-  test('an ordinary scalar program may read the context-free platform',
-      () async {
+  test('an ordinary scalar program may read the context-free platform', () async {
     final result = await _translate(
       'SizedBox(width: (defaultTargetPlatform == TargetPlatform.android ? 1 : 2) / 2)',
       mount: false,
@@ -342,8 +396,9 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
 
   test('native scaler needs its generated mount', () async {
     final result = await _translate(
-        "Text('Hi', textScaler: MediaQuery.textScalerOf(context))",
-        mount: false);
+      "Text('Hi', textScaler: MediaQuery.textScalerOf(context))",
+      mount: false,
+    );
     expect(result.issues, isNotEmpty);
     expect(result.hoisted, isEmpty);
   });

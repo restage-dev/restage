@@ -34,56 +34,64 @@ final class _RemindersState extends State<Reminders> {
 ''';
 
 void main() {
-  test('a screen with local values publishes its seeds beside its blob',
-      () async {
-    final sources = {'apps_examples|lib/features/reminders.dart': _screen};
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  test(
+    'a screen with local values publishes its seeds beside its blob',
+    () async {
+      final sources = {'apps_examples|lib/features/reminders.dart': _screen};
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
 
-    final handoff = RestageSurfacePublicationBundle.fromJson(
-      jsonDecode(
-        readerWriter.testing.readString(
-          AssetId(
-              'apps_examples', kRestageSurfacePublicationCompilerBundlePath),
+      final handoff = RestageSurfacePublicationBundle.fromJson(
+        jsonDecode(
+          readerWriter.testing.readString(
+            AssetId(
+              'apps_examples',
+              kRestageSurfacePublicationCompilerBundlePath,
+            ),
+          ),
         ),
-      ),
-    );
-    expect(handoff.valid, isTrue, reason: handoff.errors.join('\n'));
-    final manifest = handoff.manifest!;
-    final entry = manifest.publications.single;
-    final blob = entry.artifacts.singleWhere(
-      (artifact) => artifact.role == SurfacePublicationArtifactRole.screenBlob,
-    );
-    final seeds = entry.artifacts.singleWhere(
-      (artifact) => artifact.role == SurfacePublicationArtifactRole.localSeeds,
-    );
-    expect(seeds.id, 'reminders');
-    expect(
-      seeds.path,
-      '${blob.path.substring(0, blob.path.indexOf('.'))}.local.json',
-    );
+      );
+      expect(handoff.valid, isTrue, reason: handoff.errors.join('\n'));
+      final manifest = handoff.manifest!;
+      final entry = manifest.publications.single;
+      final blob = entry.artifacts.singleWhere(
+        (artifact) =>
+            artifact.role == SurfacePublicationArtifactRole.screenBlob,
+      );
+      final seeds = entry.artifacts.singleWhere(
+        (artifact) =>
+            artifact.role == SurfacePublicationArtifactRole.localSeeds,
+      );
+      expect(seeds.id, 'reminders');
+      expect(
+        seeds.path,
+        '${blob.path.substring(0, blob.path.indexOf('.'))}.local.json',
+      );
 
-    final files = {...handoff.artifacts, ...handoff.borrowedArtifacts};
-    final closure = manifest.validateArtifactClosure(files).single;
-    expect(closure.localSeeds, {
-      'OnboardingScreen': {'reminders': true},
-    });
-    expect(
-      entry.publication.capabilities!.builtInFloor,
-      kSurfaceFeatureClientFloor,
-    );
-  });
+      final files = {...handoff.artifacts, ...handoff.borrowedArtifacts};
+      final closure = manifest.validateArtifactClosure(files).single;
+      expect(closure.localSeeds, {
+        'OnboardingScreen': {'reminders': true},
+      });
+      expect(
+        entry.publication.capabilities!.builtInFloor,
+        kSurfaceFeatureClientFloor,
+      );
+    },
+  );
 
   test('screens with identical blobs keep their own seeds', () async {
-    String screen(String id, String type, bool initial) => '''
+    String screen(String id, String type, bool initial) =>
+        '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -108,13 +116,20 @@ final class _${type}State extends State<$type> {
 }
 ''';
     final sources = {
-      'apps_examples|lib/features/on_first.dart':
-          screen('on_first', 'OnFirst', true),
-      'apps_examples|lib/features/off_first.dart':
-          screen('off_first', 'OffFirst', false),
+      'apps_examples|lib/features/on_first.dart': screen(
+        'on_first',
+        'OnFirst',
+        true,
+      ),
+      'apps_examples|lib/features/off_first.dart': screen(
+        'off_first',
+        'OffFirst',
+        false,
+      ),
     };
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
     final result = await testBuilder(
       const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
       sources,
@@ -128,7 +143,9 @@ final class _${type}State extends State<$type> {
       jsonDecode(
         readerWriter.testing.readString(
           AssetId(
-              'apps_examples', kRestageSurfacePublicationCompilerBundlePath),
+            'apps_examples',
+            kRestageSurfacePublicationCompilerBundlePath,
+          ),
         ),
       ),
     );
@@ -202,8 +219,9 @@ class _ReminderPlanState extends State<ReminderPlan> {
       );
 }
 ''';
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
     final result = await testBuilder(
       const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
       {
@@ -220,7 +238,9 @@ class _ReminderPlanState extends State<ReminderPlan> {
       jsonDecode(
         readerWriter.testing.readString(
           AssetId(
-              'apps_examples', kRestageSurfacePublicationCompilerBundlePath),
+            'apps_examples',
+            kRestageSurfacePublicationCompilerBundlePath,
+          ),
         ),
       ),
     );

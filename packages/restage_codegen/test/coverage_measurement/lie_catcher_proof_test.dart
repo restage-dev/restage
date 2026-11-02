@@ -25,9 +25,11 @@ import 'coverage_harness.dart';
 /// It deliberately does NOT snapshot (the real catalog is a moving target);
 /// it asserts the discrimination directly.
 void main() {
-  const inContractKey = 'package:apps_examples/coverage_fixtures/'
+  const inContractKey =
+      'package:apps_examples/coverage_fixtures/'
       'lie_catcher_proof.dart#ProofThemeInContract';
-  const outOfContractKey = 'package:apps_examples/coverage_fixtures/'
+  const outOfContractKey =
+      'package:apps_examples/coverage_fixtures/'
       'lie_catcher_proof.dart#ProofThemeOutOfContract';
 
   // Local `Box` stub (a non-Flutter name so it does not collide with
@@ -71,15 +73,15 @@ class ProofThemeOutOfContract extends StatelessWidget {
 }
 ''';
 
-  test(
-      'the lie-catcher demotes a classifier-inlinable but emit-failed '
+  test('the lie-catcher demotes a classifier-inlinable but emit-failed '
       'themeAsData widget to classifierOnly on real Flutter, while keeping '
       'the emit-confirmed one inlinable', () async {
     final catalog = catalogWith([
       entry(
         name: 'Box',
         properties: [prop('color', PropertyType.color)],
-        flutterType: 'package:apps_examples/coverage_fixtures/'
+        flutterType:
+            'package:apps_examples/coverage_fixtures/'
             'lie_catcher_proof.dart#Box',
       ),
     ]);

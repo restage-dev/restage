@@ -45,35 +45,40 @@ void main() {
       },
     );
 
-    test('throws when the resolved config does not cover the target package',
-        () async {
-      // A config that exists but lists only some OTHER package (a stale or
-      // partial workspace config resolved against an enclosing root that does
-      // not include this package) must fail closed with the actionable
-      // diagnostic, not yield a silently-empty scan.
-      final dir = Directory.systemTemp.createTempSync('b3_stale_config_');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      final dirPath = dir.resolveSymbolicLinksSync();
-      File('$dirPath/pubspec.yaml').writeAsStringSync(
-        'name: stale_fixture\n'
-        'environment:\n  sdk: ">=3.0.0 <4.0.0"\n',
-      );
-      Directory('$dirPath/.dart_tool').createSync();
-      File('$dirPath/.dart_tool/package_config.json').writeAsStringSync(
-        '{"configVersion":2,"packages":['
-        '{"name":"some_other_pkg",'
-        '"rootUri":"file:///definitely/not/the/target",'
-        '"packageUri":"lib/","languageVersion":"3.0"}]}',
-      );
+    test(
+      'throws when the resolved config does not cover the target package',
+      () async {
+        // A config that exists but lists only some OTHER package (a stale or
+        // partial workspace config resolved against an enclosing root that does
+        // not include this package) must fail closed with the actionable
+        // diagnostic, not yield a silently-empty scan.
+        final dir = Directory.systemTemp.createTempSync('b3_stale_config_');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        final dirPath = dir.resolveSymbolicLinksSync();
+        File('$dirPath/pubspec.yaml').writeAsStringSync(
+          'name: stale_fixture\n'
+          'environment:\n  sdk: ">=3.0.0 <4.0.0"\n',
+        );
+        Directory('$dirPath/.dart_tool').createSync();
+        File('$dirPath/.dart_tool/package_config.json').writeAsStringSync(
+          '{"configVersion":2,"packages":['
+          '{"name":"some_other_pkg",'
+          '"rootUri":"file:///definitely/not/the/target",'
+          '"packageUri":"lib/","languageVersion":"3.0"}]}',
+        );
 
-      await expectLater(
-        scanPackage(packagePath: dirPath, catalog: kEmptyCatalog),
-        throwsA(
-          isA<PackageNotResolvedException>()
-              .having((e) => e.message, 'message', contains('pub get')),
-        ),
-      );
-    });
+        await expectLater(
+          scanPackage(packagePath: dirPath, catalog: kEmptyCatalog),
+          throwsA(
+            isA<PackageNotResolvedException>().having(
+              (e) => e.message,
+              'message',
+              contains('pub get'),
+            ),
+          ),
+        );
+      },
+    );
 
     test('normalizes a non-normalized package path before resolving', () async {
       // The analyzer rejects non-absolute / non-normalized paths; the scanner
@@ -91,46 +96,50 @@ void main() {
   });
 
   group('scanPackage — generated-file skips', () {
-    test('skips generated files beyond .g.dart (.freezed/.mocks/.config)',
-        () async {
-      // A resolvable temp package whose lib/ holds ONLY generated files. The
-      // scan never invokes the resolver (generated files are skipped before
-      // resolution), so this exercises the skip predicate end-to-end without an
-      // SDK dependency.
-      final dir = Directory.systemTemp.createTempSync('b3_generated_');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      final dirPath = dir.resolveSymbolicLinksSync();
-      File('$dirPath/pubspec.yaml').writeAsStringSync(
-        'name: gen_fixture\n'
-        'environment:\n  sdk: ">=3.0.0 <4.0.0"\n',
-      );
-      Directory('$dirPath/.dart_tool').createSync();
-      File('$dirPath/.dart_tool/package_config.json').writeAsStringSync(
-        '{"configVersion":2,"packages":['
-        '{"name":"gen_fixture","rootUri":"../","packageUri":"lib/",'
-        '"languageVersion":"3.0"}]}',
-      );
-      Directory('$dirPath/lib').createSync();
-      File('$dirPath/lib/foo.freezed.dart').writeAsStringSync('// generated');
-      File('$dirPath/lib/bar.mocks.dart').writeAsStringSync('// generated');
-      File('$dirPath/lib/baz.config.dart').writeAsStringSync('// generated');
+    test(
+      'skips generated files beyond .g.dart (.freezed/.mocks/.config)',
+      () async {
+        // A resolvable temp package whose lib/ holds ONLY generated files. The
+        // scan never invokes the resolver (generated files are skipped before
+        // resolution), so this exercises the skip predicate end-to-end without an
+        // SDK dependency.
+        final dir = Directory.systemTemp.createTempSync('b3_generated_');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        final dirPath = dir.resolveSymbolicLinksSync();
+        File('$dirPath/pubspec.yaml').writeAsStringSync(
+          'name: gen_fixture\n'
+          'environment:\n  sdk: ">=3.0.0 <4.0.0"\n',
+        );
+        Directory('$dirPath/.dart_tool').createSync();
+        File('$dirPath/.dart_tool/package_config.json').writeAsStringSync(
+          '{"configVersion":2,"packages":['
+          '{"name":"gen_fixture","rootUri":"../","packageUri":"lib/",'
+          '"languageVersion":"3.0"}]}',
+        );
+        Directory('$dirPath/lib').createSync();
+        File('$dirPath/lib/foo.freezed.dart').writeAsStringSync('// generated');
+        File('$dirPath/lib/bar.mocks.dart').writeAsStringSync('// generated');
+        File('$dirPath/lib/baz.config.dart').writeAsStringSync('// generated');
 
-      final result =
-          await scanPackage(packagePath: dirPath, catalog: kEmptyCatalog);
+        final result = await scanPackage(
+          packagePath: dirPath,
+          catalog: kEmptyCatalog,
+        );
 
-      final skipped = {for (final s in result.skips) s.identifier: s.reason};
-      expect(
-        skipped.keys,
-        containsAll(<String>[
-          'lib/foo.freezed.dart',
-          'lib/bar.mocks.dart',
-          'lib/baz.config.dart',
-        ]),
-      );
-      expect(skipped['lib/foo.freezed.dart'], contains('generated file'));
-      // None of the generated files resolve.
-      expect(result.filesResolved, 0);
-    });
+        final skipped = {for (final s in result.skips) s.identifier: s.reason};
+        expect(
+          skipped.keys,
+          containsAll(<String>[
+            'lib/foo.freezed.dart',
+            'lib/bar.mocks.dart',
+            'lib/baz.config.dart',
+          ]),
+        );
+        expect(skipped['lib/foo.freezed.dart'], contains('generated file'));
+        // None of the generated files resolve.
+        expect(result.filesResolved, 0);
+      },
+    );
   });
 
   group('scanPackage — real example package self-test', () {
@@ -153,43 +162,48 @@ void main() {
       }
     });
 
-    test('reports classifier-recognised and emit-confirmed totals distinctly',
-        () {
-      final classifier = result.classifierReport;
-      final emit = result.emitConfirmedReport;
-      // Same corpus measured both ways.
-      expect(emit.total, equals(classifier.total));
-      expect(
-        classifier.total,
-        greaterThanOrEqualTo(_kExampleWidgetNames.length),
-      );
-      // Emit-confirmed inlinable can only be a subset of classifier-recognised.
-      expect(
-        emit.inlinableTotal,
-        lessThanOrEqualTo(classifier.inlinableTotal),
-      );
-    });
-
-    test('emit-confirmed inlinable buckets are a subset of classifier-only',
-        () {
-      final classifier = result.classifierReport.toSnapshotJson();
-      final emit = result.emitConfirmedReport.toSnapshotJson();
-      for (final bucket in const {
-        CoverageBucket.inlinableComposition,
-        CoverageBucket.inlinableConstantFold,
-        CoverageBucket.inlinableThemeAsData,
-        CoverageBucket.inlinableDeclarativeState,
-      }) {
+    test(
+      'reports classifier-recognised and emit-confirmed totals distinctly',
+      () {
+        final classifier = result.classifierReport;
+        final emit = result.emitConfirmedReport;
+        // Same corpus measured both ways.
+        expect(emit.total, equals(classifier.total));
         expect(
-          emit[bucket.snapshotKey]!.toSet().difference(
-                classifier[bucket.snapshotKey]!.toSet(),
-              ),
-          isEmpty,
-          reason: 'emit-confirmed ${bucket.snapshotKey} cannot gain widgets '
-              'the classifier did not recognise',
+          classifier.total,
+          greaterThanOrEqualTo(_kExampleWidgetNames.length),
         );
-      }
-    });
+        // Emit-confirmed inlinable can only be a subset of classifier-recognised.
+        expect(
+          emit.inlinableTotal,
+          lessThanOrEqualTo(classifier.inlinableTotal),
+        );
+      },
+    );
+
+    test(
+      'emit-confirmed inlinable buckets are a subset of classifier-only',
+      () {
+        final classifier = result.classifierReport.toSnapshotJson();
+        final emit = result.emitConfirmedReport.toSnapshotJson();
+        for (final bucket in const {
+          CoverageBucket.inlinableComposition,
+          CoverageBucket.inlinableConstantFold,
+          CoverageBucket.inlinableThemeAsData,
+          CoverageBucket.inlinableDeclarativeState,
+        }) {
+          expect(
+            emit[bucket.snapshotKey]!.toSet().difference(
+              classifier[bucket.snapshotKey]!.toSet(),
+            ),
+            isEmpty,
+            reason:
+                'emit-confirmed ${bucket.snapshotKey} cannot gain widgets '
+                'the classifier did not recognise',
+          );
+        }
+      },
+    );
 
     test('surfaces skipped files rather than silently capping coverage', () {
       // Honesty contract: generated files are skipped, but every skip is
@@ -199,8 +213,9 @@ void main() {
       for (final skip in result.skips) {
         expect(skip.reason, isNotEmpty);
       }
-      final generatedSkips =
-          result.skips.where((s) => s.reason.contains('generated')).toList();
+      final generatedSkips = result.skips
+          .where((s) => s.reason.contains('generated'))
+          .toList();
       expect(
         generatedSkips.map((s) => s.identifier),
         contains(endsWith('user_factories.g.dart')),
@@ -231,7 +246,8 @@ void main() {
       expect(
         snapshotFile.existsSync(),
         isTrue,
-        reason: 'Snapshot missing at ${snapshotFile.path}; regenerate with '
+        reason:
+            'Snapshot missing at ${snapshotFile.path}; regenerate with '
             'REGEN_REAL_PACKAGE_SNAPSHOT=1.',
       );
       final expected =
@@ -239,7 +255,8 @@ void main() {
       expect(
         actual,
         expected,
-        reason: 'Real-package coverage bucketing drifted from the committed '
+        reason:
+            'Real-package coverage bucketing drifted from the committed '
             'snapshot. If intentional (a codegen mechanism landed), regenerate '
             'with REGEN_REAL_PACKAGE_SNAPSHOT=1 and update the report.',
       );
@@ -247,8 +264,7 @@ void main() {
   });
 
   group('renderScanReport', () {
-    test(
-        'shows classifier-recognised and emit-confirmed totals distinctly '
+    test('shows classifier-recognised and emit-confirmed totals distinctly '
         'and lists skips', () {
       final report = renderScanReport(
         ScanResult(
@@ -281,13 +297,15 @@ void main() {
         final fromDisk = await loadMergedCatalogFromDisk();
         final fromBuildStep = await _loadMergedCatalogViaBuildStep();
 
-        Set<(WidgetLibrary, String)> ids(Catalog c) =>
-            {for (final w in c.widgets) (w.library, w.name)};
+        Set<(WidgetLibrary, String)> ids(Catalog c) => {
+          for (final w in c.widgets) (w.library, w.name),
+        };
 
         expect(
           ids(fromDisk),
           equals(ids(fromBuildStep)),
-          reason: 'disk-merged widget (library,name) set must match the '
+          reason:
+              'disk-merged widget (library,name) set must match the '
               'production build-step merge',
         );
         expect(fromDisk.widgets.length, fromBuildStep.widgets.length);
@@ -372,8 +390,8 @@ class _MergedCatalogProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.noop'],
-      };
+    '.dart': ['.noop'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {

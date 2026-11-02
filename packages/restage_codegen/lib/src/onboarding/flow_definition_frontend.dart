@@ -45,8 +45,8 @@ final class FlowFrontendResult {
   FlowFrontendResult({
     required List<NormalizedFlowSource> flows,
     required List<Issue> issues,
-  })  : flows = List.unmodifiable(flows),
-        issues = List.unmodifiable(issues);
+  }) : flows = List.unmodifiable(flows),
+       issues = List.unmodifiable(issues);
 
   final List<NormalizedFlowSource> flows;
   final List<Issue> issues;
@@ -161,12 +161,12 @@ final class NormalizedFlowGraph {
     required Map<String, NormalizedScreenReference> screens,
     Map<NormalizedFlowIdentity, NormalizedChildFlowReference> childFlows =
         const {},
-  })  : measurementAnswers = Map.unmodifiable(measurementAnswers),
-        states = Map.unmodifiable(states),
-        flowState = Map.unmodifiable(flowState),
-        actions = Map.unmodifiable(actions),
-        screens = Map.unmodifiable(screens),
-        childFlows = Map.unmodifiable(childFlows);
+  }) : measurementAnswers = Map.unmodifiable(measurementAnswers),
+       states = Map.unmodifiable(states),
+       flowState = Map.unmodifiable(flowState),
+       actions = Map.unmodifiable(actions),
+       screens = Map.unmodifiable(screens),
+       childFlows = Map.unmodifiable(childFlows);
 
   final String flow;
   final int version;
@@ -191,8 +191,8 @@ final class NormalizedFlowGraph {
     );
     final schemaVersion =
         delivery == FlowDeliveryMode.typed && surveyQuestionOrder.isNotEmpty
-            ? 2
-            : 1;
+        ? 2
+        : 1;
     final document = FlowDocument(
       flow: flow,
       version: version,
@@ -267,7 +267,8 @@ Future<FlowFrontendResult> inspectFlowDefinitions(
       issues.add(
         Issue(
           code: IssueCode.buildMethodTooComplex,
-          message: 'Deprecated class-shaped flow annotations must target a '
+          message:
+              'Deprecated class-shaped flow annotations must target a '
               'RestageFlow class; top-level FlowSource variables are not '
               'accepted.',
           location: '${assetId.path}#${variable.name}',
@@ -280,7 +281,8 @@ Future<FlowFrontendResult> inspectFlowDefinitions(
       issues.add(
         Issue(
           code: IssueCode.unresolvedIdentifier,
-          message: '@FlowGraph must annotate a const or final top-level '
+          message:
+              '@FlowGraph must annotate a const or final top-level '
               'FlowDefinition declaration.',
           location: '${assetId.path}#${variable.name}',
         ),
@@ -294,7 +296,8 @@ Future<FlowFrontendResult> inspectFlowDefinitions(
       issues.add(
         Issue(
           code: IssueCode.unresolvedIdentifier,
-          message: '@FlowGraph must annotate a top-level variable whose '
+          message:
+              '@FlowGraph must annotate a top-level variable whose '
               'initializer is a direct analyzer-resolved FlowDefinition(...).',
           location: '${assetId.path}#${variable.name}',
         ),
@@ -353,10 +356,10 @@ Future<FlowFrontendResult> inspectFlowDefinitions(
               // clearer message naming which of the pair was wanted, not the
               // only thing standing between the author and a silent bug.
               ? 'RestageFlowGraph is the host widget that mounts a flow. An '
-                  'authored flow extends RestageFlow: change '
-                  '`extends RestageFlowGraph` to `extends RestageFlow`.'
+                    'authored flow extends RestageFlow: change '
+                    '`extends RestageFlowGraph` to `extends RestageFlow`.'
               : 'A flow annotation must target a concrete RestageFlow '
-                  'subclass resolved from package:restage.',
+                    'subclass resolved from package:restage.',
           location: '${assetId.path}#${cls.name ?? '<unnamed>'}',
         ),
       );
@@ -439,7 +442,8 @@ _FlowMetadata? _readFlowMetadata(
     issues.add(
       Issue(
         code: IssueCode.unresolvedIdentifier,
-        message: 'Flow annotation must resolve to the Restage SDK '
+        message:
+            'Flow annotation must resolve to the Restage SDK '
             'declaration; source spelling alone is not accepted.',
         location: location,
       ),
@@ -475,7 +479,8 @@ _FlowMetadata? _readFlowMetadata(
     issues.add(
       Issue(
         code: IssueCode.annotationEvaluationFailed,
-        message: '${declaration.name}.id is required for compatibility '
+        message:
+            '${declaration.name}.id is required for compatibility '
             'annotations.',
         location: location,
       ),
@@ -492,7 +497,7 @@ _FlowMetadata? _readFlowMetadata(
         code: IssueCode.annotationEvaluationFailed,
         message: isCanonical
             ? '@FlowGraph.surface is required and must be a resolved '
-                'Surface enum value.'
+                  'Surface enum value.'
             : 'A legacy flow source requires a surface directory mapping.',
         location: location,
       ),
@@ -614,13 +619,15 @@ void _validateImplicitFlowCount(
   AssetId assetId,
   List<Issue> issues,
 ) {
-  final implicit =
-      flows.where((flow) => !flow.hasExplicitId && flow.isCanonical);
+  final implicit = flows.where(
+    (flow) => !flow.hasExplicitId && flow.isCanonical,
+  );
   if (implicit.length <= 1) return;
   issues.add(
     Issue(
       code: IssueCode.duplicateId,
-      message: 'At most one canonical @FlowGraph declaration may omit id in '
+      message:
+          'At most one canonical @FlowGraph declaration may omit id in '
           'a library; add explicit unique ids to the remaining declarations.',
       location: assetId.path,
     ),
@@ -686,7 +693,8 @@ final class _FlowDefinitionGraphParser {
       issues.add(
         Issue(
           code: IssueCode.buildMethodTooComplex,
-          message: 'FlowDefinition requires start: and a literal '
+          message:
+              'FlowDefinition requires start: and a literal '
               'transitions: list.',
           location: assetId.path,
         ),
@@ -792,17 +800,19 @@ final class _FlowDefinitionGraphParser {
     if (expression == null) return true;
     if (expression is! ListLiteral) {
       _issue(
-          IssueCode.buildMethodTooComplex,
-          'FlowDefinition.state must be a '
-          'literal list of FlowStateRef declarations.');
+        IssueCode.buildMethodTooComplex,
+        'FlowDefinition.state must be a '
+        'literal list of FlowStateRef declarations.',
+      );
       return false;
     }
     for (final element in expression.elements) {
       if (element is! Expression) {
         _issue(
-            IssueCode.buildMethodTooComplex,
-            'Flow state declarations may '
-            'not contain collection control or spreads.');
+          IssueCode.buildMethodTooComplex,
+          'Flow state declarations may '
+          'not contain collection control or spreads.',
+        );
         return false;
       }
       final state = await _stateInfo(element);
@@ -839,9 +849,10 @@ final class _FlowDefinitionGraphParser {
     if (expression is! InstanceCreationExpression ||
         !_isRestageCreation(expression, 'FlowOutboundPolicy')) {
       _issue(
-          IssueCode.unresolvedIdentifier,
-          'FlowDefinition.outbound must '
-          'resolve to the Restage FlowOutboundPolicy type.');
+        IssueCode.unresolvedIdentifier,
+        'FlowDefinition.outbound must '
+        'resolve to the Restage FlowOutboundPolicy type.',
+      );
       return false;
     }
     final values = <String, FlowOutboundPayloadDeclaration>{};
@@ -861,7 +872,10 @@ final class _FlowDefinitionGraphParser {
     );
     if (survey == null) return false;
     if (!_parseMeasurementAnswers(
-        _named(expression, 'measurementAnswers'), survey)) return false;
+      _named(expression, 'measurementAnswers'),
+      survey,
+    ))
+      return false;
     final subflow = await _outboundPayload(
       _named(expression, 'subflowResult'),
       values,
@@ -884,25 +898,34 @@ final class _FlowDefinitionGraphParser {
   }
 
   bool _parseMeasurementAnswers(
-      Expression? expression, FlowOutboundPayloadDeclaration survey) {
+    Expression? expression,
+    FlowOutboundPayloadDeclaration survey,
+  ) {
     if (expression == null) return true;
     if (delivery == FlowDeliveryMode.general) {
-      _issue(IssueCode.buildMethodTooComplex,
-          kGeneralFlowMeasurementAnswersRefusal);
+      _issue(
+        IssueCode.buildMethodTooComplex,
+        kGeneralFlowMeasurementAnswersRefusal,
+      );
       return false;
     }
     if (expression is! SetOrMapLiteral || !expression.isMap) {
-      _issue(IssueCode.buildMethodTooComplex,
-          'measurementAnswers must be a literal question map.');
+      _issue(
+        IssueCode.buildMethodTooComplex,
+        'measurementAnswers must be a literal question map.',
+      );
       return false;
     }
     try {
-      _measurementAnswers
-          .addAll(parseFlowMeasurementAnswers(expression, survey));
+      _measurementAnswers.addAll(
+        parseFlowMeasurementAnswers(expression, survey),
+      );
       return true;
     } on Object catch (error) {
-      _issue(IssueCode.buildMethodTooComplex,
-          'Invalid declared measurement answer: $error');
+      _issue(
+        IssueCode.buildMethodTooComplex,
+        'Invalid declared measurement answer: $error',
+      );
       return false;
     }
   }
@@ -914,26 +937,29 @@ final class _FlowDefinitionGraphParser {
     if (expression == null) return const FlowOutboundPayloadDeclaration();
     if (expression is! SetOrMapLiteral || !expression.isMap) {
       _issue(
-          IssueCode.buildMethodTooComplex,
-          'Outbound policy fields must '
-          'be literal string-keyed maps.');
+        IssueCode.buildMethodTooComplex,
+        'Outbound policy fields must '
+        'be literal string-keyed maps.',
+      );
       return null;
     }
     final fields = <String, FlowOutboundField>{};
     for (final entry in expression.elements) {
       if (entry is! MapLiteralEntry) {
         _issue(
-            IssueCode.buildMethodTooComplex,
-            'Outbound maps may not contain '
-            'collection control or spreads.');
+          IssueCode.buildMethodTooComplex,
+          'Outbound maps may not contain '
+          'collection control or spreads.',
+        );
         return null;
       }
       final key = _stringExpression(entry.key);
       if (key == null) {
         _issue(
-            IssueCode.unresolvedIdentifier,
-            'Outbound field names must be '
-            'literal strings.');
+          IssueCode.unresolvedIdentifier,
+          'Outbound field names must be '
+          'literal strings.',
+        );
         return null;
       }
       final state = await _declaredStateInfo(
@@ -952,17 +978,19 @@ final class _FlowDefinitionGraphParser {
   Future<bool> _parseNodeList(Expression expression) async {
     if (expression is! ListLiteral) {
       _issue(
-          IssueCode.buildMethodTooComplex,
-          'FlowDefinition.nodes must be a '
-          'literal list.');
+        IssueCode.buildMethodTooComplex,
+        'FlowDefinition.nodes must be a '
+        'literal list.',
+      );
       return false;
     }
     for (final element in expression.elements) {
       if (element is! Expression) {
         _issue(
-            IssueCode.buildMethodTooComplex,
-            'FlowDefinition.nodes may not contain collection control or '
-            'spreads.');
+          IssueCode.buildMethodTooComplex,
+          'FlowDefinition.nodes may not contain collection control or '
+          'spreads.',
+        );
         return false;
       }
       if (!await _parseNode(element)) return false;
@@ -1014,9 +1042,10 @@ final class _FlowDefinitionGraphParser {
     final target = isCompletion ? null : await _target(_named(creation, 'to'));
     if (!isCompletion && target == null) {
       _issue(
-          IssueCode.buildMethodTooComplex,
-          'Every Transition must provide '
-          'a resolved to: target.');
+        IssueCode.buildMethodTooComplex,
+        'Every Transition must provide '
+        'a resolved to: target.',
+      );
       return;
     }
     final writes = await _transitionWrites(
@@ -1032,23 +1061,26 @@ final class _FlowDefinitionGraphParser {
       );
       if (state == null || event.scalarType == null) {
         _issue(
-            IssueCode.buildMethodTooComplex,
-            'capture: requires a typed '
-            'scalar SurfaceEvent and a declared FlowStateRef.');
+          IssueCode.buildMethodTooComplex,
+          'capture: requires a typed '
+          'scalar SurfaceEvent and a declared FlowStateRef.',
+        );
         return;
       }
       if (state.type != event.scalarType) {
         _issue(
-            IssueCode.buildMethodTooComplex,
-            'Captured event type does not '
-            'match its FlowStateRef declaration.');
+          IssueCode.buildMethodTooComplex,
+          'Captured event type does not '
+          'match its FlowStateRef declaration.',
+        );
         return;
       }
       if (writes.containsKey(state.key)) {
         _issue(
-            IssueCode.duplicateId,
-            'A transition may not write the same '
-            'state key through both capture: and writes:.');
+          IssueCode.duplicateId,
+          'A transition may not write the same '
+          'state key through both capture: and writes:.',
+        );
         return;
       }
       writes[state.key] = FlowStateWrite(
@@ -1110,9 +1142,10 @@ final class _FlowDefinitionGraphParser {
     if (expression == null) return <String, FlowStateWrite>{};
     if (expression is! ListLiteral) {
       _issue(
-          IssueCode.buildMethodTooComplex,
-          'Transition.writes must be a '
-          'literal list.');
+        IssueCode.buildMethodTooComplex,
+        'Transition.writes must be a '
+        'literal list.',
+      );
       return null;
     }
     final writes = <String, FlowStateWrite>{};
@@ -1121,9 +1154,10 @@ final class _FlowDefinitionGraphParser {
           element.methodName.name != 'set' ||
           !_resolvesToRestageSdk(element.methodName.element)) {
         _issue(
-            IssueCode.unresolvedIdentifier,
-            'Flow writes must use the '
-            'resolved FlowStateRef.set(...) API.');
+          IssueCode.unresolvedIdentifier,
+          'Flow writes must use the '
+          'resolved FlowStateRef.set(...) API.',
+        );
         return null;
       }
       final state = await _declaredStateInfo(
@@ -1134,16 +1168,18 @@ final class _FlowDefinitionGraphParser {
       if (state == null || literal == null) return null;
       if (literal.type != state.type) {
         _issue(
-            IssueCode.buildMethodTooComplex,
-            'FlowStateRef.set(...) value '
-            'does not match its declared state type.');
+          IssueCode.buildMethodTooComplex,
+          'FlowStateRef.set(...) value '
+          'does not match its declared state type.',
+        );
         return null;
       }
       if (writes.containsKey(state.key)) {
         _issue(
-            IssueCode.duplicateId,
-            'A transition writes state key '
-            '"${state.key}" more than once.');
+          IssueCode.duplicateId,
+          'A transition writes state key '
+          '"${state.key}" more than once.',
+        );
         return null;
       }
       writes[state.key] = FlowStateWrite(
@@ -1160,24 +1196,28 @@ final class _FlowDefinitionGraphParser {
         !_resolvesToRestageSdk(expression.methodName.element)) {
       if (expression != null) {
         _issue(
-            IssueCode.unresolvedIdentifier,
-            'Transition.action must use a '
-            'resolved FlowActionRef.continueWhen(...) gate.');
+          IssueCode.unresolvedIdentifier,
+          'Transition.action must use a '
+          'resolved FlowActionRef.continueWhen(...) gate.',
+        );
       }
       return null;
     }
     final field = _flowActionField(expression.target);
     if (field == null) return null;
-    final actionId =
-        field.computeConstantValue()?.getField('id')?.toStringValue();
+    final actionId = field
+        .computeConstantValue()
+        ?.getField('id')
+        ?.toStringValue();
     final type = field.type;
     if (actionId == null ||
         type is! InterfaceType ||
         type.typeArguments.length != 2) {
       _issue(
-          IssueCode.unresolvedIdentifier,
-          'Host action must be a resolved '
-          'static const FlowActionRef<I, O>.');
+        IssueCode.unresolvedIdentifier,
+        'Host action must be a resolved '
+        'static const FlowActionRef<I, O>.',
+      );
       return null;
     }
     final argsSchema = _actionSchema(type.typeArguments[0]);
@@ -1191,7 +1231,7 @@ final class _FlowDefinitionGraphParser {
       minClient: minClient,
       idempotent:
           field.computeConstantValue()?.getField('idempotent')?.toBoolValue() ??
-              false,
+          false,
     );
     final previous = _actions[actionId];
     final previousElement = _actionElements[actionId];
@@ -1254,13 +1294,14 @@ final class _FlowDefinitionGraphParser {
     final creation = expression is InstanceCreationExpression
         ? expression
         : element == null
-            ? null
-            : await _initializerForVariable(element);
+        ? null
+        : await _initializerForVariable(element);
     if (creation == null || creation is! InstanceCreationExpression) {
       _issue(
-          IssueCode.unresolvedIdentifier,
-          'Flow target must be a resolved '
-          'screen Type, FlowNode, or NodeRef.');
+        IssueCode.unresolvedIdentifier,
+        'Flow target must be a resolved '
+        'screen Type, FlowNode, or NodeRef.',
+      );
       return null;
     }
     final type = _resolvedCreationType(creation);
@@ -1270,9 +1311,10 @@ final class _FlowDefinitionGraphParser {
       return _parseNodeCreation(creation, element: element);
     }
     _issue(
-        IssueCode.unresolvedIdentifier,
-        'Flow target constructor $type is '
-        'not a supported Restage FlowNode.');
+      IssueCode.unresolvedIdentifier,
+      'Flow target constructor $type is '
+      'not a supported Restage FlowNode.',
+    );
     return null;
   }
 
@@ -1281,13 +1323,14 @@ final class _FlowDefinitionGraphParser {
     final creation = expression is InstanceCreationExpression
         ? expression
         : element == null
-            ? null
-            : await _initializerForVariable(element);
+        ? null
+        : await _initializerForVariable(element);
     if (creation == null || creation is! InstanceCreationExpression) {
       _issue(
-          IssueCode.unresolvedIdentifier,
-          'Flow nodes must be resolved '
-          'Decision, Completion, or Subflow declarations.');
+        IssueCode.unresolvedIdentifier,
+        'Flow nodes must be resolved '
+        'Decision, Completion, or Subflow declarations.',
+      );
       return false;
     }
     return await _parseNodeCreation(creation, element: element) != null;
@@ -1302,9 +1345,10 @@ final class _FlowDefinitionGraphParser {
     final id = _stringExpression(_positional(creation, 0));
     if (id == null || id.isEmpty) {
       _issue(
-          IssueCode.annotationEvaluationFailed,
-          'Flow nodes require a '
-          'non-empty stable id.');
+        IssueCode.annotationEvaluationFailed,
+        'Flow nodes require a '
+        'non-empty stable id.',
+      );
       return null;
     }
     final identity = element == null
@@ -1344,9 +1388,10 @@ final class _FlowDefinitionGraphParser {
     final branchesExpression = _named(creation, 'branches');
     if (branchesExpression is! ListLiteral) {
       _issue(
-          IssueCode.buildMethodTooComplex,
-          'Decision.branches must be a '
-          'literal list.');
+        IssueCode.buildMethodTooComplex,
+        'Decision.branches must be a '
+        'literal list.',
+      );
       return null;
     }
     final branches = <FlowBranch>[];
@@ -1354,15 +1399,18 @@ final class _FlowDefinitionGraphParser {
       if (expression is! InstanceCreationExpression ||
           !_isRestageCreation(expression, 'Branch')) {
         _issue(
-            IssueCode.unresolvedIdentifier,
-            'Decision branches must use '
-            'the resolved Branch constructor.');
+          IssueCode.unresolvedIdentifier,
+          'Decision branches must use '
+          'the resolved Branch constructor.',
+        );
         return null;
       }
       final when = await _condition(_named(expression, 'when'));
       final target = await _target(_named(expression, 'to'));
-      final writes =
-          await _transitionWrites(_named(expression, 'writes'), null);
+      final writes = await _transitionWrites(
+        _named(expression, 'writes'),
+        null,
+      );
       if (when == null || target == null || writes == null) return null;
       branches.add(FlowBranch(when: when, target: target, stateWrites: writes));
     }
@@ -1405,8 +1453,9 @@ final class _FlowDefinitionGraphParser {
       input: input,
       onComplete: [branch],
       defaultBranch: FlowBranchTarget(target: onComplete),
-      subFlowUnavailable:
-          unavailable == null ? null : FlowBranchTarget(target: unavailable),
+      subFlowUnavailable: unavailable == null
+          ? null
+          : FlowBranchTarget(target: unavailable),
     );
     return id;
   }
@@ -1417,9 +1466,10 @@ final class _FlowDefinitionGraphParser {
     if (expression == null) return <String, FlowValueSource>{};
     if (expression is! ListLiteral) {
       _issue(
-          IssueCode.buildMethodTooComplex,
-          'Subflow.input must be a literal '
-          'list of typed state input references.');
+        IssueCode.buildMethodTooComplex,
+        'Subflow.input must be a literal '
+        'list of typed state input references.',
+      );
       return null;
     }
     final result = <String, FlowValueSource>{};
@@ -1429,9 +1479,10 @@ final class _FlowDefinitionGraphParser {
               value.methodName.name != 'fromValue') ||
           !_resolvesToRestageSdk(value.methodName.element)) {
         _issue(
-            IssueCode.unresolvedIdentifier,
-            'Subflow inputs must use the '
-            'resolved FlowStateRef.fromState/fromValue API.');
+          IssueCode.unresolvedIdentifier,
+          'Subflow inputs must use the '
+          'resolved FlowStateRef.fromState/fromValue API.',
+        );
         return null;
       }
       final child = await _stateInfo(value.target);
@@ -1492,7 +1543,8 @@ final class _FlowDefinitionGraphParser {
             version != null &&
             min != null &&
             childSurface != null) {
-          final atLibraryScope = element is TopLevelVariableElement ||
+          final atLibraryScope =
+              element is TopLevelVariableElement ||
               (element is FieldElement && element.isStatic);
           if (!atLibraryScope) {
             _issue(
@@ -1526,9 +1578,10 @@ final class _FlowDefinitionGraphParser {
       return _childFlowFromDeclaration(element, expression);
     }
     _issue(
-        IssueCode.unresolvedIdentifier,
-        'Subflow.flow must reference a '
-        'resolved @FlowGraph Type or SurfaceFlowRef.');
+      IssueCode.unresolvedIdentifier,
+      'Subflow.flow must reference a '
+      'resolved @FlowGraph Type or SurfaceFlowRef.',
+    );
     return null;
   }
 
@@ -1571,8 +1624,9 @@ final class _FlowDefinitionGraphParser {
       return null;
     }
     final annotation = _flowAnnotationFor(element);
-    final annotationOwner =
-        annotation == null ? null : resolvedAnnotationClass(annotation);
+    final annotationOwner = annotation == null
+        ? null
+        : resolvedAnnotationClass(annotation);
     if (annotation == null ||
         annotationOwner == null ||
         annotationOwner.name != 'FlowGraph' ||
@@ -1584,9 +1638,9 @@ final class _FlowDefinitionGraphParser {
         IssueCode.unresolvedIdentifier,
         element is ClassElement
             ? 'Subflow.flow Type must resolve to a canonical '
-                '@FlowGraph class.'
+                  '@FlowGraph class.'
             : 'Subflow.flow must resolve to a canonical '
-                '@FlowGraph declaration.',
+                  '@FlowGraph declaration.',
       );
       return null;
     }
@@ -1680,8 +1734,9 @@ final class _FlowDefinitionGraphParser {
           )) {
         return false;
       }
-      var exported =
-          import.importedLibrary?.exportNamespace.get2(declaration.name!);
+      var exported = import.importedLibrary?.exportNamespace.get2(
+        declaration.name!,
+      );
       if (exported is PropertyAccessorElement) exported = exported.variable;
       if (exported != declaration) continue;
       routes += 1;
@@ -1769,9 +1824,10 @@ final class _FlowDefinitionGraphParser {
     if (expression is! MethodInvocation ||
         !_resolvesToRestageSdk(expression.methodName.element)) {
       _issue(
-          IssueCode.unresolvedIdentifier,
-          'Decision conditions must use a '
-          'resolved FlowStateRef condition method.');
+        IssueCode.unresolvedIdentifier,
+        'Decision conditions must use a '
+        'resolved FlowStateRef condition method.',
+      );
       return null;
     }
     final state = await _declaredStateInfo(
@@ -1816,8 +1872,9 @@ final class _FlowDefinitionGraphParser {
       _ => null,
     };
     if (relation == null) return null;
-    final value =
-        relation == 'oneOf' ? _literalList(argument) : _literalValue(argument);
+    final value = relation == 'oneOf'
+        ? _literalList(argument)
+        : _literalValue(argument);
     if (value == null) return null;
     if (relation == 'oneOf') {
       final values = (value as List<Object?>)
@@ -1857,16 +1914,19 @@ final class _FlowDefinitionGraphParser {
       final type = element.type;
       final value = element.computeConstantValue();
       final initializer = await _initializerForVariable(element);
-      final creation =
-          initializer is InstanceCreationExpression ? initializer : null;
+      final creation = initializer is InstanceCreationExpression
+          ? initializer
+          : null;
       final info = _makeStateInfo(
         type,
         element: element,
-        key: value?.getField('key')?.toStringValue() ??
+        key:
+            value?.getField('key')?.toStringValue() ??
             (creation == null
                 ? null
                 : _stringExpression(_positional(creation, 0))),
-        classification: _classificationFromValue(
+        classification:
+            _classificationFromValue(
               value?.getField('classification'),
             ) ??
             (creation == null
@@ -1874,7 +1934,8 @@ final class _FlowDefinitionGraphParser {
                 : _classificationFromExpression(
                     _named(creation, 'classification'),
                   )),
-        defaultValue: _dartObjectValue(value?.getField('defaultValue')) ??
+        defaultValue:
+            _dartObjectValue(value?.getField('defaultValue')) ??
             (creation == null
                 ? null
                 : _literalValue(_named(creation, 'defaultValue'))),
@@ -1897,9 +1958,10 @@ final class _FlowDefinitionGraphParser {
       );
     }
     _issue(
-        IssueCode.unresolvedIdentifier,
-        'Expected a resolved '
-        'FlowStateRef<T> declaration.');
+      IssueCode.unresolvedIdentifier,
+      'Expected a resolved '
+      'FlowStateRef<T> declaration.',
+    );
     return null;
   }
 
@@ -1948,17 +2010,19 @@ final class _FlowDefinitionGraphParser {
         key == null ||
         key.isEmpty) {
       _issue(
-          IssueCode.unresolvedIdentifier,
-          'Flow-state references must be '
-          'resolved SDK FlowStateRef<T> values with a non-empty key.');
+        IssueCode.unresolvedIdentifier,
+        'Flow-state references must be '
+        'resolved SDK FlowStateRef<T> values with a non-empty key.',
+      );
       return null;
     }
     final dataType = _dataType(type.typeArguments.single);
     if (dataType == null) {
       _issue(
-          IssueCode.buildMethodTooComplex,
-          'FlowStateRef supports only '
-          'bool, int, and String values.');
+        IssueCode.buildMethodTooComplex,
+        'FlowStateRef supports only '
+        'bool, int, and String values.',
+      );
       return null;
     }
     final effectiveClassification =
@@ -1978,9 +2042,10 @@ final class _FlowDefinitionGraphParser {
     final field = _eventField(expression);
     if (field == null) {
       _issue(
-          IssueCode.unresolvedIdentifier,
-          'Transition events must be '
-          'analyzer-resolved static const SurfaceEvent fields.');
+        IssueCode.unresolvedIdentifier,
+        'Transition events must be '
+        'analyzer-resolved static const SurfaceEvent fields.',
+      );
       return null;
     }
     final value = field.element.computeConstantValue();
@@ -1990,9 +2055,10 @@ final class _FlowDefinitionGraphParser {
         type is! InterfaceType ||
         type.typeArguments.length != 1) {
       _issue(
-          IssueCode.annotationEvaluationFailed,
-          'SurfaceEvent could not be '
-          'const-evaluated.');
+        IssueCode.annotationEvaluationFailed,
+        'SurfaceEvent could not be '
+        'const-evaluated.',
+      );
       return null;
     }
     if (kReservedCommerceEventNames.contains(id)) {
@@ -2044,16 +2110,18 @@ final class _FlowDefinitionGraphParser {
     if (annotation == null ||
         !annotationHasOrigin(annotation, kRestageSdkLibraryOrigin)) {
       _issue(
-          IssueCode.unresolvedIdentifier,
-          'Flow screen target must resolve '
-          'to a Restage @Screen or @Paywall declaration.');
+        IssueCode.unresolvedIdentifier,
+        'Flow screen target must resolve '
+        'to a Restage @Screen or @Paywall declaration.',
+      );
       return null;
     }
     if (!_isSupportedFlutterWidget(element)) {
       _issue(
-          IssueCode.unsupportedBaseClass,
-          'Flow screen target ${element.name} '
-          'must resolve to a Flutter StatelessWidget or StatefulWidget.');
+        IssueCode.unsupportedBaseClass,
+        'Flow screen target ${element.name} '
+        'must resolve to a Flutter StatelessWidget or StatefulWidget.',
+      );
       return null;
     }
     final metadata = _screenMetadata(annotation);
@@ -2143,9 +2211,10 @@ final class _FlowDefinitionGraphParser {
     }
     if (_terminalId != id || !_deepEqualMap(_terminalResult, result)) {
       _issue(
-          IssueCode.duplicateId,
-          'All completion paths must converge on '
-          'one terminal identity; found $_terminalId and $id.');
+        IssueCode.duplicateId,
+        'All completion paths must converge on '
+        'one terminal identity; found $_terminalId and $id.',
+      );
     }
   }
 
@@ -2271,17 +2340,17 @@ final class _StateInfo {
 
 final class _NodeIdentity {
   const _NodeIdentity.declaration(this.element)
-      : creation = null,
-        syntheticTerminal = false;
+    : creation = null,
+      syntheticTerminal = false;
 
   const _NodeIdentity.creation(this.creation)
-      : element = null,
-        syntheticTerminal = false;
+    : element = null,
+      syntheticTerminal = false;
 
   const _NodeIdentity.syntheticTerminal()
-      : element = null,
-        creation = null,
-        syntheticTerminal = true;
+    : element = null,
+      creation = null,
+      syntheticTerminal = true;
 
   final Element? element;
   final InstanceCreationExpression? creation;
@@ -2403,7 +2472,8 @@ Map<String, MeasurementDeclaredAnswerV1> parseFlowMeasurementAnswers(
   for (final entry in expression.elements) {
     if (entry is! MapLiteralEntry) {
       throw ArgumentError(
-          'Answer declarations cannot use spreads or control flow');
+        'Answer declarations cannot use spreads or control flow',
+      );
     }
     final question = _stringExpression(entry.key);
     final creation = entry.value;
@@ -2412,7 +2482,8 @@ Map<String, MeasurementDeclaredAnswerV1> parseFlowMeasurementAnswers(
         creation is! InstanceCreationExpression ||
         !_isRestageCreation(creation, 'FlowAnswerMeasurement')) {
       throw ArgumentError(
-          'Measured questions must select an existing surveyAnswers key and FlowAnswerMeasurement');
+        'Measured questions must select an existing surveyAnswers key and FlowAnswerMeasurement',
+      );
     }
     String text(String name) =>
         _stringExpression(_named(creation, name)) ??
@@ -2421,7 +2492,7 @@ Map<String, MeasurementDeclaredAnswerV1> parseFlowMeasurementAnswers(
       'questionId': question,
       'outcomeKey': text('outcomeKey'),
       'propertyName': text('propertyName'),
-      'kind': creation.constructorName.name?.name
+      'kind': creation.constructorName.name?.name,
     };
     if (json['kind'] == 'category') {
       final labels = _named(creation, 'categoryLabels');
@@ -2432,13 +2503,15 @@ Map<String, MeasurementDeclaredAnswerV1> parseFlowMeasurementAnswers(
       for (final label in labels.elements) {
         if (label is! MapLiteralEntry) {
           throw ArgumentError(
-              'Category labels cannot use spreads or control flow');
+            'Category labels cannot use spreads or control flow',
+          );
         }
         final key = _stringExpression(label.key);
         final value = _stringExpression(label.value);
         if (key == null || value == null || map.containsKey(key)) {
           throw ArgumentError(
-              'Categories need distinct literal values and labels');
+            'Categories need distinct literal values and labels',
+          );
         }
         map[key] = value;
       }
@@ -2466,7 +2539,8 @@ Map<String, MeasurementDeclaredAnswerV1> parseFlowMeasurementAnswers(
             sourceType != FlowDataType.string &&
             sourceType != FlowDataType.int)) {
       throw ArgumentError(
-          'Declared answer kind does not match its typed state source');
+        'Declared answer kind does not match its typed state source',
+      );
     }
     answers[question] = declaration;
   }
@@ -2714,7 +2788,8 @@ FlowDataType? _dataType(DartType type) {
 
 FlowStateClassification? _classificationFromValue(DartObject? value) {
   if (!_isRestageEnumValue(value, 'FlowStateClassification')) return null;
-  final wireName = value!.getField('wireName')?.toStringValue() ??
+  final wireName =
+      value!.getField('wireName')?.toStringValue() ??
       value.getField('_name')?.toStringValue();
   if (wireName == null) return null;
   for (final classification in FlowStateClassification.values) {

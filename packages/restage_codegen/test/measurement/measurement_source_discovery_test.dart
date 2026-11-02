@@ -23,10 +23,10 @@ import '../helpers.dart';
 void main() {
   group('MeasurementSourceDiscovery', () {
     test(
-        'inert spans preserve owners while nested nonnull callbacks share one owner',
-        () async {
-      Future<MeasurementSourceDiscoveryResult> discover(String span) async {
-        final fixture = await _resolveFixture("""
+      'inert spans preserve owners while nested nonnull callbacks share one owner',
+      () async {
+        Future<MeasurementSourceDiscoveryResult> discover(String span) async {
+          final fixture = await _resolveFixture("""
 import 'package:flutter/widgets.dart';
 import 'package:flutter/gestures.dart';
 import 'package:restage/restage.dart';
@@ -39,49 +39,65 @@ class Welcome extends StatelessWidget {
   Widget build(BuildContext context) => Text.rich($span);
 }
 """);
-        final catalog = decodeCatalog(
-            File('../restage_core/lib/src/widget_catalog/catalog.json')
-                .readAsStringSync());
-        final result = _discover(fixture,
-            authority: MeasurementSourceAuthority.screen, catalog: catalog);
-        expect(
-            result.disposition, MeasurementSourceDiscoveryDisposition.accepted,
-            reason: result.rejectionReason);
-        return result;
-      }
+          final catalog = decodeCatalog(
+            File(
+              '../restage_core/lib/src/widget_catalog/catalog.json',
+            ).readAsStringSync(),
+          );
+          final result = _discover(
+            fixture,
+            authority: MeasurementSourceAuthority.screen,
+            catalog: catalog,
+          );
+          expect(
+            result.disposition,
+            MeasurementSourceDiscoveryDisposition.accepted,
+            reason: result.rejectionReason,
+          );
+          return result;
+        }
 
-      final baseline = await discover("const TextSpan(text: 'Inert')");
-      final inert = await discover("""TextSpan(children: [
+        final baseline = await discover("const TextSpan(text: 'Inert')");
+        final inert = await discover("""TextSpan(children: [
         const TextSpan(text: 'Static'),
         TextSpan(recognizer: TapGestureRecognizer()),
         TextSpan(recognizer: TapGestureRecognizer()..onTap = absent),
         const TextSpan(children: [TextSpan(text: 'Nested')]),
       ])""");
-      expect(baseline.nodes, hasLength(1));
-      expect(inert.events, isEmpty);
-      expect(inert.nodes.map((n) => n.structuralOccurrenceKey),
-          baseline.nodes.map((n) => n.structuralOccurrenceKey));
-      final active = await discover("""TextSpan(children: [
+        expect(baseline.nodes, hasLength(1));
+        expect(inert.events, isEmpty);
+        expect(
+          inert.nodes.map((n) => n.structuralOccurrenceKey),
+          baseline.nodes.map((n) => n.structuralOccurrenceKey),
+        );
+        final active = await discover("""TextSpan(children: [
         TextSpan(children: [TextSpan(text: 'Active',
           recognizer: TapGestureRecognizer()
             ..onTap = eventFor('tap')
             ..onTapCancel = eventFor('cancel'))]),
         TextSpan(recognizer: TapGestureRecognizer()..onTap = absent),
       ])""");
-      expect(active.nodes, hasLength(2));
-      expect(active.events, hasLength(2));
-      expect(active.events.map((e) => e.node.structuralOccurrenceKey).toSet(),
-          hasLength(1));
-      expect(
-          active.events.map((e) => e.emissionOccurrence).toSet(), hasLength(2));
-      expect(active.nodes.map((n) => n.structuralOccurrenceKey),
-          contains(baseline.nodes.single.structuralOccurrenceKey));
-    });
+        expect(active.nodes, hasLength(2));
+        expect(active.events, hasLength(2));
+        expect(
+          active.events.map((e) => e.node.structuralOccurrenceKey).toSet(),
+          hasLength(1),
+        );
+        expect(
+          active.events.map((e) => e.emissionOccurrence).toSet(),
+          hasLength(2),
+        );
+        expect(
+          active.nodes.map((n) => n.structuralOccurrenceKey),
+          contains(baseline.nodes.single.structuralOccurrenceKey),
+        );
+      },
+    );
 
     test(
-        'nested span callbacks have distinct attributed occurrences and markers',
-        () async {
-      final fixture = await _resolveFixture("""
+      'nested span callbacks have distinct attributed occurrences and markers',
+      () async {
+        final fixture = await _resolveFixture("""
 import 'package:flutter/widgets.dart';
 import 'package:flutter/gestures.dart';
 import 'package:restage/restage.dart';
@@ -96,55 +112,74 @@ class Welcome extends StatelessWidget {
   ]));
 }
 """);
-      final catalog = decodeCatalog(
-          File('../restage_core/lib/src/widget_catalog/catalog.json')
-              .readAsStringSync());
-      final discovery = _discover(fixture,
-          authority: MeasurementSourceAuthority.screen, catalog: catalog);
-      expect(
-          discovery.disposition, MeasurementSourceDiscoveryDisposition.accepted,
-          reason: discovery.rejectionReason);
-      expect(discovery.events, hasLength(2));
-      expect(
+        final catalog = decodeCatalog(
+          File(
+            '../restage_core/lib/src/widget_catalog/catalog.json',
+          ).readAsStringSync(),
+        );
+        final discovery = _discover(
+          fixture,
+          authority: MeasurementSourceAuthority.screen,
+          catalog: catalog,
+        );
+        expect(
+          discovery.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: discovery.rejectionReason,
+        );
+        expect(discovery.events, hasLength(2));
+        expect(
           discovery.events
               .map((event) => event.node.structuralOccurrenceKey)
               .toSet(),
-          hasLength(2));
-      expect(discovery.events.map((event) => event.emissionOccurrence).toSet(),
-          hasLength(2));
-      final emission = MeasurementRouteEmissionPlan([
-        for (final (index, event) in discovery.events.indexed)
-          MeasurementRouteEmissionBinding(
+          hasLength(2),
+        );
+        expect(
+          discovery.events.map((event) => event.emissionOccurrence).toSet(),
+          hasLength(2),
+        );
+        final emission = MeasurementRouteEmissionPlan([
+          for (final (index, event) in discovery.events.indexed)
+            MeasurementRouteEmissionBinding(
               occurrence: event.emissionOccurrence,
-              generatedReferenceId:
-                  GeneratedReferenceId('reference.span.$index')),
-      ]);
-      final translator = ExpressionTranslator(
+              generatedReferenceId: GeneratedReferenceId(
+                'reference.span.$index',
+              ),
+            ),
+        ]);
+        final translator = ExpressionTranslator(
           catalog: catalog,
           helpers: HelperRegistry()
             ..registerAll([
               HelperDefinition(
-                  name: 'eventFor',
-                  libraryOrigin: 'package:apps_examples',
-                  returnCategory: HelperReturnCategory.voidCallback,
-                  translate: (args) => 'event ${args.positional.single} {}')
+                name: 'eventFor',
+                libraryOrigin: 'package:apps_examples',
+                returnCategory: HelperReturnCategory.voidCallback,
+                translate: (args) => 'event ${args.positional.single} {}',
+              ),
             ]),
-          measurementRouteEmissionPlan: emission);
-      final result = translator.translate(fixture.rootExpression);
-      expect(
-          result.issues.where((issue) => !issue.code.isInformational), isEmpty);
-      for (final event in discovery.events) {
-        expect(result.dsl,
-            contains(emission.markerFor(event.emissionOccurrence)!));
-      }
-      expect('event "go"'.allMatches(result.dsl), hasLength(2));
-    });
+          measurementRouteEmissionPlan: emission,
+        );
+        final result = translator.translate(fixture.rootExpression);
+        expect(
+          result.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        for (final event in discovery.events) {
+          expect(
+            result.dsl,
+            contains(emission.markerFor(event.emissionOccurrence)!),
+          );
+        }
+        expect('event "go"'.allMatches(result.dsl), hasLength(2));
+      },
+    );
 
     for (final runtime in [false, true]) {
       test(
-          'span collection occurrences agree through ${runtime ? "runtime" : "static"} loops and guards',
-          () async {
-        final fixture = await _resolveFixture("""
+        'span collection occurrences agree through ${runtime ? "runtime" : "static"} loops and guards',
+        () async {
+          final fixture = await _resolveFixture("""
 import 'package:flutter/widgets.dart';
 import 'package:flutter/gestures.dart';
 import 'package:restage/restage.dart';
@@ -169,69 +204,90 @@ class Welcome extends StatelessWidget {
   ]));
 }
 """);
-        final catalog = decodeCatalog(
-            File('../restage_core/lib/src/widget_catalog/catalog.json')
-                .readAsStringSync());
-        final discovery = _discover(fixture,
-            authority: MeasurementSourceAuthority.screen, catalog: catalog);
-        expect(discovery.disposition,
-            MeasurementSourceDiscoveryDisposition.accepted,
-            reason: discovery.rejectionReason);
-        expect(discovery.events, hasLength(2));
-        for (final event in discovery.events) {
+          final catalog = decodeCatalog(
+            File(
+              '../restage_core/lib/src/widget_catalog/catalog.json',
+            ).readAsStringSync(),
+          );
+          final discovery = _discover(
+            fixture,
+            authority: MeasurementSourceAuthority.screen,
+            catalog: catalog,
+          );
           expect(
+            discovery.disposition,
+            MeasurementSourceDiscoveryDisposition.accepted,
+            reason: discovery.rejectionReason,
+          );
+          expect(discovery.events, hasLength(2));
+          for (final event in discovery.events) {
+            expect(
               event.emissionOccurrence.tapItem,
               runtime
                   ? isA<MeasurementLoopItem>()
-                  : isA<MeasurementStaticItem>());
-        }
-        final emission = MeasurementRouteEmissionPlan([
-          for (final (index, event) in discovery.events.indexed)
-            MeasurementRouteEmissionBinding(
+                  : isA<MeasurementStaticItem>(),
+            );
+          }
+          final emission = MeasurementRouteEmissionPlan([
+            for (final (index, event) in discovery.events.indexed)
+              MeasurementRouteEmissionBinding(
                 occurrence: event.emissionOccurrence,
-                generatedReferenceId:
-                    GeneratedReferenceId('reference.collection.$index')),
-        ]);
-        final result = ExpressionTranslator(
+                generatedReferenceId: GeneratedReferenceId(
+                  'reference.collection.$index',
+                ),
+              ),
+          ]);
+          final result =
+              ExpressionTranslator(
                 catalog: catalog,
                 helpers: HelperRegistry()
                   ..registerAll([
                     HelperDefinition(
-                        name: 'eventFor',
-                        libraryOrigin: 'package:apps_examples',
-                        returnCategory: HelperReturnCategory.voidCallback,
-                        translate: (args) =>
-                            'event ${args.positional.single} {}'),
+                      name: 'eventFor',
+                      libraryOrigin: 'package:apps_examples',
+                      returnCategory: HelperReturnCategory.voidCallback,
+                      translate: (args) => 'event ${args.positional.single} {}',
+                    ),
                   ]),
-                measurementRouteEmissionPlan: emission)
-            .translate(fixture.rootExpression, rootParams: [
-          for (final parameter in fixture
-              .sourceClass.unnamedConstructor!.formalParameters
-              .whereType<FieldFormalParameterElement>())
-            RootContextParam(
-                name: parameter.name!,
-                type: parameter.type,
-                typeCode: parameter.type.getDisplayString(),
-                kind: RootContextParamKind.named,
-                hostDataShape:
-                    deriveHostDataShape(parameter.type, root: parameter.name!)
-                        .shape,
-                field: parameter.field,
-                isRequired: true,
-                defaultValueCode: null,
-                hasNullDefault: false)
-        ]);
-        expect(result.issues.where((issue) => !issue.code.isInformational),
-            isEmpty);
-        for (final event in discovery.events) {
-          final marker = emission.markerFor(event.emissionOccurrence)!;
-          expect(marker.allMatches(result.dsl), hasLength(runtime ? 1 : 2));
-        }
-      });
+                measurementRouteEmissionPlan: emission,
+              ).translate(
+                fixture.rootExpression,
+                rootParams: [
+                  for (final parameter
+                      in fixture
+                          .sourceClass
+                          .unnamedConstructor!
+                          .formalParameters
+                          .whereType<FieldFormalParameterElement>())
+                    RootContextParam(
+                      name: parameter.name!,
+                      type: parameter.type,
+                      typeCode: parameter.type.getDisplayString(),
+                      kind: RootContextParamKind.named,
+                      hostDataShape: deriveHostDataShape(
+                        parameter.type,
+                        root: parameter.name!,
+                      ).shape,
+                      field: parameter.field,
+                      isRequired: true,
+                      defaultValueCode: null,
+                      hasNullDefault: false,
+                    ),
+                ],
+              );
+          expect(
+            result.issues.where((issue) => !issue.code.isInformational),
+            isEmpty,
+          );
+          for (final event in discovery.events) {
+            final marker = emission.markerFor(event.emissionOccurrence)!;
+            expect(marker.allMatches(result.dsl), hasLength(runtime ? 1 : 2));
+          }
+        },
+      );
     }
 
-    test(
-        'discovers resolved ordinary Flutter slots in ScreenSource and '
+    test('discovers resolved ordinary Flutter slots in ScreenSource and '
         'PaywallSource roots', () async {
       final screen = await _resolveFixture(
         _ordinarySource(),
@@ -306,8 +362,7 @@ class Welcome extends StatelessWidget {
       );
     });
 
-    test(
-        'keys, copy, source layout, and argument traversal order do not '
+    test('keys, copy, source layout, and argument traversal order do not '
         'author ordinary event identity', () async {
       final baseline = _discover(
         await _resolveFixture(_ordinarySource()),
@@ -340,8 +395,7 @@ class Welcome extends StatelessWidget {
       }
     });
 
-    test(
-        'keeps repeated ordinary occurrences distinct through static '
+    test('keeps repeated ordinary occurrences distinct through static '
         'occurrence edges', () async {
       final discovery = _discover(
         await _resolveFixture(_ordinarySource(copy: 'Same copy')),
@@ -456,7 +510,8 @@ class Welcome extends StatelessWidget {
         '$source|child:$column:$column.children[0]|'
         'collection:listElement[0]|collection:loopTemplate[0]|widget:$button',
       );
-      const eventKey = '$source|child:$column:$column.children[0]|'
+      const eventKey =
+          '$source|child:$column:$column.children[0]|'
           'collection:listElement[0]|collection:loopTemplate[0]|'
           'widget:$button|$button|$button.onPressed';
       expect(
@@ -465,155 +520,35 @@ class Welcome extends StatelessWidget {
       );
     });
 
-    test('keeps helper bindings on the established list expression key',
-        () async {
-      final ordinaryFixture = await _resolveFixture(
-        _helperListSource(mixed: false),
-        assetPath: 'lib/onboarding/screens/helper_list.dart',
-      );
-      final ordinary = _discover(
-        ordinaryFixture,
-        authority: MeasurementSourceAuthority.screen,
-        catalog: _catalogForAstNodes([
-          ordinaryFixture.rootExpression,
-          ordinaryFixture.methodDeclarationFor(
-            ordinaryFixture.sourceClass,
-            'action',
-          ),
-        ]),
-      );
-      final fixture = await _resolveFixture(
-        _helperListSource(),
-        assetPath: 'lib/onboarding/screens/helper_list.dart',
-      );
-      final discovery = _discover(
-        fixture,
-        authority: MeasurementSourceAuthority.screen,
-        catalog: _catalogForAstNodes([
-          fixture.rootExpression,
-          fixture.methodDeclarationFor(fixture.sourceClass, 'action'),
-        ]),
-      );
-
-      expect(
-        discovery.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-        reason: discovery.rejectionReason,
-      );
-      expect(
-        ordinary.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-        reason: ordinary.rejectionReason,
-      );
-      const source =
-          'package:apps_examples/onboarding/screens/helper_list.dart#Welcome';
-      const column = 'package:flutter/src/widgets/basic.dart#Column';
-      const button =
-          'package:flutter/src/material/elevated_button.dart#ElevatedButton';
-      const text = 'package:flutter/src/widgets/text.dart#Text';
-      const helper =
-          'package:apps_examples/onboarding/screens/helper_list.dart#'
-          'Welcome.action';
-      const helperPath =
-          '$source|child:$column:$column.children[0]|helper:$helper';
-      const buttonKey = '$helperPath|widget:$button';
-      const selectedTextKey = '$source|child:$column:$column.children[1]|'
-          'collection:listElement[1]|collection:selectedThen[0]|widget:$text';
-      expect(
-        discovery.nodes.map((node) => node.structuralOccurrenceKey).toSet(),
-        {
-          '$source|widget:$column',
-          buttonKey,
-          '$helperPath|child:$button:$button.child[0]|widget:$text',
-          selectedTextKey,
-        },
-      );
-      const event = '$button|$button.onPressed';
-      expect(
-        ordinary.nodes.map((node) => node.structuralOccurrenceKey).toSet(),
-        {
-          '$source|widget:$column',
-          buttonKey,
-          '$helperPath|child:$button:$button.child[0]|widget:$text',
-        },
-      );
-      expect(_eventKeys(ordinary), ['$buttonKey|$event']);
-      expect(_eventKeys(discovery), ['$buttonKey|$event']);
-    });
-
-    test('keys a helper-fed widget list through the helper it entered',
-        () async {
-      final fixture = await _resolveFixture(
-        _helperFedListSource(),
-        assetPath: 'lib/onboarding/screens/helper_fed_list.dart',
-      );
-      final discovery = _discover(
-        fixture,
-        authority: MeasurementSourceAuthority.screen,
-        catalog: _catalogForAstNodes([
-          fixture.rootExpression,
-          fixture.methodDeclarationFor(fixture.sourceClass, 'actions'),
-        ]),
-      );
-
-      expect(
-        discovery.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-        reason: discovery.rejectionReason,
-      );
-      const source =
-          'package:apps_examples/onboarding/screens/helper_fed_list.dart'
-          '#Welcome';
-      const column = 'package:flutter/src/widgets/basic.dart#Column';
-      const button =
-          'package:flutter/src/material/elevated_button.dart#ElevatedButton';
-      const text = 'package:flutter/src/widgets/text.dart#Text';
-      const helper =
-          'package:apps_examples/onboarding/screens/helper_fed_list.dart#'
-          'Welcome.actions';
-      // The helper is entered before the slot, so it precedes the slot segment
-      // exactly as the emitted translation keys the same element.
-      const elementPath =
-          '$source|helper:$helper|child:$column:$column.children[0]';
-      const buttonKey = '$elementPath|widget:$button';
-      expect(
-        discovery.nodes.map((node) => node.structuralOccurrenceKey).toSet(),
-        {
-          '$source|widget:$column',
-          buttonKey,
-          '$elementPath|child:$button:$button.child[0]|widget:$text',
-        },
-      );
-      expect(
-        _eventKeys(discovery),
-        ['$buttonKey|$button|$button.onPressed'],
-      );
-    });
-
-    test('discovers the exact widget behind a helper-bound object receiver',
-        () async {
-      for (final authority in MeasurementSourceAuthority.values) {
-        final annotation = authority == MeasurementSourceAuthority.screen
-            ? 'ScreenSource'
-            : 'PaywallSource';
-        final className = authority == MeasurementSourceAuthority.screen
-            ? 'Welcome'
-            : 'Upgrade';
+    test(
+      'keeps helper bindings on the established list expression key',
+      () async {
+        final ordinaryFixture = await _resolveFixture(
+          _helperListSource(mixed: false),
+          assetPath: 'lib/onboarding/screens/helper_list.dart',
+        );
+        final ordinary = _discover(
+          ordinaryFixture,
+          authority: MeasurementSourceAuthority.screen,
+          catalog: _catalogForAstNodes([
+            ordinaryFixture.rootExpression,
+            ordinaryFixture.methodDeclarationFor(
+              ordinaryFixture.sourceClass,
+              'action',
+            ),
+          ]),
+        );
         final fixture = await _resolveFixture(
-          _boundReceiverCollectionSource(
-            annotation: annotation,
-            className: className,
-          ),
-          assetPath: authority == MeasurementSourceAuthority.screen
-              ? 'lib/onboarding/screens/bound_receiver.dart'
-              : 'lib/paywalls/bound_receiver.dart',
+          _helperListSource(),
+          assetPath: 'lib/onboarding/screens/helper_list.dart',
         );
         final discovery = _discover(
           fixture,
-          authority: authority,
-          catalog: _catalogForAstNodes(
-            fixture.resolved.units.map((unit) => unit.unit),
-          ),
+          authority: MeasurementSourceAuthority.screen,
+          catalog: _catalogForAstNodes([
+            fixture.rootExpression,
+            fixture.methodDeclarationFor(fixture.sourceClass, 'action'),
+          ]),
         );
 
         expect(
@@ -621,13 +556,140 @@ class Welcome extends StatelessWidget {
           MeasurementSourceDiscoveryDisposition.accepted,
           reason: discovery.rejectionReason,
         );
-        expect(discovery.nodes, hasLength(2));
         expect(
-          discovery.nodes.map((node) => node.resolvedWidgetIdentity),
-          contains(endsWith('#Text')),
+          ordinary.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: ordinary.rejectionReason,
         );
-      }
-    });
+        const source =
+            'package:apps_examples/onboarding/screens/helper_list.dart#Welcome';
+        const column = 'package:flutter/src/widgets/basic.dart#Column';
+        const button =
+            'package:flutter/src/material/elevated_button.dart#ElevatedButton';
+        const text = 'package:flutter/src/widgets/text.dart#Text';
+        const helper =
+            'package:apps_examples/onboarding/screens/helper_list.dart#'
+            'Welcome.action';
+        const helperPath =
+            '$source|child:$column:$column.children[0]|helper:$helper';
+        const buttonKey = '$helperPath|widget:$button';
+        const selectedTextKey =
+            '$source|child:$column:$column.children[1]|'
+            'collection:listElement[1]|collection:selectedThen[0]|widget:$text';
+        expect(
+          discovery.nodes.map((node) => node.structuralOccurrenceKey).toSet(),
+          {
+            '$source|widget:$column',
+            buttonKey,
+            '$helperPath|child:$button:$button.child[0]|widget:$text',
+            selectedTextKey,
+          },
+        );
+        const event = '$button|$button.onPressed';
+        expect(
+          ordinary.nodes.map((node) => node.structuralOccurrenceKey).toSet(),
+          {
+            '$source|widget:$column',
+            buttonKey,
+            '$helperPath|child:$button:$button.child[0]|widget:$text',
+          },
+        );
+        expect(_eventKeys(ordinary), ['$buttonKey|$event']);
+        expect(_eventKeys(discovery), ['$buttonKey|$event']);
+      },
+    );
+
+    test(
+      'keys a helper-fed widget list through the helper it entered',
+      () async {
+        final fixture = await _resolveFixture(
+          _helperFedListSource(),
+          assetPath: 'lib/onboarding/screens/helper_fed_list.dart',
+        );
+        final discovery = _discover(
+          fixture,
+          authority: MeasurementSourceAuthority.screen,
+          catalog: _catalogForAstNodes([
+            fixture.rootExpression,
+            fixture.methodDeclarationFor(fixture.sourceClass, 'actions'),
+          ]),
+        );
+
+        expect(
+          discovery.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: discovery.rejectionReason,
+        );
+        const source =
+            'package:apps_examples/onboarding/screens/helper_fed_list.dart'
+            '#Welcome';
+        const column = 'package:flutter/src/widgets/basic.dart#Column';
+        const button =
+            'package:flutter/src/material/elevated_button.dart#ElevatedButton';
+        const text = 'package:flutter/src/widgets/text.dart#Text';
+        const helper =
+            'package:apps_examples/onboarding/screens/helper_fed_list.dart#'
+            'Welcome.actions';
+        // The helper is entered before the slot, so it precedes the slot segment
+        // exactly as the emitted translation keys the same element.
+        const elementPath =
+            '$source|helper:$helper|child:$column:$column.children[0]';
+        const buttonKey = '$elementPath|widget:$button';
+        expect(
+          discovery.nodes.map((node) => node.structuralOccurrenceKey).toSet(),
+          {
+            '$source|widget:$column',
+            buttonKey,
+            '$elementPath|child:$button:$button.child[0]|widget:$text',
+          },
+        );
+        expect(
+          _eventKeys(discovery),
+          ['$buttonKey|$button|$button.onPressed'],
+        );
+      },
+    );
+
+    test(
+      'discovers the exact widget behind a helper-bound object receiver',
+      () async {
+        for (final authority in MeasurementSourceAuthority.values) {
+          final annotation = authority == MeasurementSourceAuthority.screen
+              ? 'ScreenSource'
+              : 'PaywallSource';
+          final className = authority == MeasurementSourceAuthority.screen
+              ? 'Welcome'
+              : 'Upgrade';
+          final fixture = await _resolveFixture(
+            _boundReceiverCollectionSource(
+              annotation: annotation,
+              className: className,
+            ),
+            assetPath: authority == MeasurementSourceAuthority.screen
+                ? 'lib/onboarding/screens/bound_receiver.dart'
+                : 'lib/paywalls/bound_receiver.dart',
+          );
+          final discovery = _discover(
+            fixture,
+            authority: authority,
+            catalog: _catalogForAstNodes(
+              fixture.resolved.units.map((unit) => unit.unit),
+            ),
+          );
+
+          expect(
+            discovery.disposition,
+            MeasurementSourceDiscoveryDisposition.accepted,
+            reason: discovery.rejectionReason,
+          );
+          expect(discovery.nodes, hasLength(2));
+          expect(
+            discovery.nodes.map((node) => node.resolvedWidgetIdentity),
+            contains(endsWith('#Text')),
+          );
+        }
+      },
+    );
 
     test('rejects a mixed const and runtime object receiver', () async {
       for (final authority in MeasurementSourceAuthority.values) {
@@ -714,42 +776,44 @@ class Welcome extends StatelessWidget {
       );
     });
 
-    test('accepts one selected callback and one shared repeated callback',
-        () async {
-      final selected = _discover(
-        await _resolveFixture(_selectedCollectionCallbackSource()),
-        authority: MeasurementSourceAuthority.screen,
-      );
-      expect(
-        selected.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-        reason: selected.rejectionReason,
-      );
-      expect(selected.events, hasLength(1));
-      expect(
-        selected.events.single.node.structuralOccurrenceKey,
-        'package:apps_examples/onboarding/screens/probe.dart#Welcome|'
-        'child:package:flutter/src/widgets/basic.dart#Column:'
-        'package:flutter/src/widgets/basic.dart#Column.children[0]|'
-        'collection:listElement[0]|collection:selectedThen[0]|'
-        'widget:package:flutter/src/material/elevated_button.dart#ElevatedButton',
-      );
+    test(
+      'accepts one selected callback and one shared repeated callback',
+      () async {
+        final selected = _discover(
+          await _resolveFixture(_selectedCollectionCallbackSource()),
+          authority: MeasurementSourceAuthority.screen,
+        );
+        expect(
+          selected.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: selected.rejectionReason,
+        );
+        expect(selected.events, hasLength(1));
+        expect(
+          selected.events.single.node.structuralOccurrenceKey,
+          'package:apps_examples/onboarding/screens/probe.dart#Welcome|'
+          'child:package:flutter/src/widgets/basic.dart#Column:'
+          'package:flutter/src/widgets/basic.dart#Column.children[0]|'
+          'collection:listElement[0]|collection:selectedThen[0]|'
+          'widget:package:flutter/src/material/elevated_button.dart#ElevatedButton',
+        );
 
-      final repeated = _discover(
-        await _resolveFixture(_repeatedCollectionCallbackSource()),
-        authority: MeasurementSourceAuthority.screen,
-      );
-      expect(
-        repeated.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-        reason: repeated.rejectionReason,
-      );
-      expect(repeated.events, hasLength(1));
-      expect(
-        repeated.events.single.emissionOccurrence.tapItem,
-        isA<MeasurementStaticItem>(),
-      );
-    });
+        final repeated = _discover(
+          await _resolveFixture(_repeatedCollectionCallbackSource()),
+          authority: MeasurementSourceAuthority.screen,
+        );
+        expect(
+          repeated.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: repeated.rejectionReason,
+        );
+        expect(repeated.events, hasLength(1));
+        expect(
+          repeated.events.single.emissionOccurrence.tapItem,
+          isA<MeasurementStaticItem>(),
+        );
+      },
+    );
 
     test(
       'refuses reused callback sources before route planning',
@@ -922,28 +986,30 @@ class Welcome extends StatelessWidget {
       );
     }
 
-    test('accepts distinct callbacks at direct root and scalar child',
-        () async {
-      for (final child in [false, true]) {
-        final discovery = _discover(
-          await _resolveFixture(
-            _ordinaryDistinctCallbackSource(child: child),
-            assetPath: child
-                ? 'lib/onboarding/screens/distinct_child.dart'
-                : 'lib/onboarding/screens/distinct_root.dart',
-          ),
-          authority: MeasurementSourceAuthority.screen,
-        );
+    test(
+      'accepts distinct callbacks at direct root and scalar child',
+      () async {
+        for (final child in [false, true]) {
+          final discovery = _discover(
+            await _resolveFixture(
+              _ordinaryDistinctCallbackSource(child: child),
+              assetPath: child
+                  ? 'lib/onboarding/screens/distinct_child.dart'
+                  : 'lib/onboarding/screens/distinct_root.dart',
+            ),
+            authority: MeasurementSourceAuthority.screen,
+          );
 
-        expect(
-          discovery.disposition,
-          MeasurementSourceDiscoveryDisposition.accepted,
-          reason: discovery.rejectionReason,
-        );
-        expect(discovery.events, hasLength(2));
-        expect(_lateRouteError(discovery, 'distinct-$child'), isNull);
-      }
-    });
+          expect(
+            discovery.disposition,
+            MeasurementSourceDiscoveryDisposition.accepted,
+            reason: discovery.rejectionReason,
+          );
+          expect(discovery.events, hasLength(2));
+          expect(_lateRouteError(discovery, 'distinct-$child'), isNull);
+        }
+      },
+    );
 
     test(
       'refuses one callback source reused across nested sibling lists',
@@ -990,33 +1056,35 @@ class Welcome extends StatelessWidget {
       timeout: const Timeout(Duration(minutes: 2)),
     );
 
-    test('enumerates callbacks after the first source in one occurrence',
-        () async {
-      final fixture = await _resolveFixture(
-        _laterReusedCallbackSource(),
-        assetPath: 'lib/onboarding/screens/multiple_actions.dart',
-      );
-      final discovery = _discover(
-        fixture,
-        authority: MeasurementSourceAuthority.screen,
-        catalog: _catalogForAstNodes(
-          fixture.resolved.units.map((unit) => unit.unit),
-        ),
-      );
-      final routeError = _lateRouteError(discovery, 'multiple');
+    test(
+      'enumerates callbacks after the first source in one occurrence',
+      () async {
+        final fixture = await _resolveFixture(
+          _laterReusedCallbackSource(),
+          assetPath: 'lib/onboarding/screens/multiple_actions.dart',
+        );
+        final discovery = _discover(
+          fixture,
+          authority: MeasurementSourceAuthority.screen,
+          catalog: _catalogForAstNodes(
+            fixture.resolved.units.map((unit) => unit.unit),
+          ),
+        );
+        final routeError = _lateRouteError(discovery, 'multiple');
 
-      expect(
-        discovery.disposition,
-        MeasurementSourceDiscoveryDisposition.rejected,
-        reason: 'late route error: $routeError',
-      );
-      expect(discovery.events, isEmpty);
-      expect(
-        discovery.rejectionReason,
-        contains('static collection source is reused'),
-      );
-      expect(routeError, isNull);
-    });
+        expect(
+          discovery.disposition,
+          MeasurementSourceDiscoveryDisposition.rejected,
+          reason: 'late route error: $routeError',
+        );
+        expect(discovery.events, isEmpty);
+        expect(
+          discovery.rejectionReason,
+          contains('static collection source is reused'),
+        );
+        expect(routeError, isNull);
+      },
+    );
 
     test('keeps callback identity separate between discovery roots', () async {
       final fixture = await _resolveFixture(
@@ -1058,46 +1126,48 @@ class Welcome extends StatelessWidget {
       );
     });
 
-    test('discovers collection leaves inside an inlined custom widget',
-        () async {
-      final fixture = await _resolveFixture(_inlinedCollectionSource());
-      final repeatedLabels = fixture.classNamed('RepeatedLabels');
-      final catalog = _catalogForExpressions([
-        fixture.rootExpression,
-        fixture.buildExpressionFor(repeatedLabels),
-      ]);
-      final classification = await classifyReferencedCustomWidgets(
-        rootExpressions: [fixture.rootExpression],
-        catalog: catalog,
-        astNodeFor: fixture.astNodeFor,
-      );
-      expect(
-        classification.blueprints,
-        contains(_classIdentity(repeatedLabels)),
-      );
-
-      final discovery = _discover(
-        fixture,
-        authority: MeasurementSourceAuthority.screen,
-        catalog: catalog,
-        inlinedCustomWidgetBlueprints: classification.blueprints,
-      );
-
-      expect(
-        discovery.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-        reason: discovery.rejectionReason,
-      );
-      expect(discovery.events, isEmpty);
-      expect(
-        discovery.nodes
-            .where((node) => node.resolvedWidgetIdentity.endsWith('#Text')),
-        hasLength(1),
-      );
-    });
-
     test(
-        'keeps each supported callback slot on one canonical node as a '
+      'discovers collection leaves inside an inlined custom widget',
+      () async {
+        final fixture = await _resolveFixture(_inlinedCollectionSource());
+        final repeatedLabels = fixture.classNamed('RepeatedLabels');
+        final catalog = _catalogForExpressions([
+          fixture.rootExpression,
+          fixture.buildExpressionFor(repeatedLabels),
+        ]);
+        final classification = await classifyReferencedCustomWidgets(
+          rootExpressions: [fixture.rootExpression],
+          catalog: catalog,
+          astNodeFor: fixture.astNodeFor,
+        );
+        expect(
+          classification.blueprints,
+          contains(_classIdentity(repeatedLabels)),
+        );
+
+        final discovery = _discover(
+          fixture,
+          authority: MeasurementSourceAuthority.screen,
+          catalog: catalog,
+          inlinedCustomWidgetBlueprints: classification.blueprints,
+        );
+
+        expect(
+          discovery.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: discovery.rejectionReason,
+        );
+        expect(discovery.events, isEmpty);
+        expect(
+          discovery.nodes.where(
+            (node) => node.resolvedWidgetIdentity.endsWith('#Text'),
+          ),
+          hasLength(1),
+        );
+      },
+    );
+
+    test('keeps each supported callback slot on one canonical node as a '
         'distinct occurrence and generated reference', () async {
       final discovery = _discover(
         await _resolveFixture(_multiSlotSource()),
@@ -1157,8 +1227,7 @@ class Welcome extends StatelessWidget {
       expect(points.map((point) => point.lineageId).toSet(), hasLength(2));
     });
 
-    test(
-        'discovers each statically inlined custom-widget body at its exact '
+    test('discovers each statically inlined custom-widget body at its exact '
         'call-site occurrence', () async {
       final fixture = await _resolveFixture(_inlinedCustomSource());
       final actionButton = fixture.classNamed('ActionButton');
@@ -1200,8 +1269,7 @@ class Welcome extends StatelessWidget {
       );
     });
 
-    test(
-        'retains resolved outer bindings through nested static custom-widget '
+    test('retains resolved outer bindings through nested static custom-widget '
         'inlining', () async {
       final fixture = await _resolveFixture(_nestedInlinedCustomSource());
       final outer = fixture.classNamed('OuterAction');
@@ -1231,8 +1299,9 @@ class Welcome extends StatelessWidget {
       );
       expect(discovery.events, hasLength(2));
       expect(
-        discovery.events
-            .map((event) => event.node.inlinedCustomWidgetIdentities),
+        discovery.events.map(
+          (event) => event.node.inlinedCustomWidgetIdentities,
+        ),
         everyElement(
           orderedEquals([
             _classIdentity(outer),
@@ -1248,43 +1317,44 @@ class Welcome extends StatelessWidget {
       );
     });
 
-    test('follows the existing inlined local and helper element bindings',
-        () async {
-      final fixture = await _resolveFixture(_inlinedHelperSource());
-      final actionButton = fixture.classNamed('ActionButton');
-      final catalog = _catalogForAstNodes([
-        fixture.rootExpression,
-        fixture.methodDeclarationFor(actionButton, 'build'),
-        fixture.methodDeclarationFor(actionButton, '_button'),
-      ]);
-      final classification = await classifyReferencedCustomWidgets(
-        rootExpressions: [fixture.rootExpression],
-        catalog: catalog,
-        astNodeFor: fixture.astNodeFor,
-      );
-
-      final discovery = _discover(
-        fixture,
-        authority: MeasurementSourceAuthority.screen,
-        catalog: catalog,
-        inlinedCustomWidgetBlueprints: classification.blueprints,
-      );
-
-      expect(
-        discovery.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-        reason: discovery.rejectionReason,
-      );
-      expect(discovery.events, hasLength(1));
-      expect(discovery.nodes, hasLength(3));
-      expect(
-        discovery.events.single.node.structuralOccurrenceKey,
-        contains('helper:'),
-      );
-    });
-
     test(
-        'discovers exact registered opaque catalog slots without traversing '
+      'follows the existing inlined local and helper element bindings',
+      () async {
+        final fixture = await _resolveFixture(_inlinedHelperSource());
+        final actionButton = fixture.classNamed('ActionButton');
+        final catalog = _catalogForAstNodes([
+          fixture.rootExpression,
+          fixture.methodDeclarationFor(actionButton, 'build'),
+          fixture.methodDeclarationFor(actionButton, '_button'),
+        ]);
+        final classification = await classifyReferencedCustomWidgets(
+          rootExpressions: [fixture.rootExpression],
+          catalog: catalog,
+          astNodeFor: fixture.astNodeFor,
+        );
+
+        final discovery = _discover(
+          fixture,
+          authority: MeasurementSourceAuthority.screen,
+          catalog: catalog,
+          inlinedCustomWidgetBlueprints: classification.blueprints,
+        );
+
+        expect(
+          discovery.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: discovery.rejectionReason,
+        );
+        expect(discovery.events, hasLength(1));
+        expect(discovery.nodes, hasLength(3));
+        expect(
+          discovery.events.single.node.structuralOccurrenceKey,
+          contains('helper:'),
+        );
+      },
+    );
+
+    test('discovers exact registered opaque catalog slots without traversing '
         'the private implementation', () async {
       final registeredFixture = await _resolveFixture(
         _opaqueCustomSource(className: 'OpaqueAction'),
@@ -1304,8 +1374,9 @@ class Welcome extends StatelessWidget {
         reason: registeredDiscovery.rejectionReason,
       );
       expect(
-        registeredDiscovery.events
-            .map((event) => event.resolvedEvent.sourceEventIdentity.value),
+        registeredDiscovery.events.map(
+          (event) => event.resolvedEvent.sourceEventIdentity.value,
+        ),
         ['onActivate'],
       );
       expect(registeredDiscovery.nodes, hasLength(1));
@@ -1314,8 +1385,9 @@ class Welcome extends StatelessWidget {
         isA<MeasurementResolvedOpaqueCustomWidgetEvent>(),
       );
       expect(
-        registeredDiscovery.events
-            .map((event) => event.resolvedEvent.sourceEventIdentity.value),
+        registeredDiscovery.events.map(
+          (event) => event.resolvedEvent.sourceEventIdentity.value,
+        ),
         isNot(contains('onPressed')),
         reason: 'the opaque widget private body is outside source discovery',
       );
@@ -1358,8 +1430,7 @@ class Welcome extends StatelessWidget {
       expect(unregisteredDiscovery.events, isEmpty);
     });
 
-    test(
-        'FlowSource closes already-resolved static screen artifacts without '
+    test('FlowSource closes already-resolved static screen artifacts without '
         'inventing a widget body in buildFlow', () async {
       final fixture = await _resolveFixture(_flowAndScreenSource());
       final screen = fixture.classNamed('FlowScreen');
@@ -1389,30 +1460,32 @@ class Welcome extends StatelessWidget {
       );
     });
 
-    test('fails closed for local source/widget/custom-marker lookalikes',
-        () async {
-      final fakeSource = _discover(
-        await _resolveFixture(_fakeSourceAnnotation()),
-        authority: MeasurementSourceAuthority.screen,
-      );
-      final fakeWidget = _discover(
-        await _resolveFixture(_fakeFlutterWidget()),
-        authority: MeasurementSourceAuthority.screen,
-      );
-      final fakeCustom = _discover(
-        await _resolveFixture(_fakeCustomWidget()),
-        authority: MeasurementSourceAuthority.screen,
-      );
-
-      for (final discovery in [fakeSource, fakeWidget, fakeCustom]) {
-        expect(
-          discovery.disposition,
-          MeasurementSourceDiscoveryDisposition.rejected,
+    test(
+      'fails closed for local source/widget/custom-marker lookalikes',
+      () async {
+        final fakeSource = _discover(
+          await _resolveFixture(_fakeSourceAnnotation()),
+          authority: MeasurementSourceAuthority.screen,
         );
-        expect(discovery.nodes, isEmpty);
-        expect(discovery.events, isEmpty);
-      }
-    });
+        final fakeWidget = _discover(
+          await _resolveFixture(_fakeFlutterWidget()),
+          authority: MeasurementSourceAuthority.screen,
+        );
+        final fakeCustom = _discover(
+          await _resolveFixture(_fakeCustomWidget()),
+          authority: MeasurementSourceAuthority.screen,
+        );
+
+        for (final discovery in [fakeSource, fakeWidget, fakeCustom]) {
+          expect(
+            discovery.disposition,
+            MeasurementSourceDiscoveryDisposition.rejected,
+          );
+          expect(discovery.nodes, isEmpty);
+          expect(discovery.events, isEmpty);
+        }
+      },
+    );
 
     test('fails closed for dynamic and unresolved widget constructs', () async {
       final dynamicDiscovery = _discover(
@@ -1436,8 +1509,9 @@ class Welcome extends StatelessWidget {
     test('a Flutter State method tear-off is a routed tap', () async {
       final fixture = await _resolveFixture(_stateMethodSource());
       final sourceClass = fixture.classNamed('Welcome');
-      final rootExpression =
-          fixture.buildExpressionFor(fixture.classNamed('_WelcomeState'));
+      final rootExpression = fixture.buildExpressionFor(
+        fixture.classNamed('_WelcomeState'),
+      );
 
       final discovery = MeasurementSourceDiscovery.discover(
         MeasurementSourceDiscoveryInput(
@@ -1454,7 +1528,8 @@ class Welcome extends StatelessWidget {
         reason: discovery.rejectionReason,
       );
       // The state update carries its route on the measure-only tap event.
-      const source = 'package:apps_examples/onboarding/screens/probe.dart'
+      const source =
+          'package:apps_examples/onboarding/screens/probe.dart'
           '#Welcome';
       const gesture =
           'package:flutter/src/widgets/gesture_detector.dart#GestureDetector';
@@ -1483,8 +1558,7 @@ class Welcome extends StatelessWidget {
       expect(discovery.events, hasLength(1));
     });
 
-    test(
-        'validates discovered nodes and slots before delegating to the '
+    test('validates discovered nodes and slots before delegating to the '
         'unchanged production boundary', () async {
       final discovery = _discover(
         await _resolveFixture(_singleButtonSource()),
@@ -1533,12 +1607,12 @@ class Welcome extends StatelessWidget {
 
       final missingBinding =
           MeasurementCompilerBoundary.produceDiscoveredBoundaryV1(
-        MeasurementDiscoveredBoundaryInput(
-          boundaryInput: boundaryInput,
-          discovery: discovery,
-          nodeBindings: const [],
-        ),
-      );
+            MeasurementDiscoveredBoundaryInput(
+              boundaryInput: boundaryInput,
+              discovery: discovery,
+              nodeBindings: const [],
+            ),
+          );
       expect(
         missingBinding.disposition,
         MeasurementCompilerBoundaryDisposition.rejected,
@@ -1546,188 +1620,194 @@ class Welcome extends StatelessWidget {
       expect(missingBinding.documents, isEmpty);
     });
 
-    test('prohibited discovered events never receive an emission marker',
-        () async {
-      final discovery = _discover(
-        await _resolveFixture(_singleButtonSource()),
-        authority: MeasurementSourceAuthority.screen,
-      );
-      expect(
-        discovery.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-      );
-      final discovered = discovery.events.single;
-      final codeIdentityId = CodeIdentityId('code.source-prohibited');
-      final lineageId = PointLineageId('lineage.source-prohibited');
-      final generatedReferenceId = GeneratedReferenceId(
-        'reference.source-prohibited',
-      );
-      final edge = ArtifactOccurrenceEdgeToken('edge.source-prohibited');
-      final routePlan = MeasurementPublicationRoutePlanV1(
-        surfaceId: SurfaceId('surface.source-prohibited'),
-        analyticsSurfaceKey: AnalyticsSurfaceKey('source-prohibited'),
-        deliverySurfaceType: DeliverySurfaceTypeId('general'),
-        minimumMeasurementClient: 1,
-        completeManifestId: MeasurementManifestId(
-          'manifest.source-prohibited',
-        ),
-        privacyPolicyRevisionId: AuthorityRevisionId(
-          'privacy.source-prohibited',
-        ),
-        collectionBudgetRevisionId: AuthorityRevisionId(
-          'budget.source-prohibited',
-        ),
-        artifacts: [
-          MeasurementPublicationRouteArtifactV1(
-            artifactId: ArtifactId('artifact.source-prohibited'),
-            artifactKind: ArtifactKindId('rfw.blob'),
-            occurrenceEdgeToken: edge,
-            localManifestId: MeasurementManifestId(
-              'manifest.source-prohibited.local',
-            ),
+    test(
+      'prohibited discovered events never receive an emission marker',
+      () async {
+        final discovery = _discover(
+          await _resolveFixture(_singleButtonSource()),
+          authority: MeasurementSourceAuthority.screen,
+        );
+        expect(
+          discovery.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+        );
+        final discovered = discovery.events.single;
+        final codeIdentityId = CodeIdentityId('code.source-prohibited');
+        final lineageId = PointLineageId('lineage.source-prohibited');
+        final generatedReferenceId = GeneratedReferenceId(
+          'reference.source-prohibited',
+        );
+        final edge = ArtifactOccurrenceEdgeToken('edge.source-prohibited');
+        final routePlan = MeasurementPublicationRoutePlanV1(
+          surfaceId: SurfaceId('surface.source-prohibited'),
+          analyticsSurfaceKey: AnalyticsSurfaceKey('source-prohibited'),
+          deliverySurfaceType: DeliverySurfaceTypeId('general'),
+          minimumMeasurementClient: 1,
+          completeManifestId: MeasurementManifestId(
+            'manifest.source-prohibited',
           ),
-        ],
-        codeIdentityBindings: [
-          CodeIdentityBindingV1(
-            codeIdentityId: codeIdentityId,
-            canonicalNodeTokenId: NodeTokenId('node.source-prohibited'),
+          privacyPolicyRevisionId: AuthorityRevisionId(
+            'privacy.source-prohibited',
           ),
-        ],
-        nodes: [
-          MeasurementPublicationDraftNodeV1(
-            codeIdentityId: codeIdentityId,
-            artifactOccurrenceEdgeToken: edge,
+          collectionBudgetRevisionId: AuthorityRevisionId(
+            'budget.source-prohibited',
           ),
-        ],
-        events: [
-          MeasurementPublicationDraftEventV1(
-            nodeCodeIdentityId: codeIdentityId,
-            sourceEventIdentity: discovered.resolvedEvent.sourceEventIdentity,
-            lineageId: lineageId,
-            generatedReferenceId: generatedReferenceId,
-            dartSymbol: GeneratedDartSymbol('sourceProhibited'),
-            displayMetadataRef: DisplayMetadataRef(
-              'display.source-prohibited',
-            ),
-            normalizedInteractionKind: NormalizedInteractionKind.activate,
-            privacyClass: MeasurementPrivacyClass.prohibited,
-            semanticValueClass: SemanticValueClass.activityOnly,
-            collectionClass: MeasurementCollectionClass.prohibited,
-          ),
-        ],
-        routeSeeds: const [],
-        presentations: const [],
-        presentationRouteSeeds: const [],
-        lineageIntents: [
-          MeasurementPublicationLineageIntentV1(
-            transitionId: LineageTransitionId(
-              'transition.source-prohibited',
-            ),
-            operation: LineageOperation.create,
-            authority: LineageTransitionAuthority.exactToken,
-            next: [
-              MeasurementPublicationCurrentEndpointIntentV1(
-                generatedReferenceId: generatedReferenceId,
-                lineageId: lineageId,
+          artifacts: [
+            MeasurementPublicationRouteArtifactV1(
+              artifactId: ArtifactId('artifact.source-prohibited'),
+              artifactKind: ArtifactKindId('rfw.blob'),
+              occurrenceEdgeToken: edge,
+              localManifestId: MeasurementManifestId(
+                'manifest.source-prohibited.local',
               ),
-            ],
+            ),
+          ],
+          codeIdentityBindings: [
+            CodeIdentityBindingV1(
+              codeIdentityId: codeIdentityId,
+              canonicalNodeTokenId: NodeTokenId('node.source-prohibited'),
+            ),
+          ],
+          nodes: [
+            MeasurementPublicationDraftNodeV1(
+              codeIdentityId: codeIdentityId,
+              artifactOccurrenceEdgeToken: edge,
+            ),
+          ],
+          events: [
+            MeasurementPublicationDraftEventV1(
+              nodeCodeIdentityId: codeIdentityId,
+              sourceEventIdentity: discovered.resolvedEvent.sourceEventIdentity,
+              lineageId: lineageId,
+              generatedReferenceId: generatedReferenceId,
+              dartSymbol: GeneratedDartSymbol('sourceProhibited'),
+              displayMetadataRef: DisplayMetadataRef(
+                'display.source-prohibited',
+              ),
+              normalizedInteractionKind: NormalizedInteractionKind.activate,
+              privacyClass: MeasurementPrivacyClass.prohibited,
+              semanticValueClass: SemanticValueClass.activityOnly,
+              collectionClass: MeasurementCollectionClass.prohibited,
+            ),
+          ],
+          routeSeeds: const [],
+          presentations: const [],
+          presentationRouteSeeds: const [],
+          lineageIntents: [
+            MeasurementPublicationLineageIntentV1(
+              transitionId: LineageTransitionId(
+                'transition.source-prohibited',
+              ),
+              operation: LineageOperation.create,
+              authority: LineageTransitionAuthority.exactToken,
+              next: [
+                MeasurementPublicationCurrentEndpointIntentV1(
+                  generatedReferenceId: generatedReferenceId,
+                  lineageId: lineageId,
+                ),
+              ],
+            ),
+          ],
+        );
+
+        final emission = MeasurementRouteEmissionPlan.fromDiscovery(
+          discovery: discovery,
+          routePlan: routePlan,
+          codeIdentityByStructuralOccurrenceKey: {
+            discovered.node.structuralOccurrenceKey: codeIdentityId,
+          },
+        );
+
+        expect(
+          emission.markerFor(discovered.emissionOccurrence),
+          isNull,
+        );
+        expect(routePlan.routes, isEmpty);
+      },
+    );
+
+    test(
+      'discovers a measured slot on a widget held in a build() local',
+      () async {
+        final fixture = await _resolveFixture(_preludeWidgetSource());
+        final bindings = fixture.rootLocalBindings;
+        expect(bindings, hasLength(1));
+
+        final seeded = _discover(
+          fixture,
+          authority: MeasurementSourceAuthority.screen,
+          rootLocalBindings: bindings,
+        );
+
+        expect(
+          seeded.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: seeded.rejectionReason,
+        );
+        expect(
+          seeded.events.map(
+            (event) => event.resolvedEvent.declarationProvenance.memberName,
           ),
-        ],
-      );
+          ['onPressed'],
+        );
 
-      final emission = MeasurementRouteEmissionPlan.fromDiscovery(
-        discovery: discovery,
-        routePlan: routePlan,
-        codeIdentityByStructuralOccurrenceKey: {
-          discovered.node.structuralOccurrenceKey: codeIdentityId,
-        },
-      );
+        final unseeded = _discover(
+          fixture,
+          authority: MeasurementSourceAuthority.screen,
+        );
+        expect(
+          unseeded.disposition,
+          MeasurementSourceDiscoveryDisposition.rejected,
+        );
+      },
+    );
 
-      expect(
-        emission.markerFor(discovered.emissionOccurrence),
-        isNull,
-      );
-      expect(routePlan.routes, isEmpty);
-    });
+    test(
+      'discovers a measured slot inside a helper declared in a part',
+      () async {
+        final fixture = await _resolveFixture(
+          _partHelperSource(),
+          extraSources: {
+            'apps_examples|lib/onboarding/screens/probe_helpers.dart':
+                _partHelperPartSource(),
+          },
+        );
+        final reachable = await reachableArtifactHelpers(
+          [fixture.rootExpression],
+          astNodeFor: fixture.astNodeFor,
+        );
+        expect(reachable.helpers, hasLength(1));
+        final catalog = _catalogForAstNodes(
+          fixture.resolved.units.map((unit) => unit.unit),
+        );
 
-    test('discovers a measured slot on a widget held in a build() local',
-        () async {
-      final fixture = await _resolveFixture(_preludeWidgetSource());
-      final bindings = fixture.rootLocalBindings;
-      expect(bindings, hasLength(1));
+        final discovery = _discover(
+          fixture,
+          authority: MeasurementSourceAuthority.screen,
+          catalog: catalog,
+          rootHelpers: reachable.helpers,
+        );
 
-      final seeded = _discover(
-        fixture,
-        authority: MeasurementSourceAuthority.screen,
-        rootLocalBindings: bindings,
-      );
+        expect(
+          discovery.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: discovery.rejectionReason,
+        );
+        expect(
+          discovery.events.map(
+            (event) => event.resolvedEvent.declarationProvenance.memberName,
+          ),
+          ['onPressed'],
+        );
 
-      expect(
-        seeded.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-        reason: seeded.rejectionReason,
-      );
-      expect(
-        seeded.events.map(
-          (event) => event.resolvedEvent.declarationProvenance.memberName,
-        ),
-        ['onPressed'],
-      );
-
-      final unseeded = _discover(
-        fixture,
-        authority: MeasurementSourceAuthority.screen,
-      );
-      expect(
-        unseeded.disposition,
-        MeasurementSourceDiscoveryDisposition.rejected,
-      );
-    });
-
-    test('discovers a measured slot inside a helper declared in a part',
-        () async {
-      final fixture = await _resolveFixture(
-        _partHelperSource(),
-        extraSources: {
-          'apps_examples|lib/onboarding/screens/probe_helpers.dart':
-              _partHelperPartSource(),
-        },
-      );
-      final reachable = await reachableArtifactHelpers(
-        [fixture.rootExpression],
-        astNodeFor: fixture.astNodeFor,
-      );
-      expect(reachable.helpers, hasLength(1));
-      final catalog = _catalogForAstNodes(
-        fixture.resolved.units.map((unit) => unit.unit),
-      );
-
-      final discovery = _discover(
-        fixture,
-        authority: MeasurementSourceAuthority.screen,
-        catalog: catalog,
-        rootHelpers: reachable.helpers,
-      );
-
-      expect(
-        discovery.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-        reason: discovery.rejectionReason,
-      );
-      expect(
-        discovery.events.map(
-          (event) => event.resolvedEvent.declarationProvenance.memberName,
-        ),
-        ['onPressed'],
-      );
-
-      final unseeded = _discover(
-        fixture,
-        authority: MeasurementSourceAuthority.screen,
-        catalog: catalog,
-      );
-      expect(unseeded.events, isEmpty);
-    });
+        final unseeded = _discover(
+          fixture,
+          authority: MeasurementSourceAuthority.screen,
+          catalog: catalog,
+        );
+        expect(unseeded.events, isEmpty);
+      },
+    );
 
     test(
       'a locally held widget list matches its literal twin',
@@ -1786,24 +1866,24 @@ MeasurementSourceDiscoveryResult _discover(
   Map<String, String> inlinedCustomWidgetCollectionRefusals = const {},
   Map<Element, Expression> rootLocalBindings = const {},
   Map<Element, HelperDef> rootHelpers = const {},
-}) =>
-    MeasurementSourceDiscovery.discover(
-      MeasurementSourceDiscoveryInput(
-        authority: authority,
-        sourceClass: fixture.sourceClass,
-        rootExpression: fixture.rootExpression,
-        catalog: catalog ??
-            _catalogForExpressions([
-              fixture.rootExpression,
-              ...rootLocalBindings.values,
-            ]),
-        inlinedCustomWidgetBlueprints: inlinedCustomWidgetBlueprints,
-        inlinedCustomWidgetCollectionRefusals:
-            inlinedCustomWidgetCollectionRefusals,
-        rootLocalBindings: rootLocalBindings,
-        rootHelpers: rootHelpers,
-      ),
-    );
+}) => MeasurementSourceDiscovery.discover(
+  MeasurementSourceDiscoveryInput(
+    authority: authority,
+    sourceClass: fixture.sourceClass,
+    rootExpression: fixture.rootExpression,
+    catalog:
+        catalog ??
+        _catalogForExpressions([
+          fixture.rootExpression,
+          ...rootLocalBindings.values,
+        ]),
+    inlinedCustomWidgetBlueprints: inlinedCustomWidgetBlueprints,
+    inlinedCustomWidgetCollectionRefusals:
+        inlinedCustomWidgetCollectionRefusals,
+    rootLocalBindings: rootLocalBindings,
+    rootHelpers: rootHelpers,
+  ),
+);
 
 Future<MeasurementSourceDiscoveryResult> _discoverCallbackFixture(
   _ResolvedFixture fixture, {
@@ -1974,32 +2054,28 @@ final class _ResolvedFixture {
   final ResolvedLibraryResult resolved;
 
   ClassElement get sourceClass => classNamed(
-        library.classes.map((element) => element.name).contains('Welcome')
-            ? 'Welcome'
-            : library.classes.map((element) => element.name).contains('Upgrade')
-                ? 'Upgrade'
-                : library.classes
-                        .map((element) => element.name)
-                        .contains('DynamicScreen')
-                    ? 'DynamicScreen'
-                    : library.classes
-                            .map((element) => element.name)
-                            .contains('UnresolvedScreen')
-                        ? 'UnresolvedScreen'
-                        : library.classes
-                                .map((element) => element.name)
-                                .contains('FakeSource')
-                            ? 'FakeSource'
-                            : library.classes
-                                    .map((element) => element.name)
-                                    .contains('FakeWidget')
-                                ? 'FakeWidget'
-                                : library.classes
-                                        .map((element) => element.name)
-                                        .contains('FakeCustomScreen')
-                                    ? 'FakeCustomScreen'
-                                    : library.classes.single.name!,
-      );
+    library.classes.map((element) => element.name).contains('Welcome')
+        ? 'Welcome'
+        : library.classes.map((element) => element.name).contains('Upgrade')
+        ? 'Upgrade'
+        : library.classes
+              .map((element) => element.name)
+              .contains('DynamicScreen')
+        ? 'DynamicScreen'
+        : library.classes
+              .map((element) => element.name)
+              .contains('UnresolvedScreen')
+        ? 'UnresolvedScreen'
+        : library.classes.map((element) => element.name).contains('FakeSource')
+        ? 'FakeSource'
+        : library.classes.map((element) => element.name).contains('FakeWidget')
+        ? 'FakeWidget'
+        : library.classes
+              .map((element) => element.name)
+              .contains('FakeCustomScreen')
+        ? 'FakeCustomScreen'
+        : library.classes.single.name!,
+  );
 
   Expression get rootExpression => buildExpressionFor(sourceClass);
 
@@ -2277,7 +2353,8 @@ final class Welcome extends StatelessWidget {
 }
 ''';
 
-String _helperListSource({bool mixed = true}) => '''
+String _helperListSource({bool mixed = true}) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -2643,8 +2720,9 @@ final class $className extends StatelessWidget {
 }
 ''';
   }
-  final rootChildren =
-      reused ? '[...actions(), ...actions()]' : '[...actions()]';
+  final rootChildren = reused
+      ? '[...actions(), ...actions()]'
+      : '[...actions()]';
   return '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -3016,7 +3094,8 @@ final class Welcome extends StatelessWidget {
 }
 ''';
 
-String _opaqueCustomSource({required String className}) => '''
+String _opaqueCustomSource({required String className}) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 

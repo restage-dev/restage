@@ -11,15 +11,17 @@ import 'helpers.dart';
 /// banner, the rfw import, and a `LocalWidgetBuilder` map. The
 /// per-namespace const identifier is checked separately.
 Matcher _emittedScaffoldFor(String constMapName) => decodedMatches(
-      allOf(
-        contains('GENERATED CODE - DO NOT MODIFY BY HAND'),
-        contains("import 'package:rfw/rfw.dart' hide Switch;"),
-        contains('const Map<String, LocalWidgetBuilder> $constMapName'),
-        contains(constMapName == 'kCoreLibraryFactories'
-            ? "'__RestageBuilderContinuation': buildRestageBuilderContinuation"
-            : '<String, LocalWidgetBuilder>{}'),
-      ),
-    );
+  allOf(
+    contains('GENERATED CODE - DO NOT MODIFY BY HAND'),
+    contains("import 'package:rfw/rfw.dart' hide Switch;"),
+    contains('const Map<String, LocalWidgetBuilder> $constMapName'),
+    contains(
+      constMapName == 'kCoreLibraryFactories'
+          ? "'__RestageBuilderContinuation': buildRestageBuilderContinuation"
+          : '<String, LocalWidgetBuilder>{}',
+    ),
+  ),
+);
 
 /// Concatenates message + error text from every SEVERE log record so a
 /// `contains(...)` matcher locks the user-visible error wording without
@@ -44,16 +46,18 @@ void main() {
       final factoryBuilder = File(
         'lib/src/factory_function_builder.dart',
       ).readAsStringSync();
-      final catalogLoader =
-          File('lib/src/catalog_loader.dart').readAsStringSync();
+      final catalogLoader = File(
+        'lib/src/catalog_loader.dart',
+      ).readAsStringSync();
 
       expect(factoryBuilder, isNot(contains('decodeCatalogCompat')));
       expect(catalogLoader, isNot(contains('decodeCatalogCompat')));
     });
 
-    test('rejects v3 compatibility catalogs through native validation',
-        () async {
-      const catalogJson = '''
+    test(
+      'rejects v3 compatibility catalogs through native validation',
+      () async {
+        const catalogJson = '''
 {
   "schemaVersion": 3,
   "generatedAt": "2026-05-09T00:00:00Z",
@@ -67,24 +71,26 @@ void main() {
 }
 ''';
 
-      final logs = <LogRecord>[];
-      await testBuilder(
-        factoryFunctionBuilder(BuilderOptions.empty),
-        {'restage_core|lib/src/widget_catalog/catalog.json': catalogJson},
-        rootPackage: 'restage_core',
-        outputs: const {},
-        onLog: logs.add,
-      );
+        final logs = <LogRecord>[];
+        await testBuilder(
+          factoryFunctionBuilder(BuilderOptions.empty),
+          {'restage_core|lib/src/widget_catalog/catalog.json': catalogJson},
+          rootPackage: 'restage_core',
+          outputs: const {},
+          onLog: logs.add,
+        );
 
-      expect(
-        _severeText(logs),
-        contains('Unsupported catalog schemaVersion 3 (expected 4 or 5)'),
-      );
-    });
+        expect(
+          _severeText(logs),
+          contains('Unsupported catalog schemaVersion 3 (expected 4 or 5)'),
+        );
+      },
+    );
 
-    test('restage.core catalog → kCoreLibraryFactories continuation map',
-        () async {
-      const catalogJson = '''
+    test(
+      'restage.core catalog → kCoreLibraryFactories continuation map',
+      () async {
+        const catalogJson = '''
 {
   "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
@@ -110,16 +116,18 @@ void main() {
 }
 ''';
 
-      await testBuilder(
-        factoryFunctionBuilder(BuilderOptions.empty),
-        {'restage_core|lib/src/widget_catalog/catalog.json': catalogJson},
-        rootPackage: 'restage_core',
-        outputs: {
-          'restage_core|lib/src/registration.g.dart':
-              _emittedScaffoldFor('kCoreLibraryFactories'),
-        },
-      );
-    });
+        await testBuilder(
+          factoryFunctionBuilder(BuilderOptions.empty),
+          {'restage_core|lib/src/widget_catalog/catalog.json': catalogJson},
+          rootPackage: 'restage_core',
+          outputs: {
+            'restage_core|lib/src/registration.g.dart': _emittedScaffoldFor(
+              'kCoreLibraryFactories',
+            ),
+          },
+        );
+      },
+    );
 
     test('restage.material → kMaterialLibraryFactories', () async {
       const catalogJson = '''
@@ -141,8 +149,9 @@ void main() {
         {'restage_material|lib/src/widget_catalog/catalog.json': catalogJson},
         rootPackage: 'restage_material',
         outputs: {
-          'restage_material|lib/src/registration.g.dart':
-              _emittedScaffoldFor('kMaterialLibraryFactories'),
+          'restage_material|lib/src/registration.g.dart': _emittedScaffoldFor(
+            'kMaterialLibraryFactories',
+          ),
         },
       );
     });
@@ -167,8 +176,9 @@ void main() {
         {'restage_cupertino|lib/src/widget_catalog/catalog.json': catalogJson},
         rootPackage: 'restage_cupertino',
         outputs: {
-          'restage_cupertino|lib/src/registration.g.dart':
-              _emittedScaffoldFor('kCupertinoLibraryFactories'),
+          'restage_cupertino|lib/src/registration.g.dart': _emittedScaffoldFor(
+            'kCupertinoLibraryFactories',
+          ),
         },
       );
     });
@@ -203,8 +213,7 @@ void main() {
       );
     });
 
-    test(
-        'populates the const map and emits Flutter import + factory body '
+    test('populates the const map and emits Flutter import + factory body '
         'for a scalar-eligible widget', () async {
       // Locks the wiring between the eligibility loop, the per-library
       // Flutter import switch, the conditional import emission, and
@@ -271,8 +280,7 @@ void main() {
       );
     });
 
-    test(
-        'emits each builder as a documented public function the const map '
+    test('emits each builder as a documented public function the const map '
         'references', () async {
       // The per-widget builders are part of each catalog package's public
       // API, so a host can install a subset instead of the whole map.
@@ -324,8 +332,7 @@ void main() {
       );
     });
 
-    test(
-        'emits a cross-package import when a curated entry lives outside '
+    test('emits a cross-package import when a curated entry lives outside '
         'the primary Flutter library', () async {
       // Locks the emission of additional `import` lines for widget
       // classes whose `flutterType` URI differs from the library's
@@ -399,8 +406,7 @@ void main() {
       );
     });
 
-    test(
-        'does NOT emit a redundant direct import for a restage.core widget '
+    test('does NOT emit a redundant direct import for a restage.core widget '
         'when the core barrel is already imported', () async {
       // A first-party widget authored inside restage_core resolves its
       // flutterType to `package:restage_core/src/...`. The core barrel
@@ -465,8 +471,7 @@ void main() {
       );
     });
 
-    test(
-        'skips a pure-custom catalog (no built-in library) without emitting '
+    test('skips a pure-custom catalog (no built-in library) without emitting '
         'or throwing', () async {
       // A custom package emits its own catalog.json, and this builder is
       // keyed on catalog.json, so it runs on the custom catalog too. Custom

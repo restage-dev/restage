@@ -39,10 +39,10 @@ final class WidgetbookWidgetSource {
     required Map<String, WidgetConstructorInput> constructorInputs,
     required List<DartBareSymbolReservation> bareNamespaceReservations,
     this.nativeScreen,
-  })  : constructorInputs = Map.unmodifiable(constructorInputs),
-        bareNamespaceReservations = List.unmodifiable(
-          bareNamespaceReservations,
-        );
+  }) : constructorInputs = Map.unmodifiable(constructorInputs),
+       bareNamespaceReservations = List.unmodifiable(
+         bareNamespaceReservations,
+       );
 
   /// Shared catalog projection produced by [visitRestageWidgets].
   final WidgetEntry entry;
@@ -112,8 +112,9 @@ final class WidgetbookStructuredSource {
     final target = plan.namedConstructor;
     for (final constructor in element.constructors) {
       final name = constructor.name;
-      final normalized =
-          name == null || name.isEmpty || name == 'new' ? null : name;
+      final normalized = name == null || name.isEmpty || name == 'new'
+          ? null
+          : name;
       if (!constructor.isFactory && normalized == target) return constructor;
     }
     return null;
@@ -137,23 +138,23 @@ final class WidgetbookCatalogSourceIndex {
     required Map<String, String> unrenderableByWidget,
     required List<PropertyExclusion> exclusions,
     required Set<String> restageWidgetDeclarations,
-  })  : restageWidgetDeclarations = Set.unmodifiable(restageWidgetDeclarations),
-        widgets = List.unmodifiable(widgets),
-        nativeScreens = List.unmodifiable(nativeScreens),
-        structuredTypes = List.unmodifiable(structuredTypes),
-        structuredSources = Map.unmodifiable(structuredSources),
-        slotTargets = Map.unmodifiable(slotTargets),
-        nullableStructuredSlots = Set.unmodifiable(nullableStructuredSlots),
-        reconstructionPlans = Map.unmodifiable(reconstructionPlans),
-        unrenderableByWidget = Map.unmodifiable(unrenderableByWidget),
-        exclusions = List.unmodifiable(exclusions),
-        widgetsByFlutterType = Map.unmodifiable({
-          for (final widget in [...widgets, ...nativeScreens])
-            widget.entry.flutterType: widget,
-        }),
-        structuredBySourceType = Map.unmodifiable({
-          for (final entry in structuredTypes) entry.sourceType: entry,
-        });
+  }) : restageWidgetDeclarations = Set.unmodifiable(restageWidgetDeclarations),
+       widgets = List.unmodifiable(widgets),
+       nativeScreens = List.unmodifiable(nativeScreens),
+       structuredTypes = List.unmodifiable(structuredTypes),
+       structuredSources = Map.unmodifiable(structuredSources),
+       slotTargets = Map.unmodifiable(slotTargets),
+       nullableStructuredSlots = Set.unmodifiable(nullableStructuredSlots),
+       reconstructionPlans = Map.unmodifiable(reconstructionPlans),
+       unrenderableByWidget = Map.unmodifiable(unrenderableByWidget),
+       exclusions = List.unmodifiable(exclusions),
+       widgetsByFlutterType = Map.unmodifiable({
+         for (final widget in [...widgets, ...nativeScreens])
+           widget.entry.flutterType: widget,
+       }),
+       structuredBySourceType = Map.unmodifiable({
+         for (final entry in structuredTypes) entry.sourceType: entry,
+       });
 
   /// Custom widgets in deterministic `(library namespace, name)` order.
   final List<WidgetbookWidgetSource> widgets;
@@ -195,9 +196,9 @@ final class WidgetbookCatalogSourceIndex {
 
   /// Genuine custom-widget class names, including target-disabled classes.
   Set<String> get restageWidgetClassNames => {
-        for (final identity in restageWidgetDeclarations)
-          identity.substring(identity.lastIndexOf('#') + 1),
-      };
+    for (final identity in restageWidgetDeclarations)
+      identity.substring(identity.lastIndexOf('#') + 1),
+  };
 
   /// Story-source identity lookup.
   final Map<String, WidgetbookWidgetSource> widgetsByFlutterType;
@@ -213,12 +214,14 @@ final class WidgetbookCatalogSourceIndex {
 /// a component in another file changes.
 final class WidgetbookCatalogIndexCache {
   final Map<
-      String,
-      ({
-        String fingerprint,
-        String placement,
-        Future<WidgetbookCatalogSourceIndex> index,
-      })> _byPackage = {};
+    String,
+    ({
+      String fingerprint,
+      String placement,
+      Future<WidgetbookCatalogSourceIndex> index,
+    })
+  >
+  _byPackage = {};
 
   /// Caches the package index for builders sharing one output-location plan.
   /// Conflicting plans report an error instead of reusing the cached index.
@@ -263,8 +266,11 @@ final class WidgetbookCatalogIndexCache {
       return cached.index;
     }
     final index = loadWidgetbookCatalogSourceIndex(buildStep, plan: plan);
-    _byPackage[packageName] =
-        (fingerprint: fingerprint, placement: placement, index: index);
+    _byPackage[packageName] = (
+      fingerprint: fingerprint,
+      placement: placement,
+      index: index,
+    );
     return index;
   }
 }
@@ -374,13 +380,15 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
 
     for (final entry in result.widgets) {
       final className = entry.flutterType.split('#').last;
-      final matches =
-          library.classes.where((element) => element.name == className);
+      final matches = library.classes.where(
+        (element) => element.name == className,
+      );
       if (matches.length != 1) {
         issues.add(
           Issue(
             code: IssueCode.analyzerResolutionFailed,
-            message: 'could not resolve exactly one class "$className" for '
+            message:
+                'could not resolve exactly one class "$className" for '
                 '@RestageWidget "${entry.name}".',
             location: '${assetId.path}#$className',
           ),
@@ -392,7 +400,8 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
         issues.add(
           Issue(
             code: IssueCode.invalidWidgetClass,
-            message: '@RestageWidget "${entry.name}" declares reserved '
+            message:
+                '@RestageWidget "${entry.name}" declares reserved '
                 'built-in namespace "${entry.library.namespace}".',
             location: '${assetId.path}#$className',
           ),
@@ -557,25 +566,29 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
     byCatalogName.putIfAbsent(widget.entry.name, () => []).add(widget);
     byFlutterType.putIfAbsent(widget.entry.flutterType, () => []).add(widget);
   }
-  for (final duplicate
-      in byCatalogName.entries.where((entry) => entry.value.length > 1)) {
+  for (final duplicate in byCatalogName.entries.where(
+    (entry) => entry.value.length > 1,
+  )) {
     issues.add(
       Issue(
         code: IssueCode.duplicateWidgetName,
-        message: 'Widgetbook canonical component name "${duplicate.key}" is '
+        message:
+            'Widgetbook canonical component name "${duplicate.key}" is '
             'ambiguous across ${duplicate.value.map(
-                  (widget) => widget.entry.flutterType,
-                ).join(', ')}.',
+              (widget) => widget.entry.flutterType,
+            ).join(', ')}.',
         location: 'lib/',
       ),
     );
   }
-  for (final duplicate
-      in byFlutterType.entries.where((entry) => entry.value.length > 1)) {
+  for (final duplicate in byFlutterType.entries.where(
+    (entry) => entry.value.length > 1,
+  )) {
     issues.add(
       Issue(
         code: IssueCode.duplicateWidgetName,
-        message: 'duplicate @RestageWidget source identity '
+        message:
+            'duplicate @RestageWidget source identity '
             '"${duplicate.key}".',
         location: 'lib/',
       ),
@@ -701,8 +714,8 @@ void _recordAutomaticSourceObstructions({
     unrenderable[entry.flutterType] =
         'required constructor parameter(s) not represented in the catalog: '
         '${missingRequired.map(
-              (parameter) => parameter.name ?? '<positional>',
-            ).join(', ')}';
+          (parameter) => parameter.name ?? '<positional>',
+        ).join(', ')}';
   }
 }
 
@@ -848,7 +861,8 @@ void _mergeStringMap(
       issues.add(
         Issue(
           code: IssueCode.duplicateId,
-          message: 'conflicting $label for "${entry.key}": '
+          message:
+              'conflicting $label for "${entry.key}": '
               '"$prior" vs "${entry.value}".',
           location: location,
         ),

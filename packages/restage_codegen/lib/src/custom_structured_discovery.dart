@@ -64,21 +64,21 @@ final class CustomStructuredDiscovery {
     required this.recordPlans,
     required PolicyLedger policy,
     required Map<String, String> libraryNamespaceByFqn,
-  })  : _policy = policy,
-        _libraryNamespaceByFqn = libraryNamespaceByFqn;
+  }) : _policy = policy,
+       _libraryNamespaceByFqn = libraryNamespaceByFqn;
 
   /// An empty discovery — no custom structured types were found.
   const CustomStructuredDiscovery.empty()
-      : structuredTypes = const [],
-        unions = const [],
-        slotTargets = const {},
-        nullableStructuredSlots = const {},
-        localUnrenderable = const {},
-        reconstructionPlans = const {},
-        mapPlans = const {},
-        recordPlans = const {},
-        _policy = const PolicyLedger.builtIn(),
-        _libraryNamespaceByFqn = const {};
+    : structuredTypes = const [],
+      unions = const [],
+      slotTargets = const {},
+      nullableStructuredSlots = const {},
+      localUnrenderable = const {},
+      reconstructionPlans = const {},
+      mapPlans = const {},
+      recordPlans = const {},
+      _policy = const PolicyLedger.builtIn(),
+      _libraryNamespaceByFqn = const {};
 
   /// The discovered structured types (unallocated wire IDs).
   final List<StructuredEntry> structuredTypes;
@@ -250,8 +250,10 @@ CustomStructuredDiscovery discoverCustomStructured({
       // value is discoverable. The transitive pass below applies the same rule
       // to map fields nested inside data classes.
       final mapValueSeed = _mapValueSeedType(input.type);
-      final targetElement =
-          addDataClass(mapValueSeed ?? input.type, libraryNamespace);
+      final targetElement = addDataClass(
+        mapValueSeed ?? input.type,
+        libraryNamespace,
+      );
       final fieldName = input.name;
       // The nominal slot bookkeeping below applies to nominal structured slots
       // only. A map slot carries its target through its own build-time recipe,
@@ -391,8 +393,9 @@ CustomStructuredDiscovery discoverCustomStructured({
         _unnameableReferencedType(root.element, materializedFieldNames),
       );
       // Record each nested structured field's slot target for ref resolution.
-      for (final (fieldName, targetFqn)
-          in _structuredFieldTargets(structuredFields)) {
+      for (final (fieldName, targetFqn) in _structuredFieldTargets(
+        structuredFields,
+      )) {
         slotTargets[structuredSlotKey(lowered.sourceType, fieldName)] =
             targetFqn;
       }
@@ -453,20 +456,20 @@ MapPlan mapPlanFromClassification(MapAdmitted classification) {
 /// the same admitted verdict that produced their catalog slot, so the emitted
 /// label set and the recognized value shape cannot disagree.
 RecordPlan recordPlanFromClassification(RecordAdmitted classification) => (
-      labels: List<RecordLabelPlan>.unmodifiable(
-        classification.labels.map((label) {
-          final shape = label.shape;
-          final enumShape = shape is EnumShape ? shape : null;
-          return (
-            name: label.name,
-            type: shape.propertyType,
-            shape: shape,
-            enumLibraryUri: enumShape?.enumRef.libraryUri,
-            enumTypeName: enumShape?.enumRef.symbolName,
-          );
-        }),
-      ),
-    );
+  labels: List<RecordLabelPlan>.unmodifiable(
+    classification.labels.map((label) {
+      final shape = label.shape;
+      final enumShape = shape is EnumShape ? shape : null;
+      return (
+        name: label.name,
+        type: shape.propertyType,
+        shape: shape,
+        enumLibraryUri: enumShape?.enumRef.libraryUri,
+        enumTypeName: enumShape?.enumRef.symbolName,
+      );
+    }),
+  ),
+);
 
 /// The structured (value-bearing) fields of [element] — the declared
 /// `(name, type)` of fields named by a generative constructor parameter (the
@@ -792,7 +795,8 @@ String? _normalizedCtorName(ConstructorElement constructor) {
           // drop the field's value.
           return (
             args: null,
-            reason: 'optional non-nullable parameter "$name" has a default '
+            reason:
+                'optional non-nullable parameter "$name" has a default '
                 '(${parameter.defaultValueCode}) that the generated factory '
                 'cannot faithfully reproduce',
           );
@@ -810,7 +814,8 @@ String? _normalizedCtorName(ConstructorElement constructor) {
       // A required param with no field can neither be sourced nor omitted.
       return (
         args: null,
-        reason: 'required constructor parameter "${name ?? '<positional>'}" '
+        reason:
+            'required constructor parameter "${name ?? '<positional>'}" '
             'has no matching field',
       );
     }
@@ -849,7 +854,8 @@ String? _reproducibleScalarListLiteral(
   final type = parameter.type;
   if (type is! InterfaceType || type.typeArguments.length != 1) return null;
   final item = type.typeArguments.single;
-  final scalar = item.isDartCoreString ||
+  final scalar =
+      item.isDartCoreString ||
       item.isDartCoreBool ||
       item.isDartCoreInt ||
       item.isDartCoreDouble ||

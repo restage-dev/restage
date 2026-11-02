@@ -29,8 +29,9 @@ const _source = '''
 
 /// Captures the original fixture through its production catalog owner.
 Future<String> generateMapFreeCustomCatalog() async {
-  final rw =
-      await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+  final rw = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
   rw.testing.writeString(
     AssetId('apps_examples', 'lib/widgets.dart'),
     _source,
@@ -44,15 +45,19 @@ Future<String> generateMapFreeCustomCatalog() async {
     onLog: (_) {},
   );
   if (!result.succeeded) {
-    throw StateError('Map-free custom catalog build failed: '
-        '${result.errors.join('\n')}');
+    throw StateError(
+      'Map-free custom catalog build failed: '
+      '${result.errors.join('\n')}',
+    );
   }
   final captured = rw.testing.readString(
     AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
   );
   final factories = rw.testing.readString(
     AssetId(
-        'apps_examples', 'lib/src/widget_catalog/app_widget_factories.json'),
+      'apps_examples',
+      'lib/src/widget_catalog/app_widget_factories.json',
+    ),
   );
   if (captured.trim().isEmpty || factories.trim().isEmpty) {
     throw StateError('Map-free custom catalog build emitted empty outputs.');
@@ -62,16 +67,18 @@ Future<String> generateMapFreeCustomCatalog() async {
 
 void main() {
   test(
-      'a map-free custom catalog records constructor facts and synthetic metadata',
-      () async {
-    final captured = await generateMapFreeCustomCatalog();
-    final golden = File('test/fixtures/goldens/map_free_custom_catalog.json')
-        .readAsStringSync();
+    'a map-free custom catalog records constructor facts and synthetic metadata',
+    () async {
+      final captured = await generateMapFreeCustomCatalog();
+      final golden = File(
+        'test/fixtures/goldens/map_free_custom_catalog.json',
+      ).readAsStringSync();
 
-    // This golden isolates map-value closure from constructor-fidelity facts.
-    // The nullable `title` input is the only constructor addition; analyticsId
-    // is synthetic occurrence metadata, so no map shape or closure metadata
-    // may appear.
-    expect(captured, golden.trimRight());
-  });
+      // This golden isolates map-value closure from constructor-fidelity facts.
+      // The nullable `title` input is the only constructor addition; analyticsId
+      // is synthetic occurrence metadata, so no map shape or closure metadata
+      // may appear.
+      expect(captured, golden.trimRight());
+    },
+  );
 }

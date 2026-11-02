@@ -85,8 +85,9 @@ void main() {
 
   group('onboardingHelpers translations', () {
     test('onboardingEvent with payload', () {
-      final h =
-          onboardingHelpers.firstWhere((d) => d.name == 'onboardingEvent');
+      final h = onboardingHelpers.firstWhere(
+        (d) => d.name == 'onboardingEvent',
+      );
       final out = h.translate(
         const HelperCallArgs(
           positional: [

@@ -3,9 +3,10 @@
 /// payloads.
 ///
 /// See the package README for the model. The check sits between an app's cached
-/// A2UI payload and genui's render seam, checking component existence and
-/// capability requirements against the catalog the app registered before
-/// render. It is not a general validator for every inner A2UI payload shape.
+/// A2UI payload and a2ui_flutter's render seam, checking protocol envelopes,
+/// component schemas and catalog resolution before render. Restage sidecars
+/// also require the installed capability set. Graph completeness is not
+/// required between updates, and preflight never executes functions.
 library;
 
 export 'src/catalog_capability.dart';

@@ -19,78 +19,78 @@ const _by = 'restage-codegen-user-catalog-allocator';
 /// (`w0001` AcmeBorder{child,color} -> p0001/p0002), and ZERO structured
 /// entries — the shape of the real committed custom log before this feature.
 String _seedJsonl() => [
-      {
-        'at': _at,
-        'by': _by,
-        'id': 'w0001',
-        'kind': 'alloc',
-        'name': 'AcmeBorder',
-        'source': 'package:acme/a.dart#AcmeBorder',
-        'type': 'widget',
-      },
-      {
-        'at': _at,
-        'by': _by,
-        'id': 'p0001',
-        'kind': 'alloc',
-        'name': 'child',
-        'owner': 'w0001',
-        'source': 'package:acme/a.dart#AcmeBorder.child',
-        'type': 'property',
-      },
-      {
-        'at': _at,
-        'by': _by,
-        'id': 'p0002',
-        'kind': 'alloc',
-        'name': 'color',
-        'owner': 'w0001',
-        'source': 'package:acme/a.dart#AcmeBorder.color',
-        'type': 'property',
-      },
-    ].map(jsonEncode).join('\n');
+  {
+    'at': _at,
+    'by': _by,
+    'id': 'w0001',
+    'kind': 'alloc',
+    'name': 'AcmeBorder',
+    'source': 'package:acme/a.dart#AcmeBorder',
+    'type': 'widget',
+  },
+  {
+    'at': _at,
+    'by': _by,
+    'id': 'p0001',
+    'kind': 'alloc',
+    'name': 'child',
+    'owner': 'w0001',
+    'source': 'package:acme/a.dart#AcmeBorder.child',
+    'type': 'property',
+  },
+  {
+    'at': _at,
+    'by': _by,
+    'id': 'p0002',
+    'kind': 'alloc',
+    'name': 'color',
+    'owner': 'w0001',
+    'source': 'package:acme/a.dart#AcmeBorder.color',
+    'type': 'property',
+  },
+].map(jsonEncode).join('\n');
 
 WidgetEntry _acmeBorder() => const WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: 'AcmeBorder',
-      library: WidgetLibrary.custom('acme.design_system'),
-      category: WidgetCategory.decoration,
+  wireId: WireId.unallocatedWidget,
+  name: 'AcmeBorder',
+  library: WidgetLibrary.custom('acme.design_system'),
+  category: WidgetCategory.decoration,
+  description: '',
+  flutterType: 'package:acme/a.dart#AcmeBorder',
+  childrenSlot: ChildrenSlot.none,
+  properties: [
+    PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: 'child',
+      type: PropertyType.widget,
       description: '',
-      flutterType: 'package:acme/a.dart#AcmeBorder',
-      childrenSlot: ChildrenSlot.none,
-      properties: [
-        PropertyEntry(
-          wireId: WireId.unallocatedProperty,
-          name: 'child',
-          type: PropertyType.widget,
-          description: '',
-        ),
-        PropertyEntry(
-          wireId: WireId.unallocatedProperty,
-          name: 'color',
-          type: PropertyType.color,
-          description: '',
-        ),
-      ],
-    );
+    ),
+    PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: 'color',
+      type: PropertyType.color,
+      description: '',
+    ),
+  ],
+);
 
 StructuredField _field(String name, PropertyType type) => StructuredField(
-      wireId: WireId.unallocatedProperty,
-      name: name,
-      type: type,
-      description: '',
-      valueShape: ScalarShape(propertyType: type),
-    );
+  wireId: WireId.unallocatedProperty,
+  name: name,
+  type: type,
+  description: '',
+  valueShape: ScalarShape(propertyType: type),
+);
 
 FactoryParameter _param(String name, PropertyType type) => FactoryParameter(
-      wireId: WireId.unallocatedParameter,
-      name: name,
-      kind: FactoryParameterKind.named,
-      required: true,
-      nullable: false,
-      defaultPolicy: FactoryParameterDefaultPolicy.requiredValue,
-      valueShape: ScalarShape(propertyType: type),
-    );
+  wireId: WireId.unallocatedParameter,
+  name: name,
+  kind: FactoryParameterKind.named,
+  required: true,
+  nullable: false,
+  defaultPolicy: FactoryParameterDefaultPolicy.requiredValue,
+  valueShape: ScalarShape(propertyType: type),
+);
 
 const _sentinelStructuredRef = WireIdRef(
   library: 'acme.design_system',
@@ -101,68 +101,66 @@ const _sentinelStructuredRef = WireIdRef(
 /// (top-level AND on its `StructuredShape` valueShape) is the bare sentinel,
 /// targeting `Badge` via `slotTargets`.
 WidgetEntry _badgeCard() => const WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: 'BadgeCard',
-      library: WidgetLibrary.custom('acme.design_system'),
-      category: WidgetCategory.decoration,
+  wireId: WireId.unallocatedWidget,
+  name: 'BadgeCard',
+  library: WidgetLibrary.custom('acme.design_system'),
+  category: WidgetCategory.decoration,
+  description: '',
+  flutterType: 'package:acme/c.dart#BadgeCard',
+  childrenSlot: ChildrenSlot.none,
+  properties: [
+    PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: 'badge',
+      type: PropertyType.structured,
       description: '',
-      flutterType: 'package:acme/c.dart#BadgeCard',
-      childrenSlot: ChildrenSlot.none,
-      properties: [
-        PropertyEntry(
-          wireId: WireId.unallocatedProperty,
-          name: 'badge',
-          type: PropertyType.structured,
-          description: '',
-          structuredRef: _sentinelStructuredRef,
-          valueShape: StructuredShape(
-            propertyType: PropertyType.structured,
-            structuredRef: _sentinelStructuredRef,
-          ),
-        ),
-      ],
-    );
+      structuredRef: _sentinelStructuredRef,
+      valueShape: StructuredShape(
+        propertyType: PropertyType.structured,
+        structuredRef: _sentinelStructuredRef,
+      ),
+    ),
+  ],
+);
 
 /// Badge with the canonical unnamed ctor variant.
 StructuredEntry _badge({
   String sourceType = 'package:acme/b.dart#Badge',
   bool includeTone = false,
-}) =>
-    StructuredEntry(
-      wireId: WireId.unallocatedStructured,
-      name: 'Badge',
-      library: const WidgetLibrary.custom('acme.design_system'),
-      description: '',
-      sourceType: sourceType,
-      fields: [
-        _field('label', PropertyType.string),
-        _field('count', PropertyType.integer),
-        if (includeTone) _field('tone', PropertyType.string),
+}) => StructuredEntry(
+  wireId: WireId.unallocatedStructured,
+  name: 'Badge',
+  library: const WidgetLibrary.custom('acme.design_system'),
+  description: '',
+  sourceType: sourceType,
+  fields: [
+    _field('label', PropertyType.string),
+    _field('count', PropertyType.integer),
+    if (includeTone) _field('tone', PropertyType.string),
+  ],
+  variants: [
+    ConstructorVariant(
+      wireId: WireId.unallocatedVariant,
+      argMappings: {
+        'label': ArgMapping(targetFields: [WireId.unallocatedProperty]),
+        'count': ArgMapping(targetFields: [WireId.unallocatedProperty]),
+        if (includeTone)
+          'tone': ArgMapping(
+            targetFields: [WireId.unallocatedProperty],
+          ),
+      },
+      parameters: [
+        _param('label', PropertyType.string),
+        _param('count', PropertyType.integer),
+        if (includeTone) _param('tone', PropertyType.string),
       ],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId.unallocatedVariant,
-          argMappings: {
-            'label': ArgMapping(targetFields: [WireId.unallocatedProperty]),
-            'count': ArgMapping(targetFields: [WireId.unallocatedProperty]),
-            if (includeTone)
-              'tone': ArgMapping(
-                targetFields: [WireId.unallocatedProperty],
-              ),
-          },
-          parameters: [
-            _param('label', PropertyType.string),
-            _param('count', PropertyType.integer),
-            if (includeTone) _param('tone', PropertyType.string),
-          ],
-        ),
-      ],
-    );
+    ),
+  ],
+);
 
 void main() {
   group('custom structured allocation — replay-match, after-widgets', () {
-    test(
-        'appends s*/v*/a* and continues p* past the existing widget props, '
+    test('appends s*/v*/a* and continues p* past the existing widget props, '
         'leaving every existing w*/p* id byte-stable', () {
       final seed = parseWireIdEventsJsonl(_seedJsonl(), sourceDescription: 'x');
       final allocation = allocateUserCatalogFromWidgets(
@@ -196,15 +194,14 @@ void main() {
       // Only the new structured ids are appended as events (no widget/property
       // re-allocation).
       expect(
-        allocation.newEvents
-            .whereType<AllocWireIdEvent>()
-            .map((e) => e.id.value),
+        allocation.newEvents.whereType<AllocWireIdEvent>().map(
+          (e) => e.id.value,
+        ),
         ['s0001', 'p0003', 'p0004', 'v0001', 'a0001', 'a0002'],
       );
     });
 
-    test(
-        'is idempotent: replaying with the appended events as the new seed '
+    test('is idempotent: replaying with the appended events as the new seed '
         'reproduces identical ids and mints nothing', () {
       final seed = parseWireIdEventsJsonl(_seedJsonl(), sourceDescription: 'x');
       final first = allocateUserCatalogFromWidgets(
@@ -265,8 +262,7 @@ void main() {
   });
 
   group('custom structured allocation — sentinel resolution', () {
-    test(
-        'resolves widget-property structuredRef (+ its valueShape ref) from '
+    test('resolves widget-property structuredRef (+ its valueShape ref) from '
         'the bare sentinel to the allocated structured id', () {
       final allocation = allocateUserCatalogFromWidgets(
         package: _pkg,
@@ -288,8 +284,7 @@ void main() {
       expect(shape.structuredRef.wireId.isUnallocated, isFalse);
     });
 
-    test(
-        'resolves variant argMappings.targetFields from the sentinel to the '
+    test('resolves variant argMappings.targetFields from the sentinel to the '
         'allocated field ids (by param==field name)', () {
       final allocation = allocateUserCatalogFromWidgets(
         package: _pkg,
@@ -319,8 +314,7 @@ void main() {
       );
     });
 
-    test(
-        'throws loud on a dangling structured ref (target not in the '
+    test('throws loud on a dangling structured ref (target not in the '
         'allocated set) rather than emitting an unresolved ref', () {
       expect(
         () => allocateUserCatalogFromWidgets(

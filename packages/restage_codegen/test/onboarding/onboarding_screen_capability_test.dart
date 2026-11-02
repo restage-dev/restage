@@ -24,8 +24,7 @@ import '../helpers.dart';
 /// emit a silent custom-library reference without updating the derivation, this
 /// fails — catching a fail-open before it ships.
 void main() {
-  test(
-      'a custom @RestageWidget in a screen inlines to built-ins → the screen '
+  test('a custom @RestageWidget in a screen inlines to built-ins → the screen '
       'sidecar requires no custom library (no fail-open)', () async {
     const source = '''
 import 'package:flutter/material.dart';
@@ -78,11 +77,12 @@ final class WelcomeScreen extends StatelessWidget {
       rootPackage: 'apps_examples',
       readerWriter: catalogReaderWriter,
       outputs: {
-        'apps_examples|lib/src/widget_catalog/catalog.json':
-            decodedMatches(predicate<String>((value) {
-          catalogJson = value;
-          return true;
-        })),
+        'apps_examples|lib/src/widget_catalog/catalog.json': decodedMatches(
+          predicate<String>((value) {
+            catalogJson = value;
+            return true;
+          }),
+        ),
         'apps_examples|lib/src/widget_catalog/app_widget_factories.json':
             anything,
       },

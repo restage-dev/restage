@@ -30,7 +30,8 @@ void main() {
             slug: 'plus_paywall',
             sourceKind: SurfaceSourceKind.paywall,
           ),
-          reason: 'A callback under a conditional combined with && or || is '
+          reason:
+              'A callback under a conditional combined with && or || is '
               'emitted more than once, so it cannot carry one route',
         ),
       ],

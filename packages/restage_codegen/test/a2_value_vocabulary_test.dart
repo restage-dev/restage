@@ -27,44 +27,45 @@ import 'helpers.dart';
 Catalog _a2Catalog({
   required String file,
   List<String> structured = const [],
-}) =>
-    probeCatalogWith(
-      [
-        entry(
-          name: 'Container',
-          properties: [
-            prop('child', PropertyType.widget),
-            prop('color', PropertyType.color),
-            prop('padding', PropertyType.edgeInsets),
-            prop('decoration', PropertyType.structured),
-            prop('width', PropertyType.real),
-          ],
-          flutterType: 'package:apps_examples/$file#Container',
-        ),
-        entry(
-          name: 'Text',
-          properties: [
-            prop('text', PropertyType.string, positional: true),
-            prop('style', PropertyType.structured),
-          ],
-          flutterType: 'package:apps_examples/$file#Text',
-        ),
-        entry(
-          name: 'Icon',
-          properties: [prop('icon', PropertyType.integer, positional: true)],
-          flutterType: 'package:apps_examples/$file#Icon',
-        ),
+}) => probeCatalogWith(
+  [
+    entry(
+      name: 'Container',
+      properties: [
+        prop('child', PropertyType.widget),
+        prop('color', PropertyType.color),
+        prop('padding', PropertyType.edgeInsets),
+        prop('decoration', PropertyType.structured),
+        prop('width', PropertyType.real),
       ],
-      structuredTypes: [for (final name in structured) structuredEntry(name)],
-    );
+      flutterType: 'package:apps_examples/$file#Container',
+    ),
+    entry(
+      name: 'Text',
+      properties: [
+        prop('text', PropertyType.string, positional: true),
+        prop('style', PropertyType.structured),
+      ],
+      flutterType: 'package:apps_examples/$file#Text',
+    ),
+    entry(
+      name: 'Icon',
+      properties: [prop('icon', PropertyType.integer, positional: true)],
+      flutterType: 'package:apps_examples/$file#Icon',
+    ),
+  ],
+  structuredTypes: [for (final name in structured) structuredEntry(name)],
+);
 
 void main() {
   group('A2 — mechanism 1: structured-value constructions', () {
-    test('a TextStyle construction (catalog structuredType) is Composable',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/styled.dart': '''
+    test(
+      'a TextStyle construction (catalog structuredType) is Composable',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/styled.dart':
+                '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -98,21 +99,24 @@ class StyledLabel extends StatelessWidget {
       Text(label, style: TextStyle(fontSize: 18));
 }
 ''',
-        },
-        inputPath: 'lib/styled.dart',
-        widgetName: 'StyledLabel',
-        catalog: _a2Catalog(file: 'styled.dart', structured: ['TextStyle']),
-      );
+          },
+          inputPath: 'lib/styled.dart',
+          widgetName: 'StyledLabel',
+          catalog: _a2Catalog(file: 'styled.dart', structured: ['TextStyle']),
+        );
 
-      expect(result, isA<ComposableWidget>());
-    });
+        expect(result, isA<ComposableWidget>());
+      },
+    );
 
     test(
-        'nested BoxDecoration + BorderRadius.circular named-ctor constructions '
-        'are Composable', () async {
-      final result = await classifyFixture(
-        {
-          'lib/decorated.dart': '''
+      'nested BoxDecoration + BorderRadius.circular named-ctor constructions '
+      'are Composable',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/decorated.dart':
+                '''
 $kClassifierStubs
 
 class BorderRadius {
@@ -144,23 +148,26 @@ class RoundedBox extends StatelessWidget {
       );
 }
 ''',
-        },
-        inputPath: 'lib/decorated.dart',
-        widgetName: 'RoundedBox',
-        catalog: _a2Catalog(
-          file: 'decorated.dart',
-          structured: ['BoxDecoration', 'BorderRadius'],
-        ),
-      );
+          },
+          inputPath: 'lib/decorated.dart',
+          widgetName: 'RoundedBox',
+          catalog: _a2Catalog(
+            file: 'decorated.dart',
+            structured: ['BoxDecoration', 'BorderRadius'],
+          ),
+        );
 
-      expect(result, isA<ComposableWidget>());
-    });
+        expect(result, isA<ComposableWidget>());
+      },
+    );
 
-    test('an EdgeInsets.all named-ctor (residual value type) is Composable',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/padded.dart': '''
+    test(
+      'an EdgeInsets.all named-ctor (residual value type) is Composable',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/padded.dart':
+                '''
 $kClassifierStubs
 
 class EdgeInsets {
@@ -186,14 +193,15 @@ class PaddedBox extends StatelessWidget {
       Container(padding: EdgeInsets.all(8));
 }
 ''',
-        },
-        inputPath: 'lib/padded.dart',
-        widgetName: 'PaddedBox',
-        catalog: _a2Catalog(file: 'padded.dart'),
-      );
+          },
+          inputPath: 'lib/padded.dart',
+          widgetName: 'PaddedBox',
+          catalog: _a2Catalog(file: 'padded.dart'),
+        );
 
-      expect(result, isA<ComposableWidget>());
-    });
+        expect(result, isA<ComposableWidget>());
+      },
+    );
   });
 
   group('A2 — structured-value factory constructors (construction path)', () {
@@ -205,7 +213,8 @@ class PaddedBox extends StatelessWidget {
       // named/factory constructors handled the same way.
       final result = await classifyFixture(
         {
-          'lib/bordered.dart': '''
+          'lib/bordered.dart':
+              '''
 $kClassifierStubs
 
 class Border {
@@ -249,8 +258,7 @@ class BorderedBox extends StatelessWidget {
       expect(result, isA<ComposableWidget>());
     });
 
-    test(
-        'a non-lowered static method on a value type stays a reducible '
+    test('a non-lowered static method on a value type stays a reducible '
         'dartCall (no classifierOnly over-claim)', () async {
       // `ButtonStyle.styleFrom(...)` is a true static method the translator
       // does NOT lower. The classifier must keep it a `dartCall` (reducible —
@@ -258,7 +266,8 @@ class BorderedBox extends StatelessWidget {
       // fail. Classification must reflect what the emitter can produce.
       final result = await classifyFixture(
         {
-          'lib/styled_button.dart': '''
+          'lib/styled_button.dart':
+              '''
 $kClassifierStubs
 
 class ButtonStyle {
@@ -315,8 +324,7 @@ class CtaButton extends StatelessWidget {
   });
 
   group('A2 — mechanism 3: framework named constants', () {
-    test(
-        'real Flutter Colors.* / Icons.* (resolved to package:flutter) are '
+    test('real Flutter Colors.* / Icons.* (resolved to package:flutter) are '
         'Composable', () async {
       // Real-Flutter resolution: `Colors`/`Icons` resolve to a package:flutter
       // class, so the element-resolved namespace check recognises them. (A
@@ -367,8 +375,7 @@ class FrameworkConsts extends StatelessWidget {
       expect(result, isA<ComposableWidget>());
     });
 
-    test(
-        'a custom class named Colors (NOT package:flutter) is NOT recognised '
+    test('a custom class named Colors (NOT package:flutter) is NOT recognised '
         '— the lookalike defers, never a silent wrong blob', () async {
       // The recognition is element-resolved: a custom class that happens to
       // be named `Colors` must NOT be promoted to composable, or the translator
@@ -376,7 +383,8 @@ class FrameworkConsts extends StatelessWidget {
       // table (emitting the wrong int, which the colour floor accepts).
       final result = await classifyFixture(
         {
-          'lib/lookalike.dart': '''
+          'lib/lookalike.dart':
+              '''
 $kClassifierStubs
 
 class Color {
@@ -424,17 +432,19 @@ class BrandBox extends StatelessWidget {
   });
 
   group('A2 — boundary: the safe direction holds (negatives still reject)', () {
-    test('an arbitrary Dart call is still ImperativeWidget / dartCall',
-        () async {
-      // `shout` is a same-library top-level helper (now resolve-through
-      // eligible), but its body performs a genuine Dart computation
-      // (`s.toString()`) the transpiler cannot compose — so the inlined body
-      // still defers as a `dartCall`. The safe direction holds: a helper that
-      // does real Dart work rejects, even when its declaration is
-      // inline-eligible.
-      final result = await classifyFixture(
-        {
-          'lib/dyn.dart': '''
+    test(
+      'an arbitrary Dart call is still ImperativeWidget / dartCall',
+      () async {
+        // `shout` is a same-library top-level helper (now resolve-through
+        // eligible), but its body performs a genuine Dart computation
+        // (`s.toString()`) the transpiler cannot compose — so the inlined body
+        // still defers as a `dartCall`. The safe direction holds: a helper that
+        // does real Dart work rejects, even when its declaration is
+        // inline-eligible.
+        final result = await classifyFixture(
+          {
+            'lib/dyn.dart':
+                '''
 $kClassifierStubs
 
 class Text extends StatelessWidget {
@@ -457,25 +467,26 @@ class Shouter extends StatelessWidget {
   Widget build(BuildContext context) => Text(shout(label));
 }
 ''',
-        },
-        inputPath: 'lib/dyn.dart',
-        widgetName: 'Shouter',
-        catalog: _a2Catalog(file: 'dyn.dart'),
-      );
+          },
+          inputPath: 'lib/dyn.dart',
+          widgetName: 'Shouter',
+          catalog: _a2Catalog(file: 'dyn.dart'),
+        );
 
-      expect(result, isA<ImperativeWidget>());
-      expect(
-        (result as ImperativeWidget).blockers.first.kind,
-        BlockerKind.dartCall,
-      );
-    });
+        expect(result, isA<ImperativeWidget>());
+        expect(
+          (result as ImperativeWidget).blockers.first.kind,
+          BlockerKind.dartCall,
+        );
+      },
+    );
 
-    test(
-        'a construction of an unrecognised non-widget type is still '
+    test('a construction of an unrecognised non-widget type is still '
         'Unclassifiable', () async {
       final result = await classifyFixture(
         {
-          'lib/mystery.dart': '''
+          'lib/mystery.dart':
+              '''
 $kClassifierStubs
 
 class Mystery {
@@ -510,8 +521,7 @@ class MysteryBox extends StatelessWidget {
   });
 
   group('A2 — blob identity (the literal-Color workaround is removable)', () {
-    test(
-        'Colors.transparent lowers to the identical value as the '
+    test('Colors.transparent lowers to the identical value as the '
         'Color(0x00000000) workaround', () async {
       final catalog = probeCatalogWith([
         entry(
@@ -557,8 +567,7 @@ class MysteryBox extends StatelessWidget {
     });
   });
 
-  test(
-      'native physics in a custom widget body is composable '
+  test('native physics in a custom widget body is composable '
       'without catalog value types', () async {
     final catalog = Catalog(
       schemaVersion: 1,
@@ -605,21 +614,24 @@ class PhysicsList extends native.StatelessWidget {
   });
 
   group('A2 — drift guard', () {
-    test('every hand-authored recipe value type is in the classifier base set',
-        () {
-      // The hand-authored recipes carry the bespoke value types the translator
-      // lowers outside the catalog decompose path. Each must be in the
-      // classifier's base value-type set, so a future recipe addition cannot
-      // silently regress the classifier↔translator reconciliation. (Drift on
-      // the decompose types is structurally impossible — both the classifier
-      // and the translator read the catalog's `structuredTypes`.)
-      final recipeTypes = kHandAuthoredRecipes.map((r) => r.typeName).toSet();
-      expect(
-        recipeTypes.difference(kStructuredValueTypeNames),
-        isEmpty,
-        reason: 'a recipe value type is missing from kStructuredValueTypeNames '
-            '— the classifier would reject a value the translator lowers',
-      );
-    });
+    test(
+      'every hand-authored recipe value type is in the classifier base set',
+      () {
+        // The hand-authored recipes carry the bespoke value types the translator
+        // lowers outside the catalog decompose path. Each must be in the
+        // classifier's base value-type set, so a future recipe addition cannot
+        // silently regress the classifier↔translator reconciliation. (Drift on
+        // the decompose types is structurally impossible — both the classifier
+        // and the translator read the catalog's `structuredTypes`.)
+        final recipeTypes = kHandAuthoredRecipes.map((r) => r.typeName).toSet();
+        expect(
+          recipeTypes.difference(kStructuredValueTypeNames),
+          isEmpty,
+          reason:
+              'a recipe value type is missing from kStructuredValueTypeNames '
+              '— the classifier would reject a value the translator lowers',
+        );
+      },
+    );
   });
 }

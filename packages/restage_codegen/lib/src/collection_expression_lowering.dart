@@ -11,17 +11,21 @@ const _nativeScalarDomains = {'int', 'double', 'num', 'String', 'bool', 'Null'};
 
 String? _coreTypeName(DartType? type) =>
     type is InterfaceType && type.element.library.identifier == 'dart:core'
-        ? type.element.name
-        : null;
+    ? type.element.name
+    : null;
 
-DartType? _collectionItem(DartType? type) => type is InterfaceType &&
+DartType? _collectionItem(DartType? type) =>
+    type is InterfaceType &&
         {'List', 'Iterable'}.contains(_coreTypeName(type)) &&
         type.typeArguments.length == 1
     ? type.typeArguments.single
     : null;
 
 bool _preservesNativeDomain(
-    DartType source, DartType target, TypeSystem types) {
+  DartType source,
+  DartType target,
+  TypeSystem types,
+) {
   final from = _coreTypeName(source);
   final to = _coreTypeName(target);
   if (from == 'Null' || to == 'Null') return true;
@@ -29,17 +33,23 @@ bool _preservesNativeDomain(
     return true;
   if (from == 'List' && to == 'List') {
     return types.isSubtypeOf(
-            types.promoteToNonNull(source), types.promoteToNonNull(target)) &&
+          types.promoteToNonNull(source),
+          types.promoteToNonNull(target),
+        ) &&
         _preservesNativeDomain(
-            _collectionItem(source)!, _collectionItem(target)!, types);
+          _collectionItem(source)!,
+          _collectionItem(target)!,
+          types,
+        );
   }
   return source is InterfaceType &&
       target is InterfaceType &&
       source.element == target.element &&
       source.typeArguments.length == target.typeArguments.length &&
-      List.generate(source.typeArguments.length,
-              (i) => source.typeArguments[i] == target.typeArguments[i])
-          .every((same) => same);
+      List.generate(
+        source.typeArguments.length,
+        (i) => source.typeArguments[i] == target.typeArguments[i],
+      ).every((same) => same);
 }
 
 void _requireNativeDomain(DartType? source, DartType? target, AstNode site) {
@@ -51,14 +61,18 @@ void _requireNativeDomain(DartType? source, DartType? target, AstNode site) {
       target == null ||
       types == null ||
       !_preservesNativeDomain(source, target, types)) {
-    throw BuilderLoweringException(site,
-        'Collection conversion requires preserved native element domains');
+    throw BuilderLoweringException(
+      site,
+      'Collection conversion requires preserved native element domains',
+    );
   }
 }
 
 /// Lowers resolved native collections through the shared expression engine.
 int? lowerCollectionExpression(
-    Expression expression, BuilderExpressionLowering lowering) {
+  Expression expression,
+  BuilderExpressionLowering lowering,
+) {
   if (expression is CascadeExpression) {
     final receiver = lowering.lower(expression.target);
     final effects = <int>[];
@@ -67,17 +81,35 @@ int? lowerCollectionExpression(
           section.methodName.name != 'sort' ||
           section.methodName.element?.library?.identifier != 'dart:core')
         throw BuilderLoweringException(
-            section, 'Unsupported collection cascade');
-      effects.add(_CollectionLowering(lowering).call(section, expression.target,
-          'sort', section.argumentList.arguments.toList(),
-          receiverNode: receiver));
+          section,
+          'Unsupported collection cascade',
+        );
+      effects.add(
+        _CollectionLowering(lowering).call(
+          section,
+          expression.target,
+          'sort',
+          section.argumentList.arguments.toList(),
+          receiverNode: receiver,
+        ),
+      );
     }
     var result = receiver;
     for (final effect in effects.reversed)
-      result = lowering.add(ValueNode('let', lowering.nodes[receiver].type,
-          inputs: [effect, result]));
-    return lowering.add(ValueNode('let', lowering.nodes[receiver].type,
-        inputs: [receiver, result]));
+      result = lowering.add(
+        ValueNode(
+          'let',
+          lowering.nodes[receiver].type,
+          inputs: [effect, result],
+        ),
+      );
+    return lowering.add(
+      ValueNode(
+        'let',
+        lowering.nodes[receiver].type,
+        inputs: [receiver, result],
+      ),
+    );
   }
   if (expression is ListLiteral &&
       expression.elements.any((e) => e is! Expression))
@@ -107,8 +139,10 @@ int? lowerCollectionExpression(
     constructor = true;
     method = 'copy';
     arguments = expression.argumentList.arguments.toList();
-    target =
-        arguments.where((a) => a is! NamedArgument).single.argumentExpression;
+    target = arguments
+        .where((a) => a is! NamedArgument)
+        .single
+        .argumentExpression;
   }
   if (target == null ||
       method == null ||
@@ -122,28 +156,40 @@ int? lowerCollectionExpression(
       !(method == 'compareTo'
               ? {'int', 'double', 'num', 'String'}
               : {'List', 'Iterable'})
-          .contains(receiverType.element.name)) return null;
+          .contains(receiverType.element.name))
+    return null;
   if (method == 'length' && receiverType.element.name == 'List') return null;
-  return _CollectionLowering(lowering)
-      .call(expression, target, method, arguments, constructor: constructor);
+  return _CollectionLowering(
+    lowering,
+  ).call(expression, target, method, arguments, constructor: constructor);
 }
 
 final class _CollectionLowering {
   _CollectionLowering(this.values);
   final BuilderExpressionLowering values;
 
-  int call(Expression expression, Expression receiver, String method,
-      List<Argument> arguments,
-      {bool constructor = false, int? receiverNode}) {
+  int call(
+    Expression expression,
+    Expression receiver,
+    String method,
+    List<Argument> arguments, {
+    bool constructor = false,
+    int? receiverNode,
+  }) {
     final item = _collectionItem(receiver.staticType);
     if (method == 'copy' || method == 'toList') {
       _requireNativeDomain(
-          item, _collectionItem(expression.staticType), expression);
+        item,
+        _collectionItem(expression.staticType),
+        expression,
+      );
     }
     final itemName = _coreTypeName(item);
     if (method == 'join' && !_nativeScalarDomains.contains(itemName)) {
       throw BuilderLoweringException(
-          expression, 'Collection join requires native scalar elements');
+        expression,
+        'Collection join requires native scalar elements',
+      );
     }
     String? equality;
     if ({'contains', 'indexOf', 'lastIndexOf'}.contains(method)) {
@@ -151,21 +197,26 @@ final class _CollectionLowering {
       if (!domains.contains(itemName) ||
           arguments.isEmpty ||
           !domains.contains(
-              _coreTypeName(arguments.first.argumentExpression.staticType))) {
-        throw BuilderLoweringException(expression,
-            'Collection equality requires a native scalar or temporal domain');
+            _coreTypeName(arguments.first.argumentExpression.staticType),
+          )) {
+        throw BuilderLoweringException(
+          expression,
+          'Collection equality requires a native scalar or temporal domain',
+        );
       }
       equality = switch (itemName) {
         'DateTime' => 'datetime',
         'Duration' => 'duration',
-        _ => null
+        _ => null,
       };
     }
     if (method == 'sort' &&
         arguments.isEmpty &&
         !{'int', 'double', 'num', 'String'}.contains(itemName)) {
-      throw BuilderLoweringException(expression,
-          'Default collection sort requires native comparable scalars');
+      throw BuilderLoweringException(
+        expression,
+        'Default collection sort requires native comparable scalars',
+      );
     }
     final source = receiverNode ?? values.lower(receiver);
     final sourceType = values.nodes[source].type;
@@ -179,7 +230,8 @@ final class _CollectionLowering {
       final value = argument.argumentExpression;
       if (constructor && identical(value, receiver)) continue;
       final name = argument is NamedArgument ? argument.name.lexeme : null;
-      final callback = name == 'orElse' ||
+      final callback =
+          name == 'orElse' ||
           (name == null &&
               ({
                         'map',
@@ -194,7 +246,7 @@ final class _CollectionLowering {
                         'lastWhere',
                         'singleWhere',
                         'reduce',
-                        'sort'
+                        'sort',
                       }.contains(method) &&
                       positional == 0 ||
                   method == 'fold' && positional == 1));
@@ -203,9 +255,9 @@ final class _CollectionLowering {
             ? <ValueType>[]
             : switch (method) {
                 'fold' => [
-                    valueTypeFor(expression.staticType, expression),
-                    sourceType.item!
-                  ],
+                  valueTypeFor(expression.staticType, expression),
+                  sourceType.item!,
+                ],
                 'reduce' || 'sort' => [sourceType.item!, sourceType.item!],
                 _ => [sourceType.item!],
               };
@@ -223,7 +275,9 @@ final class _CollectionLowering {
           ordinary.add(index);
         else
           throw BuilderLoweringException(
-              argument, 'Unsupported collection argument');
+            argument,
+            'Unsupported collection argument',
+          );
       }
       if (name == null) positional++;
     }
@@ -243,7 +297,9 @@ final class _CollectionLowering {
         {'indexWhere', 'lastIndexWhere'}.contains(method) && ordinary.isEmpty) {
       final last = method.startsWith('last');
       defaultArgument(
-          last ? null : 0, last ? ValueType.nullType : ValueType.integer);
+        last ? null : 0,
+        last ? ValueType.nullType : ValueType.integer,
+      );
     }
     if (method == 'join' && ordinary.isEmpty)
       defaultArgument('', ValueType.string);
@@ -252,18 +308,27 @@ final class _CollectionLowering {
         : valueTypeFor(expression.staticType, expression);
     if (method == 'sort' && !_fresh(source))
       throw BuilderLoweringException(
-          expression, 'Sort requires an explicit fresh native List');
+        expression,
+        'Sort requires an explicit fresh native List',
+      );
 
-    final output = values
-        .add(ValueNode('collection.$method', result, inputs: inputs, value: {
-      'arguments': ordinary,
-      'callbacks': callbacks,
-      if (equality != null) 'equality': equality,
-      'item': ({'map', 'copy'}.contains(method)
-              ? result.item!
-              : sourceType.item ?? sourceType)
-          .toJson()
-    }));
+    final output = values.add(
+      ValueNode(
+        'collection.$method',
+        result,
+        inputs: inputs,
+        value: {
+          'arguments': ordinary,
+          'callbacks': callbacks,
+          if (equality != null) 'equality': equality,
+          'item':
+              ({'map', 'copy'}.contains(method)
+                      ? result.item!
+                      : sourceType.item ?? sourceType)
+                  .toJson(),
+        },
+      ),
+    );
     if (!constructor) return output;
     var ordered = output;
     final eager = <int>[];
@@ -280,7 +345,8 @@ final class _CollectionLowering {
 
   bool _fresh(int index, [Set<int> visiting = const {}]) {
     if (visiting.contains(index) ||
-        values.immutableListLiterals.contains(index)) return false;
+        values.immutableListLiterals.contains(index))
+      return false;
     final node = values.nodes[index];
     if (values.mutableListLiterals.contains(index)) return true;
     bool visit(int input) => _fresh(input, {...visiting, index});
@@ -289,12 +355,16 @@ final class _CollectionLowering {
       if (origin != null) {
         return _CollectionLowering(origin.$1)._fresh(origin.$2);
       }
-      final writes = values.nodes
-          .where((n) => n.op == 'local.write' && n.name == node.name);
+      final writes = values.nodes.where(
+        (n) => n.op == 'local.write' && n.name == node.name,
+      );
       return writes.isNotEmpty && writes.every((n) => visit(n.inputs.single));
     }
-    return {'collection.toList', 'collection.copy', 'collection.concat'}
-            .contains(node.op) ||
+    return {
+          'collection.toList',
+          'collection.copy',
+          'collection.concat',
+        }.contains(node.op) ||
         node.op == 'let' && visit(node.inputs.last) ||
         node.op == 'conditional' && node.inputs.skip(1).every(visit);
   }
@@ -305,9 +375,9 @@ final class _CollectionLowering {
     final (element, target) = switch (expression) {
       SimpleIdentifier() => (expression.element, null),
       PrefixedIdentifier() => (
-          expression.identifier.element,
-          expression.prefix
-        ),
+        expression.identifier.element,
+        expression.prefix,
+      ),
       PropertyAccess() => (expression.propertyName.element, expression.target),
       _ => (null, null),
     };
@@ -321,7 +391,8 @@ final class _CollectionLowering {
           element.enclosingElement == owner;
     }
     if (element is! TopLevelFunctionElement &&
-        !(element is MethodElement && element.isStatic)) return false;
+        !(element is MethodElement && element.isStatic))
+      return false;
     if (target == null) return true;
     final namespace = switch (target) {
       SimpleIdentifier() => target.element,
@@ -332,70 +403,83 @@ final class _CollectionLowering {
   }
 
   Map<String, Object?> _callback(
-      Expression expression, List<ValueType> types, List<int> inputs) {
+    Expression expression,
+    List<ValueType> types,
+    List<int> inputs,
+  ) {
     if (expression is! FunctionExpression && !_admittedTearOff(expression)) {
       throw BuilderLoweringException(
-          expression, 'Collection callback receiver is unsupported');
+        expression,
+        'Collection callback receiver is unsupported',
+      );
     }
     final resolved = expression is FunctionExpression
         ? (
             body: expression.body,
             parameters: expression.parameters!.parameters
                 .map((p) => p.declaredFragment!.element)
-                .toList()
+                .toList(),
           )
-        : pureBuilderCallbackFor(
-            expression,
-            switch (expression) {
-              SimpleIdentifier() => expression.element,
-              PrefixedIdentifier() => expression.identifier.element,
-              PropertyAccess() => expression.propertyName.element,
-              _ => null,
-            });
+        : pureBuilderCallbackFor(expression, switch (expression) {
+            SimpleIdentifier() => expression.element,
+            PrefixedIdentifier() => expression.identifier.element,
+            PropertyAccess() => expression.propertyName.element,
+            _ => null,
+          });
     if (resolved == null || resolved.parameters.length != types.length)
       throw BuilderLoweringException(
-          expression, 'Collection callback requires a resolved closed body');
+        expression,
+        'Collection callback requires a resolved closed body',
+      );
     final (nested, bindings) = _nested(inputs);
     for (var i = 0; i < types.length; i++)
       nested.parameter(
-          resolved.parameters[i], callbackParameterName(i), types[i]);
+        resolved.parameters[i],
+        callbackParameterName(i),
+        types[i],
+      );
     final root = closedValueCallback(nested).body(resolved.body);
     final program = nested.program(root);
     program.validate(
-        operations: values.operations, context: nested.lexicalContext);
+      operations: values.operations,
+      context: nested.lexicalContext,
+    );
     return {'program': program.encode(), 'bindings': bindings};
   }
 
   (BuilderExpressionLowering, List<int>) _nested(List<int> inputs) {
     final bindings = <int>[];
     final nested = BuilderExpressionLowering(
-        lexicalParent: values,
-        capture: (_) =>
-            throw StateError('Collection capture escaped its declaration'),
-        operations: values.operations,
-        extension: (value, lowering) {
-          if (value is SimpleIdentifier &&
-              !lowering.bindings.containsKey(value.element) &&
-              lowering.localFor(value.element) == null &&
-              (value.element is VariableElement ||
-                  value.element is GetterElement)) {
-            final outer = values.lower(value);
-            final index = inputs.length;
-            inputs.add(outer);
-            final slot = bindings.length;
-            bindings.add(index);
-            return lowering.parameter(
-                value.element!, 'outer$slot', values.nodes[outer].type);
-          }
-          final extended = values.extension?.call(value, lowering);
-          if (extended != null) return extended;
-          if (value is MethodInvocation && isArtifactHelperInvocation(value)) {
-            final helper =
-                pureBuilderHelperFor(value, value.methodName.element);
-            if (helper != null) return lowering.lowerHelper(helper, value);
-          }
-          return null;
-        });
+      lexicalParent: values,
+      capture: (_) =>
+          throw StateError('Collection capture escaped its declaration'),
+      operations: values.operations,
+      extension: (value, lowering) {
+        if (value is SimpleIdentifier &&
+            !lowering.bindings.containsKey(value.element) &&
+            lowering.localFor(value.element) == null &&
+            (value.element is VariableElement ||
+                value.element is GetterElement)) {
+          final outer = values.lower(value);
+          final index = inputs.length;
+          inputs.add(outer);
+          final slot = bindings.length;
+          bindings.add(index);
+          return lowering.parameter(
+            value.element!,
+            'outer$slot',
+            values.nodes[outer].type,
+          );
+        }
+        final extended = values.extension?.call(value, lowering);
+        if (extended != null) return extended;
+        if (value is MethodInvocation && isArtifactHelperInvocation(value)) {
+          final helper = pureBuilderHelperFor(value, value.methodName.element);
+          if (helper != null) return lowering.lowerHelper(helper, value);
+        }
+        return null;
+      },
+    );
     return (nested, bindings);
   }
 
@@ -405,14 +489,18 @@ final class _CollectionLowering {
     var result = values.add(ValueNode('list', type));
     for (final element in literal.elements) {
       final piece = _element(element, type, nativeItem);
-      result = values.add(ValueNode('collection.concat', type, inputs: [
-        result,
-        piece
-      ], value: {
-        'arguments': [1],
-        'callbacks': <Object?>[],
-        'item': type.item!.toJson()
-      }));
+      result = values.add(
+        ValueNode(
+          'collection.concat',
+          type,
+          inputs: [result, piece],
+          value: {
+            'arguments': [1],
+            'callbacks': <Object?>[],
+            'item': type.item!.toJson(),
+          },
+        ),
+      );
     }
     if (literal.isConst) values.immutableListLiterals.add(result);
     return result;
@@ -422,41 +510,60 @@ final class _CollectionLowering {
     int empty() => values.add(ValueNode('list', type));
     if (element is Expression) {
       _requireNativeDomain(element.staticType, nativeItem, element);
-      return values
-          .add(ValueNode('list', type, inputs: [values.lower(element)]));
+      return values.add(
+        ValueNode('list', type, inputs: [values.lower(element)]),
+      );
     }
     if (element is SpreadElement) {
       if (!(element.isNullAware &&
           _coreTypeName(element.expression.staticType) == 'Null')) {
-        _requireNativeDomain(_collectionItem(element.expression.staticType),
-            nativeItem, element);
+        _requireNativeDomain(
+          _collectionItem(element.expression.staticType),
+          nativeItem,
+          element,
+        );
       }
       var source = values.lower(element.expression);
       if (element.isNullAware) {
         final sourceType = values.nodes[source].type;
-        source = values.add(ValueNode(
-            '??', sourceType.kind == 'Null' ? type : sourceType.nonNull,
-            inputs: [source, empty()]));
+        source = values.add(
+          ValueNode(
+            '??',
+            sourceType.kind == 'Null' ? type : sourceType.nonNull,
+            inputs: [source, empty()],
+          ),
+        );
       }
-      final growable = values
-          .add(const ValueNode('literal', ValueType.boolean, value: true));
-      return values.add(ValueNode('collection.copy', type, inputs: [
-        source,
-        growable
-      ], value: {
-        'arguments': [1],
-        'callbacks': <Object?>[],
-        'item': type.item!.toJson()
-      }));
+      final growable = values.add(
+        const ValueNode('literal', ValueType.boolean, value: true),
+      );
+      return values.add(
+        ValueNode(
+          'collection.copy',
+          type,
+          inputs: [source, growable],
+          value: {
+            'arguments': [1],
+            'callbacks': <Object?>[],
+            'item': type.item!.toJson(),
+          },
+        ),
+      );
     }
     if (element is IfElement && element.caseClause == null) {
-      return values.add(ValueNode('conditional', type, inputs: [
-        values.lower(element.expression),
-        _element(element.thenElement, type, nativeItem),
-        element.elseElement == null
-            ? empty()
-            : _element(element.elseElement!, type, nativeItem)
-      ]));
+      return values.add(
+        ValueNode(
+          'conditional',
+          type,
+          inputs: [
+            values.lower(element.expression),
+            _element(element.thenElement, type, nativeItem),
+            element.elseElement == null
+                ? empty()
+                : _element(element.elseElement!, type, nativeItem),
+          ],
+        ),
+      );
     }
     if (element is ForElement &&
         element.awaitKeyword == null &&
@@ -468,23 +575,34 @@ final class _CollectionLowering {
       if (!{'list', 'iterable'}.contains(sourceType.kind) ||
           sourceType.nullable)
         throw BuilderLoweringException(
-            element, 'Collection loop requires a finite sequence');
+          element,
+          'Collection loop requires a finite sequence',
+        );
       final inputs = [source];
       final (nested, bindings) = _nested(inputs);
       nested.parameter(variable, callbackParameterName(0), sourceType.item!);
-      final root =
-          _CollectionLowering(nested)._element(element.body, type, nativeItem);
+      final root = _CollectionLowering(
+        nested,
+      )._element(element.body, type, nativeItem);
       final program = nested.program(root);
-      return values
-          .add(ValueNode('collection.expand', type, inputs: inputs, value: {
-        'arguments': <int>[],
-        'callbacks': [
-          {'program': program.encode(), 'bindings': bindings}
-        ],
-        'item': type.item!.toJson()
-      }));
+      return values.add(
+        ValueNode(
+          'collection.expand',
+          type,
+          inputs: inputs,
+          value: {
+            'arguments': <int>[],
+            'callbacks': [
+              {'program': program.encode(), 'bindings': bindings},
+            ],
+            'item': type.item!.toJson(),
+          },
+        ),
+      );
     }
     throw BuilderLoweringException(
-        element, 'Unsupported scalar collection element');
+      element,
+      'Unsupported scalar collection element',
+    );
   }
 }

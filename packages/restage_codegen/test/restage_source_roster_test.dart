@@ -90,7 +90,7 @@ void main() {
       for (final refused in const [
         'WelcomeFlow',
         'wel come',
-        'flows/welcome'
+        'flows/welcome',
       ]) {
         final roster = assembleRestageSourceRoster([
           _declaration(
@@ -103,8 +103,9 @@ void main() {
         ]);
 
         expect(roster.isValid, isFalse, reason: 'expected `$refused` refused');
-        final message =
-            roster.issues.map((issue) => issue.toString()).join('\n');
+        final message = roster.issues
+            .map((issue) => issue.toString())
+            .join('\n');
         expect(message, contains(surfaceSlugRefusalMessage));
       }
     });
@@ -123,33 +124,35 @@ void main() {
       expect(roster.issues, isEmpty);
     });
 
-    test('rejects duplicate explicit identities and names both source spans',
-        () {
-      final roster = assembleRestageSourceRoster([
-        _declaration(
-          libraryPath: 'lib/first.dart',
-          declarationName: 'First',
-          explicitId: 'same',
-          outputPath: 'assets/restage/first.rfw',
-          line: 3,
-        ),
-        _declaration(
-          libraryPath: 'lib/second.dart',
-          declarationName: 'Second',
-          explicitId: 'same',
-          outputPath: 'assets/restage/second.rfw',
-          line: 8,
-        ),
-      ]);
+    test(
+      'rejects duplicate explicit identities and names both source spans',
+      () {
+        final roster = assembleRestageSourceRoster([
+          _declaration(
+            libraryPath: 'lib/first.dart',
+            declarationName: 'First',
+            explicitId: 'same',
+            outputPath: 'assets/restage/first.rfw',
+            line: 3,
+          ),
+          _declaration(
+            libraryPath: 'lib/second.dart',
+            declarationName: 'Second',
+            explicitId: 'same',
+            outputPath: 'assets/restage/second.rfw',
+            line: 8,
+          ),
+        ]);
 
-      expect(roster.isValid, isFalse);
-      final duplicate = roster.issues.singleWhere(
-        (issue) => issue.code == IssueCode.duplicateId,
-      );
-      expect(duplicate.message, contains('duplicate explicit IDs'));
-      expect(duplicate.message, contains('lib/first.dart@3:1'));
-      expect(duplicate.message, contains('lib/second.dart@8:1'));
-    });
+        expect(roster.isValid, isFalse);
+        final duplicate = roster.issues.singleWhere(
+          (issue) => issue.code == IssueCode.duplicateId,
+        );
+        expect(duplicate.message, contains('duplicate explicit IDs'));
+        expect(duplicate.message, contains('lib/first.dart@3:1'));
+        expect(duplicate.message, contains('lib/second.dart@8:1'));
+      },
+    );
 
     test('checks every declared identity namespace without a kind:id key', () {
       final roster = assembleRestageSourceRoster([
@@ -453,16 +456,15 @@ void main() {
       // must be cleaned up, and delete a live output.
       List<RestageSourceDeclaration> declarations(
         RestageOutputCondition writtenWhen,
-      ) =>
-          [
-            _declaration(
-              libraryPath: 'lib/paywalls/pro.dart',
-              declarationName: 'Pro',
-              explicitId: 'pro',
-              outputPaths: const ['assets/paywalls/pro.rfw'],
-              writtenWhen: writtenWhen,
-            ),
-          ];
+      ) => [
+        _declaration(
+          libraryPath: 'lib/paywalls/pro.dart',
+          declarationName: 'Pro',
+          explicitId: 'pro',
+          outputPaths: const ['assets/paywalls/pro.rfw'],
+          writtenWhen: writtenWhen,
+        ),
+      ];
       final previous = assembleRestageSourceRoster(
         declarations(RestageOutputCondition.everyLowering),
       );
@@ -483,62 +485,74 @@ void main() {
   });
 
   group('RestageSourceRosterBuilder', () {
-    test('discovers the package and emits deterministic source/output files',
-        () async {
-      final sources = <String, String>{
-        'lib/onboarding/screens/welcome.dart': _screenSource(
-          id: 'welcome',
-          className: 'WelcomeScreen',
-        ),
-        'lib/message/flows/receipt.dart': _flowSource('receipt'),
-        'lib/paywalls/pro.dart': _paywallSource('pro'),
-      };
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
+    test(
+      'discovers the package and emits deterministic source/output files',
+      () async {
+        final sources = <String, String>{
+          'lib/onboarding/screens/welcome.dart': _screenSource(
+            id: 'welcome',
+            className: 'WelcomeScreen',
+          ),
+          'lib/message/flows/receipt.dart': _flowSource('receipt'),
+          'lib/paywalls/pro.dart': _paywallSource('pro'),
+        };
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
 
-      final result = await _runBuilder(sources, readerWriter);
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        final result = await _runBuilder(sources, readerWriter);
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
 
-      final sourceIndex = jsonDecode(
-        readerWriter.testing.readString(
-          AssetId('apps_examples', 'assets/restage/source-index.json'),
-        ),
-      ) as Map<String, Object?>;
-      final indexedSources = sourceIndex['sources']! as List<Object?>;
-      expect(indexedSources, hasLength(3));
-      expect(
-        indexedSources.map(
-          (source) => (source! as Map<String, Object?>)['id'],
-        ),
-        containsAll(<Object?>['welcome', 'receipt', 'pro']),
-      );
+        final sourceIndex =
+            jsonDecode(
+                  readerWriter.testing.readString(
+                    AssetId(
+                      'apps_examples',
+                      'assets/restage/source-index.json',
+                    ),
+                  ),
+                )
+                as Map<String, Object?>;
+        final indexedSources = sourceIndex['sources']! as List<Object?>;
+        expect(indexedSources, hasLength(3));
+        expect(
+          indexedSources.map(
+            (source) => (source! as Map<String, Object?>)['id'],
+          ),
+          containsAll(<Object?>['welcome', 'receipt', 'pro']),
+        );
 
-      final outputRoster = jsonDecode(
-        readerWriter.testing.readString(
-          AssetId('apps_examples', 'assets/restage/output-roster.json'),
-        ),
-      ) as Map<String, Object?>;
-      final outputs = outputRoster['outputs']! as List<Object?>;
-      final outputPaths = [
-        for (final output in outputs)
-          (output! as Map<String, Object?>)['path']! as String,
-      ];
-      expect(
-        outputPaths,
-        containsAll(<String>[
-          'lib/onboarding/screens/restage.generated/welcome.restage.g.dart',
-          'assets/onboarding/screens/welcome.rfw',
-          'assets/message/flows/receipt.flow.json',
-          'assets/paywalls/pro.rfw',
-          'assets/paywalls/pro.flow.json',
-        ]),
-      );
-      expect(
-        outputPaths,
-        orderedEquals([...outputPaths]..sort()),
-      );
-    });
+        final outputRoster =
+            jsonDecode(
+                  readerWriter.testing.readString(
+                    AssetId(
+                      'apps_examples',
+                      'assets/restage/output-roster.json',
+                    ),
+                  ),
+                )
+                as Map<String, Object?>;
+        final outputs = outputRoster['outputs']! as List<Object?>;
+        final outputPaths = [
+          for (final output in outputs)
+            (output! as Map<String, Object?>)['path']! as String,
+        ];
+        expect(
+          outputPaths,
+          containsAll(<String>[
+            'lib/onboarding/screens/restage.generated/welcome.restage.g.dart',
+            'assets/onboarding/screens/welcome.rfw',
+            'assets/message/flows/receipt.flow.json',
+            'assets/paywalls/pro.rfw',
+            'assets/paywalls/pro.flow.json',
+          ]),
+        );
+        expect(
+          outputPaths,
+          orderedEquals([...outputPaths]..sort()),
+        );
+      },
+    );
 
     test(
       'admits canonical libraries beneath generated while excluding generated '
@@ -580,390 +594,437 @@ void main() {
       },
     );
 
-    test('writes an invalid fixed bundle before failing ownership admission',
-        () async {
-      final sources = <String, String>{
-        'lib/onboarding/screens/first.dart': _screenSource(
-          id: 'same',
-          className: 'FirstScreen',
-        ),
-        'lib/onboarding/screens/second.dart': _screenSource(
-          id: 'same',
-          className: 'SecondScreen',
-        ),
-      };
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-
-      final result = await _runBuilder(sources, readerWriter);
-
-      expect(result.succeeded, isFalse);
-      final sourceIndex =
-          jsonDecode(_rosterText(readerWriter)) as Map<String, Object?>;
-      expect(sourceIndex['valid'], isFalse);
-      expect(sourceIndex['issues'], isNotEmpty);
-      final outputRoster = jsonDecode(
-        readerWriter.testing.readString(
-          AssetId('apps_examples', 'assets/restage/output-roster.json'),
-        ),
-      ) as Map<String, Object?>;
-      expect(outputRoster['valid'], isFalse);
-      expect(outputRoster['issues'], isNotEmpty);
-    });
-
-    test('defers cross-surface publication collision to the later frontend',
-        () async {
-      final sources = <String, String>{
-        'lib/onboarding/screens/duplicate.dart': _screenSource(
-          id: 'duplicate',
-          className: 'OnboardingDuplicate',
-        ),
-        'lib/message/screens/duplicate.dart': _screenSource(
-          id: 'duplicate',
-          className: 'MessageDuplicate',
-        ),
-      };
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-
-      final result = await _runBuilder(sources, readerWriter);
-
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      final sourceIndex = jsonDecode(_rosterText(readerWriter));
-      final indexedSources =
-          (sourceIndex as Map<String, Object?>)['sources']! as List<Object?>;
-      expect(indexedSources, hasLength(2));
-      for (final source in indexedSources) {
-        final sourceMap = source! as Map<String, Object?>;
-        final claims = sourceMap['identityClaims']! as List<Object?>;
-        expect(
-          claims.single,
-          isA<Map<String, Object?>>().having(
-            (claim) => claim['namespace'],
-            'namespace',
-            startsWith('legacy-source/screen/'),
+    test(
+      'writes an invalid fixed bundle before failing ownership admission',
+      () async {
+        final sources = <String, String>{
+          'lib/onboarding/screens/first.dart': _screenSource(
+            id: 'same',
+            className: 'FirstScreen',
           ),
+          'lib/onboarding/screens/second.dart': _screenSource(
+            id: 'same',
+            className: 'SecondScreen',
+          ),
+        };
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
         );
-      }
-    });
 
-    test('executes add, edit, remove, and rename source invalidation',
-        () async {
-      final initial = <String, String>{
-        'lib/onboarding/screens/alpha.dart': _screenSource(
-          id: 'alpha',
-          className: 'AlphaScreen',
-        ),
-        'lib/message/screens/beta.dart': _screenSource(
-          id: 'beta',
-          className: 'BetaScreen',
-        ),
-      };
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
+        final result = await _runBuilder(sources, readerWriter);
 
-      var result = await _runBuilder(initial, readerWriter);
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      expect(_rosterText(readerWriter), contains('alpha'));
-      expect(_rosterText(readerWriter), contains('beta'));
+        expect(result.succeeded, isFalse);
+        final sourceIndex =
+            jsonDecode(_rosterText(readerWriter)) as Map<String, Object?>;
+        expect(sourceIndex['valid'], isFalse);
+        expect(sourceIndex['issues'], isNotEmpty);
+        final outputRoster =
+            jsonDecode(
+                  readerWriter.testing.readString(
+                    AssetId(
+                      'apps_examples',
+                      'assets/restage/output-roster.json',
+                    ),
+                  ),
+                )
+                as Map<String, Object?>;
+        expect(outputRoster['valid'], isFalse);
+        expect(outputRoster['issues'], isNotEmpty);
+      },
+    );
 
-      final added = {
-        ...initial,
-        'lib/survey/screens/gamma.dart': _screenSource(
-          id: 'gamma',
-          className: 'GammaScreen',
-        ),
-      };
-      result = await _runBuilder(added, readerWriter);
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      expect(_rosterText(readerWriter), contains('gamma'));
-
-      final edited = {
-        ...added,
-        'lib/onboarding/screens/alpha.dart': _screenSource(
-          id: 'alpha',
-          className: 'EditedAlphaScreen',
-        ),
-      };
-      result = await _runBuilder(edited, readerWriter);
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      expect(_rosterText(readerWriter), contains('#EditedAlphaScreen'));
-      expect(_rosterText(readerWriter), isNot(contains('#AlphaScreen"')));
-
-      readerWriter.testing.delete(
-        AssetId('apps_examples', 'lib/message/screens/beta.dart'),
-      );
-      final removed = Map<String, String>.from(edited)
-        ..remove('lib/message/screens/beta.dart');
-      result = await _runBuilder(removed, readerWriter);
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      expect(_rosterText(readerWriter), isNot(contains('beta')));
-      expect(
-        _rosterText(readerWriter),
-        isNot(contains('assets/message/screens/beta.rfw')),
-      );
-
-      readerWriter.testing.delete(
-        AssetId('apps_examples', 'lib/onboarding/screens/alpha.dart'),
-      );
-      final renamed = Map<String, String>.from(removed)
-        ..remove('lib/onboarding/screens/alpha.dart')
-        ..['lib/onboarding/screens/renamed.dart'] = _screenSource(
-          id: 'renamed',
-          className: 'EditedAlphaScreen',
+    test(
+      'defers cross-surface publication collision to the later frontend',
+      () async {
+        final sources = <String, String>{
+          'lib/onboarding/screens/duplicate.dart': _screenSource(
+            id: 'duplicate',
+            className: 'OnboardingDuplicate',
+          ),
+          'lib/message/screens/duplicate.dart': _screenSource(
+            id: 'duplicate',
+            className: 'MessageDuplicate',
+          ),
+        };
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
         );
-      result = await _runBuilder(renamed, readerWriter);
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      expect(_rosterText(readerWriter), contains('renamed'));
-      expect(_rosterText(readerWriter), isNot(contains('alpha')));
-      expect(
-        _rosterText(readerWriter),
-        isNot(contains('assets/onboarding/screens/alpha.rfw')),
-      );
-    });
 
-    test('admits colocated canonical screens with one library-owned part',
-        () async {
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      final result = await _runBuilder(
-        {
-          'lib/feature.dart': _canonicalColocatedScreensSource(),
-        },
-        readerWriter,
-      );
+        final result = await _runBuilder(sources, readerWriter);
 
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      final sourceIndex =
-          jsonDecode(_rosterText(readerWriter)) as Map<String, Object?>;
-      final sources = sourceIndex['sources']! as List<Object?>;
-      expect(sources, hasLength(2));
-      expect(
-        sources.map(
-          (source) => (source! as Map<String, Object?>)['authoring'],
-        ),
-        everyElement('canonical'),
-      );
-      expect(
-        sources.map((source) => (source! as Map<String, Object?>)['id']),
-        containsAll(<Object?>['first', 'second']),
-      );
-
-      final outputRoster = jsonDecode(
-        readerWriter.testing.readString(
-          AssetId('apps_examples', 'assets/restage/output-roster.json'),
-        ),
-      ) as Map<String, Object?>;
-      final outputPaths = [
-        for (final output in outputRoster['outputs']! as List<Object?>)
-          (output! as Map<String, Object?>)['path']! as String,
-      ];
-      expect(
-        outputPaths.where(
-          (path) => path == 'lib/restage.generated/feature.restage.g.dart',
-        ),
-        hasLength(1),
-      );
-      expect(
-        outputPaths,
-        containsAll(<String>[
-          'assets/general/screens/first.rfw',
-          'assets/general/screens/second.rfw',
-          '.restage/build/metadata/restage.publication.json',
-          '.restage/build/metadata/restage.outputs.json',
-        ]),
-      );
-    });
-
-    test('shares one library part across explicit screen and paywall sources',
-        () async {
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      final result = await _runBuilder(
-        {'lib/offers.dart': _canonicalColocatedScreenAndPaywallSource()},
-        readerWriter,
-      );
-
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      final outputRoster = jsonDecode(
-        readerWriter.testing.readString(
-          AssetId('apps_examples', 'assets/restage/output-roster.json'),
-        ),
-      ) as Map<String, Object?>;
-      final outputPaths = [
-        for (final output in outputRoster['outputs']! as List<Object?>)
-          (output! as Map<String, Object?>)['path']! as String,
-      ];
-      final partOutputs = (outputRoster['outputs']! as List<Object?>)
-          .cast<Map<String, Object?>>()
-          .where(
-            (output) =>
-                output['path'] == 'lib/restage.generated/offers.restage.g.dart',
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        final sourceIndex = jsonDecode(_rosterText(readerWriter));
+        final indexedSources =
+            (sourceIndex as Map<String, Object?>)['sources']! as List<Object?>;
+        expect(indexedSources, hasLength(2));
+        for (final source in indexedSources) {
+          final sourceMap = source! as Map<String, Object?>;
+          final claims = sourceMap['identityClaims']! as List<Object?>;
+          expect(
+            claims.single,
+            isA<Map<String, Object?>>().having(
+              (claim) => claim['namespace'],
+              'namespace',
+              startsWith('legacy-source/screen/'),
+            ),
           );
-      expect(
-        partOutputs.map((output) => output['role']),
-        unorderedEquals(['screen-descriptor', 'paywall-descriptor']),
-      );
-      expect(
-        partOutputs.map((output) => output['ownershipKey']).toSet(),
-        hasLength(1),
-      );
-      expect(
-        outputPaths,
-        containsAll(<String>[
-          'assets/general/screens/announcement.rfw',
-          'assets/paywalls/premium.rfw',
-          'assets/paywalls/screens/paywall_premium.rfw',
-        ]),
-      );
+        }
+      },
+    );
 
-      // Ownership is settled before translation, so a paywall reserves a
-      // path for everything its lowering could produce, and each reservation
-      // carries the condition under which it is written. The conditions are
-      // one per group observed in a real build; a screen publishes one
-      // payload, so its whole set is written for every lowering.
-      final conditionByPath = <String, String>{
-        for (final output in (outputRoster['outputs']! as List<Object?>)
-            .cast<Map<String, Object?>>())
-          output['path']! as String: output['writtenWhen']! as String,
-      };
-      expect(conditionByPath, {
-        'lib/restage.generated/offers.restage.g.dart': 'every-lowering',
-        'assets/general/screens/announcement.rfwtxt': 'every-lowering',
-        'assets/general/screens/announcement.rfw': 'every-lowering',
-        'assets/general/screens/announcement.capability.json': 'every-lowering',
-        'assets/paywalls/premium.rfwtxt': 'own-publication',
-        'assets/paywalls/premium.rfw': 'standalone-payload',
-        'assets/paywalls/premium.capability.json': 'standalone-payload',
-        'assets/paywalls/screens/paywall_premium.rfw': 'flow-screen',
-        'assets/paywalls/screens/paywall_premium.capability.json':
-            'flow-screen',
-        'assets/paywalls/premium.navplan.json': 'navigation-plan',
-        'assets/paywalls/premium.flow.json': 'navigation-document',
-        '.restage/build/metadata/restage.publication.json': 'every-lowering',
-        '.restage/build/metadata/restage.outputs.json': 'every-lowering',
-      });
-    });
-
-    test('uses explicit canonical IDs as authoritative across file moves',
-        () async {
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      final result = await _runBuilder(
-        {
-          'lib/renamed_feature.dart': _canonicalExplicitScreenSource(),
-        },
-        readerWriter,
-      );
-
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      final sourceIndex =
-          jsonDecode(_rosterText(readerWriter)) as Map<String, Object?>;
-      final source = (sourceIndex['sources']! as List<Object?>).single!
-          as Map<String, Object?>;
-      expect(source['id'], 'stable-feature');
-      expect(source['idMode'], 'explicit');
-      expect(source['surface'], 'message');
-      expect(source['authoring'], 'canonical');
-      expect(
-        _rosterText(readerWriter),
-        isNot(contains('filenameMismatch')),
-      );
-      final outputRoster = jsonDecode(
-        readerWriter.testing.readString(
-          AssetId('apps_examples', 'assets/restage/output-roster.json'),
-        ),
-      ) as Map<String, Object?>;
-      final outputPaths = {
-        for (final output in outputRoster['outputs']! as List<Object?>)
-          (output! as Map<String, Object?>)['path']! as String,
-      };
-      expect(
-        outputPaths,
-        containsAll(<String>{
-          'assets/message/screens/stable-feature.rfwtxt',
-          'assets/message/screens/stable-feature.rfw',
-          'assets/message/screens/stable-feature.capability.json',
-        }),
-      );
-      expect(
-        outputPaths.where((path) => path.startsWith('assets/message/screens/')),
-        everyElement(isNot(contains('renamed_feature'))),
-      );
-    });
-
-    test('admits canonical top-level flow definitions through the frontend',
-        () async {
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      final result = await _runBuilder(
-        {
-          'lib/feature.dart': _canonicalFlowSource(),
-        },
-        readerWriter,
-      );
-
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      final sourceIndex =
-          jsonDecode(_rosterText(readerWriter)) as Map<String, Object?>;
-      final sources = sourceIndex['sources']! as List<Object?>;
-      expect(
-        sources.map((value) => (value! as Map<String, Object?>)['kind']),
-        contains('flowGraph'),
-        reason: _rosterText(readerWriter),
-      );
-      final source = sources.singleWhere(
-        (value) => (value! as Map<String, Object?>)['kind'] == 'flowGraph',
-      )! as Map<String, Object?>;
-      expect(source['id'], 'feature');
-      expect(source['idMode'], 'implicit');
-      expect(source['surface'], 'general');
-      expect(source['deliveryMode'], 'typed');
-      final neutralScreen = sources.singleWhere(
-        (value) => (value! as Map<String, Object?>)['kind'] == 'screen',
-      )! as Map<String, Object?>;
-      expect(neutralScreen.containsKey('surface'), isFalse);
-      expect(
-        neutralScreen['outputs'],
-        hasLength(4),
-      );
-      expect(
-        (neutralScreen['outputs']! as List<Object?>).map(
-          (output) => (output! as Map<String, Object?>)['path'],
-        ),
-        containsAll(<String>[
-          'assets/general/screens/feature-screen.rfwtxt',
-          'assets/general/screens/feature-screen.rfw',
-          'assets/general/screens/feature-screen.capability.json',
-        ]),
-      );
-      expect(
-        (neutralScreen['identityClaims']! as List<Object?>).map(
-          (claim) => (claim! as Map<String, Object?>)['namespace'],
-        ),
-        isNot(contains('canonical-publication/neutral')),
-      );
-      expect(
-        (jsonDecode(
-          readerWriter.testing.readString(
-            AssetId('apps_examples', 'assets/restage/output-roster.json'),
+    test(
+      'executes add, edit, remove, and rename source invalidation',
+      () async {
+        final initial = <String, String>{
+          'lib/onboarding/screens/alpha.dart': _screenSource(
+            id: 'alpha',
+            className: 'AlphaScreen',
           ),
-        ) as Map<String, Object?>)['outputs'],
-        contains(
-          predicate<Object?>((value) {
-            final output = value! as Map<String, Object?>;
-            return output['path'] == 'assets/general/flows/feature.flow.json';
+          'lib/message/screens/beta.dart': _screenSource(
+            id: 'beta',
+            className: 'BetaScreen',
+          ),
+        };
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+
+        var result = await _runBuilder(initial, readerWriter);
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        expect(_rosterText(readerWriter), contains('alpha'));
+        expect(_rosterText(readerWriter), contains('beta'));
+
+        final added = {
+          ...initial,
+          'lib/survey/screens/gamma.dart': _screenSource(
+            id: 'gamma',
+            className: 'GammaScreen',
+          ),
+        };
+        result = await _runBuilder(added, readerWriter);
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        expect(_rosterText(readerWriter), contains('gamma'));
+
+        final edited = {
+          ...added,
+          'lib/onboarding/screens/alpha.dart': _screenSource(
+            id: 'alpha',
+            className: 'EditedAlphaScreen',
+          ),
+        };
+        result = await _runBuilder(edited, readerWriter);
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        expect(_rosterText(readerWriter), contains('#EditedAlphaScreen'));
+        expect(_rosterText(readerWriter), isNot(contains('#AlphaScreen"')));
+
+        readerWriter.testing.delete(
+          AssetId('apps_examples', 'lib/message/screens/beta.dart'),
+        );
+        final removed = Map<String, String>.from(edited)
+          ..remove('lib/message/screens/beta.dart');
+        result = await _runBuilder(removed, readerWriter);
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        expect(_rosterText(readerWriter), isNot(contains('beta')));
+        expect(
+          _rosterText(readerWriter),
+          isNot(contains('assets/message/screens/beta.rfw')),
+        );
+
+        readerWriter.testing.delete(
+          AssetId('apps_examples', 'lib/onboarding/screens/alpha.dart'),
+        );
+        final renamed = Map<String, String>.from(removed)
+          ..remove('lib/onboarding/screens/alpha.dart')
+          ..['lib/onboarding/screens/renamed.dart'] = _screenSource(
+            id: 'renamed',
+            className: 'EditedAlphaScreen',
+          );
+        result = await _runBuilder(renamed, readerWriter);
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        expect(_rosterText(readerWriter), contains('renamed'));
+        expect(_rosterText(readerWriter), isNot(contains('alpha')));
+        expect(
+          _rosterText(readerWriter),
+          isNot(contains('assets/onboarding/screens/alpha.rfw')),
+        );
+      },
+    );
+
+    test(
+      'admits colocated canonical screens with one library-owned part',
+      () async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final result = await _runBuilder(
+          {
+            'lib/feature.dart': _canonicalColocatedScreensSource(),
+          },
+          readerWriter,
+        );
+
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        final sourceIndex =
+            jsonDecode(_rosterText(readerWriter)) as Map<String, Object?>;
+        final sources = sourceIndex['sources']! as List<Object?>;
+        expect(sources, hasLength(2));
+        expect(
+          sources.map(
+            (source) => (source! as Map<String, Object?>)['authoring'],
+          ),
+          everyElement('canonical'),
+        );
+        expect(
+          sources.map((source) => (source! as Map<String, Object?>)['id']),
+          containsAll(<Object?>['first', 'second']),
+        );
+
+        final outputRoster =
+            jsonDecode(
+                  readerWriter.testing.readString(
+                    AssetId(
+                      'apps_examples',
+                      'assets/restage/output-roster.json',
+                    ),
+                  ),
+                )
+                as Map<String, Object?>;
+        final outputPaths = [
+          for (final output in outputRoster['outputs']! as List<Object?>)
+            (output! as Map<String, Object?>)['path']! as String,
+        ];
+        expect(
+          outputPaths.where(
+            (path) => path == 'lib/restage.generated/feature.restage.g.dart',
+          ),
+          hasLength(1),
+        );
+        expect(
+          outputPaths,
+          containsAll(<String>[
+            'assets/general/screens/first.rfw',
+            'assets/general/screens/second.rfw',
+            '.restage/build/metadata/restage.publication.json',
+            '.restage/build/metadata/restage.outputs.json',
+          ]),
+        );
+      },
+    );
+
+    test(
+      'shares one library part across explicit screen and paywall sources',
+      () async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final result = await _runBuilder(
+          {'lib/offers.dart': _canonicalColocatedScreenAndPaywallSource()},
+          readerWriter,
+        );
+
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        final outputRoster =
+            jsonDecode(
+                  readerWriter.testing.readString(
+                    AssetId(
+                      'apps_examples',
+                      'assets/restage/output-roster.json',
+                    ),
+                  ),
+                )
+                as Map<String, Object?>;
+        final outputPaths = [
+          for (final output in outputRoster['outputs']! as List<Object?>)
+            (output! as Map<String, Object?>)['path']! as String,
+        ];
+        final partOutputs = (outputRoster['outputs']! as List<Object?>)
+            .cast<Map<String, Object?>>()
+            .where(
+              (output) =>
+                  output['path'] ==
+                  'lib/restage.generated/offers.restage.g.dart',
+            );
+        expect(
+          partOutputs.map((output) => output['role']),
+          unorderedEquals(['screen-descriptor', 'paywall-descriptor']),
+        );
+        expect(
+          partOutputs.map((output) => output['ownershipKey']).toSet(),
+          hasLength(1),
+        );
+        expect(
+          outputPaths,
+          containsAll(<String>[
+            'assets/general/screens/announcement.rfw',
+            'assets/paywalls/premium.rfw',
+            'assets/paywalls/screens/paywall_premium.rfw',
+          ]),
+        );
+
+        // Ownership is settled before translation, so a paywall reserves a
+        // path for everything its lowering could produce, and each reservation
+        // carries the condition under which it is written. The conditions are
+        // one per group observed in a real build; a screen publishes one
+        // payload, so its whole set is written for every lowering.
+        final conditionByPath = <String, String>{
+          for (final output
+              in (outputRoster['outputs']! as List<Object?>)
+                  .cast<Map<String, Object?>>())
+            output['path']! as String: output['writtenWhen']! as String,
+        };
+        expect(conditionByPath, {
+          'lib/restage.generated/offers.restage.g.dart': 'every-lowering',
+          'assets/general/screens/announcement.rfwtxt': 'every-lowering',
+          'assets/general/screens/announcement.rfw': 'every-lowering',
+          'assets/general/screens/announcement.capability.json':
+              'every-lowering',
+          'assets/paywalls/premium.rfwtxt': 'own-publication',
+          'assets/paywalls/premium.rfw': 'standalone-payload',
+          'assets/paywalls/premium.capability.json': 'standalone-payload',
+          'assets/paywalls/screens/paywall_premium.rfw': 'flow-screen',
+          'assets/paywalls/screens/paywall_premium.capability.json':
+              'flow-screen',
+          'assets/paywalls/premium.navplan.json': 'navigation-plan',
+          'assets/paywalls/premium.flow.json': 'navigation-document',
+          '.restage/build/metadata/restage.publication.json': 'every-lowering',
+          '.restage/build/metadata/restage.outputs.json': 'every-lowering',
+        });
+      },
+    );
+
+    test(
+      'uses explicit canonical IDs as authoritative across file moves',
+      () async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final result = await _runBuilder(
+          {
+            'lib/renamed_feature.dart': _canonicalExplicitScreenSource(),
+          },
+          readerWriter,
+        );
+
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        final sourceIndex =
+            jsonDecode(_rosterText(readerWriter)) as Map<String, Object?>;
+        final source =
+            (sourceIndex['sources']! as List<Object?>).single!
+                as Map<String, Object?>;
+        expect(source['id'], 'stable-feature');
+        expect(source['idMode'], 'explicit');
+        expect(source['surface'], 'message');
+        expect(source['authoring'], 'canonical');
+        expect(
+          _rosterText(readerWriter),
+          isNot(contains('filenameMismatch')),
+        );
+        final outputRoster =
+            jsonDecode(
+                  readerWriter.testing.readString(
+                    AssetId(
+                      'apps_examples',
+                      'assets/restage/output-roster.json',
+                    ),
+                  ),
+                )
+                as Map<String, Object?>;
+        final outputPaths = {
+          for (final output in outputRoster['outputs']! as List<Object?>)
+            (output! as Map<String, Object?>)['path']! as String,
+        };
+        expect(
+          outputPaths,
+          containsAll(<String>{
+            'assets/message/screens/stable-feature.rfwtxt',
+            'assets/message/screens/stable-feature.rfw',
+            'assets/message/screens/stable-feature.capability.json',
           }),
-        ),
-      );
-    });
+        );
+        expect(
+          outputPaths.where(
+            (path) => path.startsWith('assets/message/screens/'),
+          ),
+          everyElement(isNot(contains('renamed_feature'))),
+        );
+      },
+    );
+
+    test(
+      'admits canonical top-level flow definitions through the frontend',
+      () async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final result = await _runBuilder(
+          {
+            'lib/feature.dart': _canonicalFlowSource(),
+          },
+          readerWriter,
+        );
+
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        final sourceIndex =
+            jsonDecode(_rosterText(readerWriter)) as Map<String, Object?>;
+        final sources = sourceIndex['sources']! as List<Object?>;
+        expect(
+          sources.map((value) => (value! as Map<String, Object?>)['kind']),
+          contains('flowGraph'),
+          reason: _rosterText(readerWriter),
+        );
+        final source =
+            sources.singleWhere(
+                  (value) =>
+                      (value! as Map<String, Object?>)['kind'] == 'flowGraph',
+                )!
+                as Map<String, Object?>;
+        expect(source['id'], 'feature');
+        expect(source['idMode'], 'implicit');
+        expect(source['surface'], 'general');
+        expect(source['deliveryMode'], 'typed');
+        final neutralScreen =
+            sources.singleWhere(
+                  (value) =>
+                      (value! as Map<String, Object?>)['kind'] == 'screen',
+                )!
+                as Map<String, Object?>;
+        expect(neutralScreen.containsKey('surface'), isFalse);
+        expect(
+          neutralScreen['outputs'],
+          hasLength(4),
+        );
+        expect(
+          (neutralScreen['outputs']! as List<Object?>).map(
+            (output) => (output! as Map<String, Object?>)['path'],
+          ),
+          containsAll(<String>[
+            'assets/general/screens/feature-screen.rfwtxt',
+            'assets/general/screens/feature-screen.rfw',
+            'assets/general/screens/feature-screen.capability.json',
+          ]),
+        );
+        expect(
+          (neutralScreen['identityClaims']! as List<Object?>).map(
+            (claim) => (claim! as Map<String, Object?>)['namespace'],
+          ),
+          isNot(contains('canonical-publication/neutral')),
+        );
+        expect(
+          (jsonDecode(
+                readerWriter.testing.readString(
+                  AssetId('apps_examples', 'assets/restage/output-roster.json'),
+                ),
+              )
+              as Map<String, Object?>)['outputs'],
+          contains(
+            predicate<Object?>((value) {
+              final output = value! as Map<String, Object?>;
+              return output['path'] == 'assets/general/flows/feature.flow.json';
+            }),
+          ),
+        );
+      },
+    );
 
     test('admits the canonical advanced @FlowGraph class target', () async {
       final readerWriter = await readerWriterWithFilesystemSources(
@@ -979,8 +1040,9 @@ void main() {
       expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
       final sourceIndex =
           jsonDecode(_rosterText(readerWriter)) as Map<String, Object?>;
-      final source = (sourceIndex['sources']! as List<Object?>).single!
-          as Map<String, Object?>;
+      final source =
+          (sourceIndex['sources']! as List<Object?>).single!
+              as Map<String, Object?>;
       expect(source['kind'], 'flowGraph');
       expect(source['id'], 'advanced');
       expect(source['idMode'], 'implicit');
@@ -1002,8 +1064,9 @@ void main() {
       expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
       final sourceIndex =
           jsonDecode(_rosterText(readerWriter)) as Map<String, Object?>;
-      final source = (sourceIndex['sources']! as List<Object?>).single!
-          as Map<String, Object?>;
+      final source =
+          (sourceIndex['sources']! as List<Object?>).single!
+              as Map<String, Object?>;
       expect(source['kind'], 'paywall');
       expect(source['surface'], 'paywall');
       expect(source['id'], 'offer');
@@ -1138,7 +1201,8 @@ class Upgrade {}
           final logs = <LogRecord>[];
           final result = await _runBuilder(
             {
-              'lib/wrong.dart': '''
+              'lib/wrong.dart':
+                  '''
 import 'package:restage/restage.dart';
 
 @${entry.key}()
@@ -1263,7 +1327,8 @@ RestageSourceDeclaration _declaration({
       endLine: line,
       endColumn: declarationName.length + 1,
     ),
-    identityClaims: identityClaims ??
+    identityClaims:
+        identityClaims ??
         [
           RestageIdentityClaim(
             namespace: identityNamespace,
@@ -1322,7 +1387,8 @@ class Upgrade extends StatelessWidget {
 String _rosterText(TestReaderWriter readerWriter) => readerWriter.testing
     .readString(AssetId('apps_examples', 'assets/restage/source-index.json'));
 
-String _screenSource({required String id, required String className}) => '''
+String _screenSource({required String id, required String className}) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -1337,7 +1403,8 @@ class $className extends StatelessWidget {
 }
 ''';
 
-String _flowSource(String id) => '''
+String _flowSource(String id) =>
+    '''
 import 'package:restage/restage.dart';
 
 part 'restage.generated/$id.restage.g.dart';
@@ -1346,7 +1413,8 @@ part 'restage.generated/$id.restage.g.dart';
 class ${id}Flow {}
 ''';
 
-String _paywallSource(String id) => '''
+String _paywallSource(String id) =>
+    '''
 import 'package:restage/restage.dart';
 
 @PaywallSource(id: '$id')

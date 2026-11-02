@@ -62,11 +62,10 @@ const List<Color> kStripe = [Color(0xFF000000), Colors.white];
 ''';
 
 Catalog _catalogAt(String package) => requireNativeCatalog(
-      decodeCatalog(
-        File('../$package/lib/src/widget_catalog/catalog.json')
-            .readAsStringSync(),
-      ),
-    );
+  decodeCatalog(
+    File('../$package/lib/src/widget_catalog/catalog.json').readAsStringSync(),
+  ),
+);
 
 final Catalog _coreCatalog = _catalogAt('restage_core');
 final Catalog _materialCatalog = _catalogAt('restage_material');
@@ -185,15 +184,19 @@ void main() {
   });
 
   group('copyWith on a constant style', () {
-    test('a static final style says it exists only in the running app',
-        () async {
-      final result =
-          await _translate("Text('Hi', style: Type.body.copyWith(height: 2))");
-      const message = "'Type.body' is static final, so its value exists only "
-          'in the running app. Make it const, or pass it in as a constructor '
-          'input.';
-      expect(result.issues.map((issue) => issue.message), [message]);
-    });
+    test(
+      'a static final style says it exists only in the running app',
+      () async {
+        final result = await _translate(
+          "Text('Hi', style: Type.body.copyWith(height: 2))",
+        );
+        const message =
+            "'Type.body' is static final, so its value exists only "
+            'in the running app. Make it const, or pass it in as a constructor '
+            'input.';
+        expect(result.issues.map((issue) => issue.message), [message]);
+      },
+    );
 
     test('overrides the named fields', () async {
       await _expectSameAs(

@@ -12,17 +12,19 @@ void main() {
     ).readAsStringSync(),
   );
 
-  test('expanded Icon takes the first version above the old global ceiling',
-      () {
-    // main 98f5026ee had core=5, Material=4 and Cupertino=1. sinceVersion
-    // covers the last capability change as well as widget introduction.
-    expect(
-      material.widgets
-          .singleWhere((entry) => entry.name == 'Icon')
-          .sinceVersion,
-      6,
-    );
-  });
+  test(
+    'expanded Icon takes the first version above the old global ceiling',
+    () {
+      // main 98f5026ee had core=5, Material=4 and Cupertino=1. sinceVersion
+      // covers the last capability change as well as widget introduction.
+      expect(
+        material.widgets
+            .singleWhere((entry) => entry.name == 'Icon')
+            .sinceVersion,
+        6,
+      );
+    },
+  );
 
   for (final properties in [
     'iconCodepoint: 62530, iconFontFamily: "CupertinoIcons"',
@@ -30,8 +32,7 @@ void main() {
     'iconCodepoint: 57490, iconMatchTextDirection: false',
     'iconCodepoint: 57490',
   ]) {
-    test(
-        'a literal Icon($properties) ships its font, so only the feature '
+    test('a literal Icon($properties) ships its font, so only the feature '
         'floor accepts it', () {
       final result = deriveCapabilityManifest(
         parseLibraryFile('''

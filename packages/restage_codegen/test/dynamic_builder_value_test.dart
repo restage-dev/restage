@@ -6,11 +6,13 @@ import 'package:restage_shared/rfw_formats.dart' as rfw;
 import 'package:test/test.dart';
 import 'helpers.dart' as helpers;
 
-final _native = decodeCatalog(File(
-        Directory('packages/restage_core').existsSync()
-            ? 'packages/restage_core/lib/src/widget_catalog/catalog.json'
-            : '../restage_core/lib/src/widget_catalog/catalog.json')
-    .readAsStringSync());
+final _native = decodeCatalog(
+  File(
+    Directory('packages/restage_core').existsSync()
+        ? 'packages/restage_core/lib/src/widget_catalog/catalog.json'
+        : '../restage_core/lib/src/widget_catalog/catalog.json',
+  ).readAsStringSync(),
+);
 Future<TranslationResult> _translate(String body, {bool custom = false}) async {
   final expression = await helpers.parseExpressionFromSourceForTest('''
 import 'package:flutter/material.dart';
@@ -26,28 +28,36 @@ class Probe extends StatelessWidget {
 }
 ''', rootPackage: 'apps_examples');
   return ExpressionTranslator(
-          catalog: custom
-              ? helpers.nativeProbeCatalog([
-                  ('color', PropertyType.color),
-                  ('weight', PropertyType.fontWeight),
-                  ('gradient', PropertyType.gradient),
-                  ('style', PropertyType.structured),
-                ], structured: {
-                  'style': 'TextStyle'
-                })
-              : _native,
-          helpers: HelperRegistry())
-      .translate(expression);
+    catalog: custom
+        ? helpers.nativeProbeCatalog(
+            [
+              ('color', PropertyType.color),
+              ('weight', PropertyType.fontWeight),
+              ('gradient', PropertyType.gradient),
+              ('style', PropertyType.structured),
+            ],
+            structured: {'style': 'TextStyle'},
+          )
+        : _native,
+    helpers: HelperRegistry(),
+  ).translate(expression);
 }
 
 BuilderProgram _program(TranslationResult result) {
-  expect(result.issues, isEmpty,
-      reason: result.issues.map((issue) => issue.message).join('\n'));
-  final root = rfw
-      .parseLibraryFile('import restage.core;widget Root=${result.dsl};')
-      .widgets
-      .single
-      .root as rfw.ConstructorCall;
+  expect(
+    result.issues,
+    isEmpty,
+    reason: result.issues.map((issue) => issue.message).join('\n'),
+  );
+  final root =
+      rfw
+              .parseLibraryFile(
+                'import restage.core;widget Root=${result.dsl};',
+              )
+              .widgets
+              .single
+              .root
+          as rfw.ConstructorCall;
   final slot = root.arguments['builder']! as rfw.ConstructorCall;
   return BuilderProgram.decode(slot.arguments['program']! as String);
 }
@@ -61,8 +71,9 @@ final class _NoCaptures implements ValueReader {
 
 Object? _width(BuilderProgram program, double? fontSize) => program
     .invoke(
-        captures: _NoCaptures(),
-        parameters: {'context:theme:defaultTextStyle.fontSize': fontSize})
+      captures: _NoCaptures(),
+      parameters: {'context:theme:defaultTextStyle.fontSize': fontSize},
+    )
     .values
     .values
     .single;
@@ -115,14 +126,22 @@ void main() {
         'weight:$value',
         'style:TextStyle(color:$value,fontWeight:$value)',
       ]) {
-        final program = _program(await _translate(
+        final program = _program(
+          await _translate(
             '$declaration return Probe($argument);',
-            custom: true));
+            custom: true,
+          ),
+        );
         program.validate();
-        final invocation =
-            program.invoke(captures: _NoCaptures(), parameters: {});
-        expect(invocation.values.values, everyElement(isNull),
-            reason: argument);
+        final invocation = program.invoke(
+          captures: _NoCaptures(),
+          parameters: {},
+        );
+        expect(
+          invocation.values.values,
+          everyElement(isNull),
+          reason: argument,
+        );
       }
     }
   });
@@ -133,23 +152,27 @@ void main() {
       (
         'final dynamic value=DefaultTextStyle.of(context).style.fontWeight;',
         'weight:value',
-        true
+        true,
       ),
       ('final dynamic value=Colors.red;', 'color:forward(value)', false),
       ('final dynamic value=const Color(0xff123456);', 'color:value', false),
       (
         'final dynamic value=const Color(0xff123456);',
         'color:forward(value)',
-        false
+        false,
       ),
       ('final dynamic value=const FontWeight(550);', 'weight:value', false),
     ]) {
-      final result = await _translate('$declaration return Probe($argument);',
-          custom: true);
+      final result = await _translate(
+        '$declaration return Probe($argument);',
+        custom: true,
+      );
       if (rejected) {
-        expect(result.issues.map((issue) => issue.message),
-            contains(contains('runtime subtype')),
-            reason: argument);
+        expect(
+          result.issues.map((issue) => issue.message),
+          contains(contains('runtime subtype')),
+          reason: argument,
+        );
       } else {
         _program(result).validate();
         if (declaration.contains('Colors.red')) {
@@ -158,43 +181,48 @@ void main() {
       }
     }
   });
-  test('dynamic native aliases retain proofs through structured destinations',
-      () async {
-    for (final (initializer, argument, rejected) in [
-      ('Colors.red', 'style:TextStyle(color:value)', false),
-      (
-        'DefaultTextStyle.of(context).style.fontWeight',
-        'style:TextStyle(fontWeight:value)',
-        true
-      ),
-      (
-        'Colors.red',
-        'gradient:LinearGradient(colors:[value,Colors.black])',
-        false
-      ),
-      ('const Color(0xff123456)', 'style:TextStyle(color:value)', false),
-      ('const FontWeight(550)', 'style:TextStyle(fontWeight:value)', false),
-      (
-        'const Color(0xff123456)',
-        'gradient:LinearGradient(colors:[value,Colors.black])',
-        false
-      ),
-    ]) {
-      final result = await _translate(
+  test(
+    'dynamic native aliases retain proofs through structured destinations',
+    () async {
+      for (final (initializer, argument, rejected) in [
+        ('Colors.red', 'style:TextStyle(color:value)', false),
+        (
+          'DefaultTextStyle.of(context).style.fontWeight',
+          'style:TextStyle(fontWeight:value)',
+          true,
+        ),
+        (
+          'Colors.red',
+          'gradient:LinearGradient(colors:[value,Colors.black])',
+          false,
+        ),
+        ('const Color(0xff123456)', 'style:TextStyle(color:value)', false),
+        ('const FontWeight(550)', 'style:TextStyle(fontWeight:value)', false),
+        (
+          'const Color(0xff123456)',
+          'gradient:LinearGradient(colors:[value,Colors.black])',
+          false,
+        ),
+      ]) {
+        final result = await _translate(
           'final dynamic value=$initializer; return Probe($argument);',
-          custom: true);
-      if (rejected) {
-        expect(result.issues.map((issue) => issue.message),
+          custom: true,
+        );
+        if (rejected) {
+          expect(
+            result.issues.map((issue) => issue.message),
             contains(contains('runtime subtype')),
-            reason: argument);
-      } else {
-        _program(result).validate();
-        if (initializer == 'Colors.red') {
-          expect(result.dsl, contains('material: "red"'), reason: argument);
+            reason: argument,
+          );
+        } else {
+          _program(result).validate();
+          if (initializer == 'Colors.red') {
+            expect(result.dsl, contains('material: "red"'), reason: argument);
+          }
         }
       }
-    }
-  });
+    },
+  );
   test('dynamic nullable aliases match native nullable arguments', () async {
     for (final declaration in [
       'final dynamic width=DefaultTextStyle.of(context).style.fontSize;',
@@ -202,26 +230,36 @@ void main() {
       'final dynamic value=DefaultTextStyle.of(context).style.fontSize; final dynamic width=forward(value);',
     ]) {
       final program = _program(
-          await _translate('$declaration return SizedBox(width:width);'));
+        await _translate('$declaration return SizedBox(width:width);'),
+      );
       for (final value in [null, 12.25]) {
         expect(_width(program, value), _nativeDynamic(value));
       }
     }
-    final nullAlias = _program(await _translate(
-        'final Null width=null; return SizedBox(width:width);'));
+    final nullAlias = _program(
+      await _translate('final Null width=null; return SizedBox(width:width);'),
+    );
     expect(_width(nullAlias, null), isNull);
   });
-  test('dynamic alias fixes preserve authored assertions and actual promotions',
-      () async {
-    final asserted = _program(await _translate(
-        'final dynamic width=DefaultTextStyle.of(context).style.fontSize; return SizedBox(width:width!);'));
-    expect(() => _nativeAsserted(null), throwsA(isA<TypeError>()));
-    expect(() => _width(asserted, null), throwsA(isA<TypeError>()));
-    expect(_width(asserted, 12.25), _nativeAsserted(12.25));
-    final promoted = _program(await _translate(
-        'final double? width=DefaultTextStyle.of(context).style.fontSize; if(width==null) return const SizedBox(width:1.0); return SizedBox(width:width + 1.0);'));
-    for (final value in [null, 12.25]) {
-      expect(_width(promoted, value), _nativePromoted(value));
-    }
-  });
+  test(
+    'dynamic alias fixes preserve authored assertions and actual promotions',
+    () async {
+      final asserted = _program(
+        await _translate(
+          'final dynamic width=DefaultTextStyle.of(context).style.fontSize; return SizedBox(width:width!);',
+        ),
+      );
+      expect(() => _nativeAsserted(null), throwsA(isA<TypeError>()));
+      expect(() => _width(asserted, null), throwsA(isA<TypeError>()));
+      expect(_width(asserted, 12.25), _nativeAsserted(12.25));
+      final promoted = _program(
+        await _translate(
+          'final double? width=DefaultTextStyle.of(context).style.fontSize; if(width==null) return const SizedBox(width:1.0); return SizedBox(width:width + 1.0);',
+        ),
+      );
+      for (final value in [null, 12.25]) {
+        expect(_width(promoted, value), _nativePromoted(value));
+      }
+    },
+  );
 }

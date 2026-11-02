@@ -39,11 +39,13 @@ List<Issue> syntacticErrorIssues(
       issues.add(
         Issue(
           code: IssueCode.malformedSourceInput,
-          message: 'Syntax error: ${diagnostic.message} Fix the '
+          message:
+              'Syntax error: ${diagnostic.message} Fix the '
               'malformed source — codegen otherwise recovers from the bad '
               'token and may silently drop the affected value from the '
               'emitted blob.',
-          location: '$sourcePath@'
+          location:
+              '$sourcePath@'
               '${location.lineNumber}:${location.columnNumber}',
         ),
       );

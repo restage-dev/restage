@@ -54,29 +54,31 @@ void main() {
     expect(issue.message, isNot(contains('RestageProperty default source')));
   });
 
-  test('Widgetbook unsupported defaults recommend only effective remedies',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/private_default.dart'),
-      _source,
-    );
+  test(
+    'Widgetbook unsupported defaults recommend only effective remedies',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/private_default.dart'),
+        _source,
+      );
 
-    await testBuilder(
-      const _StoryPlanProbeBuilder(),
-      const {'apps_examples|lib/private_default.dart': _source},
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      outputs: {
-        'apps_examples|lib/custom.stories.dart': decodedMatches(
-          'Bad state: Widgetbook seed at /constructorDefaults/label cannot '
-          'reproduce constructor default _privateLabel. $_remediation',
-        ),
-      },
-    );
-  });
+      await testBuilder(
+        const _StoryPlanProbeBuilder(),
+        const {'apps_examples|lib/private_default.dart': _source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/custom.stories.dart': decodedMatches(
+            'Bad state: Widgetbook seed at /constructorDefaults/label cannot '
+            'reproduce constructor default _privateLabel. $_remediation',
+          ),
+        },
+      );
+    },
+  );
 }
 
 final class _StoryPlanProbeBuilder implements Builder {
@@ -84,8 +86,8 @@ final class _StoryPlanProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['custom.stories.dart'],
-      };
+    r'$lib$': ['custom.stories.dart'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

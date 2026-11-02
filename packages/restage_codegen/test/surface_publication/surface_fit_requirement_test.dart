@@ -251,8 +251,9 @@ void main() {
     final compiled = await _compile({
       ...sources,
       '$_package|lib/surfaces/acme_surfaces.dart': _acmeSurfaces,
-      _catalogAsset:
-          catalogReader.testing.readString(AssetId.parse(_catalogAsset)),
+      _catalogAsset: catalogReader.testing.readString(
+        AssetId.parse(_catalogAsset),
+      ),
     });
     expect(
       compiled.result.succeeded,
@@ -260,8 +261,9 @@ void main() {
       reason: compiled.result.errors.join('\n'),
     );
     for (final slug in ['acme_screen', 'acme_paywall']) {
-      final capabilities = _fit(compiled.readerWriter, slug)['capabilities']!
-          as Map<String, Object?>;
+      final capabilities =
+          _fit(compiled.readerWriter, slug)['capabilities']!
+              as Map<String, Object?>;
       expect(
         capabilities['requiredLibraries'],
         contains(
@@ -325,8 +327,10 @@ void main() {
     expect(
       compiled.result.errors.join('\n'),
       allOf(
-        contains('[${IssueCode.surfaceFitUnavailable.name}] '
-            'lib/features/goal.dart:'),
+        contains(
+          '[${IssueCode.surfaceFitUnavailable.name}] '
+          'lib/features/goal.dart:',
+        ),
         contains('chosen'),
       ),
     );

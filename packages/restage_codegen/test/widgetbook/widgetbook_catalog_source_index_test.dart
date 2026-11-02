@@ -93,9 +93,10 @@ void main() {
     );
   });
 
-  test('rejects unsupported structured leaves with an owning property path',
-      () async {
-    const source = '''
+  test(
+    'rejects unsupported structured leaves with an owning property path',
+    () async {
+      const source = '''
       import 'package:flutter/widgets.dart';
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -119,34 +120,36 @@ void main() {
         Widget build(BuildContext context) => const SizedBox();
       }
     ''';
-    final sources = {'apps_examples|lib/custom_card.dart': source};
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/custom_card.dart'),
-      source,
-    );
+      final sources = {'apps_examples|lib/custom_card.dart': source};
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/custom_card.dart'),
+        source,
+      );
 
-    await testBuilder(
-      const _IndexProbeBuilder(),
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      outputs: {
-        'apps_examples|lib/widgetbook_index.txt': decodedMatches(
-          allOf(
-            contains("property 'data' targets 'CustomData'"),
-            contains('type denylisted: Locale on CustomData.locale'),
+      await testBuilder(
+        const _IndexProbeBuilder(),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/widgetbook_index.txt': decodedMatches(
+            allOf(
+              contains("property 'data' targets 'CustomData'"),
+              contains('type denylisted: Locale on CustomData.locale'),
+            ),
           ),
-        ),
-      },
-    );
-  });
+        },
+      );
+    },
+  );
 
-  test('rejects direct scalar lists at their constructor-property path',
-      () async {
-    const source = '''
+  test(
+    'rejects direct scalar lists at their constructor-property path',
+    () async {
+      const source = '''
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
       /// Custom tags.
@@ -162,17 +165,18 @@ void main() {
         final List<String> tags;
       }
     ''';
-    final result = await runWidgetVisitorOn(
-      {'lib/custom_tags.dart': source},
-      target: WidgetVisitorTarget.widgetbook,
-    );
+      final result = await runWidgetVisitorOn(
+        {'lib/custom_tags.dart': source},
+        target: WidgetVisitorTarget.widgetbook,
+      );
 
-    final issue = result.issues.singleWhere(
-      (candidate) => candidate.code == IssueCode.unsupportedPropertyType,
-    );
-    expect(issue.location, 'lib/custom_tags.dart#CustomTags.tags');
-    expect(issue.message, contains('automatic Widgetbook stories'));
-  });
+      final issue = result.issues.singleWhere(
+        (candidate) => candidate.code == IssueCode.unsupportedPropertyType,
+      );
+      expect(issue.location, 'lib/custom_tags.dart#CustomTags.tags');
+      expect(issue.message, contains('automatic Widgetbook stories'));
+    },
+  );
 
   test('source properties may share the metadata sidebar labels', () async {
     const source = r'''
@@ -220,9 +224,10 @@ void main() {
     );
   });
 
-  test('A2UI-only evaluation failures do not gate Widgetbook indexing',
-      () async {
-    const source = '''
+  test(
+    'A2UI-only evaluation failures do not gate Widgetbook indexing',
+    () async {
+      const source = '''
       import 'package:flutter/widgets.dart';
       import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -245,34 +250,36 @@ void main() {
         Widget build(BuildContext context) => Text(label);
       }
     ''';
-    final sources = {'apps_examples|lib/isolated_card.dart': source};
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/isolated_card.dart'),
-      source,
-    );
+      final sources = {'apps_examples|lib/isolated_card.dart': source};
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/isolated_card.dart'),
+        source,
+      );
 
-    await testBuilder(
-      const _IndexProbeBuilder(),
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      outputs: {
-        'apps_examples|lib/widgetbook_index.txt': decodedMatches(
-          allOf(
-            contains('widgets=IsolatedCard'),
-            contains('usage=IsolatedCard:A target-isolation probe.'),
+      await testBuilder(
+        const _IndexProbeBuilder(),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/widgetbook_index.txt': decodedMatches(
+            allOf(
+              contains('widgets=IsolatedCard'),
+              contains('usage=IsolatedCard:A target-isolation probe.'),
+            ),
           ),
-        ),
-      },
-    );
-  });
+        },
+      );
+    },
+  );
 
-  test('does not guess Widgetbook collisions without namespace evidence',
-      () async {
-    const source = '''
+  test(
+    'does not guess Widgetbook collisions without namespace evidence',
+    () async {
+      const source = '''
       import 'package:flutter/widgets.dart';
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -290,34 +297,36 @@ void main() {
         Widget build(BuildContext context) => Text(label);
       }
     ''';
-    final sources = {'apps_examples|lib/meta.dart': source};
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/meta.dart'),
-      source,
-    );
+      final sources = {'apps_examples|lib/meta.dart': source};
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/meta.dart'),
+        source,
+      );
 
-    await testBuilder(
-      const _IndexProbeBuilder(),
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      outputs: {
-        'apps_examples|lib/widgetbook_index.txt': decodedMatches(
-          allOf(
-            contains('widgets=Meta'),
-            isNot(contains('Meta=source class name')),
+      await testBuilder(
+        const _IndexProbeBuilder(),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/widgetbook_index.txt': decodedMatches(
+            allOf(
+              contains('widgets=Meta'),
+              isNot(contains('Meta=source class name')),
+            ),
           ),
-        ),
-      },
-    );
-  });
+        },
+      );
+    },
+  );
 
-  test('Widgetbook keeps same-name widgets and screens on distinct paths',
-      () async {
-    const source = '''
+  test(
+    'Widgetbook keeps same-name widgets and screens on distinct paths',
+    () async {
+      const source = '''
       import 'package:flutter/widgets.dart';
       import 'package:restage/restage.dart';
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -344,39 +353,40 @@ void main() {
         Widget build(BuildContext context) => const SizedBox.shrink();
       }
     ''';
-    const pubspec = '''
+      const pubspec = '''
 name: apps_examples
 dependencies:
   flutter: any
   restage: any
   rfw_catalog_schema: any
 ''';
-    final sources = <String, String>{
-      'apps_examples|lib/onboarding/screens/shared.dart': source,
-      'apps_examples|pubspec.yaml': pubspec,
-    };
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-
-    await runWithNativeScreenPackageGraphForTesting(
-      packageGraphSource: _screenSourcePackageGraph,
-      body: () => testBuilder(
-        const _IndexProbeBuilder(),
-        sources,
+      final sources = <String, String>{
+        'apps_examples|lib/onboarding/screens/shared.dart': source,
+        'apps_examples|pubspec.yaml': pubspec,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|lib/widgetbook_index.txt': decodedMatches(
-            allOf(
-              contains('widgets=shared'),
-              contains('screens=shared'),
+      );
+
+      await runWithNativeScreenPackageGraphForTesting(
+        packageGraphSource: _screenSourcePackageGraph,
+        body: () => testBuilder(
+          const _IndexProbeBuilder(),
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|lib/widgetbook_index.txt': decodedMatches(
+              allOf(
+                contains('widgets=shared'),
+                contains('screens=shared'),
+              ),
             ),
-          ),
-        },
-      ),
-    );
-  });
+          },
+        ),
+      );
+    },
+  );
 
   test(
     'Widgetbook indexes package-wide canonical screens with implicit and '
@@ -581,8 +591,8 @@ final class _IndexProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['widgetbook_index.txt'],
-      };
+    r'$lib$': ['widgetbook_index.txt'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -593,18 +603,18 @@ final class _IndexProbeBuilder implements Builder {
       )
       ..writeln(
         'usage=${index.widgets.map(
-              (widget) => '${widget.entry.name}:${widget.usage}',
-            ).join('|')}',
+          (widget) => '${widget.entry.name}:${widget.usage}',
+        ).join('|')}',
       )
       ..writeln(
         'screens=${index.nativeScreens.map(
-              (screen) => screen.entry.name,
-            ).join(',')}',
+          (screen) => screen.entry.name,
+        ).join(',')}',
       )
       ..writeln(
         'structured=${index.structuredTypes.map(
-              (entry) => entry.name,
-            ).join(',')}',
+          (entry) => entry.name,
+        ).join(',')}',
       );
     for (final entry in index.slotTargets.entries) {
       out.writeln('${entry.key}=>${entry.value}');

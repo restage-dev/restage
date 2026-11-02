@@ -9,22 +9,26 @@ import 'helpers.dart';
 
 void main() {
   final translator = ExpressionTranslator(
-      catalog: catalogWith([
-        entry(
-            name: 'Text',
-            flutterType: 'package:flutter/src/widgets/text.dart#Text',
-            properties: [
-              prop('text', PropertyType.string, positional: true),
-              prop('maxLines', PropertyType.integer),
-              prop('semanticsLabel', PropertyType.string),
-              prop('locale', PropertyType.locale),
-            ]),
-      ]),
-      helpers: HelperRegistry());
+    catalog: catalogWith([
+      entry(
+        name: 'Text',
+        flutterType: 'package:flutter/src/widgets/text.dart#Text',
+        properties: [
+          prop('text', PropertyType.string, positional: true),
+          prop('maxLines', PropertyType.integer),
+          prop('semanticsLabel', PropertyType.string),
+          prop('locale', PropertyType.locale),
+        ],
+      ),
+    ]),
+    helpers: HelperRegistry(),
+  );
 
-  Future<TranslationResult> run(String body,
-      {String declarations = '',
-      List<CustomWidgetStateField> state = const []}) async {
+  Future<TranslationResult> run(
+    String body, {
+    String declarations = '',
+    List<CustomWidgetStateField> state = const [],
+  }) async {
     final expr = await parseExpressionFromSourceForTest('''
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -35,14 +39,19 @@ Object x() => $body;
   }
 
   void expectNative(TranslationResult result) {
-    expect(result.issues.where((i) => !i.code.isBuildNotice), isEmpty,
-        reason: result.issues.map((i) => i.message).join('\n'));
+    expect(
+      result.issues.where((i) => !i.code.isBuildNotice),
+      isEmpty,
+      reason: result.issues.map((i) => i.message).join('\n'),
+    );
     expect(result.dsl, startsWith('Text('));
     expect(result.dsl, contains('intl.number.format'));
     expect(result.dsl, isNot(contains('RestagePrice(')));
     expect(result.dsl, isNot(contains('RestageFormattedNumber(')));
-    expect(result.issues.map((i) => i.code),
-        isNot(contains(IssueCode.idiomAutoSubstituted)));
+    expect(
+      result.issues.map((i) => i.code),
+      isNot(contains(IssueCode.idiomAutoSubstituted)),
+    );
   }
 
   test('currency and decimal formatting remain native Text values', () async {
@@ -59,48 +68,58 @@ Object x() => $body;
 
   test('all authored Text properties remain on Text', () async {
     final result = await run(
-        r"Text(NumberFormat.currency(locale: 'en_US', symbol: r'$', decimalDigits: 2).format(9.99), maxLines: 2, semanticsLabel: 'price', locale: Locale('en'))");
+      r"Text(NumberFormat.currency(locale: 'en_US', symbol: r'$', decimalDigits: 2).format(9.99), maxLines: 2, semanticsLabel: 'price', locale: Locale('en'))",
+    );
     expectNative(result);
     expect(result.dsl, contains('maxLines: 2'));
     expect(result.dsl, contains('semanticsLabel: "price"'));
     expect(result.dsl, contains('locale:'));
   });
 
-  test('resolved Flutter keys retain the ordinary constructor treatment',
-      () async {
-    final result = await run(
-        "Text(NumberFormat().format(1234.5), key: const ValueKey<String>('formatted-number'))");
-    expectNative(result);
-    expect(result.dsl, isNot(contains('key:')));
-  });
-
-  test('both int and double state values keep their native numeric type',
-      () async {
-    for (final (type, value) in [('int', 1), ('double', 9.99)]) {
+  test(
+    'resolved Flutter keys retain the ordinary constructor treatment',
+    () async {
       final result = await run(
+        "Text(NumberFormat().format(1234.5), key: const ValueKey<String>('formatted-number'))",
+      );
+      expectNative(result);
+      expect(result.dsl, isNot(contains('key:')));
+    },
+  );
+
+  test(
+    'both int and double state values keep their native numeric type',
+    () async {
+      for (final (type, value) in [('int', 1), ('double', 9.99)]) {
+        final result = await run(
           'Text(NumberFormat.decimalPattern().format(amount))',
           declarations: '$type amount = $value;',
           state: [
             CustomWidgetStateField(
-                name: 'amount',
-                isNumeric: type == 'double',
-                initialValue: value)
-          ]);
-      expectNative(result);
-      expect(result.dsl, contains('state.amount'));
-    }
-  });
+              name: 'amount',
+              isNumeric: type == 'double',
+              initialValue: value,
+            ),
+          ],
+        );
+        expectNative(result);
+        expect(result.dsl, contains('state.amount'));
+      }
+    },
+  );
 
   test('unresolved runtime configuration remains a located refusal', () async {
     final result = await run(
-        'Text(NumberFormat.currency(locale: unknownLocale).format(9.99))');
+      'Text(NumberFormat.currency(locale: unknownLocale).format(9.99))',
+    );
     expect(result.issues.where((i) => !i.code.isBuildNotice), isNotEmpty);
     expect(result.dsl, isNot(contains('intl.number.format')));
   });
 
-  test('a resolved NumberFormat lookalike never becomes an intl value',
-      () async {
-    final expr = await parseExpressionFromSourceForTest('''
+  test(
+    'a resolved NumberFormat lookalike never becomes an intl value',
+    () async {
+      final expr = await parseExpressionFromSourceForTest('''
 import 'package:flutter/material.dart';
 class NumberFormat {
   NumberFormat.currency();
@@ -108,8 +127,9 @@ class NumberFormat {
 }
 Object x() => Text(NumberFormat.currency().format(9.99));
 ''', rootPackage: 'apps_examples');
-    final result = translator.translate(expr);
-    expect(result.dsl, isNot(contains('intl.number')));
-    expect(result.issues.where((i) => !i.code.isBuildNotice), isNotEmpty);
-  });
+      final result = translator.translate(expr);
+      expect(result.dsl, isNot(contains('intl.number')));
+      expect(result.issues.where((i) => !i.code.isBuildNotice), isNotEmpty);
+    },
+  );
 }

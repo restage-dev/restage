@@ -6,25 +6,24 @@ import 'package:test/test.dart';
 RestageSourceDeclaration _declaration(
   RestageRosterSourceKind kind,
   String? legacyAnnotation,
-) =>
-    RestageSourceDeclaration(
-      kind: kind,
-      libraryIdentity: 'package:app/source.dart',
-      libraryPath: 'lib/source.dart',
-      declarationIdentity: 'package:app/source.dart#Source',
-      sourcePath: 'lib/source.dart',
-      explicitId: 'source',
-      span: const RestageSourceSpan(
-        path: 'lib/source.dart',
-        startLine: 1,
-        startColumn: 1,
-        endLine: 1,
-        endColumn: 1,
-      ),
-      identityClaims: const [],
-      outputs: const [],
-      legacyAnnotation: legacyAnnotation,
-    );
+) => RestageSourceDeclaration(
+  kind: kind,
+  libraryIdentity: 'package:app/source.dart',
+  libraryPath: 'lib/source.dart',
+  declarationIdentity: 'package:app/source.dart#Source',
+  sourcePath: 'lib/source.dart',
+  explicitId: 'source',
+  span: const RestageSourceSpan(
+    path: 'lib/source.dart',
+    startLine: 1,
+    startColumn: 1,
+    endLine: 1,
+    endColumn: 1,
+  ),
+  identityClaims: const [],
+  outputs: const [],
+  legacyAnnotation: legacyAnnotation,
+);
 
 void main() {
   test('names the annotation a source uses and its replacement', () {

@@ -1,0 +1,22 @@
+version: 1
+transforms:
+  - title: 'Register catalogs as a list'
+    date: 2026-10-31
+    element:
+      uris: ['restage_a2ui.dart', 'src/pre_render_check.dart']
+      constructor: ''
+      inClass: 'RestageA2uiPreRenderCheck'
+    changes:
+      - kind: 'addParameter'
+        index: 0
+        name: 'catalogs'
+        style: optional_named
+        argumentValue:
+          expression: '[{% catalog %}]'
+          requiredIf: "catalog != ''"
+      - kind: 'removeParameter'
+        name: 'catalog'
+    variables:
+      catalog:
+        kind: 'fragment'
+        value: 'arguments[catalog]'

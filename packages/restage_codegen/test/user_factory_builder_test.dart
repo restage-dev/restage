@@ -18,9 +18,10 @@ import 'helpers.dart';
 
 void main() {
   group('UserFactoryBuilder', () {
-    test('emits user_factories.g.dart when @RestageWidget classes are found',
-        () async {
-      const widgetSource = '''
+    test(
+      'emits user_factories.g.dart when @RestageWidget classes are found',
+      () async {
+        const widgetSource = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         @RestageWidget(
@@ -36,75 +37,75 @@ void main() {
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'restage_codegen',
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/widgets/acme_badge.dart'),
-        widgetSource,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'restage_codegen',
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/widgets/acme_badge.dart'),
+          widgetSource,
+        );
 
-      await testBuilder(
-        const UserFactoryBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/widgets/acme_badge.dart': widgetSource},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|lib/user_factories.g.dart': decodedMatches(
-            allOf([
-              contains('GENERATED CODE - DO NOT MODIFY BY HAND'),
-              contains("import 'package:flutter/widgets.dart'"),
-              contains(
-                "import 'package:restage/restage.dart'",
-              ),
-              // Generated file does not import rfw directly — the SDK
-              // re-exports DataSource / ArgumentDecoders /
-              // LocalWidgetBuilder, so the custom package isn't
-              // required to depend on rfw.
-              isNot(contains("import 'package:rfw/rfw.dart'")),
-              contains(
-                "import 'package:apps_examples/widgets/acme_badge.dart'",
-              ),
-              contains('void registerRestageWidgets({'),
-              contains(
-                "@Deprecated('Use registerRestageWidgets; removed in 3.0')",
-              ),
-              contains(
-                'void registerRestageCustomerWidgets() => '
-                'registerRestageWidgets();',
-              ),
-              predicate<String>(
-                (source) =>
-                    RegExp(r'void registerRestageWidgets\(\{')
-                        .allMatches(source)
-                        .length ==
-                    1,
-                'contains one registration implementation body',
-              ),
-              contains("WidgetLibrary.custom('acme.design_system')"),
-              contains(
-                "RestageWidgetFactory(name: 'AcmeBadge', "
-                'builder: _buildAcmeBadge)',
-              ),
-              contains(
-                'Widget _buildAcmeBadge(BuildContext context, '
-                'DataSource source)',
-              ),
-              // An all-simple-property package (no structured
-              // types) still emits the custom library aliased (`as s0`),
-              // so the constructor must be qualified with that alias. A
-              // bare `AcmeBadge(...)` reference is undefined under the
-              // prefixed import and fails analysis.
-              contains('return s0.AcmeBadge('),
-              isNot(contains('return AcmeBadge(')),
-            ]),
-          ),
-        },
-      );
-    });
+        await testBuilder(
+          const UserFactoryBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/widgets/acme_badge.dart': widgetSource},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|lib/user_factories.g.dart': decodedMatches(
+              allOf([
+                contains('GENERATED CODE - DO NOT MODIFY BY HAND'),
+                contains("import 'package:flutter/widgets.dart'"),
+                contains(
+                  "import 'package:restage/restage.dart'",
+                ),
+                // Generated file does not import rfw directly — the SDK
+                // re-exports DataSource / ArgumentDecoders /
+                // LocalWidgetBuilder, so the custom package isn't
+                // required to depend on rfw.
+                isNot(contains("import 'package:rfw/rfw.dart'")),
+                contains(
+                  "import 'package:apps_examples/widgets/acme_badge.dart'",
+                ),
+                contains('void registerRestageWidgets({'),
+                contains(
+                  "@Deprecated('Use registerRestageWidgets; removed in 3.0')",
+                ),
+                contains(
+                  'void registerRestageCustomerWidgets() => '
+                  'registerRestageWidgets();',
+                ),
+                predicate<String>(
+                  (source) =>
+                      RegExp(
+                        r'void registerRestageWidgets\(\{',
+                      ).allMatches(source).length ==
+                      1,
+                  'contains one registration implementation body',
+                ),
+                contains("WidgetLibrary.custom('acme.design_system')"),
+                contains(
+                  "RestageWidgetFactory(name: 'AcmeBadge', "
+                  'builder: _buildAcmeBadge)',
+                ),
+                contains(
+                  'Widget _buildAcmeBadge(BuildContext context, '
+                  'DataSource source)',
+                ),
+                // An all-simple-property package (no structured
+                // types) still emits the custom library aliased (`as s0`),
+                // so the constructor must be qualified with that alias. A
+                // bare `AcmeBadge(...)` reference is undefined under the
+                // prefixed import and fails analysis.
+                contains('return s0.AcmeBadge('),
+                isNot(contains('return AcmeBadge(')),
+              ]),
+            ),
+          },
+        );
+      },
+    );
 
-    test(
-        'generated user_factories.g.dart ANALYZES CLEAN for an all-simple '
+    test('generated user_factories.g.dart ANALYZES CLEAN for an all-simple '
         'package with no structured-type properties', () async {
       // The durable net: a string pin on the aliased call shape is
       // analyze-blind as a class, so this resolves the generated library
@@ -167,8 +168,9 @@ void main() {
           final library = await resolver.libraryFor(
             AssetId('apps_examples', 'lib/user_factories.g.dart'),
           );
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
+          final resolved = await library.session.getResolvedLibraryByElement(
+            library,
+          );
           if (resolved is! ResolvedLibraryResult) {
             throw StateError(
               'Generated user_factories.g.dart did not resolve.',
@@ -183,7 +185,8 @@ void main() {
           expect(
             errors,
             isEmpty,
-            reason: 'generated factories must analyze clean; a bare '
+            reason:
+                'generated factories must analyze clean; a bare '
                 'constructor under a prefixed import is undefined_function',
           );
         },
@@ -192,9 +195,11 @@ void main() {
       );
     });
 
-    test('same-named cross-library widget constructors analyze clean',
-        () async {
-      String widgetSource(String catalogName) => '''
+    test(
+      'same-named cross-library widget constructors analyze clean',
+      () async {
+        String widgetSource(String catalogName) =>
+            '''
         import 'package:flutter/widgets.dart';
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -212,64 +217,66 @@ void main() {
           Widget build(BuildContext context) => Text(label);
         }
       ''';
-      final firstSource = widgetSource('FirstBadge');
-      final secondSource = widgetSource('SecondBadge');
-      final sources = {
-        'apps_examples|lib/widgets/first_badge.dart': firstSource,
-        'apps_examples|lib/widgets/second_badge.dart': secondSource,
-      };
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      for (final entry in sources.entries) {
-        final path = entry.key.substring(entry.key.indexOf('|') + 1);
-        readerWriter.testing.writeString(
-          AssetId('apps_examples', path),
-          entry.value,
+        final firstSource = widgetSource('FirstBadge');
+        final secondSource = widgetSource('SecondBadge');
+        final sources = {
+          'apps_examples|lib/widgets/first_badge.dart': firstSource,
+          'apps_examples|lib/widgets/second_badge.dart': secondSource,
+        };
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
         );
-      }
-
-      final result = await testBuilders(
-        [const UserFactoryBuilder(BuilderOptions.empty)],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-      final generated = result.readerWriter.testing.readString(
-        AssetId('apps_examples', 'lib/user_factories.g.dart'),
-      );
-      expect(generated, contains('return s0.Badge('));
-      expect(generated, contains('return s1.Badge('));
-
-      await resolveWorkspaceSources(
-        {
-          ...sources,
-          'apps_examples|lib/user_factories.g.dart': generated,
-        },
-        (resolver) async {
-          final library = await resolver.libraryFor(
-            AssetId('apps_examples', 'lib/user_factories.g.dart'),
+        for (final entry in sources.entries) {
+          final path = entry.key.substring(entry.key.indexOf('|') + 1);
+          readerWriter.testing.writeString(
+            AssetId('apps_examples', path),
+            entry.value,
           );
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
-          if (resolved is! ResolvedLibraryResult) {
-            throw StateError(
-              'Same-name generated user_factories.g.dart did not resolve.',
+        }
+
+        final result = await testBuilders(
+          [const UserFactoryBuilder(BuilderOptions.empty)],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+        final generated = result.readerWriter.testing.readString(
+          AssetId('apps_examples', 'lib/user_factories.g.dart'),
+        );
+        expect(generated, contains('return s0.Badge('));
+        expect(generated, contains('return s1.Badge('));
+
+        await resolveWorkspaceSources(
+          {
+            ...sources,
+            'apps_examples|lib/user_factories.g.dart': generated,
+          },
+          (resolver) async {
+            final library = await resolver.libraryFor(
+              AssetId('apps_examples', 'lib/user_factories.g.dart'),
             );
-          }
-          final errors = [
-            for (final unit in resolved.units)
-              for (final diagnostic in unit.diagnostics)
-                if (diagnostic.severity == Severity.error)
-                  diagnostic.problemMessage.messageText(includeUrl: false),
-          ];
-          expect(errors, isEmpty, reason: generated);
-        },
-        resolverFor: 'apps_examples|lib/user_factories.g.dart',
-        rootPackage: 'apps_examples',
-      );
-    });
+            final resolved = await library.session.getResolvedLibraryByElement(
+              library,
+            );
+            if (resolved is! ResolvedLibraryResult) {
+              throw StateError(
+                'Same-name generated user_factories.g.dart did not resolve.',
+              );
+            }
+            final errors = [
+              for (final unit in resolved.units)
+                for (final diagnostic in unit.diagnostics)
+                  if (diagnostic.severity == Severity.error)
+                    diagnostic.problemMessage.messageText(includeUrl: false),
+            ];
+            expect(errors, isEmpty, reason: generated);
+          },
+          resolverFor: 'apps_examples|lib/user_factories.g.dart',
+          rootPackage: 'apps_examples',
+        );
+      },
+    );
 
     test('case-distinct constructor presence locals analyze clean', () async {
       const widgetSource = r'''
@@ -330,8 +337,9 @@ void main() {
           final library = await resolver.libraryFor(
             AssetId('apps_examples', 'lib/user_factories.g.dart'),
           );
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
+          final resolved = await library.session.getResolvedLibraryByElement(
+            library,
+          );
           if (resolved is! ResolvedLibraryResult) {
             throw StateError(
               'Case-distinct generated user_factories.g.dart did not resolve.',
@@ -351,12 +359,12 @@ void main() {
     });
 
     test(
-        'the derived scope emits user_factories.g.dart with the whole-app '
-        'vocabulary when the package declares no @RestageWidget class',
-        () async {
-      // Nothing mounts this screen, and it carries no Restage annotation, so
-      // only the wider `lib/**.dart` scan sees the widgets and icons it names.
-      const reserveSource = '''
+      'the derived scope emits user_factories.g.dart with the whole-app '
+      'vocabulary when the package declares no @RestageWidget class',
+      () async {
+        // Nothing mounts this screen, and it carries no Restage annotation, so
+        // only the wider `lib/**.dart` scan sees the widgets and icons it names.
+        const reserveSource = '''
         import 'package:flutter/material.dart';
 
         class ReserveScreen extends StatelessWidget {
@@ -369,57 +377,57 @@ void main() {
         }
       ''';
 
-      // The scan resolves the fixture, so the Flutter sources have to be
-      // loaded — hence `apps_examples` rather than the dart-only root.
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/screens/reserve.dart'),
-        reserveSource,
-      );
+        // The scan resolves the fixture, so the Flutter sources have to be
+        // loaded — hence `apps_examples` rather than the dart-only root.
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/screens/reserve.dart'),
+          reserveSource,
+        );
 
-      await testBuilder(
-        _derivedCatalogBuilder,
-        {'apps_examples|lib/screens/reserve.dart': reserveSource},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|lib/user_factories.g.dart': decodedMatches(
-            allOf([
-              contains('GENERATED CODE - DO NOT MODIFY BY HAND'),
-              contains("import 'package:restage/restage.dart';"),
-              // The rebuilt icon names only IconData, which the SDK
-              // re-exports, so the generated file imports no icon library.
-              isNot(contains("import 'package:flutter/material.dart'")),
-              contains('const SurfaceVocabulary kRestageAppVocabulary ='),
-              contains("'Column': buildColumn"),
-              contains("'Text': buildText"),
-              _packs(
-                contains("0xe156:IconData(0xe156,fontFamily:'MaterialIcons'"),
-              ),
-              contains(
-                '  void call({\n'
-                '    bool includeMaterial = true,\n'
-                '    bool includeCupertino = true,\n'
-                '  }) {\n'
-                '    kRestageAppVocabulary.addToInstalled('
-                'explicitSelection: true);\n'
-                '  }',
-              ),
-              // The derived scope leaves the rest of the built-in catalog out
-              // of the build.
-              isNot(contains('buildRow')),
-              isNot(contains('RestageWidgetLibraries.builtIn(')),
-              isNot(contains('builtInIconTable(')),
-            ]),
-          ),
-        },
-      );
-    });
+        await testBuilder(
+          _derivedCatalogBuilder,
+          {'apps_examples|lib/screens/reserve.dart': reserveSource},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|lib/user_factories.g.dart': decodedMatches(
+              allOf([
+                contains('GENERATED CODE - DO NOT MODIFY BY HAND'),
+                contains("import 'package:restage/restage.dart';"),
+                // The rebuilt icon names only IconData, which the SDK
+                // re-exports, so the generated file imports no icon library.
+                isNot(contains("import 'package:flutter/material.dart'")),
+                contains('const SurfaceVocabulary kRestageAppVocabulary ='),
+                contains("'Column': buildColumn"),
+                contains("'Text': buildText"),
+                _packs(
+                  contains("0xe156:IconData(0xe156,fontFamily:'MaterialIcons'"),
+                ),
+                contains(
+                  '  void call({\n'
+                  '    bool includeMaterial = true,\n'
+                  '    bool includeCupertino = true,\n'
+                  '  }) {\n'
+                  '    kRestageAppVocabulary.addToInstalled('
+                  'explicitSelection: true);\n'
+                  '  }',
+                ),
+                // The derived scope leaves the rest of the built-in catalog out
+                // of the build.
+                isNot(contains('buildRow')),
+                isNot(contains('RestageWidgetLibraries.builtIn(')),
+                isNot(contains('builtInIconTable(')),
+              ]),
+            ),
+          },
+        );
+      },
+    );
 
-    test(
-        'the default scope installs the whole built-in catalog and both icon '
+    test('the default scope installs the whole built-in catalog and both icon '
         'tables before the derived set', () async {
       const reserveSource = '''
         import 'package:flutter/material.dart';
@@ -552,8 +560,7 @@ void main() {
       );
     });
 
-    test(
-        'the app vocabulary carries a catalog entry only the compiled surface '
+    test('the app vocabulary carries a catalog entry only the compiled surface '
         'names', () async {
       // The source writes an interpolated `Text`, which the compiler lowers to
       // the rich-text catalog entry. That entry is nowhere in the Dart, so it
@@ -610,8 +617,7 @@ void main() {
       );
     });
 
-    test(
-        'the app vocabulary carries the rich-text entry for an interpolated '
+    test('the app vocabulary carries the rich-text entry for an interpolated '
         'Text that no surface renders', () async {
       // The walk supplies over-the-air headroom for what an app writes in
       // ordinary Flutter code. An interpolated `Text` is delivered as the
@@ -832,8 +838,7 @@ void main() {
       );
     });
 
-    test(
-        'the default build reports the whole-catalog position and the '
+    test('the default build reports the whole-catalog position and the '
         'opt-down, once', () async {
       const homeSource = '''
         import 'package:flutter/material.dart';
@@ -867,9 +872,10 @@ void main() {
 
       final summaries = messages
           .where(
-            (message) =>
-                message.contains('Restage: generated registration includes '
-                    'the whole built-in catalog'),
+            (message) => message.contains(
+              'Restage: generated registration includes '
+              'the whole built-in catalog',
+            ),
           )
           .toList();
       expect(summaries, hasLength(1));
@@ -900,9 +906,10 @@ void main() {
       );
     });
 
-    test('the derived build per-group costs ride the log --verbose shows',
-        () async {
-      const homeSource = '''
+    test(
+      'the derived build per-group costs ride the log --verbose shows',
+      () async {
+        const homeSource = '''
         import 'package:flutter/material.dart';
 
         class Home extends StatelessWidget {
@@ -913,51 +920,53 @@ void main() {
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/screens/home.dart'),
-        homeSource,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/screens/home.dart'),
+          homeSource,
+        );
 
-      final messages = <String>[];
-      await testBuilder(
-        _derivedCatalogBuilder,
-        {'apps_examples|lib/screens/home.dart': homeSource},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        // Builder messages below a warning reach a log listener only when the
-        // build is verbose.
-        verbose: true,
-        onLog: (record) => messages.add(record.message),
-      );
+        final messages = <String>[];
+        await testBuilder(
+          _derivedCatalogBuilder,
+          {'apps_examples|lib/screens/home.dart': homeSource},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          // Builder messages below a warning reach a log listener only when the
+          // build is verbose.
+          verbose: true,
+          onLog: (record) => messages.add(record.message),
+        );
 
-      final groups = messages
-          .where((message) => message.contains('text entry (TextField'))
-          .toList();
-      expect(groups, hasLength(1));
-      expect(
-        groups.single,
-        allOf([
-          contains(
-            'text entry (TextField, CupertinoTextField, '
-            'CupertinoSearchTextField)',
-          ),
-          contains('backdrop filter (BackdropFilter)'),
-        ]),
-      );
+        final groups = messages
+            .where((message) => message.contains('text entry (TextField'))
+            .toList();
+        expect(groups, hasLength(1));
+        expect(
+          groups.single,
+          allOf([
+            contains(
+              'text entry (TextField, CupertinoTextField, '
+              'CupertinoSearchTextField)',
+            ),
+            contains('backdrop filter (BackdropFilter)'),
+          ]),
+        );
 
-      // The summary is still there, and is not duplicated.
-      expect(
-        messages.where((message) => message.contains('Restage: a surface')),
-        hasLength(1),
-      );
-    });
+        // The summary is still there, and is not duplicated.
+        expect(
+          messages.where((message) => message.contains('Restage: a surface')),
+          hasLength(1),
+        );
+      },
+    );
 
-    test('a package whose pubspec does not depend on the SDK emits nothing',
-        () async {
-      const widgetSource = '''
+    test(
+      'a package whose pubspec does not depend on the SDK emits nothing',
+      () async {
+        const widgetSource = '''
         import 'package:flutter/widgets.dart';
 
         class Badge extends StatelessWidget {
@@ -968,85 +977,88 @@ void main() {
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'restage_codegen',
-      );
-      readerWriter.testing
-        ..writeString(
-          AssetId('apps_examples', 'lib/widgets/badge.dart'),
-          widgetSource,
-        )
-        ..writeString(
-          AssetId('apps_examples', 'pubspec.yaml'),
-          'name: acme_catalog\n'
-          '\n'
-          'dependencies:\n'
-          '  flutter:\n'
-          '    sdk: flutter\n'
-          '  restage_shared: ^2.0.0\n',
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'restage_codegen',
+        );
+        readerWriter.testing
+          ..writeString(
+            AssetId('apps_examples', 'lib/widgets/badge.dart'),
+            widgetSource,
+          )
+          ..writeString(
+            AssetId('apps_examples', 'pubspec.yaml'),
+            'name: acme_catalog\n'
+            '\n'
+            'dependencies:\n'
+            '  flutter:\n'
+            '    sdk: flutter\n'
+            '  restage_shared: ^2.0.0\n',
+          );
+
+        await testBuilder(
+          const UserFactoryBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/widgets/badge.dart': widgetSource},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: const {},
+        );
+      },
+    );
+
+    test(
+      'admitted-then-skipped factory emission is a hard coherence failure',
+      () {
+        const emittableBeforeFailure = WidgetEntry(
+          wireId: WireId.unallocatedWidget,
+          name: 'EmittableBeforeFailure',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.layout,
+          description: 'Valid fixture before the malformed entry.',
+          flutterType: 'package:acme/widgets.dart#EmittableBeforeFailure',
+          childrenSlot: ChildrenSlot.none,
+          properties: <PropertyEntry>[],
+        );
+        const malformedHistorical = WidgetEntry(
+          wireId: WireId.unallocatedWidget,
+          name: 'MalformedHistorical',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.layout,
+          description: 'Historical malformed fixture.',
+          flutterType: 'package:acme/widgets.dart#MalformedHistorical',
+          childrenSlot: ChildrenSlot.single,
+          properties: <PropertyEntry>[],
         );
 
-      await testBuilder(
-        const UserFactoryBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/widgets/badge.dart': widgetSource},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: const {},
-      );
-    });
-
-    test('admitted-then-skipped factory emission is a hard coherence failure',
-        () {
-      const emittableBeforeFailure = WidgetEntry(
-        wireId: WireId.unallocatedWidget,
-        name: 'EmittableBeforeFailure',
-        library: WidgetLibrary.custom('acme.design_system'),
-        category: WidgetCategory.layout,
-        description: 'Valid fixture before the malformed entry.',
-        flutterType: 'package:acme/widgets.dart#EmittableBeforeFailure',
-        childrenSlot: ChildrenSlot.none,
-        properties: <PropertyEntry>[],
-      );
-      const malformedHistorical = WidgetEntry(
-        wireId: WireId.unallocatedWidget,
-        name: 'MalformedHistorical',
-        library: WidgetLibrary.custom('acme.design_system'),
-        category: WidgetCategory.layout,
-        description: 'Historical malformed fixture.',
-        flutterType: 'package:acme/widgets.dart#MalformedHistorical',
-        childrenSlot: ChildrenSlot.single,
-        properties: <PropertyEntry>[],
-      );
-
-      expect(
-        () => emitAdmittedUserFactoriesDart(
-          const <WidgetEntry>[
-            emittableBeforeFailure,
-            malformedHistorical,
-          ],
-        ),
-        throwsA(
-          isA<StateError>()
-              .having(
-                (error) => error.message,
-                'message',
-                allOf(
-                  contains('catalog/factory coherence failure'),
-                  contains('MalformedHistorical'),
-                  contains('package:acme/widgets.dart#MalformedHistorical'),
-                  contains('Catalog names default to the Dart class'),
-                  contains('shared admission predicate'),
-                  contains('No generated output was written'),
+        expect(
+          () => emitAdmittedUserFactoriesDart(
+            const <WidgetEntry>[
+              emittableBeforeFailure,
+              malformedHistorical,
+            ],
+          ),
+          throwsA(
+            isA<StateError>()
+                .having(
+                  (error) => error.message,
+                  'message',
+                  allOf(
+                    contains('catalog/factory coherence failure'),
+                    contains('MalformedHistorical'),
+                    contains('package:acme/widgets.dart#MalformedHistorical'),
+                    contains('Catalog names default to the Dart class'),
+                    contains('shared admission predicate'),
+                    contains('No generated output was written'),
+                  ),
+                )
+                .having(
+                  (error) => error.message,
+                  'manual glue recommendation',
+                  isNot(contains('hand-written')),
                 ),
-              )
-              .having(
-                (error) => error.message,
-                'manual glue recommendation',
-                isNot(contains('hand-written')),
-              ),
-        ),
-      );
-    });
+          ),
+        );
+      },
+    );
   });
 
   group('pubspecDependsOnRestageSdk', () {
@@ -1131,7 +1143,7 @@ String _packed(String source) => source.replaceAll(RegExp(r'\s+'), '');
 
 /// [matcher] applied to the emitted source with its whitespace removed.
 Matcher _packs(Matcher matcher) => isA<String>().having(
-      _packed,
-      'without whitespace',
-      matcher,
-    );
+  _packed,
+  'without whitespace',
+  matcher,
+);

@@ -12,10 +12,10 @@ import '../helpers.dart';
 void main() {
   group('UserA2uiCatalogBuilder — fail-closed-LOUD walk guards', () {
     test(
-        'a custom @RestageWidget claiming a BUILT-IN namespace is rejected '
-        'loud (it would otherwise overwrite the built-in library metadata)',
-        () async {
-      const source = '''
+      'a custom @RestageWidget claiming a BUILT-IN namespace is rejected '
+      'loud (it would otherwise overwrite the built-in library metadata)',
+      () async {
+        const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         @RestageWidget(
@@ -29,32 +29,32 @@ void main() {
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'restage_codegen',
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/spoof.dart'),
-        source,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'restage_codegen',
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/spoof.dart'),
+          source,
+        );
 
-      final logs = <String>[];
-      final result = await testBuilder(
-        UserA2uiCatalogBuilder(BuilderOptions.empty),
-        const {'apps_examples|lib/spoof.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: (record) => logs.add(record.message),
-      );
+        final logs = <String>[];
+        final result = await testBuilder(
+          UserA2uiCatalogBuilder(BuilderOptions.empty),
+          const {'apps_examples|lib/spoof.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          onLog: (record) => logs.add(record.message),
+        );
 
-      expect(result.succeeded, isFalse);
-      expect(
-        logs.join('\n'),
-        contains('declares the built-in namespace "restage.core"'),
-      );
-    });
+        expect(result.succeeded, isFalse);
+        expect(
+          logs.join('\n'),
+          contains('declares the built-in namespace "restage.core"'),
+        );
+      },
+    );
 
-    test(
-        'two conflicting @RestageLibrary capabilityVersion declarations fail '
+    test('two conflicting @RestageLibrary capabilityVersion declarations fail '
         'loud (never nondeterministic last-wins)', () async {
       const fileA = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -97,13 +97,14 @@ void main() {
       expect(result.succeeded, isFalse);
       expect(
         logs.join('\n'),
-        contains('conflicting @RestageLibrary capabilityVersion for '
-            '"acme.widgets"'),
+        contains(
+          'conflicting @RestageLibrary capabilityVersion for '
+          '"acme.widgets"',
+        ),
       );
     });
 
-    test(
-        'a custom structured property whose data class has an '
+    test('a custom structured property whose data class has an '
         'A2UI-unrepresentable field fails the build LOUD rather than '
         'silently dropping the widget', () async {
       // `BadData` is a custom data class (it has a generative constructor
@@ -152,7 +153,8 @@ void main() {
       expect(
         result.succeeded,
         isFalse,
-        reason: 'a structured widget the A2UI emitter cannot represent must '
+        reason:
+            'a structured widget the A2UI emitter cannot represent must '
             'fail the build loud, never silently drop from the catalog',
       );
       expect(logs.join('\n'), contains('BadCard'));

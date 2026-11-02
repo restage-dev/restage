@@ -11,27 +11,29 @@ import 'helpers.dart';
 /// The emitter's own tests supply a vocabulary as a fixture, so they prove
 /// only that it writes what it is given. These drive the real build.
 void main() {
-  test('a generated screen part names only the builders that screen draws',
-      () async {
-    final build = await _build(_drawnWidgetSources);
-    expect(build.result.succeeded, isTrue, reason: build.logs);
+  test(
+    'a generated screen part names only the builders that screen draws',
+    () async {
+      final build = await _build(_drawnWidgetSources);
+      expect(build.result.succeeded, isTrue, reason: build.logs);
 
-    final part = build.result.readerWriter.testing.readString(
-      AssetId(
-        'apps_examples',
-        'lib/onboarding/screens/restage.generated/welcome.restage.g.dart',
-      ),
-    );
-    final packed = _packed(part);
+      final part = build.result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/onboarding/screens/restage.generated/welcome.restage.g.dart',
+        ),
+      );
+      final packed = _packed(part);
 
-    expect(packed, contains('vocabulary:constSurfaceVocabulary('));
-    expect(packed, contains("'Column':buildColumn"));
-    expect(packed, contains("'Text':buildText"));
-    // The rest of the catalog stays out of the app: a widget the screen never
-    // draws is never named.
-    expect(part, isNot(contains('buildRow')));
-    expect(part, isNot(contains('buildChip')));
-  });
+      expect(packed, contains('vocabulary:constSurfaceVocabulary('));
+      expect(packed, contains("'Column':buildColumn"));
+      expect(packed, contains("'Text':buildText"));
+      // The rest of the catalog stays out of the app: a widget the screen never
+      // draws is never named.
+      expect(part, isNot(contains('buildRow')));
+      expect(part, isNot(contains('buildChip')));
+    },
+  );
 
   test('two screens of one flow can share a code point', () async {
     // Icons.trending_flat and Icons.trending_neutral are both 0xe67e and
@@ -43,13 +45,13 @@ void main() {
     expect(build.logs, isNot(contains('IconCodePointCollision')));
 
     String packedPart(String screen) => _packed(
-          build.result.readerWriter.testing.readString(
-            AssetId(
-              'apps_examples',
-              'lib/onboarding/screens/restage.generated/$screen.restage.g.dart',
-            ),
-          ),
-        );
+      build.result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/onboarding/screens/restage.generated/$screen.restage.g.dart',
+        ),
+      ),
+    );
 
     // The mirroring glyph fills the mirrored map, leaving families empty; the
     // ordinary one fills families and leaves the mirrored map off.
@@ -133,7 +135,8 @@ final class $className extends StatelessWidget {
 }
 ''';
 
-String _flowSource(String screens, String transitions) => '''
+String _flowSource(String screens, String transitions) =>
+    '''
 import 'package:restage/restage.dart';
 
 $screens

@@ -89,11 +89,11 @@ final class ScalarNode extends A2uiSchemaNode {
 
   @override
   int get hashCode => Object.hash(
-        type,
-        preserveNumericRuntimeType,
-        occurrenceDescription,
-        nullable,
-      );
+    type,
+    preserveNumericRuntimeType,
+    occurrenceDescription,
+    nullable,
+  );
 }
 
 /// A closed set of string-valued members, resolved from a Dart enum.
@@ -132,12 +132,12 @@ final class EnumNode extends A2uiSchemaNode {
 
   @override
   int get hashCode => Object.hash(
-        const ListEquality<String>().hash(members),
-        dartTypeName,
-        libraryUri,
-        occurrenceDescription,
-        nullable,
-      );
+    const ListEquality<String>().hash(members),
+    dartTypeName,
+    libraryUri,
+    occurrenceDescription,
+    nullable,
+  );
 }
 
 /// A homogeneous list whose items are described by [element].
@@ -182,8 +182,8 @@ final class ObjectNode extends A2uiSchemaNode {
     this.definitionDescription,
     super.occurrenceDescription,
     super.nullable,
-  })  : fields = Map.unmodifiable(fields),
-        required = Set.unmodifiable(required);
+  }) : fields = Map.unmodifiable(fields),
+       required = Set.unmodifiable(required);
 
   /// The named fields and their shapes.
   final Map<String, A2uiSchemaNode> fields;
@@ -206,8 +206,10 @@ final class ObjectNode extends A2uiSchemaNode {
   @override
   bool operator ==(Object other) =>
       other is ObjectNode &&
-      const MapEquality<String, A2uiSchemaNode>()
-          .equals(other.fields, fields) &&
+      const MapEquality<String, A2uiSchemaNode>().equals(
+        other.fields,
+        fields,
+      ) &&
       const SetEquality<String>().equals(other.required, required) &&
       other.defId == defId &&
       other.construction == construction &&
@@ -217,14 +219,14 @@ final class ObjectNode extends A2uiSchemaNode {
 
   @override
   int get hashCode => Object.hash(
-        const MapEquality<String, A2uiSchemaNode>().hash(fields),
-        const SetEquality<String>().hash(required),
-        defId,
-        construction,
-        definitionDescription,
-        occurrenceDescription,
-        nullable,
-      );
+    const MapEquality<String, A2uiSchemaNode>().hash(fields),
+    const SetEquality<String>().hash(required),
+    defId,
+    construction,
+    definitionDescription,
+    occurrenceDescription,
+    nullable,
+  );
 }
 
 /// How an [ObjectNode]'s Dart value is reconstructed from decoded JSON.
@@ -276,17 +278,19 @@ final class A2uiClassConstruction extends A2uiObjectConstruction {
       other.libraryUri == libraryUri &&
       other.dartTypeIdentity == dartTypeIdentity &&
       other.constructorName == constructorName &&
-      const ListEquality<A2uiConstructorParameter>()
-          .equals(other.parameters, parameters);
+      const ListEquality<A2uiConstructorParameter>().equals(
+        other.parameters,
+        parameters,
+      );
 
   @override
   int get hashCode => Object.hash(
-        dartTypeName,
-        libraryUri,
-        dartTypeIdentity,
-        constructorName,
-        const ListEquality<A2uiConstructorParameter>().hash(parameters),
-      );
+    dartTypeName,
+    libraryUri,
+    dartTypeIdentity,
+    constructorName,
+    const ListEquality<A2uiConstructorParameter>().hash(parameters),
+  );
 }
 
 /// A named record built through an inline record literal `(f1: …, f2: …)`.
@@ -394,13 +398,13 @@ final class UnionNode extends A2uiSchemaNode {
 
   @override
   int get hashCode => Object.hash(
-        const ListEquality<A2uiSchemaNode>().hash(variants),
-        discriminatorField,
-        defId,
-        definitionDescription,
-        occurrenceDescription,
-        nullable,
-      );
+    const ListEquality<A2uiSchemaNode>().hash(variants),
+    discriminatorField,
+    defId,
+    definitionDescription,
+    occurrenceDescription,
+    nullable,
+  );
 }
 
 /// A reference to a shared/recursive shape emitted once into the schema

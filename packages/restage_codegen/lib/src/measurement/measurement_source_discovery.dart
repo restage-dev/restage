@@ -19,7 +19,7 @@ enum MeasurementSourceAuthority {
   paywall,
 
   /// An exact `package:restage` `@ScreenSource` root.
-  screen;
+  screen,
 }
 
 /// Whether a source expression yielded a complete static discovery closure.
@@ -28,7 +28,7 @@ enum MeasurementSourceDiscoveryDisposition {
   accepted,
 
   /// A source marker, widget, slot, or structural child was ambiguous.
-  rejected;
+  rejected,
 }
 
 /// Analyzer-owned compiler material for one admitted source root.
@@ -47,16 +47,16 @@ final class MeasurementSourceDiscoveryInput {
     Map<String, String> inlinedCustomWidgetCollectionRefusals = const {},
     Map<Element, Expression> rootLocalBindings = const {},
     Map<Element, HelperDef> rootHelpers = const {},
-  })  : inlinedCustomWidgetBlueprints = Map.unmodifiable(
-          inlinedCustomWidgetBlueprints,
-        ),
-        inlinedCustomWidgetCollectionRefusals = Map.unmodifiable(
-          inlinedCustomWidgetCollectionRefusals,
-        ),
-        rootLocalBindings = Map.unmodifiable(
-          withHelperLocals(rootLocalBindings, rootHelpers.values),
-        ),
-        rootHelpers = Map.unmodifiable(rootHelpers);
+  }) : inlinedCustomWidgetBlueprints = Map.unmodifiable(
+         inlinedCustomWidgetBlueprints,
+       ),
+       inlinedCustomWidgetCollectionRefusals = Map.unmodifiable(
+         inlinedCustomWidgetCollectionRefusals,
+       ),
+       rootLocalBindings = Map.unmodifiable(
+         withHelperLocals(rootLocalBindings, rootHelpers.values),
+       ),
+       rootHelpers = Map.unmodifiable(rootHelpers);
 
   /// Exact source-root annotation authority.
   final MeasurementSourceAuthority authority;
@@ -126,8 +126,8 @@ final class MeasurementDiscoveredNode {
     required this.occurrence,
     required List<String> inlinedCustomWidgetIdentities,
   }) : inlinedCustomWidgetIdentities = List.unmodifiable(
-          inlinedCustomWidgetIdentities,
-        );
+         inlinedCustomWidgetIdentities,
+       );
 
   /// Root source and compiler authority that owns the node.
   final MeasurementSourceProvenance sourceProvenance;
@@ -182,19 +182,19 @@ final class MeasurementSourceDiscoveryResult {
     required List<MeasurementDiscoveredNode> nodes,
     required List<MeasurementDiscoveredEvent> events,
     Set<String> completionEventNames = const {},
-  })  : disposition = MeasurementSourceDiscoveryDisposition.accepted,
-        rejectionReason = null,
-        nodes = List.unmodifiable(nodes),
-        events = List.unmodifiable(events),
-        completionEventNames = Set.unmodifiable(completionEventNames);
+  }) : disposition = MeasurementSourceDiscoveryDisposition.accepted,
+       rejectionReason = null,
+       nodes = List.unmodifiable(nodes),
+       events = List.unmodifiable(events),
+       completionEventNames = Set.unmodifiable(completionEventNames);
 
   MeasurementSourceDiscoveryResult._rejected({required String reason})
-      : disposition = MeasurementSourceDiscoveryDisposition.rejected,
-        rejectionReason = reason,
-        sourceProvenance = null,
-        nodes = const [],
-        events = const [],
-        completionEventNames = const {};
+    : disposition = MeasurementSourceDiscoveryDisposition.rejected,
+      rejectionReason = reason,
+      sourceProvenance = null,
+      nodes = const [],
+      events = const [],
+      completionEventNames = const {};
 
   /// Whether the complete static source closure was available.
   final MeasurementSourceDiscoveryDisposition disposition;
@@ -221,7 +221,7 @@ enum MeasurementFlowSourceClosureDisposition {
   accepted,
 
   /// The flow authority or one supplied source artifact was ambiguous.
-  rejected;
+  rejected,
 }
 
 /// Existing flow-compiler output made available to Measurement for closure.
@@ -235,7 +235,7 @@ final class MeasurementFlowSourceClosureInput {
   MeasurementFlowSourceClosureInput({
     required this.flowSourceClass,
     required Iterable<MeasurementSourceDiscoveryResult>
-        staticArtifactDiscoveries,
+    staticArtifactDiscoveries,
   }) : staticArtifactDiscoveries = List.unmodifiable(staticArtifactDiscoveries);
 
   /// Resolved class carrying the exact `@FlowSource` annotation.
@@ -251,17 +251,17 @@ final class MeasurementFlowSourceClosureResult {
     required this.resolvedFlowIdentity,
     required List<MeasurementDiscoveredNode> nodes,
     required List<MeasurementDiscoveredEvent> events,
-  })  : disposition = MeasurementFlowSourceClosureDisposition.accepted,
-        rejectionReason = null,
-        nodes = List.unmodifiable(nodes),
-        events = List.unmodifiable(events);
+  }) : disposition = MeasurementFlowSourceClosureDisposition.accepted,
+       rejectionReason = null,
+       nodes = List.unmodifiable(nodes),
+       events = List.unmodifiable(events);
 
   MeasurementFlowSourceClosureResult._rejected({required String reason})
-      : disposition = MeasurementFlowSourceClosureDisposition.rejected,
-        rejectionReason = reason,
-        resolvedFlowIdentity = null,
-        nodes = const [],
-        events = const [];
+    : disposition = MeasurementFlowSourceClosureDisposition.rejected,
+      rejectionReason = reason,
+      resolvedFlowIdentity = null,
+      nodes = const [],
+      events = const [];
 
   /// Whether the complete static artifact closure was admitted.
   final MeasurementFlowSourceClosureDisposition disposition;
@@ -380,8 +380,9 @@ final class _MeasurementSourceDiscovery {
   _MeasurementSourceDiscovery(this.input);
 
   final MeasurementSourceDiscoveryInput input;
-  late final Set<String> _admittedHelperPackages =
-      artifactHelperPackages(input.catalog);
+  late final Set<String> _admittedHelperPackages = artifactHelperPackages(
+    input.catalog,
+  );
   final List<MeasurementDiscoveredNode> _nodes = [];
   final List<MeasurementDiscoveredEvent> _events = [];
   final Set<String> _nodeKeys = {};
@@ -421,23 +422,23 @@ final class _MeasurementSourceDiscovery {
       events: _events,
       completionEventNames:
           input.authority == MeasurementSourceAuthority.paywall
-              ? measurement_completion.paywallCompletionEvents(
-                  input.sourceClass,
-                )
-              : const {},
+          ? measurement_completion.paywallCompletionEvents(
+              input.sourceClass,
+            )
+          : const {},
     );
   }
 
   MeasurementSourceProvenance _sourceProvenance() {
     final annotationNames = switch (input.authority) {
       MeasurementSourceAuthority.paywall => const {
-          'Paywall',
-          'PaywallSource',
-        },
+        'Paywall',
+        'PaywallSource',
+      },
       MeasurementSourceAuthority.screen => const {
-          'Screen',
-          'ScreenSource',
-        },
+        'Screen',
+        'ScreenSource',
+      },
     };
     if (!_hasResolvedAnnotationFromOriginAny(
       input.sourceClass,
@@ -585,11 +586,17 @@ final class _MeasurementSourceDiscovery {
         );
         continue;
       }
-      if (catalogEntry.properties.any((property) =>
-          property.name == parameterName &&
-          property.type == PropertyType.inlineSpan)) {
-        _visitInlineSpan(value,
-            node: node, context: context, path: [parameterName]);
+      if (catalogEntry.properties.any(
+        (property) =>
+            property.name == parameterName &&
+            property.type == PropertyType.inlineSpan,
+      )) {
+        _visitInlineSpan(
+          value,
+          node: node,
+          context: context,
+          path: [parameterName],
+        );
         continue;
       }
       if (_isFlutterKeyType(parameter.type)) {
@@ -631,11 +638,13 @@ final class _MeasurementSourceDiscovery {
     }
   }
 
-  void _visitInlineSpan(Expression source,
-      {required MeasurementDiscoveredNode node,
-      required _WidgetVisitContext context,
-      required List<Object> path,
-      List<CollectionSemanticOccurrence> collectionOccurrences = const []}) {
+  void _visitInlineSpan(
+    Expression source, {
+    required MeasurementDiscoveredNode node,
+    required _WidgetVisitContext context,
+    required List<Object> path,
+    List<CollectionSemanticOccurrence> collectionOccurrences = const [],
+  }) {
     Expression resolve(Expression value) =>
         _withoutParentheses(_resolvedWidgetSource(value, context).expression);
     bool isNull(Expression source) {
@@ -644,8 +653,9 @@ final class _MeasurementSourceDiscovery {
         return true;
       }
       final element = _referencedElement(value);
-      final variable =
-          element is PropertyAccessorElement ? element.variable : element;
+      final variable = element is PropertyAccessorElement
+          ? element.variable
+          : element;
       return variable is VariableElement &&
           variable.isConst &&
           variable.computeConstantValue()?.isNull == true;
@@ -655,7 +665,8 @@ final class _MeasurementSourceDiscovery {
     if (span is NullLiteral) return;
     if (span is! InstanceCreationExpression)
       throw ArgumentError(
-          'A measured inline span requires a resolved native constructor.');
+        'A measured inline span requires a resolved native constructor.',
+      );
     final spanClass = span.constructorName.type.element;
     if (spanClass is! InterfaceElement ||
         spanClass.name != 'TextSpan' ||
@@ -673,43 +684,53 @@ final class _MeasurementSourceDiscovery {
       if (name == 'recognizer' && !isNull(argument.argumentExpression)) {
         if (isBorrowedTextSpanRecognizer(resolve(argument.argumentExpression)))
           continue;
-        final recipe = readTextSpanRecognizer(argument.argumentExpression,
-            resolve: resolve, bindings: context.plainExpressionBindings.values);
+        final recipe = readTextSpanRecognizer(
+          argument.argumentExpression,
+          resolve: resolve,
+          bindings: context.plainExpressionBindings.values,
+        );
         final constructor = recipe.constructor;
         final recognizerClass = constructor is InstanceCreationExpression
             ? constructor.constructorName.type.element
             : null;
         if (recognizerClass is! InterfaceElement)
           throw ArgumentError(
-              'A measured recognizer requires its native class.');
+            'A measured recognizer requires its native class.',
+          );
         for (final callback in recipe.callbacks.entries) {
           final eventElement = recipe.callbackElements[callback.key];
           if (eventElement == null)
             throw ArgumentError('A measured recognizer callback must resolve.');
           final resolved = _resolvedEventSource(
-              node: node,
-              eventElement: eventElement,
-              value: callback.value,
-              context: context,
-              directOccurrence:
-                  occurrence.widget(spanClass).event(eventElement));
+            node: node,
+            eventElement: eventElement,
+            value: callback.value,
+            context: context,
+            directOccurrence: occurrence.widget(spanClass).event(eventElement),
+          );
           if (isNull(resolved.expression)) continue;
           spanNode ??= _recordNode(
-              context: context.withOccurrenceScope(occurrence),
-              widgetClass: spanClass);
+            context: context.withOccurrenceScope(occurrence),
+            widgetClass: spanClass,
+          );
           _recordResolvedEvent(
-              node: spanNode,
-              resolvedEvent:
-                  MeasurementResolvedFlutterEvent.fromResolvedElements(
-                      widgetClass: recognizerClass, eventElement: eventElement),
-              sourceExpression: resolved.expression,
-              emissionOccurrence: resolved.emissionOccurrence);
+            node: spanNode,
+            resolvedEvent: MeasurementResolvedFlutterEvent.fromResolvedElements(
+              widgetClass: recognizerClass,
+              eventElement: eventElement,
+            ),
+            sourceExpression: resolved.expression,
+            emissionOccurrence: resolved.emissionOccurrence,
+          );
         }
       } else if (name == 'children') {
         final budget = CollectionUnrollBudget();
         final semantics = _collectionSemanticProbe(context);
-        final resolution = semantics.resolve(argument.argumentExpression,
-            context.plainExpressionBindings, budget);
+        final resolution = semantics.resolve(
+          argument.argumentExpression,
+          context.plainExpressionBindings,
+          budget,
+        );
         if (resolution.workLimitExceeded) {
           throw ArgumentError(budget.workRefusal(argument).detail);
         }
@@ -717,19 +738,25 @@ final class _MeasurementSourceDiscovery {
         if (children is NullLiteral) continue;
         if (children is! ListLiteral)
           throw ArgumentError(
-              'Measured span children require an admitted bounded list.');
-        _visitCollectionElements(children,
-            context: context,
-            budget: budget,
-            bindings: resolution.bindings, visit: (child, ordinal) {
-          _visitInlineSpan(child.terminalExpression,
+            'Measured span children require an admitted bounded list.',
+          );
+        _visitCollectionElements(
+          children,
+          context: context,
+          budget: budget,
+          bindings: resolution.bindings,
+          visit: (child, ordinal) {
+            _visitInlineSpan(
+              child.terminalExpression,
               node: node,
               context: context
                   .withCollectionOccurrence(child)
                   .withOccurrenceScope(context.occurrenceScope),
               path: [...path, 'children', ordinal],
-              collectionOccurrences: [...collectionOccurrences, child]);
-        });
+              collectionOccurrences: [...collectionOccurrences, child],
+            );
+          },
+        );
       }
     }
   }
@@ -780,17 +807,20 @@ final class _MeasurementSourceDiscovery {
         'A measurement widget list must be a static literal list',
       );
     }
-    _visitCollectionElements(expression,
-        context: resolved.context,
-        budget: budget,
-        bindings: resolution.bindings, visit: (occurrence, ordinal) {
-      _visitWidgetExpression(
-        occurrence.terminalExpression,
-        resolved.context
-            .child(parent: parent, slot: slot, ordinal: ordinal)
-            .withCollectionOccurrence(occurrence),
-      );
-    });
+    _visitCollectionElements(
+      expression,
+      context: resolved.context,
+      budget: budget,
+      bindings: resolution.bindings,
+      visit: (occurrence, ordinal) {
+        _visitWidgetExpression(
+          occurrence.terminalExpression,
+          resolved.context
+              .child(parent: parent, slot: slot, ordinal: ordinal)
+              .withCollectionOccurrence(occurrence),
+        );
+      },
+    );
   }
 
   void _visitCollectionElements(
@@ -815,10 +845,11 @@ final class _MeasurementSourceDiscovery {
       final occurrences = switch (entry) {
         CollectionListElement(:final occurrence) => [occurrence],
         CollectionListRefusal(:final refusal) => switch (refusal.runtimeIf) {
-            final runtimeIf? => runtimeIf.leafOccurrences.toList(),
-            _ => refusal.runtimeLoop?.template.leafOccurrences.toList() ??
+          final runtimeIf? => runtimeIf.leafOccurrences.toList(),
+          _ =>
+            refusal.runtimeLoop?.template.leafOccurrences.toList() ??
                 (throw ArgumentError(refusal.detail)),
-          },
+        },
       };
       for (final occurrence in occurrences) {
         visit(occurrence, ordinal);
@@ -828,39 +859,39 @@ final class _MeasurementSourceDiscovery {
 
   CollectionSemanticProbe _collectionSemanticProbe(
     _WidgetVisitContext context,
-  ) =>
-      CollectionSemanticProbe(
-        bindingFor: (identifier) {
-          final element = _referencedElement(identifier);
-          final binding =
-              element == null ? null : context.expressionBindings[element];
-          // A widget argument walked where it was passed stays a reference.
-          return binding == null || binding.walkedAtCallSite
-              ? null
-              : binding.expression;
-        },
-        helperFor: (invocation) {
-          if (!isArtifactHelperInvocation(
-            invocation,
-            admittedHelperPackages: _admittedHelperPackages,
-          )) {
-            return null;
-          }
-          final executable = invocation.methodName.element;
-          if (executable == null) return null;
-          final definition = context.helperDefinitions[executable];
-          if (definition == null) return null;
-          final bindings = bindHelperArguments(
-            definition.params,
-            invocation.argumentList.arguments.toList(growable: false),
-          );
-          if (bindings == null) return null;
-          return CollectionResolvedHelper(
-            body: definition.body,
-            parameterBindings: {...definition.localBindings, ...bindings},
-          );
-        },
+  ) => CollectionSemanticProbe(
+    bindingFor: (identifier) {
+      final element = _referencedElement(identifier);
+      final binding = element == null
+          ? null
+          : context.expressionBindings[element];
+      // A widget argument walked where it was passed stays a reference.
+      return binding == null || binding.walkedAtCallSite
+          ? null
+          : binding.expression;
+    },
+    helperFor: (invocation) {
+      if (!isArtifactHelperInvocation(
+        invocation,
+        admittedHelperPackages: _admittedHelperPackages,
+      )) {
+        return null;
+      }
+      final executable = invocation.methodName.element;
+      if (executable == null) return null;
+      final definition = context.helperDefinitions[executable];
+      if (definition == null) return null;
+      final bindings = bindHelperArguments(
+        definition.params,
+        invocation.argumentList.arguments.toList(growable: false),
       );
+      if (bindings == null) return null;
+      return CollectionResolvedHelper(
+        body: definition.body,
+        parameterBindings: {...definition.localBindings, ...bindings},
+      );
+    },
+  );
 
   void _admitOrdinaryLeaf(
     Expression expression,
@@ -1088,7 +1119,8 @@ final class _MeasurementSourceDiscovery {
   ({
     Expression expression,
     MeasurementEventOccurrence emissionOccurrence,
-  }) _resolvedEventSource({
+  })
+  _resolvedEventSource({
     required MeasurementDiscoveredNode node,
     required Element eventElement,
     required Expression value,
@@ -1198,8 +1230,9 @@ final class _MeasurementSourceDiscovery {
     );
     return switch (outcome) {
       ModalSheetBuilderRecognised(:final body) => body,
-      ModalSheetBuilderUnsupported(:final reason) =>
-        throw ArgumentError(reason),
+      ModalSheetBuilderUnsupported(:final reason) => throw ArgumentError(
+        reason,
+      ),
     };
   }
 
@@ -1260,13 +1293,13 @@ final class _MeasurementSourceDiscovery {
   ) {
     final (callable, argumentList) = switch (expression) {
       InstanceCreationExpression() => (
-          expression.constructorName.element,
-          expression.argumentList
-        ),
+        expression.constructorName.element,
+        expression.argumentList,
+      ),
       MethodInvocation() => (
-          expression.methodName.element,
-          expression.argumentList
-        ),
+        expression.methodName.element,
+        expression.argumentList,
+      ),
       _ => throw ArgumentError('A widget requires a resolved callable'),
     };
     if (callable is! ExecutableElement ||
@@ -1362,7 +1395,8 @@ final class _MeasurementSourceDiscovery {
         final binding = _MeasurementExpressionBinding(
           expression: value,
           eventOccurrence: occurrence.event(parameter),
-          walkedAtCallSite: _isWidgetType(parameter.type) ||
+          walkedAtCallSite:
+              _isWidgetType(parameter.type) ||
               _isWidgetListType(parameter.type),
         );
         final previous = bindings[field];
@@ -1386,8 +1420,7 @@ final class _MeasurementSourceDiscovery {
   Expression? _boundWidgetExpression(
     Expression expression,
     _WidgetVisitContext context,
-  ) =>
-      _boundExpression(expression, context)?.expression;
+  ) => _boundExpression(expression, context)?.expression;
 
   _MeasurementExpressionBinding? _boundExpression(
     Expression expression,
@@ -1458,20 +1491,19 @@ final class _WidgetVisitContext {
     Expression rootExpression,
     Map<Element, Expression> rootLocalBindings,
     Map<Element, HelperDef> rootHelpers,
-  ) =>
-      _WidgetVisitContext._(
-        sourceProvenance: provenance,
-        occurrenceScope: MeasurementOccurrenceScope.root(
-          provenance.resolvedSourceIdentity,
-        ),
-        inlinedCustomWidgetIdentities: const [],
-        expressionBindings: _plainExpressionBindings(rootLocalBindings),
-        helperDefinitions: Map.unmodifiable({
-          ...inlinableHelperDefinitionsIn(rootExpression),
-          ...rootHelpers,
-        }),
-        inlinedHelperIdentities: const [],
-      );
+  ) => _WidgetVisitContext._(
+    sourceProvenance: provenance,
+    occurrenceScope: MeasurementOccurrenceScope.root(
+      provenance.resolvedSourceIdentity,
+    ),
+    inlinedCustomWidgetIdentities: const [],
+    expressionBindings: _plainExpressionBindings(rootLocalBindings),
+    helperDefinitions: Map.unmodifiable({
+      ...inlinableHelperDefinitionsIn(rootExpression),
+      ...rootHelpers,
+    }),
+    inlinedHelperIdentities: const [],
+  );
 
   final MeasurementSourceProvenance sourceProvenance;
   final MeasurementOccurrenceScope occurrenceScope;
@@ -1481,9 +1513,9 @@ final class _WidgetVisitContext {
   final List<String> inlinedHelperIdentities;
 
   Map<Element, Expression> get plainExpressionBindings => Map.unmodifiable({
-        for (final entry in expressionBindings.entries)
-          entry.key: entry.value.expression,
-      });
+    for (final entry in expressionBindings.entries)
+      entry.key: entry.value.expression,
+  });
 
   /// The slot scope continues from this context's scope, so a helper entered
   /// before the slot keys the same way it does in the emitted translation.
@@ -1491,16 +1523,16 @@ final class _WidgetVisitContext {
     required MeasurementWidgetOccurrence parent,
     required FormalParameterElement slot,
     required int ordinal,
-  }) =>
-      _WidgetVisitContext._(
-        sourceProvenance: sourceProvenance,
-        occurrenceScope:
-            parent.withScope(occurrenceScope).child(slot, ordinal: ordinal),
-        inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
-        expressionBindings: expressionBindings,
-        helperDefinitions: helperDefinitions,
-        inlinedHelperIdentities: inlinedHelperIdentities,
-      );
+  }) => _WidgetVisitContext._(
+    sourceProvenance: sourceProvenance,
+    occurrenceScope: parent
+        .withScope(occurrenceScope)
+        .child(slot, ordinal: ordinal),
+    inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
+    expressionBindings: expressionBindings,
+    helperDefinitions: helperDefinitions,
+    inlinedHelperIdentities: inlinedHelperIdentities,
+  );
 
   _WidgetVisitContext enterInline({
     required MeasurementWidgetOccurrence parent,
@@ -1533,21 +1565,20 @@ final class _WidgetVisitContext {
     required ExecutableElement helper,
     required String helperIdentity,
     required Map<Element, Expression> parameterBindings,
-  }) =>
-      _WidgetVisitContext._(
-        sourceProvenance: sourceProvenance,
-        occurrenceScope: occurrenceScope.enterHelper(helper),
-        inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
-        expressionBindings: Map.unmodifiable({
-          ...expressionBindings,
-          ..._plainExpressionBindings(parameterBindings),
-        }),
-        helperDefinitions: helperDefinitions,
-        inlinedHelperIdentities: [
-          ...inlinedHelperIdentities,
-          helperIdentity,
-        ],
-      );
+  }) => _WidgetVisitContext._(
+    sourceProvenance: sourceProvenance,
+    occurrenceScope: occurrenceScope.enterHelper(helper),
+    inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
+    expressionBindings: Map.unmodifiable({
+      ...expressionBindings,
+      ..._plainExpressionBindings(parameterBindings),
+    }),
+    helperDefinitions: helperDefinitions,
+    inlinedHelperIdentities: [
+      ...inlinedHelperIdentities,
+      helperIdentity,
+    ],
+  );
 
   _WidgetVisitContext enterConditionalBranch({required bool then}) =>
       withOccurrenceScope(occurrenceScope.enterConditionalBranch(then: then));
@@ -1564,21 +1595,20 @@ final class _WidgetVisitContext {
 
   _WidgetVisitContext withCollectionOccurrence(
     CollectionSemanticOccurrence occurrence,
-  ) =>
-      _WidgetVisitContext._(
-        sourceProvenance: sourceProvenance,
-        occurrenceScope: occurrenceScope.enterCollectionOccurrence(occurrence),
-        inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
-        // Traversal bindings contribute the occurrence's own elements; an
-        // element this context already binds keeps its binding, which carries
-        // the forwarding occurrence a collapsed chain drops.
-        expressionBindings: Map.unmodifiable({
-          ..._plainExpressionBindings(occurrence.bindings),
-          ...expressionBindings,
-        }),
-        helperDefinitions: helperDefinitions,
-        inlinedHelperIdentities: inlinedHelperIdentities,
-      );
+  ) => _WidgetVisitContext._(
+    sourceProvenance: sourceProvenance,
+    occurrenceScope: occurrenceScope.enterCollectionOccurrence(occurrence),
+    inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
+    // Traversal bindings contribute the occurrence's own elements; an
+    // element this context already binds keeps its binding, which carries
+    // the forwarding occurrence a collapsed chain drops.
+    expressionBindings: Map.unmodifiable({
+      ..._plainExpressionBindings(occurrence.bindings),
+      ...expressionBindings,
+    }),
+    helperDefinitions: helperDefinitions,
+    inlinedHelperIdentities: inlinedHelperIdentities,
+  );
 }
 
 final class _ResolvedArgument {
@@ -1604,13 +1634,12 @@ final class _MeasurementExpressionBinding {
 
 Map<Element, _MeasurementExpressionBinding> _plainExpressionBindings(
   Map<Element, Expression> bindings,
-) =>
-    Map<Element, _MeasurementExpressionBinding>.unmodifiable(
-      <Element, _MeasurementExpressionBinding>{
-        for (final entry in bindings.entries)
-          entry.key: _MeasurementExpressionBinding(expression: entry.value),
-      },
-    );
+) => Map<Element, _MeasurementExpressionBinding>.unmodifiable(
+  <Element, _MeasurementExpressionBinding>{
+    for (final entry in bindings.entries)
+      entry.key: _MeasurementExpressionBinding(expression: entry.value),
+  },
+);
 
 final class _ResolvedInlinedHelper {
   const _ResolvedInlinedHelper({
@@ -1666,31 +1695,29 @@ bool _hasResolvedAnnotationFromOrigin(
   Element element, {
   required String annotationName,
   required String libraryOrigin,
-}) =>
-    element.metadata.annotations.any((annotation) {
-      final annotationClass = _annotationClass(annotation);
-      return annotationClass != null &&
-          annotationClass.name == annotationName &&
-          _libraryMatchesOrigin(
-            annotationClass.library.identifier,
-            libraryOrigin,
-          );
-    });
+}) => element.metadata.annotations.any((annotation) {
+  final annotationClass = _annotationClass(annotation);
+  return annotationClass != null &&
+      annotationClass.name == annotationName &&
+      _libraryMatchesOrigin(
+        annotationClass.library.identifier,
+        libraryOrigin,
+      );
+});
 
 bool _hasResolvedAnnotationFromOriginAny(
   Element element, {
   required Set<String> annotationNames,
   required String libraryOrigin,
-}) =>
-    element.metadata.annotations.any((annotation) {
-      final annotationClass = _annotationClass(annotation);
-      return annotationClass != null &&
-          annotationNames.contains(annotationClass.name) &&
-          _libraryMatchesOrigin(
-            annotationClass.library.identifier,
-            libraryOrigin,
-          );
-    });
+}) => element.metadata.annotations.any((annotation) {
+  final annotationClass = _annotationClass(annotation);
+  return annotationClass != null &&
+      annotationNames.contains(annotationClass.name) &&
+      _libraryMatchesOrigin(
+        annotationClass.library.identifier,
+        libraryOrigin,
+      );
+});
 
 InterfaceElement? _annotationClass(ElementAnnotation annotation) {
   final element = annotation.element;
@@ -1715,12 +1742,11 @@ bool _extendsResolvedType(
   InterfaceElement element, {
   required String typeName,
   required String libraryOrigin,
-}) =>
-    _typeChain(element).any(
-      (candidate) =>
-          candidate.name == typeName &&
-          _libraryMatchesOrigin(candidate.library.identifier, libraryOrigin),
-    );
+}) => _typeChain(element).any(
+  (candidate) =>
+      candidate.name == typeName &&
+      _libraryMatchesOrigin(candidate.library.identifier, libraryOrigin),
+);
 
 Iterable<InterfaceElement> _typeChain(InterfaceElement element) sync* {
   yield element;

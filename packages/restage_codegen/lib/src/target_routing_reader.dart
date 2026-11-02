@@ -22,8 +22,8 @@ final class WidgetTargetRoutingFacts {
     required this.enabled,
     required List<String> configuredLocations,
     required List<Issue> issues,
-  })  : configuredLocations = List.unmodifiable(configuredLocations),
-        issues = List.unmodifiable(issues);
+  }) : configuredLocations = List.unmodifiable(configuredLocations),
+       issues = List.unmodifiable(issues);
 
   /// Whether the widget participates in this target.
   final bool enabled;
@@ -55,7 +55,8 @@ WidgetTargetRoutingFacts readWidgetTargetRouting(
   for (final annotation in cls.metadata.annotations) {
     if (!_isConfig(annotation, origin)) continue;
     if (!_writesEnabled(annotation)) continue;
-    final location = '${_annotationSourcePath(annotation, assetId)}#$owner'
+    final location =
+        '${_annotationSourcePath(annotation, assetId)}#$owner'
         '@$annotationName.Config[$classConfigIndex]';
     classConfigIndex++;
     configuredLocations.add(location);
@@ -77,7 +78,8 @@ WidgetTargetRoutingFacts readWidgetTargetRouting(
       issues.add(
         Issue(
           code: IssueCode.missingAnnotationField,
-          message: '$annotationName.Config enabled must be a compile-time '
+          message:
+              '$annotationName.Config enabled must be a compile-time '
               'bool.',
           location: location,
         ),
@@ -88,7 +90,8 @@ WidgetTargetRoutingFacts readWidgetTargetRouting(
     if (current == null) {
       resolved = (value: enabled, location: location);
     } else if (current.value != enabled) {
-      final message = 'Conflicting $annotationName.Config enabled values: '
+      final message =
+          'Conflicting $annotationName.Config enabled values: '
           '${current.value} at ${current.location} and $enabled at $location.';
       if (!issues.any(
         (issue) =>
@@ -165,13 +168,15 @@ void _rejectEnabledPlacement(
   for (final annotation in element.metadata.annotations) {
     if (!_isConfig(annotation, origin)) continue;
     if (!_writesEnabled(annotation)) continue;
-    final location = '${_annotationSourcePath(annotation, assetId)}#'
+    final location =
+        '${_annotationSourcePath(annotation, assetId)}#'
         '$owner.$member@$annotationName.Config[$index]';
     index++;
     issues.add(
       Issue(
         code: IssueCode.invalidTargetConfigPlacement,
-        message: '$annotationName.Config enabled is legal only on a '
+        message:
+            '$annotationName.Config enabled is legal only on a '
             '@RestageWidget class.',
         location: location,
       ),
@@ -207,8 +212,8 @@ bool _writesEnabled(ElementAnnotation annotation) {
   final declaration = parsed.declarations.whereType<ClassDeclaration>().first;
   final arguments = declaration.metadata.single.arguments?.arguments;
   return arguments?.whereType<NamedArgument>().any(
-            (argument) => argument.name.lexeme == 'enabled',
-          ) ??
+        (argument) => argument.name.lexeme == 'enabled',
+      ) ??
       false;
 }
 
@@ -230,13 +235,13 @@ String _annotationSourcePath(
 }
 
 String _configOrigin(EmitTarget target) => switch (target) {
-      EmitTarget.rfw => _rfwConfigOrigin,
-      EmitTarget.a2ui => _a2uiConfigOrigin,
-      EmitTarget.widgetbook => _widgetbookConfigOrigin,
-    };
+  EmitTarget.rfw => _rfwConfigOrigin,
+  EmitTarget.a2ui => _a2uiConfigOrigin,
+  EmitTarget.widgetbook => _widgetbookConfigOrigin,
+};
 
 String _annotationName(EmitTarget target) => switch (target) {
-      EmitTarget.rfw => 'rfw',
-      EmitTarget.a2ui => 'a2ui',
-      EmitTarget.widgetbook => 'wb',
-    };
+  EmitTarget.rfw => 'rfw',
+  EmitTarget.a2ui => 'a2ui',
+  EmitTarget.widgetbook => 'wb',
+};

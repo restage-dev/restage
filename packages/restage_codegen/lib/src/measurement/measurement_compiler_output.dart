@@ -127,24 +127,24 @@ final class MeasurementCompilerPolicyInput {
   /// The policy stamped when the build names none.
   static final MeasurementCompilerPolicyInput shippedDefault =
       MeasurementCompilerPolicyInput(
-    minimumMeasurementClient: kMeasurementDefaultMinimumClient,
-    privacyPolicyRevisionId: AuthorityRevisionId(
-      kMeasurementDefaultPrivacyPolicyRevisionId,
-    ),
-    collectionBudgetRevisionId: AuthorityRevisionId(
-      kMeasurementDefaultCollectionBudgetRevisionId,
-    ),
-  );
+        minimumMeasurementClient: kMeasurementDefaultMinimumClient,
+        privacyPolicyRevisionId: AuthorityRevisionId(
+          kMeasurementDefaultPrivacyPolicyRevisionId,
+        ),
+        collectionBudgetRevisionId: AuthorityRevisionId(
+          kMeasurementDefaultCollectionBudgetRevisionId,
+        ),
+      );
 
   final int minimumMeasurementClient;
   final AuthorityRevisionId privacyPolicyRevisionId;
   final AuthorityRevisionId collectionBudgetRevisionId;
 
   Map<String, Object?> toJson() => {
-        'collectionBudgetRevisionId': collectionBudgetRevisionId.value,
-        'minimumMeasurementClient': minimumMeasurementClient,
-        'privacyPolicyRevisionId': privacyPolicyRevisionId.value,
-      };
+    'collectionBudgetRevisionId': collectionBudgetRevisionId.value,
+    'minimumMeasurementClient': minimumMeasurementClient,
+    'privacyPolicyRevisionId': privacyPolicyRevisionId.value,
+  };
 
   String get cacheKey => utf8.decode(CanonicalJsonCodec.encode(toJson()));
 }
@@ -173,13 +173,12 @@ final class MeasurementPublicationSelectorV1 {
 
   factory MeasurementPublicationSelectorV1.fromPublication(
     SurfacePublication publication,
-  ) =>
-      MeasurementPublicationSelectorV1(
-        surface: publication.surface,
-        slug: publication.slug,
-        sourceKind: publication.sourceKind,
-        contractVersion: publication.contractVersion,
-      );
+  ) => MeasurementPublicationSelectorV1(
+    surface: publication.surface,
+    slug: publication.slug,
+    sourceKind: publication.sourceKind,
+    contractVersion: publication.contractVersion,
+  );
 
   factory MeasurementPublicationSelectorV1.fromJson(Object? value) {
     final json = _object(value, 'publication selector');
@@ -218,26 +217,27 @@ final class MeasurementPublicationSelectorV1 {
   final SurfaceSourceKind sourceKind;
   final int? contractVersion;
 
-  String get key => '${surface.wireName}\u0000$slug\u0000'
+  String get key =>
+      '${surface.wireName}\u0000$slug\u0000'
       '${sourceKind.wireName}\u0000${contractVersion ?? ''}';
 
   /// Stable Measurement identity derived from the frozen publication line.
   SurfaceId get stableSurfaceId => SurfaceId(
-        '$kMintedSurfaceIdPrefix${publicationLineDigestV1(
-          surface: surface.wireName,
-          slug: slug,
-          sourceKind: sourceKind.wireName,
-          contractVersion: contractVersion,
-        )}',
-      );
+    '$kMintedSurfaceIdPrefix${publicationLineDigestV1(
+      surface: surface.wireName,
+      slug: slug,
+      sourceKind: sourceKind.wireName,
+      contractVersion: contractVersion,
+    )}',
+  );
 
   Map<String, Object?> toJson() => {
-        if (sourceKind == SurfaceSourceKind.screen)
-          'contractVersion': contractVersion,
-        'slug': slug,
-        'sourceKind': sourceKind.wireName,
-        'surface': surface.wireName,
-      };
+    if (sourceKind == SurfaceSourceKind.screen)
+      'contractVersion': contractVersion,
+    'slug': slug,
+    'sourceKind': sourceKind.wireName,
+    'surface': surface.wireName,
+  };
 }
 
 /// Persistent compiler identity for one resolved source event slot.
@@ -312,14 +312,14 @@ final class MeasurementCompilerLedgerEvent {
       );
 
   Map<String, Object?> toJson() => {
-        'active': active,
-        'dartSymbol': dartSymbol.value,
-        'displayMetadataRef': displayMetadataRef.value,
-        'generatedReferenceId': generatedReferenceId.value,
-        'lineageId': lineageId.value,
-        'resolvedEventLocator': resolvedEventLocator,
-        'sourceEventIdentity': sourceEventIdentity.value,
-      };
+    'active': active,
+    'dartSymbol': dartSymbol.value,
+    'displayMetadataRef': displayMetadataRef.value,
+    'generatedReferenceId': generatedReferenceId.value,
+    'lineageId': lineageId.value,
+    'resolvedEventLocator': resolvedEventLocator,
+    'sourceEventIdentity': sourceEventIdentity.value,
+  };
 }
 
 /// Persistent source-locator reconciliation entry for one canonical node.
@@ -333,13 +333,12 @@ final class MeasurementCompilerLedgerNode {
     required this.active,
     required Iterable<MeasurementCompilerLedgerEvent> events,
   }) : events = List.unmodifiable(
-          events.toList()
-            ..sort(
-              (left, right) => left.resolvedEventLocator.compareTo(
-                right.resolvedEventLocator,
-              ),
-            ),
-        );
+         events.toList()..sort(
+           (left, right) => left.resolvedEventLocator.compareTo(
+             right.resolvedEventLocator,
+           ),
+         ),
+       );
 
   factory MeasurementCompilerLedgerNode.fromJson(Object? value) {
     final json = _object(value, 'ledger node');
@@ -401,31 +400,29 @@ final class MeasurementCompilerLedgerNode {
     String? reconciliationFingerprint,
     bool? active,
     Iterable<MeasurementCompilerLedgerEvent>? events,
-  }) =>
-      MeasurementCompilerLedgerNode(
-        structuralOccurrenceKey:
-            structuralOccurrenceKey ?? this.structuralOccurrenceKey,
-        parentStructuralOccurrenceKey: clearParent
-            ? null
-            : parentStructuralOccurrenceKey ??
-                this.parentStructuralOccurrenceKey,
-        reconciliationFingerprint:
-            reconciliationFingerprint ?? this.reconciliationFingerprint,
-        codeIdentityId: codeIdentityId,
-        canonicalNodeTokenId: canonicalNodeTokenId,
-        active: active ?? this.active,
-        events: events ?? this.events,
-      );
+  }) => MeasurementCompilerLedgerNode(
+    structuralOccurrenceKey:
+        structuralOccurrenceKey ?? this.structuralOccurrenceKey,
+    parentStructuralOccurrenceKey: clearParent
+        ? null
+        : parentStructuralOccurrenceKey ?? this.parentStructuralOccurrenceKey,
+    reconciliationFingerprint:
+        reconciliationFingerprint ?? this.reconciliationFingerprint,
+    codeIdentityId: codeIdentityId,
+    canonicalNodeTokenId: canonicalNodeTokenId,
+    active: active ?? this.active,
+    events: events ?? this.events,
+  );
 
   Map<String, Object?> toJson() => {
-        'active': active,
-        'canonicalNodeTokenId': canonicalNodeTokenId.value,
-        'codeIdentityId': codeIdentityId.value,
-        'events': [for (final event in events) event.toJson()],
-        'parentStructuralOccurrenceKey': parentStructuralOccurrenceKey,
-        'reconciliationFingerprint': reconciliationFingerprint,
-        'structuralOccurrenceKey': structuralOccurrenceKey,
-      };
+    'active': active,
+    'canonicalNodeTokenId': canonicalNodeTokenId.value,
+    'codeIdentityId': codeIdentityId.value,
+    'events': [for (final event in events) event.toJson()],
+    'parentStructuralOccurrenceKey': parentStructuralOccurrenceKey,
+    'reconciliationFingerprint': reconciliationFingerprint,
+    'structuralOccurrenceKey': structuralOccurrenceKey,
+  };
 }
 
 /// Explicit reviewed relocation from a prior locator to its current locator.
@@ -469,10 +466,10 @@ final class MeasurementCompilerLedgerRelocation {
   final CodeIdentityId codeIdentityId;
 
   Map<String, Object?> toJson() => {
-        'codeIdentityId': codeIdentityId.value,
-        'fromStructuralOccurrenceKey': fromStructuralOccurrenceKey,
-        'toStructuralOccurrenceKey': toStructuralOccurrenceKey,
-      };
+    'codeIdentityId': codeIdentityId.value,
+    'fromStructuralOccurrenceKey': fromStructuralOccurrenceKey,
+    'toStructuralOccurrenceKey': toStructuralOccurrenceKey,
+  };
 }
 
 /// A reviewed declaration that a node is new, so a same-fingerprint retired
@@ -501,8 +498,8 @@ final class MeasurementCompilerLedgerIntroduction {
   final String structuralOccurrenceKey;
 
   Map<String, Object?> toJson() => {
-        'structuralOccurrenceKey': structuralOccurrenceKey,
-      };
+    'structuralOccurrenceKey': structuralOccurrenceKey,
+  };
 }
 
 /// Non-authoritative continuity proposal emitted for review.
@@ -511,8 +508,8 @@ final class MeasurementCompilerLedgerProposal {
     required this.toStructuralOccurrenceKey,
     required Iterable<String> candidatePriorStructuralOccurrenceKeys,
   }) : candidatePriorStructuralOccurrenceKeys = List.unmodifiable(
-          candidatePriorStructuralOccurrenceKeys.toList()..sort(),
-        ) {
+         candidatePriorStructuralOccurrenceKeys.toList()..sort(),
+       ) {
     if (toStructuralOccurrenceKey.isEmpty ||
         this.candidatePriorStructuralOccurrenceKeys.isEmpty ||
         this.candidatePriorStructuralOccurrenceKeys.toSet().length !=
@@ -555,10 +552,10 @@ final class MeasurementCompilerLedgerProposal {
   final List<String> candidatePriorStructuralOccurrenceKeys;
 
   Map<String, Object?> toJson() => {
-        'candidatePriorStructuralOccurrenceKeys':
-            candidatePriorStructuralOccurrenceKeys,
-        'toStructuralOccurrenceKey': toStructuralOccurrenceKey,
-      };
+    'candidatePriorStructuralOccurrenceKeys':
+        candidatePriorStructuralOccurrenceKeys,
+    'toStructuralOccurrenceKey': toStructuralOccurrenceKey,
+  };
 }
 
 /// One final target-neutral Measurement draft selected by one publication line.
@@ -622,10 +619,10 @@ final class MeasurementCompilerPublication {
   final MeasurementPublicationDraftV1 draft;
 
   Map<String, Object?> toJson() => {
-        'draftBase64': _encodeBase64(draft.canonicalBytes),
-        'routePlanBase64': _encodeBase64(routePlan.canonicalBytes),
-        'selector': selector.toJson(),
-      };
+    'draftBase64': _encodeBase64(draft.canonicalBytes),
+    'routePlanBase64': _encodeBase64(routePlan.canonicalBytes),
+    'selector': selector.toJson(),
+  };
 }
 
 /// Strict build-owned Measurement compiler state and publication output.
@@ -638,55 +635,49 @@ final class RestageMeasurementCompilerOutputV1 {
     required Iterable<MeasurementCompilerLedgerNode> ledgerNodes,
     required Iterable<MeasurementCompilerLedgerRelocation> acceptedRelocations,
     required Iterable<MeasurementCompilerLedgerIntroduction>
-        acceptedIntroductions,
+    acceptedIntroductions,
     required Iterable<MeasurementCompilerLedgerProposal> proposals,
     required Iterable<MeasurementCompilerPublication> publications,
     Iterable<MeasurementUnmeasuredPublication> unmeasured = const [],
-  })  : errors = List.unmodifiable(errors.toList()..sort()),
-        unmeasured = List.unmodifiable(
-          unmeasured.toList()
-            ..sort(
-              (left, right) => left.selector.key.compareTo(right.selector.key),
-            ),
-        ),
-        ledgerNodes = List.unmodifiable(
-          ledgerNodes.toList()
-            ..sort(
-              (left, right) => left.codeIdentityId.value.compareTo(
-                right.codeIdentityId.value,
-              ),
-            ),
-        ),
-        acceptedRelocations = List.unmodifiable(
-          acceptedRelocations.toList()
-            ..sort(
-              (left, right) => left.toStructuralOccurrenceKey.compareTo(
-                right.toStructuralOccurrenceKey,
-              ),
-            ),
-        ),
-        acceptedIntroductions = List.unmodifiable(
-          acceptedIntroductions.toList()
-            ..sort(
-              (left, right) => left.structuralOccurrenceKey.compareTo(
-                right.structuralOccurrenceKey,
-              ),
-            ),
-        ),
-        proposals = List.unmodifiable(
-          proposals.toList()
-            ..sort(
-              (left, right) => left.toStructuralOccurrenceKey.compareTo(
-                right.toStructuralOccurrenceKey,
-              ),
-            ),
-        ),
-        publications = List.unmodifiable(
-          publications.toList()
-            ..sort(
-              (left, right) => left.selector.key.compareTo(right.selector.key),
-            ),
-        ) {
+  }) : errors = List.unmodifiable(errors.toList()..sort()),
+       unmeasured = List.unmodifiable(
+         unmeasured.toList()..sort(
+           (left, right) => left.selector.key.compareTo(right.selector.key),
+         ),
+       ),
+       ledgerNodes = List.unmodifiable(
+         ledgerNodes.toList()..sort(
+           (left, right) => left.codeIdentityId.value.compareTo(
+             right.codeIdentityId.value,
+           ),
+         ),
+       ),
+       acceptedRelocations = List.unmodifiable(
+         acceptedRelocations.toList()..sort(
+           (left, right) => left.toStructuralOccurrenceKey.compareTo(
+             right.toStructuralOccurrenceKey,
+           ),
+         ),
+       ),
+       acceptedIntroductions = List.unmodifiable(
+         acceptedIntroductions.toList()..sort(
+           (left, right) => left.structuralOccurrenceKey.compareTo(
+             right.structuralOccurrenceKey,
+           ),
+         ),
+       ),
+       proposals = List.unmodifiable(
+         proposals.toList()..sort(
+           (left, right) => left.toStructuralOccurrenceKey.compareTo(
+             right.toStructuralOccurrenceKey,
+           ),
+         ),
+       ),
+       publications = List.unmodifiable(
+         publications.toList()..sort(
+           (left, right) => left.selector.key.compareTo(right.selector.key),
+         ),
+       ) {
     if (nextIdentitySequence <= 0) {
       throw ArgumentError.value(nextIdentitySequence, 'nextIdentitySequence');
     }
@@ -735,7 +726,8 @@ final class RestageMeasurementCompilerOutputV1 {
     for (final publication in this.publications) {
       if (!publicationKeys.add(publication.selector.key)) {
         throw ArgumentError(
-            'Measurement publication selectors must be unique.');
+          'Measurement publication selectors must be unique.',
+        );
       }
     }
     final introducedKeys = <String>{};
@@ -915,27 +907,26 @@ final class RestageMeasurementCompilerOutputV1 {
       );
 
   Map<String, Object?> toJson() => {
-        'acceptedIntroductions': [
-          for (final introduction in acceptedIntroductions)
-            introduction.toJson(),
-        ],
-        'acceptedRelocations': [
-          for (final relocation in acceptedRelocations) relocation.toJson(),
-        ],
-        'errors': errors,
-        'kind': 'restageMeasurementCompilerOutput',
-        'ledgerNodes': [for (final node in ledgerNodes) node.toJson()],
-        'nextIdentitySequence': nextIdentitySequence,
-        'policy': policy?.toJson(),
-        'proposals': [for (final proposal in proposals) proposal.toJson()],
-        'publications': [
-          for (final publication in publications) publication.toJson(),
-        ],
-        'schemaVersion': 1,
-        if (unmeasured.isNotEmpty)
-          'unmeasured': [for (final entry in unmeasured) entry.toJson()],
-        'valid': valid,
-      };
+    'acceptedIntroductions': [
+      for (final introduction in acceptedIntroductions) introduction.toJson(),
+    ],
+    'acceptedRelocations': [
+      for (final relocation in acceptedRelocations) relocation.toJson(),
+    ],
+    'errors': errors,
+    'kind': 'restageMeasurementCompilerOutput',
+    'ledgerNodes': [for (final node in ledgerNodes) node.toJson()],
+    'nextIdentitySequence': nextIdentitySequence,
+    'policy': policy?.toJson(),
+    'proposals': [for (final proposal in proposals) proposal.toJson()],
+    'publications': [
+      for (final publication in publications) publication.toJson(),
+    ],
+    'schemaVersion': 1,
+    if (unmeasured.isNotEmpty)
+      'unmeasured': [for (final entry in unmeasured) entry.toJson()],
+    'valid': valid,
+  };
 
   Uint8List get canonicalBytes => CanonicalJsonCodec.encode(toJson());
 
@@ -943,23 +934,22 @@ final class RestageMeasurementCompilerOutputV1 {
 
   /// Emits the separate strict draft-only index consumed by tooling.
   Uint8List outputIndexBytes(String packageName) => CanonicalJsonCodec.encode({
-        'entries': [
-          for (final publication in publications)
-            {
-              'draftBase64': _encodeBase64(publication.draft.canonicalBytes),
-              'draftDigest': publication.draft.canonicalDigest.hex,
-              'routePlanDigest':
-                  publication.routePlan.routeDraftClosureDigest.hex,
-              'selector': publication.selector.toJson(),
-              'surfaceId': publication.draft.surfaceId.value,
-            },
-        ],
-        'kind': 'restageMeasurementPublicationIndex',
-        'package': packageName,
-        'schemaVersion': 1,
-        if (unmeasured.isNotEmpty)
-          'unmeasured': [for (final entry in unmeasured) entry.toJson()],
-      });
+    'entries': [
+      for (final publication in publications)
+        {
+          'draftBase64': _encodeBase64(publication.draft.canonicalBytes),
+          'draftDigest': publication.draft.canonicalDigest.hex,
+          'routePlanDigest': publication.routePlan.routeDraftClosureDigest.hex,
+          'selector': publication.selector.toJson(),
+          'surfaceId': publication.draft.surfaceId.value,
+        },
+    ],
+    'kind': 'restageMeasurementPublicationIndex',
+    'package': packageName,
+    'schemaVersion': 1,
+    if (unmeasured.isNotEmpty)
+      'unmeasured': [for (final entry in unmeasured) entry.toJson()],
+  });
 }
 
 /// A publication that compiles without measurement, and why.
@@ -984,9 +974,9 @@ final class MeasurementUnmeasuredPublication {
   final String reason;
 
   Map<String, Object?> toJson() => {
-        'reason': reason,
-        'selector': selector.toJson(),
-      };
+    'reason': reason,
+    'selector': selector.toJson(),
+  };
 }
 
 String _encodeBase64(List<int> bytes) =>

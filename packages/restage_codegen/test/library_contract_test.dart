@@ -16,47 +16,45 @@ PropertyEntry _property(
   PropertyType type = PropertyType.string,
   String description = 'A property.',
   PropertyPriority? priority,
-}) =>
-    PropertyEntry(
-      wireId: WireId.unallocatedProperty,
-      name: name,
-      type: type,
-      description: description,
-      priority: priority,
-    );
+}) => PropertyEntry(
+  wireId: WireId.unallocatedProperty,
+  name: name,
+  type: type,
+  description: description,
+  priority: priority,
+);
 
 const _tone = 'package:app/tone.dart#Tone';
 
 PropertyEntry _toneProperty() => const PropertyEntry(
-      wireId: WireId.unallocatedProperty,
-      name: 'tone',
-      type: PropertyType.enumValue,
-      description: 'The tone.',
-      enumType: 'Tone',
-      valueShape: EnumShape(
-        propertyType: PropertyType.enumValue,
-        enumRef: DartTypeRef(
-          libraryUri: 'package:app/tone.dart',
-          symbolName: 'Tone',
-        ),
-      ),
-    );
+  wireId: WireId.unallocatedProperty,
+  name: 'tone',
+  type: PropertyType.enumValue,
+  description: 'The tone.',
+  enumType: 'Tone',
+  valueShape: EnumShape(
+    propertyType: PropertyType.enumValue,
+    enumRef: DartTypeRef(
+      libraryUri: 'package:app/tone.dart',
+      symbolName: 'Tone',
+    ),
+  ),
+);
 
 WidgetEntry _widget(
   String name,
   List<PropertyEntry> properties, {
   String? flutterType,
-}) =>
-    WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: name,
-      library: _library,
-      category: WidgetCategory.layout,
-      description: 'A widget.',
-      flutterType: flutterType ?? 'package:app/widgets.dart#$name',
-      childrenSlot: ChildrenSlot.none,
-      properties: properties,
-    );
+}) => WidgetEntry(
+  wireId: WireId.unallocatedWidget,
+  name: name,
+  library: _library,
+  category: WidgetCategory.layout,
+  description: 'A widget.',
+  flutterType: flutterType ?? 'package:app/widgets.dart#$name',
+  childrenSlot: ChildrenSlot.none,
+  properties: properties,
+);
 
 /// Builds the app catalog, replaying and extending the shared wire-id log.
 final class _App {
@@ -112,21 +110,20 @@ void main() {
     Catalog catalog, {
     bool write = true,
     Map<String, List<String>> enumMembers = const {},
-  }) =>
-      enforceLibraryContracts(
-        catalog,
-        root: root,
-        write: write,
-        enumMembers: enumMembers,
-      );
+  }) => enforceLibraryContracts(
+    catalog,
+    root: root,
+    write: write,
+    enumMembers: enumMembers,
+  );
 
   Matcher refusedWith(String message) => throwsA(
-        isA<LibraryContractException>().having(
-          (e) => e.lines,
-          'lines',
-          contains(message),
-        ),
-      );
+    isA<LibraryContractException>().having(
+      (e) => e.lines,
+      'lines',
+      contains(message),
+    ),
+  );
 
   final planCard = [
     _widget('PlanCard', [_property('title'), _property('badge')]),
@@ -160,8 +157,10 @@ void main() {
       ),
       {
         'app|check.trigger': '',
-        'app|$contractPath':
-            LibraryContractSnapshot.of(catalog, _library)!.encode(),
+        'app|$contractPath': LibraryContractSnapshot.of(
+          catalog,
+          _library,
+        )!.encode(),
         for (final path in unrelatedPaths) 'app|$path': <int>[0xff],
       },
       rootPackage: 'app',
@@ -256,15 +255,15 @@ void main() {
 
   test('a refused library leaves every draft as it was', () {
     WidgetEntry promo(List<PropertyEntry> properties) => WidgetEntry(
-          wireId: WireId.unallocatedWidget,
-          name: 'Promo',
-          library: const WidgetLibrary.custom('promo'),
-          category: WidgetCategory.layout,
-          description: 'A widget.',
-          flutterType: 'package:app/promo.dart#Promo',
-          childrenSlot: ChildrenSlot.none,
-          properties: properties,
-        );
+      wireId: WireId.unallocatedWidget,
+      name: 'Promo',
+      library: const WidgetLibrary.custom('promo'),
+      category: WidgetCategory.layout,
+      description: 'A widget.',
+      flutterType: 'package:app/promo.dart#Promo',
+      childrenSlot: ChildrenSlot.none,
+      properties: properties,
+    );
     enforce(
       app.build(
         [
@@ -385,8 +384,8 @@ void main() {
         );
         bind(3);
         void build() => enforce(
-              app.build(removed ? planCard : widened, capabilityVersion: 3),
-            );
+          app.build(removed ? planCard : widened, capabilityVersion: 3),
+        );
         if (passes) return build();
         expect(build, throwsA(isA<LibraryContractException>()));
       });
@@ -456,8 +455,10 @@ void main() {
         },
       );
       expect(
-        LibraryContractSnapshot.decode(draft(3).readAsStringSync(), 'v3')
-            .enumMembers,
+        LibraryContractSnapshot.decode(
+          draft(3).readAsStringSync(),
+          'v3',
+        ).enumMembers,
         {
           _tone: ['calm', 'bold'],
         },

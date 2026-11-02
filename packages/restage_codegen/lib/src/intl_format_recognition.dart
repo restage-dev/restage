@@ -17,16 +17,20 @@ bool _dateTimeMember(Element? element) =>
     element?.library?.identifier == 'dart:core';
 
 /// Broad recognition; the lowering below owns exact argument validation.
-bool containsIntlFormatting(Expression expression,
-    {Map<Element, HelperDef> helpers = const {}}) {
+bool containsIntlFormatting(
+  Expression expression, {
+  Map<Element, HelperDef> helpers = const {},
+}) {
   final visitor = _FormattingVisitor(helpers);
   expression.accept(visitor);
   return visitor.found;
 }
 
 /// Detects translation calls before mount-time scalar hoisting can consume them.
-bool containsInstalledIntlTranslation(Expression expression,
-    {Map<Element, HelperDef> helpers = const {}}) {
+bool containsInstalledIntlTranslation(
+  Expression expression, {
+  Map<Element, HelperDef> helpers = const {},
+}) {
   final visitor = _FormattingVisitor(helpers);
   expression.accept(visitor);
   return visitor.installedTranslation;
@@ -66,7 +70,8 @@ final class _FormattingVisitor extends RecursiveAstVisitor<void> {
   void visitFunctionExpressionInvocation(FunctionExpressionInvocation node) {
     if (isInstalledIntlTranslation(node)) installedTranslation = true;
     if (installedIntlLookupFamily(
-            installedNativeFixedInvocation(node)?.target) !=
+          installedNativeFixedInvocation(node)?.target,
+        ) !=
         null) {
       found = true;
     }
@@ -79,7 +84,8 @@ final class _FormattingVisitor extends RecursiveAstVisitor<void> {
     if (isTemporalValueExpression(node)) found = true;
     final member = node.methodName.element;
     if (installedIntlLookupFamily(
-                installedNativeFixedInvocation(node)?.target) !=
+              installedNativeFixedInvocation(node)?.target,
+            ) !=
             null ||
         node.methodName.name == 'format' &&
             (_intlMember(member, 'DateFormat') ||
@@ -115,7 +121,8 @@ bool isInstalledIntlTranslation(Expression expression) {
 
 /// Validates lookup metadata for already-qualified fixed invocation targets.
 Map<Expression, String?> validateInstalledIntlInvocations(
-    Iterable<InstalledNativeInvocation> invocations) {
+  Iterable<InstalledNativeInvocation> invocations,
+) {
   final constantStrings = <Expression, String?>{};
   for (final invocation in invocations) {
     final family = installedIntlLookupFamily(invocation.target);
@@ -128,12 +135,16 @@ Map<Expression, String?> validateInstalledIntlInvocations(
 
 /// Closes lookup authority for callers without native input bindings.
 Map<Expression, String?> validateInstalledIntlTranslation(
-        MethodInvocation expression) =>
-    validateInstalledIntlInvocations(qualifyInstalledNativeCallables(expression,
-        isDeclaredCallable: (_) => false));
+  MethodInvocation expression,
+) => validateInstalledIntlInvocations(
+  qualifyInstalledNativeCallables(expression, isDeclaredCallable: (_) => false),
+);
 
-void _validateInstalledIntlCall(ArgumentList arguments, String family,
-    Map<Expression, String?> constantStrings) {
+void _validateInstalledIntlCall(
+  ArgumentList arguments,
+  String family,
+  Map<Expression, String?> constantStrings,
+) {
   String? fixed(Expression value, {bool allowNull = true}) {
     final constant = installedNativeConstantValue(value);
     final result = constant?.toStringValue();
@@ -141,7 +152,9 @@ void _validateInstalledIntlCall(ArgumentList arguments, String family,
     if (allowNull && constant?.isNull == true)
       return constantStrings[value] = null;
     throw BuilderLoweringException(
-        value, 'Intl translation lookup requires a fixed constant name');
+      value,
+      'Intl translation lookup requires a fixed constant name',
+    );
   }
 
   String? name;
@@ -161,8 +174,10 @@ void _validateInstalledIntlCall(ArgumentList arguments, String family,
         constantStrings[value] = null;
       } else if (args is! ListLiteral ||
           args.elements.any((element) => element is! Expression)) {
-        throw BuilderLoweringException(value,
-            'Intl translation arguments require a fixed typed argument list');
+        throw BuilderLoweringException(
+          value,
+          'Intl translation arguments require a fixed typed argument list',
+        );
       }
     }
   }
@@ -170,8 +185,9 @@ void _validateInstalledIntlCall(ArgumentList arguments, String family,
   // or null. Fix those operands too, closing that payload-selected lookup path.
   if (name == null || name.isEmpty) {
     if (family == 'message') {
-      final text = arguments.arguments
-          .firstWhere((argument) => argument is! NamedArgument);
+      final text = arguments.arguments.firstWhere(
+        (argument) => argument is! NamedArgument,
+      );
       fixed(text.argumentExpression, allowNull: false);
     }
     if (meaning != null) fixed(meaning);
@@ -179,8 +195,11 @@ void _validateInstalledIntlCall(ArgumentList arguments, String family,
 }
 
 /// Extends the shared typed expression lowerer with resolved native operations.
-int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
-    {Expression Function(Expression)? resolve}) {
+int? lowerIntlValue(
+  Expression expression,
+  BuilderExpressionLowering lowerer, {
+  Expression Function(Expression)? resolve,
+}) {
   final temporal = lowerTemporalValue(expression, lowerer);
   if (temporal != null) return temporal;
   final e = expression;
@@ -198,8 +217,11 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
     return result;
   }
 
-  List<(String, Expression)> namedArguments(ArgumentList arguments,
-      List<String> positionalNames, Set<String> namedNames) {
+  List<(String, Expression)> namedArguments(
+    ArgumentList arguments,
+    List<String> positionalNames,
+    Set<String> namedNames,
+  ) {
     final result = <(String, Expression)>[];
     var position = 0;
     for (final argument in arguments.arguments) {
@@ -255,9 +277,9 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
   }
 
   if (e is StringInterpolation &&
-      e.elements
-          .whereType<InterpolationExpression>()
-          .any((part) => _enumIdentity(part.expression.staticType) != null)) {
+      e.elements.whereType<InterpolationExpression>().any(
+        (part) => _enumIdentity(part.expression.staticType) != null,
+      )) {
     final parts = <int>[];
     for (final part in e.elements) {
       if (part is InterpolationString) {
@@ -266,8 +288,10 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
         final type = part.expression.staticType;
         final identity = _enumIdentity(type);
         if (identity != null && _customEnumString(type)) {
-          refuse(part,
-              'A custom enum String conversion requires a native binding');
+          refuse(
+            part,
+            'A custom enum String conversion requires a native binding',
+          );
         }
         final input = lowerer.lower(part.expression);
         final string = add('string', ValueType.string, [input]);
@@ -279,10 +303,17 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
             string,
           ]);
           if (lowerer.nodes[input].type.nullable) {
-            final absent = add('==', ValueType.boolean,
-                [input, literal(null, ValueType.nullType)]);
-            parts.add(add('conditional', ValueType.string,
-                [absent, literal('null', ValueType.string), formatted]));
+            final absent = add('==', ValueType.boolean, [
+              input,
+              literal(null, ValueType.nullType),
+            ]);
+            parts.add(
+              add('conditional', ValueType.string, [
+                absent,
+                literal('null', ValueType.string),
+                formatted,
+              ]),
+            );
           } else {
             parts.add(formatted);
           }
@@ -298,37 +329,51 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
     if (_intlMember(ctor, 'DateFormat')) {
       if (name.isNotEmpty && !dateFormatSkeletons.contains(name))
         refuse(e, 'Unsupported DateFormat constructor');
-      final args = namedArguments(e.argumentList,
-          name.isEmpty ? ['pattern', 'locale'] : ['locale'], {});
-      return add('intl.date.new', dateFormatterValueType, [
-        if (name.isNotEmpty) literal(name, ValueType.string),
-        for (final (_, arg) in args) lowerer.lower(arg),
-      ], {
-        'arguments': [
-          if (name.isNotEmpty) 'pattern',
-          for (final (key, _) in args) key
-        ]
-      });
+      final args = namedArguments(
+        e.argumentList,
+        name.isEmpty ? ['pattern', 'locale'] : ['locale'],
+        {},
+      );
+      return add(
+        'intl.date.new',
+        dateFormatterValueType,
+        [
+          if (name.isNotEmpty) literal(name, ValueType.string),
+          for (final (_, arg) in args) lowerer.lower(arg),
+        ],
+        {
+          'arguments': [
+            if (name.isNotEmpty) 'pattern',
+            for (final (key, _) in args) key,
+          ],
+        },
+      );
     }
     if (_intlMember(ctor, 'NumberFormat')) {
       final types = numberFormatArguments[name];
       if (types == null) refuse(e, 'Unsupported NumberFormat constructor');
       final positional = switch (name) {
         '' => ['pattern', 'locale'],
-        'decimalPattern' || 'percentPattern' || 'scientificPattern' => [
-            'locale'
-          ],
+        'decimalPattern' ||
+        'percentPattern' ||
+        'scientificPattern' => ['locale'],
         'currencyPattern' => ['locale', 'name'],
         _ => <String>[],
       };
-      final args = namedArguments(e.argumentList, positional,
-          positional.isEmpty ? types.keys.toSet() : {});
-      return add('intl.number.new', numberFormatterValueType, [
-        for (final (_, arg) in args) lowerer.lower(arg)
-      ], {
-        'constructor': name,
-        'arguments': [for (final (key, _) in args) key]
-      });
+      final args = namedArguments(
+        e.argumentList,
+        positional,
+        positional.isEmpty ? types.keys.toSet() : {},
+      );
+      return add(
+        'intl.number.new',
+        numberFormatterValueType,
+        [for (final (_, arg) in args) lowerer.lower(arg)],
+        {
+          'constructor': name,
+          'arguments': [for (final (key, _) in args) key],
+        },
+      );
     }
     if (_dateTimeMember(ctor)) {
       if (name == 'now') return null;
@@ -336,25 +381,28 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
         '',
         'utc',
         'fromMillisecondsSinceEpoch',
-        'fromMicrosecondsSinceEpoch'
+        'fromMicrosecondsSinceEpoch',
       }.contains(name)) {
         return refuse(e, 'Unsupported native DateTime constructor');
       }
       final positional = switch (name) {
         '' || 'utc' => [
-            'year',
-            'month',
-            'day',
-            'hour',
-            'minute',
-            'second',
-            'millisecond',
-            'microsecond'
-          ],
+          'year',
+          'month',
+          'day',
+          'hour',
+          'minute',
+          'second',
+          'millisecond',
+          'microsecond',
+        ],
         _ => ['epoch'],
       };
       final args = namedArguments(
-          e.argumentList, positional, name.startsWith('from') ? {'isUtc'} : {});
+        e.argumentList,
+        positional,
+        name.startsWith('from') ? {'isUtc'} : {},
+      );
       if (name.startsWith('from')) {
         final eager = <int>[];
         final bound = <String, int>{};
@@ -366,30 +414,41 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
         final epoch = bound['epoch'];
         if (epoch == null) refuse(e, 'DateTime epoch requires its value');
         return afterArguments(
-            eager,
-            add('intl.datetime.new', dateTimeValueType, [
+          eager,
+          add(
+            'intl.datetime.new',
+            dateTimeValueType,
+            [
               epoch,
               if (bound['isUtc'] case final node?) node,
-            ], {
+            ],
+            {
               'constructor': name,
               'arguments': [if (bound.containsKey('isUtc')) 'isUtc'],
-            }));
+            },
+          ),
+        );
       }
-      return add('intl.datetime.new', dateTimeValueType, [
-        for (final (_, arg) in args) lowerer.lower(arg)
-      ], {
-        'constructor': name,
-        'arguments': <String>[],
-      });
+      return add(
+        'intl.datetime.new',
+        dateTimeValueType,
+        [for (final (_, arg) in args) lowerer.lower(arg)],
+        {
+          'constructor': name,
+          'arguments': <String>[],
+        },
+      );
     }
   }
   if (e is CascadeExpression) {
     final staticType = e.target.staticType;
     final type = staticType is InterfaceType ? staticType.element : null;
-    final date = type != null &&
+    final date =
+        type != null &&
         type.name == 'DateFormat' &&
         type.library.identifier.startsWith('package:intl/');
-    final number = type != null &&
+    final number =
+        type != null &&
         type.name == 'NumberFormat' &&
         type.library.identifier.startsWith('package:intl/');
     if (!date && !number) return null;
@@ -399,10 +458,13 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
     for (final section in e.cascadeSections) {
       if (section is MethodInvocation) {
         final native = _intlMember(
-            section.methodName.element, date ? 'DateFormat' : 'NumberFormat');
+          section.methodName.element,
+          date ? 'DateFormat' : 'NumberFormat',
+        );
         if (!native) refuse(section, 'Unsupported formatter cascade call');
-        target =
-            date ? dateMethod(section, target) : numberMethod(section, target);
+        target = date
+            ? dateMethod(section, target)
+            : numberMethod(section, target);
       } else if (section is AssignmentExpression &&
           section.operator.lexeme == '=') {
         final left = section.leftHandSide;
@@ -410,15 +472,23 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
           refuse(section, 'Unsupported formatter assignment');
         final name = left.propertyName.name;
         if (!_intlMember(
-            section.writeElement, date ? 'DateFormat' : 'NumberFormat')) {
+          section.writeElement,
+          date ? 'DateFormat' : 'NumberFormat',
+        )) {
           refuse(section, 'Unsupported formatter assignment');
         }
         if (date && name == 'useNativeDigits') {
-          target = add('intl.date.digits', dateFormatterValueType,
-              [target, lowerer.lower(section.rightHandSide)]);
+          target = add('intl.date.digits', dateFormatterValueType, [
+            target,
+            lowerer.lower(section.rightHandSide),
+          ]);
         } else if (number && numberFormatSetters.containsKey(name)) {
-          target = add('intl.number.set', numberFormatterValueType,
-              [target, lowerer.lower(section.rightHandSide)], {'setter': name});
+          target = add(
+            'intl.number.set',
+            numberFormatterValueType,
+            [target, lowerer.lower(section.rightHandSide)],
+            {'setter': name},
+          );
         } else {
           refuse(section, 'Unsupported formatter assignment $name');
         }
@@ -440,10 +510,13 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
         e.argumentList.arguments.length == 1 &&
         e.argumentList.arguments.single is! NamedArgument) {
       return add(
-          date ? 'intl.date.format' : 'intl.number.format', ValueType.string, [
-        target,
-        lowerer.lower(e.argumentList.arguments.single.argumentExpression)
-      ]);
+        date ? 'intl.date.format' : 'intl.number.format',
+        ValueType.string,
+        [
+          target,
+          lowerer.lower(e.argumentList.arguments.single.argumentExpression),
+        ],
+      );
     }
     if (!_nonescapingFormatter(e.target!))
       refuse(e, 'Formatter mutation requires a nonescaping constructor recipe');
@@ -456,20 +529,26 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
     final args = namedArguments(e.argumentList, ['source'], {});
     if (args.length != 1) refuse(e, 'Unsupported DateTime.parse arguments');
     return add(
-        'intl.datetime.new',
-        dateTimeValueType,
-        [lowerer.lower(args.single.$2)],
-        {'constructor': 'parse', 'arguments': <String>[]});
+      'intl.datetime.new',
+      dateTimeValueType,
+      [lowerer.lower(args.single.$2)],
+      {'constructor': 'parse', 'arguments': <String>[]},
+    );
   }
   if (_dateTimeMember(member) &&
       const {'toUtc', 'toLocal'}.contains(name) &&
       e.target != null &&
       e.argumentList.arguments.isEmpty) {
-    return add('intl.datetime.zone', dateTimeValueType,
-        [lowerer.lower(e.target!)], {'utc': name == 'toUtc'});
+    return add(
+      'intl.datetime.zone',
+      dateTimeValueType,
+      [lowerer.lower(e.target!)],
+      {'utc': name == 'toUtc'},
+    );
   }
   if (!_intlMember(member, 'Intl') ||
-      !const {'plural', 'gender', 'select'}.contains(name)) return null;
+      !const {'plural', 'gender', 'select'}.contains(name))
+    return null;
   final arguments = e.argumentList.arguments;
   final positional = arguments.where((a) => a is! NamedArgument).toList();
   if (positional.length != (name == 'select' ? 2 : 1))
@@ -492,8 +571,10 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
       final value = argument.argumentExpression;
       if (key == 'name' || key == 'args') {
         if (value is! NullLiteral)
-          refuse(argument,
-              'Named translated messages require a declared native binding');
+          refuse(
+            argument,
+            'Named translated messages require a declared native binding',
+          );
         continue;
       }
       if (const {'desc', 'examples', 'skip'}.contains(key)) {
@@ -503,8 +584,10 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
       }
       if (key == 'meaning') {
         if (installedNativeConstantValue(value)?.isNull != true) {
-          refuse(value,
-              'Translated Intl meaning requires a declared native binding');
+          refuse(
+            value,
+            'Translated Intl meaning requires a declared native binding',
+          );
         }
         final node = literal(null, ValueType.nullType);
         eager.add(node);
@@ -537,20 +620,24 @@ int? lowerIntlValue(Expression expression, BuilderExpressionLowering lowerer,
   final choiceType = positional.first.argumentExpression.staticType;
   if (name == 'select' && _customEnumString(choiceType)) {
     refuse(
-        e, 'An enum with a custom toString requires a native message binding');
+      e,
+      'An enum with a custom toString requires a native message binding',
+    );
   }
   final choiceEnum = _enumIdentity(choiceType);
   return afterArguments(
-      eager,
-      add('intl.$name', ValueType.string, [
-        choice!,
-        ...casesInputs,
-        ...namedInputs
-      ], {
+    eager,
+    add(
+      'intl.$name',
+      ValueType.string,
+      [choice!, ...casesInputs, ...namedInputs],
+      {
         'arguments': named,
         if (name == 'select') 'keys': keys,
         if (name == 'select' && choiceEnum != null) 'choiceEnum': choiceEnum,
-      }));
+      },
+    ),
+  );
 }
 
 bool _inertMetadata(Expression value) {
@@ -558,18 +645,20 @@ bool _inertMetadata(Expression value) {
   if (value is ListLiteral)
     return value.elements.every((e) => e is Expression && _inertMetadata(e));
   if (value is SetOrMapLiteral && value.isMap) {
-    return value.elements.every((e) =>
-        e is MapLiteralEntry &&
-        _inertMetadata(e.key) &&
-        _inertMetadata(e.value));
+    return value.elements.every(
+      (e) =>
+          e is MapLiteralEntry &&
+          _inertMetadata(e.key) &&
+          _inertMetadata(e.value),
+    );
   }
   return false;
 }
 
 String? _enumIdentity(DartType? type) =>
     type is InterfaceType && type.element is EnumElement
-        ? '${type.element.library.identifier}#${type.element.name}'
-        : null;
+    ? '${type.element.library.identifier}#${type.element.name}'
+    : null;
 
 Map<String, Object?>? _enumKey(Expression expression) {
   Element? element = switch (expression) {
@@ -599,25 +688,32 @@ bool isIntlValueExpression(Expression expression) {
     return _intlMember(element, 'DateFormat') ||
         _intlMember(element, 'NumberFormat') ||
         _intlMember(element, 'Intl') &&
-            const {'message', 'plural', 'gender', 'select'}
-                .contains(expression.methodName.name) ||
+            const {
+              'message',
+              'plural',
+              'gender',
+              'select',
+            }.contains(expression.methodName.name) ||
         _dateTimeMember(element) &&
-            const {'parse', 'toUtc', 'toLocal'}
-                .contains(expression.methodName.name);
+            const {
+              'parse',
+              'toUtc',
+              'toLocal',
+            }.contains(expression.methodName.name);
   }
   return expression is CascadeExpression &&
       isIntlValueExpression(expression.target);
 }
 
 bool _nonescapingFormatter(Expression value) => switch (value) {
-      ParenthesizedExpression() => _nonescapingFormatter(value.expression),
-      InstanceCreationExpression() =>
-        _intlMember(value.constructorName.element, 'DateFormat') ||
-            _intlMember(value.constructorName.element, 'NumberFormat'),
-      CascadeExpression() => _nonescapingFormatter(value.target),
-      MethodInvocation(:final target?) => _nonescapingFormatter(target),
-      _ => false,
-    };
+  ParenthesizedExpression() => _nonescapingFormatter(value.expression),
+  InstanceCreationExpression() =>
+    _intlMember(value.constructorName.element, 'DateFormat') ||
+        _intlMember(value.constructorName.element, 'NumberFormat'),
+  CascadeExpression() => _nonescapingFormatter(value.target),
+  MethodInvocation(:final target?) => _nonescapingFormatter(target),
+  _ => false,
+};
 
 /// Whether a resolved value holds native formatter state.
 bool isNativeIntlFormatterType(DartType? type) =>
@@ -627,8 +723,10 @@ bool isNativeIntlFormatterType(DartType? type) =>
 
 bool _customEnumString(DartType? type) {
   if (type is! InterfaceType || type.element is! EnumElement) return false;
-  final method = type.element
-      .lookUpMethod(name: 'toString', library: type.element.library);
+  final method = type.element.lookUpMethod(
+    name: 'toString',
+    library: type.element.library,
+  );
   return method != null &&
       method.isOriginDeclaration &&
       method.library.identifier != 'dart:core';

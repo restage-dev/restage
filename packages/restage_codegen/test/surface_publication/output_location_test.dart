@@ -10,11 +10,17 @@ void main() {
       );
       final source = plan.forLibrary('lib/features/onboarding/welcome.dart');
       expect(
-          plan.outputIndexPath, '.restage/build/metadata/restage.outputs.json');
+        plan.outputIndexPath,
+        '.restage/build/metadata/restage.outputs.json',
+      );
       expect(
-          plan.customCatalogPath, '.restage/build/widget_catalog/catalog.json');
-      expect(plan.packageGeneratedDartPath('restage_a2ui_catalog.g.dart'),
-          'lib/generated/restage_a2ui_catalog.g.dart');
+        plan.customCatalogPath,
+        '.restage/build/widget_catalog/catalog.json',
+      );
+      expect(
+        plan.packageGeneratedDartPath('restage_a2ui_catalog.g.dart'),
+        'lib/generated/restage_a2ui_catalog.g.dart',
+      );
 
       expect(
         source.neutralPartPath,
@@ -54,8 +60,7 @@ void main() {
       );
     });
 
-    test('declares valid adjacent source output paths without capture reuse',
-        () {
+    test('declares valid adjacent source output paths without capture reuse', () {
       final plan = RestageOutputLocationPlan.fromBuilderOptions(
         const BuilderOptions(<String, Object?>{
           'inspection_report': true,
@@ -68,8 +73,10 @@ void main() {
         source.neutralPartPath,
         'lib/features/onboarding/welcome.restage.g.dart',
       );
-      expect(source.bundlePath,
-          '.restage/build/bundles/lib/features/onboarding/welcome.rsbundle');
+      expect(
+        source.bundlePath,
+        '.restage/build/bundles/lib/features/onboarding/welcome.rsbundle',
+      );
       expect(
         source.inspectionReportPath,
         '.restage/build/reports/lib/features/onboarding/welcome.restage.md',
@@ -111,8 +118,7 @@ void main() {
       );
     });
 
-    test('applies Dart, bundle, and portable-root precedence independently',
-        () {
+    test('applies Dart, bundle, and portable-root precedence independently', () {
       final plan = RestageOutputLocationPlan.fromBuilderOptions(
         const BuilderOptions(<String, Object?>{
           'bundled_runtime': true,
@@ -191,7 +197,8 @@ void main() {
         <AssetId>[
           AssetId('fixture', source.neutralPartPath),
         ],
-        reason: 'dart_output_root resolves independently of output_root and '
+        reason:
+            'dart_output_root resolves independently of output_root and '
             'bundled_runtime, matching neutralPartPath exactly.',
       );
     });
@@ -209,39 +216,43 @@ void main() {
       );
     });
 
-    test('rejects an authored source inside the reserved collection directory',
-        () {
-      final plan = RestageOutputLocationPlan.fromBuilderOptions(
-        BuilderOptions.empty,
-      );
-      expect(
-        () => plan.forLibrary(
-          'lib/features/onboarding/restage.generated/welcome.restage.g.dart',
-        ),
-        throwsFormatException,
-      );
-    });
-
-    test('rejects malformed placement options before any output declaration',
-        () {
-      for (final options in <Map<String, Object?>>[
-        <String, Object?>{'source_output_layout': 'flat'},
-        <String, Object?>{'inspection_report': 'true'},
-        <String, Object?>{'bundled_runtime': 1},
-        <String, Object?>{'output_root': '../tool/restage'},
-        <String, Object?>{'output_root': 'tool//restage'},
-        <String, Object?>{'output_root': '.dart_tool/restage'},
-        <String, Object?>{'dart_output_root': 'generated/restage'},
-        <String, Object?>{'dart_output_root': 'lib/.generated/restage'},
-      ]) {
+    test(
+      'rejects an authored source inside the reserved collection directory',
+      () {
+        final plan = RestageOutputLocationPlan.fromBuilderOptions(
+          BuilderOptions.empty,
+        );
         expect(
-          () => RestageOutputLocationPlan.fromBuilderOptions(
-            BuilderOptions(options),
+          () => plan.forLibrary(
+            'lib/features/onboarding/restage.generated/welcome.restage.g.dart',
           ),
           throwsFormatException,
         );
-      }
-    });
+      },
+    );
+
+    test(
+      'rejects malformed placement options before any output declaration',
+      () {
+        for (final options in <Map<String, Object?>>[
+          <String, Object?>{'source_output_layout': 'flat'},
+          <String, Object?>{'inspection_report': 'true'},
+          <String, Object?>{'bundled_runtime': 1},
+          <String, Object?>{'output_root': '../tool/restage'},
+          <String, Object?>{'output_root': 'tool//restage'},
+          <String, Object?>{'output_root': '.dart_tool/restage'},
+          <String, Object?>{'dart_output_root': 'generated/restage'},
+          <String, Object?>{'dart_output_root': 'lib/.generated/restage'},
+        ]) {
+          expect(
+            () => RestageOutputLocationPlan.fromBuilderOptions(
+              BuilderOptions(options),
+            ),
+            throwsFormatException,
+          );
+        }
+      },
+    );
   });
 }
 

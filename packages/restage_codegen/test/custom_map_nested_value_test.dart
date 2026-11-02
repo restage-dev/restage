@@ -64,7 +64,7 @@ const String _source = '''
 ''';
 
 Future<({Map<String, MapPlan> plans, WidgetVisitorResult result})>
-    _walk() async {
+_walk() async {
   final r = await runWidgetVisitorOn({'lib/field_notes.dart': _source});
   return (
     plans: r.mapPlans.map((k, v) => MapEntry(k.split('#').last, v)),
@@ -92,7 +92,8 @@ void main() {
     expect(
       plan.valueShape.propertyType,
       PropertyType.structured,
-      reason: 'the terminal value is the custom data class, not the outer '
+      reason:
+          'the terminal value is the custom data class, not the outer '
           "map's opaque marker",
     );
     expect(plan.valueSourceType, endsWith('#Tier'));
@@ -101,33 +102,35 @@ void main() {
     expect(plan.valueShape.propertyType, isNot(PropertyType.unknown));
   });
 
-  test('the nested slot emits a factory rather than crashing the build',
-      () async {
-    final w = await _walk();
-    final r = w.result;
+  test(
+    'the nested slot emits a factory rather than crashing the build',
+    () async {
+      final w = await _walk();
+      final r = w.result;
 
-    // The emitter is called the way the builder calls it; a StateError here is
-    // an uncaught build crash, not a diagnosed refusal.
-    final source = emitUserFactoriesDart(
-      r.widgets,
-      structuredTypes: r.structuredTypes,
-      slotTargets: r.slotTargets,
-      nullableStructuredSlots: r.nullableStructuredSlots,
-      reconstructionPlans: r.reconstructionPlans,
-      mapPlans: r.mapPlans,
-      recordPlans: r.recordPlans,
-    );
+      // The emitter is called the way the builder calls it; a StateError here is
+      // an uncaught build crash, not a diagnosed refusal.
+      final source = emitUserFactoriesDart(
+        r.widgets,
+        structuredTypes: r.structuredTypes,
+        slotTargets: r.slotTargets,
+        nullableStructuredSlots: r.nullableStructuredSlots,
+        reconstructionPlans: r.reconstructionPlans,
+        mapPlans: r.mapPlans,
+        recordPlans: r.recordPlans,
+      );
 
-    expect(source, isNotNull);
-    // The inner map must re-apply the list guard. Without it a wrong nested
-    // container reads as an empty map, because a non-list length is zero.
-    expect(
-      source,
-      contains("source.isList(<Object>['nested', i0, 'value'])"),
-    );
-    // The reconstructed Dart type carries both layers.
-    expect(source, contains('<String, Map<String, s'));
-  });
+      expect(source, isNotNull);
+      // The inner map must re-apply the list guard. Without it a wrong nested
+      // container reads as an empty map, because a non-list length is zero.
+      expect(
+        source,
+        contains("source.isList(<Object>['nested', i0, 'value'])"),
+      );
+      // The reconstructed Dart type carries both layers.
+      expect(source, contains('<String, Map<String, s'));
+    },
+  );
 
   group('the shapes that already worked are undisturbed', () {
     test('a flat map of a custom data class', () async {

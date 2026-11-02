@@ -15,18 +15,18 @@ import 'helpers.dart';
 
 void main() {
   ExpressionTranslator translator() => ExpressionTranslator(
-        catalog: catalogWith([
-          entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
-          entry(
-            name: 'GestureDetector',
-            properties: [
-              prop('onTap', PropertyType.event),
-              prop('child', PropertyType.widget),
-            ],
-          ),
-        ]),
-        helpers: HelperRegistry()..registerAll(paywallHelpers),
-      );
+    catalog: catalogWith([
+      entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
+      entry(
+        name: 'GestureDetector',
+        properties: [
+          prop('onTap', PropertyType.event),
+          prop('child', PropertyType.widget),
+        ],
+      ),
+    ]),
+    helpers: HelperRegistry()..registerAll(paywallHelpers),
+  );
 
   // An int state field is captured isNumeric:false (only double/num are
   // numeric) with an int initialValue — emitted as a bare int, so the switch
@@ -43,35 +43,39 @@ void main() {
   );
 
   group('int-state equality chains lower to a native N-arm switch', () {
-    test('a 3-tier chain flattens to one switch keyed on the int field',
-        () async {
-      final expr = await parseExpressionForTest(
-        "Text(text: selectedTier == 0 ? 'A' "
-        ": selectedTier == 1 ? 'B' : 'C')",
-      );
-      final result = translator().translate(expr, rootState: [tier]);
-      expect(result.issues, isEmpty);
-      expect(
-        result.dsl,
-        contains(
-          'text: switch state.selectedTier '
-          '{ 0: "A", 1: "B", default: "C" }',
-        ),
-      );
-    });
+    test(
+      'a 3-tier chain flattens to one switch keyed on the int field',
+      () async {
+        final expr = await parseExpressionForTest(
+          "Text(text: selectedTier == 0 ? 'A' "
+          ": selectedTier == 1 ? 'B' : 'C')",
+        );
+        final result = translator().translate(expr, rootState: [tier]);
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          contains(
+            'text: switch state.selectedTier '
+            '{ 0: "A", 1: "B", default: "C" }',
+          ),
+        );
+      },
+    );
 
-    test('a single comparison in a 2-arm conditional lowers to a 2-arm switch',
-        () async {
-      final expr = await parseExpressionForTest(
-        "Text(text: selectedTier == 0 ? 'A' : 'B')",
-      );
-      final result = translator().translate(expr, rootState: [tier]);
-      expect(result.issues, isEmpty);
-      expect(
-        result.dsl,
-        contains('text: switch state.selectedTier { 0: "A", default: "B" }'),
-      );
-    });
+    test(
+      'a single comparison in a 2-arm conditional lowers to a 2-arm switch',
+      () async {
+        final expr = await parseExpressionForTest(
+          "Text(text: selectedTier == 0 ? 'A' : 'B')",
+        );
+        final result = translator().translate(expr, rootState: [tier]);
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          contains('text: switch state.selectedTier { 0: "A", default: "B" }'),
+        );
+      },
+    );
 
     test('a 4-arm tier-strip chain flattens to one switch', () async {
       final expr = await parseExpressionForTest(
@@ -127,18 +131,20 @@ void main() {
       return translator().translate(expr, rootState: state).issues;
     }
 
-    test('`!=` on an int state field lowers to the swapped 2-arm form',
-        () async {
-      final expr = await parseExpressionForTest(
-        "Text(text: selectedTier != 0 ? 'A' : 'B')",
-      );
-      final result = translator().translate(expr, rootState: [tier]);
-      expect(result.issues, isEmpty);
-      expect(
-        result.dsl,
-        contains('switch state.selectedTier { 0: "B", default: "A" }'),
-      );
-    });
+    test(
+      '`!=` on an int state field lowers to the swapped 2-arm form',
+      () async {
+        final expr = await parseExpressionForTest(
+          "Text(text: selectedTier != 0 ? 'A' : 'B')",
+        );
+        final result = translator().translate(expr, rootState: [tier]);
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          contains('switch state.selectedTier { 0: "B", default: "A" }'),
+        );
+      },
+    );
 
     test('`<` on an int state field defers named', () async {
       final issues = await issuesFor("selectedTier < 1 ? 'A' : 'B'");
@@ -167,59 +173,62 @@ void main() {
       );
     });
 
-    test('a bool-state condition is unchanged (still a bool 2-arm switch)',
-        () async {
-      const annual = CustomWidgetStateField(
-        name: 'annual',
-        isNumeric: false,
-        initialValue: true,
-      );
-      final expr = await parseExpressionForTest(
-        "Text(text: annual ? 'A' : 'B')",
-      );
-      final result = translator().translate(expr, rootState: [annual]);
-      expect(result.issues, isEmpty);
-      expect(
-        result.dsl,
-        contains('switch state.annual { true: "A", false: "B" }'),
-      );
-    });
-  });
-
-  group('recurse-per-field: two-axis chains key each switch on its own field',
-      () {
-    test('a two-axis chain keys EACH switch on its own field', () async {
-      // `tier==0 ? A : (plan==1 ? B : C)` — the terminal else is a DIFFERENT
-      // field; it recurses to its own nested switch.
-      final expr = await parseExpressionForTest(
-        "Text(text: selectedTier == 0 ? 'Tier0' "
-        ": selectedPlan == 1 ? 'Plan1' : 'Else')",
-      );
-      final result = translator().translate(expr, rootState: [tier, plan]);
-      expect(result.issues, isEmpty);
-      expect(
-        result.dsl,
-        contains(
-          'switch state.selectedTier { 0: "Tier0", '
-          'default: switch state.selectedPlan '
-          '{ 1: "Plan1", default: "Else" } }',
-        ),
-      );
-    });
-
     test(
-        'a different-field arm is NEVER absorbed into the '
-        "outer switch's arm set", () async {
-      final expr = await parseExpressionForTest(
-        "Text(text: selectedTier == 0 ? 'Tier0' "
-        ": selectedPlan == 1 ? 'Plan1' : 'Else')",
-      );
-      final result = translator().translate(expr, rootState: [tier, plan]);
-      // The mis-flatten would key selectedPlan's `1` arm under selectedTier.
-      expect(
-        result.dsl,
-        isNot(contains('switch state.selectedTier { 0: "Tier0", 1:')),
-      );
-    });
+      'a bool-state condition is unchanged (still a bool 2-arm switch)',
+      () async {
+        const annual = CustomWidgetStateField(
+          name: 'annual',
+          isNumeric: false,
+          initialValue: true,
+        );
+        final expr = await parseExpressionForTest(
+          "Text(text: annual ? 'A' : 'B')",
+        );
+        final result = translator().translate(expr, rootState: [annual]);
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          contains('switch state.annual { true: "A", false: "B" }'),
+        );
+      },
+    );
   });
+
+  group(
+    'recurse-per-field: two-axis chains key each switch on its own field',
+    () {
+      test('a two-axis chain keys EACH switch on its own field', () async {
+        // `tier==0 ? A : (plan==1 ? B : C)` — the terminal else is a DIFFERENT
+        // field; it recurses to its own nested switch.
+        final expr = await parseExpressionForTest(
+          "Text(text: selectedTier == 0 ? 'Tier0' "
+          ": selectedPlan == 1 ? 'Plan1' : 'Else')",
+        );
+        final result = translator().translate(expr, rootState: [tier, plan]);
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          contains(
+            'switch state.selectedTier { 0: "Tier0", '
+            'default: switch state.selectedPlan '
+            '{ 1: "Plan1", default: "Else" } }',
+          ),
+        );
+      });
+
+      test('a different-field arm is NEVER absorbed into the '
+          "outer switch's arm set", () async {
+        final expr = await parseExpressionForTest(
+          "Text(text: selectedTier == 0 ? 'Tier0' "
+          ": selectedPlan == 1 ? 'Plan1' : 'Else')",
+        );
+        final result = translator().translate(expr, rootState: [tier, plan]);
+        // The mis-flatten would key selectedPlan's `1` arm under selectedTier.
+        expect(
+          result.dsl,
+          isNot(contains('switch state.selectedTier { 0: "Tier0", 1:')),
+        );
+      });
+    },
+  );
 }

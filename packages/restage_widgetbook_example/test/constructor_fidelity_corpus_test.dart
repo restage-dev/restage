@@ -82,7 +82,7 @@ void main() {
         contains('.ConstructorFidelityCorpus('),
         contains('restageA2uiWriteEnabled'),
         contains('restageA2uiWriteCount'),
-        contains("name: 'resetProof'"),
+        contains("'event': {'name': 'resetProof'}"),
         contains("field: 'enabled'"),
         contains("field: 'count'"),
       ]),

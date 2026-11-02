@@ -65,11 +65,13 @@ void main() {
       expect(_authoredRoutes(screenPublication.routePlan.routes), hasLength(7));
       expect(screenPublication.routePlan.presentationRoutes, hasLength(11));
       expect(
-          _authoredRoutes(paywallPublication.routePlan.routes), hasLength(1));
+        _authoredRoutes(paywallPublication.routePlan.routes),
+        hasLength(1),
+      );
       expect(
-        _authoredRoutes(screenPublication.routePlan.routes)
-            .map((route) => route.generatedReferenceId.value)
-            .toSet(),
+        _authoredRoutes(
+          screenPublication.routePlan.routes,
+        ).map((route) => route.generatedReferenceId.value).toSet(),
         hasLength(7),
       );
       expect(
@@ -119,8 +121,9 @@ void main() {
       expect(
         carriers,
         unorderedEquals(
-          _authoredRoutes(screenPublication.routePlan.routes)
-              .map((route) => route.carrier),
+          _authoredRoutes(
+            screenPublication.routePlan.routes,
+          ).map((route) => route.carrier),
         ),
       );
       expect(compactPointTokens, hasLength(11));
@@ -130,7 +133,8 @@ void main() {
           for (final route in screenPublication.routePlan.presentationRoutes)
             _compactToken(route.carrier),
         ]),
-        reason: 'Every admitted catalog occurrence receives its own compact '
+        reason:
+            'Every admitted catalog occurrence receives its own compact '
             'presentation token without author metadata.',
       );
       for (final bytes in [
@@ -161,8 +165,8 @@ void main() {
       );
       expect(measurementIndex['kind'], 'restageMeasurementPublicationIndex');
       expect(measurementIndex['package'], _package);
-      final measurementEntries =
-          (measurementIndex['entries']! as List<Object?>).cast<Object?>();
+      final measurementEntries = (measurementIndex['entries']! as List<Object?>)
+          .cast<Object?>();
       expect(measurementEntries, hasLength(2));
       expect(
         _allJsonKeys(measurementIndex).intersection(const {
@@ -251,7 +255,10 @@ void main() {
       expect(assembled.hasBundledMeasurementSourceClosure, isTrue);
       expect(assembled.measurementUpload, isNotNull);
       expect(
-        assembled.measurementUpload!.proof.measurementPublicationDraft
+        assembled
+            .measurementUpload!
+            .proof
+            .measurementPublicationDraft
             .canonicalBytes,
         orderedEquals(screenPublication.draft.canonicalBytes),
       );
@@ -344,7 +351,9 @@ Future<_CompiledFixture> _compileFixture({
     ),
     measurementIndexBytes: readerWriter.testing.readBytes(
       AssetId(
-          _package, '.restage/build/metadata/restage.measurement.index.json'),
+        _package,
+        '.restage/build/metadata/restage.measurement.index.json',
+      ),
     ),
     outputIndexBytes: readerWriter.testing.readBytes(
       AssetId(_package, '.restage/build/metadata/restage.outputs.json'),
@@ -371,8 +380,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -384,13 +394,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');
@@ -398,9 +408,9 @@ String _stringKey(Object? value, String path) {
 }
 
 Map<String, String> _fixtureSources() => {
-      for (final path in _fixtureDartPaths)
-        '$_package|$path': File(p.join(_fixtureRoot, path)).readAsStringSync(),
-    };
+  for (final path in _fixtureDartPaths)
+    '$_package|$path': File(p.join(_fixtureRoot, path)).readAsStringSync(),
+};
 
 Map<String, Object?> _jsonObject(Object? value) {
   if (value is! Map) throw StateError('Expected a JSON object.');
@@ -441,15 +451,15 @@ Future<Directory> _materializeCliFixture(
 }
 
 Set<String> _allJsonKeys(Object? value) => switch (value) {
-      Map<Object?, Object?>() => {
-          for (final entry in value.entries) _stringKey(entry.key, 'JSON'),
-          for (final child in value.values) ..._allJsonKeys(child),
-        },
-      List<Object?>() => {
-          for (final child in value) ..._allJsonKeys(child),
-        },
-      _ => const {},
-    };
+  Map<Object?, Object?>() => {
+    for (final entry in value.entries) _stringKey(entry.key, 'JSON'),
+    for (final child in value.values) ..._allJsonKeys(child),
+  },
+  List<Object?>() => {
+    for (final child in value) ..._allJsonKeys(child),
+  },
+  _ => const {},
+};
 
 List<fmt.EventHandler> _eventHandlers(fmt.RemoteWidgetLibrary library) {
   final handlers = <fmt.EventHandler>[];
@@ -555,14 +565,17 @@ final class _CompiledFixture {
 // callbacks. Keep the existing event ownership/count assertions about those
 // callbacks and pin that the new lifecycle routes remain explicitly admitted.
 List<MeasurementPublicationDraftRouteV1> _authoredRoutes(
-    List<MeasurementPublicationDraftRouteV1> routes) {
+  List<MeasurementPublicationDraftRouteV1> routes,
+) {
   final lifecycle = routes
       .where((route) => route.orderedCaptureV1?.lifecycleChannel != null)
       .toList();
   expect(lifecycle, isNotEmpty);
   for (final route in lifecycle) {
-    expect(route.orderedCaptureV1!.channels,
-        contains(route.orderedCaptureV1!.lifecycleChannel));
+    expect(
+      route.orderedCaptureV1!.channels,
+      contains(route.orderedCaptureV1!.lifecycleChannel),
+    );
   }
   return routes
       .where((route) => route.orderedCaptureV1?.lifecycleChannel == null)

@@ -49,27 +49,31 @@ void main() {
     );
     expect(result.succeeded, isTrue);
 
-    final rfwJson = jsonDecode(
-      readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/src/widget_catalog/catalog.json',
-        ),
-      ),
-    ) as Map<String, Object?>;
+    final rfwJson =
+        jsonDecode(
+              readerWriter.testing.readString(
+                AssetId(
+                  'apps_examples',
+                  'lib/src/widget_catalog/catalog.json',
+                ),
+              ),
+            )
+            as Map<String, Object?>;
     expect(
       _catalogWidgetNames(rfwJson),
       _rfwMatrixNames,
     );
 
-    final a2uiStamp = jsonDecode(
-      readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
-        ),
-      ),
-    ) as Map<String, Object?>;
+    final a2uiStamp =
+        jsonDecode(
+              readerWriter.testing.readString(
+                AssetId(
+                  'apps_examples',
+                  '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
+                ),
+              ),
+            )
+            as Map<String, Object?>;
     final a2uiCatalog = a2uiStamp['a2uiCatalog']! as Map<String, Object?>;
     expect(
       (a2uiCatalog['components']! as Map).keys.toSet(),
@@ -92,110 +96,113 @@ void main() {
     }
   });
 
-  test('RFW last-widget off/on overwrites aggregates and preserves IDs',
-      () async {
-    const eventLog = '{"kind":"alloc","type":"widget","id":"w0042",'
-        '"name":"RoutedCard",'
-        '"source":"package:apps_examples/widgets/routed_card.dart#RoutedCard",'
-        '"at":"2026-08-10T00:00:00.000Z","by":"test"}\n';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'wire_ids.events.jsonl'),
-      eventLog,
-    );
-
-    final enabled = await _runRfw(
-      readerWriter,
-      _routedCardSource(),
-      eventLog: eventLog,
-    );
-    expect(enabled.catalogDart, contains("WireId('w0042')"));
-    expect(enabled.factoryDart, contains('RoutedCard'));
-
-    final disabled = await _runRfw(
-      readerWriter,
-      _routedCardSource(rfwEnabled: false),
-      eventLog: eventLog,
-    );
-    expect(
-      _catalogWidgetNames(
-        jsonDecode(disabled.catalogJson) as Map<String, Object?>,
-      ),
-      isEmpty,
-    );
-    expect(disabled.catalogDart, isNot(contains('RoutedCard')));
-    expect(disabled.factoryDart, isNot(contains('RoutedCard')));
-    // A package with no widget of its own still installs the built-in catalog
-    // and the vocabulary its own surfaces render.
-    expect(
-      disabled.factoryDart,
-      contains(
-        '  void call({\n'
-        '    bool includeMaterial = true,\n'
-        '    bool includeCupertino = true,\n'
-        '  }) {\n'
-        '    InstalledWidgetLibraries.add(RestageWidgetLibraries.builtIn(\n'
-        '      includeMaterial: includeMaterial,\n'
-        '      includeCupertino: includeCupertino,\n'
-        '    ));\n'
-        '    InstalledIconTable.add(builtInIconTable(\n'
-        '      includeMaterial: includeMaterial,\n'
-        '      includeCupertino: includeCupertino,\n'
-        '    ));\n'
-        '    kRestageAppVocabulary.addToInstalled(explicitSelection: true);\n'
-        '  }',
-      ),
-    );
-    expect(
-      disabled.factoryDart,
-      contains(
-        "@Deprecated('Use registerRestageWidgets; removed in 3.0')\n"
-        'void registerRestageCustomerWidgets() => registerRestageWidgets();',
-      ),
-    );
-    expect(
-      RegExp(r'void registerRestageWidgets\(\{')
-          .allMatches(disabled.factoryDart)
-          .length,
-      1,
-    );
-    expect(
-      readerWriter.testing.readString(
+  test(
+    'RFW last-widget off/on overwrites aggregates and preserves IDs',
+    () async {
+      const eventLog =
+          '{"kind":"alloc","type":"widget","id":"w0042",'
+          '"name":"RoutedCard",'
+          '"source":"package:apps_examples/widgets/routed_card.dart#RoutedCard",'
+          '"at":"2026-08-10T00:00:00.000Z","by":"test"}\n';
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
         AssetId('apps_examples', 'wire_ids.events.jsonl'),
-      ),
-      eventLog,
-    );
+        eventLog,
+      );
 
-    final reenabled = await _runRfw(
-      readerWriter,
-      _routedCardSource(),
-      eventLog: eventLog,
-    );
-    expect(reenabled.catalogDart, enabled.catalogDart);
-    expect(reenabled.catalogJson, enabled.catalogJson);
-    expect(reenabled.factoryDart, enabled.factoryDart);
+      final enabled = await _runRfw(
+        readerWriter,
+        _routedCardSource(),
+        eventLog: eventLog,
+      );
+      expect(enabled.catalogDart, contains("WireId('w0042')"));
+      expect(enabled.factoryDart, contains('RoutedCard'));
 
-    final cold = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    cold.testing.writeString(
-      AssetId('apps_examples', 'wire_ids.events.jsonl'),
-      eventLog,
-    );
-    final coldDisabled = await _runRfw(
-      cold,
-      _routedCardSource(rfwEnabled: false),
-      eventLog: eventLog,
-    );
-    expect(
-      _catalogWidgetNames(
-        jsonDecode(coldDisabled.catalogJson) as Map<String, Object?>,
-      ),
-      isEmpty,
-    );
-  });
+      final disabled = await _runRfw(
+        readerWriter,
+        _routedCardSource(rfwEnabled: false),
+        eventLog: eventLog,
+      );
+      expect(
+        _catalogWidgetNames(
+          jsonDecode(disabled.catalogJson) as Map<String, Object?>,
+        ),
+        isEmpty,
+      );
+      expect(disabled.catalogDart, isNot(contains('RoutedCard')));
+      expect(disabled.factoryDart, isNot(contains('RoutedCard')));
+      // A package with no widget of its own still installs the built-in catalog
+      // and the vocabulary its own surfaces render.
+      expect(
+        disabled.factoryDart,
+        contains(
+          '  void call({\n'
+          '    bool includeMaterial = true,\n'
+          '    bool includeCupertino = true,\n'
+          '  }) {\n'
+          '    InstalledWidgetLibraries.add(RestageWidgetLibraries.builtIn(\n'
+          '      includeMaterial: includeMaterial,\n'
+          '      includeCupertino: includeCupertino,\n'
+          '    ));\n'
+          '    InstalledIconTable.add(builtInIconTable(\n'
+          '      includeMaterial: includeMaterial,\n'
+          '      includeCupertino: includeCupertino,\n'
+          '    ));\n'
+          '    kRestageAppVocabulary.addToInstalled(explicitSelection: true);\n'
+          '  }',
+        ),
+      );
+      expect(
+        disabled.factoryDart,
+        contains(
+          "@Deprecated('Use registerRestageWidgets; removed in 3.0')\n"
+          'void registerRestageCustomerWidgets() => registerRestageWidgets();',
+        ),
+      );
+      expect(
+        RegExp(
+          r'void registerRestageWidgets\(\{',
+        ).allMatches(disabled.factoryDart).length,
+        1,
+      );
+      expect(
+        readerWriter.testing.readString(
+          AssetId('apps_examples', 'wire_ids.events.jsonl'),
+        ),
+        eventLog,
+      );
+
+      final reenabled = await _runRfw(
+        readerWriter,
+        _routedCardSource(),
+        eventLog: eventLog,
+      );
+      expect(reenabled.catalogDart, enabled.catalogDart);
+      expect(reenabled.catalogJson, enabled.catalogJson);
+      expect(reenabled.factoryDart, enabled.factoryDart);
+
+      final cold = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      cold.testing.writeString(
+        AssetId('apps_examples', 'wire_ids.events.jsonl'),
+        eventLog,
+      );
+      final coldDisabled = await _runRfw(
+        cold,
+        _routedCardSource(rfwEnabled: false),
+        eventLog: eventLog,
+      );
+      expect(
+        _catalogWidgetNames(
+          jsonDecode(coldDisabled.catalogJson) as Map<String, Object?>,
+        ),
+        isEmpty,
+      );
+    },
+  );
 
   test('A2UI last-widget off/on overwrites both aggregate artifacts', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
@@ -257,35 +264,38 @@ void main() {
     expect(coldDisabled, contains('No enabled Restage source'));
   });
 
-  test('legacy all-target Ignore spellings remain artifact-byte neutral',
-      () async {
-    final canonical = await _buildIgnoreSpelling('@ignore');
-    final constructed = await _buildIgnoreSpelling('@Ignore()');
-    final explicitNull = await _buildIgnoreSpelling('@Ignore(null)');
+  test(
+    'legacy all-target Ignore spellings remain artifact-byte neutral',
+    () async {
+      final canonical = await _buildIgnoreSpelling('@ignore');
+      final constructed = await _buildIgnoreSpelling('@Ignore()');
+      final explicitNull = await _buildIgnoreSpelling('@Ignore(null)');
 
-    expect(constructed, canonical);
-    expect(explicitNull, canonical);
-  });
-
-  test('selective Ignore changes only the selected generated properties',
-      () async {
-    final baseline = await _buildSiblingBytes(_routedPropertySource());
-    final selective = await _buildSiblingBytes(
-      _routedPropertySource(selectiveIgnore: true),
-    );
-
-    expect(
-      _only(selective, _rfwArtifactPaths),
-      _only(baseline, _rfwArtifactPaths),
-    );
-    for (final path in _a2uiAndWidgetbook) {
-      expect(baseline[path], contains('debugLabel'), reason: path);
-      expect(selective[path], isNot(contains('debugLabel')), reason: path);
-    }
-  });
+      expect(constructed, canonical);
+      expect(explicitNull, canonical);
+    },
+  );
 
   test(
-      'A2UI builds when every positional after an authored omission is '
+    'selective Ignore changes only the selected generated properties',
+    () async {
+      final baseline = await _buildSiblingBytes(_routedPropertySource());
+      final selective = await _buildSiblingBytes(
+        _routedPropertySource(selectiveIgnore: true),
+      );
+
+      expect(
+        _only(selective, _rfwArtifactPaths),
+        _only(baseline, _rfwArtifactPaths),
+      );
+      for (final path in _a2uiAndWidgetbook) {
+        expect(baseline[path], contains('debugLabel'), reason: path);
+        expect(selective[path], isNot(contains('debugLabel')), reason: path);
+      }
+    },
+  );
+
+  test('A2UI builds when every positional after an authored omission is '
       'automatically omitted', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
@@ -302,48 +312,49 @@ void main() {
     expect(componentJson, isNot(contains('"hostObject"')));
   });
 
-  test('A2UI validates write-back references after selective routing',
-      () async {
-    final validReader = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final valid = await _runA2ui(validReader, _callbackRoutingSource);
-    expect(valid.dart, contains('onChanged: restageA2uiWriteValue'));
-
-    final invalidSource = _callbackRoutingSource.replaceFirst(
-      'EmitTarget.widgetbook',
-      'EmitTarget.a2ui',
-    );
-    final invalidReader = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    const path = 'lib/widgets/routed_card.dart';
-    invalidReader.testing.writeString(
-      AssetId('apps_examples', path),
-      invalidSource,
-    );
-    final logs = <String>[];
-    final result = await testBuilder(
-      _a2uiBuilder,
-      {'apps_examples|$path': invalidSource},
-      rootPackage: 'apps_examples',
-      readerWriter: invalidReader,
-      flattenOutput: true,
-      onLog: (record) => logs.add(record.message),
-    );
-
-    expect(result.succeeded, isFalse);
-    expect(
-      logs.join('\n'),
-      allOf(
-        contains('invalidTargetConfigReference'),
-        contains('"onChanged" is not an input'),
-      ),
-    );
-  });
-
   test(
-      'A2UI builder rejects inherited property placement of class-only '
+    'A2UI validates write-back references after selective routing',
+    () async {
+      final validReader = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final valid = await _runA2ui(validReader, _callbackRoutingSource);
+      expect(valid.dart, contains('onChanged: restageA2uiWriteValue'));
+
+      final invalidSource = _callbackRoutingSource.replaceFirst(
+        'EmitTarget.widgetbook',
+        'EmitTarget.a2ui',
+      );
+      final invalidReader = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      const path = 'lib/widgets/routed_card.dart';
+      invalidReader.testing.writeString(
+        AssetId('apps_examples', path),
+        invalidSource,
+      );
+      final logs = <String>[];
+      final result = await testBuilder(
+        _a2uiBuilder,
+        {'apps_examples|$path': invalidSource},
+        rootPackage: 'apps_examples',
+        readerWriter: invalidReader,
+        flattenOutput: true,
+        onLog: (record) => logs.add(record.message),
+      );
+
+      expect(result.succeeded, isFalse);
+      expect(
+        logs.join('\n'),
+        allOf(
+          contains('invalidTargetConfigReference'),
+          contains('"onChanged" is not an input'),
+        ),
+      );
+    },
+  );
+
+  test('A2UI builder rejects inherited property placement of class-only '
       'enabled', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
@@ -373,29 +384,31 @@ void main() {
     );
   });
 
-  test('disabling one target leaves every sibling artifact byte-identical',
-      () async {
-    final baseline = await _buildSiblingBytes(_routedCardSource());
-    final noRfw = await _buildSiblingBytes(
-      _routedCardSource(rfwEnabled: false),
-    );
-    final noA2ui = await _buildSiblingBytes(
-      _routedCardSource(a2uiEnabled: false),
-    );
-    final noWidgetbook = await _buildSiblingBytes(
-      _routedCardSource(widgetbookEnabled: false),
-    );
+  test(
+    'disabling one target leaves every sibling artifact byte-identical',
+    () async {
+      final baseline = await _buildSiblingBytes(_routedCardSource());
+      final noRfw = await _buildSiblingBytes(
+        _routedCardSource(rfwEnabled: false),
+      );
+      final noA2ui = await _buildSiblingBytes(
+        _routedCardSource(a2uiEnabled: false),
+      );
+      final noWidgetbook = await _buildSiblingBytes(
+        _routedCardSource(widgetbookEnabled: false),
+      );
 
-    expect(
-      _only(baseline, _a2uiAndWidgetbook),
-      _only(noRfw, _a2uiAndWidgetbook),
-    );
-    expect(
-      _only(baseline, _rfwAndWidgetbook),
-      _only(noA2ui, _rfwAndWidgetbook),
-    );
-    expect(_only(baseline, _rfwAndA2ui), _only(noWidgetbook, _rfwAndA2ui));
-  });
+      expect(
+        _only(baseline, _a2uiAndWidgetbook),
+        _only(noRfw, _a2uiAndWidgetbook),
+      );
+      expect(
+        _only(baseline, _rfwAndWidgetbook),
+        _only(noA2ui, _rfwAndWidgetbook),
+      );
+      expect(_only(baseline, _rfwAndA2ui), _only(noWidgetbook, _rfwAndA2ui));
+    },
+  );
 }
 
 const _rfwArtifactPaths = <String>{
@@ -465,11 +478,11 @@ Future<Map<String, String>> _buildSiblingBytes(String source) async {
 Map<String, String> _only(
   Map<String, String> source,
   Set<String> paths,
-) =>
-    {for (final path in paths) path: source[path]!};
+) => {for (final path in paths) path: source[path]!};
 
 Future<Map<String, String>> _buildIgnoreSpelling(String spelling) async {
-  final source = '''
+  final source =
+      '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -643,9 +656,9 @@ Future<String> _runWidgetbook(
 }
 
 Set<String> _catalogWidgetNames(Map<String, Object?> catalog) => {
-      for (final widget in catalog['widgets']! as List<Object?>)
-        (widget! as Map<String, Object?>)['name']! as String,
-    };
+  for (final widget in catalog['widgets']! as List<Object?>)
+    (widget! as Map<String, Object?>)['name']! as String,
+};
 
 Set<String> _a2uiComponentNames(String stamp) {
   final decoded = jsonDecode(stamp) as Map<String, Object?>;
@@ -691,7 +704,8 @@ class RoutedCard extends StatelessWidget {
 }
 ''';
 
-String _routedPropertySource({bool selectiveIgnore = false}) => '''
+String _routedPropertySource({bool selectiveIgnore = false}) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 

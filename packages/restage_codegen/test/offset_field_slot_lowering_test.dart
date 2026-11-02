@@ -47,8 +47,10 @@ void main() {
     entry(name: 'SizedBox', properties: [prop('width', PropertyType.real)]),
   ]);
 
-  final translator =
-      ExpressionTranslator(catalog: catalog, helpers: HelperRegistry());
+  final translator = ExpressionTranslator(
+    catalog: catalog,
+    helpers: HelperRegistry(),
+  );
 
   Future<({String dsl, List<Issue> issues})> translateUnresolved(
     String source,
@@ -57,29 +59,34 @@ void main() {
     return (dsl: r.dsl, issues: r.issues);
   }
 
-  group('offset-field slots lower a framework Offset value (value-asserted)',
-      () {
-    test('TransformRotate.origin: Offset(x, y) -> {x: 0.3, y: -0.4}', () async {
-      final r = await translateUnresolved(
-        'TransformRotate(angle: 0.0, origin: Offset(0.3, -0.4), '
-        'child: SizedBox())',
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('origin: {x: 0.3, y: -0.4}'));
-    });
-
-    test('Badge.offset: Offset(x, y) -> {x: 2.0, y: -3.0}', () async {
-      final r = await translateUnresolved(
-        'Badge(offset: Offset(2.0, -3.0), child: SizedBox())',
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('offset: {x: 2.0, y: -3.0}'));
-    });
-
-    test('a fully-resolved real-Flutter Badge.offset lowers when resolved',
+  group(
+    'offset-field slots lower a framework Offset value (value-asserted)',
+    () {
+      test(
+        'TransformRotate.origin: Offset(x, y) -> {x: 0.3, y: -0.4}',
         () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+          final r = await translateUnresolved(
+            'TransformRotate(angle: 0.0, origin: Offset(0.3, -0.4), '
+            'child: SizedBox())',
+          );
+          expect(r.issues, isEmpty);
+          expect(r.dsl, contains('origin: {x: 0.3, y: -0.4}'));
+        },
+      );
+
+      test('Badge.offset: Offset(x, y) -> {x: 2.0, y: -3.0}', () async {
+        final r = await translateUnresolved(
+          'Badge(offset: Offset(2.0, -3.0), child: SizedBox())',
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, contains('offset: {x: 2.0, y: -3.0}'));
+      });
+
+      test(
+        'a fully-resolved real-Flutter Badge.offset lowers when resolved',
+        () async {
+          final expr = await parseExpressionFromSourceForTest(
+            '''
         import 'package:flutter/material.dart' show Badge, SizedBox;
         import 'dart:ui' show Offset;
         Object x() => Badge(
@@ -87,17 +94,18 @@ void main() {
           child: SizedBox(),
         );
         ''',
-        rootPackage: 'apps_examples',
+            rootPackage: 'apps_examples',
+          );
+          final r = translator.translate(expr);
+          expect(r.issues, isEmpty);
+          expect(r.dsl, contains('offset: {x: 0.0, y: 4.0}'));
+        },
       );
-      final r = translator.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('offset: {x: 0.0, y: 4.0}'));
-    });
-  });
+    },
+  );
 
   group('offset-field slots diagnose what they cannot provably lower', () {
-    test(
-        'a resolved custom Offset look-alike at Badge.offset DEFERS — '
+    test('a resolved custom Offset look-alike at Badge.offset DEFERS — '
         'no {x, y} substitution', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''

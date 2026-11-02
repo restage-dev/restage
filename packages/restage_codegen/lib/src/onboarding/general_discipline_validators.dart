@@ -94,7 +94,8 @@ List<Issue> validateGeneralDiscipline({
       issues.add(
         Issue(
           code: IssueCode.generalHostSeededResultRef,
-          message: 'Host-seeded flow-state key "${ref.key}" must not egress '
+          message:
+              'Host-seeded flow-state key "${ref.key}" must not egress '
               'via terminalResult field "${field.key}"; host-supplied state '
               'is branch-only. Capture the value in-flow instead of seeding '
               'it.',

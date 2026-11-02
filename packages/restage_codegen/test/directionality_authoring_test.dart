@@ -18,8 +18,9 @@ import 'helpers.dart';
 
 void main() {
   final catalog = decodeCatalog(
-    File('../restage_core/lib/src/widget_catalog/catalog.json')
-        .readAsStringSync(),
+    File(
+      '../restage_core/lib/src/widget_catalog/catalog.json',
+    ).readAsStringSync(),
   );
 
   Future<TranslationResult> translate(
@@ -34,8 +35,10 @@ Widget x() => $body;
 ''',
       rootPackage: 'apps_examples',
     );
-    return ExpressionTranslator(catalog: catalog, helpers: HelperRegistry())
-        .translate(expression);
+    return ExpressionTranslator(
+      catalog: catalog,
+      helpers: HelperRegistry(),
+    ).translate(expression);
   }
 
   void qualifyRadiusFixture(String name, List<String> declarations) {
@@ -52,47 +55,58 @@ Widget x() => $body;
     );
   }
 
-  test('authored directionality fixture preserves physical and logical insets',
-      () async {
-    final result = await translate(
+  test(
+    'authored directionality fixture preserves physical and logical insets',
+    () async {
+      final result = await translate(
         '''Directionality(textDirection: TextDirection.rtl, child: Row(children: [
       Padding(padding: EdgeInsets.only(left: 7), child: Text('physical')),
       Padding(padding: EdgeInsetsDirectional.only(start: 11), child: Text('logical')),
-    ]))''');
-    expect(
-      result.issues.where((issue) => !issue.code.isInformational),
-      isEmpty,
-    );
-    final text = 'import restage.core;\nwidget Surface = ${result.dsl};\n';
-    final fixture = File('../restage_core/test/fixtures/directionality.rfwtxt');
-    if (Platform.environment['WRITE_DIRECTIONALITY_FIXTURE'] == '1') {
-      fixture.parent.createSync(recursive: true);
-      fixture.writeAsStringSync(text);
-    }
-    expect(
-      fmt.encodeLibraryBlob(fmt.parseLibraryFile(text)),
-      fmt.encodeLibraryBlob(
-        fmt.parseLibraryFile(fixture.readAsStringSync()),
-      ),
-    );
-    final validation =
-        validateModelAgainstCatalog(fmt.parseLibraryFile(text), catalog);
-    expect(validation, isEmpty);
-    expect(
-      deriveSurfaceCapability(fmt.parseLibraryFile(text), catalog).builtInFloor,
-      17,
-    );
-    expect(result.dsl, contains('left: 7.0'));
-    expect(result.dsl, contains('start: 11.0'));
-    final directionality =
-        catalog.widgets.singleWhere((w) => w.name == 'Directionality');
-    expect(directionality.sinceVersion, 17);
-    final padding = catalog.widgets.singleWhere((w) => w.name == 'Padding');
-    expect(
-      padding.properties.singleWhere((p) => p.name == 'padding').sinceVersion,
-      kBaselineCatalogVersion,
-    );
-  });
+    ]))''',
+      );
+      expect(
+        result.issues.where((issue) => !issue.code.isInformational),
+        isEmpty,
+      );
+      final text = 'import restage.core;\nwidget Surface = ${result.dsl};\n';
+      final fixture = File(
+        '../restage_core/test/fixtures/directionality.rfwtxt',
+      );
+      if (Platform.environment['WRITE_DIRECTIONALITY_FIXTURE'] == '1') {
+        fixture.parent.createSync(recursive: true);
+        fixture.writeAsStringSync(text);
+      }
+      expect(
+        fmt.encodeLibraryBlob(fmt.parseLibraryFile(text)),
+        fmt.encodeLibraryBlob(
+          fmt.parseLibraryFile(fixture.readAsStringSync()),
+        ),
+      );
+      final validation = validateModelAgainstCatalog(
+        fmt.parseLibraryFile(text),
+        catalog,
+      );
+      expect(validation, isEmpty);
+      expect(
+        deriveSurfaceCapability(
+          fmt.parseLibraryFile(text),
+          catalog,
+        ).builtInFloor,
+        17,
+      );
+      expect(result.dsl, contains('left: 7.0'));
+      expect(result.dsl, contains('start: 11.0'));
+      final directionality = catalog.widgets.singleWhere(
+        (w) => w.name == 'Directionality',
+      );
+      expect(directionality.sinceVersion, 17);
+      final padding = catalog.widgets.singleWhere((w) => w.name == 'Padding');
+      expect(
+        padding.properties.singleWhere((p) => p.name == 'padding').sinceVersion,
+        kBaselineCatalogVersion,
+      );
+    },
+  );
 
   for (final body in [
     'Padding(padding: EdgeInsetsDirectional.fromSTEB(1, 2, 3, 4), child: Text("x"))',
@@ -127,8 +141,10 @@ Widget x() => $body;
         'import restage.core; widget Surface = ${result.dsl};',
       );
       // Directional gradient alignments were already decoded by rfw.
-      expect(deriveSurfaceCapability(model, catalog).builtInFloor,
-          body.contains('gradient:') ? kBaselineCatalogVersion : 17);
+      expect(
+        deriveSurfaceCapability(model, catalog).builtInFloor,
+        body.contains('gradient:') ? kBaselineCatalogVersion : 17,
+      );
       if (body.contains('BorderRadiusDirectional') ||
           body.contains('borderRadius: corners')) {
         expect(result.dsl, contains('borderRadiusTop'));
@@ -143,8 +159,9 @@ Widget x() => $body;
     final declarations = <String>[];
     for (final widget in ['Container', 'AnimatedContainer']) {
       for (final directional in [false, true]) {
-        final radiusType =
-            directional ? 'BorderRadiusDirectional' : 'BorderRadius';
+        final radiusType = directional
+            ? 'BorderRadiusDirectional'
+            : 'BorderRadius';
         final corner = directional ? 'topStart' : 'topLeft';
         final radius = '$radiusType.only($corner: Radius.circular(13))';
         String body(String value) =>
@@ -198,13 +215,17 @@ Widget x() => $body;
             'const radius = BorderRadius.circular(13); const alias = radius;',
       );
       expect(
-          result.issues.where((issue) => !issue.code.isInformational), isEmpty);
+        result.issues.where((issue) => !issue.code.isInformational),
+        isEmpty,
+      );
       final model = fmt.parseLibraryFile(
-          'import restage.core; widget Surface = ${result.dsl};');
+        'import restage.core; widget Surface = ${result.dsl};',
+      );
       expect(
-          (model.widgets.single.root as fmt.ConstructorCall)
-              .arguments['borderRadius'],
-          13.0);
+        (model.widgets.single.root as fmt.ConstructorCall)
+            .arguments['borderRadius'],
+        13.0,
+      );
     }
     final lookalike = await translate(
       'Container(decoration: BoxDecoration(borderRadius: alias))',
@@ -215,57 +236,61 @@ class BorderRadiusDirectional {
 const alias = BorderRadiusDirectional.only(topStart: Radius.circular(13));
 """,
     );
-    expect(lookalike.issues.where((issue) => !issue.code.isInformational),
-        isNotEmpty);
+    expect(
+      lookalike.issues.where((issue) => !issue.code.isInformational),
+      isNotEmpty,
+    );
     qualifyRadiusFixture('directional_radius_aliases.rfwtxt', declarations);
   });
 
-  test('empty directional radius constructors preserve explicit logical zero',
-      () async {
-    final declarations = <String>[];
-    for (final constructor in [
-      'only()',
-      'vertical()',
-      'horizontal()',
-      'zero',
-    ]) {
-      for (final nested in [false, true]) {
-        final radius = 'BorderRadiusDirectional.$constructor';
-        final result = await translate(
-          nested
-              ? 'Container(decoration: BoxDecoration(borderRadius: $radius), child: SizedBox(width: 40, height: 30))'
-              : 'ClipRRect(borderRadius: $radius, child: SizedBox(width: 40, height: 30))',
-        );
-        expect(
-          result.issues.where((issue) => !issue.code.isInformational),
-          isEmpty,
-        );
-        final model = fmt.parseLibraryFile(
-          'import restage.core; widget Surface = ${result.dsl};',
-        );
-        final args =
-            (model.widgets.single.root as fmt.ConstructorCall).arguments;
-        for (final corner in [
-          'TopStart',
-          'TopEnd',
-          'BottomStart',
-          'BottomEnd',
-        ]) {
+  test(
+    'empty directional radius constructors preserve explicit logical zero',
+    () async {
+      final declarations = <String>[];
+      for (final constructor in [
+        'only()',
+        'vertical()',
+        'horizontal()',
+        'zero',
+      ]) {
+        for (final nested in [false, true]) {
+          final radius = 'BorderRadiusDirectional.$constructor';
+          final result = await translate(
+            nested
+                ? 'Container(decoration: BoxDecoration(borderRadius: $radius), child: SizedBox(width: 40, height: 30))'
+                : 'ClipRRect(borderRadius: $radius, child: SizedBox(width: 40, height: 30))',
+          );
           expect(
-            args['borderRadius$corner'],
-            0.0,
-            reason: '$constructor ${nested ? 'nested' : 'direct'}',
+            result.issues.where((issue) => !issue.code.isInformational),
+            isEmpty,
+          );
+          final model = fmt.parseLibraryFile(
+            'import restage.core; widget Surface = ${result.dsl};',
+          );
+          final args =
+              (model.widgets.single.root as fmt.ConstructorCall).arguments;
+          for (final corner in [
+            'TopStart',
+            'TopEnd',
+            'BottomStart',
+            'BottomEnd',
+          ]) {
+            expect(
+              args['borderRadius$corner'],
+              0.0,
+              reason: '$constructor ${nested ? 'nested' : 'direct'}',
+            );
+          }
+          expect(deriveSurfaceCapability(model, catalog).builtInFloor, 17);
+          final name = constructor.replaceAll('()', '');
+          declarations.add(
+            'widget ${nested ? 'Nested' : 'Direct'}$name = ${result.dsl};',
           );
         }
-        expect(deriveSurfaceCapability(model, catalog).builtInFloor, 17);
-        final name = constructor.replaceAll('()', '');
-        declarations.add(
-          'widget ${nested ? 'Nested' : 'Direct'}$name = ${result.dsl};',
-        );
       }
-    }
-    qualifyRadiusFixture('directional_radius_empty.rfwtxt', declarations);
-  });
+      qualifyRadiusFixture('directional_radius_empty.rfwtxt', declarations);
+    },
+  );
 
   test('lookalike directional inset constructor is refused', () async {
     final result = await translate(
@@ -292,68 +317,71 @@ class EdgeInsetsDirectional {
     );
   });
 
-  test('concrete inset factories and typed defaults keep their Flutter subtype',
-      () {
-    for (final name in [
-      'EdgeInsets',
-      'EdgeInsetsDirectional',
-      'EdgeInsetsGeometry',
-    ]) {
-      final entry = WidgetEntry(
-        wireId: WireId.unallocatedWidget,
-        childrenSlot: ChildrenSlot.none,
-        name: 'InsetWidget',
-        library: WidgetLibrary.core,
-        category: WidgetCategory.layout,
-        description: '',
-        flutterType: 'package:example/widget.dart#InsetWidget',
-        properties: [
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'padding',
-            type: PropertyType.edgeInsets,
-            description: '',
-            valueShape: ScalarShape(
-              propertyType: PropertyType.edgeInsets,
-              dartTypeRef: DartTypeRef(
-                libraryUri: 'package:flutter/src/painting/edge_insets.dart',
-                symbolName: name,
+  test(
+    'concrete inset factories and typed defaults keep their Flutter subtype',
+    () {
+      for (final name in [
+        'EdgeInsets',
+        'EdgeInsetsDirectional',
+        'EdgeInsetsGeometry',
+      ]) {
+        final entry = WidgetEntry(
+          wireId: WireId.unallocatedWidget,
+          childrenSlot: ChildrenSlot.none,
+          name: 'InsetWidget',
+          library: WidgetLibrary.core,
+          category: WidgetCategory.layout,
+          description: '',
+          flutterType: 'package:example/widget.dart#InsetWidget',
+          properties: [
+            PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'padding',
+              type: PropertyType.edgeInsets,
+              description: '',
+              valueShape: ScalarShape(
+                propertyType: PropertyType.edgeInsets,
+                dartTypeRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/edge_insets.dart',
+                  symbolName: name,
+                ),
+              ),
+              defaultSource: LiteralDefault(
+                name == 'EdgeInsetsDirectional'
+                    ? {'start': 1.0, 'top': 2.0, 'end': 3.0, 'bottom': 4.0}
+                    : {'left': 1.0, 'top': 2.0, 'right': 3.0, 'bottom': 4.0},
               ),
             ),
-            defaultSource: LiteralDefault(
-              name == 'EdgeInsetsDirectional'
-                  ? {'start': 1.0, 'top': 2.0, 'end': 3.0, 'bottom': 4.0}
-                  : {'left': 1.0, 'top': 2.0, 'right': 3.0, 'bottom': 4.0},
-            ),
+          ],
+        );
+        final emitted = emitFactoryFunction(entry)!;
+        expect(
+          emitted,
+          contains(
+            name == 'EdgeInsetsDirectional'
+                ? 'directionalEdgeInsets'
+                : name == 'EdgeInsets'
+                ? 'physicalEdgeInsets'
+                : 'RestageDecoders.edgeInsets',
           ),
-        ],
-      );
-      final emitted = emitFactoryFunction(entry)!;
-      expect(
-        emitted,
-        contains(
-          name == 'EdgeInsetsDirectional'
-              ? 'directionalEdgeInsets'
-              : name == 'EdgeInsets'
-                  ? 'physicalEdgeInsets'
-                  : 'RestageDecoders.edgeInsets',
-        ),
-      );
-      expect(
-        emitted,
-        contains(
-          name == 'EdgeInsetsDirectional'
-              ? 'EdgeInsetsDirectional.fromSTEB(1.0, 2.0, 3.0, 4.0)'
-              : 'EdgeInsets.fromLTRB(1.0, 2.0, 3.0, 4.0)',
-        ),
-      );
-    }
-  });
+        );
+        expect(
+          emitted,
+          contains(
+            name == 'EdgeInsetsDirectional'
+                ? 'EdgeInsetsDirectional.fromSTEB(1.0, 2.0, 3.0, 4.0)'
+                : 'EdgeInsets.fromLTRB(1.0, 2.0, 3.0, 4.0)',
+          ),
+        );
+      }
+    },
+  );
 
-  test('resolved native defaults retain physical and directional keys',
-      () async {
-    final expression = await parseExpressionFromSourceForTest(
-      """
+  test(
+    'resolved native defaults retain physical and directional keys',
+    () async {
+      final expression = await parseExpressionFromSourceForTest(
+        """
 import 'package:flutter/widgets.dart';
 class InsetsDefaults {
   const InsetsDefaults({this.physical = const EdgeInsets.only(left: 7), this.logical = const EdgeInsetsDirectional.only(start: 11)});
@@ -362,30 +390,31 @@ class InsetsDefaults {
 }
 Object x() => const InsetsDefaults();
 """,
-      rootPackage: 'apps_examples',
-    );
-    final constructor =
-        (expression as InstanceCreationExpression).constructorName.element!;
-    final parameters = constructor.formalParameters;
-    expect(
-      resolveParameterDefault(
-        parameters[0],
-        targetType: PropertyType.edgeInsets,
-      ),
-      const LiteralDefault(
-        {'left': 7.0, 'top': 0.0, 'right': 0.0, 'bottom': 0.0},
-      ),
-    );
-    expect(
-      resolveParameterDefault(
-        parameters[1],
-        targetType: PropertyType.edgeInsets,
-      ),
-      const LiteralDefault(
-        {'start': 11.0, 'top': 0.0, 'end': 0.0, 'bottom': 0.0},
-      ),
-    );
-  });
+        rootPackage: 'apps_examples',
+      );
+      final constructor =
+          (expression as InstanceCreationExpression).constructorName.element!;
+      final parameters = constructor.formalParameters;
+      expect(
+        resolveParameterDefault(
+          parameters[0],
+          targetType: PropertyType.edgeInsets,
+        ),
+        const LiteralDefault(
+          {'left': 7.0, 'top': 0.0, 'right': 0.0, 'bottom': 0.0},
+        ),
+      );
+      expect(
+        resolveParameterDefault(
+          parameters[1],
+          targetType: PropertyType.edgeInsets,
+        ),
+        const LiteralDefault(
+          {'start': 11.0, 'top': 0.0, 'end': 0.0, 'bottom': 0.0},
+        ),
+      );
+    },
+  );
 
   test('Widgetbook geometry literals preserve native inset subclasses', () {
     for (final directional in [false, true]) {
@@ -426,8 +455,9 @@ Object x() => const InsetsDefaults();
       ].contains(entry.name),
     );
     for (final entry in factories) {
-      final direction =
-          entry.properties.singleWhere((p) => p.name == 'textDirection');
+      final direction = entry.properties.singleWhere(
+        (p) => p.name == 'textDirection',
+      );
       expect(direction.sinceVersion, 17);
       expect(
         emitFactoryFunction(entry, nativeIndex: NativeCatalogIndex(catalog)),

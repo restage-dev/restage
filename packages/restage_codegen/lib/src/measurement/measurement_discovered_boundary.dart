@@ -94,8 +94,9 @@ abstract final class MeasurementDiscoveredBoundaryAdapter {
       final binding = bindings[entry.key]!;
       final boundaryNode = boundaryNodes[binding.codeIdentityId.value]!;
       final parentKey = entry.value.parentStructuralOccurrenceKey;
-      final expectedParentCodeIdentity =
-          parentKey == null ? null : bindings[parentKey]?.codeIdentityId;
+      final expectedParentCodeIdentity = parentKey == null
+          ? null
+          : bindings[parentKey]?.codeIdentityId;
       if (parentKey != null && expectedParentCodeIdentity == null) {
         throw ArgumentError(
           'Every discovered source parent must have one ledger binding',
@@ -154,8 +155,7 @@ String _discoveredEventKey(MeasurementDiscoveredEvent event) =>
 String _boundaryEventKey({
   required CodeIdentityId codeIdentityId,
   required String resolvedIdentity,
-}) =>
-    '${codeIdentityId.value}\u0000$resolvedIdentity';
+}) => '${codeIdentityId.value}\u0000$resolvedIdentity';
 
 Map<String, T> _uniqueBy<T>(
   Iterable<T> values,

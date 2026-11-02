@@ -12,13 +12,14 @@ typedef FactoryVariantCallableFields = ({
 /// Projects [variant] onto its callable [FactoryVariantCallableFields].
 FactoryVariantCallableFields factoryVariantCallableFields(
   FactoryVariant variant,
-) =>
-    switch (variant) {
-      ConstructorVariant(:final argMappings, :final parameters) ||
-      StaticMethodVariant(:final argMappings, :final parameters) =>
-        (argMappings: argMappings, parameters: parameters),
-      StaticGetterVariant() || ConstValueVariant() => (
-          argMappings: const {},
-          parameters: const [],
-        ),
-    };
+) => switch (variant) {
+  ConstructorVariant(:final argMappings, :final parameters) ||
+  StaticMethodVariant(
+    :final argMappings,
+    :final parameters,
+  ) => (argMappings: argMappings, parameters: parameters),
+  StaticGetterVariant() || ConstValueVariant() => (
+    argMappings: const {},
+    parameters: const [],
+  ),
+};

@@ -16,8 +16,8 @@ final class RenderCatalogBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$package$': [kRenderCatalogPath],
-      };
+    r'$package$': [kRenderCatalogPath],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

@@ -10,18 +10,17 @@ ImperativeWidget _imp(
   BlockerKind kind,
   String detail, {
   String? subject,
-}) =>
-    ImperativeWidget(
-      key,
-      blockers: [
-        Blocker(
-          kind: kind,
-          location: '$key@1:1',
-          detail: detail,
-          idiomSubject: subject,
-        ),
-      ],
-    );
+}) => ImperativeWidget(
+  key,
+  blockers: [
+    Blocker(
+      kind: kind,
+      location: '$key@1:1',
+      detail: detail,
+      idiomSubject: subject,
+    ),
+  ],
+);
 
 void main() {
   test('aggregates blocker kinds with detail heads and counts', () {
@@ -97,45 +96,47 @@ void main() {
     );
   });
 
-  test('aggregates on the producer-threaded subject for prose / call details',
-      () {
-    final classifications = <String, WidgetClassification>{
-      // A lifecycle blocker — the producer threads the method name.
-      'pkg#A': _imp(
-        'pkg#A',
-        BlockerKind.asyncOrLifecycle,
-        'the State lifecycle method initState()',
-        subject: 'initState',
-      ),
-      // A non-primitive State field — the producer threads the field name.
-      'pkg#B': _imp(
-        'pkg#B',
-        BlockerKind.nonSimpleState,
-        "the non-primitive State field 'controller'",
-        subject: 'controller',
-      ),
-      // A dotted static-method call — the producer threads receiver.method.
-      'pkg#C': _imp(
-        'pkg#C',
-        BlockerKind.dartCall,
-        'ButtonStyle.styleFrom(foregroundColor: x)',
-        subject: 'ButtonStyle.styleFrom',
-      ),
-    };
-    final hist = IdiomHistogram.from(classifications);
-    expect(
-      hist.rows.any((r) => r.label == 'asyncOrLifecycle · initState'),
-      isTrue,
-    );
-    expect(
-      hist.rows.any((r) => r.label == 'nonSimpleState · controller'),
-      isTrue,
-    );
-    expect(
-      hist.rows.any((r) => r.label == 'dartCall · ButtonStyle.styleFrom'),
-      isTrue,
-    );
-  });
+  test(
+    'aggregates on the producer-threaded subject for prose / call details',
+    () {
+      final classifications = <String, WidgetClassification>{
+        // A lifecycle blocker — the producer threads the method name.
+        'pkg#A': _imp(
+          'pkg#A',
+          BlockerKind.asyncOrLifecycle,
+          'the State lifecycle method initState()',
+          subject: 'initState',
+        ),
+        // A non-primitive State field — the producer threads the field name.
+        'pkg#B': _imp(
+          'pkg#B',
+          BlockerKind.nonSimpleState,
+          "the non-primitive State field 'controller'",
+          subject: 'controller',
+        ),
+        // A dotted static-method call — the producer threads receiver.method.
+        'pkg#C': _imp(
+          'pkg#C',
+          BlockerKind.dartCall,
+          'ButtonStyle.styleFrom(foregroundColor: x)',
+          subject: 'ButtonStyle.styleFrom',
+        ),
+      };
+      final hist = IdiomHistogram.from(classifications);
+      expect(
+        hist.rows.any((r) => r.label == 'asyncOrLifecycle · initState'),
+        isTrue,
+      );
+      expect(
+        hist.rows.any((r) => r.label == 'nonSimpleState · controller'),
+        isTrue,
+      );
+      expect(
+        hist.rows.any((r) => r.label == 'dartCall · ButtonStyle.styleFrom'),
+        isTrue,
+      );
+    },
+  );
 
   test('renders a deterministic table separating artifacts from gaps', () {
     final classifications = <String, WidgetClassification>{
@@ -197,8 +198,7 @@ void main() {
     expect(json['label'], 'dartCall · foo'); // retained for back-compat
   });
 
-  test(
-      'the histogram keys on the blocker structured idiomSubject, not the '
+  test('the histogram keys on the blocker structured idiomSubject, not the '
       'detail string', () {
     // The producer threads the AST-resolved subject onto the blocker, so the
     // histogram reads it directly rather than recovering it from the

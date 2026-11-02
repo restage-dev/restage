@@ -155,7 +155,8 @@ void _expectStringGolden(String name, String actual, {required bool regen}) {
   expect(
     actual,
     file.readAsStringSync(),
-    reason: 'text golden "$name" moved — the production .rfwtxt changed. '
+    reason:
+        'text golden "$name" moved — the production .rfwtxt changed. '
         'Regenerate with REGEN_CODEGEN_GOLDENS=1 only when intended.',
   );
 }
@@ -171,7 +172,8 @@ void _expectBytesGolden(String name, List<int> actual, {required bool regen}) {
   expect(
     actual,
     orderedEquals(file.readAsBytesSync()),
-    reason: 'binary golden "$name" moved — the production .rfw wire changed. '
+    reason:
+        'binary golden "$name" moved — the production .rfw wire changed. '
         'Regenerate with REGEN_CODEGEN_GOLDENS=1 only when intended.',
   );
 }

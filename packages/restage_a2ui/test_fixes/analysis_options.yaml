@@ -1,0 +1,4 @@
+# The parent excludes pre-migration code from normal package analysis.
+# Explicit dart fix discovery needs this nested analysis context.
+analyzer:
+  exclude: []

@@ -72,8 +72,8 @@ final class _TwoPlacementProbe implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$package$': ['lib/two_placement_probe.txt'],
-      };
+    r'$package$': ['lib/two_placement_probe.txt'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -95,17 +95,17 @@ final Map<String, RestageOutputLocationPlan> _modes = {
   ),
   'a centralized dart output root':
       RestageOutputLocationPlan.fromBuilderOptions(
-    BuilderOptions(_configFor('a centralized dart output root')),
-  ),
+        BuilderOptions(_configFor('a centralized dart output root')),
+      ),
 };
 
 Map<String, dynamic> _configFor(String mode) => switch (mode) {
-      'adjacent' => const {'source_output_layout': 'adjacent'},
-      'a centralized dart output root' => const {
-          'dart_output_root': 'lib/generated/restage',
-        },
-      _ => const <String, dynamic>{},
-    };
+  'adjacent' => const {'source_output_layout': 'adjacent'},
+  'a centralized dart output root' => const {
+    'dart_output_root': 'lib/generated/restage',
+  },
+  _ => const <String, dynamic>{},
+};
 
 /// A temp `lib/` holding the fixture, so the story census sees the same
 /// source the build does.
@@ -161,7 +161,8 @@ Map<String, String> _sources(RestageOutputLocationPlan plan) {
   final placement = plan.forLibrary(path);
   final partUri = placement.partUriFor(placement.neutralPartPath);
   return {
-    'apps_examples|$path': '''
+    'apps_examples|$path':
+        '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 

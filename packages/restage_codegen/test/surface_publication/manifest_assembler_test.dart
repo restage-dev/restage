@@ -39,8 +39,9 @@ void main() {
       SurfacePayloadKind.flow,
     );
     expect(
-      result.manifest.publications.single.artifacts
-          .map((artifact) => artifact.role),
+      result.manifest.publications.single.artifacts.map(
+        (artifact) => artifact.role,
+      ),
       [
         SurfacePublicationArtifactRole.flowDocument,
         SurfacePublicationArtifactRole.screenBlob,
@@ -95,116 +96,119 @@ void main() {
     expect(publication.payloadKind, SurfacePayloadKind.flow);
   });
 
-  test('rejects duplicate, traversal, orphan, stale, and mutated artifacts',
-      () {
-    final valid = _standaloneInput();
-    final blob = valid.artifacts.first;
-    final sidecar = valid.artifacts.last;
+  test(
+    'rejects duplicate, traversal, orphan, stale, and mutated artifacts',
+    () {
+      final valid = _standaloneInput();
+      final blob = valid.artifacts.first;
+      final sidecar = valid.artifacts.last;
 
-    expect(
-      () => SurfacePublicationManifestAssembler.assemble([valid, valid]),
-      throwsFormatException,
-    );
-    expect(
-      () => SurfacePublicationManifestAssembler.assemble([
-        SurfacePublicationAssemblyInput(
-          surface: valid.surface,
-          slug: valid.slug,
-          sourceKind: valid.sourceKind,
-          payloadKind: valid.payloadKind,
-          screenContractFacts: valid.screenContractFacts,
-          artifacts: [blob, blob, sidecar],
-        ),
-      ]),
-      throwsFormatException,
-    );
-    expect(
-      () => SurfacePublicationManifestAssembler.assemble([
-        SurfacePublicationAssemblyInput(
-          surface: valid.surface,
-          slug: valid.slug,
-          sourceKind: valid.sourceKind,
-          payloadKind: valid.payloadKind,
-          screenContractFacts: valid.screenContractFacts,
-          artifacts: [
-            SurfacePublicationArtifactInput(
-              path: '../outside.rfw',
-              role: SurfacePublicationArtifactRole.screenBlob,
-              id: valid.slug,
-              bytes: blob.bytes,
-            ),
-            sidecar,
-          ],
-        ),
-      ]),
-      throwsFormatException,
-    );
-    expect(
-      () => SurfacePublicationManifestAssembler.assemble([
-        SurfacePublicationAssemblyInput(
-          surface: valid.surface,
-          slug: valid.slug,
-          sourceKind: valid.sourceKind,
-          payloadKind: valid.payloadKind,
-          screenContractFacts: valid.screenContractFacts,
-          artifacts: [sidecar],
-        ),
-      ]),
-      throwsFormatException,
-    );
-    expect(
-      () => SurfacePublicationManifestAssembler.assemble([
-        SurfacePublicationAssemblyInput(
-          surface: valid.surface,
-          slug: valid.slug,
-          sourceKind: valid.sourceKind,
-          payloadKind: valid.payloadKind,
-          screenContractFacts: valid.screenContractFacts,
-          artifacts: [
-            blob,
-            SurfacePublicationArtifactInput(
-              path: sidecar.path,
-              role: sidecar.role,
-              id: sidecar.id,
-              bytes: _sidecarBytes(
-                const <int>[9, 9, 9],
-                _emptyCapabilities,
+      expect(
+        () => SurfacePublicationManifestAssembler.assemble([valid, valid]),
+        throwsFormatException,
+      );
+      expect(
+        () => SurfacePublicationManifestAssembler.assemble([
+          SurfacePublicationAssemblyInput(
+            surface: valid.surface,
+            slug: valid.slug,
+            sourceKind: valid.sourceKind,
+            payloadKind: valid.payloadKind,
+            screenContractFacts: valid.screenContractFacts,
+            artifacts: [blob, blob, sidecar],
+          ),
+        ]),
+        throwsFormatException,
+      );
+      expect(
+        () => SurfacePublicationManifestAssembler.assemble([
+          SurfacePublicationAssemblyInput(
+            surface: valid.surface,
+            slug: valid.slug,
+            sourceKind: valid.sourceKind,
+            payloadKind: valid.payloadKind,
+            screenContractFacts: valid.screenContractFacts,
+            artifacts: [
+              SurfacePublicationArtifactInput(
+                path: '../outside.rfw',
+                role: SurfacePublicationArtifactRole.screenBlob,
+                id: valid.slug,
+                bytes: blob.bytes,
               ),
-            ),
-          ],
-        ),
-      ]),
-      throwsFormatException,
-    );
+              sidecar,
+            ],
+          ),
+        ]),
+        throwsFormatException,
+      );
+      expect(
+        () => SurfacePublicationManifestAssembler.assemble([
+          SurfacePublicationAssemblyInput(
+            surface: valid.surface,
+            slug: valid.slug,
+            sourceKind: valid.sourceKind,
+            payloadKind: valid.payloadKind,
+            screenContractFacts: valid.screenContractFacts,
+            artifacts: [sidecar],
+          ),
+        ]),
+        throwsFormatException,
+      );
+      expect(
+        () => SurfacePublicationManifestAssembler.assemble([
+          SurfacePublicationAssemblyInput(
+            surface: valid.surface,
+            slug: valid.slug,
+            sourceKind: valid.sourceKind,
+            payloadKind: valid.payloadKind,
+            screenContractFacts: valid.screenContractFacts,
+            artifacts: [
+              blob,
+              SurfacePublicationArtifactInput(
+                path: sidecar.path,
+                role: sidecar.role,
+                id: sidecar.id,
+                bytes: _sidecarBytes(
+                  const <int>[9, 9, 9],
+                  _emptyCapabilities,
+                ),
+              ),
+            ],
+          ),
+        ]),
+        throwsFormatException,
+      );
 
-    final flow = _flowInput();
-    final flowBlob = flow.artifacts.singleWhere(
-      (artifact) => artifact.role == SurfacePublicationArtifactRole.screenBlob,
-    );
-    expect(
-      () => SurfacePublicationManifestAssembler.assemble([
-        SurfacePublicationAssemblyInput(
-          surface: flow.surface,
-          slug: flow.slug,
-          sourceKind: flow.sourceKind,
-          payloadKind: flow.payloadKind,
-          flowFacts: flow.flowFacts,
-          artifacts: [
-            for (final artifact in flow.artifacts)
-              artifact == flowBlob
-                  ? SurfacePublicationArtifactInput(
-                      path: artifact.path,
-                      role: artifact.role,
-                      id: artifact.id,
-                      bytes: const <int>[1, 1, 1],
-                    )
-                  : artifact,
-          ],
-        ),
-      ]),
-      throwsFormatException,
-    );
-  });
+      final flow = _flowInput();
+      final flowBlob = flow.artifacts.singleWhere(
+        (artifact) =>
+            artifact.role == SurfacePublicationArtifactRole.screenBlob,
+      );
+      expect(
+        () => SurfacePublicationManifestAssembler.assemble([
+          SurfacePublicationAssemblyInput(
+            surface: flow.surface,
+            slug: flow.slug,
+            sourceKind: flow.sourceKind,
+            payloadKind: flow.payloadKind,
+            flowFacts: flow.flowFacts,
+            artifacts: [
+              for (final artifact in flow.artifacts)
+                artifact == flowBlob
+                    ? SurfacePublicationArtifactInput(
+                        path: artifact.path,
+                        role: artifact.role,
+                        id: artifact.id,
+                        bytes: const <int>[1, 1, 1],
+                      )
+                    : artifact,
+            ],
+          ),
+        ]),
+        throwsFormatException,
+      );
+    },
+  );
 
   test('allows only exact cross-entry artifact reuse', () {
     final standalone = _standaloneInput(
@@ -285,8 +289,7 @@ void main() {
     expect(second.canonicalBytes, first.canonicalBytes);
   });
 
-  test(
-      'accepts an authored flow-screen floor above its derived sidecar floor '
+  test('accepts an authored flow-screen floor above its derived sidecar floor '
       'when the flow covers it', () {
     expect(
       () => SurfacePublicationManifestAssembler.assemble([
@@ -395,15 +398,15 @@ SurfacePublicationAssemblyInput _paywallBlobInput() {
 }
 
 SurfacePublicationAssemblyInput _paywallFlowInput() => _flowInput(
-      surface: Surface.paywall,
-      sourceKind: SurfaceSourceKind.paywall,
-      slug: 'premium',
-      screenId: 'paywall_premium',
-      flowPath: 'assets/paywalls/premium.flow.json',
-      blobPath: 'assets/paywalls/screens/paywall_premium.rfw',
-      sidecarPath: 'assets/paywalls/screens/paywall_premium.capability.json',
-      blobBytes: const <int>[4, 5, 6],
-    );
+  surface: Surface.paywall,
+  sourceKind: SurfaceSourceKind.paywall,
+  slug: 'premium',
+  screenId: 'paywall_premium',
+  flowPath: 'assets/paywalls/premium.flow.json',
+  blobPath: 'assets/paywalls/screens/paywall_premium.rfw',
+  sidecarPath: 'assets/paywalls/screens/paywall_premium.capability.json',
+  blobBytes: const <int>[4, 5, 6],
+);
 
 SurfacePublicationAssemblyInput _flowInput({
   Surface surface = Surface.general,
@@ -478,12 +481,11 @@ SurfacePublicationAssemblyInput _flowInput({
 List<int> _sidecarBytes(
   List<int> blob,
   CapabilityManifest capabilities,
-) =>
-    utf8.encode(
-      jsonEncode(
-        CapabilitySidecar(
-          blobSha256: CapabilitySidecar.hashBlob(blob),
-          manifest: capabilities,
-        ).toJson(),
-      ),
-    );
+) => utf8.encode(
+  jsonEncode(
+    CapabilitySidecar(
+      blobSha256: CapabilitySidecar.hashBlob(blob),
+      manifest: capabilities,
+    ).toJson(),
+  ),
+);

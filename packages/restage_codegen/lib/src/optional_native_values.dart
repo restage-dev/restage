@@ -45,7 +45,8 @@ String? optionalNativeDecoder(String sourceType, {required String namespace}) =>
 String? optionalNativeInitializerType(Expression expression) {
   final declaration = expression.parent;
   if (declaration is! VariableDeclaration ||
-      !identical(declaration.initializer, expression)) return null;
+      !identical(declaration.initializer, expression))
+    return null;
   final variable = declaration.declaredFragment?.element;
   final body = declaration.thisOrAncestorOfType<FunctionBody>();
   if (variable == null || body == null) return null;
@@ -57,7 +58,8 @@ String? optionalNativeInitializerType(Expression expression) {
     for (final parameter in uses.parameters) {
       final origin = parameter.library?.identifier;
       if (origin != 'package:flutter_svg/svg.dart' &&
-          origin != 'package:flutter_svg/src/loaders.dart') continue;
+          origin != 'package:flutter_svg/src/loaders.dart')
+        continue;
       final source = optionalNativeSourceType(parameter.type);
       if ((source == 'dart:io#File' ||
               source ==
@@ -112,17 +114,24 @@ String? optionalNativeSourceType(DartType type) {
         value.nullabilitySuffix == NullabilitySuffix.none &&
         '${value.element.library.identifier}#${value.element.name}' == identity;
     if (type.typeParameters.isNotEmpty ||
-        !exact(type.returnType,
-            'package:flutter/src/widgets/framework.dart#Widget') ||
-        type.formalParameters.any((p) => !p.isRequiredPositional)) return null;
+        !exact(
+          type.returnType,
+          'package:flutter/src/widgets/framework.dart#Widget',
+        ) ||
+        type.formalParameters.any((p) => !p.isRequiredPositional))
+      return null;
     final parameters = type.formalParameters;
     if (parameters.isEmpty ||
-        !exact(parameters.first.type,
-            'package:flutter/src/widgets/framework.dart#BuildContext'))
+        !exact(
+          parameters.first.type,
+          'package:flutter/src/widgets/framework.dart#BuildContext',
+        ))
       return null;
     if (parameters.length == 2 &&
-        exact(parameters[1].type,
-            'package:flutter/src/widgets/framework.dart#Widget')) {
+        exact(
+          parameters[1].type,
+          'package:flutter/src/widgets/framework.dart#Widget',
+        )) {
       return 'package:flutter_svg/svg.dart#SvgImageWidgetBuilder';
     }
     if (parameters.length == 3 &&

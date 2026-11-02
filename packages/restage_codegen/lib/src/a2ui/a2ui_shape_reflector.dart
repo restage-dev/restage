@@ -388,17 +388,21 @@ A2uiShapeResult _objectFromClass(
       '${type.getDisplayString()} (no unambiguous generative constructor)',
     );
   }
-  final entries = <({
-    String name,
-    DartType type,
-    bool required,
-    String? occurrenceDescription,
-  })>[];
+  final entries =
+      <
+        ({
+          String name,
+          DartType type,
+          bool required,
+          String? occurrenceDescription,
+        })
+      >[];
   final parameters = <A2uiConstructorParameter>[];
   var skippedPositional = false;
   for (final p in ctor.formalParameters) {
     final sourceName = p.name;
-    final name = p is FieldFormalParameterElement &&
+    final name =
+        p is FieldFormalParameterElement &&
             p.isNamed &&
             (sourceName?.startsWith('_') ?? false)
         ? sourceName!.replaceFirst(RegExp('^_+'), '')
@@ -456,8 +460,8 @@ A2uiShapeResult _objectFromClass(
       dartTypeIdentity: _dartTypeIdentity(type, includeNullability: false),
       constructorName:
           (ctorName == null || ctorName.isEmpty || ctorName == 'new')
-              ? null
-              : ctorName,
+          ? null
+          : ctorName,
       parameters: parameters,
     ),
     nullable: nullable,
@@ -516,13 +520,14 @@ DartType? _inheritedFieldType(InterfaceType type, String name) {
 /// object closed (loud); a callback field is excluded (the event surface).
 A2uiShapeResult _objectFromFields(
   List<
-          ({
-            String name,
-            DartType type,
-            bool required,
-            String? occurrenceDescription,
-          })>
-      entries, {
+    ({
+      String name,
+      DartType type,
+      bool required,
+      String? occurrenceDescription,
+    })
+  >
+  entries, {
   required String? defId,
   required String? definitionDescription,
   required A2uiObjectConstruction construction,
@@ -581,7 +586,8 @@ A2uiShapeScopedOut? _buildabilityScopeOut(
     DartType type,
     bool required,
     String? occurrenceDescription,
-  }) entry,
+  })
+  entry,
   A2uiSchemaNode node,
 ) {
   // R-a: a RECORD is reconstructed inline with per-field fallbacks (no helper,
@@ -643,10 +649,10 @@ A2uiSchemaNode _withOccurrenceDescription(
         occurrenceDescription: description,
       ),
     ListNode(:final element, :final nullable) => ListNode(
-        element: element,
-        nullable: nullable,
-        occurrenceDescription: description,
-      ),
+      element: element,
+      nullable: nullable,
+      occurrenceDescription: description,
+    ),
     ObjectNode(
       :final fields,
       :final required,
@@ -665,10 +671,10 @@ A2uiSchemaNode _withOccurrenceDescription(
         occurrenceDescription: description,
       ),
     MapNode(:final valueType, :final nullable) => MapNode(
-        valueType: valueType,
-        nullable: nullable,
-        occurrenceDescription: description,
-      ),
+      valueType: valueType,
+      nullable: nullable,
+      occurrenceDescription: description,
+    ),
     UnionNode(
       :final variants,
       :final discriminatorField,
@@ -685,10 +691,10 @@ A2uiSchemaNode _withOccurrenceDescription(
         occurrenceDescription: description,
       ),
     RefNode(:final defId, :final nullable) => RefNode(
-        defId,
-        nullable: nullable,
-        occurrenceDescription: description,
-      ),
+      defId,
+      nullable: nullable,
+      occurrenceDescription: description,
+    ),
   };
 }
 
@@ -702,8 +708,9 @@ A2uiSchemaNode _withOccurrenceDescription(
 A2uiCallbackSignature _classifyCallback(FunctionType type) {
   return switch (classifyResolvedCallbackShape(type)) {
     ZeroArgumentCallback() => const A2uiCallbackDispatch(),
-    SingleValueCallback(:final valueType) =>
-      _classifyA2uiCallbackValue(valueType),
+    SingleValueCallback(:final valueType) => _classifyA2uiCallbackValue(
+      valueType,
+    ),
     UnsupportedCallback(:final reason) => A2uiCallbackUnsupported(reason),
   };
 }
@@ -734,7 +741,8 @@ A2uiCallbackSignature _classifyA2uiCallbackValue(DartType value) {
         _a2uiScalarType(element.family),
         nullable: nullable,
         isList: true,
-        elementNullable: value.typeArguments.single.nullabilitySuffix ==
+        elementNullable:
+            value.typeArguments.single.nullabilitySuffix ==
             NullabilitySuffix.question,
         preserveNumericRuntimeType: element.preserveNumericRuntimeType,
       );
@@ -759,11 +767,11 @@ ScalarNode? _scalarNodeOf(DartType type, {required bool nullable}) {
 
 /// Maps the shared analyzer classification to its A2UI schema family.
 A2uiScalarType _a2uiScalarType(JsonScalarFamily family) => switch (family) {
-      JsonScalarFamily.string => A2uiScalarType.string,
-      JsonScalarFamily.number => A2uiScalarType.number,
-      JsonScalarFamily.integer => A2uiScalarType.integer,
-      JsonScalarFamily.boolean => A2uiScalarType.boolean,
-    };
+  JsonScalarFamily.string => A2uiScalarType.string,
+  JsonScalarFamily.number => A2uiScalarType.number,
+  JsonScalarFamily.integer => A2uiScalarType.integer,
+  JsonScalarFamily.boolean => A2uiScalarType.boolean,
+};
 
 /// An [EnumNode] for an enum [type], or null when [type] is not an enum.
 EnumNode? _enumNodeOf(DartType type, {required bool nullable}) {
@@ -804,8 +812,9 @@ String _canonicalId(InterfaceType type) {
 /// shape for cycle/definition purposes).
 String _typeArgId(DartType type) {
   if (type is InterfaceType) {
-    final suffix =
-        type.nullabilitySuffix == NullabilitySuffix.question ? '?' : '';
+    final suffix = type.nullabilitySuffix == NullabilitySuffix.question
+        ? '?'
+        : '';
     return '${_canonicalId(type)}$suffix';
   }
   // getDisplayString() already carries the nullability suffix for non-interface
@@ -830,7 +839,8 @@ DartTypeIdentity? _dartTypeIdentity(
     libraryUri: type.element.library.identifier,
     symbolName: symbol,
     typeArguments: arguments,
-    nullable: includeNullability &&
+    nullable:
+        includeNullability &&
         type.nullabilitySuffix == NullabilitySuffix.question,
   );
 }

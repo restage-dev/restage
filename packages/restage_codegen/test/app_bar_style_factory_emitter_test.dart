@@ -10,12 +10,14 @@ void main() {
     test('AppBar styles use nullable decoders (native: $native)', () {
       final catalog = requireNativeCatalog(
         decodeCatalog(
-          File('../restage_material/lib/src/widget_catalog/catalog.json')
-              .readAsStringSync(),
+          File(
+            '../restage_material/lib/src/widget_catalog/catalog.json',
+          ).readAsStringSync(),
         ),
       );
-      final appBar =
-          catalog.widgets.singleWhere((entry) => entry.name == 'AppBar');
+      final appBar = catalog.widgets.singleWhere(
+        (entry) => entry.name == 'AppBar',
+      );
       final entry = native
           ? appBar
           : WidgetEntry(

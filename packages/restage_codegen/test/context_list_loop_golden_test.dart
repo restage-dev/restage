@@ -12,7 +12,8 @@ const _blobGolden = 'test/fixtures/goldens/context_list_loop.rfw';
 
 void main() {
   test('a context list emits the exact text and binary loop', () async {
-    const source = '''
+    const source =
+        '''
 $kStubAnnotationsAndBases
 
 @PaywallSource(id: 'context_list_loop')

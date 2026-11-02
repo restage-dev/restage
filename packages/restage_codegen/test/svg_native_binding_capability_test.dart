@@ -21,32 +21,32 @@ const _routes = <_Route>[
   (
     source: 'package:flutter_svg/src/utilities/_file_none.dart#File',
     widget: 'SvgPictureFile',
-    slot: 'file'
+    slot: 'file',
   ),
   (
     source: 'package:flutter_svg/svg.dart#SvgErrorWidgetBuilder',
     widget: 'SvgPictureString',
-    slot: 'errorBuilder'
+    slot: 'errorBuilder',
   ),
   (
     source: 'package:flutter_svg/svg.dart#SvgImageWidgetBuilder',
     widget: 'SvgPictureString',
-    slot: 'imageBuilder'
+    slot: 'imageBuilder',
   ),
   (
     source: 'dart:ui#ColorFilter',
     widget: 'SvgPictureString',
-    slot: 'colorFilter'
+    slot: 'colorFilter',
   ),
   (
     source: 'dart:typed_data#Uint8List',
     widget: 'SvgPictureMemory',
-    slot: 'bytes'
+    slot: 'bytes',
   ),
   (
     source: 'package:flutter_svg/src/loaders.dart#SvgTheme',
     widget: 'SvgPictureString',
-    slot: 'theme'
+    slot: 'theme',
   ),
   (source: 'dart:core#Map', widget: 'SvgPictureNetwork', slot: 'headers'),
 ];
@@ -96,30 +96,29 @@ Catalog _catalog(_Route route, {WidgetLibrary library = _svg}) {
 NativeBindingContract _contract(String source) =>
     NativeBindingContract(type: optionalNativeBindingTypes[source]!);
 Map<String, Object?> _requiredArguments(_Route route) => switch (route.widget) {
-      'SvgPictureAsset' => {'assetName': 'icon.svg'},
-      'SvgPictureNetwork' => {'url': 'https://example.com/icon.svg'},
-      'SvgPictureString' => {'string': '<svg/>'},
-      _ => {},
-    };
+  'SvgPictureAsset' => {'assetName': 'icon.svg'},
+  'SvgPictureNetwork' => {'url': 'https://example.com/icon.svg'},
+  'SvgPictureString' => {'string': '<svg/>'},
+  _ => {},
+};
 
 rfw.RemoteWidgetLibrary _library(
   _Route route,
   Object? value, {
   WidgetLibrary library = _svg,
-}) =>
-    rfw.RemoteWidgetLibrary(
-      [rfw.Import(rfw.LibraryName(library.namespace.split('.')))],
-      [
-        rfw.WidgetDeclaration(
-          'Root',
-          null,
-          rfw.ConstructorCall(
-            route.widget,
-            {..._requiredArguments(route), route.slot: value},
-          ),
-        ),
-      ],
-    );
+}) => rfw.RemoteWidgetLibrary(
+  [rfw.Import(rfw.LibraryName(library.namespace.split('.')))],
+  [
+    rfw.WidgetDeclaration(
+      'Root',
+      null,
+      rfw.ConstructorCall(
+        route.widget,
+        {..._requiredArguments(route), route.slot: value},
+      ),
+    ),
+  ],
+);
 
 Map<String, Object?> _nativeCapture(_Route route) {
   final type = ValueType.native(_contract(route.source).type);
@@ -175,28 +174,31 @@ rfw.RemoteWidgetLibrary _nativeFrame(
   final bodyValue = nested
       ? {'kind': 'SvgAssetLoader', 'value': 'icon.svg', 'assetBundle': value}
       : value;
-  return rfw.RemoteWidgetLibrary([
-    const rfw.Import(rfw.LibraryName(['restage', 'svg'])),
-  ], [
-    rfw.WidgetDeclaration(
-      'Root',
-      null,
-      rfw.ConstructorCall(kBuilderContinuationWidgetName, {
-        'version': 1,
-        'program': program.encode(),
-        'captures': {'native': _contract(route.source).reference('native')},
-        'bodies': [
-          rfw.WidgetBuilderDeclaration(
-            'frame',
-            rfw.ConstructorCall(bodyRoute.widget, {
-              ..._requiredArguments(bodyRoute),
-              bodyRoute.slot: bodyValue,
-            }),
-          ),
-        ],
-      }),
-    ),
-  ]);
+  return rfw.RemoteWidgetLibrary(
+    [
+      const rfw.Import(rfw.LibraryName(['restage', 'svg'])),
+    ],
+    [
+      rfw.WidgetDeclaration(
+        'Root',
+        null,
+        rfw.ConstructorCall(kBuilderContinuationWidgetName, {
+          'version': 1,
+          'program': program.encode(),
+          'captures': {'native': _contract(route.source).reference('native')},
+          'bodies': [
+            rfw.WidgetBuilderDeclaration(
+              'frame',
+              rfw.ConstructorCall(bodyRoute.widget, {
+                ..._requiredArguments(bodyRoute),
+                bodyRoute.slot: bodyValue,
+              }),
+            ),
+          ],
+        }),
+      ),
+    ],
+  );
 }
 
 void main() {
@@ -225,8 +227,10 @@ void main() {
     );
     for (final route in _routes) {
       final catalog = _catalog(route);
-      final library =
-          _library(route, _contract(route.source).reference('native'));
+      final library = _library(
+        route,
+        _contract(route.source).reference('native'),
+      );
       expect(
         deriveSurfaceCapability(library, catalog).builtInFloor,
         24,
@@ -254,8 +258,11 @@ void main() {
   });
 
   test('missing opaque SVG context requires its installed native scope', () {
-    const route =
-        (source: _bundleSource, widget: 'SvgPictureAsset', slot: 'bundle');
+    const route = (
+      source: _bundleSource,
+      widget: 'SvgPictureAsset',
+      slot: 'bundle',
+    );
     expect(
       nativeBindingsNeedInstalledHost(
         _library(route, const rfw.DataReference(['context', 'native'])),
@@ -338,25 +345,34 @@ void main() {
   });
   test('nested SVG native programs use only admitted loader fields', () {
     for (final computed in [false, true]) {
-      final library =
-          _nativeFrame(_routes.first, computed: computed, nested: true);
-      const route =
-          (source: _loaderSource, widget: 'SvgPicture', slot: 'bytesLoader');
+      final library = _nativeFrame(
+        _routes.first,
+        computed: computed,
+        nested: true,
+      );
+      const route = (
+        source: _loaderSource,
+        widget: 'SvgPicture',
+        slot: 'bytesLoader',
+      );
       expect(
         nativeBindingsNeedInstalledHost(library, _catalog(route)),
         isTrue,
         reason: 'nested local computed=$computed',
       );
     }
-    const loader =
-        (source: _loaderSource, widget: 'SvgPicture', slot: 'bytesLoader');
+    const loader = (
+      source: _loaderSource,
+      widget: 'SvgPicture',
+      slot: 'bytesLoader',
+    );
     for (final (kind, field, source, value) in [
       ('SvgAssetLoader', 'assetBundle', _bundleSource, 'icon.svg'),
       (
         'SvgNetworkLoader',
         'httpClient',
         _clientSource,
-        'https://example.com/icon.svg'
+        'https://example.com/icon.svg',
       ),
       ('SvgStringLoader', 'colorMapper', _mapperSource, '<svg/>'),
       ('SvgBytesLoader', 'value', 'dart:typed_data#Uint8List', null),
@@ -402,8 +418,11 @@ void main() {
     );
   });
   test('native SVG call outputs fail closed without installed operations', () {
-    const route =
-        (source: _bundleSource, widget: 'SvgPictureAsset', slot: 'bundle');
+    const route = (
+      source: _bundleSource,
+      widget: 'SvgPictureAsset',
+      slot: 'bundle',
+    );
     const contract = NativeBindingContract(
       type: 'installed.bundle',
       call: NativeCallContract(
@@ -449,22 +468,25 @@ void main() {
   });
 
   test('nested SVG loader references qualify actual native fields', () {
-    const route =
-        (source: _loaderSource, widget: 'SvgPicture', slot: 'bytesLoader');
+    const route = (
+      source: _loaderSource,
+      widget: 'SvgPicture',
+      slot: 'bytesLoader',
+    );
     for (final (kind, field, source, value) in [
       ('SvgAssetLoader', 'assetBundle', _bundleSource, 'icon.svg'),
       (
         'SvgNetworkLoader',
         'httpClient',
         _clientSource,
-        'https://example.com/icon.svg'
+        'https://example.com/icon.svg',
       ),
       ('SvgStringLoader', 'colorMapper', _mapperSource, '<svg/>'),
       (
         'SvgBytesLoader',
         'colorMapper',
         _mapperSource,
-        <Object?>[60, 115, 118, 103, 47, 62]
+        <Object?>[60, 115, 118, 103, 47, 62],
       ),
       ('SvgFileLoader', 'value', _fileSource, null),
     ]) {
@@ -486,43 +508,49 @@ void main() {
       );
     }
   });
-  test(
-      'declared and forwarded SVG context references '
+  test('declared and forwarded SVG context references '
       'retain exact host requirements', () {
     for (final route in _routes) {
       final catalog = _catalog(route);
       final context = SurfaceScreenHostDataSchema({
-        'native':
-            SurfaceScreenHostDataNativeBindingShapeV1(_contract(route.source)),
+        'native': SurfaceScreenHostDataNativeBindingShapeV1(
+          _contract(route.source),
+        ),
       });
-      final library = rfw.RemoteWidgetLibrary([
-        const rfw.Import(rfw.LibraryName(['restage', 'svg'])),
-      ], [
-        rfw.WidgetDeclaration(
-          'Leaf',
-          null,
-          rfw.ConstructorCall(route.widget, {
-            ..._requiredArguments(route),
-            route.slot: const rfw.ArgsReference(['payload']),
-          }),
-        ),
-        const rfw.WidgetDeclaration(
-          'Forward',
-          null,
-          rfw.ConstructorCall('Leaf', {
-            'payload': rfw.ArgsReference(['payload']),
-          }),
-        ),
-        const rfw.WidgetDeclaration(
-          'Root',
-          null,
-          rfw.ConstructorCall('Forward', {
-            'payload': rfw.DataReference(['context', 'native']),
-          }),
-        ),
-      ]);
-      final required =
-          deriveSurfaceCapability(library, catalog, hostDataContract: context);
+      final library = rfw.RemoteWidgetLibrary(
+        [
+          const rfw.Import(rfw.LibraryName(['restage', 'svg'])),
+        ],
+        [
+          rfw.WidgetDeclaration(
+            'Leaf',
+            null,
+            rfw.ConstructorCall(route.widget, {
+              ..._requiredArguments(route),
+              route.slot: const rfw.ArgsReference(['payload']),
+            }),
+          ),
+          const rfw.WidgetDeclaration(
+            'Forward',
+            null,
+            rfw.ConstructorCall('Leaf', {
+              'payload': rfw.ArgsReference(['payload']),
+            }),
+          ),
+          const rfw.WidgetDeclaration(
+            'Root',
+            null,
+            rfw.ConstructorCall('Forward', {
+              'payload': rfw.DataReference(['context', 'native']),
+            }),
+          ),
+        ],
+      );
+      final required = deriveSurfaceCapability(
+        library,
+        catalog,
+        hostDataContract: context,
+      );
       expect(required.builtInFloor, 24, reason: route.source);
       expect(required.requiredLibraries.single.namespace, 'restage.svg');
       expect(required.requiredLibraries.single.minVersion, 2);
@@ -563,89 +591,101 @@ void main() {
     }
   });
 
-  test('nested SVG contexts follow only the loader fields the runtime reads',
-      () {
-    const route =
-        (source: _loaderSource, widget: 'SvgPicture', slot: 'bytesLoader');
-    final catalog = _catalog(route);
-    for (final (kind, field, source, value) in [
-      ('SvgAssetLoader', 'assetBundle', _bundleSource, 'icon.svg'),
-      (
-        'SvgNetworkLoader',
-        'httpClient',
-        _clientSource,
-        'https://example.com/icon.svg'
-      ),
-      ('SvgStringLoader', 'colorMapper', _mapperSource, '<svg/>'),
-      ('SvgBytesLoader', 'value', 'dart:typed_data#Uint8List', null),
-      ('SvgFileLoader', 'value', _fileSource, null),
-    ]) {
-      final library = _library(route, {
-        'kind': kind,
-        if (value != null) 'value': value,
-        field: const rfw.DataReference(['context', 'native']),
-      });
-      final schema = SurfaceScreenHostDataSchema({
-        'native': SurfaceScreenHostDataNativeBindingShapeV1(_contract(source)),
-      });
-      expect(
-        deriveSurfaceCapability(library, catalog, hostDataContract: schema)
-            .builtInFloor,
-        24,
-        reason: '$kind.$field',
+  test(
+    'nested SVG contexts follow only the loader fields the runtime reads',
+    () {
+      const route = (
+        source: _loaderSource,
+        widget: 'SvgPicture',
+        slot: 'bytesLoader',
       );
-      expect(
-        nativeBindingsNeedInstalledHost(library, catalog),
-        isTrue,
-        reason: '$kind.$field',
-      );
-      expect(
-        nativeBindingsNeedInstalledHost(
-          library,
-          catalog,
-          context: {'native': _contract(source).reference('native')},
+      final catalog = _catalog(route);
+      for (final (kind, field, source, value) in [
+        ('SvgAssetLoader', 'assetBundle', _bundleSource, 'icon.svg'),
+        (
+          'SvgNetworkLoader',
+          'httpClient',
+          _clientSource,
+          'https://example.com/icon.svg',
         ),
-        isTrue,
-        reason: '$kind.$field recorded metadata',
-      );
-    }
-    for (final kind in [
-      'SvgStringLoader',
-      'SvgBytesLoader',
-      'SvgAssetLoader',
-      'SvgNetworkLoader',
-      'SvgFileLoader',
-    ]) {
-      for (final (field, source) in [
-        ('theme', 'package:flutter_svg/src/loaders.dart#SvgTheme'),
-        ('colorMapper', _mapperSource),
+        ('SvgStringLoader', 'colorMapper', _mapperSource, '<svg/>'),
+        ('SvgBytesLoader', 'value', 'dart:typed_data#Uint8List', null),
+        ('SvgFileLoader', 'value', _fileSource, null),
       ]) {
         final library = _library(route, {
           'kind': kind,
-          'value': kind == 'SvgBytesLoader'
-              ? [60, 62]
-              : kind == 'SvgFileLoader'
-                  ? _contract(_fileSource).reference('file')
-                  : '<svg/>',
-          field: _contract(source).reference('native'),
+          if (value != null) 'value': value,
+          field: const rfw.DataReference(['context', 'native']),
         });
-        expect(deriveSurfaceCapability(library, catalog).builtInFloor, 24);
-        expect(nativeBindingsNeedInstalledHost(library, catalog), isTrue);
+        final schema = SurfaceScreenHostDataSchema({
+          'native': SurfaceScreenHostDataNativeBindingShapeV1(
+            _contract(source),
+          ),
+        });
+        expect(
+          deriveSurfaceCapability(
+            library,
+            catalog,
+            hostDataContract: schema,
+          ).builtInFloor,
+          24,
+          reason: '$kind.$field',
+        );
+        expect(
+          nativeBindingsNeedInstalledHost(library, catalog),
+          isTrue,
+          reason: '$kind.$field',
+        );
+        expect(
+          nativeBindingsNeedInstalledHost(
+            library,
+            catalog,
+            context: {'native': _contract(source).reference('native')},
+          ),
+          isTrue,
+          reason: '$kind.$field recorded metadata',
+        );
       }
-    }
-    final headers = _library(route, {
-      'kind': 'SvgNetworkLoader',
-      'value': 'https://example.com/icon.svg',
-      'headers': _contract('dart:core#Map').reference('headers'),
-    });
-    expect(deriveSurfaceCapability(headers, catalog).builtInFloor, 24);
-  });
+      for (final kind in [
+        'SvgStringLoader',
+        'SvgBytesLoader',
+        'SvgAssetLoader',
+        'SvgNetworkLoader',
+        'SvgFileLoader',
+      ]) {
+        for (final (field, source) in [
+          ('theme', 'package:flutter_svg/src/loaders.dart#SvgTheme'),
+          ('colorMapper', _mapperSource),
+        ]) {
+          final library = _library(route, {
+            'kind': kind,
+            'value': kind == 'SvgBytesLoader'
+                ? [60, 62]
+                : kind == 'SvgFileLoader'
+                ? _contract(_fileSource).reference('file')
+                : '<svg/>',
+            field: _contract(source).reference('native'),
+          });
+          expect(deriveSurfaceCapability(library, catalog).builtInFloor, 24);
+          expect(nativeBindingsNeedInstalledHost(library, catalog), isTrue);
+        }
+      }
+      final headers = _library(route, {
+        'kind': 'SvgNetworkLoader',
+        'value': 'https://example.com/icon.svg',
+        'headers': _contract('dart:core#Map').reference('headers'),
+      });
+      expect(deriveSurfaceCapability(headers, catalog).builtInFloor, 24);
+    },
+  );
 
-  test(
-      'ordinary SVG recipes nulls and ignored fields '
+  test('ordinary SVG recipes nulls and ignored fields '
       'keep their prior interpretation', () {
-    const route =
-        (source: _loaderSource, widget: 'SvgPicture', slot: 'bytesLoader');
+    const route = (
+      source: _loaderSource,
+      widget: 'SvgPicture',
+      slot: 'bytesLoader',
+    );
     final catalog = _catalog(route);
     for (final recipe in <Object?>[
       null,
@@ -696,8 +736,10 @@ void main() {
     }
     for (final route in _routes) {
       expect(
-        deriveSurfaceCapability(_library(route, null), _catalog(route))
-            .builtInFloor,
+        deriveSurfaceCapability(
+          _library(route, null),
+          _catalog(route),
+        ).builtInFloor,
         lessThan(24),
       );
       expect(
@@ -713,21 +755,23 @@ void main() {
         'dart:core#Map',
         [
           {'key': 'accept', 'value': 'image/svg+xml'},
-        ]
+        ],
       ),
       ('dart:typed_data#Uint8List', [60, 62]),
       (
         'package:flutter_svg/src/loaders.dart#SvgTheme',
-        {'fontSize': 14.0, 'currentColor': 4278190080}
+        {'fontSize': 14.0, 'currentColor': 4278190080},
       ),
       (
         'dart:ui#ColorFilter',
-        {'kind': 'mode', 'color': 4278190080, 'blendMode': 'srcIn'}
+        {'kind': 'mode', 'color': 4278190080, 'blendMode': 'srcIn'},
       ),
     ]) {
       final route = _routes.singleWhere((route) => route.source == source);
-      final library =
-          _library(route, const rfw.DataReference(['context', 'native']));
+      final library = _library(
+        route,
+        const rfw.DataReference(['context', 'native']),
+      );
       expect(
         nativeBindingsNeedInstalledHost(
           library,
@@ -747,8 +791,7 @@ void main() {
     }
   });
 
-  test(
-      'unrelated namespaces with identical SVG source names '
+  test('unrelated namespaces with identical SVG source names '
       'are not SVG decoders', () {
     const foreign = WidgetLibrary.custom('example.svg');
     for (final route in _routes) {

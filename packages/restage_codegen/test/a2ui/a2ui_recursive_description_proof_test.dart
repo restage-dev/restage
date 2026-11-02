@@ -64,23 +64,22 @@ Future<ObjectNode> _reflectProduct(String field) async {
 A2uiDartWidgetPlan _planFor(
   A2uiSchemaNode node, {
   String description = '',
-}) =>
-    classifyA2uiCatalogDart(
-      catalogWith([
-        entry(
-          name: 'PriceCard',
-          properties: [
-            prop(
-              'product',
-              PropertyType.structured,
-              required: true,
-              description: description,
-            ),
-          ],
+}) => classifyA2uiCatalogDart(
+  catalogWith([
+    entry(
+      name: 'PriceCard',
+      properties: [
+        prop(
+          'product',
+          PropertyType.structured,
+          required: true,
+          description: description,
         ),
-      ]),
-      richShapes: {('PriceCard', 'product'): node},
-    ).widgets.single;
+      ],
+    ),
+  ]),
+  richShapes: {('PriceCard', 'product'): node},
+).widgets.single;
 
 String _widgetExpression(A2uiSchemaNode node) =>
     a2uiWidgetDataSchemaExpression([
@@ -93,83 +92,89 @@ String _widgetExpression(A2uiSchemaNode node) =>
 
 void main() {
   group('recursive and repeated description projection', () {
-    test('reflector keeps occurrence and canonical definition facts separate',
-        () async {
-      final product = await _reflectProduct('product');
-      final price = product.fields['price']! as ObjectNode;
-      final discount = product.fields['discount']! as ObjectNode;
+    test(
+      'reflector keeps occurrence and canonical definition facts separate',
+      () async {
+        final product = await _reflectProduct('product');
+        final price = product.fields['price']! as ObjectNode;
+        final discount = product.fields['discount']! as ObjectNode;
 
-      expect(price.defId, discount.defId);
-      expect(price.occurrenceDescription, 'Checkout price.');
-      expect(discount.occurrenceDescription, 'Promotional discount.');
-      expect(price.definitionDescription, 'Canonical monetary amount.');
-      expect(discount.definitionDescription, 'Canonical monetary amount.');
-      expect(price, isNot(discount));
+        expect(price.defId, discount.defId);
+        expect(price.occurrenceDescription, 'Checkout price.');
+        expect(discount.occurrenceDescription, 'Promotional discount.');
+        expect(price.definitionDescription, 'Canonical monetary amount.');
+        expect(discount.definitionDescription, 'Canonical monetary amount.');
+        expect(price, isNot(discount));
 
-      final parent = price.fields['parent']! as RefNode;
-      expect(parent.defId, price.defId);
-      expect(parent.occurrenceDescription, isNull);
-      expect(
-        const RefNode('money', occurrenceDescription: 'First occurrence.'),
-        isNot(
-          const RefNode(
-            'money',
-            occurrenceDescription: 'Second occurrence.',
+        final parent = price.fields['parent']! as RefNode;
+        expect(parent.defId, price.defId);
+        expect(parent.occurrenceDescription, isNull);
+        expect(
+          const RefNode('money', occurrenceDescription: 'First occurrence.'),
+          isNot(
+            const RefNode(
+              'money',
+              occurrenceDescription: 'Second occurrence.',
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('reverse traversal has byte parity in expression and schema map',
-        () async {
-      final product = await _reflectProduct('product');
-      final reversed = await _reflectProduct('reversed');
+    test(
+      'reverse traversal has byte parity in expression and schema map',
+      () async {
+        final product = await _reflectProduct('product');
+        final reversed = await _reflectProduct('reversed');
 
-      final expression = _widgetExpression(product);
-      final reversedExpression = _widgetExpression(reversed);
-      expect(utf8.encode(reversedExpression), utf8.encode(expression));
-      expect(expression, contains(r'$defs'));
-      expect(expression, contains(r'$ref'));
-      expect(expression, contains('Checkout price.'));
-      expect(expression, contains('Promotional discount.'));
-      expect(
-        'Canonical monetary amount.'.allMatches(expression),
-        hasLength(1),
-      );
+        final expression = _widgetExpression(product);
+        final reversedExpression = _widgetExpression(reversed);
+        expect(utf8.encode(reversedExpression), utf8.encode(expression));
+        expect(expression, contains(r'$defs'));
+        expect(expression, contains(r'$ref'));
+        expect(expression, contains('Checkout price.'));
+        expect(expression, contains('Promotional discount.'));
+        expect(
+          'Canonical monetary amount.'.allMatches(expression),
+          hasLength(1),
+        );
 
-      final schema = a2uiWidgetDataSchemaMapForPlan(_planFor(product));
-      final reversedSchema = a2uiWidgetDataSchemaMapForPlan(_planFor(reversed));
-      expect(
-        utf8.encode(jsonEncode(reversedSchema)),
-        utf8.encode(jsonEncode(schema)),
-      );
-      expect(jsonEncode(schema), contains(r'"$defs"'));
-      expect(jsonEncode(schema), contains(r'"$ref"'));
-      expect(jsonEncode(schema), contains('Checkout price.'));
-      expect(jsonEncode(schema), contains('Promotional discount.'));
-      expect(
-        'Canonical monetary amount.'.allMatches(jsonEncode(schema)),
-        hasLength(1),
-      );
+        final schema = a2uiWidgetDataSchemaMapForPlan(_planFor(product));
+        final reversedSchema = a2uiWidgetDataSchemaMapForPlan(
+          _planFor(reversed),
+        );
+        expect(
+          utf8.encode(jsonEncode(reversedSchema)),
+          utf8.encode(jsonEncode(schema)),
+        );
+        expect(jsonEncode(schema), contains(r'"$defs"'));
+        expect(jsonEncode(schema), contains(r'"$ref"'));
+        expect(jsonEncode(schema), contains('Checkout price.'));
+        expect(jsonEncode(schema), contains('Promotional discount.'));
+        expect(
+          'Canonical monetary amount.'.allMatches(jsonEncode(schema)),
+          hasLength(1),
+        );
 
-      final catalog = catalogWith([
-        entry(
-          name: 'PriceCard',
-          properties: [
-            prop('product', PropertyType.structured, required: true),
-          ],
-        ),
-      ]);
-      final documentId = emitA2uiCatalog(
-        catalog,
-        richShapes: {('PriceCard', 'product'): product},
-      ).documentId;
-      final reversedDocumentId = emitA2uiCatalog(
-        catalog,
-        richShapes: {('PriceCard', 'product'): reversed},
-      ).documentId;
-      expect(reversedDocumentId, documentId);
-    });
+        final catalog = catalogWith([
+          entry(
+            name: 'PriceCard',
+            properties: [
+              prop('product', PropertyType.structured, required: true),
+            ],
+          ),
+        ]);
+        final documentId = emitA2uiCatalog(
+          catalog,
+          richShapes: {('PriceCard', 'product'): product},
+        ).documentId;
+        final reversedDocumentId = emitA2uiCatalog(
+          catalog,
+          richShapes: {('PriceCard', 'product'): reversed},
+        ).documentId;
+        expect(reversedDocumentId, documentId);
+      },
+    );
 
     test('the outer property overlay wins and emits exactly once', () async {
       final product = await _reflectProduct('product');
@@ -209,29 +214,29 @@ void main() {
       const legacyId = 'package:proof/proof.dart#Legacy';
 
       ObjectNode money(String occurrence) => ObjectNode(
-            defId: moneyId,
-            definitionDescription: 'Canonical monetary amount.',
-            occurrenceDescription: occurrence,
-            fields: const {
-              'amount': ScalarNode(A2uiScalarType.integer),
-              'parent': RefNode(moneyId, nullable: true),
-            },
-            required: const {'amount'},
-          );
+        defId: moneyId,
+        definitionDescription: 'Canonical monetary amount.',
+        occurrenceDescription: occurrence,
+        fields: const {
+          'amount': ScalarNode(A2uiScalarType.integer),
+          'parent': RefNode(moneyId, nullable: true),
+        },
+        required: const {'amount'},
+      );
 
       ObjectNode product({required bool reversed}) => ObjectNode(
-            defId: productId,
-            fields: reversed
-                ? {
-                    'discount': money('Promotional discount.'),
-                    'price': money('Checkout price.'),
-                  }
-                : {
-                    'price': money('Checkout price.'),
-                    'discount': money('Promotional discount.'),
-                  },
-            required: const {'price', 'discount'},
-          );
+        defId: productId,
+        fields: reversed
+            ? {
+                'discount': money('Promotional discount.'),
+                'price': money('Checkout price.'),
+              }
+            : {
+                'price': money('Checkout price.'),
+                'discount': money('Promotional discount.'),
+              },
+        required: const {'price', 'discount'},
+      );
 
       final legacy = ObjectNode(
         defId: legacyId,
@@ -244,33 +249,33 @@ void main() {
       );
 
       List<A2uiWidgetField> fields(ObjectNode documented) => [
-            (
-              name: 'legacy',
-              required: true,
-              emission: A2uiDataField(legacy, rich: true),
-            ),
-            (
-              name: 'documented',
-              required: true,
-              emission: A2uiDataField(documented, rich: true),
-            ),
-          ];
+        (
+          name: 'legacy',
+          required: true,
+          emission: A2uiDataField(legacy, rich: true),
+        ),
+        (
+          name: 'documented',
+          required: true,
+          emission: A2uiDataField(documented, rich: true),
+        ),
+      ];
 
       A2uiDartWidgetPlan plan(ObjectNode documented) => classifyA2uiCatalogDart(
-            catalogWith([
-              entry(
-                name: 'MixedCard',
-                properties: [
-                  prop('legacy', PropertyType.structured, required: true),
-                  prop('documented', PropertyType.structured, required: true),
-                ],
-              ),
-            ]),
-            richShapes: {
-              ('MixedCard', 'legacy'): legacy,
-              ('MixedCard', 'documented'): documented,
-            },
-          ).widgets.single;
+        catalogWith([
+          entry(
+            name: 'MixedCard',
+            properties: [
+              prop('legacy', PropertyType.structured, required: true),
+              prop('documented', PropertyType.structured, required: true),
+            ],
+          ),
+        ]),
+        richShapes: {
+          ('MixedCard', 'legacy'): legacy,
+          ('MixedCard', 'documented'): documented,
+        },
+      ).widgets.single;
 
       final forward = a2uiWidgetDataSchemaExpression(
         fields(product(reversed: false)),
@@ -280,8 +285,8 @@ void main() {
       );
       expect(reversed, forward);
       expect(
-        forward.indexOf("'legacy':"),
-        lessThan(forward.indexOf("'documented':")),
+        forward.indexOf("'props_legacy':"),
+        lessThan(forward.indexOf("'props_documented':")),
       );
       final legacyDefinition = forward.substring(
         forward.indexOf("'Legacy': S.object"),
@@ -302,99 +307,106 @@ void main() {
       final definitions = forwardMap[r'$defs']! as Map<String, Object?>;
       final root = definitions['__a2ui_root__']! as Map<String, Object?>;
       final rootProperties = root['properties']! as Map<String, Object?>;
-      expect(rootProperties.keys, ['legacy', 'documented']);
+      expect(rootProperties.keys, ['props_legacy', 'props_documented']);
       final legacySchema = definitions['Legacy']! as Map<String, Object?>;
       final legacyProperties =
           legacySchema['properties']! as Map<String, Object?>;
       expect(legacyProperties.keys, ['zeta', 'alpha', 'next']);
       final documentedSchema =
-          rootProperties['documented']! as Map<String, Object?>;
+          rootProperties['props_documented']! as Map<String, Object?>;
       final documentedProperties =
           documentedSchema['properties']! as Map<String, Object?>;
       expect(documentedProperties.keys, ['discount', 'price']);
     });
 
-    test('nested canonical member facts merge independent of candidate order',
-        () {
-      const invoiceId = 'package:proof/proof.dart#Invoice';
-      const detailsId = 'package:proof/proof.dart#Details';
+    test(
+      'nested canonical member facts merge independent of candidate order',
+      () {
+        const invoiceId = 'package:proof/proof.dart#Invoice';
+        const detailsId = 'package:proof/proof.dart#Details';
 
-      ObjectNode candidate({
-        required String rootOccurrence,
-        required bool factsPresent,
-      }) =>
-          ObjectNode(
-            defId: invoiceId,
-            definitionDescription: 'Canonical invoice.',
-            occurrenceDescription: rootOccurrence,
-            fields: {
-              'amount': ScalarNode(
-                A2uiScalarType.integer,
-                occurrenceDescription:
-                    factsPresent ? 'Canonical amount member.' : null,
-              ),
-              'details': ObjectNode(
-                defId: detailsId,
-                definitionDescription:
-                    factsPresent ? 'Canonical details type.' : null,
-                occurrenceDescription:
-                    factsPresent ? 'Canonical details member.' : null,
-                fields: const {
-                  'code': ScalarNode(A2uiScalarType.string),
-                },
-                required: const {'code'},
-              ),
-              'parent': RefNode(
-                invoiceId,
-                occurrenceDescription:
-                    factsPresent ? 'Canonical parent member.' : null,
-                nullable: true,
-              ),
-            },
-            required: const {'amount', 'details'},
-          );
+        ObjectNode candidate({
+          required String rootOccurrence,
+          required bool factsPresent,
+        }) => ObjectNode(
+          defId: invoiceId,
+          definitionDescription: 'Canonical invoice.',
+          occurrenceDescription: rootOccurrence,
+          fields: {
+            'amount': ScalarNode(
+              A2uiScalarType.integer,
+              occurrenceDescription: factsPresent
+                  ? 'Canonical amount member.'
+                  : null,
+            ),
+            'details': ObjectNode(
+              defId: detailsId,
+              definitionDescription: factsPresent
+                  ? 'Canonical details type.'
+                  : null,
+              occurrenceDescription: factsPresent
+                  ? 'Canonical details member.'
+                  : null,
+              fields: const {
+                'code': ScalarNode(A2uiScalarType.string),
+              },
+              required: const {'code'},
+            ),
+            'parent': RefNode(
+              invoiceId,
+              occurrenceDescription: factsPresent
+                  ? 'Canonical parent member.'
+                  : null,
+              nullable: true,
+            ),
+          },
+          required: const {'amount', 'details'},
+        );
 
-      final absent = candidate(
-        rootOccurrence: 'Checkout invoice.',
-        factsPresent: false,
-      );
-      final present = candidate(
-        rootOccurrence: 'Discount invoice.',
-        factsPresent: true,
-      );
-      final forward = A2uiDefinitionRegistry([absent, present]);
-      final reversed = A2uiDefinitionRegistry([present, absent]);
-      final forwardDefinition = forward.definitionFor(invoiceId);
-      final reversedDefinition = reversed.definitionFor(invoiceId);
-      expect(reversedDefinition, forwardDefinition);
+        final absent = candidate(
+          rootOccurrence: 'Checkout invoice.',
+          factsPresent: false,
+        );
+        final present = candidate(
+          rootOccurrence: 'Discount invoice.',
+          factsPresent: true,
+        );
+        final forward = A2uiDefinitionRegistry([absent, present]);
+        final reversed = A2uiDefinitionRegistry([present, absent]);
+        final forwardDefinition = forward.definitionFor(invoiceId);
+        final reversedDefinition = reversed.definitionFor(invoiceId);
+        expect(reversedDefinition, forwardDefinition);
 
-      final forwardExpression = a2uiDataSchemaExpression(forwardDefinition);
-      final reversedExpression = a2uiDataSchemaExpression(reversedDefinition);
-      expect(reversedExpression, forwardExpression);
-      for (final description in const [
-        'Canonical amount member.',
-        'Canonical details member.',
-        'Canonical details type.',
-        'Canonical parent member.',
-      ]) {
-        expect(description.allMatches(forwardExpression), hasLength(1));
-      }
+        final forwardExpression = a2uiDataSchemaExpression(forwardDefinition);
+        final reversedExpression = a2uiDataSchemaExpression(reversedDefinition);
+        expect(reversedExpression, forwardExpression);
+        for (final description in const [
+          'Canonical amount member.',
+          'Canonical details member.',
+          'Canonical details type.',
+          'Canonical parent member.',
+        ]) {
+          expect(description.allMatches(forwardExpression), hasLength(1));
+        }
 
-      final forwardMap =
-          a2uiWidgetDataSchemaMapForPlan(_planFor(forwardDefinition));
-      final reversedMap =
-          a2uiWidgetDataSchemaMapForPlan(_planFor(reversedDefinition));
-      expect(jsonEncode(reversedMap), jsonEncode(forwardMap));
-      final bytes = jsonEncode(forwardMap);
-      for (final description in const [
-        'Canonical amount member.',
-        'Canonical details member.',
-        'Canonical details type.',
-        'Canonical parent member.',
-      ]) {
-        expect(description.allMatches(bytes), hasLength(1));
-      }
-    });
+        final forwardMap = a2uiWidgetDataSchemaMapForPlan(
+          _planFor(forwardDefinition),
+        );
+        final reversedMap = a2uiWidgetDataSchemaMapForPlan(
+          _planFor(reversedDefinition),
+        );
+        expect(jsonEncode(reversedMap), jsonEncode(forwardMap));
+        final bytes = jsonEncode(forwardMap);
+        for (final description in const [
+          'Canonical amount member.',
+          'Canonical details member.',
+          'Canonical details type.',
+          'Canonical parent member.',
+        ]) {
+          expect(description.allMatches(bytes), hasLength(1));
+        }
+      },
+    );
 
     test('nested canonical member conflicts are deterministic', () {
       const invoiceId = 'package:proof/proof.dart#Invoice';
@@ -433,19 +445,19 @@ void main() {
 
     test('canonical structure conflicts are deterministic', () {
       ObjectNode candidate(A2uiScalarType type) => ObjectNode(
-            defId: 'package:proof/proof.dart#Money',
-            definitionDescription: 'Canonical monetary amount.',
-            fields: {'value': ScalarNode(type)},
-            required: const {'value'},
-          );
+        defId: 'package:proof/proof.dart#Money',
+        definitionDescription: 'Canonical monetary amount.',
+        fields: {'value': ScalarNode(type)},
+        required: const {'value'},
+      );
 
       ObjectNode root(List<ObjectNode> candidates) => ObjectNode(
-            fields: {
-              'price': candidates[0],
-              'discount': candidates[1],
-            },
-            required: const {'price', 'discount'},
-          );
+        fields: {
+          'price': candidates[0],
+          'discount': candidates[1],
+        },
+        required: const {'price', 'discount'},
+      );
 
       final expected = isA<StateError>().having(
         (error) => error.message,
@@ -467,21 +479,21 @@ void main() {
 
     test('canonical description conflicts are deterministic', () {
       ObjectNode candidate(String description) => ObjectNode(
-            defId: 'package:proof/proof.dart#Money',
-            definitionDescription: description,
-            fields: const {
-              'value': ScalarNode(A2uiScalarType.integer),
-            },
-            required: const {'value'},
-          );
+        defId: 'package:proof/proof.dart#Money',
+        definitionDescription: description,
+        fields: const {
+          'value': ScalarNode(A2uiScalarType.integer),
+        },
+        required: const {'value'},
+      );
 
       ObjectNode root(List<ObjectNode> candidates) => ObjectNode(
-            fields: {
-              'price': candidates[0],
-              'discount': candidates[1],
-            },
-            required: const {'price', 'discount'},
-          );
+        fields: {
+          'price': candidates[0],
+          'discount': candidates[1],
+        },
+        required: const {'price', 'discount'},
+      );
 
       final expected = isA<StateError>().having(
         (error) => error.message,
@@ -518,7 +530,7 @@ void main() {
         {
           'type': 'object',
           'properties': {
-            'product': {
+            'props_product': {
               'type': 'object',
               'properties': {
                 'label': {'type': 'string'},
@@ -526,7 +538,7 @@ void main() {
               'required': ['label'],
             },
           },
-          'required': ['product'],
+          'required': ['props_product'],
         },
       );
     });

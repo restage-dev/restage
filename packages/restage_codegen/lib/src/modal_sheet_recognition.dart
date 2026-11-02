@@ -127,7 +127,7 @@ enum ModalSheetArgumentDisposition {
 /// Per-function argument disposition tables. Keeping the tables public within
 /// the package lets tests pin completeness without duplicating the list.
 const Map<ModalSheetFunction, Map<String, ModalSheetArgumentDisposition>>
-    kModalSheetArgumentDispositions = {
+kModalSheetArgumentDispositions = {
   ModalSheetFunction.showModalBottomSheet: {
     'context': ModalSheetArgumentDisposition.drop,
     'builder': ModalSheetArgumentDisposition.builder,

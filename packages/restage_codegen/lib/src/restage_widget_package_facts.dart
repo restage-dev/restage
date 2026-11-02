@@ -20,12 +20,12 @@ final class RestageWidgetPackageFacts {
     required Map<AssetId, LibraryWalkResult> walksByAsset,
     required Map<String, List<WidgetLibrary>> ownershipByWidget,
     required Set<String> widgetDeclarations,
-  })  : walksByAsset = Map.unmodifiable(walksByAsset),
-        widgetDeclarations = Set.unmodifiable(widgetDeclarations),
-        ownershipByWidget = Map.unmodifiable({
-          for (final entry in ownershipByWidget.entries)
-            entry.key: List<WidgetLibrary>.unmodifiable(entry.value),
-        });
+  }) : walksByAsset = Map.unmodifiable(walksByAsset),
+       widgetDeclarations = Set.unmodifiable(widgetDeclarations),
+       ownershipByWidget = Map.unmodifiable({
+         for (final entry in ownershipByWidget.entries)
+           entry.key: List<WidgetLibrary>.unmodifiable(entry.value),
+       });
 
   /// Each authored library's existing `@RestageLibrary` walk result.
   final Map<AssetId, LibraryWalkResult> walksByAsset;

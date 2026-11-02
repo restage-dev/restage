@@ -29,7 +29,8 @@ final class NoticeScreen extends StatelessWidget {
 ''',
 };
 
-String _flow(String outbound) => '''
+String _flow(String outbound) =>
+    '''
 import 'package:restage/restage.dart';
 
 import '../screens/notice.dart';
@@ -77,21 +78,25 @@ void main() {
       expect(channel.ref, isA<EventFlowOutboundRef>());
       expect(channel.ref.key, 'channel');
 
-      final json = jsonDecode(
-        utf8.decode(
-          FlowDocumentCodec.encodeCanonicalJson(
-            result.flows.single.graph!.toDocument({
-              'notice': ScreenArtifact(
-                path: 'notice.rfw',
-                version: 1,
-                schemaVersion: 1,
-                minClient: 1,
-                contentHash: FlowContentHash.parse('sha256:${'0' * 64}'),
-              ),
-            }),
-          ),
-        ),
-      ) as Map<String, Object?>;
+      final json =
+          jsonDecode(
+                utf8.decode(
+                  FlowDocumentCodec.encodeCanonicalJson(
+                    result.flows.single.graph!.toDocument({
+                      'notice': ScreenArtifact(
+                        path: 'notice.rfw',
+                        version: 1,
+                        schemaVersion: 1,
+                        minClient: 1,
+                        contentHash: FlowContentHash.parse(
+                          'sha256:${'0' * 64}',
+                        ),
+                      ),
+                    }),
+                  ),
+                ),
+              )
+              as Map<String, Object?>;
       expect(
         (json['outbound']! as Map<String, Object?>)['customEvents'],
         {
@@ -129,8 +134,10 @@ void main() {
 
       expect(
         _issues(result),
-        contains('unsupported outbound declaration: duplicate outbound '
-            "declaration key 'privacy'."),
+        contains(
+          'unsupported outbound declaration: duplicate outbound '
+          "declaration key 'privacy'.",
+        ),
       );
     });
 
@@ -147,8 +154,10 @@ void main() {
 
       expect(
         _issues(result),
-        contains('unsupported outbound declaration: outbound declaration map '
-            'keys must be string literals.'),
+        contains(
+          'unsupported outbound declaration: outbound declaration map '
+          'keys must be string literals.',
+        ),
       );
     });
 
@@ -225,12 +234,12 @@ final class _ProbeBuilder implements Builder {
   _ProbeBuilder(this.onLibrary);
 
   final Future<void> Function(LibraryElement library, AssetId assetId)
-      onLibrary;
+  onLibrary;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.flow_definition_custom_events_probe'],
-      };
+    '.dart': ['.flow_definition_custom_events_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

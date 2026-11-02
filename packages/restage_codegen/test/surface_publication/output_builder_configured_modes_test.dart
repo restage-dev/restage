@@ -59,106 +59,117 @@ void main() {
   });
 
   for (final bundled in [false, true]) {
-    test('does not duplicate compiler success for bundled_runtime: $bundled',
-        () async {
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      final messages = <String>[];
-      final records = <LogRecord>[];
-      final result = await _run(
-        BuilderOptions(<String, Object?>{'bundled_runtime': bundled}),
-        [alpha],
-        readerWriter,
-        messages: messages,
-        records: records,
-        verbose: true,
-      );
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      final notices = messages.where(
-        (message) =>
-            message.contains('[restage] bundled_runtime:') ||
-            message.contains('[restage] Compiled'),
-      );
-      expect(notices, isEmpty);
-      expect(
-        records.where((record) => record.level >= Level.WARNING),
-        isEmpty,
-        reason:
-            'Routine bundle status must not train users to ignore warnings.',
-      );
-      if (bundled) {
-        expect(
-          _exists(
-            readerWriter,
-            'assets/restage/bundles/lib/features/alpha.rsbundle',
-          ),
-          isTrue,
+    test(
+      'does not duplicate compiler success for bundled_runtime: $bundled',
+      () async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
         );
-      }
-    });
+        final messages = <String>[];
+        final records = <LogRecord>[];
+        final result = await _run(
+          BuilderOptions(<String, Object?>{'bundled_runtime': bundled}),
+          [alpha],
+          readerWriter,
+          messages: messages,
+          records: records,
+          verbose: true,
+        );
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        final notices = messages.where(
+          (message) =>
+              message.contains('[restage] bundled_runtime:') ||
+              message.contains('[restage] Compiled'),
+        );
+        expect(notices, isEmpty);
+        expect(
+          records.where((record) => record.level >= Level.WARNING),
+          isEmpty,
+          reason:
+              'Routine bundle status must not train users to ignore warnings.',
+        );
+        if (bundled) {
+          expect(
+            _exists(
+              readerWriter,
+              'assets/restage/bundles/lib/features/alpha.rsbundle',
+            ),
+            isTrue,
+          );
+        }
+      },
+    );
   }
 
   for (final bundled in [false, true]) {
-    test('direct surface mount warnings require disabled bundling: $bundled',
-        () async {
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      final records = <LogRecord>[];
-      final result = await _run(
-        BuilderOptions({'bundled_runtime': bundled}),
-        [alpha],
-        readerWriter,
-        records: records,
-        dartSources: {
-          'lib/features/alpha.dart': '// authored\n',
-          'lib/main.dart': _mountSource(
-            jsonEncode(
-              utf8.decode(alpha.files['assets/general/flows/alpha.flow.json']!),
+    test(
+      'direct surface mount warnings require disabled bundling: $bundled',
+      () async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final records = <LogRecord>[];
+        final result = await _run(
+          BuilderOptions({'bundled_runtime': bundled}),
+          [alpha],
+          readerWriter,
+          records: records,
+          dartSources: {
+            'lib/features/alpha.dart': '// authored\n',
+            'lib/main.dart': _mountSource(
+              jsonEncode(
+                utf8.decode(
+                  alpha.files['assets/general/flows/alpha.flow.json']!,
+                ),
+              ),
             ),
-          ),
-          'lib/legacy_mounts.dart': '''
+            'lib/legacy_mounts.dart': '''
 import 'package:restage/restage.dart' as rs;
 List<Object> mounts(rs.SurfaceFlowRef<void> flow, rs.SurfaceScreenRef<void> screen) => [
   rs.RestageSurfaceFlow(flow: flow, unavailable: const rs.FlowUnavailablePolicy.hide()),
   rs.RestageSurfaceScreen(screen: screen, unavailable: const rs.SurfaceScreenUnavailablePolicy.hide()),
 ];
 ''',
-        },
-      );
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      final warnings = records
-          .where((record) => record.level >= Level.WARNING)
-          .map((record) => record.message)
-          .toList();
-      if (bundled) {
-        expect(warnings, isEmpty);
-      } else {
-        expect(warnings, hasLength(8));
-        expect(
-          warnings.where((warning) => warning.contains('main.dart:')),
-          hasLength(6),
+          },
         );
-        expect(
-          warnings.where((warning) => warning.contains('legacy_mounts.dart:')),
-          hasLength(2),
-        );
-        expect(warnings, everyElement(contains('bundled_runtime is false')));
-        expect(warnings, contains(contains("RestagePaywall(id: 'offer')")));
-        expect(warnings, contains(contains("RestagePaywall(id: 'null_ui')")));
-        expect(warnings, contains(contains('RestageScreen(screen: screen)')));
-        expect(warnings, contains(contains('RestageFlowGraph(flow: oldFlow)')));
-        expect(
-          warnings,
-          contains(contains('RestageFlowGraph(flow: incompleteFlow)')),
-        );
-        expect(
-          warnings,
-          contains(contains('RestageOnboarding(flow: oldFlow)')),
-        );
-      }
-    });
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        final warnings = records
+            .where((record) => record.level >= Level.WARNING)
+            .map((record) => record.message)
+            .toList();
+        if (bundled) {
+          expect(warnings, isEmpty);
+        } else {
+          expect(warnings, hasLength(8));
+          expect(
+            warnings.where((warning) => warning.contains('main.dart:')),
+            hasLength(6),
+          );
+          expect(
+            warnings.where(
+              (warning) => warning.contains('legacy_mounts.dart:'),
+            ),
+            hasLength(2),
+          );
+          expect(warnings, everyElement(contains('bundled_runtime is false')));
+          expect(warnings, contains(contains("RestagePaywall(id: 'offer')")));
+          expect(warnings, contains(contains("RestagePaywall(id: 'null_ui')")));
+          expect(warnings, contains(contains('RestageScreen(screen: screen)')));
+          expect(
+            warnings,
+            contains(contains('RestageFlowGraph(flow: oldFlow)')),
+          );
+          expect(
+            warnings,
+            contains(contains('RestageFlowGraph(flow: incompleteFlow)')),
+          );
+          expect(
+            warnings,
+            contains(contains('RestageOnboarding(flow: oldFlow)')),
+          );
+        }
+      },
+    );
   }
 
   test('warns in an authored part without a compiler handoff', () async {
@@ -191,37 +202,40 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
   });
 
   test(
-      'source_output_layout: adjacent keeps portable bundles under the default root',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await _run(
-      const BuilderOptions(
-        <String, Object?>{'source_output_layout': 'adjacent'},
-      ),
-      [alpha],
-      readerWriter,
-    );
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-
-    expect(
-      _exists(readerWriter, 'lib/features/alpha.rsbundle'),
-      isFalse,
-    );
-    expect(
-      _exists(
+    'source_output_layout: adjacent keeps portable bundles under the default root',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await _run(
+        const BuilderOptions(
+          <String, Object?>{'source_output_layout': 'adjacent'},
+        ),
+        [alpha],
         readerWriter,
-        '.restage/build/bundles/lib/features/alpha.rsbundle',
-      ),
-      isTrue,
-    );
-    final bundle = RestageBundleCodec.decode(
-      _bytes(
-          readerWriter, '.restage/build/bundles/lib/features/alpha.rsbundle'),
-    );
-    expect(bundle.authoredLibraryPath, 'lib/features/alpha.dart');
-  });
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+
+      expect(
+        _exists(readerWriter, 'lib/features/alpha.rsbundle'),
+        isFalse,
+      );
+      expect(
+        _exists(
+          readerWriter,
+          '.restage/build/bundles/lib/features/alpha.rsbundle',
+        ),
+        isTrue,
+      );
+      final bundle = RestageBundleCodec.decode(
+        _bytes(
+          readerWriter,
+          '.restage/build/bundles/lib/features/alpha.rsbundle',
+        ),
+      );
+      expect(bundle.authoredLibraryPath, 'lib/features/alpha.dart');
+    },
+  );
 
   test('dart_output_root does not relocate portable output', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
@@ -256,8 +270,7 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
     );
   });
 
-  test('output_root relocates the bundle, report, index, and manifest',
-      () async {
+  test('output_root relocates the bundle, report, index, and manifest', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );
@@ -287,17 +300,19 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
       isTrue,
     );
 
-    final indexJson = jsonDecode(
-      readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'tool/restage/metadata/restage.outputs.json',
-        ),
-      ),
-    ) as Map<String, Object?>;
+    final indexJson =
+        jsonDecode(
+              readerWriter.testing.readString(
+                AssetId(
+                  'apps_examples',
+                  'tool/restage/metadata/restage.outputs.json',
+                ),
+              ),
+            )
+            as Map<String, Object?>;
     expect(indexJson['physicalRoot'], 'tool/restage');
-    final indexEntries =
-        (indexJson['entries']! as List<Object?>).cast<Map<String, Object?>>();
+    final indexEntries = (indexJson['entries']! as List<Object?>)
+        .cast<Map<String, Object?>>();
     expect(
       indexEntries.every((entry) => entry['bundle'] == bundlePath),
       isTrue,
@@ -361,8 +376,7 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
     expect(bundle.authoredLibraryPath, 'lib/features/alpha.dart');
   });
 
-  test(
-      'output_root, bundled_runtime, dart_output_root, and inspection_report '
+  test('output_root, bundled_runtime, dart_output_root, and inspection_report '
       'combine per the frozen precedence', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
@@ -392,27 +406,31 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
       isTrue,
     );
 
-    final indexJson = jsonDecode(
-      readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'tool/restage/metadata/restage.outputs.json',
-        ),
-      ),
-    ) as Map<String, Object?>;
-    final indexEntries =
-        (indexJson['entries']! as List<Object?>).cast<Map<String, Object?>>();
+    final indexJson =
+        jsonDecode(
+              readerWriter.testing.readString(
+                AssetId(
+                  'apps_examples',
+                  'tool/restage/metadata/restage.outputs.json',
+                ),
+              ),
+            )
+            as Map<String, Object?>;
+    final indexEntries = (indexJson['entries']! as List<Object?>)
+        .cast<Map<String, Object?>>();
     expect(
       indexEntries.every((entry) => entry['bundle'] == bundlePath),
       isTrue,
-      reason: 'The recorded bundle locator must be the exact physical '
+      reason:
+          'The recorded bundle locator must be the exact physical '
           "result of the plan's own precedence, matching "
           'output_location_test.dart at the path-math level.',
     );
   });
 }
 
-String _mountSource(String documentJson) => '''
+String _mountSource(String documentJson) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' as rs;
 

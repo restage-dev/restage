@@ -113,16 +113,14 @@ DeviceRead? deviceRead(
 String? deviceReadPath(
   Expression expr, {
   Map<Element, Expression> bindings = const {},
-}) =>
-    deviceRead(expr, bindings: bindings)?.path;
+}) => deviceRead(expr, bindings: bindings)?.path;
 
 /// Whether [expr] is an in-contract device read — the boolean form of
 /// [deviceReadPath].
 bool isDeviceReadChain(
   Expression expr, {
   Map<Element, Expression> bindings = const {},
-}) =>
-    deviceReadPath(expr, bindings: bindings) != null;
+}) => deviceReadPath(expr, bindings: bindings) != null;
 
 /// Whether [invocation] is a static call on a framework class named
 /// [className], for any member name. [isFlutterStaticOf] is the `of`-only

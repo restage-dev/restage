@@ -13,19 +13,20 @@ void main() {
   // floor while the hardcoded-3 runtime constant would not — re-opening a
   // capability fail-open. This guard turns that silent divergence into a loud
   // failure at the moment a built-in is added.
-  test('the built-in library namespace set is exactly core/material/cupertino',
-      () {
-    expect(
-      WidgetLibrary.builtInLibraries.map((l) => l.namespace).toSet(),
-      {'restage.core', 'restage.material', 'restage.cupertino'},
-      reason: 'A built-in library was added or removed. Before this lands, '
-          'update RestageBuiltInCatalogCapabilities.currentVersion in the '
-          'runtime SDK (it hardcodes max over the three built-in content '
-          'versions) so the A2UI adapter floor and the runtime constant stay '
-          'in agreement — otherwise the catalog can advertise a built-in '
-          'version the runtime cannot render. See the follow-up to derive the '
-          'runtime constant from the canonical built-in set instead of '
-          'hardcoding it.',
-    );
-  });
+  test(
+    'the built-in library namespace set is exactly core/material/cupertino',
+    () {
+      expect(
+        WidgetLibrary.builtInLibraries.map((l) => l.namespace).toSet(),
+        {'restage.core', 'restage.material', 'restage.cupertino'},
+        reason:
+            'A built-in library was added or removed. Before this lands, '
+            'update RestageBuiltInCatalogCapabilities.currentVersion in the '
+            'runtime SDK (it hardcodes max over the three built-in content '
+            'versions) so the A2UI adapter floor and the runtime constant stay '
+            'in agreement — otherwise the catalog can advertise a built-in '
+            'version the runtime cannot render.',
+      );
+    },
+  );
 }

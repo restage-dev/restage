@@ -80,8 +80,9 @@ void main() {
         '$_package|lib/widgets/caption.dart': _caption,
         '$_package|lib/features/styled_notice.dart': _screen,
       };
-      final readerWriter =
-          await readerWriterWithFilesystemSources(rootPackage: _package);
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: _package,
+      );
       final result = await testBuilders(
         [
           restageSourceRosterBuilder(BuilderOptions.forRoot),
@@ -109,8 +110,9 @@ void main() {
       );
       final root = await Directory.systemTemp.createTemp('floor_frame_');
       addTearDown(() => root.delete(recursive: true));
-      File(p.join(root.path, 'pubspec.yaml'))
-          .writeAsStringSync('name: $_package\n');
+      File(
+        p.join(root.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: $_package\n');
       for (final path in {
         kRestageSurfacePublicationCompilerBundlePath,
         kRestageMeasurementCompilerOutputPath,
@@ -133,8 +135,7 @@ void main() {
       final payload = (await SurfacePublicationAssembler().assemble(
         loaded: loaded,
         entry: entry,
-      ))
-          .payload;
+      )).payload;
 
       expect(
         payload.requiredLibraries.single,

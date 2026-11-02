@@ -128,13 +128,14 @@ LegacyStandaloneScreenContractInspection inspectLegacyStandaloneScreenContract(
 
   final events = <SurfaceScreenEvent>[];
   final eventIds = <String>{};
-  final fields = input.screen.children
-      .whereType<FieldElement>()
-      .where(
-        (field) => field.isStatic && _isSdkSurfaceEvent(field.type),
-      )
-      .toList()
-    ..sort((left, right) => (left.name ?? '').compareTo(right.name ?? ''));
+  final fields =
+      input.screen.children
+          .whereType<FieldElement>()
+          .where(
+            (field) => field.isStatic && _isSdkSurfaceEvent(field.type),
+          )
+          .toList()
+        ..sort((left, right) => (left.name ?? '').compareTo(right.name ?? ''));
   for (final field in fields) {
     if (!field.isConst) {
       issues.add(
@@ -410,16 +411,14 @@ Issue _eventIssue(
   FieldElement field,
   IssueCode code,
   String detail,
-) =>
-    _issue(
-      input,
-      code,
-      'Static SurfaceEvent field ${field.name ?? '<unnamed>'} $detail.',
-    );
+) => _issue(
+  input,
+  code,
+  'Static SurfaceEvent field ${field.name ?? '<unnamed>'} $detail.',
+);
 
 Issue _issue(
   LegacyStandaloneScreenContractInput input,
   IssueCode code,
   String message,
-) =>
-    Issue(code: code, message: message, location: input.location);
+) => Issue(code: code, message: message, location: input.location);

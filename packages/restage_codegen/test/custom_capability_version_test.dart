@@ -44,8 +44,7 @@ void main() {
       }
     ''';
 
-    test(
-        'the CATALOG stamps the declared capabilityVersion on a '
+    test('the CATALOG stamps the declared capabilityVersion on a '
         'structured-admitting library', () async {
       final rw = await readerWriterWithFilesystemSources(
         rootPackage: 'restage_codegen',
@@ -70,8 +69,7 @@ void main() {
       );
     });
 
-    test(
-        'the REGISTRATION passes the declared capabilityVersion on a '
+    test('the REGISTRATION passes the declared capabilityVersion on a '
         'structured-admitting library', () async {
       final rw = await readerWriterWithFilesystemSources(
         rootPackage: 'restage_codegen',
@@ -96,8 +94,7 @@ void main() {
       );
     });
 
-    test(
-        'a structured-admitting library with NO declared capabilityVersion '
+    test('a structured-admitting library with NO declared capabilityVersion '
         'FAILS the build LOUD', () async {
       const structuredNoCapver = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -156,8 +153,7 @@ void main() {
       );
     });
 
-    test(
-        'a SCALAR-only library is NOT forced to declare a capabilityVersion '
+    test('a SCALAR-only library is NOT forced to declare a capabilityVersion '
         'and stays byte-stable (0.0.0, no capver)', () async {
       const scalarOnly = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -199,9 +195,10 @@ void main() {
     });
 
     test(
-        'a SCALAR-only library that DECLARES a capabilityVersion HAS it stamped '
-        '(so its widgets can be referenced in a surface)', () async {
-      const scalarDeclared = '''
+      'a SCALAR-only library that DECLARES a capabilityVersion HAS it stamped '
+      '(so its widgets can be referenced in a surface)',
+      () async {
+        const scalarDeclared = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         @RestageLibrary(
@@ -222,32 +219,34 @@ void main() {
           final String label;
         }
       ''';
-      final rw = await readerWriterWithFilesystemSources(
-        rootPackage: 'restage_codegen',
-      );
-      rw.testing.writeString(
-        AssetId('apps_examples', 'lib/widgets.dart'),
-        scalarDeclared,
-      );
-      await testBuilder(
-        const UserCatalogBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/widgets.dart': scalarDeclared},
-        rootPackage: 'apps_examples',
-        readerWriter: rw,
-        outputs: {
-          'apps_examples|lib/user_catalog.g.dart': decodedMatches(
-            allOf(
-              contains("name: 'PlainButton'"),
-              contains('capabilityVersion: 2'),
+        final rw = await readerWriterWithFilesystemSources(
+          rootPackage: 'restage_codegen',
+        );
+        rw.testing.writeString(
+          AssetId('apps_examples', 'lib/widgets.dart'),
+          scalarDeclared,
+        );
+        await testBuilder(
+          const UserCatalogBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/widgets.dart': scalarDeclared},
+          rootPackage: 'apps_examples',
+          readerWriter: rw,
+          outputs: {
+            'apps_examples|lib/user_catalog.g.dart': decodedMatches(
+              allOf(
+                contains("name: 'PlainButton'"),
+                contains('capabilityVersion: 2'),
+              ),
             ),
-          ),
-        },
-      );
-    });
+          },
+        );
+      },
+    );
   });
 
   group('custom compatibleSince', () {
-    String library({required int compatibleSince}) => '''
+    String library({required int compatibleSince}) =>
+        '''
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
       @RestageLibrary(
@@ -279,8 +278,10 @@ void main() {
         final rw = await readerWriterWithFilesystemSources(
           rootPackage: 'restage_codegen',
         );
-        rw.testing
-            .writeString(AssetId('apps_examples', 'lib/widgets.dart'), source);
+        rw.testing.writeString(
+          AssetId('apps_examples', 'lib/widgets.dart'),
+          source,
+        );
         return rw;
       }
 
@@ -299,8 +300,9 @@ void main() {
         rootPackage: 'apps_examples',
         readerWriter: await readerWriter(),
         outputs: {
-          'apps_examples|lib/user_factories.g.dart':
-              decodedMatches(registration),
+          'apps_examples|lib/user_factories.g.dart': decodedMatches(
+            registration,
+          ),
         },
       );
     }

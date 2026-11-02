@@ -214,7 +214,8 @@ Future<({TestBuilderResult result, TestReaderWriter readerWriter})> _compile(
   String name,
   String body,
 ) async {
-  final source = '''
+  final source =
+      '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 

@@ -15,8 +15,7 @@ import 'helpers.dart';
 /// map value shape and does not make its owner unrenderable.
 void main() {
   group('custom structured slot-target + localUnrenderable capture', () {
-    test(
-        'captures the widget-property AND nested-field slot targets, and marks '
+    test('captures the widget-property AND nested-field slot targets, and marks '
         'a type with a dropped (unsupported-key Map) inner field as '
         'localUnrenderable', () async {
       final result = await runWidgetVisitorOn({
@@ -56,7 +55,8 @@ void main() {
               e.key.endsWith('#OuterCard.config') && e.value.endsWith('#Outer'),
         ),
         isTrue,
-        reason: 'widget-property slot target for OuterCard.config -> Outer '
+        reason:
+            'widget-property slot target for OuterCard.config -> Outer '
             'must be captured; got ${result.slotTargets}',
       );
 
@@ -66,7 +66,8 @@ void main() {
           (e) => e.key.endsWith('#Outer.inner') && e.value.endsWith('#Inner'),
         ),
         isTrue,
-        reason: 'nested-field slot target for Outer.inner -> Inner must be '
+        reason:
+            'nested-field slot target for Outer.inner -> Inner must be '
             'captured; got ${result.slotTargets}',
       );
 
@@ -77,7 +78,8 @@ void main() {
       expect(
         result.localUnrenderable.keys.any((k) => k.endsWith('#Inner')),
         isTrue,
-        reason: 'Inner (dropped unsupported-key Map field) must be '
+        reason:
+            'Inner (dropped unsupported-key Map field) must be '
             'localUnrenderable; got '
             '${result.localUnrenderable}',
       );
@@ -95,8 +97,7 @@ void main() {
       expect(admission.excluded.single.reason, contains('Inner'));
     });
 
-    test(
-        'a data-class field carrying a map with an admitted key materializes '
+    test('a data-class field carrying a map with an admitted key materializes '
         'with the map contract instead of dropping', () async {
       final result = await runWidgetVisitorOn({
         'lib/cards.dart': '''
@@ -132,21 +133,25 @@ void main() {
       expect(
         result.localUnrenderable,
         isEmpty,
-        reason: 'an admitted-key map field must not drop; got '
+        reason:
+            'an admitted-key map field must not drop; got '
             '${result.localUnrenderable}',
       );
 
       // Assert the SLOT SURVIVED and carries the map contract. Asserting only
       // that nothing was marked unrenderable would also pass if the field had
       // vanished silently, which is the failure this test exists to catch.
-      final inner = result.structuredTypes
-          .firstWhere((entry) => entry.sourceType.endsWith('#Inner'));
-      final dataFields =
-          inner.fields.where((field) => field.name == 'data').toList();
+      final inner = result.structuredTypes.firstWhere(
+        (entry) => entry.sourceType.endsWith('#Inner'),
+      );
+      final dataFields = inner.fields
+          .where((field) => field.name == 'data')
+          .toList();
       expect(
         dataFields,
         hasLength(1),
-        reason: 'the map field must be materialized on Inner; got '
+        reason:
+            'the map field must be materialized on Inner; got '
             '${inner.fields.map((f) => f.name).toList()}',
       );
       final data = dataFields.single;
@@ -154,13 +159,13 @@ void main() {
       expect(
         (data.valueShape! as ScalarShape).isOpaqueStringKeyedMap,
         isTrue,
-        reason: 'the materialized field must carry the map value shape, not '
+        reason:
+            'the materialized field must carry the map value shape, not '
             'some other scalar shape',
       );
     });
 
-    test(
-        'a fully-renderable nested closure captures its slot targets and is '
+    test('a fully-renderable nested closure captures its slot targets and is '
         'admitted (no localUnrenderable entries)', () async {
       final result = await runWidgetVisitorOn({
         'lib/cards.dart': '''

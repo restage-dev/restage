@@ -28,19 +28,18 @@ void main() {
     TranslateCallback? translate,
     TranslateCallback? translateDouble,
     String Function(AstNode)? locationOf,
-  }) =>
-      RecipeDispatcher(
-        recipes: {for (final r in recipes) r.key: r},
-        translate: translate ?? fakeTranslate,
-        translateDouble: translateDouble ?? fakeTranslateDouble,
-        translateDoubleElement: (expression, bindings, issues) =>
-            (translateDouble ?? fakeTranslateDouble)(expression, issues),
-        resolveDoubleListSource: (source) => DoubleListSourceResolution(
-          source: source,
-          disposition: doubleListDisposition,
-        ),
-        locationOf: locationOf,
-      );
+  }) => RecipeDispatcher(
+    recipes: {for (final r in recipes) r.key: r},
+    translate: translate ?? fakeTranslate,
+    translateDouble: translateDouble ?? fakeTranslateDouble,
+    translateDoubleElement: (expression, bindings, issues) =>
+        (translateDouble ?? fakeTranslateDouble)(expression, issues),
+    resolveDoubleListSource: (source) => DoubleListSourceResolution(
+      source: source,
+      disposition: doubleListDisposition,
+    ),
+    locationOf: locationOf,
+  );
 
   // Parses a call expression and returns its argument list.
   Future<List<Argument>> argsOf(String callSource) async {
@@ -54,13 +53,19 @@ void main() {
   }
 
   group('lookup + fallback seam', () {
-    test('returns null for an unregistered key — the fall-through signal',
-        () async {
-      final d = dispatcherWith([]);
-      final out =
-          d.tryTranslate('#Foo', await argsOf('Foo(1)'), <Issue>[], 'l');
-      expect(out, isNull);
-    });
+    test(
+      'returns null for an unregistered key — the fall-through signal',
+      () async {
+        final d = dispatcherWith([]);
+        final out = d.tryTranslate(
+          '#Foo',
+          await argsOf('Foo(1)'),
+          <Issue>[],
+          'l',
+        );
+        expect(out, isNull);
+      },
+    );
 
     test('hasRecipe reflects registration', () {
       final d = dispatcherWith([
@@ -104,18 +109,20 @@ void main() {
     ];
 
     Future<
-        ({
-          IssueCode? directIssueCode,
-          int directIssueCount,
-          String list,
-          IssueCode? listIssueCode,
-          int listIssueCount,
-          String map,
-          IssueCode? mapIssueCode,
-          int mapIssueCount,
-          bool refused,
-          String value,
-        })> emitDoubleListFixture(
+      ({
+        IssueCode? directIssueCode,
+        int directIssueCount,
+        String list,
+        IssueCode? listIssueCode,
+        int listIssueCount,
+        String map,
+        IssueCode? mapIssueCode,
+        int mapIssueCount,
+        bool refused,
+        String value,
+      })
+    >
+    emitDoubleListFixture(
       String source, {
       required TranslateCallback translate,
       required TranslateCallback translateDouble,
@@ -153,8 +160,9 @@ void main() {
         'source.dart:1',
       )!;
       return (
-        directIssueCode:
-            directIssues.length == 1 ? directIssues.single.code : null,
+        directIssueCode: directIssues.length == 1
+            ? directIssues.single.code
+            : null,
         directIssueCount: directIssues.length,
         list: list,
         listIssueCode: listIssues.length == 1 ? listIssues.single.code : null,
@@ -191,8 +199,12 @@ void main() {
           failureDsl: '{}',
         ),
       ]);
-      final out =
-          d.tryTranslate('#Pt', await argsOf('Pt(1, 2)'), <Issue>[], 'l');
+      final out = d.tryTranslate(
+        '#Pt',
+        await argsOf('Pt(1, 2)'),
+        <Issue>[],
+        'l',
+      );
       expect(out, '{x: 1, y: 2}');
     });
 
@@ -209,8 +221,12 @@ void main() {
           failureDsl: '[]',
         ),
       ]);
-      final out =
-          d.tryTranslate('#Quad', await argsOf('Quad(7)'), <Issue>[], 'l');
+      final out = d.tryTranslate(
+        '#Quad',
+        await argsOf('Quad(7)'),
+        <Issue>[],
+        'l',
+      );
       expect(out, '[7, 7, 7, 7]');
     });
 
@@ -278,8 +294,8 @@ void main() {
     test('a silent empty source refuses the list and map owners', () async {
       String silentSource(Expression source, List<Issue> issues) =>
           source.toSource() == 'unavailable'
-              ? ''
-              : fakeTranslate(source, issues);
+          ? ''
+          : fakeTranslate(source, issues);
 
       final result = await emitDoubleListFixture(
         'unavailable',
@@ -796,64 +812,78 @@ void main() {
       );
     });
 
-    test('EmitFragmentList reorders named args into positional slots',
-        () async {
-      final d = dispatcherWith([
-        const TranslatorRecipe(
-          typeName: 'Box',
-          emit: EmitFragmentList([
-            EmitFragmentArg(ArgRef.named('left')),
-            EmitFragmentArg(ArgRef.named('top')),
-          ]),
-          failureDsl: '[]',
-        ),
-      ]);
-      final out = d.tryTranslate(
-        '#Box',
-        await argsOf('Box(top: 1, left: 2)'),
-        <Issue>[],
-        'l',
-      );
-      expect(out, '[2, 1]');
-    });
-
-    test('EmitFragmentLiteral injects a constant; omit-unset drops absent keys',
-        () async {
-      final d = dispatcherWith([
-        const TranslatorRecipe(
-          typeName: 'Grad',
-          emit: EmitFragmentMap([
-            EmitMapEntry('type', EmitFragmentLiteral('"linear"')),
-            EmitMapEntry(
-              'colors',
-              EmitFragmentArg(ArgRef.named('colors')),
-              omitWhenArgUnset: true,
-            ),
-          ]),
-          failureDsl: '{}',
-        ),
-      ]);
-      final out =
-          d.tryTranslate('#Grad', await argsOf('Grad()'), <Issue>[], 'l');
-      expect(out, '{type: "linear"}');
-    });
-
-    test('EmitFragmentArg.ifUnset supplies a sentinel for an absent named arg',
-        () async {
-      final d = dispatcherWith([
-        const TranslatorRecipe(
-          typeName: 'Side',
-          emit: EmitFragmentArg(
-            ArgRef.named('w'),
-            ifUnset: EmitFragmentLiteral('0.0'),
+    test(
+      'EmitFragmentList reorders named args into positional slots',
+      () async {
+        final d = dispatcherWith([
+          const TranslatorRecipe(
+            typeName: 'Box',
+            emit: EmitFragmentList([
+              EmitFragmentArg(ArgRef.named('left')),
+              EmitFragmentArg(ArgRef.named('top')),
+            ]),
+            failureDsl: '[]',
           ),
-          failureDsl: '',
-        ),
-      ]);
-      final out =
-          d.tryTranslate('#Side', await argsOf('Side()'), <Issue>[], 'l');
-      expect(out, '0.0');
-    });
+        ]);
+        final out = d.tryTranslate(
+          '#Box',
+          await argsOf('Box(top: 1, left: 2)'),
+          <Issue>[],
+          'l',
+        );
+        expect(out, '[2, 1]');
+      },
+    );
+
+    test(
+      'EmitFragmentLiteral injects a constant; omit-unset drops absent keys',
+      () async {
+        final d = dispatcherWith([
+          const TranslatorRecipe(
+            typeName: 'Grad',
+            emit: EmitFragmentMap([
+              EmitMapEntry('type', EmitFragmentLiteral('"linear"')),
+              EmitMapEntry(
+                'colors',
+                EmitFragmentArg(ArgRef.named('colors')),
+                omitWhenArgUnset: true,
+              ),
+            ]),
+            failureDsl: '{}',
+          ),
+        ]);
+        final out = d.tryTranslate(
+          '#Grad',
+          await argsOf('Grad()'),
+          <Issue>[],
+          'l',
+        );
+        expect(out, '{type: "linear"}');
+      },
+    );
+
+    test(
+      'EmitFragmentArg.ifUnset supplies a sentinel for an absent named arg',
+      () async {
+        final d = dispatcherWith([
+          const TranslatorRecipe(
+            typeName: 'Side',
+            emit: EmitFragmentArg(
+              ArgRef.named('w'),
+              ifUnset: EmitFragmentLiteral('0.0'),
+            ),
+            failureDsl: '',
+          ),
+        ]);
+        final out = d.tryTranslate(
+          '#Side',
+          await argsOf('Side()'),
+          <Issue>[],
+          'l',
+        );
+        expect(out, '0.0');
+      },
+    );
 
     test('typed recipe lists refuse collection elements', () async {
       final d = dispatcherWith(
@@ -922,114 +952,124 @@ void main() {
       '[0, for (var value = 0; value < 2; value++) value]',
       '[0, ...[for (final value in values) value]]',
     ]) {
-      test('numeric collection refusal suppresses complete owners: $source',
-          () async {
-        final result = await emitDoubleListFixture(
-          source,
-          translate: fakeTranslate,
-          translateDouble: fakeTranslateDouble,
-        );
-
-        expect(result.refused, isTrue);
-        expect(result.value, isEmpty);
-        expect(result.list, isEmpty);
-        expect(result.map, isEmpty);
-        expect(result.directIssueCount, 1);
-        expect(result.listIssueCount, 1);
-        expect(result.mapIssueCount, 1);
-      });
-    }
-
-    test('numeric null-aware spreads coerce static values and omit null',
+      test(
+        'numeric collection refusal suppresses complete owners: $source',
         () async {
-      final result = await emitDoubleListFixture(
-        '[0, ...?const [1, 2.5], ...?null, 3]',
-        translate: fakeTranslate,
-        translateDouble: fakeTranslateDouble,
-      );
+          final result = await emitDoubleListFixture(
+            source,
+            translate: fakeTranslate,
+            translateDouble: fakeTranslateDouble,
+          );
 
-      const expected = '[0.0, 1.0, 2.5, 3.0]';
-      expect(result.refused, isFalse);
-      expect(result.value, expected);
-      expect(result.list, '["prefix", $expected]');
-      expect(result.map, '{stops: $expected}');
-      expect(result.directIssueCount, 0);
-      expect(result.listIssueCount, 0);
-      expect(result.mapIssueCount, 0);
-    });
-
-    for (final count in [1000, 1001]) {
-      test('numeric collection expansion enforces the element ceiling: $count',
-          () async {
-        final values = List.generate(count, (index) => '$index').join(', ');
-        final result = await emitDoubleListFixture(
-          '[...const [$values]]',
-          translate: fakeTranslate,
-          translateDouble: fakeTranslateDouble,
-        );
-
-        if (count == 1000) {
-          expect(result.directIssueCount, 0);
-          expect(result.listIssueCount, 0);
-          expect(result.mapIssueCount, 0);
-          final expected =
-              '[${List.generate(count, (index) => '$index.0').join(', ')}]';
-          expect(result.value, expected);
-          expect(result.list, '["prefix", $expected]');
-          expect(result.map, '{stops: $expected}');
-        } else {
-          expect(result.directIssueCode, IssueCode.unsupportedCollectionFlow);
-          expect(result.listIssueCode, IssueCode.unsupportedCollectionFlow);
-          expect(result.mapIssueCode, IssueCode.unsupportedCollectionFlow);
+          expect(result.refused, isTrue);
           expect(result.value, isEmpty);
           expect(result.list, isEmpty);
           expect(result.map, isEmpty);
-        }
-      });
+          expect(result.directIssueCount, 1);
+          expect(result.listIssueCount, 1);
+          expect(result.mapIssueCount, 1);
+        },
+      );
     }
 
-    test('numeric collections share their element ceiling with plain siblings',
+    test(
+      'numeric null-aware spreads coerce static values and omit null',
+      () async {
+        final result = await emitDoubleListFixture(
+          '[0, ...?const [1, 2.5], ...?null, 3]',
+          translate: fakeTranslate,
+          translateDouble: fakeTranslateDouble,
+        );
+
+        const expected = '[0.0, 1.0, 2.5, 3.0]';
+        expect(result.refused, isFalse);
+        expect(result.value, expected);
+        expect(result.list, '["prefix", $expected]');
+        expect(result.map, '{stops: $expected}');
+        expect(result.directIssueCount, 0);
+        expect(result.listIssueCount, 0);
+        expect(result.mapIssueCount, 0);
+      },
+    );
+
+    for (final count in [1000, 1001]) {
+      test(
+        'numeric collection expansion enforces the element ceiling: $count',
         () async {
-      final values = List.generate(1000, (index) => '$index').join(', ');
-      final result = await emitDoubleListFixture(
-        '[...const [$values], 1]',
-        translate: fakeTranslate,
-        translateDouble: fakeTranslateDouble,
-      );
+          final values = List.generate(count, (index) => '$index').join(', ');
+          final result = await emitDoubleListFixture(
+            '[...const [$values]]',
+            translate: fakeTranslate,
+            translateDouble: fakeTranslateDouble,
+          );
 
-      expect(result.directIssueCode, IssueCode.unsupportedCollectionFlow);
-      expect(result.value, isEmpty);
-      expect(result.list, isEmpty);
-      expect(result.map, isEmpty);
-    });
-
-    test('numeric collection expansion preserves the static work limit',
-        () async {
-      final values = List.generate(100, (index) => '$index').join(', ');
-      final expression = await parseExpressionFromSourceForTest(
-        'Object x() => [for (final outer in const [$values]) '
-        'for (final inner in const [$values]) if (false) 0];',
+          if (count == 1000) {
+            expect(result.directIssueCount, 0);
+            expect(result.listIssueCount, 0);
+            expect(result.mapIssueCount, 0);
+            final expected =
+                '[${List.generate(count, (index) => '$index.0').join(', ')}]';
+            expect(result.value, expected);
+            expect(result.list, '["prefix", $expected]');
+            expect(result.map, '{stops: $expected}');
+          } else {
+            expect(result.directIssueCode, IssueCode.unsupportedCollectionFlow);
+            expect(result.listIssueCode, IssueCode.unsupportedCollectionFlow);
+            expect(result.mapIssueCode, IssueCode.unsupportedCollectionFlow);
+            expect(result.value, isEmpty);
+            expect(result.list, isEmpty);
+            expect(result.map, isEmpty);
+          }
+        },
       );
-      final issues = <Issue>[];
-      final out = emitDoubleList(
-        expression,
-        fakeTranslate,
-        fakeTranslateDouble,
-        (source) => DoubleListSourceResolution(
-          source: source,
-          disposition: DoubleListSourceDisposition.collectionFlow,
-        ),
-        issues,
-        'source.dart:1',
-        locationOf: (node) => node.toSource(),
-      );
+    }
 
-      expect(out, isEmpty);
-      expect(issues, hasLength(1));
-      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
-      expect(issues.single.message, contains('8000 static expansion steps'));
-      expect(issues.single.location, isNot('source.dart:1'));
-    });
+    test(
+      'numeric collections share their element ceiling with plain siblings',
+      () async {
+        final values = List.generate(1000, (index) => '$index').join(', ');
+        final result = await emitDoubleListFixture(
+          '[...const [$values], 1]',
+          translate: fakeTranslate,
+          translateDouble: fakeTranslateDouble,
+        );
+
+        expect(result.directIssueCode, IssueCode.unsupportedCollectionFlow);
+        expect(result.value, isEmpty);
+        expect(result.list, isEmpty);
+        expect(result.map, isEmpty);
+      },
+    );
+
+    test(
+      'numeric collection expansion preserves the static work limit',
+      () async {
+        final values = List.generate(100, (index) => '$index').join(', ');
+        final expression = await parseExpressionFromSourceForTest(
+          'Object x() => [for (final outer in const [$values]) '
+          'for (final inner in const [$values]) if (false) 0];',
+        );
+        final issues = <Issue>[];
+        final out = emitDoubleList(
+          expression,
+          fakeTranslate,
+          fakeTranslateDouble,
+          (source) => DoubleListSourceResolution(
+            source: source,
+            disposition: DoubleListSourceDisposition.collectionFlow,
+          ),
+          issues,
+          'source.dart:1',
+          locationOf: (node) => node.toSource(),
+        );
+
+        expect(out, isEmpty);
+        expect(issues, hasLength(1));
+        expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+        expect(issues.single.message, contains('8000 static expansion steps'));
+        expect(issues.single.location, isNot('source.dart:1'));
+      },
+    );
 
     test('numeric recipe lists expand wrapped collection elements', () async {
       final d = dispatcherWith([
@@ -1069,8 +1109,8 @@ void main() {
         'lib/recipe_alias.dart:3:5',
         resolveExpression: (expression) =>
             expression is SimpleIdentifier && expression.name == 'colors'
-                ? alias
-                : expression,
+            ? alias
+            : expression,
       );
 
       expect(out, isEmpty);
@@ -1078,27 +1118,29 @@ void main() {
       expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
     });
 
-    test('typed-list source resolution terminates through an alias cycle',
-        () async {
-      final first = await parseExpressionForTest('first');
-      final second = await parseExpressionForTest('second');
-      final semantics = CollectionSemanticProbe(
-        sourceFor: (expression) => switch (expression.toSource()) {
-          'first' => second,
-          'second' => first,
-          _ => null,
-        },
-      );
+    test(
+      'typed-list source resolution terminates through an alias cycle',
+      () async {
+        final first = await parseExpressionForTest('first');
+        final second = await parseExpressionForTest('second');
+        final semantics = CollectionSemanticProbe(
+          sourceFor: (expression) => switch (expression.toSource()) {
+            'first' => second,
+            'second' => first,
+            _ => null,
+          },
+        );
 
-      final resolution = semantics.resolve(
-        first,
-        const {},
-        CollectionUnrollBudget(workCeiling: 2),
-      );
+        final resolution = semantics.resolve(
+          first,
+          const {},
+          CollectionUnrollBudget(workCeiling: 2),
+        );
 
-      expect(resolution.workLimitExceeded, isFalse);
-      expect(resolution.expression, same(first));
-    });
+        expect(resolution.workLimitExceeded, isFalse);
+        expect(resolution.expression, same(first));
+      },
+    );
 
     test('typed-list source resolution has bounded traversal', () async {
       final first = await parseExpressionForTest('first');
@@ -1122,128 +1164,136 @@ void main() {
       expect(resolution.expression, same(first));
     });
 
-    test('typed-list inspection reports bounded plain-list exhaustion',
-        () async {
-      final first = await parseExpressionForTest('first');
-      final second = await parseExpressionForTest('second');
-      final plain = await parseExpressionForTest('[1]');
-      final semantics = CollectionSemanticProbe(
-        sourceFor: (expression) => switch (expression.toSource()) {
-          'first' => second,
-          'second' => plain,
-          _ => null,
-        },
-      );
-      final issues = <Issue>[];
-      final out = emitTypedList(
-        first,
-        fakeTranslate,
-        issues,
-        'lib/typed_limit.dart:7:9',
-        semanticProbe: semantics,
-        semanticBudget: CollectionUnrollBudget(workCeiling: 1),
-      );
+    test(
+      'typed-list inspection reports bounded plain-list exhaustion',
+      () async {
+        final first = await parseExpressionForTest('first');
+        final second = await parseExpressionForTest('second');
+        final plain = await parseExpressionForTest('[1]');
+        final semantics = CollectionSemanticProbe(
+          sourceFor: (expression) => switch (expression.toSource()) {
+            'first' => second,
+            'second' => plain,
+            _ => null,
+          },
+        );
+        final issues = <Issue>[];
+        final out = emitTypedList(
+          first,
+          fakeTranslate,
+          issues,
+          'lib/typed_limit.dart:7:9',
+          semanticProbe: semantics,
+          semanticBudget: CollectionUnrollBudget(workCeiling: 1),
+        );
 
-      expect(out, isEmpty);
-      expect(issues, hasLength(1));
-      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
-      expect(
-        issues.single.message,
-        'Static inspection of this typed list exceeded the supported limit. '
-        'Simplify the list expression.',
-      );
-      expect(issues.single.message, isNot(contains('Collection elements')));
-      expect(issues.single.location, 'lib/typed_limit.dart:7:9');
-    });
+        expect(out, isEmpty);
+        expect(issues, hasLength(1));
+        expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+        expect(
+          issues.single.message,
+          'Static inspection of this typed list exceeded the supported limit. '
+          'Simplify the list expression.',
+        );
+        expect(issues.single.message, isNot(contains('Collection elements')));
+        expect(issues.single.location, 'lib/typed_limit.dart:7:9');
+      },
+    );
 
-    test('numeric-list inspection reports bounded plain-list exhaustion',
-        () async {
-      final first = await parseExpressionForTest('first');
-      final second = await parseExpressionForTest('second');
-      final plain = await parseExpressionForTest('[1]');
-      final semantics = CollectionSemanticProbe(
-        sourceFor: (expression) => switch (expression.toSource()) {
-          'first' => second,
-          'second' => plain,
-          _ => null,
-        },
-      );
-      final issues = <Issue>[];
-      final out = emitDoubleList(
-        first,
-        fakeTranslate,
-        fakeTranslateDouble,
-        (source) => DoubleListSourceResolution(
-          source: source,
-          disposition: DoubleListSourceDisposition.ordinary,
-        ),
-        issues,
-        'lib/numeric_limit.dart:8:11',
-        semanticProbe: semantics,
-        semanticBudget: CollectionUnrollBudget(workCeiling: 1),
-      );
+    test(
+      'numeric-list inspection reports bounded plain-list exhaustion',
+      () async {
+        final first = await parseExpressionForTest('first');
+        final second = await parseExpressionForTest('second');
+        final plain = await parseExpressionForTest('[1]');
+        final semantics = CollectionSemanticProbe(
+          sourceFor: (expression) => switch (expression.toSource()) {
+            'first' => second,
+            'second' => plain,
+            _ => null,
+          },
+        );
+        final issues = <Issue>[];
+        final out = emitDoubleList(
+          first,
+          fakeTranslate,
+          fakeTranslateDouble,
+          (source) => DoubleListSourceResolution(
+            source: source,
+            disposition: DoubleListSourceDisposition.ordinary,
+          ),
+          issues,
+          'lib/numeric_limit.dart:8:11',
+          semanticProbe: semantics,
+          semanticBudget: CollectionUnrollBudget(workCeiling: 1),
+        );
 
-      expect(out, isEmpty);
-      expect(issues, hasLength(1));
-      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
-      expect(
-        issues.single.message,
-        'Static inspection of this numeric list exceeded the supported limit. '
-        'Simplify the list expression.',
-      );
-      expect(issues.single.message, isNot(contains('Collection elements')));
-      expect(issues.single.location, 'lib/numeric_limit.dart:8:11');
-    });
+        expect(out, isEmpty);
+        expect(issues, hasLength(1));
+        expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+        expect(
+          issues.single.message,
+          'Static inspection of this numeric list exceeded the supported limit. '
+          'Simplify the list expression.',
+        );
+        expect(issues.single.message, isNot(contains('Collection elements')));
+        expect(issues.single.location, 'lib/numeric_limit.dart:8:11');
+      },
+    );
 
-    test('low-limit typed inspection still identifies collection flow',
-        () async {
-      final collection = await parseExpressionForTest(
-        '[for (final value in const [1]) value]',
-      );
-      final issues = <Issue>[];
-      final out = emitTypedList(
-        collection,
-        fakeTranslate,
-        issues,
-        'lib/typed_flow.dart:4:7',
-        semanticBudget: CollectionUnrollBudget(workCeiling: 1),
-        locationOf: (_) => 'lib/typed_flow.dart:4:8',
-      );
+    test(
+      'low-limit typed inspection still identifies collection flow',
+      () async {
+        final collection = await parseExpressionForTest(
+          '[for (final value in const [1]) value]',
+        );
+        final issues = <Issue>[];
+        final out = emitTypedList(
+          collection,
+          fakeTranslate,
+          issues,
+          'lib/typed_flow.dart:4:7',
+          semanticBudget: CollectionUnrollBudget(workCeiling: 1),
+          locationOf: (_) => 'lib/typed_flow.dart:4:8',
+        );
 
-      expect(out, isEmpty);
-      expect(issues, hasLength(1));
-      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
-      expect(
-        issues.single.message,
-        'Collection elements in a typed list are unsupported; '
-        'write the values out.',
-      );
-      expect(issues.single.location, 'lib/typed_flow.dart:4:8');
-    });
+        expect(out, isEmpty);
+        expect(issues, hasLength(1));
+        expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+        expect(
+          issues.single.message,
+          'Collection elements in a typed list are unsupported; '
+          'write the values out.',
+        );
+        expect(issues.single.location, 'lib/typed_flow.dart:4:8');
+      },
+    );
 
-    test('typed-list elements consume inspection work before classification',
-        () async {
-      final collection = await parseExpressionForTest(
-        '[for (final value in const [1]) value]',
-      );
-      final issues = <Issue>[];
-      final out = emitTypedList(
-        collection,
-        fakeTranslate,
-        issues,
-        'lib/typed_element_limit.dart:5:7',
-        semanticBudget: CollectionUnrollBudget(workCeiling: 0),
-      );
+    test(
+      'typed-list elements consume inspection work before classification',
+      () async {
+        final collection = await parseExpressionForTest(
+          '[for (final value in const [1]) value]',
+        );
+        final issues = <Issue>[];
+        final out = emitTypedList(
+          collection,
+          fakeTranslate,
+          issues,
+          'lib/typed_element_limit.dart:5:7',
+          semanticBudget: CollectionUnrollBudget(workCeiling: 0),
+        );
 
-      expect(out, isEmpty);
-      expect(issues, hasLength(1));
-      expect(
-        issues.single.message,
-        'Static inspection of this typed list exceeded the supported limit. '
-        'Simplify the list expression.',
-      );
-      expect(issues.single.location, 'lib/typed_element_limit.dart:5:7');
-    });
+        expect(out, isEmpty);
+        expect(issues, hasLength(1));
+        expect(
+          issues.single.message,
+          'Static inspection of this typed list exceeded the supported limit. '
+          'Simplify the list expression.',
+        );
+        expect(issues.single.location, 'lib/typed_element_limit.dart:5:7');
+      },
+    );
 
     test('a typed item error suppresses the complete generated list', () async {
       const recipe = TranslatorRecipe(
@@ -1295,97 +1345,101 @@ void main() {
       expect(issues.single.code, IssueCode.propertyValueTypeMismatch);
     });
 
-    test('a double item error suppresses the complete generated list',
-        () async {
-      const recipe = TranslatorRecipe(
-        typeName: 'Stops',
-        emit: EmitFragmentArg(
-          ArgRef.positional(0),
-          asDoubleList: true,
-        ),
-        failureDsl: '',
-      );
-      final dispatcher = RecipeDispatcher(
-        recipes: {recipe.key: recipe},
-        translate: fakeTranslate,
-        translateDouble: (expression, issues) {
-          if (expression.toSource() == 'bad') {
+    test(
+      'a double item error suppresses the complete generated list',
+      () async {
+        const recipe = TranslatorRecipe(
+          typeName: 'Stops',
+          emit: EmitFragmentArg(
+            ArgRef.positional(0),
+            asDoubleList: true,
+          ),
+          failureDsl: '',
+        );
+        final dispatcher = RecipeDispatcher(
+          recipes: {recipe.key: recipe},
+          translate: fakeTranslate,
+          translateDouble: (expression, issues) {
+            if (expression.toSource() == 'bad') {
+              issues.add(
+                const Issue(
+                  code: IssueCode.propertyValueTypeMismatch,
+                  message: 'Expected a double stop value.',
+                  location: 'gradient.dart@1:1',
+                ),
+              );
+              return '';
+            }
+            return fakeTranslateDouble(expression, issues);
+          },
+        );
+
+        expect(
+          dispatcher.tryTranslate(
+            '#Stops',
+            await argsOf('Stops(<num>[1, 2])'),
+            <Issue>[],
+            'gradient.dart@1:1',
+          ),
+          '[1.0, 2.0]',
+        );
+        final issues = <Issue>[];
+        expect(
+          dispatcher.tryTranslate(
+            '#Stops',
+            await argsOf('Stops(<Object>[1, bad])'),
+            issues,
+            'gradient.dart@1:1',
+          ),
+          isEmpty,
+        );
+        expect(issues.single.code, IssueCode.propertyValueTypeMismatch);
+      },
+    );
+
+    test(
+      'a fragment item error suppresses the complete generated list',
+      () async {
+        const recipe = TranslatorRecipe(
+          typeName: 'Pair',
+          emit: EmitFragmentList([
+            EmitFragmentLiteral('1'),
+            EmitFragmentArg(
+              ArgRef.positional(0),
+              propertyType: PropertyType.string,
+            ),
+          ]),
+          failureDsl: '',
+        );
+        final dispatcher = RecipeDispatcher(
+          recipes: {recipe.key: recipe},
+          translate: fakeTranslate,
+          translateDouble: fakeTranslateDouble,
+          translateSlot: (expression, type, issues) {
             issues.add(
               const Issue(
-                code: IssueCode.propertyValueTypeMismatch,
-                message: 'Expected a double stop value.',
-                location: 'gradient.dart@1:1',
+                code: IssueCode.unknownWidget,
+                message: 'Unsupported string expression.',
+                location: 'pair.dart@1:1',
               ),
             );
             return '';
-          }
-          return fakeTranslateDouble(expression, issues);
-        },
-      );
+          },
+        );
+        final issues = <Issue>[];
 
-      expect(
-        dispatcher.tryTranslate(
-          '#Stops',
-          await argsOf('Stops(<num>[1, 2])'),
-          <Issue>[],
-          'gradient.dart@1:1',
-        ),
-        '[1.0, 2.0]',
-      );
-      final issues = <Issue>[];
-      expect(
-        dispatcher.tryTranslate(
-          '#Stops',
-          await argsOf('Stops(<Object>[1, bad])'),
-          issues,
-          'gradient.dart@1:1',
-        ),
-        isEmpty,
-      );
-      expect(issues.single.code, IssueCode.propertyValueTypeMismatch);
-    });
-
-    test('a fragment item error suppresses the complete generated list',
-        () async {
-      const recipe = TranslatorRecipe(
-        typeName: 'Pair',
-        emit: EmitFragmentList([
-          EmitFragmentLiteral('1'),
-          EmitFragmentArg(
-            ArgRef.positional(0),
-            propertyType: PropertyType.string,
+        expect(
+          dispatcher.tryTranslate(
+            '#Pair',
+            await argsOf('Pair(value)'),
+            issues,
+            'pair.dart@1:1',
           ),
-        ]),
-        failureDsl: '',
-      );
-      final dispatcher = RecipeDispatcher(
-        recipes: {recipe.key: recipe},
-        translate: fakeTranslate,
-        translateDouble: fakeTranslateDouble,
-        translateSlot: (expression, type, issues) {
-          issues.add(
-            const Issue(
-              code: IssueCode.unknownWidget,
-              message: 'Unsupported string expression.',
-              location: 'pair.dart@1:1',
-            ),
-          );
-          return '';
-        },
-      );
-      final issues = <Issue>[];
-
-      expect(
-        dispatcher.tryTranslate(
-          '#Pair',
-          await argsOf('Pair(value)'),
-          issues,
-          'pair.dart@1:1',
-        ),
-        isEmpty,
-      );
-      expect(issues.single.code, IssueCode.unknownWidget);
-    });
+          isEmpty,
+        );
+        expect(issues.single.code, IssueCode.unknownWidget);
+      },
+    );
 
     test('EmitFragmentMemberTable looks a member up by name', () async {
       final d = dispatcherWith([
@@ -1408,34 +1462,36 @@ void main() {
   });
 
   group('emit — kernels', () {
-    test('EmitFragmentKernel composes value kernels (the fromRGBO shape)',
-        () async {
-      final d = dispatcherWith([
-        const TranslatorRecipe(
-          typeName: 'C',
-          emit: EmitFragmentKernel(TranslatorKernel.formatColorHex, [
-            EmitValueKernel(TranslatorKernel.packArgb, [
-              EmitValueKernel(
-                TranslatorKernel.quantizeUnitToByte,
-                [EmitValueArg(ArgRef.positional(3))],
-              ),
-              EmitValueArg(ArgRef.positional(0)),
-              EmitValueArg(ArgRef.positional(1)),
-              EmitValueArg(ArgRef.positional(2)),
+    test(
+      'EmitFragmentKernel composes value kernels (the fromRGBO shape)',
+      () async {
+        final d = dispatcherWith([
+          const TranslatorRecipe(
+            typeName: 'C',
+            emit: EmitFragmentKernel(TranslatorKernel.formatColorHex, [
+              EmitValueKernel(TranslatorKernel.packArgb, [
+                EmitValueKernel(
+                  TranslatorKernel.quantizeUnitToByte,
+                  [EmitValueArg(ArgRef.positional(3))],
+                ),
+                EmitValueArg(ArgRef.positional(0)),
+                EmitValueArg(ArgRef.positional(1)),
+                EmitValueArg(ArgRef.positional(2)),
+              ]),
             ]),
-          ]),
-          failureDsl: '',
-        ),
-      ]);
-      final out = d.tryTranslate(
-        '#C',
-        await argsOf('C(0x12, 0x34, 0x56, 0.5)'),
-        <Issue>[],
-        'l',
-      );
-      // opacity 0.5 -> alpha 128 (0x80); packed 0x80123456.
-      expect(out, '0x80123456');
-    });
+            failureDsl: '',
+          ),
+        ]);
+        final out = d.tryTranslate(
+          '#C',
+          await argsOf('C(0x12, 0x34, 0x56, 0.5)'),
+          <Issue>[],
+          'l',
+        );
+        // opacity 0.5 -> alpha 128 (0x80); packed 0x80123456.
+        expect(out, '0x80123456');
+      },
+    );
   });
 
   group('validations', () {
@@ -1467,43 +1523,47 @@ void main() {
       expect(issues.single.message, 'needs two');
     });
 
-    test('PositionalIntsInRange substitutes {value} with the offender',
-        () async {
-      final d = dispatcherWith([
-        recipeWithChecks(const [
-          RecipeValidation(
-            check: PositionalIntsInRange(0, 1, 0, 255),
-            issueCode: 'unrecognizedMethodCall',
-            message: 'value {value} out of range',
-          ),
-        ]),
-      ]);
-      final issues = <Issue>[];
-      d.tryTranslate('#V', await argsOf('V(300)'), issues, 'l');
-      expect(issues.single.message, 'value 300 out of range');
-    });
+    test(
+      'PositionalIntsInRange substitutes {value} with the offender',
+      () async {
+        final d = dispatcherWith([
+          recipeWithChecks(const [
+            RecipeValidation(
+              check: PositionalIntsInRange(0, 1, 0, 255),
+              issueCode: 'unrecognizedMethodCall',
+              message: 'value {value} out of range',
+            ),
+          ]),
+        ]);
+        final issues = <Issue>[];
+        d.tryTranslate('#V', await argsOf('V(300)'), issues, 'l');
+        expect(issues.single.message, 'value 300 out of range');
+      },
+    );
 
-    test('the first failing validation wins; later checks do not run',
-        () async {
-      final d = dispatcherWith([
-        recipeWithChecks(const [
-          RecipeValidation(
-            check: ArityExact(1),
-            issueCode: 'unrecognizedMethodCall',
-            message: 'first',
-          ),
-          RecipeValidation(
-            check: ArityExact(1),
-            issueCode: 'integerLiteralOverflow',
-            message: 'second',
-          ),
-        ]),
-      ]);
-      final issues = <Issue>[];
-      d.tryTranslate('#V', await argsOf('V(1, 2)'), issues, 'l');
-      expect(issues, hasLength(1));
-      expect(issues.single.message, 'first');
-    });
+    test(
+      'the first failing validation wins; later checks do not run',
+      () async {
+        final d = dispatcherWith([
+          recipeWithChecks(const [
+            RecipeValidation(
+              check: ArityExact(1),
+              issueCode: 'unrecognizedMethodCall',
+              message: 'first',
+            ),
+            RecipeValidation(
+              check: ArityExact(1),
+              issueCode: 'integerLiteralOverflow',
+              message: 'second',
+            ),
+          ]),
+        ]);
+        final issues = <Issue>[];
+        d.tryTranslate('#V', await argsOf('V(1, 2)'), issues, 'l');
+        expect(issues, hasLength(1));
+        expect(issues.single.message, 'first');
+      },
+    );
 
     test('PositionalsAreIntLiterals rejects a non-int-literal arg', () async {
       final d = dispatcherWith([
@@ -1522,27 +1582,32 @@ void main() {
       expect(d.tryTranslate('#V', await argsOf('V(5)'), <Issue>[], 'l'), 'OK');
     });
 
-    test('PositionalNumLiteralInRange accepts an int or double in range',
-        () async {
-      final d = dispatcherWith([
-        recipeWithChecks(const [
-          RecipeValidation(
-            check: PositionalNumLiteralInRange(0, 0, 1),
-            issueCode: 'unrecognizedMethodCall',
-            message: 'opacity out of range',
-          ),
-        ]),
-      ]);
-      expect(
-        d.tryTranslate('#V', await argsOf('V(0.5)'), <Issue>[], 'l'),
-        'OK',
-      );
-      expect(d.tryTranslate('#V', await argsOf('V(1)'), <Issue>[], 'l'), 'OK');
-      expect(
-        d.tryTranslate('#V', await argsOf('V(2.0)'), <Issue>[], 'l'),
-        'FAIL',
-      );
-    });
+    test(
+      'PositionalNumLiteralInRange accepts an int or double in range',
+      () async {
+        final d = dispatcherWith([
+          recipeWithChecks(const [
+            RecipeValidation(
+              check: PositionalNumLiteralInRange(0, 0, 1),
+              issueCode: 'unrecognizedMethodCall',
+              message: 'opacity out of range',
+            ),
+          ]),
+        ]);
+        expect(
+          d.tryTranslate('#V', await argsOf('V(0.5)'), <Issue>[], 'l'),
+          'OK',
+        );
+        expect(
+          d.tryTranslate('#V', await argsOf('V(1)'), <Issue>[], 'l'),
+          'OK',
+        );
+        expect(
+          d.tryTranslate('#V', await argsOf('V(2.0)'), <Issue>[], 'l'),
+          'FAIL',
+        );
+      },
+    );
   });
 
   group('strict double-list child failures', () {
@@ -1559,62 +1624,62 @@ void main() {
     StructuredValueEmitter structuredEmitter({
       required TranslateCallback translate,
       required TranslateCallback translateDouble,
-    }) =>
-        StructuredValueEmitter(
-          translate: translate,
-          translateDoubleScalar: translateDouble,
-          translateDoubleElement: (expression, bindings, issues) =>
-              translateDouble(expression, issues),
-          resolveDoubleListSource: (source) => DoubleListSourceResolution(
-            source: source,
-            disposition: DoubleListSourceDisposition.ordinary,
-          ),
-          stripParens: (source) => source,
-          stringLiteral: (value) => '"$value"',
-          frameworkOrUnresolved: (_) => true,
-          resolveBoundIdentifier: (source) => source,
-          collectionSemanticProbe: () => CollectionSemanticProbe(),
-          isResolvedNonFrameworkCtor: (_) => false,
-          deferFrameworkConstLookalike: (expression, owner, member, issues) =>
-              '',
-          deferFrameworkCtorLookalike: (expression, owner, issues) => '',
-          conditionalSwitch: (expression, issues, translateBranch) => '',
-          validateThemeValueForSlot: (expression, type, issues) {},
-          locationOf: (_) => 'source.dart:1',
-        );
+    }) => StructuredValueEmitter(
+      translate: translate,
+      translateDoubleScalar: translateDouble,
+      translateDoubleElement: (expression, bindings, issues) =>
+          translateDouble(expression, issues),
+      resolveDoubleListSource: (source) => DoubleListSourceResolution(
+        source: source,
+        disposition: DoubleListSourceDisposition.ordinary,
+      ),
+      stripParens: (source) => source,
+      stringLiteral: (value) => '"$value"',
+      frameworkOrUnresolved: (_) => true,
+      resolveBoundIdentifier: (source) => source,
+      collectionSemanticProbe: () => CollectionSemanticProbe(),
+      isResolvedNonFrameworkCtor: (_) => false,
+      deferFrameworkConstLookalike: (expression, owner, member, issues) => '',
+      deferFrameworkCtorLookalike: (expression, owner, issues) => '',
+      conditionalSwitch: (expression, issues, translateBranch) => '',
+      validateThemeValueForSlot: (expression, type, issues) {},
+      locationOf: (_) => 'source.dart:1',
+    );
 
-    test('a diagnosed generic source suppresses a structured gradient',
-        () async {
-      final emitter = structuredEmitter(
-        translate: (source, issues) {
-          if (source.toSource() == 'unavailable') {
-            issues.add(
-              const Issue(
-                code: IssueCode.unrecognizedMethodCall,
-                message: 'The source cannot be translated.',
-                location: 'source.dart:1',
-              ),
-            );
-            return 'wrong';
-          }
-          return source.toSource();
-        },
-        translateDouble: fakeTranslateDouble,
-      );
-      final issues = <Issue>[];
-      final out = emitter.linearGradient(
-        await gradientArgs(
-          'LinearGradient(colors: [], stops: unavailable)',
-        ),
-        issues,
-        'source.dart:1',
-      );
-      expect(out, isEmpty);
-      expect(out, isNot(contains('stops: }')));
-      expect(issues.map((issue) => issue.code), [
-        IssueCode.unrecognizedMethodCall,
-      ]);
-    });
+    test(
+      'a diagnosed generic source suppresses a structured gradient',
+      () async {
+        final emitter = structuredEmitter(
+          translate: (source, issues) {
+            if (source.toSource() == 'unavailable') {
+              issues.add(
+                const Issue(
+                  code: IssueCode.unrecognizedMethodCall,
+                  message: 'The source cannot be translated.',
+                  location: 'source.dart:1',
+                ),
+              );
+              return 'wrong';
+            }
+            return source.toSource();
+          },
+          translateDouble: fakeTranslateDouble,
+        );
+        final issues = <Issue>[];
+        final out = emitter.linearGradient(
+          await gradientArgs(
+            'LinearGradient(colors: [], stops: unavailable)',
+          ),
+          issues,
+          'source.dart:1',
+        );
+        expect(out, isEmpty);
+        expect(out, isNot(contains('stops: }')));
+        expect(issues.map((issue) => issue.code), [
+          IssueCode.unrecognizedMethodCall,
+        ]);
+      },
+    );
 
     test('a diagnosed list element suppresses a structured gradient', () async {
       final emitter = structuredEmitter(

@@ -18,26 +18,32 @@ void main() {
   for (final surface in const [Surface.message, Surface.survey]) {
     final name = surface.wireName;
     group('surface parameterization — $name', () {
-      test('typed flow codegens a valid document to assets/$name/flows',
-          () async {
-        final doc = await _buildAndValidate(surface, delivery: null);
-        expect(doc.deliveryMode, FlowDeliveryMode.typed);
-      });
+      test(
+        'typed flow codegens a valid document to assets/$name/flows',
+        () async {
+          final doc = await _buildAndValidate(surface, delivery: null);
+          expect(doc.deliveryMode, FlowDeliveryMode.typed);
+        },
+      );
 
-      test('general flow codegens a valid, deliveryMode:general document',
-          () async {
-        final doc = await _buildAndValidate(
-          surface,
-          delivery: FlowDeliveryMode.general,
-        );
-        expect(doc.deliveryMode, FlowDeliveryMode.general);
-      });
+      test(
+        'general flow codegens a valid, deliveryMode:general document',
+        () async {
+          final doc = await _buildAndValidate(
+            surface,
+            delivery: FlowDeliveryMode.general,
+          );
+          expect(doc.deliveryMode, FlowDeliveryMode.general);
+        },
+      );
 
-      test('the emitted flow.json carries the general stamp verbatim',
-          () async {
-        final json = await _buildFlowJson(surface, FlowDeliveryMode.general);
-        expect(json, contains('"deliveryMode":"general"'));
-      });
+      test(
+        'the emitted flow.json carries the general stamp verbatim',
+        () async {
+          final json = await _buildFlowJson(surface, FlowDeliveryMode.general);
+          expect(json, contains('"deliveryMode":"general"'));
+        },
+      );
 
       test('the typed flow.json omits the deliveryMode key entirely', () async {
         final json = await _buildFlowJson(surface, null);
@@ -64,35 +70,37 @@ void main() {
     });
   }
 
-  test('a sub-flow child artifact resolves from the SAME surface directory',
-      () async {
-    // Pins the one surface-derived read the single-flow fixtures never
-    // execute: a parent flow's subFlow(...) child artifact is read from
-    // assets/<surface>/flows/, derived from the parent's own path. The seeded
-    // child lives ONLY under message/, so a regression to a fixed surface
-    // path fails the build (missing child artifact) and this test goes RED.
-    // One non-onboarding surface suffices — the derivation is the same
-    // expression for every surface.
-    final childJson = _childFlowJson();
-    final sources = _subFlowSources(Surface.message, childJson);
-    final readerWriter = await _readerWriterWith(sources);
-    final result = await testBuilders(
-      _buildersFor(Surface.message),
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+  test(
+    'a sub-flow child artifact resolves from the SAME surface directory',
+    () async {
+      // Pins the one surface-derived read the single-flow fixtures never
+      // execute: a parent flow's subFlow(...) child artifact is read from
+      // assets/<surface>/flows/, derived from the parent's own path. The seeded
+      // child lives ONLY under message/, so a regression to a fixed surface
+      // path fails the build (missing child artifact) and this test goes RED.
+      // One non-onboarding surface suffices — the derivation is the same
+      // expression for every surface.
+      final childJson = _childFlowJson();
+      final sources = _subFlowSources(Surface.message, childJson);
+      final readerWriter = await _readerWriterWith(sources);
+      final result = await testBuilders(
+        _buildersFor(Surface.message),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    final bytes = result.readerWriter.testing.readBytes(
-      AssetId('apps_examples', 'assets/message/flows/parent.flow.json'),
-    );
-    final decoded = FlowDocumentCodec.decodeJson(utf8.decode(bytes));
-    FlowDocumentValidation.checkValid(decoded);
-    final child = decoded.states['profile']! as SubFlowState;
-    expect(child.flow, 'profile_child');
-    expect(child.contentHash, FlowContentHash.computeString(childJson));
-  });
+      final bytes = result.readerWriter.testing.readBytes(
+        AssetId('apps_examples', 'assets/message/flows/parent.flow.json'),
+      );
+      final decoded = FlowDocumentCodec.decodeJson(utf8.decode(bytes));
+      FlowDocumentValidation.checkValid(decoded);
+      final child = decoded.states['profile']! as SubFlowState;
+      expect(child.flow, 'profile_child');
+      expect(child.contentHash, FlowContentHash.computeString(childJson));
+    },
+  );
 }
 
 const _flowSlug = 'first';
@@ -155,20 +163,20 @@ Future<TestBuilderResult> _run(
 }
 
 List<Builder> _buildersFor(Surface surface) => switch (surface) {
-      Surface.message => [
-          messageScreenBuilder(BuilderOptions.empty),
-          messageFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-      Surface.survey => [
-          surveyScreenBuilder(BuilderOptions.empty),
-          surveyFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-      _ => throw ArgumentError('unexpected surface $surface'),
-    };
+  Surface.message => [
+    messageScreenBuilder(BuilderOptions.empty),
+    messageFlowBuilder(BuilderOptions.empty),
+    restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+    restageGeneratedDartBuilder(BuilderOptions.empty),
+  ],
+  Surface.survey => [
+    surveyScreenBuilder(BuilderOptions.empty),
+    surveyFlowBuilder(BuilderOptions.empty),
+    restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+    restageGeneratedDartBuilder(BuilderOptions.empty),
+  ],
+  _ => throw ArgumentError('unexpected surface $surface'),
+};
 
 Map<String, String> _sources(Surface surface, FlowDeliveryMode? delivery) {
   final name = surface.wireName;
@@ -182,7 +190,7 @@ String _flowSource(FlowDeliveryMode? delivery) {
   final annotation = delivery == null
       ? "@FlowSource(id: '$_flowSlug', version: 1, minClient: 3)"
       : "@FlowSource(id: '$_flowSlug', version: 1, minClient: 3, "
-          'delivery: FlowDeliveryMode.general)';
+            'delivery: FlowDeliveryMode.general)';
   // Each variant builds in its own isolated readerWriter, so the class name
   // never needs to vary to avoid a collision — only the annotation and the
   // general outbound body legitimately differ with the delivery mode.
@@ -241,7 +249,8 @@ final class $className extends RestageFlow {
 ''';
 }
 
-String _screenSource() => '''
+String _screenSource() =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -281,7 +290,8 @@ Map<String, String> _subFlowSources(Surface surface, String childJson) {
   return {
     'apps_examples|lib/$name/screens/$_screenStem.dart': _screenSource(),
     'apps_examples|assets/$name/flows/profile_child.flow.json': childJson,
-    'apps_examples|lib/$name/flows/parent.dart': '''
+    'apps_examples|lib/$name/flows/parent.dart':
+        '''
 import 'package:restage/restage.dart';
 
 import '../screens/$_screenStem.dart';

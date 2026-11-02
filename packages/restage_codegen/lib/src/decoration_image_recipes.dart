@@ -59,7 +59,8 @@ const List<TranslatorRecipe> kDecorationImageRecipes = [
       RecipeValidation(
         check: ArityExact(1),
         issueCode: 'unrecognizedMethodCall',
-        message: 'AssetImage() requires a single positional asset-name '
+        message:
+            'AssetImage() requires a single positional asset-name '
             'argument.',
       ),
     ],

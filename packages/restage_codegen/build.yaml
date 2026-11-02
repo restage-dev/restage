@@ -312,7 +312,7 @@ builders:
       $package$:
         - "lib/generated/restage_a2ui_catalog.g.dart"
         - ".restage/build/a2ui/restage_a2ui_catalog.a2ui.json"
-    # Opt-in only: the generated code imports the genui runtime, so this builder
+    # Opt-in only: the generated code imports the A2UI Flutter runtime, so this builder
     # must not apply to dependents who don't want an A2UI catalog. A consumer
     # enables it explicitly in their own build.yaml.
     auto_apply: none

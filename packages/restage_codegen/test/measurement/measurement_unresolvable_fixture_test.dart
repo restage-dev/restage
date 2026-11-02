@@ -79,19 +79,21 @@ void main() {
     );
   });
 
-  test('a state-update paywall publishes measurement with its handlers intact',
-      () async {
-    final compiled = await _compileFixture(_statefulPaywallSourcePath);
+  test(
+    'a state-update paywall publishes measurement with its handlers intact',
+    () async {
+      final compiled = await _compileFixture(_statefulPaywallSourcePath);
 
-    expect(
-      compiled.output.valid,
-      isTrue,
-      reason: compiled.output.errors.join('\n'),
-    );
-    expect(compiled.output.publications, hasLength(1));
-    expect(compiled.log, isNot(contains('compiles unmeasured')));
-    _expectMeasuredStatefulPaywall(compiled.readerWriter);
-  });
+      expect(
+        compiled.output.valid,
+        isTrue,
+        reason: compiled.output.errors.join('\n'),
+      );
+      expect(compiled.output.publications, hasLength(1));
+      expect(compiled.log, isNot(contains('compiles unmeasured')));
+      _expectMeasuredStatefulPaywall(compiled.readerWriter);
+    },
+  );
 }
 
 class _Compiled {
@@ -121,8 +123,9 @@ Future<_Compiled> _compileFixture(String sourcePath) async {
       restageOutputsBuilder(_builderOptions('restage_codegen:outputs')),
     ],
     {
-      '$_package|$sourcePath':
-          File(p.join(_fixtureRoot, sourcePath)).readAsStringSync(),
+      '$_package|$sourcePath': File(
+        p.join(_fixtureRoot, sourcePath),
+      ).readAsStringSync(),
     },
     rootPackage: _package,
     readerWriter: readerWriter,
@@ -207,8 +210,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -220,13 +224,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');

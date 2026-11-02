@@ -13,8 +13,9 @@ import '../helpers.dart';
 
 /// The generated flow-reference declaration, matched across the line wrap
 /// Measurement introduces by lengthening the constructor.
-final _constFirstRunFlowRef =
-    RegExp(r'const firstRunFlowRef =\s*SurfaceFlowRef<\s*FirstRunResult\s*>');
+final _constFirstRunFlowRef = RegExp(
+  r'const firstRunFlowRef =\s*SurfaceFlowRef<\s*FirstRunResult\s*>',
+);
 
 void main() {
   group('OnboardingFlowBuilder', () {
@@ -83,8 +84,7 @@ void main() {
       expect(utf8.decode(jsonBytes), contains('"outbound":{}'));
     });
 
-    test(
-        'resolves imported legacy screen descriptors from the screen source, '
+    test('resolves imported legacy screen descriptors from the screen source, '
         'not from generated Dart', () async {
       // The four descriptor fields a legacy flow needs from an imported
       // screen — id, artifact path, version and minClient — used to be
@@ -142,8 +142,7 @@ void main() {
       expect(notice.on.keys, contains('dismiss'));
     });
 
-    test('emits a terminal screen flow without a synthetic end state',
-        () async {
+    test('emits a terminal screen flow without a synthetic end state', () async {
       final sources = _bareSurfaceFlowSources();
       final readerWriter = await _readerWriterWith(sources);
 
@@ -181,15 +180,14 @@ void main() {
       expect(bare.on, isEmpty);
     });
 
-    test('holding flow does not invent a terminal result to validate',
-        () async {
+    test('holding flow does not invent a terminal result to validate', () async {
       final sources = _bareSurfaceFlowSources();
       final source =
           sources['apps_examples|lib/onboarding/flows/bare_surface.dart']!;
-      sources['apps_examples|lib/onboarding/flows/bare_surface.dart'] =
-          source.replaceFirst(
-        '      states: [',
-        '''
+      sources['apps_examples|lib/onboarding/flows/bare_surface.dart'] = source
+          .replaceFirst(
+            '      states: [',
+            '''
       outbound: const FlowOutboundDeclarations(
         terminalResult: FlowOutboundPayloadDeclaration(
           fields: {
@@ -201,7 +199,7 @@ void main() {
         ),
       ),
       states: [''',
-      );
+          );
       final readerWriter = await _readerWriterWith(sources);
 
       final result = await testBuilders(
@@ -227,67 +225,10 @@ void main() {
       expect(generated, contains('final bool completed;'));
     });
 
-    test('emits a typed FlowSeed builder exposing only host-seedable keys',
-        () async {
-      final sources = _hostSeedSources();
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-      final generated = result.readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-        ),
-      );
-
-      expect(
-        generated,
-        allOf(
-          contains('final class FirstRunSeed implements FlowSeed'),
-          contains('const FirstRunSeed({'),
-          contains('this.isReturningUser'),
-          contains('final bool? isReturningUser;'),
-          contains('Map<String, Object?> toFlowState()'),
-          contains("if (isReturningUser != null) 'isReturningUser'"),
-          // The non-seedable 'tier' key must not be a seed parameter.
-          isNot(contains('tier')),
-        ),
-      );
-      expect(
-        generated,
-        allOf(
-          contains('return const FirstRunResult();'),
-          isNot(contains('final bool completed;')),
-        ),
-      );
-    });
-
-    test('a host-seedable key that is not a safe Dart identifier fails closed',
-        () async {
-      // The wire identifier rule admits hyphens and reserved/Object/method
-      // names, but a seed key is interpolated into the generated seed builder
-      // as a Dart field name, constructor parameter, and map key. An unsafe
-      // key must fail the build loudly (the dev renames it), never emit broken
-      // Dart.
-      for (final badKey in <String>[
-        'ab-test', // hyphen — invalid Dart identifier
-        'return', // reserved word
-        'runtimeType', // Object member — field/getter clash
-        'toFlowState', // clashes with the generated method
-      ]) {
-        final sources = _hostSeedSources(seedKey: badKey);
-        final logs = <LogRecord>[];
+    test(
+      'emits a typed FlowSeed builder exposing only host-seedable keys',
+      () async {
+        final sources = _hostSeedSources();
         final readerWriter = await _readerWriterWith(sources);
 
         final result = await testBuilders(
@@ -300,24 +241,84 @@ void main() {
           sources,
           rootPackage: 'apps_examples',
           readerWriter: readerWriter,
-          onLog: logs.add,
+          flattenOutput: true,
+        );
+        final generated = result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+          ),
         );
 
-        expect(result.succeeded, isFalse, reason: badKey);
-        final joined = logs.map((log) => log.message).join('\n');
         expect(
-          joined,
+          generated,
           allOf(
-            contains('host-seedable'),
-            contains(badKey),
+            contains('final class FirstRunSeed implements FlowSeed'),
+            contains('const FirstRunSeed({'),
+            contains('this.isReturningUser'),
+            contains('final bool? isReturningUser;'),
+            contains('Map<String, Object?> toFlowState()'),
+            contains("if (isReturningUser != null) 'isReturningUser'"),
+            // The non-seedable 'tier' key must not be a seed parameter.
+            isNot(contains('tier')),
           ),
-          reason: badKey,
         );
-      }
-    });
+        expect(
+          generated,
+          allOf(
+            contains('return const FirstRunResult();'),
+            isNot(contains('final bool completed;')),
+          ),
+        );
+      },
+    );
 
     test(
-        'a host-seedable key equal to the generated seed class name fails '
+      'a host-seedable key that is not a safe Dart identifier fails closed',
+      () async {
+        // The wire identifier rule admits hyphens and reserved/Object/method
+        // names, but a seed key is interpolated into the generated seed builder
+        // as a Dart field name, constructor parameter, and map key. An unsafe
+        // key must fail the build loudly (the dev renames it), never emit broken
+        // Dart.
+        for (final badKey in <String>[
+          'ab-test', // hyphen — invalid Dart identifier
+          'return', // reserved word
+          'runtimeType', // Object member — field/getter clash
+          'toFlowState', // clashes with the generated method
+        ]) {
+          final sources = _hostSeedSources(seedKey: badKey);
+          final logs = <LogRecord>[];
+          final readerWriter = await _readerWriterWith(sources);
+
+          final result = await testBuilders(
+            [
+              onboardingScreenBuilder(BuilderOptions.empty),
+              onboardingFlowBuilder(BuilderOptions.empty),
+              restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+              restageGeneratedDartBuilder(BuilderOptions.empty),
+            ],
+            sources,
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            onLog: logs.add,
+          );
+
+          expect(result.succeeded, isFalse, reason: badKey);
+          final joined = logs.map((log) => log.message).join('\n');
+          expect(
+            joined,
+            allOf(
+              contains('host-seedable'),
+              contains(badKey),
+            ),
+            reason: badKey,
+          );
+        }
+      },
+    );
+
+    test('a host-seedable key equal to the generated seed class name fails '
         'closed', () async {
       // 'FirstRunSeed' is a valid Dart identifier, but it equals the generated
       // seed builder class name, so as a field it would collide with the class.
@@ -346,8 +347,7 @@ void main() {
       );
     });
 
-    test(
-        'an author class colliding with the generated seed builder fails '
+    test('an author class colliding with the generated seed builder fails '
         'closed', () async {
       final sources = _hostSeedSources(
         extraDeclarations: 'final class FirstRunSeed {}',
@@ -376,74 +376,78 @@ void main() {
       );
     });
 
-    test('new typed flow with empty outbound emits an empty result decoder',
-        () async {
-      final sources = _firstRunSources();
-      final readerWriter = await _readerWriterWith(sources);
+    test(
+      'new typed flow with empty outbound emits an empty result decoder',
+      () async {
+        final sources = _firstRunSources();
+        final readerWriter = await _readerWriterWith(sources);
 
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-      final generated = result.readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-        ),
-      );
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+        final generated = result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+          ),
+        );
 
-      expect(
-        generated,
-        allOf(
-          contains('if (result.isNotEmpty)'),
-          contains('return const FirstRunResult();'),
-          isNot(contains("result['completed']")),
-          isNot(contains('final bool completed;')),
-        ),
-      );
-    });
+        expect(
+          generated,
+          allOf(
+            contains('if (result.isNotEmpty)'),
+            contains('return const FirstRunResult();'),
+            isNot(contains("result['completed']")),
+            isNot(contains('final bool completed;')),
+          ),
+        );
+      },
+    );
 
-    test('generated empty-result decoder uses const empty DTO constructor',
-        () async {
-      final sources = _singleScreenFlowSources(resultExpression: '{}');
-      final readerWriter = await _readerWriterWith(sources);
+    test(
+      'generated empty-result decoder uses const empty DTO constructor',
+      () async {
+        final sources = _singleScreenFlowSources(resultExpression: '{}');
+        final readerWriter = await _readerWriterWith(sources);
 
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-      final generated = result.readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-        ),
-      );
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+        final generated = result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+          ),
+        );
 
-      expect(
-        generated,
-        allOf(
-          contains('FirstRunResult _decodeFirstRunFlowResult('),
-          contains('if (result.isNotEmpty)'),
-          contains('return const FirstRunResult();'),
-        ),
-      );
-    });
+        expect(
+          generated,
+          allOf(
+            contains('FirstRunResult _decodeFirstRunFlowResult('),
+            contains('if (result.isNotEmpty)'),
+            contains('return const FirstRunResult();'),
+          ),
+        );
+      },
+    );
 
     test('screen artifact contentHash matches emitted .rfw bytes', () async {
       final sources = _firstRunSources();
@@ -673,85 +677,91 @@ void main() {
       );
     });
 
-    test('lowers decision and sub-flow graph nodes with child result filtering',
-        () async {
-      final sources = _graphFlowSources();
-      final readerWriter = await _readerWriterWith(sources);
+    test(
+      'lowers decision and sub-flow graph nodes with child result filtering',
+      () async {
+        final sources = _graphFlowSources();
+        final readerWriter = await _readerWriterWith(sources);
 
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
 
-      final flowBytes = result.readerWriter.testing.readBytes(
-        AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
-      );
-      final decoded = FlowDocumentCodec.decodeJson(utf8.decode(flowBytes));
-      final welcome = decoded.states['welcome']! as ScreenFlowState;
-      final branch = decoded.states['branch']! as DecisionFlowState;
-      final profile = decoded.states['profile']! as SubFlowState;
-      final completedWrite =
-          profile.onComplete.single.stateWrites['completed']!;
+        final flowBytes = result.readerWriter.testing.readBytes(
+          AssetId(
+            'apps_examples',
+            'assets/onboarding/flows/first_run.flow.json',
+          ),
+        );
+        final decoded = FlowDocumentCodec.decodeJson(utf8.decode(flowBytes));
+        final welcome = decoded.states['welcome']! as ScreenFlowState;
+        final branch = decoded.states['branch']! as DecisionFlowState;
+        final profile = decoded.states['profile']! as SubFlowState;
+        final completedWrite =
+            profile.onComplete.single.stateWrites['completed']!;
 
-      expect(welcome.on['next']?.target, 'branch');
-      expect(branch.branches.single.target, 'profile');
-      expect(profile.flow, 'profile_child');
-      expect(
-        profile.contentHash,
-        FlowContentHash.compute(
-          result.readerWriter.testing.readBytes(
-            AssetId(
-              'apps_examples',
-              'assets/onboarding/flows/profile_child.flow.json',
+        expect(welcome.on['next']?.target, 'branch');
+        expect(branch.branches.single.target, 'profile');
+        expect(profile.flow, 'profile_child');
+        expect(
+          profile.contentHash,
+          FlowContentHash.compute(
+            result.readerWriter.testing.readBytes(
+              AssetId(
+                'apps_examples',
+                'assets/onboarding/flows/profile_child.flow.json',
+              ),
             ),
           ),
-        ),
-      );
-      expect(
-        profile.input['parentIsPro'],
-        isA<StateFlowValueSource>().having(
-          (source) => source.key,
-          'key',
-          'isPro',
-        ),
-      );
-      expect(
-        decoded.outbound.subFlowResult.fields['accepted']?.ref,
-        isA<EventFlowOutboundRef>().having(
-          (ref) => ref.key,
-          'key',
-          'accepted',
-        ),
-      );
-      expect(
-        completedWrite.value,
-        isA<SubFlowResultFlowValueSource>().having(
-          (source) => source.key,
-          'key',
-          'accepted',
-        ),
-      );
-      final generated = result.readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-        ),
-      );
-      expect(
-        generated,
-        contains('final bool completed;'),
-        reason: 'The typed result contract follows outbound state output even '
-            'when the terminal literal is empty.',
-      );
-    });
+        );
+        expect(
+          profile.input['parentIsPro'],
+          isA<StateFlowValueSource>().having(
+            (source) => source.key,
+            'key',
+            'isPro',
+          ),
+        );
+        expect(
+          decoded.outbound.subFlowResult.fields['accepted']?.ref,
+          isA<EventFlowOutboundRef>().having(
+            (ref) => ref.key,
+            'key',
+            'accepted',
+          ),
+        );
+        expect(
+          completedWrite.value,
+          isA<SubFlowResultFlowValueSource>().having(
+            (source) => source.key,
+            'key',
+            'accepted',
+          ),
+        );
+        final generated = result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+          ),
+        );
+        expect(
+          generated,
+          contains('final bool completed;'),
+          reason:
+              'The typed result contract follows outbound state output even '
+              'when the terminal literal is empty.',
+        );
+      },
+    );
 
     test('the flow reference names the child flows it enters', () async {
       final sources = _graphFlowSources();
@@ -808,64 +818,66 @@ void main() {
       );
     });
 
-    test('typed EventFlow terminal output must match the end literal',
-        () async {
-      final cases = <String, String>{
-        'missing': 'end(done, result: {})',
-        'wrong type': "end(done, result: {'completed': 'yes'})",
-      };
+    test(
+      'typed EventFlow terminal output must match the end literal',
+      () async {
+        final cases = <String, String>{
+          'missing': 'end(done, result: {})',
+          'wrong type': "end(done, result: {'completed': 'yes'})",
+        };
 
-      for (final entry in cases.entries) {
-        final sources = _firstRunSourcesWithOutbound();
-        final source =
-            sources['apps_examples|lib/onboarding/flows/first_run.dart']!;
-        sources['apps_examples|lib/onboarding/flows/first_run.dart'] = source
-            .replaceFirst(
-              "StateFlowOutboundRef(key: 'completed')",
-              "EventFlowOutboundRef(key: 'completed')",
-            )
-            .replaceFirst(
-              "end(done, result: {'completed': true, 'secret': "
-              "'do-not-emit'})",
-              entry.value,
-            );
-        final logs = <LogRecord>[];
-        final readerWriter = await _readerWriterWith(sources);
+        for (final entry in cases.entries) {
+          final sources = _firstRunSourcesWithOutbound();
+          final source =
+              sources['apps_examples|lib/onboarding/flows/first_run.dart']!;
+          sources['apps_examples|lib/onboarding/flows/first_run.dart'] = source
+              .replaceFirst(
+                "StateFlowOutboundRef(key: 'completed')",
+                "EventFlowOutboundRef(key: 'completed')",
+              )
+              .replaceFirst(
+                "end(done, result: {'completed': true, 'secret': "
+                "'do-not-emit'})",
+                entry.value,
+              );
+          final logs = <LogRecord>[];
+          final readerWriter = await _readerWriterWith(sources);
 
-        final result = await testBuilders(
-          [
-            onboardingScreenBuilder(BuilderOptions.empty),
-            onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-            restageGeneratedDartBuilder(BuilderOptions.empty),
-          ],
-          sources,
-          rootPackage: 'apps_examples',
-          readerWriter: readerWriter,
-          onLog: logs.add,
-        );
+          final result = await testBuilders(
+            [
+              onboardingScreenBuilder(BuilderOptions.empty),
+              onboardingFlowBuilder(BuilderOptions.empty),
+              restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+              restageGeneratedDartBuilder(BuilderOptions.empty),
+            ],
+            sources,
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            onLog: logs.add,
+          );
 
-        expect(result.succeeded, isFalse, reason: entry.key);
-        expect(
-          logs.map((log) => log.message).join('\n'),
-          allOf(
-            contains("typed terminal output key 'completed'"),
-            contains('end result field "completed"'),
-          ),
-          reason: entry.key,
-        );
-      }
-    });
+          expect(result.succeeded, isFalse, reason: entry.key);
+          expect(
+            logs.map((log) => log.message).join('\n'),
+            allOf(
+              contains("typed terminal output key 'completed'"),
+              contains('end result field "completed"'),
+            ),
+            reason: entry.key,
+          );
+        }
+      },
+    );
 
     test('typed StateFlow terminal output rejects nested paths', () async {
       final sources = _firstRunSourcesWithOutbound();
       final source =
           sources['apps_examples|lib/onboarding/flows/first_run.dart']!;
-      sources['apps_examples|lib/onboarding/flows/first_run.dart'] =
-          source.replaceFirst(
-        "StateFlowOutboundRef(key: 'completed')",
-        "StateFlowOutboundRef(key: 'completed', path: ['nested'])",
-      );
+      sources['apps_examples|lib/onboarding/flows/first_run.dart'] = source
+          .replaceFirst(
+            "StateFlowOutboundRef(key: 'completed')",
+            "StateFlowOutboundRef(key: 'completed', path: ['nested'])",
+          );
       final logs = <LogRecord>[];
       final readerWriter = await _readerWriterWith(sources);
 
@@ -891,24 +903,59 @@ void main() {
       );
     });
 
-    test('non-graph StateFlow terminal fallback must match the end literal',
-        () async {
-      final cases = <String, String>{
-        'missing': 'end(done, result: {})',
-        'wrong type': "end(done, result: {'completed': 'yes'})",
-      };
+    test(
+      'non-graph StateFlow terminal fallback must match the end literal',
+      () async {
+        final cases = <String, String>{
+          'missing': 'end(done, result: {})',
+          'wrong type': "end(done, result: {'completed': 'yes'})",
+        };
 
-      for (final entry in cases.entries) {
-        final sources = _firstRunSourcesWithOutbound();
-        final source =
-            sources['apps_examples|lib/onboarding/flows/first_run.dart']!;
-        sources['apps_examples|lib/onboarding/flows/first_run.dart'] =
-            source.replaceFirst(
-          "end(done, result: {'completed': true, 'secret': "
-          "'do-not-emit'})",
-          entry.value,
+        for (final entry in cases.entries) {
+          final sources = _firstRunSourcesWithOutbound();
+          final source =
+              sources['apps_examples|lib/onboarding/flows/first_run.dart']!;
+          sources['apps_examples|lib/onboarding/flows/first_run.dart'] = source
+              .replaceFirst(
+                "end(done, result: {'completed': true, 'secret': "
+                "'do-not-emit'})",
+                entry.value,
+              );
+          final logs = <LogRecord>[];
+          final readerWriter = await _readerWriterWith(sources);
+
+          final result = await testBuilders(
+            [
+              onboardingScreenBuilder(BuilderOptions.empty),
+              onboardingFlowBuilder(BuilderOptions.empty),
+              restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+              restageGeneratedDartBuilder(BuilderOptions.empty),
+            ],
+            sources,
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            onLog: logs.add,
+          );
+
+          expect(result.succeeded, isFalse, reason: entry.key);
+          expect(
+            logs.map((log) => log.message).join('\n'),
+            allOf(
+              contains("typed terminal output key 'completed'"),
+              contains('end result field "completed"'),
+            ),
+            reason: entry.key,
+          );
+        }
+      },
+    );
+
+    test(
+      'graph StateFlow output is assigned on every completion path',
+      () async {
+        final sources = _terminalStateAvailabilitySources(
+          assignOnSecondaryPath: true,
         );
-        final logs = <LogRecord>[];
         final readerWriter = await _readerWriterWith(sources);
 
         final result = await testBuilders(
@@ -921,111 +968,84 @@ void main() {
           sources,
           rootPackage: 'apps_examples',
           readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+
+        expect(result.succeeded, isTrue);
+        final generated = result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+          ),
+        );
+        expect(generated, contains('final bool completed;'));
+      },
+    );
+
+    test(
+      'graph StateFlow output rejects an unassigned completion path',
+      () async {
+        final sources = _terminalStateAvailabilitySources(
+          assignOnSecondaryPath: false,
+        );
+        final logs = <LogRecord>[];
+        final readerWriter = await _readerWriterWith(sources);
+
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
           onLog: logs.add,
         );
 
-        expect(result.succeeded, isFalse, reason: entry.key);
+        expect(result.succeeded, isFalse);
         expect(
           logs.map((log) => log.message).join('\n'),
           allOf(
             contains("typed terminal output key 'completed'"),
-            contains('end result field "completed"'),
+            contains('not assigned on every completion path'),
           ),
-          reason: entry.key,
         );
-      }
-    });
+      },
+    );
 
-    test('graph StateFlow output is assigned on every completion path',
-        () async {
-      final sources = _terminalStateAvailabilitySources(
-        assignOnSecondaryPath: true,
-      );
-      final readerWriter = await _readerWriterWith(sources);
+    test(
+      'graph StateFlow output accepts a non-null declaration default',
+      () async {
+        final sources = _terminalStateAvailabilitySources(
+          assignOnSecondaryPath: false,
+          completedDefault: true,
+        );
+        final readerWriter = await _readerWriterWith(sources);
 
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
 
-      expect(result.succeeded, isTrue);
-      final generated = result.readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-        ),
-      );
-      expect(generated, contains('final bool completed;'));
-    });
-
-    test('graph StateFlow output rejects an unassigned completion path',
-        () async {
-      final sources = _terminalStateAvailabilitySources(
-        assignOnSecondaryPath: false,
-      );
-      final logs = <LogRecord>[];
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: logs.add,
-      );
-
-      expect(result.succeeded, isFalse);
-      expect(
-        logs.map((log) => log.message).join('\n'),
-        allOf(
-          contains("typed terminal output key 'completed'"),
-          contains('not assigned on every completion path'),
-        ),
-      );
-    });
-
-    test('graph StateFlow output accepts a non-null declaration default',
-        () async {
-      final sources = _terminalStateAvailabilitySources(
-        assignOnSecondaryPath: false,
-        completedDefault: true,
-      );
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-
-      expect(result.succeeded, isTrue);
-    });
+        expect(result.succeeded, isTrue);
+      },
+    );
 
     test('typed terminal outbound field names must be Dart-safe', () async {
       final sources = _firstRunSourcesWithOutbound();
       final source =
           sources['apps_examples|lib/onboarding/flows/first_run.dart']!;
-      sources['apps_examples|lib/onboarding/flows/first_run.dart'] =
-          source.replaceFirst(
-        "'completed': FlowOutboundField(",
-        "'not-valid': FlowOutboundField(",
-      );
+      sources['apps_examples|lib/onboarding/flows/first_run.dart'] = source
+          .replaceFirst(
+            "'completed': FlowOutboundField(",
+            "'not-valid': FlowOutboundField(",
+          );
       final logs = <LogRecord>[];
       final readerWriter = await _readerWriterWith(sources);
 
@@ -1078,8 +1098,7 @@ void main() {
       );
     });
 
-    test(
-        'a same-named screen in a sibling library does not capture the '
+    test('a same-named screen in a sibling library does not capture the '
         'reference', () async {
       // Two screens both called `WelcomeScreen`: a duplicate class name must
       // not make the flow's reference ambiguous.
@@ -1111,40 +1130,46 @@ void main() {
       expect(
         log,
         isNot(contains('must resolve through one analyzer-authored library')),
-        reason: 'the duplicate class name must not make the reference '
+        reason:
+            'the duplicate class name must not make the reference '
             'ambiguous — the owning library separates them',
       );
-      expect(result.succeeded, isTrue,
-          reason: 'a same-named screen the flow does not import is not a '
-              'conflict on the legacy lookup path');
-    });
-
-    test('missing imported generated screen descriptor fails before JSON',
-        () async {
-      final sources = _firstRunSources()
-        ..remove('apps_examples|lib/onboarding/screens/ready.dart');
-      final logs = <LogRecord>[];
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: logs.add,
-      );
-      expect(result.succeeded, isFalse);
       expect(
-        logs.map((log) => log.message).join('\n'),
-        contains('missingScreenDescriptor'),
+        result.succeeded,
+        isTrue,
+        reason:
+            'a same-named screen the flow does not import is not a '
+            'conflict on the legacy lookup path',
       );
     });
 
     test(
-        'a syntax error preventing flow discovery still fails the build '
+      'missing imported generated screen descriptor fails before JSON',
+      () async {
+        final sources = _firstRunSources()
+          ..remove('apps_examples|lib/onboarding/screens/ready.dart');
+        final logs = <LogRecord>[];
+        final readerWriter = await _readerWriterWith(sources);
+
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          onLog: logs.add,
+        );
+        expect(result.succeeded, isFalse);
+        expect(
+          logs.map((log) => log.message).join('\n'),
+          contains('missingScreenDescriptor'),
+        );
+      },
+    );
+
+    test('a syntax error preventing flow discovery still fails the build '
         'instead of silently skipping', () async {
       // The builder resolves with `allowSyntaxErrors: true`. A malformed token
       // severe enough that no `@OnboardingFlow` class is discovered would
@@ -1238,211 +1263,46 @@ final class OnboardingFlow {
       expect(result.succeeded, isTrue);
     });
 
-    test('string-target graph edges are not emitted in generated JSON',
-        () async {
-      final sources = _firstRunSources();
-      final readerWriter = await _readerWriterWith(sources);
+    test(
+      'string-target graph edges are not emitted in generated JSON',
+      () async {
+        final sources = _firstRunSources();
+        final readerWriter = await _readerWriterWith(sources);
 
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-
-      final flowBytes = result.readerWriter.testing.readBytes(
-        AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
-      );
-      final json = jsonDecode(utf8.decode(flowBytes)) as Map<String, Object?>;
-      final states = json['states']! as Map<String, Object?>;
-      for (final state in states.values.cast<Map<String, Object?>>()) {
-        if (state['kind'] != 'screen') continue;
-        final transitions = state['on']! as Map<String, Object?>;
-        for (final transition
-            in transitions.values.cast<Map<String, Object?>>()) {
-          expect(states, contains(transition['target']));
-        }
-      }
-    });
-
-    test('emits action contracts and result predicates for action transitions',
-        () async {
-      final sources = _actionTransitionSources();
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-
-      final flowBytes = result.readerWriter.testing.readBytes(
-        AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
-      );
-      final generated = result.readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-        ),
-      );
-      final json = jsonDecode(utf8.decode(flowBytes)) as Map<String, Object?>;
-      final actions = json['actions']! as Map<String, Object?>;
-      final states = json['states']! as Map<String, Object?>;
-      final welcome = states['welcome']! as Map<String, Object?>;
-      final on = welcome['on']! as Map<String, Object?>;
-      final transition = on['next']! as Map<String, Object?>;
-
-      expect(actions.keys, ['requestNotifications']);
-      expect(actions, isNot(contains('unusedAction')));
-      expect(
-        actions['requestNotifications'],
-        containsPair('argsSchemaHash', _emptyObjectArgsHash),
-      );
-      expect(
-        actions['requestNotifications'],
-        containsPair('resultSchemaHash', _boolResultHash),
-      );
-      expect(
-        actions['requestNotifications'],
-        containsPair('argsSchema', {
-          'kind': 'object',
-          'fields': <String, Object?>{},
-        }),
-      );
-      expect(
-        actions['requestNotifications'],
-        containsPair('resultSchema', {'kind': 'bool'}),
-      );
-      expect(
-        generated,
-        allOf(
-          contains('argsSchema: const FlowActionSchema.object({})'),
-          contains('resultSchema: const FlowActionSchema.bool()'),
-        ),
-      );
-      expect(
-        transition,
-        containsPair('resultPredicate', {
-          'kind': 'boolEquals',
-          'value': true,
-        }),
-      );
-    });
-
-    test('declared unused actions get real generated descriptors and hashes',
-        () async {
-      final sources = _actionTransitionSources();
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-
-      final generated = result.readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-        ),
-      );
-
-      expect(
-        generated,
-        allOf(
-          contains('static final FlowActionDescriptor<void, bool> '
-              'unusedActionDescriptor'),
-          contains("actionName: 'unusedAction'"),
-          contains('argsSchema: const FlowActionSchema.object({})'),
-          contains('resultSchema: const FlowActionSchema.bool()'),
-          isNot(contains(_zeroHash)),
-        ),
-      );
-    });
-
-    test('authored idempotent actions preserve contract and binding metadata',
-        () async {
-      final sources = _actionTransitionSources(
-        actionRef: "FlowActionRef<void, bool>('requestNotifications', "
-            'idempotent: true)',
-      );
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-
-      final flowBytes = result.readerWriter.testing.readBytes(
-        AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
-      );
-      final generated = result.readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-        ),
-      );
-      final json = jsonDecode(utf8.decode(flowBytes)) as Map<String, Object?>;
-      final actions = json['actions']! as Map<String, Object?>;
-
-      expect(
-        actions['requestNotifications'],
-        containsPair('idempotent', true),
-      );
-      expect(
-        generated,
-        allOf(
-          contains('idempotent: true'),
-          contains('idempotent: requestNotificationsDescriptor.idempotent'),
-        ),
-      );
-    });
-
-    test('Dart enum action schemas fail closed before object lowering',
-        () async {
-      final cases = <String, String>{
-        'argument': '''
-  static const choosePermission =
-      FlowActionRef<PermissionChoice, bool>('choosePermission');
-''',
-        'result': '''
-  static const choosePermission =
-      FlowActionRef<void, PermissionChoice>('choosePermission');
-''',
-      };
-
-      for (final entry in cases.entries) {
-        final sources = _actionTransitionSources(
-          extraActionRefs: entry.value,
-          resultClass: 'enum PermissionChoice { granted, denied }',
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
         );
-        final logs = <LogRecord>[];
+
+        final flowBytes = result.readerWriter.testing.readBytes(
+          AssetId(
+            'apps_examples',
+            'assets/onboarding/flows/first_run.flow.json',
+          ),
+        );
+        final json = jsonDecode(utf8.decode(flowBytes)) as Map<String, Object?>;
+        final states = json['states']! as Map<String, Object?>;
+        for (final state in states.values.cast<Map<String, Object?>>()) {
+          if (state['kind'] != 'screen') continue;
+          final transitions = state['on']! as Map<String, Object?>;
+          for (final transition
+              in transitions.values.cast<Map<String, Object?>>()) {
+            expect(states, contains(transition['target']));
+          }
+        }
+      },
+    );
+
+    test(
+      'emits action contracts and result predicates for action transitions',
+      () async {
+        final sources = _actionTransitionSources();
         final readerWriter = await _readerWriterWith(sources);
 
         final result = await testBuilders(
@@ -1455,20 +1315,207 @@ final class OnboardingFlow {
           sources,
           rootPackage: 'apps_examples',
           readerWriter: readerWriter,
-          onLog: logs.add,
+          flattenOutput: true,
         );
 
-        expect(result.succeeded, isFalse, reason: entry.key);
-        expect(
-          logs.map((log) => log.message).join('\n'),
-          allOf(
-            contains('unsupported action schema enum type'),
-            contains('PermissionChoice'),
+        final flowBytes = result.readerWriter.testing.readBytes(
+          AssetId(
+            'apps_examples',
+            'assets/onboarding/flows/first_run.flow.json',
           ),
-          reason: entry.key,
         );
-      }
-    });
+        final generated = result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+          ),
+        );
+        final json = jsonDecode(utf8.decode(flowBytes)) as Map<String, Object?>;
+        final actions = json['actions']! as Map<String, Object?>;
+        final states = json['states']! as Map<String, Object?>;
+        final welcome = states['welcome']! as Map<String, Object?>;
+        final on = welcome['on']! as Map<String, Object?>;
+        final transition = on['next']! as Map<String, Object?>;
+
+        expect(actions.keys, ['requestNotifications']);
+        expect(actions, isNot(contains('unusedAction')));
+        expect(
+          actions['requestNotifications'],
+          containsPair('argsSchemaHash', _emptyObjectArgsHash),
+        );
+        expect(
+          actions['requestNotifications'],
+          containsPair('resultSchemaHash', _boolResultHash),
+        );
+        expect(
+          actions['requestNotifications'],
+          containsPair('argsSchema', {
+            'kind': 'object',
+            'fields': <String, Object?>{},
+          }),
+        );
+        expect(
+          actions['requestNotifications'],
+          containsPair('resultSchema', {'kind': 'bool'}),
+        );
+        expect(
+          generated,
+          allOf(
+            contains('argsSchema: const FlowActionSchema.object({})'),
+            contains('resultSchema: const FlowActionSchema.bool()'),
+          ),
+        );
+        expect(
+          transition,
+          containsPair('resultPredicate', {
+            'kind': 'boolEquals',
+            'value': true,
+          }),
+        );
+      },
+    );
+
+    test(
+      'declared unused actions get real generated descriptors and hashes',
+      () async {
+        final sources = _actionTransitionSources();
+        final readerWriter = await _readerWriterWith(sources);
+
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+
+        final generated = result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+          ),
+        );
+
+        expect(
+          generated,
+          allOf(
+            contains(
+              'static final FlowActionDescriptor<void, bool> '
+              'unusedActionDescriptor',
+            ),
+            contains("actionName: 'unusedAction'"),
+            contains('argsSchema: const FlowActionSchema.object({})'),
+            contains('resultSchema: const FlowActionSchema.bool()'),
+            isNot(contains(_zeroHash)),
+          ),
+        );
+      },
+    );
+
+    test(
+      'authored idempotent actions preserve contract and binding metadata',
+      () async {
+        final sources = _actionTransitionSources(
+          actionRef:
+              "FlowActionRef<void, bool>('requestNotifications', "
+              'idempotent: true)',
+        );
+        final readerWriter = await _readerWriterWith(sources);
+
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+
+        final flowBytes = result.readerWriter.testing.readBytes(
+          AssetId(
+            'apps_examples',
+            'assets/onboarding/flows/first_run.flow.json',
+          ),
+        );
+        final generated = result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+          ),
+        );
+        final json = jsonDecode(utf8.decode(flowBytes)) as Map<String, Object?>;
+        final actions = json['actions']! as Map<String, Object?>;
+
+        expect(
+          actions['requestNotifications'],
+          containsPair('idempotent', true),
+        );
+        expect(
+          generated,
+          allOf(
+            contains('idempotent: true'),
+            contains('idempotent: requestNotificationsDescriptor.idempotent'),
+          ),
+        );
+      },
+    );
+
+    test(
+      'Dart enum action schemas fail closed before object lowering',
+      () async {
+        final cases = <String, String>{
+          'argument': '''
+  static const choosePermission =
+      FlowActionRef<PermissionChoice, bool>('choosePermission');
+''',
+          'result': '''
+  static const choosePermission =
+      FlowActionRef<void, PermissionChoice>('choosePermission');
+''',
+        };
+
+        for (final entry in cases.entries) {
+          final sources = _actionTransitionSources(
+            extraActionRefs: entry.value,
+            resultClass: 'enum PermissionChoice { granted, denied }',
+          );
+          final logs = <LogRecord>[];
+          final readerWriter = await _readerWriterWith(sources);
+
+          final result = await testBuilders(
+            [
+              onboardingScreenBuilder(BuilderOptions.empty),
+              onboardingFlowBuilder(BuilderOptions.empty),
+              restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+              restageGeneratedDartBuilder(BuilderOptions.empty),
+            ],
+            sources,
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            onLog: logs.add,
+          );
+
+          expect(result.succeeded, isFalse, reason: entry.key);
+          expect(
+            logs.map((log) => log.message).join('\n'),
+            allOf(
+              contains('unsupported action schema enum type'),
+              contains('PermissionChoice'),
+            ),
+            reason: entry.key,
+          );
+        }
+      },
+    );
 
     test('unsupported action schema field names fail closed', () async {
       final cases = <String, String>{
@@ -1482,7 +1529,8 @@ final class OnboardingFlow {
   static const badSchema =
       FlowActionRef<void, PermissionResult>('badSchema');
 ''',
-          resultClass: '''
+          resultClass:
+              '''
 final class PermissionResult {
   const PermissionResult({required this.${entry.value}});
   final bool ${entry.value};
@@ -1588,44 +1636,48 @@ final class ActionArgs {
       }
     });
 
-    test('negated bool action result predicates lower to boolEquals false',
-        () async {
-      final sources = _actionTransitionSources(
-        resultPredicate: '(result) => !result',
-      );
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-
-      final flowBytes = result.readerWriter.testing.readBytes(
-        AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
-      );
-      final json = jsonDecode(utf8.decode(flowBytes)) as Map<String, Object?>;
-      final states = json['states']! as Map<String, Object?>;
-      final welcome = states['welcome']! as Map<String, Object?>;
-      final on = welcome['on']! as Map<String, Object?>;
-      final transition = on['next']! as Map<String, Object?>;
-
-      expect(
-        transition,
-        containsPair('resultPredicate', {
-          'kind': 'boolEquals',
-          'value': false,
-        }),
-      );
-    });
-
     test(
-        'lowercase subflow alias still fails with public-safe unsupported '
+      'negated bool action result predicates lower to boolEquals false',
+      () async {
+        final sources = _actionTransitionSources(
+          resultPredicate: '(result) => !result',
+        );
+        final readerWriter = await _readerWriterWith(sources);
+
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+
+        final flowBytes = result.readerWriter.testing.readBytes(
+          AssetId(
+            'apps_examples',
+            'assets/onboarding/flows/first_run.flow.json',
+          ),
+        );
+        final json = jsonDecode(utf8.decode(flowBytes)) as Map<String, Object?>;
+        final states = json['states']! as Map<String, Object?>;
+        final welcome = states['welcome']! as Map<String, Object?>;
+        final on = welcome['on']! as Map<String, Object?>;
+        final transition = on['next']! as Map<String, Object?>;
+
+        expect(
+          transition,
+          containsPair('resultPredicate', {
+            'kind': 'boolEquals',
+            'value': false,
+          }),
+        );
+      },
+    );
+
+    test('lowercase subflow alias still fails with public-safe unsupported '
         'runtime feature diagnostic', () async {
       final sources = _actionSources();
       final logs = <LogRecord>[];
@@ -1681,19 +1733,22 @@ final class ActionArgs {
       if (!result.succeeded) {
         return {'log': logs.map((log) => log.message).join('\n')};
       }
-      final json = jsonDecode(
-        utf8.decode(
-          result.readerWriter.testing.readBytes(
-            AssetId(
-              'apps_examples',
-              'assets/onboarding/flows/first_run.flow.json',
-            ),
-          ),
-        ),
-      ) as Map<String, Object?>;
+      final json =
+          jsonDecode(
+                utf8.decode(
+                  result.readerWriter.testing.readBytes(
+                    AssetId(
+                      'apps_examples',
+                      'assets/onboarding/flows/first_run.flow.json',
+                    ),
+                  ),
+                ),
+              )
+              as Map<String, Object?>;
       final states = json['states']! as Map<String, Object?>;
-      final on = (states['welcome']! as Map<String, Object?>)['on']!
-          as Map<String, Object?>;
+      final on =
+          (states['welcome']! as Map<String, Object?>)['on']!
+              as Map<String, Object?>;
       return {
         ...(on['next']! as Map<String, Object?>)['resultPredicate']!
             as Map<String, Object?>,
@@ -1719,36 +1774,37 @@ final class ActionArgs {
       );
     });
 
-    test('field comparisons joined with && lower to field conditions',
-        () async {
-      expect(
-        (await lowerPredicate(
-          "(result) => result.status == 'allowed' && "
-          'result.count >= 2',
-          actionRef:
-              "FlowActionRef<void, ReminderResult>('requestNotifications')",
-          resultClass: '''
+    test(
+      'field comparisons joined with && lower to field conditions',
+      () async {
+        expect(
+          (await lowerPredicate(
+            "(result) => result.status == 'allowed' && "
+            'result.count >= 2',
+            actionRef:
+                "FlowActionRef<void, ReminderResult>('requestNotifications')",
+            resultClass: '''
 final class ReminderResult {
   const ReminderResult({required this.status, required this.count});
   final String status;
   final int count;
 }
 ''',
-        ))
-          ..remove('minClient'),
-        {
-          'kind': 'matches',
-          'fields': {
-            'count': {
-              'gte': {'literal': 2, 'type': 'int'},
-            },
-            'status': {
-              'eq': {'literal': 'allowed', 'type': 'string'},
+          ))..remove('minClient'),
+          {
+            'kind': 'matches',
+            'fields': {
+              'count': {
+                'gte': {'literal': 2, 'type': 'int'},
+              },
+              'status': {
+                'eq': {'literal': 'allowed', 'type': 'string'},
+              },
             },
           },
-        },
-      );
-    });
+        );
+      },
+    );
 
     test('an unsupported predicate names the accepted forms', () async {
       final lowered = await lowerPredicate('(result) => result || true');
@@ -1867,8 +1923,9 @@ final class NotificationResult {
     });
 
     test('invalid result field names fail closed before output', () async {
-      final sources =
-          _singleScreenFlowSources(resultExpression: "{'class': true}");
+      final sources = _singleScreenFlowSources(
+        resultExpression: "{'class': true}",
+      );
       final logs = <LogRecord>[];
       final readerWriter = await _readerWriterWith(sources);
 
@@ -1895,8 +1952,9 @@ final class NotificationResult {
 
     test('result keys that collide with Object members fail closed', () async {
       for (final key in ['toString', 'runtimeType', 'hashCode']) {
-        final sources =
-            _singleScreenFlowSources(resultExpression: "{'$key': true}");
+        final sources = _singleScreenFlowSources(
+          resultExpression: "{'$key': true}",
+        );
         final logs = <LogRecord>[];
         final readerWriter = await _readerWriterWith(sources);
 
@@ -1966,41 +2024,43 @@ final class NotificationResult {
       });
     }
 
-    test('nested and list terminal result fields fail before decoder emission',
-        () async {
-      final cases = <String, String>{
-        'list': "{'completed': true, 'scores': [1, 2]}",
-        'map': "{'completed': true, 'profile': {'id': 'abc'}}",
-      };
+    test(
+      'nested and list terminal result fields fail before decoder emission',
+      () async {
+        final cases = <String, String>{
+          'list': "{'completed': true, 'scores': [1, 2]}",
+          'map': "{'completed': true, 'profile': {'id': 'abc'}}",
+        };
 
-      for (final entry in cases.entries) {
-        final sources = _singleScreenFlowSources(
-          resultExpression: entry.value,
-        );
-        final logs = <LogRecord>[];
-        final readerWriter = await _readerWriterWith(sources);
+        for (final entry in cases.entries) {
+          final sources = _singleScreenFlowSources(
+            resultExpression: entry.value,
+          );
+          final logs = <LogRecord>[];
+          final readerWriter = await _readerWriterWith(sources);
 
-        final result = await testBuilders(
-          [
-            onboardingScreenBuilder(BuilderOptions.empty),
-            onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-            restageGeneratedDartBuilder(BuilderOptions.empty),
-          ],
-          sources,
-          rootPackage: 'apps_examples',
-          readerWriter: readerWriter,
-          onLog: logs.add,
-        );
+          final result = await testBuilders(
+            [
+              onboardingScreenBuilder(BuilderOptions.empty),
+              onboardingFlowBuilder(BuilderOptions.empty),
+              restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+              restageGeneratedDartBuilder(BuilderOptions.empty),
+            ],
+            sources,
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            onLog: logs.add,
+          );
 
-        expect(result.succeeded, isFalse, reason: entry.key);
-        expect(
-          logs.map((log) => log.message).join('\n'),
-          contains('unsupported result literal'),
-          reason: entry.key,
-        );
-      }
-    });
+          expect(result.succeeded, isFalse, reason: entry.key);
+          expect(
+            logs.map((log) => log.message).join('\n'),
+            contains('unsupported result literal'),
+            reason: entry.key,
+          );
+        }
+      },
+    );
 
     for (final entry in <String, String>{
       'top-level duplicate': "{'completed': true, 'completed': false}",
@@ -2062,33 +2122,34 @@ final class NotificationResult {
       );
     });
 
-    test('terminal collisions reject before a state can be overwritten',
-        () async {
-      final cases = <String, Map<String, String>>{
-        'screen then terminal': _terminalStateCollisionSources(
-          declarations: "final done = endState('welcome');",
-          states: '''
+    test(
+      'terminal collisions reject before a state can be overwritten',
+      () async {
+        final cases = <String, Map<String, String>>{
+          'screen then terminal': _terminalStateCollisionSources(
+            declarations: "final done = endState('welcome');",
+            states: '''
         screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
         end(done, result: {'completed': true}),
 ''',
-        ),
-        'terminal then screen': _terminalStateCollisionSources(
-          declarations: "final done = endState('welcome');",
-          states: '''
+          ),
+          'terminal then screen': _terminalStateCollisionSources(
+            declarations: "final done = endState('welcome');",
+            states: '''
         end(done, result: {'completed': true}),
         screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
 ''',
-        ),
-        'decision then terminal': _terminalStateCollisionSources(
-          declarations: '''
+          ),
+          'decision then terminal': _terminalStateCollisionSources(
+            declarations: '''
     final done = endState('done');
     final gate = flowNode('done');
 ''',
-          states: '''
+            states: '''
         screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
@@ -2099,13 +2160,13 @@ final class NotificationResult {
         ),
         end(done, result: {'completed': true}),
 ''',
-        ),
-        'terminal then decision': _terminalStateCollisionSources(
-          declarations: '''
+          ),
+          'terminal then decision': _terminalStateCollisionSources(
+            declarations: '''
     final done = endState('done');
     final gate = flowNode('done');
 ''',
-          states: '''
+            states: '''
         screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
@@ -2116,117 +2177,124 @@ final class NotificationResult {
           defaultBranch: flowBranchTarget(done),
         ),
 ''',
-        ),
-      };
+          ),
+        };
 
-      for (final entry in cases.entries) {
+        for (final entry in cases.entries) {
+          final logs = <LogRecord>[];
+          final readerWriter = await _readerWriterWith(entry.value);
+          final result = await testBuilders(
+            [
+              onboardingScreenBuilder(BuilderOptions.empty),
+              onboardingFlowBuilder(BuilderOptions.empty),
+              restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+              restageGeneratedDartBuilder(BuilderOptions.empty),
+            ],
+            entry.value,
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            onLog: logs.add,
+          );
+
+          expect(result.succeeded, isFalse, reason: entry.key);
+          expect(
+            logs.map((log) => log.message).join('\n'),
+            allOf(
+              contains('duplicate state'),
+              contains(entry.key.contains('screen') ? 'welcome' : 'done'),
+            ),
+            reason: entry.key,
+          );
+        }
+      },
+    );
+
+    test(
+      'local event aliases fail closed instead of using alias name',
+      () async {
+        final sources = _eventAliasSources();
         final logs = <LogRecord>[];
-        final readerWriter = await _readerWriterWith(entry.value);
+        final readerWriter = await _readerWriterWith(sources);
+
         final result = await testBuilders(
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
-          entry.value,
+          sources,
           rootPackage: 'apps_examples',
           readerWriter: readerWriter,
           onLog: logs.add,
         );
 
-        expect(result.succeeded, isFalse, reason: entry.key);
+        expect(result.succeeded, isFalse);
         expect(
           logs.map((log) => log.message).join('\n'),
           allOf(
-            contains('duplicate state'),
-            contains(entry.key.contains('screen') ? 'welcome' : 'done'),
+            contains('Expected a static OnboardingEvent field reference'),
+            contains('nextEvent'),
           ),
-          reason: entry.key,
         );
-      }
-    });
+      },
+    );
 
-    test('local event aliases fail closed instead of using alias name',
-        () async {
-      final sources = _eventAliasSources();
-      final logs = <LogRecord>[];
-      final readerWriter = await _readerWriterWith(sources);
+    test(
+      'non-event const descriptors fail closed in transition events',
+      () async {
+        final sources = _eventExpressionSources('welcomeScreenRef');
+        final logs = <LogRecord>[];
+        final readerWriter = await _readerWriterWith(sources);
 
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: logs.add,
-      );
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          onLog: logs.add,
+        );
 
-      expect(result.succeeded, isFalse);
-      expect(
-        logs.map((log) => log.message).join('\n'),
-        allOf(
-          contains('Expected a static OnboardingEvent field reference'),
-          contains('nextEvent'),
-        ),
-      );
-    });
+        expect(result.succeeded, isFalse);
+        expect(
+          logs.map((log) => log.message).join('\n'),
+          allOf(
+            contains('Expected a static OnboardingEvent field reference'),
+            contains('welcomeScreenRef'),
+          ),
+        );
+      },
+    );
 
-    test('non-event const descriptors fail closed in transition events',
-        () async {
-      final sources = _eventExpressionSources('welcomeScreenRef');
-      final logs = <LogRecord>[];
-      final readerWriter = await _readerWriterWith(sources);
+    test(
+      'local OnboardingEvent lookalikes fail closed in transition events',
+      () async {
+        final sources = _shadowEventSources();
+        final logs = <LogRecord>[];
+        final readerWriter = await _readerWriterWith(sources);
 
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: logs.add,
-      );
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          onLog: logs.add,
+        );
 
-      expect(result.succeeded, isFalse);
-      expect(
-        logs.map((log) => log.message).join('\n'),
-        allOf(
-          contains('Expected a static OnboardingEvent field reference'),
-          contains('welcomeScreenRef'),
-        ),
-      );
-    });
-
-    test('local OnboardingEvent lookalikes fail closed in transition events',
-        () async {
-      final sources = _shadowEventSources();
-      final logs = <LogRecord>[];
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: logs.add,
-      );
-
-      expect(result.succeeded, isFalse);
-      expect(
-        logs.map((log) => log.message).join('\n'),
-        allOf(
-          contains('Expected a static OnboardingEvent field reference'),
-          contains('fake'),
-        ),
-      );
-    });
+        expect(result.succeeded, isFalse);
+        expect(
+          logs.map((log) => log.message).join('\n'),
+          allOf(
+            contains('Expected a static OnboardingEvent field reference'),
+            contains('fake'),
+          ),
+        );
+      },
+    );
 
     test('unresolved screen event references fail closed', () async {
       final sources = _eventExpressionSources('WelcomeScreen.nxt');
@@ -2254,107 +2322,111 @@ final class NotificationResult {
       );
     });
 
-    test('states list collection control fails closed before JSON emission',
-        () async {
-      final cases = <String, String>{
-        'if': '''
+    test(
+      'states list collection control fails closed before JSON emission',
+      () async {
+        final cases = <String, String>{
+          'if': '''
         if (true)
           screen(welcomeScreenRef)
               .on(WelcomeScreen.next)
               .goTo(done),
         ''',
-        'for': '''
+          'for': '''
         for (final item in [1])
           screen(welcomeScreenRef)
               .on(WelcomeScreen.next)
               .goTo(done),
         ''',
-        'spread': '''
+          'spread': '''
         ...[
           screen(welcomeScreenRef)
               .on(WelcomeScreen.next)
               .goTo(done),
         ],
         ''',
-      };
+        };
 
-      for (final entry in cases.entries) {
-        final sources = _statesSource(entry.value);
-        final logs = <LogRecord>[];
-        final readerWriter = await _readerWriterWith(sources);
+        for (final entry in cases.entries) {
+          final sources = _statesSource(entry.value);
+          final logs = <LogRecord>[];
+          final readerWriter = await _readerWriterWith(sources);
 
-        final result = await testBuilders(
-          [
-            onboardingScreenBuilder(BuilderOptions.empty),
-            onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-            restageGeneratedDartBuilder(BuilderOptions.empty),
-          ],
-          sources,
-          rootPackage: 'apps_examples',
-          readerWriter: readerWriter,
-          onLog: logs.add,
-        );
+          final result = await testBuilders(
+            [
+              onboardingScreenBuilder(BuilderOptions.empty),
+              onboardingFlowBuilder(BuilderOptions.empty),
+              restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+              restageGeneratedDartBuilder(BuilderOptions.empty),
+            ],
+            sources,
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            onLog: logs.add,
+          );
 
-        expect(result.succeeded, isFalse, reason: entry.key);
-        expect(
-          logs.map((log) => log.message).join('\n'),
-          contains('unsupported states list entry'),
-          reason: entry.key,
-        );
-      }
-    });
+          expect(result.succeeded, isFalse, reason: entry.key);
+          expect(
+            logs.map((log) => log.message).join('\n'),
+            contains('unsupported states list entry'),
+            reason: entry.key,
+          );
+        }
+      },
+    );
 
-    test('duplicate or multiple end states fail closed before JSON emission',
-        () async {
-      final cases = <String, String>{
-        'duplicate end id': '''
+    test(
+      'duplicate or multiple end states fail closed before JSON emission',
+      () async {
+        final cases = <String, String>{
+          'duplicate end id': '''
         screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
         end(done, result: {'completed': true}),
         end(done, result: {'completed': false}),
         ''',
-        'multiple end ids': '''
+          'multiple end ids': '''
         screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
         end(done, result: {'completed': true}),
         end(cancelled, result: {'completed': false}),
         ''',
-      };
+        };
 
-      for (final entry in cases.entries) {
-        final sources = _statesSource(
-          entry.value,
-          extraEndStates: "final cancelled = endState('cancelled');",
-        );
-        final logs = <LogRecord>[];
-        final readerWriter = await _readerWriterWith(sources);
+        for (final entry in cases.entries) {
+          final sources = _statesSource(
+            entry.value,
+            extraEndStates: "final cancelled = endState('cancelled');",
+          );
+          final logs = <LogRecord>[];
+          final readerWriter = await _readerWriterWith(sources);
 
-        final result = await testBuilders(
-          [
-            onboardingScreenBuilder(BuilderOptions.empty),
-            onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-            restageGeneratedDartBuilder(BuilderOptions.empty),
-          ],
-          sources,
-          rootPackage: 'apps_examples',
-          readerWriter: readerWriter,
-          onLog: logs.add,
-        );
+          final result = await testBuilders(
+            [
+              onboardingScreenBuilder(BuilderOptions.empty),
+              onboardingFlowBuilder(BuilderOptions.empty),
+              restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+              restageGeneratedDartBuilder(BuilderOptions.empty),
+            ],
+            sources,
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            onLog: logs.add,
+          );
 
-        expect(result.succeeded, isFalse, reason: entry.key);
-        expect(
-          logs.map((log) => log.message).join('\n'),
-          contains(
-            'Flows must declare one end state unless a reachable screen',
-          ),
-          reason: entry.key,
-        );
-      }
-    });
+          expect(result.succeeded, isFalse, reason: entry.key);
+          expect(
+            logs.map((log) => log.message).join('\n'),
+            contains(
+              'Flows must declare one end state unless a reachable screen',
+            ),
+            reason: entry.key,
+          );
+        }
+      },
+    );
   });
 
   group('OnboardingFlowBuilder branching', () {
@@ -2396,50 +2468,58 @@ final class NotificationResult {
       return logs.map((log) => log.message).join('\n');
     }
 
-    test('chained .on() lowers to one screen state with a multi-key on map',
-        () async {
-      final doc = await buildBranchingDoc(_forkSources());
-      final goal = doc.states['goal']! as ScreenFlowState;
-      expect(goal.on.keys, containsAll(<String>['sleep', 'focus']));
-      expect(goal.on['sleep']!.target, 'rating');
-      expect(goal.on['focus']!.target, 'rating');
-    });
+    test(
+      'chained .on() lowers to one screen state with a multi-key on map',
+      () async {
+        final doc = await buildBranchingDoc(_forkSources());
+        final goal = doc.states['goal']! as ScreenFlowState;
+        expect(goal.on.keys, containsAll(<String>['sleep', 'focus']));
+        expect(goal.on['sleep']!.target, 'rating');
+        expect(goal.on['focus']!.target, 'rating');
+      },
+    );
 
     test('.write() lowers to a LiteralFlowValueSource state write', () async {
       final doc = await buildBranchingDoc(_forkSources());
-      final sleep = (doc.states['goal']! as ScreenFlowState).on['sleep']!
-          as GotoFlowTransition;
+      final sleep =
+          (doc.states['goal']! as ScreenFlowState).on['sleep']!
+              as GotoFlowTransition;
       final write = sleep.stateWrites['goal']!;
       expect(write.type, FlowDataType.string);
       final value = write.value as LiteralFlowValueSource;
       expect(value.type, FlowDataType.string);
       expect(value.value, 'sleep');
-      final focus = (doc.states['goal']! as ScreenFlowState).on['focus']!
-          as GotoFlowTransition;
+      final focus =
+          (doc.states['goal']! as ScreenFlowState).on['focus']!
+              as GotoFlowTransition;
       expect(
         (focus.stateWrites['goal']!.value as LiteralFlowValueSource).value,
         'focus',
       );
     });
 
-    test('.capture() lowers to a reserved-value EventFlowValueSource write',
-        () async {
-      final doc = await buildBranchingDoc(_forkSources());
-      final submit = (doc.states['rating']! as ScreenFlowState).on['submit']!
-          as GotoFlowTransition;
-      final write = submit.stateWrites['rating']!;
-      expect(write.type, FlowDataType.int);
-      final value = write.value as EventFlowValueSource;
-      // Capture reads the reserved event-value key; the flow-state slot is
-      // 'rating'.
-      expect(value.key, kCapturedEventValueKey);
-      expect(value.path, isEmpty);
-    });
+    test(
+      '.capture() lowers to a reserved-value EventFlowValueSource write',
+      () async {
+        final doc = await buildBranchingDoc(_forkSources());
+        final submit =
+            (doc.states['rating']! as ScreenFlowState).on['submit']!
+                as GotoFlowTransition;
+        final write = submit.stateWrites['rating']!;
+        expect(write.type, FlowDataType.int);
+        final value = write.value as EventFlowValueSource;
+        // Capture reads the reserved event-value key; the flow-state slot is
+        // 'rating'.
+        expect(value.key, kCapturedEventValueKey);
+        expect(value.path, isEmpty);
+      },
+    );
 
     test('an action-gate transition carries a state write', () async {
       final doc = await buildBranchingDoc(_actionWriteSources());
-      final next = (doc.states['welcome']! as ScreenFlowState).on['next']!
-          as ActionFlowTransition;
+      final next =
+          (doc.states['welcome']! as ScreenFlowState).on['next']!
+              as ActionFlowTransition;
       expect(next.action, 'requestNotifications');
       final write = next.stateWrites['granted']!;
       expect(write.type, FlowDataType.bool);
@@ -2498,7 +2578,8 @@ final class NotificationResult {
       expect(
         actual,
         golden.readAsStringSync(),
-        reason: 'Forking-flow golden drift. Regenerate with '
+        reason:
+            'Forking-flow golden drift. Regenerate with '
             'REGEN_CODEGEN_GOLDENS=1 only when intended.',
       );
     });
@@ -2509,19 +2590,20 @@ final class NotificationResult {
       expect(messages, contains('sleep'));
     });
 
-    test('a capture targeting an undeclared flowState key fails closed',
-        () async {
-      final messages = await buildBranchingFailure(_undeclaredKeySources());
-      expect(messages, contains('flowState'));
-    });
+    test(
+      'a capture targeting an undeclared flowState key fails closed',
+      () async {
+        final messages = await buildBranchingFailure(_undeclaredKeySources());
+        expect(messages, contains('flowState'));
+      },
+    );
 
     test('a capture on a non-scalar event fails closed', () async {
       final messages = await buildBranchingFailure(_nonScalarCaptureSources());
       expect(messages, contains('scalar'));
     });
 
-    test(
-        'a .write() whose literal type mismatches the declared flowState '
+    test('a .write() whose literal type mismatches the declared flowState '
         'type fails closed', () async {
       final messages = await buildBranchingFailure(_typeMismatchWriteSources());
       expect(messages, contains("write('goal')"));
@@ -2529,11 +2611,11 @@ final class NotificationResult {
       expect(messages, contains("flowState declares 'goal' as int"));
     });
 
-    test(
-        'a .capture() whose event type mismatches the declared flowState '
+    test('a .capture() whose event type mismatches the declared flowState '
         'type fails closed', () async {
-      final messages =
-          await buildBranchingFailure(_typeMismatchCaptureSources());
+      final messages = await buildBranchingFailure(
+        _typeMismatchCaptureSources(),
+      );
       expect(messages, contains("capture('rating')"));
       expect(messages, contains('produces int'));
       expect(messages, contains("flowState declares 'rating' as string"));
@@ -2584,186 +2666,195 @@ final class NotificationResult {
       return decision.branches[branchIndex].when;
     }
 
-    test('state().equals() lowers byte-identically to the raw wire predicate',
-        () async {
-      final doc = await buildDoc(_sugarOperatorsSources());
-      // branch 0: state('goal').equals('sleep')
-      expect(
-        _canonicalWhen(whenOf(doc, 0)),
-        _canonicalWhen(
-          const FlowBranchPredicate(
-            fields: {
-              'goal': EqualsFlowPredicateCondition(
-                value: LiteralFlowValueSource(
-                  type: FlowDataType.string,
-                  value: 'sleep',
-                ),
-              ),
-            },
-          ),
-        ),
-      );
-    });
-
-    test('every operator + state-ref RHS lowers byte-identically to raw wire',
-        () async {
-      final doc = await buildDoc(_sugarOperatorsSources());
-      // branch 1: state('goal').notEquals('focus')
-      expect(
-        _canonicalWhen(whenOf(doc, 1)),
-        _canonicalWhen(
-          const FlowBranchPredicate(
-            fields: {
-              'goal': NotEqualsFlowPredicateCondition(
-                value: LiteralFlowValueSource(
-                  type: FlowDataType.string,
-                  value: 'focus',
-                ),
-              ),
-            },
-          ),
-        ),
-      );
-      // branch 2: state('rating').atLeast(4)
-      expect(
-        _canonicalWhen(whenOf(doc, 2)),
-        _canonicalWhen(
-          const FlowBranchPredicate(
-            fields: {
-              'rating': GreaterThanOrEqualsFlowPredicateCondition(
-                value: LiteralFlowValueSource(
-                  type: FlowDataType.int,
-                  value: 4,
-                ),
-              ),
-            },
-          ),
-        ),
-      );
-      // branch 3: state('goal').oneOf(['sleep', 'focus'])
-      expect(
-        _canonicalWhen(whenOf(doc, 3)),
-        _canonicalWhen(
-          const FlowBranchPredicate(
-            fields: {
-              'goal': InFlowPredicateCondition(
-                values: [
-                  LiteralFlowValueSource(
+    test(
+      'state().equals() lowers byte-identically to the raw wire predicate',
+      () async {
+        final doc = await buildDoc(_sugarOperatorsSources());
+        // branch 0: state('goal').equals('sleep')
+        expect(
+          _canonicalWhen(whenOf(doc, 0)),
+          _canonicalWhen(
+            const FlowBranchPredicate(
+              fields: {
+                'goal': EqualsFlowPredicateCondition(
+                  value: LiteralFlowValueSource(
                     type: FlowDataType.string,
                     value: 'sleep',
                   ),
-                  LiteralFlowValueSource(
+                ),
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'every operator + state-ref RHS lowers byte-identically to raw wire',
+      () async {
+        final doc = await buildDoc(_sugarOperatorsSources());
+        // branch 1: state('goal').notEquals('focus')
+        expect(
+          _canonicalWhen(whenOf(doc, 1)),
+          _canonicalWhen(
+            const FlowBranchPredicate(
+              fields: {
+                'goal': NotEqualsFlowPredicateCondition(
+                  value: LiteralFlowValueSource(
                     type: FlowDataType.string,
                     value: 'focus',
                   ),
-                ],
-              ),
-            },
-          ),
-        ),
-      );
-      // branch 4: state('goal').isSet()
-      expect(
-        _canonicalWhen(whenOf(doc, 4)),
-        _canonicalWhen(
-          const FlowBranchPredicate(
-            fields: {'goal': ExistsFlowPredicateCondition(exists: true)},
-          ),
-        ),
-      );
-      // branch 5: state('goal').equals(state('preferred')) — state-ref RHS
-      expect(
-        _canonicalWhen(whenOf(doc, 5)),
-        _canonicalWhen(
-          const FlowBranchPredicate(
-            fields: {
-              'goal': EqualsFlowPredicateCondition(
-                value: StateFlowValueSource(key: 'preferred'),
-              ),
-            },
-          ),
-        ),
-      );
-      // branch 7: state('rating').atLeast(-5) — a negative int literal must
-      // lower the same as the runtime leg (both legs accept negative ints).
-      expect(
-        _canonicalWhen(whenOf(doc, 7)),
-        _canonicalWhen(
-          const FlowBranchPredicate(
-            fields: {
-              'rating': GreaterThanOrEqualsFlowPredicateCondition(
-                value: LiteralFlowValueSource(
-                  type: FlowDataType.int,
-                  value: -5,
                 ),
-              ),
-            },
+              },
+            ),
           ),
-        ),
-      );
-      // branch 8: state('rating').atLeast((4)) — a parenthesized literal lowers
-      // the same as a bare literal (the runtime sees the unwrapped value).
-      expect(
-        _canonicalWhen(whenOf(doc, 8)),
-        _canonicalWhen(
-          const FlowBranchPredicate(
-            fields: {
-              'rating': GreaterThanOrEqualsFlowPredicateCondition(
-                value: LiteralFlowValueSource(type: FlowDataType.int, value: 4),
-              ),
-            },
-          ),
-        ),
-      );
-      // branch 9: state('goal').equals('sl' 'eep') — adjacent string literals
-      // fold to one string, the same as the runtime leg.
-      expect(
-        _canonicalWhen(whenOf(doc, 9)),
-        _canonicalWhen(
-          const FlowBranchPredicate(
-            fields: {
-              'goal': EqualsFlowPredicateCondition(
-                value: LiteralFlowValueSource(
-                  type: FlowDataType.string,
-                  value: 'sleep',
+        );
+        // branch 2: state('rating').atLeast(4)
+        expect(
+          _canonicalWhen(whenOf(doc, 2)),
+          _canonicalWhen(
+            const FlowBranchPredicate(
+              fields: {
+                'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                  value: LiteralFlowValueSource(
+                    type: FlowDataType.int,
+                    value: 4,
+                  ),
                 ),
-              ),
-            },
+              },
+            ),
           ),
-        ),
-      );
-      // branch 10: state('rating').atLeast(-(5)) — a parenthesized negative
-      // int lowers the same as a bare negative (operand parens are unwrapped).
-      expect(
-        _canonicalWhen(whenOf(doc, 10)),
-        _canonicalWhen(
-          const FlowBranchPredicate(
-            fields: {
-              'rating': GreaterThanOrEqualsFlowPredicateCondition(
-                value: LiteralFlowValueSource(
-                  type: FlowDataType.int,
-                  value: -5,
+        );
+        // branch 3: state('goal').oneOf(['sleep', 'focus'])
+        expect(
+          _canonicalWhen(whenOf(doc, 3)),
+          _canonicalWhen(
+            const FlowBranchPredicate(
+              fields: {
+                'goal': InFlowPredicateCondition(
+                  values: [
+                    LiteralFlowValueSource(
+                      type: FlowDataType.string,
+                      value: 'sleep',
+                    ),
+                    LiteralFlowValueSource(
+                      type: FlowDataType.string,
+                      value: 'focus',
+                    ),
+                  ],
                 ),
-              ),
-            },
+              },
+            ),
           ),
-        ),
-      );
-    });
+        );
+        // branch 4: state('goal').isSet()
+        expect(
+          _canonicalWhen(whenOf(doc, 4)),
+          _canonicalWhen(
+            const FlowBranchPredicate(
+              fields: {'goal': ExistsFlowPredicateCondition(exists: true)},
+            ),
+          ),
+        );
+        // branch 5: state('goal').equals(state('preferred')) — state-ref RHS
+        expect(
+          _canonicalWhen(whenOf(doc, 5)),
+          _canonicalWhen(
+            const FlowBranchPredicate(
+              fields: {
+                'goal': EqualsFlowPredicateCondition(
+                  value: StateFlowValueSource(key: 'preferred'),
+                ),
+              },
+            ),
+          ),
+        );
+        // branch 7: state('rating').atLeast(-5) — a negative int literal must
+        // lower the same as the runtime leg (both legs accept negative ints).
+        expect(
+          _canonicalWhen(whenOf(doc, 7)),
+          _canonicalWhen(
+            const FlowBranchPredicate(
+              fields: {
+                'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                  value: LiteralFlowValueSource(
+                    type: FlowDataType.int,
+                    value: -5,
+                  ),
+                ),
+              },
+            ),
+          ),
+        );
+        // branch 8: state('rating').atLeast((4)) — a parenthesized literal lowers
+        // the same as a bare literal (the runtime sees the unwrapped value).
+        expect(
+          _canonicalWhen(whenOf(doc, 8)),
+          _canonicalWhen(
+            const FlowBranchPredicate(
+              fields: {
+                'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                  value: LiteralFlowValueSource(
+                    type: FlowDataType.int,
+                    value: 4,
+                  ),
+                ),
+              },
+            ),
+          ),
+        );
+        // branch 9: state('goal').equals('sl' 'eep') — adjacent string literals
+        // fold to one string, the same as the runtime leg.
+        expect(
+          _canonicalWhen(whenOf(doc, 9)),
+          _canonicalWhen(
+            const FlowBranchPredicate(
+              fields: {
+                'goal': EqualsFlowPredicateCondition(
+                  value: LiteralFlowValueSource(
+                    type: FlowDataType.string,
+                    value: 'sleep',
+                  ),
+                ),
+              },
+            ),
+          ),
+        );
+        // branch 10: state('rating').atLeast(-(5)) — a parenthesized negative
+        // int lowers the same as a bare negative (operand parens are unwrapped).
+        expect(
+          _canonicalWhen(whenOf(doc, 10)),
+          _canonicalWhen(
+            const FlowBranchPredicate(
+              fields: {
+                'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                  value: LiteralFlowValueSource(
+                    type: FlowDataType.int,
+                    value: -5,
+                  ),
+                ),
+              },
+            ),
+          ),
+        );
+      },
+    );
 
-    test('allOf merges distinct single-field predicates into one branch',
-        () async {
-      final doc = await buildDoc(_sugarOperatorsSources());
-      // branch 6: allOf([rating.atLeast(4), isPro.equals(true)])
-      final when = whenOf(doc, 6);
-      expect(when.fields.keys, containsAll(<String>['rating', 'isPro']));
-      expect(when.fields, hasLength(2));
-      expect(
-        when.fields['rating'],
-        isA<GreaterThanOrEqualsFlowPredicateCondition>(),
-      );
-      expect(when.fields['isPro'], isA<EqualsFlowPredicateCondition>());
-    });
+    test(
+      'allOf merges distinct single-field predicates into one branch',
+      () async {
+        final doc = await buildDoc(_sugarOperatorsSources());
+        // branch 6: allOf([rating.atLeast(4), isPro.equals(true)])
+        final when = whenOf(doc, 6);
+        expect(when.fields.keys, containsAll(<String>['rating', 'isPro']));
+        expect(when.fields, hasLength(2));
+        expect(
+          when.fields['rating'],
+          isA<GreaterThanOrEqualsFlowPredicateCondition>(),
+        );
+        expect(when.fields['isPro'], isA<EqualsFlowPredicateCondition>());
+      },
+    );
 
     test('allOf with two conditions on the same field fails closed', () async {
       final messages = await buildFailure(_allOfSameFieldSources());
@@ -2776,21 +2867,24 @@ final class NotificationResult {
       expect(messages, contains('greaterThan'));
     });
 
-    test('a non-Restage state().<op>() chain is not reinterpreted as sugar',
-        () async {
-      // A same-named app-defined `state(...)` returning a different
-      // predicate must NOT be silently lowered to our wire — element resolution
-      // rejects it, so
-      // it falls to the raw-constructor path and fails the build loud.
-      final messages = await buildFailure(_nonSdkStateSources());
-      expect(messages, contains('FlowBranchPredicate'));
-    });
+    test(
+      'a non-Restage state().<op>() chain is not reinterpreted as sugar',
+      () async {
+        // A same-named app-defined `state(...)` returning a different
+        // predicate must NOT be silently lowered to our wire — element resolution
+        // rejects it, so
+        // it falls to the raw-constructor path and fails the build loud.
+        final messages = await buildFailure(_nonSdkStateSources());
+        expect(messages, contains('FlowBranchPredicate'));
+      },
+    );
 
     test('capture -> decision -> branch lowers to the routing wire', () async {
       final doc = await buildDoc(_decisionRouteSources());
       // the captured 'goal' write on the screen transition
-      final goal = (doc.states['goal']! as ScreenFlowState).on['goalChosen']!
-          as GotoFlowTransition;
+      final goal =
+          (doc.states['goal']! as ScreenFlowState).on['goalChosen']!
+              as GotoFlowTransition;
       final write = goal.stateWrites['goal']!;
       expect((write.value as EventFlowValueSource).key, kCapturedEventValueKey);
       // the decision routes on the captured value
@@ -2831,7 +2925,8 @@ final class NotificationResult {
       expect(
         actual,
         golden.readAsStringSync(),
-        reason: 'Decision-route golden drift. Regenerate with '
+        reason:
+            'Decision-route golden drift. Regenerate with '
             'REGEN_CODEGEN_GOLDENS=1 only when intended.',
       );
     });
@@ -2880,23 +2975,23 @@ String _canonicalWhen(FlowBranchPredicate when) {
 }
 
 Matcher _canonicalFirstRunFlowJson() => predicate<List<int>>(
-      (bytes) {
-        final source = utf8.decode(bytes);
-        final decoded = FlowDocumentCodec.decodeJson(source);
-        expect(
-          source,
-          utf8.decode(FlowDocumentCodec.encodeCanonicalJson(decoded)),
-        );
-        expect(decoded.flow, 'first_run');
-        expect(decoded.initial, 'welcome');
-        expect(
-          decoded.states.values.map((state) => state.kind.wireName),
-          everyElement(anyOf('screen', 'end')),
-        );
-        return true;
-      },
-      'canonical first_run.flow.json',
+  (bytes) {
+    final source = utf8.decode(bytes);
+    final decoded = FlowDocumentCodec.decodeJson(source);
+    expect(
+      source,
+      utf8.decode(FlowDocumentCodec.encodeCanonicalJson(decoded)),
     );
+    expect(decoded.flow, 'first_run');
+    expect(decoded.initial, 'welcome');
+    expect(
+      decoded.states.values.map((state) => state.kind.wireName),
+      everyElement(anyOf('screen', 'end')),
+    );
+    return true;
+  },
+  'canonical first_run.flow.json',
+);
 
 const _firstRunFlowJsonBytes =
     '{"flow":"first_run","initial":"welcome","minClient":3,'
@@ -2917,11 +3012,14 @@ const _firstRunFlowJsonBytes =
     '"welcome":{"kind":"screen","on":{"next":{"target":"permissions",'
     '"type":"goto"}},"screen":"welcome"}},"version":1}';
 
-const _emptyObjectArgsHash = 'sha256:590f015bf5e877b53e3501b7e12ad48'
+const _emptyObjectArgsHash =
+    'sha256:590f015bf5e877b53e3501b7e12ad48'
     'a11158d4c5b696f9a82593c4f3272411a';
-const _boolResultHash = 'sha256:b381695502a4099cf3610d182b471a25'
+const _boolResultHash =
+    'sha256:b381695502a4099cf3610d182b471a25'
     '62086e5e8bdb11f4426f63ba512542b3';
-const _zeroHash = 'sha256:00000000000000000000000000000000'
+const _zeroHash =
+    'sha256:00000000000000000000000000000000'
     '00000000000000000000000000000000';
 
 Future<TestReaderWriter> _readerWriterWith(Map<String, String> sources) async {
@@ -2986,13 +3084,22 @@ void _rejects(Map<String, Object?> result) {
 }
 
 Map<String, String> _firstRunSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/screens/permissions.dart':
-          _screenSource('permissions', 'PermissionsScreen', 'next'),
-      'apps_examples|lib/onboarding/screens/ready.dart':
-          _screenSource('ready', 'ReadyScreen', 'start'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/screens/permissions.dart': _screenSource(
+    'permissions',
+    'PermissionsScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/screens/ready.dart': _screenSource(
+    'ready',
+    'ReadyScreen',
+    'start',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/permissions.dart';
@@ -3027,18 +3134,24 @@ final class FirstRunFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _hostSeedSources({
   String seedKey = 'isReturningUser',
   String extraDeclarations = '',
-}) =>
-    {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/screens/ready.dart':
-          _screenSource('ready', 'ReadyScreen', 'start'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+}) => {
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/screens/ready.dart': _screenSource(
+    'ready',
+    'ReadyScreen',
+    'start',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart':
+      '''
 import 'package:restage/restage.dart';
 
 import '../screens/ready.dart';
@@ -3083,19 +3196,28 @@ final class FirstRunFlow extends RestageFlow {
 
 $extraDeclarations
 ''',
-    };
+};
 
 Map<String, String> _firstRunSourcesWithOutbound({
   bool includeCompletedState = true,
-}) =>
-    {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/screens/permissions.dart':
-          _screenSource('permissions', 'PermissionsScreen', 'next'),
-      'apps_examples|lib/onboarding/screens/ready.dart':
-          _screenSource('ready', 'ReadyScreen', 'start'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+}) => {
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/screens/permissions.dart': _screenSource(
+    'permissions',
+    'PermissionsScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/screens/ready.dart': _screenSource(
+    'ready',
+    'ReadyScreen',
+    'start',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart':
+      '''
 import 'package:restage/restage.dart';
 
 import '../screens/permissions.dart';
@@ -3157,12 +3279,15 @@ final class FirstRunFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _surveySourcesWithAnswers() => {
-      'apps_examples|lib/survey/screens/question.dart':
-          _screenSource('question', 'QuestionScreen', 'next'),
-      'apps_examples|lib/survey/flows/setup_survey.dart': '''
+  'apps_examples|lib/survey/screens/question.dart': _screenSource(
+    'question',
+    'QuestionScreen',
+    'next',
+  ),
+  'apps_examples|lib/survey/flows/setup_survey.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/question.dart';
@@ -3211,19 +3336,19 @@ final class SetupSurveyFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _terminalStateAvailabilitySources({
   required bool assignOnSecondaryPath,
   bool completedDefault = false,
-}) =>
-    {
-      'apps_examples|lib/onboarding/screens/welcome.dart': _eventsScreenSource(
-        'welcome',
-        'WelcomeScreen',
-        const {'primary': 'void', 'secondary': 'void'},
-      ),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+}) => {
+  'apps_examples|lib/onboarding/screens/welcome.dart': _eventsScreenSource(
+    'welcome',
+    'WelcomeScreen',
+    const {'primary': 'void', 'secondary': 'void'},
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart':
+      '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3271,12 +3396,15 @@ final class FirstRunFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _paywallStepFlowSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3310,14 +3438,20 @@ abstract final class CommerceFlowEvents {
   static const purchase = SurfaceEvent<Map<String, Object?>>('purchase');
 }
 ''',
-    };
+};
 
 Map<String, String> _graphFlowSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/screens/profile.dart':
-          _screenSource('profile', 'ProfileScreen', 'decide'),
-      'apps_examples|lib/onboarding/flows/profile_child.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/screens/profile.dart': _screenSource(
+    'profile',
+    'ProfileScreen',
+    'decide',
+  ),
+  'apps_examples|lib/onboarding/flows/profile_child.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/profile.dart';
@@ -3393,7 +3527,7 @@ final class ProfileChildFlow extends RestageFlow {
   }
 }
 ''',
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/flows/first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3533,12 +3667,15 @@ Map<String, Object?> _decodeProfileChild(Map<String, Object?> result) {
   return result;
 }
 ''',
-    };
+};
 
 Map<String, String> _actionSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3596,18 +3733,21 @@ extension RejectedBuilderMethodNames<T> on ScreenEventTransitionBuilder<T> {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _actionTransitionSources({
   String actionRef = "FlowActionRef<void, bool>('requestNotifications')",
   String extraActionRefs = '',
   String resultPredicate = '(result) => result',
   String resultClass = '',
-}) =>
-    {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+}) => {
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart':
+      '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3644,16 +3784,19 @@ $extraActionRefs
 
 $resultClass
 ''',
-    };
+};
 
 Map<String, String> _singleScreenFlowSources({
   required String resultExpression,
   String extraBuildFlowStatements = '',
-}) =>
-    {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+}) => {
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart':
+      '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3681,12 +3824,15 @@ final class FirstRunFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _duplicateScreenSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3716,12 +3862,15 @@ final class FirstRunFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _eventAliasSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3749,12 +3898,16 @@ final class FirstRunFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _eventExpressionSources(String eventExpression) => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart':
+      '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3781,12 +3934,15 @@ final class FirstRunFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _shadowEventSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3820,16 +3976,19 @@ final class OnboardingEvent<T> {
   final String id;
 }
 ''',
-    };
+};
 
 Map<String, String> _statesSource(
   String states, {
   String extraEndStates = '',
-}) =>
-    {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+}) => {
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart':
+      '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3854,16 +4013,19 @@ $states
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _terminalStateCollisionSources({
   required String declarations,
   required String states,
-}) =>
-    {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+}) => {
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart':
+      '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -3887,9 +4049,10 @@ $states
   }
 }
 ''',
-    };
+};
 
-String _screenSource(String id, String className, String eventName) => '''
+String _screenSource(String id, String className, String eventName) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -3918,7 +4081,8 @@ String _eventsScreenSource(
 ) {
   final fields = events.entries
       .map(
-        (e) => '  static const ${e.key} = '
+        (e) =>
+            '  static const ${e.key} = '
             "OnboardingEvent<${e.value}>('${e.key}');",
       )
       .join('\n');
@@ -3947,17 +4111,17 @@ $fields
 }
 
 Map<String, String> _forkSources() => {
-      'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
-        'goal',
-        'GoalScreen',
-        const {'sleep': 'void', 'focus': 'void'},
-      ),
-      'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
-        'rating',
-        'RatingScreen',
-        const {'submit': 'int'},
-      ),
-      'apps_examples|lib/onboarding/flows/branching.dart': '''
+  'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
+    'goal',
+    'GoalScreen',
+    const {'sleep': 'void', 'focus': 'void'},
+  ),
+  'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
+    'rating',
+    'RatingScreen',
+    const {'submit': 'int'},
+  ),
+  'apps_examples|lib/onboarding/flows/branching.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/goal.dart';
@@ -4003,20 +4167,20 @@ final class BranchingFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _decisionRouteSources() => {
-      'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
-        'goal',
-        'GoalScreen',
-        const {'goalChosen': 'String'},
-      ),
-      'apps_examples|lib/onboarding/screens/sleep.dart': _eventsScreenSource(
-        'sleep',
-        'SleepScreen',
-        const {'ack': 'void'},
-      ),
-      'apps_examples|lib/onboarding/flows/decision_route.dart': '''
+  'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
+    'goal',
+    'GoalScreen',
+    const {'goalChosen': 'String'},
+  ),
+  'apps_examples|lib/onboarding/screens/sleep.dart': _eventsScreenSource(
+    'sleep',
+    'SleepScreen',
+    const {'ack': 'void'},
+  ),
+  'apps_examples|lib/onboarding/flows/decision_route.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/goal.dart';
@@ -4063,15 +4227,15 @@ final class DecisionRouteFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _sugarOperatorsSources() => {
-      'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
-        'start',
-        'StartScreen',
-        const {'begin': 'void'},
-      ),
-      'apps_examples|lib/onboarding/flows/decision_route.dart': '''
+  'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
+    'start',
+    'StartScreen',
+    const {'begin': 'void'},
+  ),
+  'apps_examples|lib/onboarding/flows/decision_route.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/start.dart';
@@ -4144,15 +4308,15 @@ final class DecisionRouteFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _allOfSameFieldSources() => {
-      'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
-        'start',
-        'StartScreen',
-        const {'begin': 'void'},
-      ),
-      'apps_examples|lib/onboarding/flows/decision_route.dart': '''
+  'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
+    'start',
+    'StartScreen',
+    const {'begin': 'void'},
+  ),
+  'apps_examples|lib/onboarding/flows/decision_route.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/start.dart';
@@ -4197,15 +4361,15 @@ final class DecisionRouteFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _comparisonNonIntSources() => {
-      'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
-        'start',
-        'StartScreen',
-        const {'begin': 'void'},
-      ),
-      'apps_examples|lib/onboarding/flows/decision_route.dart': '''
+  'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
+    'start',
+    'StartScreen',
+    const {'begin': 'void'},
+  ),
+  'apps_examples|lib/onboarding/flows/decision_route.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/start.dart';
@@ -4244,15 +4408,15 @@ final class DecisionRouteFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _nonSdkStateSources() => {
-      'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
-        'start',
-        'StartScreen',
-        const {'begin': 'void'},
-      ),
-      'apps_examples|lib/onboarding/flows/decision_route.dart': '''
+  'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
+    'start',
+    'StartScreen',
+    const {'begin': 'void'},
+  ),
+  'apps_examples|lib/onboarding/flows/decision_route.dart': '''
 import 'package:restage/restage.dart' hide state;
 
 import '../screens/start.dart';
@@ -4301,12 +4465,15 @@ final class DecisionRouteFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _actionWriteSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/branching.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/branching.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -4345,20 +4512,20 @@ final class BranchingFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _duplicateEventSources() => {
-      'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
-        'goal',
-        'GoalScreen',
-        const {'sleep': 'void'},
-      ),
-      'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
-        'rating',
-        'RatingScreen',
-        const {'submit': 'void'},
-      ),
-      'apps_examples|lib/onboarding/flows/branching.dart': '''
+  'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
+    'goal',
+    'GoalScreen',
+    const {'sleep': 'void'},
+  ),
+  'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
+    'rating',
+    'RatingScreen',
+    const {'submit': 'void'},
+  ),
+  'apps_examples|lib/onboarding/flows/branching.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/goal.dart';
@@ -4391,15 +4558,15 @@ final class BranchingFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _undeclaredKeySources() => {
-      'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
-        'rating',
-        'RatingScreen',
-        const {'submit': 'int'},
-      ),
-      'apps_examples|lib/onboarding/flows/branching.dart': '''
+  'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
+    'rating',
+    'RatingScreen',
+    const {'submit': 'int'},
+  ),
+  'apps_examples|lib/onboarding/flows/branching.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/rating.dart';
@@ -4427,12 +4594,15 @@ final class BranchingFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _nonScalarCaptureSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/branching.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/branching.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -4466,15 +4636,15 @@ final class BranchingFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _typeMismatchWriteSources() => {
-      'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
-        'goal',
-        'GoalScreen',
-        const {'sleep': 'void'},
-      ),
-      'apps_examples|lib/onboarding/flows/branching.dart': '''
+  'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
+    'goal',
+    'GoalScreen',
+    const {'sleep': 'void'},
+  ),
+  'apps_examples|lib/onboarding/flows/branching.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/goal.dart';
@@ -4509,15 +4679,15 @@ final class BranchingFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _typeMismatchCaptureSources() => {
-      'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
-        'rating',
-        'RatingScreen',
-        const {'submit': 'int'},
-      ),
-      'apps_examples|lib/onboarding/flows/branching.dart': '''
+  'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
+    'rating',
+    'RatingScreen',
+    const {'submit': 'int'},
+  ),
+  'apps_examples|lib/onboarding/flows/branching.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/rating.dart';
@@ -4552,10 +4722,10 @@ final class BranchingFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _surfaceEventFlowSources() => {
-      'apps_examples|lib/onboarding/screens/notice.dart': '''
+  'apps_examples|lib/onboarding/screens/notice.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -4576,7 +4746,7 @@ final class NoticeScreen extends StatelessWidget {
       );
 }
 ''',
-      'apps_examples|lib/onboarding/flows/notice.dart': '''
+  'apps_examples|lib/onboarding/flows/notice.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/notice.dart';
@@ -4603,10 +4773,10 @@ final class NoticeFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _bareSurfaceFlowSources() => {
-      'apps_examples|lib/onboarding/screens/bare.dart': '''
+  'apps_examples|lib/onboarding/screens/bare.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -4622,7 +4792,7 @@ final class BareScreen extends StatelessWidget {
       );
 }
 ''',
-      'apps_examples|lib/onboarding/flows/bare_surface.dart': '''
+  'apps_examples|lib/onboarding/flows/bare_surface.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/bare.dart';
@@ -4644,4 +4814,4 @@ final class BareSurfaceFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};

@@ -80,8 +80,9 @@ final class RestageTokenSet {
 /// Raw-source identifiers meaning a file may declare an app-defined widget or
 /// widget library.
 @visibleForTesting
-final RestageTokenSet restageWidgetSourceTokens =
-    RestageTokenSet._(_widgetTokenNames);
+final RestageTokenSet restageWidgetSourceTokens = RestageTokenSet._(
+  _widgetTokenNames,
+);
 
 /// Raw-source identifiers meaning a file may declare a Restage surface source
 /// — a screen, a paywall, or a flow — in either the canonical or the
@@ -98,8 +99,9 @@ final RestageTokenSet restageWidgetSourceTokens =
 /// up as a surface missing from a green build. The annotation makes reaching
 /// past them an analyzer warning rather than a convention.
 @visibleForTesting
-final RestageTokenSet restageSurfaceSourceTokens =
-    RestageTokenSet._(_surfaceTokenNames);
+final RestageTokenSet restageSurfaceSourceTokens = RestageTokenSet._(
+  _surfaceTokenNames,
+);
 
 /// Raw-source identifiers meaning a file may declare an app-defined widget or
 /// a surface source.
@@ -113,8 +115,9 @@ final RestageTokenSet _widgetOrSurfaceTokens = RestageTokenSet._([
   ..._surfaceTokenNames,
 ]);
 
-final RestageTokenSet _measurementConfigurationTokens =
-    RestageTokenSet._(['configure']);
+final RestageTokenSet _measurementConfigurationTokens = RestageTokenSet._([
+  'configure',
+]);
 
 final RestageTokenSet _surfaceMountTokens = RestageTokenSet._([
   'RestagePaywall',
@@ -134,12 +137,11 @@ final RestageTokenSet _surfaceCandidateTokens = RestageTokenSet._([
 Future<List<AssetId>> selectRestageWidgetCandidates(
   BuildStep buildStep, {
   bool Function(AssetId)? resolvable,
-}) =>
-    _selectPackageWide(
-      buildStep,
-      tokens: restageWidgetSourceTokens,
-      resolvable: resolvable,
-    );
+}) => _selectPackageWide(
+  buildStep,
+  tokens: restageWidgetSourceTokens,
+  resolvable: resolvable,
+);
 
 /// The libraries a surface-source walk must resolve.
 ///
@@ -155,22 +157,20 @@ Future<List<AssetId>> selectRestageSurfaceCandidates(BuildStep buildStep) =>
 /// The libraries that may contain a package Measurement setting.
 Future<List<AssetId>> selectRestageMeasurementConfigurationCandidates(
   BuildStep buildStep,
-) =>
-    _selectPackageWide(
-      buildStep,
-      tokens: _measurementConfigurationTokens,
-      resolvable: isAuthoredDartLibraryAsset,
-    );
+) => _selectPackageWide(
+  buildStep,
+  tokens: _measurementConfigurationTokens,
+  resolvable: isAuthoredDartLibraryAsset,
+);
 
 /// Libraries that may use direct surface mounts, including part owners.
 Future<List<AssetId>> selectRestageSurfaceMountCandidates(
   BuildStep buildStep,
-) =>
-    _selectPackageWide(
-      buildStep,
-      tokens: _surfaceMountTokens,
-      resolvable: isAuthoredDartLibraryAsset,
-    );
+) => _selectPackageWide(
+  buildStep,
+  tokens: _surfaceMountTokens,
+  resolvable: isAuthoredDartLibraryAsset,
+);
 
 /// The libraries the native screen index must resolve.
 ///
@@ -185,21 +185,19 @@ Future<List<AssetId>> selectRestageSurfaceMountCandidates(
 Future<List<AssetId>> selectRestageNativeScreenCandidates(
   BuildStep buildStep, {
   required bool Function(AssetId) resolvable,
-}) =>
-    _selectPackageWide(
-      buildStep,
-      tokens: _widgetOrSurfaceTokens,
-      resolvable: resolvable,
-      // Composed rather than passed straight through: a file this walk will
-      // not resolve is not one it can examine, whatever its location says.
-      // Admitting it and dropping it later reaches the same outcome by a
-      // longer road, and the road is where the two rules could contradict
-      // each other. `lib/onboarding/screens/welcome.g.dart`, which an
-      // ordinary code generator writes next to an annotated screen, is
-      // exactly that case.
-      alwaysInclude: (asset) =>
-          isRfwScreenSourceInput(asset) && resolvable(asset),
-    );
+}) => _selectPackageWide(
+  buildStep,
+  tokens: _widgetOrSurfaceTokens,
+  resolvable: resolvable,
+  // Composed rather than passed straight through: a file this walk will
+  // not resolve is not one it can examine, whatever its location says.
+  // Admitting it and dropping it later reaches the same outcome by a
+  // longer road, and the road is where the two rules could contradict
+  // each other. `lib/onboarding/screens/welcome.g.dart`, which an
+  // ordinary code generator writes next to an annotated screen, is
+  // exactly that case.
+  alwaysInclude: (asset) => isRfwScreenSourceInput(asset) && resolvable(asset),
+);
 
 /// Scans every `lib/**.dart` for [tokens] and returns the selection, narrowed
 /// to what [resolvable] admits.
@@ -302,8 +300,9 @@ Future<List<AssetId>> selectRestageCandidateLibraries(
       // named it. That was true before any of this filtering existed — the
       // walk never resolved such a library either — but it was silent, and
       // silence is what made it hard to find.
-      final named =
-          (parts.map((part) => part.path).toList()..sort()).join(', ');
+      final named = (parts.map((part) => part.path).toList()..sort()).join(
+        ', ',
+      );
       log.warning(
         '${asset.path} is not a library this walk resolves, so the Restage '
         'source declared in $named is not discovered. Move the declarations '

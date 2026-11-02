@@ -47,7 +47,7 @@ enum HostDataScalarKind {
   number,
 
   /// `String`.
-  string
+  string,
 }
 
 /// A core DateTime encoded without losing microseconds or its UTC flag.
@@ -164,7 +164,7 @@ final class HostDataShapeFact {
 
   /// Creates one refused shape.
   const HostDataShapeFact.refused(HostDataShapeProblem value)
-      : this._(problem: value);
+    : this._(problem: value);
 
   /// The admitted shape, when derivation succeeded.
   final HostDataShape? shape;

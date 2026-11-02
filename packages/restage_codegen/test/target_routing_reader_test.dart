@@ -6,10 +6,11 @@ import 'helpers.dart';
 
 void main() {
   group('widget target routing reader', () {
-    test('aggregate and named enabled forms coalesce by resolved target',
-        () async {
-      const sources = {
-        'lib/probe.dart': '''
+    test(
+      'aggregate and named enabled forms coalesce by resolved target',
+      () async {
+        const sources = {
+          'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
 import 'package:rfw_catalog_schema/rfw.dart' as rfw;
 import 'package:rfw_catalog_schema/widgetbook.dart' as wb;
@@ -22,28 +23,29 @@ import 'package:rfw_catalog_schema/widgetbook.dart' as wb;
 @wb.Config.enabled(true)
 class Probe {}
 ''',
-      };
+        };
 
-      final rfw = await runWidgetTargetRoutingReaderOn(
-        sources,
-        target: EmitTarget.rfw,
-      );
-      final a2ui = await runWidgetTargetRoutingReaderOn(
-        sources,
-        target: EmitTarget.a2ui,
-      );
-      final widgetbook = await runWidgetTargetRoutingReaderOn(
-        sources,
-        target: EmitTarget.widgetbook,
-      );
+        final rfw = await runWidgetTargetRoutingReaderOn(
+          sources,
+          target: EmitTarget.rfw,
+        );
+        final a2ui = await runWidgetTargetRoutingReaderOn(
+          sources,
+          target: EmitTarget.a2ui,
+        );
+        final widgetbook = await runWidgetTargetRoutingReaderOn(
+          sources,
+          target: EmitTarget.widgetbook,
+        );
 
-      expect(rfw.enabled, isTrue);
-      expect(rfw.issues, isEmpty);
-      expect(a2ui.enabled, isFalse);
-      expect(a2ui.issues, isEmpty);
-      expect(widgetbook.enabled, isTrue);
-      expect(widgetbook.issues, isEmpty);
-    });
+        expect(rfw.enabled, isTrue);
+        expect(rfw.issues, isEmpty);
+        expect(a2ui.enabled, isFalse);
+        expect(a2ui.issues, isEmpty);
+        expect(widgetbook.enabled, isTrue);
+        expect(widgetbook.issues, isEmpty);
+      },
+    );
 
     test('conflicting enabled values fail at both source locations', () async {
       final result = await runWidgetTargetRoutingReaderOn(
@@ -71,11 +73,12 @@ class Probe {}
       );
     });
 
-    test('foreign and unresolved Config spellings never change routing',
-        () async {
-      final foreign = await runWidgetTargetRoutingReaderOn(
-        {
-          'lib/probe.dart': '''
+    test(
+      'foreign and unresolved Config spellings never change routing',
+      () async {
+        final foreign = await runWidgetTargetRoutingReaderOn(
+          {
+            'lib/probe.dart': '''
 class Config {
   const Config({this.enabled});
   final bool? enabled;
@@ -84,24 +87,25 @@ class Config {
 @Config(enabled: false)
 class Probe {}
 ''',
-        },
-        target: EmitTarget.a2ui,
-      );
-      final unresolved = await runWidgetTargetRoutingReaderOn(
-        {
-          'lib/probe.dart': '''
+          },
+          target: EmitTarget.a2ui,
+        );
+        final unresolved = await runWidgetTargetRoutingReaderOn(
+          {
+            'lib/probe.dart': '''
 @Config(enabled: false)
 class Probe {}
 ''',
-        },
-        target: EmitTarget.a2ui,
-      );
+          },
+          target: EmitTarget.a2ui,
+        );
 
-      expect(foreign.enabled, isTrue);
-      expect(foreign.issues, isEmpty);
-      expect(unresolved.enabled, isTrue);
-      expect(unresolved.issues, isEmpty);
-    });
+        expect(foreign.enabled, isTrue);
+        expect(foreign.issues, isEmpty);
+        expect(unresolved.enabled, isTrue);
+        expect(unresolved.issues, isEmpty);
+      },
+    );
 
     test('enabled on a field or constructor formal fails placement', () async {
       final result = await runWidgetTargetRoutingReaderOn(

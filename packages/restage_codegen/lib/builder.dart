@@ -24,11 +24,11 @@ import 'package:restage_shared/restage_shared.dart' show Surface;
 /// Returns a [RestageCodegenBuilder] with the default visitor list.
 /// Additional visitors append here.
 Builder restageCodegenBuilder(BuilderOptions options) => RestageCodegenBuilder(
-      options,
-      visitors: const <LibraryVisitor>[
-        PaywallSourceVisitor(),
-      ],
-    );
+  options,
+  visitors: const <LibraryVisitor>[
+    PaywallSourceVisitor(),
+  ],
+);
 
 /// build_runner factory entry point for onboarding screen codegen.
 Builder onboardingScreenBuilder(BuilderOptions options) =>
@@ -140,25 +140,23 @@ Builder factoryFunctionBuilder(BuilderOptions options) =>
     FactoryFunctionBuilder(options);
 
 /// build_runner factory entry point for the package-wide widget factory
-/// emitter. Scans every `lib/**.dart` and walks the files that spell a
-/// Restage annotation (or an alias of one) for `@RestageWidget`-annotated
-/// classes, generates per-widget `LocalWidgetBuilder` closures, and emits
-/// a single `lib/user_factories.g.dart` exposing a
-/// `registerRestageWidgets()` helper the app calls once at
-/// startup.
+/// emitter. Scans every `lib/**.dart` and walks the files that spell a Restage
+/// annotation (or an alias of one) for `@RestageWidget`-annotated classes,
+/// generates per-widget `LocalWidgetBuilder` closures, and emits a single
+/// `lib/user_factories.g.dart` exposing a `registerRestageWidgets()` helper the
+/// app calls once at startup.
 Builder userFactoryBuilder(BuilderOptions options) =>
     UserFactoryBuilder(options);
 
 /// build_runner factory entry point for the package-wide A2UI catalog emitter.
-/// Scans every `lib/**.dart` and walks the files that spell a
-/// Restage annotation (or an alias of one) for `@RestageWidget`-annotated
-/// classes, assembles
-/// the analyzer-fed A2UI seams off the resolved elements, and emits a single
-/// `lib/generated/restage_a2ui_catalog.g.dart` declaring
-/// `buildRestageCatalogItems()` (the genui `Catalog` source) plus the colocated
-/// `restage_a2ui_catalog.a2ui.json` capability stamp. Opt-in (not applied to
-/// dependents) — the emitted code imports the genui runtime, so a consumer
-/// enables it only when they want an A2UI catalog.
+/// Scans every `lib/**.dart` and walks the files that spell a Restage
+/// annotation (or an alias of one) for `@RestageWidget`-annotated classes,
+/// assembles the analyzer-fed A2UI seams off the resolved elements, and emits a
+/// single `lib/generated/restage_a2ui_catalog.g.dart` declaring
+/// `buildRestageCatalogItems()` (the A2UI component implementation source) plus
+/// the colocated `restage_a2ui_catalog.a2ui.json` capability stamp. Opt-in (not
+/// applied to dependents) — the emitted code imports the A2UI Flutter runtime,
+/// so a consumer enables it only when they want an A2UI catalog.
 Builder userA2uiCatalogBuilder(BuilderOptions options) =>
     UserA2uiCatalogBuilder(options);
 

@@ -98,7 +98,8 @@ final class MeasurementResolvedFlutterEvent extends MeasurementResolvedEvent {
 
   /// Human-inspectable resolved identity used for compiler diagnostics only.
   @override
-  String get resolvedSemanticIdentity => '$widgetLibraryUri#$widgetClassName|'
+  String get resolvedSemanticIdentity =>
+      '$widgetLibraryUri#$widgetClassName|'
       '$eventLibraryUri#$eventOwnerClassName.$eventElementName';
 }
 

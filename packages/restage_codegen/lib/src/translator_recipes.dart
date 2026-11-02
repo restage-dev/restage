@@ -423,13 +423,15 @@ const List<TranslatorRecipe> _kValueTypeRecipes = [
       RecipeValidation(
         check: ArityExact(1),
         issueCode: 'unrecognizedMethodCall',
-        message: 'Color() requires a single integer literal argument. '
+        message:
+            'Color() requires a single integer literal argument. '
             'For non-literal channel values use Color.fromARGB.',
       ),
       RecipeValidation(
         check: PositionalsAreIntLiterals(0, 1),
         issueCode: 'unrecognizedMethodCall',
-        message: 'Color() requires a single integer literal argument. '
+        message:
+            'Color() requires a single integer literal argument. '
             'For non-literal channel values use Color.fromARGB.',
       ),
       RecipeValidation(
@@ -452,27 +454,31 @@ const List<TranslatorRecipe> _kValueTypeRecipes = [
       RecipeValidation(
         check: ArityExact(4),
         issueCode: 'unrecognizedMethodCall',
-        message: 'Color.fromARGB() requires four positional integer '
+        message:
+            'Color.fromARGB() requires four positional integer '
             'arguments (alpha, red, green, blue).',
       ),
       RecipeValidation(
         check: PositionalsAreIntLiterals(0, 4),
         issueCode: 'unrecognizedMethodCall',
-        message: 'Color.fromARGB() arguments must be integer literals. Use '
+        message:
+            'Color.fromARGB() arguments must be integer literals. Use '
             'Color(0xAARRGGBB) for compile-time-known colors derived '
             'from runtime values.',
       ),
       RecipeValidation(
         check: PositionalIntsHaveValue(0, 4),
         issueCode: 'unrecognizedMethodCall',
-        message: 'Color.fromARGB() arguments must be integer literals. Use '
+        message:
+            'Color.fromARGB() arguments must be integer literals. Use '
             'Color(0xAARRGGBB) for compile-time-known colors derived '
             'from runtime values.',
       ),
       RecipeValidation(
         check: PositionalIntsInRange(0, 4, 0, 255),
         issueCode: 'unrecognizedMethodCall',
-        message: 'Color.fromARGB() channel value {value} is out of the '
+        message:
+            'Color.fromARGB() channel value {value} is out of the '
             '0..255 range.',
       ),
     ],
@@ -494,7 +500,8 @@ const List<TranslatorRecipe> _kValueTypeRecipes = [
       RecipeValidation(
         check: ArityExact(4),
         issueCode: 'unrecognizedMethodCall',
-        message: 'Color.fromRGBO() requires four positional arguments '
+        message:
+            'Color.fromRGBO() requires four positional arguments '
             '(red, green, blue, opacity).',
       ),
       RecipeValidation(
@@ -510,13 +517,15 @@ const List<TranslatorRecipe> _kValueTypeRecipes = [
       RecipeValidation(
         check: PositionalIntsInRange(0, 3, 0, 255),
         issueCode: 'unrecognizedMethodCall',
-        message: 'Color.fromRGBO() channel value {value} is out of the '
+        message:
+            'Color.fromRGBO() channel value {value} is out of the '
             '0..255 range.',
       ),
       RecipeValidation(
         check: PositionalNumLiteralInRange(3, 0, 1),
         issueCode: 'unrecognizedMethodCall',
-        message: 'Color.fromRGBO() opacity must be a numeric literal in '
+        message:
+            'Color.fromRGBO() opacity must be a numeric literal in '
             '0.0..1.0.',
       ),
     ],

@@ -13,8 +13,9 @@ void main() {
         'assets/paywalls/premium.rfw': standalone,
         'assets/paywalls/premium.capability.json': _sidecar(standalone),
         'assets/paywalls/screens/paywall_premium.rfw': adapter,
-        'assets/paywalls/screens/paywall_premium.capability.json':
-            _sidecar(adapter),
+        'assets/paywalls/screens/paywall_premium.capability.json': _sidecar(
+          adapter,
+        ),
       };
 
       final facts = PaywallArtifactAdapter.fromFiles(
@@ -50,47 +51,50 @@ void main() {
       );
     });
 
-    test('returns a complete navigation flow closure without standalone blob',
-        () {
-      final adapter = <int>[4, 5, 6];
-      final document = _flowDocument(adapter);
-      const flowPath = 'assets/paywalls/premium.flow.json';
-      final files = <String, List<int>>{
-        'assets/paywalls/screens/paywall_premium.rfw': adapter,
-        'assets/paywalls/screens/paywall_premium.capability.json':
-            _sidecar(adapter),
-        flowPath: FlowDocumentCodec.encodeCanonicalJson(document),
-      };
+    test(
+      'returns a complete navigation flow closure without standalone blob',
+      () {
+        final adapter = <int>[4, 5, 6];
+        final document = _flowDocument(adapter);
+        const flowPath = 'assets/paywalls/premium.flow.json';
+        final files = <String, List<int>>{
+          'assets/paywalls/screens/paywall_premium.rfw': adapter,
+          'assets/paywalls/screens/paywall_premium.capability.json': _sidecar(
+            adapter,
+          ),
+          flowPath: FlowDocumentCodec.encodeCanonicalJson(document),
+        };
 
-      final facts = PaywallArtifactAdapter.fromFiles(
-        slug: 'premium',
-        standaloneBlobPath: 'assets/paywalls/premium.rfw',
-        standaloneCapabilityPath: 'assets/paywalls/premium.capability.json',
-        adapterBlobPath: 'assets/paywalls/screens/paywall_premium.rfw',
-        adapterCapabilityPath:
-            'assets/paywalls/screens/paywall_premium.capability.json',
-        flowDocumentPath: flowPath,
-        files: files,
-      );
+        final facts = PaywallArtifactAdapter.fromFiles(
+          slug: 'premium',
+          standaloneBlobPath: 'assets/paywalls/premium.rfw',
+          standaloneCapabilityPath: 'assets/paywalls/premium.capability.json',
+          adapterBlobPath: 'assets/paywalls/screens/paywall_premium.rfw',
+          adapterCapabilityPath:
+              'assets/paywalls/screens/paywall_premium.capability.json',
+          flowDocumentPath: flowPath,
+          files: files,
+        );
 
-      expect(facts.standalone, isNull);
-      expect(facts.hasFlow, isTrue);
-      expect(facts.navigationFlow!.flow, 'premium');
-      expect(
-        facts.flowDocument!.artifact.role,
-        SurfacePublicationArtifactRole.flowDocument,
-      );
-      expect(facts.flowScreens.keys, ['paywall_premium']);
-      expect(
-        facts.flowArtifacts.map((artifact) => artifact.role),
-        [
+        expect(facts.standalone, isNull);
+        expect(facts.hasFlow, isTrue);
+        expect(facts.navigationFlow!.flow, 'premium');
+        expect(
+          facts.flowDocument!.artifact.role,
           SurfacePublicationArtifactRole.flowDocument,
-          SurfacePublicationArtifactRole.screenBlob,
-          SurfacePublicationArtifactRole.capabilitySidecar,
-        ],
-      );
-      expect(facts.filesByPath.keys, containsAll(files.keys));
-    });
+        );
+        expect(facts.flowScreens.keys, ['paywall_premium']);
+        expect(
+          facts.flowArtifacts.map((artifact) => artifact.role),
+          [
+            SurfacePublicationArtifactRole.flowDocument,
+            SurfacePublicationArtifactRole.screenBlob,
+            SurfacePublicationArtifactRole.capabilitySidecar,
+          ],
+        );
+        expect(facts.filesByPath.keys, containsAll(files.keys));
+      },
+    );
 
     test('retains an adapter-only pushed paywall for flow composition', () {
       final adapter = <int>[4, 5, 6];
@@ -130,8 +134,9 @@ void main() {
           files: {
             'assets/paywalls/premium.rfw': [1],
             'assets/paywalls/screens/paywall_premium.rfw': [2],
-            'assets/paywalls/screens/paywall_premium.capability.json':
-                _sidecar([2]),
+            'assets/paywalls/screens/paywall_premium.capability.json': _sidecar(
+              [2],
+            ),
           },
         ),
         throwsA(isA<FormatException>()),
@@ -152,8 +157,9 @@ void main() {
             'assets/paywalls/premium.rfw': [1],
             'assets/paywalls/premium.capability.json': _sidecar([9]),
             'assets/paywalls/screens/paywall_premium.rfw': [2],
-            'assets/paywalls/screens/paywall_premium.capability.json':
-                _sidecar([2]),
+            'assets/paywalls/screens/paywall_premium.capability.json': _sidecar(
+              [2],
+            ),
           },
         ),
         throwsA(isA<FormatException>()),
@@ -163,16 +169,16 @@ void main() {
 }
 
 List<int> _sidecar(List<int> blob) => utf8.encode(
-      jsonEncode(
-        CapabilitySidecar(
-          blobSha256: CapabilitySidecar.hashBlob(blob),
-          manifest: CapabilityManifest(
-            builtInFloor: kBaselineCatalogVersion,
-            requiredLibraries: const [],
-          ),
-        ).toJson(),
+  jsonEncode(
+    CapabilitySidecar(
+      blobSha256: CapabilitySidecar.hashBlob(blob),
+      manifest: CapabilityManifest(
+        builtInFloor: kBaselineCatalogVersion,
+        requiredLibraries: const [],
       ),
-    );
+    ).toJson(),
+  ),
+);
 
 FlowDocument _flowDocument(List<int> blob) {
   return FlowDocument(

@@ -67,20 +67,21 @@ bool _isRestageInvocation(MethodInvocation expression) {
 Issue unsupportedCommerceHelperIssue(
   MethodInvocation expression,
   String location,
-) =>
-    Issue(
-      code: IssueCode.unsupportedCommerceAuthoring,
-      message: "The authored commerce helper '${expression.methodName.name}' "
-          'is unsupported. $_commerceBoundaryGuidance',
-      location: location,
-    );
+) => Issue(
+  code: IssueCode.unsupportedCommerceAuthoring,
+  message:
+      "The authored commerce helper '${expression.methodName.name}' "
+      'is unsupported. $_commerceBoundaryGuidance',
+  location: location,
+);
 
 /// Creates the diagnostic for a reserved authored event name.
 Issue unsupportedCommerceEventIssue(String name, String location) {
   final suggestion = '${name.split('.').last}_tapped';
   return Issue(
     code: IssueCode.unsupportedCommerceAuthoring,
-    message: "The event name '$name' is reserved for commerce. The reserved "
+    message:
+        "The event name '$name' is reserved for commerce. The reserved "
         'names are purchase, restore, restage.purchase, restage.restore and '
         'their outcome events such as restage.purchase.failed. Rename the '
         "event, for example to '$suggestion'; any other name works. "
@@ -91,19 +92,21 @@ Issue unsupportedCommerceEventIssue(String name, String location) {
 
 /// Creates the diagnostic for an authored event using the reserved tap name.
 Issue reservedMeasurementEventIssue(String location) => Issue(
-      code: IssueCode.invalidEventConfiguration,
-      message: "The event name '$kMeasurementPublicationTapEventNameV1' is "
-          'reserved for measurement. Choose another event name.',
-      location: location,
-    );
+  code: IssueCode.invalidEventConfiguration,
+  message:
+      "The event name '$kMeasurementPublicationTapEventNameV1' is "
+      'reserved for measurement. Choose another event name.',
+  location: location,
+);
 
 /// Creates the diagnostic for an authored product-data reference.
 Issue unsupportedCommerceDataIssue(String location) => Issue(
-      code: IssueCode.unsupportedCommerceAuthoring,
-      message: 'The authored data.products reference is unsupported. Supply '
-          'display values through application-owned data.',
-      location: location,
-    );
+  code: IssueCode.unsupportedCommerceAuthoring,
+  message:
+      'The authored data.products reference is unsupported. Supply '
+      'display values through application-owned data.',
+  location: location,
+);
 
 // The compiler emits the reserved tap event with its route and, at most, an
 // item argument.

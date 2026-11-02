@@ -6,8 +6,7 @@ import 'helpers.dart';
 
 void main() {
   group('custom structured discovery — R-1.1 nested data class', () {
-    test(
-        'a @RestageProperty typed as a custom data class lowers to '
+    test('a @RestageProperty typed as a custom data class lowers to '
         'PropertyType.structured + a StructuredEntry', () async {
       final result = await runWidgetVisitorOn({
         'lib/badge_card.dart': '''
@@ -77,8 +76,7 @@ void main() {
   });
 
   group('custom structured discovery — R-1.2 transitive closure', () {
-    test(
-        'a data class that nests another data class materialises BOTH '
+    test('a data class that nests another data class materialises BOTH '
         '(the nested type is not warn+dropped)', () async {
       final result = await runWidgetVisitorOn({
         'lib/profile_card.dart': '''
@@ -144,8 +142,7 @@ void main() {
       );
     });
 
-    test(
-        'a List<scalar> field inside a structured type is carried (not '
+    test('a List<scalar> field inside a structured type is carried (not '
         'dropped) — the parity-clean scalar-list case', () async {
       final result = await runWidgetVisitorOn({
         'lib/tag_card.dart': '''
@@ -175,8 +172,9 @@ void main() {
         result.issues.where((i) => i.code == IssueCode.unsupportedPropertyType),
         isEmpty,
       );
-      final tagSet =
-          result.structuredTypes.firstWhere((e) => e.name == 'TagSet');
+      final tagSet = result.structuredTypes.firstWhere(
+        (e) => e.name == 'TagSet',
+      );
       final tags = tagSet.fields.firstWhere(
         (f) => f.name == 'tags',
         orElse: () => throw StateError(
@@ -187,8 +185,7 @@ void main() {
       expect(tags.valueShape, isA<ListShape>());
     });
 
-    test(
-        "a structured property required by the widget's constructor is marked "
+    test("a structured property required by the widget's constructor is marked "
         'required even when @RestageProperty omits it', () async {
       final result = await runWidgetVisitorOn({
         'lib/cfg_card.dart': '''
@@ -213,8 +210,9 @@ void main() {
         ''',
       });
 
-      final config = result.widgets.single.properties
-          .firstWhere((p) => p.name == 'config');
+      final config = result.widgets.single.properties.firstWhere(
+        (p) => p.name == 'config',
+      );
       expect(config.type, PropertyType.structured);
       // The constructor requires it, so the catalog marks it required — the
       // rich-field emit needs this or it omits the field and the generated

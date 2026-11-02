@@ -21,9 +21,9 @@ import '../support/native_flow_fixture_generation.dart';
 
 void main() {
   test(
-      'canonical paywall threads installed native declarations through artifacts',
-      () async {
-    const source = '''
+    'canonical paywall threads installed native declarations through artifacts',
+    () async {
+      const source = '''
 import 'package:flutter/material.dart' as f;
 import 'package:restage/restage.dart' as r;
 part 'restage.generated/native_offer.restage.g.dart';
@@ -43,35 +43,41 @@ final class NativeOffer extends f.StatelessWidget {
   });
 }
 ''';
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-    final result = await testBuilder(
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
         const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
         const {'apps_examples|lib/native_offer.dart': source},
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
-        flattenOutput: true);
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = _readBundle(readerWriter);
-    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    final generated = utf8.decode(bundle
-        .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!);
-    expect(generated, contains('r.NativeCallAdapter('));
-    expect(generated, contains('_restageAs<Map<int, f.Color>>'));
-    for (final member in ['shade', 'base', 'offset', 'extra']) {
-      expect(generated, contains('NativeOffer.$member'));
-    }
-    expect(bundle.artifacts, contains('assets/paywalls/native_offer.rfw'));
-    await _expectAnalyzesClean({
-      'apps_examples|lib/native_offer.dart': source,
-      'apps_examples|lib/restage.generated/native_offer.restage.g.dart':
-          generated,
-    });
-  });
+        flattenOutput: true,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+      final generated = utf8.decode(
+        bundle
+            .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!,
+      );
+      expect(generated, contains('r.NativeCallAdapter('));
+      expect(generated, contains('_restageAs<Map<int, f.Color>>'));
+      for (final member in ['shade', 'base', 'offset', 'extra']) {
+        expect(generated, contains('NativeOffer.$member'));
+      }
+      expect(bundle.artifacts, contains('assets/paywalls/native_offer.rfw'));
+      await _expectAnalyzesClean({
+        'apps_examples|lib/native_offer.dart': source,
+        'apps_examples|lib/restage.generated/native_offer.restage.g.dart':
+            generated,
+      });
+    },
+  );
 
-  test('canonical native identity is stable across physical package roots',
-      () async {
-    const source = '''
+  test(
+    'canonical native identity is stable across physical package roots',
+    () async {
+      const source = '''
 import 'package:flutter/material.dart' as f;
 import 'package:restage/restage.dart' as r;
 part 'restage.generated/native_offer.restage.g.dart';
@@ -87,54 +93,62 @@ final class NativeOffer extends f.StatelessWidget {
   });
 }
 ''';
-    final config = (await findPackageConfig(Directory.current))!;
-    final roots = [
-      Directory.systemTemp.createTempSync('native-source-a-'),
-      Directory.systemTemp.createTempSync('native-source-b-')
-    ];
-    addTearDown(() {
+      final config = (await findPackageConfig(Directory.current))!;
+      final roots = [
+        Directory.systemTemp.createTempSync('native-source-a-'),
+        Directory.systemTemp.createTempSync('native-source-b-'),
+      ];
+      addTearDown(() {
+        for (final root in roots) {
+          root.deleteSync(recursive: true);
+        }
+      });
+      final outputs = <String>[];
       for (final root in roots) {
-        root.deleteSync(recursive: true);
-      }
-    });
-    final outputs = <String>[];
-    for (final root in roots) {
-      final file = File.fromUri(root.uri.resolve('lib/native_offer.dart'));
-      file.parent.createSync(recursive: true);
-      file.writeAsStringSync(source);
-      final relocated = PackageConfig([
-        for (final package in config.packages)
-          if (package.name == 'apps_examples')
-            Package(package.name, root.uri,
+        final file = File.fromUri(root.uri.resolve('lib/native_offer.dart'));
+        file.parent.createSync(recursive: true);
+        file.writeAsStringSync(source);
+        final relocated = PackageConfig([
+          for (final package in config.packages)
+            if (package.name == 'apps_examples')
+              Package(
+                package.name,
+                root.uri,
                 packageUriRoot: root.uri.resolve('lib/'),
-                languageVersion: package.languageVersion)
-          else
-            package,
-      ]);
-      final readerWriter =
-          await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-      final result = await testBuilder(
+                languageVersion: package.languageVersion,
+              )
+            else
+              package,
+        ]);
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final result = await testBuilder(
           const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
           {'apps_examples|lib/native_offer.dart': file.readAsStringSync()},
           packageConfig: relocated,
           rootPackage: 'apps_examples',
           readerWriter: readerWriter,
-          flattenOutput: true);
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      final bundle = _readBundle(readerWriter);
-      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-      final generated = utf8.decode(bundle
-          .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!);
-      expect(generated, contains('r.NativeCallAdapter('));
-      outputs.add(generated);
-    }
-    expect(outputs[0], outputs[1]);
-  });
+          flattenOutput: true,
+        );
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        final bundle = _readBundle(readerWriter);
+        expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+        final generated = utf8.decode(
+          bundle
+              .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!,
+        );
+        expect(generated, contains('r.NativeCallAdapter('));
+        outputs.add(generated);
+      }
+      expect(outputs[0], outputs[1]);
+    },
+  );
 
   test(
-      'canonical native factories preserve free library names outside mount scope',
-      () async {
-    const source = '''
+    'canonical native factories preserve free library names outside mount scope',
+    () async {
+      const source = '''
 import 'package:flutter/material.dart' as f;
 import 'package:restage/restage.dart' as r;
 part 'restage.generated/native_offer.restage.g.dart';
@@ -149,32 +163,39 @@ final class NativeOffer extends f.StatelessWidget {
     child: f.ColoredBox(color: const f.MaterialAccentColor(0xff102030, loadingBuilder)));
 }
 ''';
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-    final result = await testBuilder(
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
         const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
         {'apps_examples|lib/native_offer.dart': source},
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
-        flattenOutput: true);
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = _readBundle(readerWriter);
-    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    final generated = utf8.decode(bundle
-        .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!);
-    expect(generated.indexOf('const f.MaterialColor('),
-        lessThan(generated.indexOf('final class NativeOfferSurface')));
-    await _expectAnalyzesClean({
-      'apps_examples|lib/native_offer.dart': source,
-      'apps_examples|lib/restage.generated/native_offer.restage.g.dart':
-          generated
-    });
-  });
+        flattenOutput: true,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+      final generated = utf8.decode(
+        bundle
+            .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!,
+      );
+      expect(
+        generated.indexOf('const f.MaterialColor('),
+        lessThan(generated.indexOf('final class NativeOfferSurface')),
+      );
+      await _expectAnalyzesClean({
+        'apps_examples|lib/native_offer.dart': source,
+        'apps_examples|lib/restage.generated/native_offer.restage.g.dart':
+            generated,
+      });
+    },
+  );
 
   test(
-      'canonical helper native plans use destination imports and refuse private names',
-      () async {
-    const screen = '''
+    'canonical helper native plans use destination imports and refuse private names',
+    () async {
+      const screen = '''
 import 'package:flutter/material.dart' as _restageInputs;
 import 'package:restage/restage.dart' as r;
 import 'helper.dart' as h;
@@ -186,9 +207,10 @@ final class NativeOffer extends _restageInputs.StatelessWidget {
   _restageInputs.Widget build(_restageInputs.BuildContext context) => h.box();
 }
 ''';
-    for (final private in [false, true]) {
-      final swatch = private ? '_swatch' : 'swatch';
-      final helper = '''
+      for (final private in [false, true]) {
+        final swatch = private ? '_swatch' : 'swatch';
+        final helper =
+            '''
 import 'package:flutter/material.dart' as f;
 final $swatch = <int, f.Color>{500: const f.Color(0xff102030)};
 f.Widget box() => f.LayoutBuilder(builder: (context, constraints) {
@@ -196,38 +218,43 @@ f.Widget box() => f.LayoutBuilder(builder: (context, constraints) {
   return f.ColoredBox(color: color);
 });
 ''';
-      final readerWriter =
-          await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-      final result = await testBuilder(
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final result = await testBuilder(
           const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
           {
             'apps_examples|lib/native_offer.dart': screen,
-            'apps_examples|lib/helper.dart': helper
+            'apps_examples|lib/helper.dart': helper,
           },
           rootPackage: 'apps_examples',
           readerWriter: readerWriter,
-          flattenOutput: true);
-      expect(result.succeeded, !private, reason: result.errors.join('\n'));
-      final bundle = _readBundle(readerWriter);
-      expect(bundle.valid, !private, reason: bundle.errors.join('\n'));
-      if (private) {
-        expect(bundle.errors.join('\n'), contains('emission library'));
-        continue;
+          flattenOutput: true,
+        );
+        expect(result.succeeded, !private, reason: result.errors.join('\n'));
+        final bundle = _readBundle(readerWriter);
+        expect(bundle.valid, !private, reason: bundle.errors.join('\n'));
+        if (private) {
+          expect(bundle.errors.join('\n'), contains('emission library'));
+          continue;
+        }
+        final generated = utf8.decode(
+          bundle
+              .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!,
+        );
+        expect(generated, contains('_restageInputs.MaterialColor'));
+        expect(generated, contains('h.swatch'));
+        expect(generated, contains('_restage_Inputs'));
+        expect(generated, isNot(contains('f.MaterialColor')));
+        await _expectAnalyzesClean({
+          'apps_examples|lib/native_offer.dart': screen,
+          'apps_examples|lib/helper.dart': helper,
+          'apps_examples|lib/restage.generated/native_offer.restage.g.dart':
+              generated,
+        });
       }
-      final generated = utf8.decode(bundle
-          .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!);
-      expect(generated, contains('_restageInputs.MaterialColor'));
-      expect(generated, contains('h.swatch'));
-      expect(generated, contains('_restage_Inputs'));
-      expect(generated, isNot(contains('f.MaterialColor')));
-      await _expectAnalyzesClean({
-        'apps_examples|lib/native_offer.dart': screen,
-        'apps_examples|lib/helper.dart': helper,
-        'apps_examples|lib/restage.generated/native_offer.restage.g.dart':
-            generated
-      });
-    }
-  });
+    },
+  );
 
   group('tracked package Measurement policy', () {
     test('shares one policy within a package', () async {
@@ -278,38 +305,41 @@ f.Widget box() => f.LayoutBuilder(builder: (context, constraints) {
     });
   });
 
-  test('ledger writer replaces its target through an adjacent temporary file',
-      () {
-    final root = Directory.systemTemp.createTempSync(
-      'restage-measurement-ledger-',
-    );
-    addTearDown(() => root.deleteSync(recursive: true));
-    final file = File(
-      '${root.path}/nested/restage_measurement.compiler.json',
-    );
-    final first = utf8.encode('{"value":"first"}');
-    final second = utf8.encode('{"value":"second"}');
+  test(
+    'ledger writer replaces its target through an adjacent temporary file',
+    () {
+      final root = Directory.systemTemp.createTempSync(
+        'restage-measurement-ledger-',
+      );
+      addTearDown(() => root.deleteSync(recursive: true));
+      final file = File(
+        '${root.path}/nested/restage_measurement.compiler.json',
+      );
+      final first = utf8.encode('{"value":"first"}');
+      final second = utf8.encode('{"value":"second"}');
 
-    writeMeasurementCompilerLedgerSource(
-      file: file,
-      bytes: first,
-      processId: 41,
-    );
-    expect(file.readAsBytesSync(), orderedEquals(first));
-    expect(File('${file.path}.tmp.41').existsSync(), isFalse);
+      writeMeasurementCompilerLedgerSource(
+        file: file,
+        bytes: first,
+        processId: 41,
+      );
+      expect(file.readAsBytesSync(), orderedEquals(first));
+      expect(File('${file.path}.tmp.41').existsSync(), isFalse);
 
-    writeMeasurementCompilerLedgerSource(
-      file: file,
-      bytes: second,
-      processId: 42,
-    );
-    expect(file.readAsBytesSync(), orderedEquals(second));
-    expect(File('${file.path}.tmp.42').existsSync(), isFalse);
-  });
+      writeMeasurementCompilerLedgerSource(
+        file: file,
+        bytes: second,
+        processId: 42,
+      );
+      expect(file.readAsBytesSync(), orderedEquals(second));
+      expect(File('${file.path}.tmp.42').existsSync(), isFalse);
+    },
+  );
 
-  test('compiles tracked arbitrary-directory sources into the fixed bundle',
-      () async {
-    const screen = '''
+  test(
+    'compiles tracked arbitrary-directory sources into the fixed bundle',
+    () async {
+      const screen = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -325,7 +355,7 @@ final class FeatureAnnouncement extends StatelessWidget {
   Widget build(BuildContext context) => const Text('Announcement');
 }
 ''';
-    const flow = '''
+      const flow = '''
 import 'package:restage/restage.dart';
 
 import '../features/announcement.dart';
@@ -340,111 +370,115 @@ const launch = FlowDefinition(
   ],
 );
 ''';
-    final sources = <String, String>{
-      'apps_examples|lib/features/announcement.dart': screen,
-      'apps_examples|lib/journeys/launch.dart': flow,
-    };
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final logs = <LogRecord>[];
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-      onLog: logs.add,
-      verbose: true,
-    );
+      final sources = <String, String>{
+        'apps_examples|lib/features/announcement.dart': screen,
+        'apps_examples|lib/journeys/launch.dart': flow,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final logs = <LogRecord>[];
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+        onLog: logs.add,
+        verbose: true,
+      );
 
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final encoded = readerWriter.testing.readString(
-      AssetId(
-        'apps_examples',
-        kRestageSurfacePublicationCompilerBundlePath,
-      ),
-    );
-    final bundle = RestageSurfacePublicationBundle.fromJson(
-      jsonDecode(encoded),
-    );
-    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    expect(
-      bundle.manifest!.publications
-          .map((entry) => entry.publication.slug)
-          .toList(),
-      orderedEquals(['announcement', 'launch']),
-    );
-    expectArtifactsFor(bundle.artifacts.keys, <String>[
-      'assets/general/screens/announcement.rfw',
-      'assets/general/screens/announcement.capability.json',
-      'assets/general/flows/launch.flow.json',
-    ]);
-    expect(
-      bundle.ownedOutputs.keys,
-      containsAll(<String>[
-        'assets/general/screens/announcement.rfwtxt',
-        'lib/features/restage.generated/announcement.restage.g.dart',
-        'lib/journeys/restage.generated/launch.restage.g.dart',
-      ]),
-    );
-    expect(
-      utf8.decode(
-        bundle.ownedOutputs['assets/general/screens/announcement.rfwtxt']!,
-      ),
-      contains('"Announcement"'),
-    );
-    expect(
-      collapsedWhitespace(
-        utf8.decode(
-          bundle.ownedOutputs[
-              'lib/features/restage.generated/announcement.restage.g.dart']!,
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final encoded = readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          kRestageSurfacePublicationCompilerBundlePath,
         ),
-      ),
-      matches(
-          RegExp(r'SurfaceScreenRef<\s*FeatureAnnouncementSurfaceEvent\s*>')),
-    );
-    expect(
-      utf8.decode(
-        bundle.ownedOutputs[
-            'lib/journeys/restage.generated/launch.restage.g.dart']!,
-      ),
-      contains('SurfaceFlowRef<LaunchResult>'),
-    );
-    final summaries = logs
-        .where((record) => record.message.contains('[restage] Compiled'))
-        .map((record) => record.message)
-        .toList();
-    expect(summaries, hasLength(1));
-    expect(summaries.single, contains('2 surfaces'));
-    expect(summaries.single, contains('1 screen'));
-    expect(summaries.single, contains('1 flow'));
-    expect(summaries.single, contains('FeatureAnnouncementSurface'));
-    expect(summaries.single, contains('LaunchSurface'));
-  });
+      );
+      final bundle = RestageSurfacePublicationBundle.fromJson(
+        jsonDecode(encoded),
+      );
+      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+      expect(
+        bundle.manifest!.publications
+            .map((entry) => entry.publication.slug)
+            .toList(),
+        orderedEquals(['announcement', 'launch']),
+      );
+      expectArtifactsFor(bundle.artifacts.keys, <String>[
+        'assets/general/screens/announcement.rfw',
+        'assets/general/screens/announcement.capability.json',
+        'assets/general/flows/launch.flow.json',
+      ]);
+      expect(
+        bundle.ownedOutputs.keys,
+        containsAll(<String>[
+          'assets/general/screens/announcement.rfwtxt',
+          'lib/features/restage.generated/announcement.restage.g.dart',
+          'lib/journeys/restage.generated/launch.restage.g.dart',
+        ]),
+      );
+      expect(
+        utf8.decode(
+          bundle.ownedOutputs['assets/general/screens/announcement.rfwtxt']!,
+        ),
+        contains('"Announcement"'),
+      );
+      expect(
+        collapsedWhitespace(
+          utf8.decode(
+            bundle
+                .ownedOutputs['lib/features/restage.generated/announcement.restage.g.dart']!,
+          ),
+        ),
+        matches(
+          RegExp(r'SurfaceScreenRef<\s*FeatureAnnouncementSurfaceEvent\s*>'),
+        ),
+      );
+      expect(
+        utf8.decode(
+          bundle
+              .ownedOutputs['lib/journeys/restage.generated/launch.restage.g.dart']!,
+        ),
+        contains('SurfaceFlowRef<LaunchResult>'),
+      );
+      final summaries = logs
+          .where((record) => record.message.contains('[restage] Compiled'))
+          .map((record) => record.message)
+          .toList();
+      expect(summaries, hasLength(1));
+      expect(summaries.single, contains('2 surfaces'));
+      expect(summaries.single, contains('1 screen'));
+      expect(summaries.single, contains('1 flow'));
+      expect(summaries.single, contains('FeatureAnnouncementSurface'));
+      expect(summaries.single, contains('LaunchSurface'));
+    },
+  );
 
-  test('does not report compilation success for a package without surfaces',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final logs = <LogRecord>[];
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      const {'apps_examples|lib/plain.dart': 'class Plain {}'},
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-      onLog: logs.add,
-      verbose: true,
-    );
+  test(
+    'does not report compilation success for a package without surfaces',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final logs = <LogRecord>[];
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        const {'apps_examples|lib/plain.dart': 'class Plain {}'},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+        onLog: logs.add,
+        verbose: true,
+      );
 
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    expect(
-      logs.map((record) => record.message),
-      everyElement(isNot(contains('[restage] Compiled'))),
-    );
-  });
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      expect(
+        logs.map((record) => record.message),
+        everyElement(isNot(contains('[restage] Compiled'))),
+      );
+    },
+  );
 
   test('emits valid mount types for legacy callback formals', () async {
     // `final` and `var` on a function-typed formal's parameter are illegal
@@ -646,9 +680,10 @@ final class InheritedCallback extends CallbackBase {
     expect(descriptor, isNot(contains('void Function(int) callback')));
   });
 
-  test('compiles callback-free static collection leaves with measurement',
-      () async {
-    const screen = '''
+  test(
+    'compiles callback-free static collection leaves with measurement',
+    () async {
+      const screen = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -669,36 +704,37 @@ final class CollectionLabels extends StatelessWidget {
       );
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(
-        BuilderOptions({
-          kMeasurementMinimumClientOption: 1,
-          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
-          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
-        }),
-      ),
-      const <String, String>{
-        'apps_examples|lib/features/collection_labels.dart': screen,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(
+          BuilderOptions({
+            kMeasurementMinimumClientOption: 1,
+            kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+            kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+          }),
+        ),
+        const <String, String>{
+          'apps_examples|lib/features/collection_labels.dart': screen,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = _readBundle(readerWriter);
-    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    final text = utf8.decode(
-      bundle.ownedOutputs['assets/general/screens/collection_labels.rfwtxt']!,
-    );
-    expect(text, contains('"first"'));
-    expect(text, contains('"second"'));
-    expect(text, contains('"third"'));
-    expect(text, contains('"fourth"'));
-  });
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+      final text = utf8.decode(
+        bundle.ownedOutputs['assets/general/screens/collection_labels.rfwtxt']!,
+      );
+      expect(text, contains('"first"'));
+      expect(text, contains('"second"'));
+      expect(text, contains('"third"'));
+      expect(text, contains('"fourth"'));
+    },
+  );
 
   test('publishes helper-bound const-object widget fields', () async {
     const sources = '''
@@ -840,9 +876,10 @@ final class MixedReceiverOffer extends StatelessWidget {
     expect(errors, isNot(contains('Text(text: "constant")')));
   });
 
-  test('compiles hidden custom collection leaves for screens and paywalls',
-      () async {
-    const sources = '''
+  test(
+    'compiles hidden custom collection leaves for screens and paywalls',
+    () async {
+      const sources = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -889,58 +926,59 @@ final class HiddenCollectionOffer extends StatelessWidget {
       Column(children: [...collectionEntries]);
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final catalogBuild = await testBuilder(
-      const UserCatalogJsonBuilder(BuilderOptions.empty),
-      const <String, String>{
-        'apps_examples|lib/features/hidden_collection.dart': sources,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    expect(
-      catalogBuild.succeeded,
-      isTrue,
-      reason: catalogBuild.errors.join('\n'),
-    );
-    final catalog = readerWriter.testing.readString(
-      AssetId(
-        'apps_examples',
-        'lib/src/widget_catalog/catalog.json',
-      ),
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(
-        BuilderOptions({
-          kMeasurementMinimumClientOption: 1,
-          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
-          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
-        }),
-      ),
-      <String, String>{
-        'apps_examples|lib/features/hidden_collection.dart': sources,
-        'apps_examples|lib/src/widget_catalog/catalog.json': catalog,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final catalogBuild = await testBuilder(
+        const UserCatalogJsonBuilder(BuilderOptions.empty),
+        const <String, String>{
+          'apps_examples|lib/features/hidden_collection.dart': sources,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        catalogBuild.succeeded,
+        isTrue,
+        reason: catalogBuild.errors.join('\n'),
+      );
+      final catalog = readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/src/widget_catalog/catalog.json',
+        ),
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(
+          BuilderOptions({
+            kMeasurementMinimumClientOption: 1,
+            kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+            kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+          }),
+        ),
+        <String, String>{
+          'apps_examples|lib/features/hidden_collection.dart': sources,
+          'apps_examples|lib/src/widget_catalog/catalog.json': catalog,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = _readBundle(readerWriter);
-    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    for (final path in [
-      'assets/general/screens/hidden_collection.rfwtxt',
-      'assets/paywalls/hidden_collection_offer.rfwtxt',
-    ]) {
-      final text = utf8.decode(bundle.ownedOutputs[path]!);
-      expect(text, contains('HiddenLabel()'));
-      expect(text, contains('Text(text: "resolved")'));
-    }
-  });
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+      for (final path in [
+        'assets/general/screens/hidden_collection.rfwtxt',
+        'assets/paywalls/hidden_collection_offer.rfwtxt',
+      ]) {
+        final text = utf8.decode(bundle.ownedOutputs[path]!);
+        expect(text, contains('HiddenLabel()'));
+        expect(text, contains('Text(text: "resolved")'));
+      }
+    },
+  );
 
   test('inlines a custom widget absent from the package catalog', () async {
     const sources = '''
@@ -1059,9 +1097,10 @@ final class DependencyScreen extends StatelessWidget {
     );
   });
 
-  test('rejects reused callback collection sources before publication',
-      () async {
-    const sources = '''
+  test(
+    'rejects reused callback collection sources before publication',
+    () async {
+      const sources = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1106,31 +1145,32 @@ final class ReusedActionsOffer extends StatelessWidget {
       Column(children: [...actions(), ...actions()]);
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(
-        BuilderOptions({
-          kMeasurementMinimumClientOption: 1,
-          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
-          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
-        }),
-      ),
-      const <String, String>{
-        'apps_examples|lib/features/reused_actions.dart': sources,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(
+          BuilderOptions({
+            kMeasurementMinimumClientOption: 1,
+            kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+            kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+          }),
+        ),
+        const <String, String>{
+          'apps_examples|lib/features/reused_actions.dart': sources,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    expect(result.succeeded, isFalse);
-    expect(
-      result.errors.join('\n'),
-      contains('callback-bearing static collection source is reused'),
-    );
-  });
+      expect(result.succeeded, isFalse);
+      expect(
+        result.errors.join('\n'),
+        contains('callback-bearing static collection source is reused'),
+      );
+    },
+  );
 
   test('rejects callback reuse across nested sibling lists', () async {
     const sources = '''
@@ -1275,9 +1315,10 @@ final class SharedSlotsOffer extends StatelessWidget {
     );
   });
 
-  test('rejects a helper root sharing one callback across event slots',
-      () async {
-    const sources = '''
+  test(
+    'rejects a helper root sharing one callback across event slots',
+    () async {
+      const sources = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1305,44 +1346,46 @@ final class HelperSlotsOffer extends StatelessWidget {
   Widget build(BuildContext context) => action(() {});
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(
-        BuilderOptions({
-          kMeasurementMinimumClientOption: 1,
-          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
-          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
-        }),
-      ),
-      const <String, String>{
-        'apps_examples|lib/features/helper_slots.dart': sources,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    final errors = result.errors.join('\n');
-
-    expect(result.succeeded, isFalse);
-    expect(
-      errors,
-      contains('callback-bearing static collection source is reused'),
-    );
-    expect(
-      errors,
-      isNot(
-        contains(
-          'One exact callback expression cannot carry two measurement routes',
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(
+          BuilderOptions({
+            kMeasurementMinimumClientOption: 1,
+            kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+            kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+          }),
         ),
-      ),
-    );
-  });
+        const <String, String>{
+          'apps_examples|lib/features/helper_slots.dart': sources,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final errors = result.errors.join('\n');
 
-  test('materializes one neutral screen for two containing flow surfaces',
-      () async {
-    const screen = '''
+      expect(result.succeeded, isFalse);
+      expect(
+        errors,
+        contains('callback-bearing static collection source is reused'),
+      );
+      expect(
+        errors,
+        isNot(
+          contains(
+            'One exact callback expression cannot carry two measurement routes',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'materializes one neutral screen for two containing flow surfaces',
+    () async {
+      const screen = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1357,7 +1400,7 @@ final class Welcome extends StatelessWidget {
   Widget build(BuildContext context) => const Text('Welcome');
 }
 ''';
-    const onboardingFlow = '''
+      const onboardingFlow = '''
 import 'package:restage/restage.dart';
 import '../shared/welcome.dart';
 part 'restage.generated/onboarding.restage.g.dart';
@@ -1368,7 +1411,7 @@ const onboarding = FlowDefinition(
   transitions: [Transition.complete(Welcome.finish)],
 );
 ''';
-    const messageFlow = '''
+      const messageFlow = '''
 import 'package:restage/restage.dart';
 import '../shared/welcome.dart';
 part 'restage.generated/message.restage.g.dart';
@@ -1379,56 +1422,59 @@ const message = FlowDefinition(
   transitions: [Transition.complete(Welcome.finish)],
 );
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      <String, String>{
-        'apps_examples|lib/shared/welcome.dart': screen,
-        'apps_examples|lib/journeys/onboarding.dart': onboardingFlow,
-        'apps_examples|lib/journeys/message.dart': messageFlow,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        <String, String>{
+          'apps_examples|lib/shared/welcome.dart': screen,
+          'apps_examples|lib/journeys/onboarding.dart': onboardingFlow,
+          'apps_examples|lib/journeys/message.dart': messageFlow,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = _readBundle(readerWriter);
-    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    const onboardingBlob = 'assets/onboarding/screens/welcome.rfw';
-    const messageBlob = 'assets/message/screens/welcome.rfw';
-    expect(artifactFor(bundle.artifacts, onboardingBlob), isNotEmpty);
-    expect(artifactFor(bundle.artifacts, messageBlob), isNotEmpty);
-    // Each containing flow is its own publication, so one neutral screen is
-    // materialized twice and each copy carries that publication's identity.
-    final onboardingText = _declarativeText(
-      artifactFor(bundle.artifacts, onboardingBlob),
-    );
-    final messageText = _declarativeText(
-      artifactFor(bundle.artifacts, messageBlob),
-    );
-    expect(
-      _withoutMeasurementIdentity(onboardingText),
-      _withoutMeasurementIdentity(messageText),
-      reason: 'one neutral screen materializes the same widget for both '
-          'containing flows',
-    );
-    expect(
-      onboardingText,
-      isNot(messageText),
-      reason: 'each materialization carries its own publication identity, so '
-          'one cannot be attributed to the other',
-    );
-    expect(
-      bundle.manifest!.publications
-          .map((entry) => entry.publication.slug)
-          .toList(),
-      orderedEquals(['message', 'onboarding']),
-      reason: 'a neutral screen is flow-owned, never standalone',
-    );
-  });
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+      const onboardingBlob = 'assets/onboarding/screens/welcome.rfw';
+      const messageBlob = 'assets/message/screens/welcome.rfw';
+      expect(artifactFor(bundle.artifacts, onboardingBlob), isNotEmpty);
+      expect(artifactFor(bundle.artifacts, messageBlob), isNotEmpty);
+      // Each containing flow is its own publication, so one neutral screen is
+      // materialized twice and each copy carries that publication's identity.
+      final onboardingText = _declarativeText(
+        artifactFor(bundle.artifacts, onboardingBlob),
+      );
+      final messageText = _declarativeText(
+        artifactFor(bundle.artifacts, messageBlob),
+      );
+      expect(
+        _withoutMeasurementIdentity(onboardingText),
+        _withoutMeasurementIdentity(messageText),
+        reason:
+            'one neutral screen materializes the same widget for both '
+            'containing flows',
+      );
+      expect(
+        onboardingText,
+        isNot(messageText),
+        reason:
+            'each materialization carries its own publication identity, so '
+            'one cannot be attributed to the other',
+      );
+      expect(
+        bundle.manifest!.publications
+            .map((entry) => entry.publication.slug)
+            .toList(),
+        orderedEquals(['message', 'onboarding']),
+        reason: 'a neutral screen is flow-owned, never standalone',
+      );
+    },
+  );
 
   test('records a flow screen where the bundle actually emits it', () async {
     // One screen inside two flows is claimed twice, so each publication owns
@@ -1495,10 +1541,11 @@ const secondJourney = FlowDefinition(
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
     final bundle = _readBundle(readerWriter);
     expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    final documents = bundle.artifacts.keys
-        .where((path) => path.endsWith('.flow.json'))
-        .toList()
-      ..sort();
+    final documents =
+        bundle.artifacts.keys
+            .where((path) => path.endsWith('.flow.json'))
+            .toList()
+          ..sort();
     expect(
       documents,
       orderedEquals(<String>[
@@ -1534,8 +1581,7 @@ const secondJourney = FlowDefinition(
     );
   });
 
-  test(
-      'compiled flow fixture retains original constructors '
+  test('compiled flow fixture retains original constructors '
       'and exact child graphs', () async {
     final candidate = await compileNativeFlowFixture();
     final source = candidate.source;
@@ -1545,7 +1591,8 @@ const secondJourney = FlowDefinition(
     expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
     final generated = candidate.generated;
     await _expectAnalyzesClean({
-      'apps_examples|lib/native_flow.dart': '''
+      'apps_examples|lib/native_flow.dart':
+          '''
 $source
 const originalNotice = NativeNoticeSurface('original', 3);
 const defaultNotice = NativeNoticeSurface('default');
@@ -1582,9 +1629,10 @@ Future<void> presentOffer(BuildContext context) => Restage.presentPlacement(
     expect(generated, contains('class NativeNoticeSurface'));
   });
 
-  test('generates a typed paywall mount with its authored constructor',
-      () async {
-    const source = '''
+  test(
+    'generates a typed paywall mount with its authored constructor',
+    () async {
+      const source = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 part 'restage.generated/offer.restage.g.dart';
@@ -1605,38 +1653,41 @@ final class UpgradeOffer extends StatelessWidget {
   Widget build(BuildContext context) => Text(title);
 }
 ''';
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      const {'apps_examples|lib/offer.dart': source},
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = _readBundle(readerWriter);
-    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    final generated = utf8.decode(
-      bundle.ownedOutputs['lib/restage.generated/offer.restage.g.dart']!,
-    );
-    expect(generated, contains('class UpgradeOfferSurface'));
-    expect(generated, contains("id: 'upgrade_offer'"));
-    expect(
-      generated,
-      matches(RegExp(r'fallbackBuilder: \(context\) =>\s*UpgradeOffer\(')),
-    );
-    await _expectAnalyzesClean({
-      'apps_examples|lib/offer.dart': '''
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        const {'apps_examples|lib/offer.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+      final generated = utf8.decode(
+        bundle.ownedOutputs['lib/restage.generated/offer.restage.g.dart']!,
+      );
+      expect(generated, contains('class UpgradeOfferSurface'));
+      expect(generated, contains("id: 'upgrade_offer'"));
+      expect(
+        generated,
+        matches(RegExp(r'fallbackBuilder: \(context\) =>\s*UpgradeOffer\(')),
+      );
+      await _expectAnalyzesClean({
+        'apps_examples|lib/offer.dart':
+            '''
 $source
 const defaultOffer = UpgradeOfferSurface('Offer');
 const customOffer = UpgradeOfferSurface(
   'Offer', onUnavailable: 'Retry', unavailable: true,
 );
 ''',
-      'apps_examples|lib/restage.generated/offer.restage.g.dart': generated,
-    });
-  });
+        'apps_examples|lib/restage.generated/offer.restage.g.dart': generated,
+      });
+    },
+  );
 
   test('a paywall publishes what its mount passes as host data', () async {
     const source = '''
@@ -1653,8 +1704,9 @@ final class UpgradeOffer extends StatelessWidget {
       Text(price, style: TextStyle(color: Theme.of(context).primaryColor));
 }
 ''';
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
     final result = await testBuilder(
       const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
       const {'apps_examples|lib/offer.dart': source},
@@ -1677,9 +1729,10 @@ final class UpgradeOffer extends StatelessWidget {
     expect(publication.hostDataContractHash, isNotNull);
   });
 
-  test('borrows constructor native scalers through the typed binding scope',
-      () async {
-    const source = """
+  test(
+    'borrows constructor native scalers through the typed binding scope',
+    () async {
+      const source = """
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 part 'restage.generated/welcome.restage.g.dart';
@@ -1691,24 +1744,29 @@ final class Welcome extends StatelessWidget {
   Widget build(BuildContext context) => Text('Hi', textScaler: scaler);
 }
 """;
-    final generated =
-        await _generatedPart(source, 'welcome', expectedFloor: 24);
-    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
-    expect(flat, contains('RestageNativeValues('));
-    expect(flat, contains('bindings: {'));
-    expect(flat, contains('NativeBinding('));
-    expect(flat, contains("type: 'flutter.TextScaler', nullable: true"));
-    expect(flat, contains('"kind": "nativeBinding"'));
-    expect(flat, isNot(contains('restageNativeObjects({')));
-    await _expectAnalyzesClean({
-      'apps_examples|lib/welcome.dart': source,
-      'apps_examples|lib/restage.generated/welcome.restage.g.dart': generated,
-    });
-  });
+      final generated = await _generatedPart(
+        source,
+        'welcome',
+        expectedFloor: 24,
+      );
+      final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+      expect(flat, contains('RestageNativeValues('));
+      expect(flat, contains('bindings: {'));
+      expect(flat, contains('NativeBinding('));
+      expect(flat, contains("type: 'flutter.TextScaler', nullable: true"));
+      expect(flat, contains('"kind": "nativeBinding"'));
+      expect(flat, isNot(contains('restageNativeObjects({')));
+      await _expectAnalyzesClean({
+        'apps_examples|lib/welcome.dart': source,
+        'apps_examples|lib/restage.generated/welcome.restage.g.dart': generated,
+      });
+    },
+  );
 
-  test('mounts exact native text scalers at the authored root context',
-      () async {
-    const source = """
+  test(
+    'mounts exact native text scalers at the authored root context',
+    () async {
+      const source = """
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 part 'restage.generated/welcome.restage.g.dart';
@@ -1720,18 +1778,21 @@ final class Welcome extends StatelessWidget {
     MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.8));
 }
 """;
-    final generated = await _generatedPart(source, 'welcome');
-    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
-    expect(flat, contains('restageNativeObjects({'));
-    expect(
+      final generated = await _generatedPart(source, 'welcome');
+      final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+      expect(flat, contains('restageNativeObjects({'));
+      expect(
         flat,
         contains(
-            '() => MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.8)'));
-    expect(flat, contains('RestageNativeValues('));
-    expect(flat, contains('textScalers: restageNativeValues'));
-    expect(flat, contains('"kind": "native"'));
-    expect(flat, isNot(contains('textScaleFactor:')));
-  });
+          '() => MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.8)',
+        ),
+      );
+      expect(flat, contains('RestageNativeValues('));
+      expect(flat, contains('textScalers: restageNativeValues'));
+      expect(flat, contains('"kind": "native"'));
+      expect(flat, isNot(contains('textScaleFactor:')));
+    },
+  );
 
   test('mounts native scalers through a root-context helper alias', () async {
     const source = """
@@ -1898,7 +1959,9 @@ final class Garden extends StatelessWidget {
     expect(flat, contains('"key": \'_h'));
     expect(flat, contains('#\$restageIndex0\''));
     expect(
-        flat, contains('() => Tones.of(context).colorFor(restageItem.tone)'));
+      flat,
+      contains('() => Tones.of(context).colorFor(restageItem.tone)'),
+    );
     expect(flat, contains('in _restageArgument1.indexed)'));
   });
 
@@ -1935,13 +1998,14 @@ final class Plans extends StatelessWidget {
 }
 """;
     final generated = await _generatedPart(source, 'plans');
-    final keys = RegExp(
-      r"'(_h[0-9a-f]{10})': \( ?const bool\.fromEnvironment"
-      r"\('dart\.vm\.product'\) \? '' : '[^']*', \(\) => Days\.of",
-    )
-        .allMatches(generated.replaceAll(RegExp(r'\s+'), ' '))
-        .map((match) => match[1])
-        .toList();
+    final keys =
+        RegExp(
+              r"'(_h[0-9a-f]{10})': \( ?const bool\.fromEnvironment"
+              r"\('dart\.vm\.product'\) \? '' : '[^']*', \(\) => Days\.of",
+            )
+            .allMatches(generated.replaceAll(RegExp(r'\s+'), ' '))
+            .map((match) => match[1])
+            .toList();
     expect(keys, hasLength(2));
     expect(keys.toSet(), hasLength(2));
   });
@@ -2076,7 +2140,8 @@ Widget leafArt(BuildContext context) =>
 """,
     };
 
-    String screen(String body) => """
+    String screen(String body) =>
+        """
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'leaf.dart';
@@ -2116,8 +2181,9 @@ final class Leafy extends StatelessWidget {
           ),
         ],
         {
-          'apps_examples|lib/leafy.dart':
-              screen('Center(child: leafArt(context))'),
+          'apps_examples|lib/leafy.dart': screen(
+            'Center(child: leafArt(context))',
+          ),
           ...helpers,
         },
         rootPackage: 'apps_examples',
@@ -2190,9 +2256,10 @@ final class Plain extends StatelessWidget {
     );
   });
 
-  test('compiles colocated explicit paywalls without a generated part',
-      () async {
-    const paywalls = '''
+  test(
+    'compiles colocated explicit paywalls without a generated part',
+    () async {
+      const paywalls = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -2212,44 +2279,46 @@ final class SecondOffer extends StatelessWidget {
   Widget build(BuildContext context) => const Text('Stay');
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      const <String, String>{
-        'apps_examples|lib/features/commerce/offers.dart': paywalls,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        const <String, String>{
+          'apps_examples|lib/features/commerce/offers.dart': paywalls,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = _readBundle(readerWriter);
-    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    expect(
-      bundle.manifest!.publications
-          .map((entry) => entry.publication.slug)
-          .toList(),
-      orderedEquals(['retention_offer', 'upgrade_offer']),
-    );
-    expect(
-      bundle.ownedOutputs.keys.where((path) => path.endsWith('.g.dart')),
-      isEmpty,
-    );
-    expect(
-      bundle.artifacts.keys,
-      containsAll(<String>[
-        'assets/paywalls/retention_offer.rfw',
-        'assets/paywalls/upgrade_offer.rfw',
-      ]),
-    );
-  });
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+      expect(
+        bundle.manifest!.publications
+            .map((entry) => entry.publication.slug)
+            .toList(),
+        orderedEquals(['retention_offer', 'upgrade_offer']),
+      );
+      expect(
+        bundle.ownedOutputs.keys.where((path) => path.endsWith('.g.dart')),
+        isEmpty,
+      );
+      expect(
+        bundle.artifacts.keys,
+        containsAll(<String>[
+          'assets/paywalls/retention_offer.rfw',
+          'assets/paywalls/upgrade_offer.rfw',
+        ]),
+      );
+    },
+  );
 
-  test('lowers canonical paywall navigation through roster-owned identities',
-      () async {
-    const entry = '''
+  test(
+    'lowers canonical paywall navigation through roster-owned identities',
+    () async {
+      const entry = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -2279,7 +2348,7 @@ final class EntryPaywall extends StatelessWidget {
   );
 }
 ''';
-    const relocated = '''
+      const relocated = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -2294,62 +2363,67 @@ final class PublishedOffer extends StatelessWidget {
   );
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      const <String, String>{
-        'apps_examples|lib/paywalls/entry.dart': entry,
-        'apps_examples|lib/relocated/offer.dart': relocated,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        const <String, String>{
+          'apps_examples|lib/paywalls/entry.dart': entry,
+          'apps_examples|lib/relocated/offer.dart': relocated,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = _readBundle(readerWriter);
-    expect(
-      bundle.manifest!.publications
-          .map((entry) => entry.publication.slug)
-          .toList(),
-      ['entry'],
-      reason: 'the pushed adapter is part of the entry flow closure only',
-    );
-    expect(
-      bundle.ownedOutputs.keys,
-      containsAll(<String>{
-        'assets/paywalls/entry.rfw',
-        'assets/paywalls/entry.capability.json',
-      }),
-      reason: 'a navigation paywall retains its specialized standalone pair',
-    );
-    expect(
-      bundle.artifacts.keys,
-      isNot(
-        contains(
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      expect(
+        bundle.manifest!.publications
+            .map((entry) => entry.publication.slug)
+            .toList(),
+        ['entry'],
+        reason: 'the pushed adapter is part of the entry flow closure only',
+      );
+      expect(
+        bundle.ownedOutputs.keys,
+        containsAll(<String>{
           'assets/paywalls/entry.rfw',
+          'assets/paywalls/entry.capability.json',
+        }),
+        reason: 'a navigation paywall retains its specialized standalone pair',
+      );
+      expect(
+        bundle.artifacts.keys,
+        isNot(
+          contains(
+            'assets/paywalls/entry.rfw',
+          ),
         ),
-      ),
-      reason: 'the standalone pair is not part of the selected flow closure',
-    );
-    final navigationPlan = jsonDecode(
-      utf8.decode(bundle.ownedOutputs['assets/paywalls/entry.navplan.json']!),
-    ) as Map<String, Object?>;
-    expect(navigationPlan['entryId'], 'entry');
-    expect(
-      (navigationPlan['transitions']! as List<Object?>).single,
-      <String, Object?>{
-        'event': 'restageNav0',
-        'pushedId': 'published_offer',
-      },
-    );
-    final document = FlowDocumentCodec.decodeJson(
-      utf8.decode(bundle.artifacts['assets/paywalls/entry.flow.json']!),
-    );
-    expect(document.screenArtifacts, contains('paywall_published_offer'));
-  });
+        reason: 'the standalone pair is not part of the selected flow closure',
+      );
+      final navigationPlan =
+          jsonDecode(
+                utf8.decode(
+                  bundle.ownedOutputs['assets/paywalls/entry.navplan.json']!,
+                ),
+              )
+              as Map<String, Object?>;
+      expect(navigationPlan['entryId'], 'entry');
+      expect(
+        (navigationPlan['transitions']! as List<Object?>).single,
+        <String, Object?>{
+          'event': 'restageNav0',
+          'pushedId': 'published_offer',
+        },
+      );
+      final document = FlowDocumentCodec.decodeJson(
+        utf8.decode(bundle.artifacts['assets/paywalls/entry.flow.json']!),
+      );
+      expect(document.screenArtifacts, contains('paywall_published_offer'));
+    },
+  );
 
   test('rejects an orphan adapter-only canonical paywall', () async {
     const orphan = '''
@@ -2457,13 +2531,13 @@ final class Complex extends RestageFlow {
     expect(
       result.errors.join('\n'),
       contains('must resolve through one analyzer-authored library'),
-      reason: 'the limitation must stay loud; if this starts passing, '
+      reason:
+          'the limitation must stay loud; if this starts passing, '
           're-exports became supported and this pin should be retired',
     );
   });
 
-  test(
-      'a same-named screen in another library does not capture a modern '
+  test('a same-named screen in another library does not capture a modern '
       'handle reference', () async {
     // Screen references match by CLASS NAME, so two classes both called
     // `Welcome` are both candidates and only the owning library separates
@@ -2556,7 +2630,8 @@ final class Complex extends RestageFlow {
     expect(
       result.succeeded,
       isTrue,
-      reason: 'a same-named screen the flow never imports must not make the '
+      reason:
+          'a same-named screen the flow never imports must not make the '
           'reference ambiguous:\n${result.errors.join('\n')}',
     );
     expect(
@@ -2629,8 +2704,8 @@ final class Complex extends RestageFlow {
     );
     expect(
       utf8.decode(
-        bundle.ownedOutputs[
-            'lib/journeys/restage.generated/complex.restage.g.dart']!,
+        bundle
+            .ownedOutputs['lib/journeys/restage.generated/complex.restage.g.dart']!,
       ),
       contains('SurfaceFlowRef<ComplexResult>'),
     );
@@ -2698,7 +2773,8 @@ final class WelcomeFlow extends RestageFlow {
     expect(
       bundle.borrowedArtifacts.keys,
       containsAll(<String>['assets/onboarding/flows/welcome_flow.flow.json']),
-      reason: 'the aggregate validates legacy closure bytes without '
+      reason:
+          'the aggregate validates legacy closure bytes without '
           'claiming a second writer',
     );
     expect(
@@ -2742,8 +2818,7 @@ final class WelcomeFlow extends RestageFlow {
     );
   });
 
-  test(
-      'keeps same-named advanced-flow screens distinct by resolved library '
+  test('keeps same-named advanced-flow screens distinct by resolved library '
       'and surface', () async {
     const onboardingScreen = '''
 import 'package:flutter/material.dart';
@@ -2860,8 +2935,8 @@ final class MessageAdvanced extends RestageFlow {
     );
     final onboardingDocument = FlowDocumentCodec.decodeJson(
       utf8.decode(
-        bundle.artifacts[
-            'assets/onboarding/flows/onboarding_advanced.flow.json']!,
+        bundle
+            .artifacts['assets/onboarding/flows/onboarding_advanced.flow.json']!,
       ),
     );
     final messageDocument = FlowDocumentCodec.decodeJson(
@@ -2877,8 +2952,7 @@ final class MessageAdvanced extends RestageFlow {
     );
   });
 
-  test(
-      'admits canonical libraries under generated while excluding generated '
+  test('admits canonical libraries under generated while excluding generated '
       'and story Dart', () async {
     const screen = '''
 import 'package:flutter/material.dart';
@@ -2939,8 +3013,7 @@ final class Ignored extends StatelessWidget {
     );
   });
 
-  test('propagates authored standalone minClient above a derived floor',
-      () async {
+  test('propagates authored standalone minClient above a derived floor', () async {
     const screen = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -2972,16 +3045,18 @@ final class MinimumNotice extends StatelessWidget {
     final bundle = _readBundle(readerWriter);
     final publication = bundle.manifest!.publications.single.publication;
     expect(publication.capabilities!.builtInFloor, 3);
-    final sidecar = jsonDecode(
-      utf8.decode(
-        bundle.artifacts[
-            'assets/general/screens/minimum_notice.capability.json']!,
-      ),
-    ) as Map<String, Object?>;
+    final sidecar =
+        jsonDecode(
+              utf8.decode(
+                bundle
+                    .artifacts['assets/general/screens/minimum_notice.capability.json']!,
+              ),
+            )
+            as Map<String, Object?>;
     expect((sidecar['manifest']! as Map<Object?, Object?>)['builtInFloor'], 3);
     final generatedPart = utf8.decode(
-      bundle.ownedOutputs[
-          'lib/features/restage.generated/minimum_notice.restage.g.dart']!,
+      bundle
+          .ownedOutputs['lib/features/restage.generated/minimum_notice.restage.g.dart']!,
     );
     expect(generatedPart, contains('builtInFloor: 3'));
     // A categorized screen carries its authored floor on the handle's
@@ -2991,9 +3066,10 @@ final class MinimumNotice extends StatelessWidget {
     expect(generatedPart, contains('builtInFloor: 3'));
   });
 
-  test('propagates authored embedded-screen minClient into the flow document',
-      () async {
-    const screen = '''
+  test(
+    'propagates authored embedded-screen minClient into the flow document',
+    () async {
+      const screen = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -3009,7 +3085,7 @@ final class MinimumNotice extends StatelessWidget {
   Widget build(BuildContext context) => const Text('Minimum client');
 }
 ''';
-    const flow = '''
+      const flow = '''
 import 'package:restage/restage.dart';
 
 import '../screens/minimum_notice.dart' as notice;
@@ -3035,40 +3111,45 @@ final class MinimumFlow extends RestageFlow {
   }
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      const <String, String>{
-        'apps_examples|lib/screens/minimum_notice.dart': screen,
-        'apps_examples|lib/flows/minimum_flow.dart': flow,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        const <String, String>{
+          'apps_examples|lib/screens/minimum_notice.dart': screen,
+          'apps_examples|lib/flows/minimum_flow.dart': flow,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = _readBundle(readerWriter);
-    final document = FlowDocumentCodec.decodeJson(
-      utf8.decode(
-        bundle.artifacts['assets/general/flows/minimum_flow.flow.json']!,
-      ),
-    );
-    expect(document.minClient, 3);
-    expect(document.screenArtifacts['minimum_notice']!.minClient, 3);
-    final sidecar = jsonDecode(
-      utf8.decode(
-        bundle.artifacts[
-            'assets/general/screens/minimum_notice.capability.json']!,
-      ),
-    ) as Map<String, Object?>;
-    expect((sidecar['manifest']! as Map<Object?, Object?>)['builtInFloor'], 3);
-  });
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      final document = FlowDocumentCodec.decodeJson(
+        utf8.decode(
+          bundle.artifacts['assets/general/flows/minimum_flow.flow.json']!,
+        ),
+      );
+      expect(document.minClient, 3);
+      expect(document.screenArtifacts['minimum_notice']!.minClient, 3);
+      final sidecar =
+          jsonDecode(
+                utf8.decode(
+                  bundle
+                      .artifacts['assets/general/screens/minimum_notice.capability.json']!,
+                ),
+              )
+              as Map<String, Object?>;
+      expect(
+        (sidecar['manifest']! as Map<Object?, Object?>)['builtInFloor'],
+        3,
+      );
+    },
+  );
 
-  test(
-      'scheduler accepts a flat flow whose aggregate floor exceeds its '
+  test('scheduler accepts a flat flow whose aggregate floor exceeds its '
       'authored screen reference floor', () async {
     const screen = '''
 import 'package:flutter/material.dart';
@@ -3143,16 +3224,18 @@ final class AdvancedTrigger extends RestageFlow {
 
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
     final bundle = _readBundle(readerWriter);
-    final sidecar = jsonDecode(
-      utf8.decode(
-        base64Decode(
-          variantBytes(
-            bundle.artifacts,
-            'assets/general/screens/derived_floor.capability.json',
-          ).first,
-        ),
-      ),
-    ) as Map<String, Object?>;
+    final sidecar =
+        jsonDecode(
+              utf8.decode(
+                base64Decode(
+                  variantBytes(
+                    bundle.artifacts,
+                    'assets/general/screens/derived_floor.capability.json',
+                  ).first,
+                ),
+              ),
+            )
+            as Map<String, Object?>;
     final effectiveFloor =
         (sidecar['manifest']! as Map<Object?, Object?>)['builtInFloor']! as int;
     expect(effectiveFloor, greaterThan(1));
@@ -3178,8 +3261,7 @@ final class AdvancedTrigger extends RestageFlow {
     );
   });
 
-  test(
-      'advanced parent consumes an arbitrary-path canonical flat child '
+  test('advanced parent consumes an arbitrary-path canonical flat child '
       'document by normalized identity', () async {
     const screen = '''
 import 'package:flutter/material.dart';
@@ -3294,14 +3376,16 @@ final class FlatParent extends RestageFlow {
     expect(childState.flow, 'flat_leaf');
     expect(childState.contentHash, FlowContentHash.compute(childBytes));
     final generated = utf8.decode(
-      bundle.ownedOutputs[
-          'lib/a_parents/restage.generated/flat_parent.restage.g.dart']!,
+      bundle
+          .ownedOutputs['lib/a_parents/restage.generated/flat_parent.restage.g.dart']!,
     );
     final compiledDocuments = RegExp(r"documentJson:\s*'((?:\\.|[^'\\])*)'")
         .allMatches(generated)
         .map(
           (match) => FlowDocumentCodec.decodeJson(
-            match.group(1)!.replaceAllMapped(
+            match
+                .group(1)!
+                .replaceAllMapped(
                   RegExp(r'\\(.)'),
                   (escape) => escape.group(1)!,
                 ),
@@ -3323,8 +3407,7 @@ final class FlatParent extends RestageFlow {
     );
   });
 
-  test(
-      'advanced parent consumes an arbitrary-path canonical advanced child '
+  test('advanced parent consumes an arbitrary-path canonical advanced child '
       'document by normalized identity', () async {
     const screen = '''
 import 'package:flutter/material.dart';
@@ -3444,9 +3527,10 @@ final class AdvancedParent extends RestageFlow {
     expect(childState.contentHash, FlowContentHash.compute(childBytes));
   });
 
-  test('rejects a same-id cross-surface child from an advanced parent',
-      () async {
-    const screen = '''
+  test(
+    'rejects a same-id cross-surface child from an advanced parent',
+    () async {
+      const screen = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -3462,7 +3546,7 @@ final class CrossSurfaceEntry extends StatelessWidget {
   Widget build(BuildContext context) => const Text('Cross surface entry');
 }
 ''';
-    const onboardingChild = '''
+      const onboardingChild = '''
 import 'package:restage/restage.dart';
 import 'shared/cross_surface_entry.dart';
 part 'restage.generated/onboarding_child.restage.g.dart';
@@ -3473,7 +3557,7 @@ const onboardingChild = FlowDefinition(
   transitions: [Transition.complete(CrossSurfaceEntry.next)],
 );
 ''';
-    const messageChild = '''
+      const messageChild = '''
 import 'package:restage/restage.dart';
 import 'shared/cross_surface_entry.dart';
 part 'restage.generated/message_child.restage.g.dart';
@@ -3484,7 +3568,7 @@ const messageChild = FlowDefinition(
   transitions: [Transition.complete(CrossSurfaceEntry.next)],
 );
 ''';
-    const parent = '''
+      const parent = '''
 import 'package:restage/restage.dart';
 import 'shared/cross_surface_entry.dart';
 part 'restage.generated/cross_surface_parent.restage.g.dart';
@@ -3531,34 +3615,34 @@ final class CrossSurfaceParent extends RestageFlow {
   }
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      const <String, String>{
-        'apps_examples|lib/shared/cross_surface_entry.dart': screen,
-        'apps_examples|lib/onboarding_child.dart': onboardingChild,
-        'apps_examples|lib/message_child.dart': messageChild,
-        'apps_examples|lib/cross_surface_parent.dart': parent,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        const <String, String>{
+          'apps_examples|lib/shared/cross_surface_entry.dart': screen,
+          'apps_examples|lib/onboarding_child.dart': onboardingChild,
+          'apps_examples|lib/message_child.dart': messageChild,
+          'apps_examples|lib/cross_surface_parent.dart': parent,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    expect(result.succeeded, isFalse);
-    expect(
-      result.errors.join('\n'),
-      contains(
-        'Subflow child message/shared_child cannot be included in a '
-        'onboarding flow.',
-      ),
-    );
-  });
+      expect(result.succeeded, isFalse);
+      expect(
+        result.errors.join('\n'),
+        contains(
+          'Subflow child message/shared_child cannot be included in a '
+          'onboarding flow.',
+        ),
+      );
+    },
+  );
 
-  test(
-      'canonical class flow embeds an arbitrary-path roster paywall exact '
+  test('canonical class flow embeds an arbitrary-path roster paywall exact '
       'aggregate artifact', () async {
     const paywall = '''
 import 'package:flutter/material.dart';
@@ -3620,9 +3704,11 @@ final class OfferGate extends RestageFlow {
     const adapterSidecarPath =
         'assets/paywalls/screens/paywall_premium_offer.capability.json';
     final adapterBlob = bundle.artifacts[adapterBlobPath]!;
-    final sidecar = jsonDecode(
-      utf8.decode(bundle.artifacts[adapterSidecarPath]!),
-    ) as Map<String, Object?>;
+    final sidecar =
+        jsonDecode(
+              utf8.decode(bundle.artifacts[adapterSidecarPath]!),
+            )
+            as Map<String, Object?>;
     final builtInFloor =
         (sidecar['manifest']! as Map<Object?, Object?>)['builtInFloor']! as int;
     final document = FlowDocumentCodec.decodeJson(
@@ -3643,12 +3729,12 @@ const _policyProbeSource = '';
 
 final _alternateMeasurementPolicy =
     MeasurementCompilerPolicyInput.fromBuilderOptions(
-  const BuilderOptions({
-    kMeasurementMinimumClientOption: 2,
-    kMeasurementPrivacyPolicyRevisionOption: 'privacy.test-v2',
-    kMeasurementCollectionBudgetRevisionOption: 'budget.test-v2',
-  }),
-);
+      const BuilderOptions({
+        kMeasurementMinimumClientOption: 2,
+        kMeasurementPrivacyPolicyRevisionOption: 'privacy.test-v2',
+        kMeasurementCollectionBudgetRevisionOption: 'budget.test-v2',
+      }),
+    );
 
 const _hostValuesOpen =
     '...restageHostValues(<String, (String, Object? Function())>{';
@@ -3686,11 +3772,13 @@ Future<String> _generatedPart(
 
   expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
   if (expectedFloor != null) {
-    final bytes = _readBundle(readerWriter)
-        .artifacts['assets/onboarding/screens/$name.capability.json'];
+    final bytes = _readBundle(
+      readerWriter,
+    ).artifacts['assets/onboarding/screens/$name.capability.json'];
     expect(bytes, isNotNull);
     final sidecar = CapabilitySidecar.fromJson(
-        jsonDecode(utf8.decode(bytes!)) as Map<String, Object?>);
+      jsonDecode(utf8.decode(bytes!)) as Map<String, Object?>,
+    );
     expect(sidecar.manifest.builtInFloor, expectedFloor);
   }
   final descriptor = readerWriter.testing.readString(
@@ -3762,8 +3850,8 @@ final class _PolicyProbe implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$package$': ['lib/measurement_policy_probe.txt'],
-      };
+    r'$package$': ['lib/measurement_policy_probe.txt'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

@@ -43,9 +43,9 @@ final class FlutterIconFontSubsetter implements IconFontSubsetter {
     String? flutterRoot,
     String? appRoot,
     String? Function(String package)? packageRoot,
-  })  : _flutterRoot = flutterRoot,
-        _appRoot = appRoot,
-        _packageRoot = packageRoot ?? _resolvePackageRoot;
+  }) : _flutterRoot = flutterRoot,
+       _appRoot = appRoot,
+       _packageRoot = packageRoot ?? _resolvePackageRoot;
 
   /// One subsetter per build process, so each subset is computed once.
   static final FlutterIconFontSubsetter shared = FlutterIconFontSubsetter();
@@ -64,7 +64,8 @@ final class FlutterIconFontSubsetter implements IconFontSubsetter {
     final source = sourceFont(family: family, fontPackage: fontPackage);
     final sorted = codePoints.toList()..sort();
     final stat = source.statSync();
-    final key = '${source.path}\u0000${stat.size}\u0000'
+    final key =
+        '${source.path}\u0000${stat.size}\u0000'
         '${stat.modified.microsecondsSinceEpoch}\u0000${sorted.join(' ')}';
     final cached = _subsets[key];
     if (cached != null) return Uint8List.fromList(cached);
@@ -72,8 +73,10 @@ final class FlutterIconFontSubsetter implements IconFontSubsetter {
     final tool = fontSubsetTool();
     final directory = Directory.systemTemp.createTempSync('restage_icons_');
     try {
-      final output =
-          p.join(directory.path, 'subset${p.extension(source.path)}');
+      final output = p.join(
+        directory.path,
+        'subset${p.extension(source.path)}',
+      );
       final result = _runWithInput(
         tool.path,
         [output, source.path],
@@ -225,7 +228,8 @@ ProcessResult _runWithInput(
   )..writeAsStringSync('$input\n');
   try {
     if (Platform.isWindows) {
-      final command = '"$executable" ${arguments.map((a) => '"$a"').join(' ')}'
+      final command =
+          '"$executable" ${arguments.map((a) => '"$a"').join(' ')}'
           ' < "${inputFile.path}"';
       return Process.runSync('cmd', ['/c', command]);
     }

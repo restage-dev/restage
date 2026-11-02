@@ -9,7 +9,7 @@ String? emitOptionalNativeValue(
   required String Function(Expression) translateColor,
   required Expression Function(Expression) resolve,
   required String? Function(Expression, String Function(Expression))
-      translateConstant,
+  translateConstant,
   String? Function(Expression, String)? translateBinding,
   String? expected,
 }) {
@@ -37,13 +37,13 @@ String? emitOptionalNativeValue(
         : null;
     final loader =
         owner?.library.identifier == 'package:flutter_svg/src/loaders.dart' &&
-            const {
-              'SvgStringLoader',
-              'SvgBytesLoader',
-              'SvgAssetLoader',
-              'SvgNetworkLoader',
-              'SvgFileLoader'
-            }.contains(owner?.name);
+        const {
+          'SvgStringLoader',
+          'SvgBytesLoader',
+          'SvgAssetLoader',
+          'SvgNetworkLoader',
+          'SvgFileLoader',
+        }.contains(owner?.name);
     if (!loader && (source == null || source == 'dart:core#Map')) return null;
   }
   final constant = translateConstant(
@@ -127,8 +127,9 @@ String? emitOptionalNativeValue(
       ) ??
       translate(value);
   String object(Map<String, String> fields) {
-    final entries =
-        fields.entries.map((field) => '${field.key}: ${field.value}');
+    final entries = fields.entries.map(
+      (field) => '${field.key}: ${field.value}',
+    );
     return '{${entries.join(', ')}}';
   }
 
@@ -197,7 +198,7 @@ String? emitOptionalNativeValue(
         for (final field in named.entries)
           field.key: field.key == 'currentColor'
               ? translateColor(field.value)
-              : data(field.value)
+              : data(field.value),
       },
     );
   }
@@ -229,8 +230,8 @@ String? emitOptionalNativeValue(
         cls.name == 'SvgBytesLoader'
             ? 'dart:typed_data#Uint8List'
             : cls.name == 'SvgFileLoader'
-                ? 'dart:io#File'
-                : null,
+            ? 'dart:io#File'
+            : null,
       ),
       for (final field in named.entries)
         field.key: data(
@@ -238,14 +239,14 @@ String? emitOptionalNativeValue(
           field.key == 'colorMapper'
               ? 'package:flutter_svg/src/loaders.dart#ColorMapper'
               : field.key == 'assetBundle'
-                  ? 'package:flutter/src/services/asset_bundle.dart#AssetBundle'
-                  : field.key == 'httpClient'
-                      ? 'package:http/src/client.dart#Client'
-                      : field.key == 'headers'
-                          ? 'dart:core#Map'
-                          : field.key == 'theme'
-                              ? 'package:flutter_svg/src/loaders.dart#SvgTheme'
-                              : null,
+              ? 'package:flutter/src/services/asset_bundle.dart#AssetBundle'
+              : field.key == 'httpClient'
+              ? 'package:http/src/client.dart#Client'
+              : field.key == 'headers'
+              ? 'dart:core#Map'
+              : field.key == 'theme'
+              ? 'package:flutter_svg/src/loaders.dart#SvgTheme'
+              : null,
         ),
     });
   }

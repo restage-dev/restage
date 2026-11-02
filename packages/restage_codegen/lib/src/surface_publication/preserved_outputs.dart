@@ -12,10 +12,11 @@ import 'package:restage_codegen/src/surface_publication/output_location.dart';
 
 /// Reads a package's previously generated outputs, keyed by package-relative
 /// path.
-typedef PriorGeneratedOutputReader = Future<Map<String, List<int>>> Function(
-  String package,
-  RestageOutputLocationPlan plan,
-);
+typedef PriorGeneratedOutputReader =
+    Future<Map<String, List<int>>> Function(
+      String package,
+      RestageOutputLocationPlan plan,
+    );
 
 /// The prior outputs captured by this build, shared by every builder in it.
 final Resource<RestagePreservedOutputs> restagePreservedOutputsResource =
@@ -89,8 +90,12 @@ Map<String, List<int>> readPriorGeneratedOutputsFromDirectory(
   _collectGeneratedFiles(root, root: root.path, outputs: outputs);
   final portable = Directory(p.join(root.path, plan.outputRoot!));
   if (portable.existsSync()) {
-    _collectGeneratedFiles(portable,
-        root: root.path, outputs: outputs, includeHidden: true);
+    _collectGeneratedFiles(
+      portable,
+      root: root.path,
+      outputs: outputs,
+      includeHidden: true,
+    );
   }
   return outputs;
 }
@@ -105,8 +110,12 @@ void _collectGeneratedFiles(
     final name = p.basename(entity.path);
     if (!includeHidden && (name.startsWith('.') || name == 'build')) continue;
     if (entity is Directory) {
-      _collectGeneratedFiles(entity,
-          root: root, outputs: outputs, includeHidden: includeHidden);
+      _collectGeneratedFiles(
+        entity,
+        root: root,
+        outputs: outputs,
+        includeHidden: includeHidden,
+      );
       continue;
     }
     if (entity is! File) continue;

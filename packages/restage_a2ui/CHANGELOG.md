@@ -1,3 +1,41 @@
+## Unreleased
+
+- **Breaking, unreleased A2UI 1.0 candidate migration:** generate
+  `ComponentImplementation` / `CatalogImplementation` for
+  `a2ui_flutter 0.0.1-wip003` and `a2ui_core ^0.4.0` (Dart >=3.11.0,
+  Flutter >=3.38.0, json_schema_builder >=0.1.7). Regenerate catalogs and
+  migrate cached/producer inputs to generated top-level properties and dynamic
+  `@path`/`@call`. Ordinary names retain `props_<DartName>`; names invalid under
+  upstream UAX31 and the reserved `encoded_` source prefix use
+  `props_encoded_<hex>` (four lowercase digits per UTF-16 code unit). Use the
+  generated schema keys; Dart arguments and nested business-data keys stay exact,
+  except that keys starting with `@` are written as `@@` on the wire.
+- Use standard catalog `instructions` and catalog-level rich definitions.
+  Manual composition must merge `buildRestageCatalogDefinitions()` with items
+  and use a new ID. Invalid component type identifiers and reserved `Surface`
+  fail generation with annotation guidance; native screen IDs remain exact.
+- Reading the removed public `.catalog` field requires explicit selection from
+  `.catalogs` (such as `.single` for a single-catalog host); this is manual.
+- Replace the single `catalog` preflight argument with `catalogs` and ship a
+  tested `dart fix` wrapping its expression in a list. Host API migration and
+  regeneration remain manual. Validate complete v1 cached bundles, explicit
+  catalog overrides, schemas and capability stamps without executing functions.
+  A finished bundle with no surface, an empty surface, a missing root or a
+  dangling child reference is rejected; the `{"messages": [...]}` wrapper is
+  accepted. Pass the processor's `validationConfig` so each message is checked
+  as the processor checks it.
+- A nullable input with a declared default uses it when omitted or when its
+  binding resolves to nothing, including after a user clears a bound value; a
+  literal `null` stays `null`. Without a declared default it is `null`, as Dart
+  gives an omitted nullable parameter. Literal and call write-back values
+  inside a template are stored per row.
+- `json_schema_builder` is now a dev dependency; apps that build generated
+  catalogs declare it themselves.
+- Qualify real MessageProcessor/A2uiSurface rendering, strict rejection before
+  component commit, controlled write-back, rich data and arbitrary children.
+  This candidate is not in the published 0.2.0 / codegen 2.0.0 packages; release
+  versions and upstream stability are a separate release gate.
+
 ## 0.2.0
 
 - Accept constructor-derived custom properties and canonical

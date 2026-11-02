@@ -18,7 +18,8 @@ import 'helpers.dart';
 /// THROWS; drop the map interception and the fallback resolves nothing, so the
 /// field is silently dropped instead. Loud and quiet respectively, which is
 /// why both are asserted rather than one standing in for the other.
-String _nestedWidget(String fieldDeclaration) => '''
+String _nestedWidget(String fieldDeclaration) =>
+    '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   class Entry {
     const Entry({required this.label, required this.meta});
@@ -51,7 +52,8 @@ void main() {
     expect(
       result.structuredTypes,
       isNotEmpty,
-      reason: 'the walk produced nothing, which is what reaching the resolver '
+      reason:
+          'the walk produced nothing, which is what reaching the resolver '
           'fallback does — it throws on an opaque shape and fails the build '
           'before any type is emitted',
     );
@@ -61,7 +63,8 @@ void main() {
     expect(
       fields,
       hasLength(1),
-      reason: 'the field must be materialized by its own arm, not dropped; '
+      reason:
+          'the field must be materialized by its own arm, not dropped; '
           'got ${entry.fields.map((f) => f.name).toList()}',
     );
     expect(fields.single.type, PropertyType.unknown);

@@ -13,70 +13,77 @@ const _policyOptions = BuilderOptions({
 });
 
 void main() {
-  test('route identities do not depend on unpublished local build count',
-      () async {
-    const button = 'FilledButton(onPressed: surfaceEvent(activate), '
-        "child: Text('Go'))";
-    const oneEvent = 'Column(children: [$button])';
-    const twoEvents = 'Column(children: [$button, '
-        "TextButton(onPressed: surfaceEvent(activate), child: Text('Skip'))])";
-    Future<RestageMeasurementCompilerOutputV1> build(
-      String body, [
-      RestageMeasurementCompilerOutputV1? prior,
-    ]) async {
-      final result = await _compile(
-        {
-          'apps_examples|lib/features/first.dart': _screen(body: body),
-        },
-        priorOutput: prior,
+  test(
+    'route identities do not depend on unpublished local build count',
+    () async {
+      const button =
+          'FilledButton(onPressed: surfaceEvent(activate), '
+          "child: Text('Go'))";
+      const oneEvent = 'Column(children: [$button])';
+      const twoEvents =
+          'Column(children: [$button, '
+          "TextButton(onPressed: surfaceEvent(activate), child: Text('Skip'))])";
+      Future<RestageMeasurementCompilerOutputV1> build(
+        String body, [
+        RestageMeasurementCompilerOutputV1? prior,
+      ]) async {
+        final result = await _compile(
+          {
+            'apps_examples|lib/features/first.dart': _screen(body: body),
+          },
+          priorOutput: prior,
+        );
+        expect(
+          result.result.succeeded,
+          isTrue,
+          reason: result.result.errors.join('\n'),
+        );
+        expect(result.output.valid, isTrue);
+        return result.output;
+      }
+
+      final initial = await build(oneEvent);
+      expect(
+        _operations(initial),
+        everyElement(LineageOperation.continueLineage),
+      );
+      final stable = await build(oneEvent, initial);
+      _expectSameRoutes(initial, stable);
+      final added = await build(twoEvents, stable);
+      final addedAgain = await build(twoEvents, added);
+      final addedThird = await build(twoEvents, addedAgain);
+      expect(
+        _operations(added),
+        everyElement(LineageOperation.continueLineage),
       );
       expect(
-        result.result.succeeded,
-        isTrue,
-        reason: result.result.errors.join('\n'),
+        _operations(addedAgain),
+        everyElement(LineageOperation.continueLineage),
       );
-      expect(result.output.valid, isTrue);
-      return result.output;
-    }
-
-    final initial = await build(oneEvent);
-    expect(
-      _operations(initial),
-      everyElement(LineageOperation.continueLineage),
-    );
-    final stable = await build(oneEvent, initial);
-    _expectSameRoutes(initial, stable);
-    final added = await build(twoEvents, stable);
-    final addedAgain = await build(twoEvents, added);
-    final addedThird = await build(twoEvents, addedAgain);
-    expect(_operations(added), everyElement(LineageOperation.continueLineage));
-    expect(
-      _operations(addedAgain),
-      everyElement(LineageOperation.continueLineage),
-    );
-    _expectSameRoutes(added, addedAgain);
-    _expectSameRoutes(addedAgain, addedThird);
-    final removed = await build(oneEvent, addedThird);
-    final removedAgain = await build(oneEvent, removed);
-    final removedThird = await build(oneEvent, removedAgain);
-    expect(
-      _operations(removed),
-      everyElement(LineageOperation.continueLineage),
-    );
-    expect(
-      _operations(removedAgain),
-      everyElement(LineageOperation.continueLineage),
-    );
-    _expectSameRoutes(removed, removedAgain);
-    _expectSameRoutes(removedAgain, removedThird);
-  });
+      _expectSameRoutes(added, addedAgain);
+      _expectSameRoutes(addedAgain, addedThird);
+      final removed = await build(oneEvent, addedThird);
+      final removedAgain = await build(oneEvent, removed);
+      final removedThird = await build(oneEvent, removedAgain);
+      expect(
+        _operations(removed),
+        everyElement(LineageOperation.continueLineage),
+      );
+      expect(
+        _operations(removedAgain),
+        everyElement(LineageOperation.continueLineage),
+      );
+      _expectSameRoutes(removed, removedAgain);
+      _expectSameRoutes(removedAgain, removedThird);
+    },
+  );
 }
 
 Iterable<LineageOperation> _operations(
   RestageMeasurementCompilerOutputV1 output,
-) =>
-    output.publications.single.draft.lineageIntents
-        .map((intent) => intent.operation);
+) => output.publications.single.draft.lineageIntents.map(
+  (intent) => intent.operation,
+);
 
 void _expectSameRoutes(
   RestageMeasurementCompilerOutputV1 first,
@@ -116,10 +123,12 @@ final class FirstScreen extends StatelessWidget {
 }
 
 Future<
-    ({
-      TestBuilderResult result,
-      RestageMeasurementCompilerOutputV1 output,
-    })> _compile(
+  ({
+    TestBuilderResult result,
+    RestageMeasurementCompilerOutputV1 output,
+  })
+>
+_compile(
   Map<String, String> sources, {
   RestageMeasurementCompilerOutputV1? priorOutput,
 }) async {

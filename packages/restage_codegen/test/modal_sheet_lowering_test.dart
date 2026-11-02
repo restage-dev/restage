@@ -16,11 +16,12 @@ const _resultDropMessage =
 
 void main() {
   group('Modal sheet lowering recognition', () {
-    test('admits expression-bodied showModalBottomSheet on onPressed',
-        () async {
-      final result = await _classifyFlutterFixture(
-        'AcmeModalButton',
-        '''
+    test(
+      'admits expression-bodied showModalBottomSheet on onPressed',
+      () async {
+        final result = await _classifyFlutterFixture(
+          'AcmeModalButton',
+          '''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -29,14 +30,15 @@ ElevatedButton(
   child: const SizedBox(),
 )
 ''',
-      );
+        );
 
-      _expectRecognisedModalSheet(
-        result,
-        widgetName: 'AcmeModalButton',
-        functionName: 'showModalBottomSheet',
-      );
-    });
+        _expectRecognisedModalSheet(
+          result,
+          widgetName: 'AcmeModalButton',
+          functionName: 'showModalBottomSheet',
+        );
+      },
+    );
 
     test('admits block-bodied showModalBottomSheet on onPressed', () async {
       final result = await _classifyFlutterFixture(
@@ -129,7 +131,7 @@ InkWell(
     for (final entry in <String, String>{
       'async expression body':
           '() async => showModalBottomSheet<void>(context: context, '
-              'builder: (_) => const SizedBox())',
+          'builder: (_) => const SizedBox())',
       'await in async block': '''
 () async {
   await showModalBottomSheet<void>(
@@ -138,7 +140,8 @@ InkWell(
   );
 }
 ''',
-      'then chain': '() => showModalBottomSheet<void>(context: context, '
+      'then chain':
+          '() => showModalBottomSheet<void>(context: context, '
           'builder: (_) => const SizedBox()).then((_) {})',
       'assigned result': '''
 () {
@@ -167,11 +170,12 @@ InkWell(
       });
     }
 
-    test('multi-statement body that calls a sheet is a named fatal result-drop',
-        () async {
-      final classification = await _classifyFlutterCallback(
-        'AcmeMultiStatement',
-        '''
+    test(
+      'multi-statement body that calls a sheet is a named fatal result-drop',
+      () async {
+        final classification = await _classifyFlutterCallback(
+          'AcmeMultiStatement',
+          '''
 () {
   showModalBottomSheet<void>(
     context: context,
@@ -180,33 +184,37 @@ InkWell(
   const SizedBox();
 }
 ''',
-      );
+        );
 
-      _expectModalSheetFormUnsupported(classification);
-    });
+        _expectModalSheetFormUnsupported(classification);
+      },
+    );
   });
 
   group('Modal sheet lowering non-recognition', () {
-    test('non-show closure at onPressed keeps the existing unclassifiable path',
-        () async {
-      final classification = await _classifyFlutterCallback(
-        'AcmeDebugButton',
-        "() => debugPrint('tap')",
-      );
+    test(
+      'non-show closure at onPressed keeps the existing unclassifiable path',
+      () async {
+        final classification = await _classifyFlutterCallback(
+          'AcmeDebugButton',
+          "() => debugPrint('tap')",
+        );
 
-      expect(classification, isA<UnclassifiableWidget>());
-      expect(
-        (classification as UnclassifiableWidget).diagnosticCode.name,
-        isNot('modalSheetFormUnsupported'),
-      );
-      expect(classification.reason, contains('inline closure'));
-    });
+        expect(classification, isA<UnclassifiableWidget>());
+        expect(
+          (classification as UnclassifiableWidget).diagnosticCode.name,
+          isNot('modalSheetFormUnsupported'),
+        );
+        expect(classification.reason, contains('inline closure'));
+      },
+    );
 
-    test('showModalBottomSheet in an unsupported slot uses the named reason',
-        () async {
-      final result = await _classifyFlutterFixture(
-        'AcmeLongPressSheet',
-        '''
+    test(
+      'showModalBottomSheet in an unsupported slot uses the named reason',
+      () async {
+        final result = await _classifyFlutterFixture(
+          'AcmeLongPressSheet',
+          '''
 GestureDetector(
   onLongPress: () => showModalBottomSheet<void>(
     context: context,
@@ -215,23 +223,26 @@ GestureDetector(
   child: const SizedBox(),
 )
 ''',
-      );
-      const key = 'package:apps_examples/modal_sheet.dart#AcmeLongPressSheet';
-      final classification = result.classifications[key];
+        );
+        const key = 'package:apps_examples/modal_sheet.dart#AcmeLongPressSheet';
+        final classification = result.classifications[key];
 
-      expect(classification, isA<UnclassifiableWidget>());
-      final unclassifiable = classification! as UnclassifiableWidget;
-      expect(
-        unclassifiable.diagnosticCode.name,
-        'modalSheetFormUnsupported',
-      );
-    });
+        expect(classification, isA<UnclassifiableWidget>());
+        final unclassifiable = classification! as UnclassifiableWidget;
+        expect(
+          unclassifiable.diagnosticCode.name,
+          'modalSheetFormUnsupported',
+        );
+      },
+    );
 
-    test('non-Flutter showModalBottomSheet look-alike is not recognized',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/modal_sheet.dart': '''
+    test(
+      'non-Flutter showModalBottomSheet look-alike is not recognized',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/modal_sheet.dart':
+                '''
 $kClassifierStubs
 
 class SizedBox extends StatelessWidget {
@@ -268,18 +279,19 @@ class AcmeLookalike extends StatelessWidget {
   );
 }
 ''',
-        },
-        inputPath: 'lib/modal_sheet.dart',
-        widgetName: 'AcmeLookalike',
-        catalog: _localButtonCatalog,
-      );
+          },
+          inputPath: 'lib/modal_sheet.dart',
+          widgetName: 'AcmeLookalike',
+          catalog: _localButtonCatalog,
+        );
 
-      expect(result, isA<UnclassifiableWidget>());
-      expect(
-        (result as UnclassifiableWidget).diagnosticCode.name,
-        isNot('modalSheetFormUnsupported'),
-      );
-    });
+        expect(result, isA<UnclassifiableWidget>());
+        expect(
+          (result as UnclassifiableWidget).diagnosticCode.name,
+          isNot('modalSheetFormUnsupported'),
+        );
+      },
+    );
   });
 
   group('IssueCode.modalSheetFormUnsupported', () {
@@ -290,10 +302,11 @@ class AcmeLookalike extends StatelessWidget {
   });
 
   group('Modal sheet lowering emit', () {
-    test('stateless root mints state, rewrites trigger, and root-hoists',
-        () async {
-      final result = _translateModalRoot(
-        await _parseFlutterRoot('''
+    test(
+      'stateless root mints state, rewrites trigger, and root-hoists',
+      () async {
+        final result = _translateModalRoot(
+          await _parseFlutterRoot('''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -302,37 +315,39 @@ ElevatedButton(
   child: const Text('Open'),
 )
 '''),
-      );
+        );
 
-      expect(result.issues, isEmpty);
-      expect(result.rootWidgetState, {'_restageSheet0Open': 'false'});
-      expect(result.dsl, startsWith('RestageModalSheet('));
-      expect(result.dsl, contains('open: state._restageSheet0Open'));
-      expect(result.dsl, contains('underlay: ElevatedButton('));
-      expect(
-        result.dsl,
-        contains('onPressed: set state._restageSheet0Open = true'),
-      );
-      expect(result.dsl, contains('child: Text(text: "Sheet body")'));
-      // showModalBottomSheet pins the Material library per source function,
-      // matching Flutter (Material on every platform).
-      expect(result.dsl, contains('presentation: "material"'));
-      expect(
-        result.dsl,
-        contains('onSheetDismissed: set state._restageSheet0Open = false'),
-      );
-      fmt.parseLibraryFile(
-        emitPaywallLibrary(
+        expect(result.issues, isEmpty);
+        expect(result.rootWidgetState, {'_restageSheet0Open': 'false'});
+        expect(result.dsl, startsWith('RestageModalSheet('));
+        expect(result.dsl, contains('open: state._restageSheet0Open'));
+        expect(result.dsl, contains('underlay: ElevatedButton('));
+        expect(
           result.dsl,
-          rootWidgetState: result.rootWidgetState,
-        ),
-      );
-    });
+          contains('onPressed: set state._restageSheet0Open = true'),
+        );
+        expect(result.dsl, contains('child: Text(text: "Sheet body")'));
+        // showModalBottomSheet pins the Material library per source function,
+        // matching Flutter (Material on every platform).
+        expect(result.dsl, contains('presentation: "material"'));
+        expect(
+          result.dsl,
+          contains('onSheetDismissed: set state._restageSheet0Open = false'),
+        );
+        fmt.parseLibraryFile(
+          emitPaywallLibrary(
+            result.dsl,
+            rootWidgetState: result.rootWidgetState,
+          ),
+        );
+      },
+    );
 
-    test('synthetic flag bumps when author state already uses the name',
-        () async {
-      final result = _translateModalRoot(
-        await _parseFlutterRoot('''
+    test(
+      'synthetic flag bumps when author state already uses the name',
+      () async {
+        final result = _translateModalRoot(
+          await _parseFlutterRoot('''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -341,31 +356,33 @@ ElevatedButton(
   child: const Text('Open'),
 )
 '''),
-        rootState: const [
-          CustomWidgetStateField(
-            name: '_restageSheet0Open',
-            isNumeric: false,
-            initialValue: false,
-          ),
-        ],
-      );
+          rootState: const [
+            CustomWidgetStateField(
+              name: '_restageSheet0Open',
+              isNumeric: false,
+              initialValue: false,
+            ),
+          ],
+        );
 
-      expect(result.issues, isEmpty);
-      expect(
-        result.rootWidgetState,
-        {'_restageSheet0Open': 'false', '_restageSheet1Open': 'false'},
-      );
-      expect(result.dsl, contains('open: state._restageSheet1Open'));
-      expect(
-        result.dsl,
-        contains('onPressed: set state._restageSheet1Open = true'),
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(
+          result.rootWidgetState,
+          {'_restageSheet0Open': 'false', '_restageSheet1Open': 'false'},
+        );
+        expect(result.dsl, contains('open: state._restageSheet1Open'));
+        expect(
+          result.dsl,
+          contains('onPressed: set state._restageSheet1Open = true'),
+        );
+      },
+    );
 
-    test('mapped styling args and AnimationStyle slots emit in catalog order',
-        () async {
-      final result = _translateModalRoot(
-        await _parseFlutterRoot('''
+    test(
+      'mapped styling args and AnimationStyle slots emit in catalog order',
+      () async {
+        final result = _translateModalRoot(
+          await _parseFlutterRoot('''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -380,44 +397,47 @@ ElevatedButton(
   child: const Text('Open'),
 )
 '''),
-      );
+        );
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, contains('isDismissible: false'));
-      expect(result.dsl, contains('backgroundColor: 0xFFFFFFFF'));
-      expect(result.dsl, contains('enterDuration: 300'));
-      expect(result.dsl, contains('enterCurve: "easeIn"'));
-      expect(
-        result.dsl.indexOf('open:'),
-        lessThan(result.dsl.indexOf('child: Text(text: "Sheet body")')),
-      );
-      expect(
-        result.dsl.indexOf('child: Text(text: "Sheet body")'),
-        lessThan(result.dsl.indexOf('isDismissible: false')),
-      );
-      expect(
-        result.dsl.indexOf('underlay:'),
-        lessThan(result.dsl.indexOf('onSheetDismissed:')),
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, contains('isDismissible: false'));
+        expect(result.dsl, contains('backgroundColor: 0xFFFFFFFF'));
+        expect(result.dsl, contains('enterDuration: 300'));
+        expect(result.dsl, contains('enterCurve: "easeIn"'));
+        expect(
+          result.dsl.indexOf('open:'),
+          lessThan(result.dsl.indexOf('child: Text(text: "Sheet body")')),
+        );
+        expect(
+          result.dsl.indexOf('child: Text(text: "Sheet body")'),
+          lessThan(result.dsl.indexOf('isDismissible: false')),
+        );
+        expect(
+          result.dsl.indexOf('underlay:'),
+          lessThan(result.dsl.indexOf('onSheetDismissed:')),
+        );
+      },
+    );
 
-    test('recognized modal triggers retain strict animation argument checks',
-        () async {
-      for (final (style, reason) in [
-        (
-          'AnimationStyle(duration: Duration(milliseconds: DateTime.now().millisecond))',
-          'must be a const integer',
-        ),
-        (
-          'const AnimationStyle(duration: Duration(microseconds: 1))',
-          'Sub-millisecond Duration',
-        ),
-        (
-          'const AnimationStyle(duration: Duration(milliseconds: 300), curve: Cubic(0.1, 0.2, 0.3, 0.4))',
-          'must be a supported Curves.* value',
-        ),
-      ]) {
-        final result = _translateModalRoot(await _parseFlutterRoot('''
+    test(
+      'recognized modal triggers retain strict animation argument checks',
+      () async {
+        for (final (style, reason) in [
+          (
+            'AnimationStyle(duration: Duration(milliseconds: DateTime.now().millisecond))',
+            'must be a const integer',
+          ),
+          (
+            'const AnimationStyle(duration: Duration(microseconds: 1))',
+            'Sub-millisecond Duration',
+          ),
+          (
+            'const AnimationStyle(duration: Duration(milliseconds: 300), curve: Cubic(0.1, 0.2, 0.3, 0.4))',
+            'must be a supported Curves.* value',
+          ),
+        ]) {
+          final result = _translateModalRoot(
+            await _parseFlutterRoot('''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -426,16 +446,21 @@ ElevatedButton(
   ),
   child: const Text('Open'),
 )
-'''));
-        expect(result.dsl, isEmpty, reason: style);
-        expect(result.issues.map((issue) => issue.message).join('\n'),
+'''),
+          );
+          expect(result.dsl, isEmpty, reason: style);
+          expect(
+            result.issues.map((issue) => issue.message).join('\n'),
             contains(reason),
-            reason: style);
-      }
-    });
+            reason: style,
+          );
+        }
+      },
+    );
 
     test('recognized sheets do not admit temporal event arguments', () async {
-      final result = _translateModalRoot(await _parseFlutterRoot(r'''
+      final result = _translateModalRoot(
+        await _parseFlutterRoot(r'''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -447,14 +472,18 @@ ElevatedButton(
   ),
   child: const Text('Open'),
 )
-'''));
+'''),
+      );
       expect(result.dsl, isEmpty);
-      expect(result.issues.map((issue) => issue.message).join('\n'),
-          contains('native callback binding'));
+      expect(
+        result.issues.map((issue) => issue.message).join('\n'),
+        contains('native callback binding'),
+      );
     });
 
     test('sheet bodies keep their own Duration-bearing widgets', () async {
-      final result = _translateModalRoot(await _parseFlutterRoot('''
+      final result = _translateModalRoot(
+        await _parseFlutterRoot('''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -466,9 +495,12 @@ ElevatedButton(
   ),
   child: const Text('Open'),
 )
-'''));
-      expect(result.issues.map((issue) => issue.message).join('\n'),
-          isNot(contains('native callback binding')));
+'''),
+      );
+      expect(
+        result.issues.map((issue) => issue.message).join('\n'),
+        isNot(contains('native callback binding')),
+      );
     });
 
     test('defer-only material args fatal-defer loudly', () async {
@@ -516,8 +548,7 @@ ElevatedButton(
       expect(result.dsl, contains('presentation: "cupertino"'));
     });
 
-    test('a catalog RestageModalSheet without presentation fatal-defers',
-        () async {
+    test('a catalog RestageModalSheet without presentation fatal-defers', () async {
       // The per-function presentation is load-bearing: a silently-dropped
       // slot degrades to the adaptive default and renders the wrong
       // platform's sheet. If the loaded catalog lacks the slot (a codegen /
@@ -557,11 +588,12 @@ ElevatedButton(
         library: WidgetLibrary.material,
       );
 
-      final result = ExpressionTranslator(
-        catalog: catalogWithoutPresentation,
-        helpers: HelperRegistry(),
-      ).translate(
-        await _parseFlutterRoot('''
+      final result =
+          ExpressionTranslator(
+            catalog: catalogWithoutPresentation,
+            helpers: HelperRegistry(),
+          ).translate(
+            await _parseFlutterRoot('''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -570,7 +602,7 @@ ElevatedButton(
   child: const Text('Open'),
 )
 '''),
-      );
+          );
 
       expect(result.dsl, isEmpty);
       expect(
@@ -650,11 +682,12 @@ ElevatedButton(
   });
 
   group('Modal sheet lowering correctness-boundary hardening', () {
-    test('a nested result-bearing sheet call is a named fatal result-drop',
-        () async {
-      final classification = await _classifyFlutterCallback(
-        'AcmeNestedSheet',
-        '''
+    test(
+      'a nested result-bearing sheet call is a named fatal result-drop',
+      () async {
+        final classification = await _classifyFlutterCallback(
+          'AcmeNestedSheet',
+          '''
 () => showModalBottomSheet<void>(
   context: context,
   barrierLabel: showModalBottomSheet<void>(
@@ -664,35 +697,39 @@ ElevatedButton(
   builder: (_) => const SizedBox(),
 )
 ''',
-      );
+        );
 
-      _expectModalSheetFormUnsupported(classification);
-    });
+        _expectModalSheetFormUnsupported(classification);
+      },
+    );
 
-    test('a dynamic-receiver show*Sheet look-alike is not recognized',
-        () async {
-      final classification = await _classifyFlutterCallback(
-        'AcmeDynamicReceiver',
-        '''
+    test(
+      'a dynamic-receiver show*Sheet look-alike is not recognized',
+      () async {
+        final classification = await _classifyFlutterCallback(
+          'AcmeDynamicReceiver',
+          '''
 () => (context as dynamic).showModalBottomSheet(
   context: context,
   builder: (_) => const SizedBox(),
 )
 ''',
-      );
+        );
 
-      expect(classification, isA<UnclassifiableWidget>());
-      expect(
-        (classification as UnclassifiableWidget).diagnosticCode.name,
-        isNot('modalSheetFormUnsupported'),
-      );
-    });
+        expect(classification, isA<UnclassifiableWidget>());
+        expect(
+          (classification as UnclassifiableWidget).diagnosticCode.name,
+          isNot('modalSheetFormUnsupported'),
+        );
+      },
+    );
 
-    test('a definite blocker wins over a result-drop sheet diagnostic',
-        () async {
-      final result = await _classifyFlutterFixture(
-        'AcmeBlockerWins',
-        '''
+    test(
+      'a definite blocker wins over a result-drop sheet diagnostic',
+      () async {
+        final result = await _classifyFlutterFixture(
+          'AcmeBlockerWins',
+          '''
 ElevatedButton(
   onPressed: () {
     final r = showModalBottomSheet<void>(
@@ -703,11 +740,12 @@ ElevatedButton(
   child: const CustomPaint(),
 )
 ''',
-      );
-      const key = 'package:apps_examples/modal_sheet.dart#AcmeBlockerWins';
+        );
+        const key = 'package:apps_examples/modal_sheet.dart#AcmeBlockerWins';
 
-      expect(result.classifications[key], isA<ImperativeWidget>());
-    });
+        expect(result.classifications[key], isA<ImperativeWidget>());
+      },
+    );
 
     test('a parenthesized single sheet call is recognized', () async {
       final result = await _classifyFlutterFixture(
@@ -759,7 +797,8 @@ Future<ClassificationResult> _classifyFlutterFixture(
 ) {
   return classifyFixtureResult(
     {
-      'lib/modal_sheet.dart': '''
+      'lib/modal_sheet.dart':
+          '''
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart' as cupertino;

@@ -55,8 +55,7 @@ const _libraryDeclaration = '''
 
 void main() {
   group('UserA2uiCatalogBuilder — usage note threaded from config', () {
-    test(
-        'a widget with @a2ui.Config.usage emits a fragment using the '
+    test('a widget with @a2ui.Config.usage emits a fragment using the '
         'usage text, not the description', () async {
       const source = '''
         import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
@@ -92,8 +91,7 @@ void main() {
       );
     });
 
-    test(
-        'a widget WITHOUT usage but WITH a description falls back to the '
+    test('a widget WITHOUT usage but WITH a description falls back to the '
         'description in its fragment line', () async {
       const source = '''
         import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
@@ -121,8 +119,7 @@ void main() {
       expect(dart, contains("'Badge: a small status badge'"));
     });
 
-    test(
-        'a widget with a whitespace-only usage falls back to its description '
+    test('a widget with a whitespace-only usage falls back to its description '
         '(no blank fragment line)', () async {
       const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -150,9 +147,10 @@ void main() {
       expect(dart, isNot(contains("'Chip:    '")));
     });
 
-    test('a lookalike RestageProperty cannot alter production pairing output',
-        () async {
-      const preamble = '''
+    test(
+      'a lookalike RestageProperty cannot alter production pairing output',
+      () async {
+        const preamble = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
             hide RestageProperty;
 
@@ -178,13 +176,15 @@ void main() {
           /// An unrelated count.
           final int count;
       ''';
-      const baseline = '''
+        const baseline =
+            '''
         $preamble
           /// Reports a changed value.
           final void Function(String) onChanged;
         }
       ''';
-      const lookalike = '''
+        const lookalike =
+            '''
         $preamble
           /// Reports a changed value.
           @RestageProperty(writeBackValue: 'count')
@@ -192,19 +192,20 @@ void main() {
         }
       ''';
 
-      final baselineResult = await _runBuilder({
-        'lib/lib.dart': _libraryDeclaration,
-        'lib/control.dart': baseline,
-      });
-      final lookalikeResult = await _runBuilder({
-        'lib/lib.dart': _libraryDeclaration,
-        'lib/control.dart': lookalike,
-      });
+        final baselineResult = await _runBuilder({
+          'lib/lib.dart': _libraryDeclaration,
+          'lib/control.dart': baseline,
+        });
+        final lookalikeResult = await _runBuilder({
+          'lib/lib.dart': _libraryDeclaration,
+          'lib/control.dart': lookalike,
+        });
 
-      expect(baselineResult.$1, isTrue);
-      expect(lookalikeResult.$1, isTrue);
-      expect(lookalikeResult.$2, baselineResult.$2);
-    });
+        expect(baselineResult.$1, isTrue);
+        expect(lookalikeResult.$1, isTrue);
+        expect(lookalikeResult.$2, baselineResult.$2);
+      },
+    );
 
     test('a substituted super-formal input reaches generated A2UI', () async {
       const source = '''
@@ -237,9 +238,10 @@ void main() {
       expect(dart, contains('value:'));
     });
 
-    test('an inherited field write-back shorthand matches the class map',
-        () async {
-      const classMap = '''
+    test(
+      'an inherited field write-back shorthand matches the class map',
+      () async {
+        const classMap = '''
         import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -262,7 +264,7 @@ void main() {
           const Control({required super.value, required super.onChanged});
         }
       ''';
-      const fieldShorthand = '''
+        const fieldShorthand = '''
         import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -286,23 +288,25 @@ void main() {
         }
       ''';
 
-      final classMapResult = await _runBuilder({
-        'lib/lib.dart': _libraryDeclaration,
-        'lib/control.dart': classMap,
-      });
-      final fieldResult = await _runBuilder({
-        'lib/lib.dart': _libraryDeclaration,
-        'lib/control.dart': fieldShorthand,
-      });
+        final classMapResult = await _runBuilder({
+          'lib/lib.dart': _libraryDeclaration,
+          'lib/control.dart': classMap,
+        });
+        final fieldResult = await _runBuilder({
+          'lib/lib.dart': _libraryDeclaration,
+          'lib/control.dart': fieldShorthand,
+        });
 
-      expect(classMapResult.$1, isTrue);
-      expect(fieldResult.$1, isTrue);
-      expect(fieldResult.$2, classMapResult.$2);
-    });
+        expect(classMapResult.$1, isTrue);
+        expect(fieldResult.$1, isTrue);
+        expect(fieldResult.$2, classMapResult.$2);
+      },
+    );
 
-    test('an unresolved write-back map reference fails the production build',
-        () async {
-      const source = '''
+    test(
+      'an unresolved write-back map reference fails the production build',
+      () async {
+        const source = '''
         import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -321,13 +325,14 @@ void main() {
         }
       ''';
 
-      final (succeeded, dart) = await _runBuilder({
-        'lib/lib.dart': _libraryDeclaration,
-        'lib/control.dart': source,
-      });
+        final (succeeded, dart) = await _runBuilder({
+          'lib/lib.dart': _libraryDeclaration,
+          'lib/control.dart': source,
+        });
 
-      expect(succeeded, isFalse);
-      expect(dart, isEmpty);
-    });
+        expect(succeeded, isFalse);
+        expect(dart, isEmpty);
+      },
+    );
   });
 }

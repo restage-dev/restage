@@ -10,18 +10,18 @@ import 'helpers.dart';
 
 void main() {
   ExpressionTranslator priceTranslator() => ExpressionTranslator(
-        catalog: catalogWith([
-          entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
-          entry(
-            name: 'GestureDetector',
-            properties: [
-              prop('onTap', PropertyType.event),
-              prop('child', PropertyType.widget),
-            ],
-          ),
-        ]),
-        helpers: HelperRegistry()..registerAll(paywallHelpers),
-      );
+    catalog: catalogWith([
+      entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
+      entry(
+        name: 'GestureDetector',
+        properties: [
+          prop('onTap', PropertyType.event),
+          prop('child', PropertyType.widget),
+        ],
+      ),
+    ]),
+    helpers: HelperRegistry()..registerAll(paywallHelpers),
+  );
 
   const annualBool = CustomWidgetStateField(
     name: 'annual',

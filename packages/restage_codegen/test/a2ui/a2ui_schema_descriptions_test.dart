@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 Catalog _catalogWithDescriptions({
   String widgetDescription = 'A short note.',
   String propertyDescription = 'The note text.',
+  PropertyType propertyType = PropertyType.string,
 }) {
   const acme = WidgetLibrary.custom('acme.widgets');
   return Catalog(
@@ -30,7 +31,7 @@ Catalog _catalogWithDescriptions({
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
             name: 'text',
-            type: PropertyType.string,
+            type: propertyType,
             description: propertyDescription,
             required: true,
           ),
@@ -41,8 +42,7 @@ Catalog _catalogWithDescriptions({
 }
 
 void main() {
-  test(
-      'property + component descriptions land in the generated .g.dart '
+  test('property + component descriptions land in the generated .g.dart '
       'schema', () {
     final dart = emitA2uiCatalogDart(_catalogWithDescriptions());
     expect(dart, contains("description: 'The note text.'"));
@@ -56,16 +56,36 @@ void main() {
     final note = components['Note']! as Map<String, Object?>;
     expect(note['description'], 'A short note.');
     final properties = note['properties']! as Map<String, Object?>;
-    final props = properties['props']! as Map<String, Object?>;
-    final customProperties = props['properties']! as Map<String, Object?>;
+    final customProperties = properties;
     expect(
-      customProperties['text'],
+      customProperties['props_text'],
       containsPair('description', 'The note text.'),
     );
   });
 
-  test(
-      r'a description containing "$", a CRLF, a single quote, and a '
+  test('authored non-null child description wins in deterministic order', () {
+    const authored = 'Content shown in the header.';
+    final registration = emitA2uiCatalog(
+      _catalogWithDescriptions(
+        propertyType: PropertyType.widget,
+        propertyDescription: authored,
+      ),
+    );
+    final properties =
+        registration.components.single.dataSchema['properties']!
+            as Map<String, Object?>;
+    final child = properties['props_text']! as Map<String, Object?>;
+    expect(child.keys, ['type', 'description', 'commonTypesRef']);
+    expect(child['description'], authored);
+    final document = registration.toJson()['a2uiCatalog']! as Map;
+    final component = (document['components']! as Map)['Note']! as Map;
+    expect((component['properties']! as Map)['props_text'], {
+      r'$ref': r'common_types.json#/$defs/ComponentId',
+      'description': authored,
+    });
+  });
+
+  test(r'a description containing "$", a CRLF, a single quote, and a '
       'newline emits without throwing and with the correctly-escaped '
       'literal', () {
     const widgetDescription = "Costs \$5/mo\r\nDon't miss \$Widget.\nEnd.";
@@ -80,8 +100,7 @@ void main() {
     );
   });
 
-  test(
-      r'a described property containing "$" emits the correctly-escaped '
+  test(r'a described property containing "$" emits the correctly-escaped '
       'literal in the schema', () {
     const propertyDescription = r'Price is $9.99 for $Plan.';
     final dart = emitA2uiCatalogDart(
@@ -100,7 +119,7 @@ void main() {
     );
 
     final dart = emitA2uiCatalogDart(catalog);
-    expect(dart, isNot(contains('description:')));
+    expect(dart, isNot(contains("description: ''")));
 
     final stamp = emitA2uiCatalog(catalog).toJson();
     final a2uiCatalog = stamp['a2uiCatalog']! as Map<String, Object?>;
@@ -108,9 +127,8 @@ void main() {
     final note = components['Note']! as Map<String, Object?>;
     expect(note.containsKey('description'), isFalse);
     final properties = note['properties']! as Map<String, Object?>;
-    final props = properties['props']! as Map<String, Object?>;
-    final customProperties = props['properties']! as Map<String, Object?>;
-    final text = customProperties['text']! as Map<String, Object?>;
+    final customProperties = properties;
+    final text = customProperties['props_text']! as Map<String, Object?>;
     expect(text.containsKey('description'), isFalse);
   });
 }

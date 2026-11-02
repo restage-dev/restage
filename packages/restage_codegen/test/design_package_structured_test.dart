@@ -21,10 +21,11 @@ import 'helpers.dart';
 /// library with it when it is the only widget there.
 void main() {
   group('design-package structured properties', () {
-    test('a design-package value type is not walked as a custom data class',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/styled_button.dart': '''
+    test(
+      'a design-package value type is not walked as a custom data class',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/styled_button.dart': '''
           import 'package:material_ui/material_ui.dart';
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -45,38 +46,43 @@ void main() {
             final ButtonStyle? style;
           }
         ''',
-      });
+        });
 
-      final designSourced = result.structuredTypes
-          .where((entry) => entry.sourceType.startsWith('package:material_ui/'))
-          .map((entry) => entry.sourceType)
-          .toList();
-      expect(
-        designSourced,
-        isEmpty,
-        reason: "a design package carries the framework's own value types, so "
-            'one of them must never become a custom structured entry — the '
-            'entry it would produce is keyed to a library no catalog entry '
-            'names, and the widget carrying it is dropped at admission',
-      );
+        final designSourced = result.structuredTypes
+            .where(
+              (entry) => entry.sourceType.startsWith('package:material_ui/'),
+            )
+            .map((entry) => entry.sourceType)
+            .toList();
+        expect(
+          designSourced,
+          isEmpty,
+          reason:
+              "a design package carries the framework's own value types, so "
+              'one of them must never become a custom structured entry — the '
+              'entry it would produce is keyed to a library no catalog entry '
+              'names, and the widget carrying it is dropped at admission',
+        );
 
-      final designTargets = result.slotTargets.values
-          .where((target) => target.startsWith('package:material_ui/'))
-          .toList();
-      expect(
-        designTargets,
-        isEmpty,
-        reason: 'no structured slot may target a design-package identity',
-      );
-    });
+        final designTargets = result.slotTargets.values
+            .where((target) => target.startsWith('package:material_ui/'))
+            .toList();
+        expect(
+          designTargets,
+          isEmpty,
+          reason: 'no structured slot may target a design-package identity',
+        );
+      },
+    );
 
-    test('the equivalent framework-authored property behaves identically',
-        () async {
-      // The control. Authored against the framework directly, the same property
-      // must reach the same answer, so a failure above is about the design
-      // package and not about this widget shape.
-      final result = await runWidgetVisitorOn({
-        'lib/styled_button.dart': '''
+    test(
+      'the equivalent framework-authored property behaves identically',
+      () async {
+        // The control. Authored against the framework directly, the same property
+        // must reach the same answer, so a failure above is about the design
+        // package and not about this widget shape.
+        final result = await runWidgetVisitorOn({
+          'lib/styled_button.dart': '''
           import 'package:flutter/material.dart';
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -97,21 +103,23 @@ void main() {
             final ButtonStyle? style;
           }
         ''',
-      });
+        });
 
-      expect(
-        result.structuredTypes.map((entry) => entry.sourceType).toList(),
-        isEmpty,
-        reason: 'the framework prefix is already excluded from custom data '
-            'classes, so this produces no custom structured entry — which is '
-            'exactly the answer the design-package case must reach',
-      );
-      expect(
-        result.slotTargets.values.toList(),
-        isEmpty,
-        reason: 'and no structured slot target',
-      );
-    });
+        expect(
+          result.structuredTypes.map((entry) => entry.sourceType).toList(),
+          isEmpty,
+          reason:
+              'the framework prefix is already excluded from custom data '
+              'classes, so this produces no custom structured entry — which is '
+              'exactly the answer the design-package case must reach',
+        );
+        expect(
+          result.slotTargets.values.toList(),
+          isEmpty,
+          reason: 'and no structured slot target',
+        );
+      },
+    );
   });
 
   group('design-package identity drift', () {
@@ -186,7 +194,9 @@ class Divider extends StatelessWidget {
 ''',
     )
     ..writeString(
-        AssetId('apps_examples', 'lib/paywalls/drifted.dart'), source);
+      AssetId('apps_examples', 'lib/paywalls/drifted.dart'),
+      source,
+    );
 
   final diagnostics = <String>[];
   await testBuilder(

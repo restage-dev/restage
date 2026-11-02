@@ -115,8 +115,9 @@ abstract final class MeasurementCompilerBoundary {
       final parentEdge = artifact.parentOccurrenceEdgeToken;
       if (parentEdge == null) continue;
       final parent = artifactsByEdge[parentEdge.value]!;
-      childArtifactIdsByParent[parent.artifactId.value]!
-          .add(artifact.artifactId);
+      childArtifactIdsByParent[parent.artifactId.value]!.add(
+        artifact.artifactId,
+      );
     }
 
     final bindingsByCode = _uniqueBy(
@@ -141,8 +142,9 @@ abstract final class MeasurementCompilerBoundary {
       label: 'compiler nodes and the code-identity ledger',
     );
     for (final node in input.nodes) {
-      if (!artifactsByEdge
-          .containsKey(node.artifactOccurrenceEdgeToken.value)) {
+      if (!artifactsByEdge.containsKey(
+        node.artifactOccurrenceEdgeToken.value,
+      )) {
         throw ArgumentError(
           'Every compiler node must join a static artifact occurrence',
         );
@@ -234,18 +236,18 @@ abstract final class MeasurementCompilerBoundary {
       );
       presentationsByNodeCode[node.codeIdentityId.value] =
           _ProducedPresentation(
-        artifactId: artifact.artifactId,
-        point: point,
-        reference: GeneratedPresentationReferenceV1(
-          referenceId: presentation.generatedPresentationReferenceId,
-          target: input.target,
-          surfaceRevisionId: input.surfaceRevisionId,
-          artifactGraphHash: exactArtifactGraph.canonicalDigest,
-          occurrenceId: point.occurrenceId,
-          lineageId: point.lineageId,
-          displayMetadataRef: point.displayMetadataRef,
-        ),
-      );
+            artifactId: artifact.artifactId,
+            point: point,
+            reference: GeneratedPresentationReferenceV1(
+              referenceId: presentation.generatedPresentationReferenceId,
+              target: input.target,
+              surfaceRevisionId: input.surfaceRevisionId,
+              artifactGraphHash: exactArtifactGraph.canonicalDigest,
+              occurrenceId: point.occurrenceId,
+              lineageId: point.lineageId,
+              displayMetadataRef: point.displayMetadataRef,
+            ),
+          );
     }
 
     final eventsByNodeCode = <String, List<_ProducedEvent>>{};
@@ -259,7 +261,8 @@ abstract final class MeasurementCompilerBoundary {
           'Every compiler event must join a ledger-backed node',
         );
       }
-      final eventSlot = '${event.nodeCodeIdentityId.value}\u0000'
+      final eventSlot =
+          '${event.nodeCodeIdentityId.value}\u0000'
           '${event.resolvedEvent.sourceEventIdentity.value}';
       if (!eventSlots.add(eventSlot)) {
         throw ArgumentError(
@@ -337,8 +340,8 @@ abstract final class MeasurementCompilerBoundary {
           artifactGraphHash: exactArtifactGraph.canonicalDigest,
           artifactId: artifact.artifactId,
           artifactContentHash: artifact.contentHash,
-          childArtifactIds:
-              childArtifactIdsByParent[artifact.artifactId.value]!.toList(),
+          childArtifactIds: childArtifactIdsByParent[artifact.artifactId.value]!
+              .toList(),
           points: [
             for (final presentation in presentationsByNodeCode.values)
               if (presentation.artifactId == artifact.artifactId)
@@ -522,13 +525,14 @@ abstract final class MeasurementCompilerBoundary {
       );
     }
     final selected = switch (claim.sourceEventIdentity) {
-      final sourceEventIdentity? => candidates
-          .where(
-            (candidate) =>
-                candidate.event.resolvedEvent.sourceEventIdentity ==
-                sourceEventIdentity,
-          )
-          .toList(growable: false),
+      final sourceEventIdentity? =>
+        candidates
+            .where(
+              (candidate) =>
+                  candidate.event.resolvedEvent.sourceEventIdentity ==
+                  sourceEventIdentity,
+            )
+            .toList(growable: false),
       null => candidates,
     };
     if (selected.length != 1) {

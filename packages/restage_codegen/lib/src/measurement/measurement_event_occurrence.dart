@@ -136,8 +136,8 @@ final class MeasurementOccurrenceScope {
       _append(then ? 'cond:then' : 'cond:else');
 
   MeasurementOccurrenceScope _append(String segment) => _copy(
-        pathSegments: <String>[...pathSegments, segment],
-      );
+    pathSegments: <String>[...pathSegments, segment],
+  );
 
   MeasurementOccurrenceScope _copy({
     List<String>? pathSegments,
@@ -145,16 +145,15 @@ final class MeasurementOccurrenceScope {
     MeasurementItemIdentity? itemIdentity,
     int? runtimeLoopDepth,
     bool? repeatedStatically,
-  }) =>
-      MeasurementOccurrenceScope._(
-        sourceRootIdentity: sourceRootIdentity,
-        pathSegments: pathSegments ?? this.pathSegments,
-        parentStructuralOccurrenceKey:
-            parentStructuralOccurrenceKey ?? this.parentStructuralOccurrenceKey,
-        itemIdentity: itemIdentity ?? this.itemIdentity,
-        runtimeLoopDepth: runtimeLoopDepth ?? this.runtimeLoopDepth,
-        repeatedStatically: repeatedStatically ?? this.repeatedStatically,
-      );
+  }) => MeasurementOccurrenceScope._(
+    sourceRootIdentity: sourceRootIdentity,
+    pathSegments: pathSegments ?? this.pathSegments,
+    parentStructuralOccurrenceKey:
+        parentStructuralOccurrenceKey ?? this.parentStructuralOccurrenceKey,
+    itemIdentity: itemIdentity ?? this.itemIdentity,
+    runtimeLoopDepth: runtimeLoopDepth ?? this.runtimeLoopDepth,
+    repeatedStatically: repeatedStatically ?? this.repeatedStatically,
+  );
 }
 
 /// Identity of the repeated element a tap sits in.
@@ -228,8 +227,8 @@ String? measurementStaticIterationKey(
     occurrence.structuralPath.any(
       (step) => step.kind == CollectionStructuralOccurrenceKind.loopIteration,
     )
-        ? _sharedStructuralSegments(occurrence).join('|')
-        : null;
+    ? _sharedStructuralSegments(occurrence).join('|')
+    : null;
 
 // Iterations of one static loop drop their iteration and iterable ordinals.
 Iterable<String> _sharedStructuralSegments(
@@ -366,24 +365,27 @@ final class MeasurementWidgetOccurrence {
 
   /// Enters this custom widget's emitted definition body.
   MeasurementOccurrenceScope enterInlinedBody() => scope._copy(
-        pathSegments: <String>[
-          ...scope.pathSegments,
-          'inline:$widgetIdentity',
-          'inlinedBody:$widgetIdentity',
-        ],
-        parentStructuralOccurrenceKey: structuralOccurrenceKey,
-      );
+    pathSegments: <String>[
+      ...scope.pathSegments,
+      'inline:$widgetIdentity',
+      'inlinedBody:$widgetIdentity',
+    ],
+    parentStructuralOccurrenceKey: structuralOccurrenceKey,
+  );
 
   /// Enters one structurally identified native inline value.
   MeasurementOccurrenceScope nestedValue(List<Object> path) {
     final nestedPath = path
         .map((segment) => segment is int ? '[$segment]' : segment.toString())
         .join('/');
-    return scope._copy(pathSegments: [
-      ...scope.pathSegments,
-      'widget:$widgetIdentity',
-      'value:$nestedPath',
-    ], parentStructuralOccurrenceKey: structuralOccurrenceKey);
+    return scope._copy(
+      pathSegments: [
+        ...scope.pathSegments,
+        'widget:$widgetIdentity',
+        'value:$nestedPath',
+      ],
+      parentStructuralOccurrenceKey: structuralOccurrenceKey,
+    );
   }
 
   /// Selects one exact callback slot on this occurrence.
@@ -431,12 +433,11 @@ final class MeasurementWidgetListOccurrence {
   /// Adds the branch a list-valued conditional selects.
   MeasurementWidgetListOccurrence enterConditionalBranch({
     required bool then,
-  }) =>
-      MeasurementWidgetListOccurrence._(
-        parent: parent,
-        slot: slot,
-        scope: scope.enterConditionalBranch(then: then),
-      );
+  }) => MeasurementWidgetListOccurrence._(
+    parent: parent,
+    slot: slot,
+    scope: scope.enterConditionalBranch(then: then),
+  );
 
   /// Selects one exact element occurrence.
   MeasurementOccurrenceScope element(
@@ -459,8 +460,8 @@ final class MeasurementEventOccurrence {
     required this.sourceEventIdentity,
     required List<String> widgetPathSegments,
     required MeasurementOccurrenceScope scope,
-  })  : _widgetPathSegments = widgetPathSegments,
-        _scope = scope;
+  }) : _widgetPathSegments = widgetPathSegments,
+       _scope = scope;
 
   /// Exact resolved source owning this event.
   final String sourceRootIdentity;
@@ -492,12 +493,12 @@ final class MeasurementEventOccurrence {
 
   /// Scope of the modal sheet builder body this callback opens.
   MeasurementOccurrenceScope sheetBuilder() => _scope._copy(
-        pathSegments: <String>[
-          ..._widgetPathSegments,
-          'sheet:${sourceEventIdentity.value}:builder',
-        ],
-        parentStructuralOccurrenceKey: structuralOccurrenceKey,
-      );
+    pathSegments: <String>[
+      ..._widgetPathSegments,
+      'sheet:${sourceEventIdentity.value}:builder',
+    ],
+    parentStructuralOccurrenceKey: structuralOccurrenceKey,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -508,10 +509,10 @@ final class MeasurementEventOccurrence {
 
   @override
   int get hashCode => Object.hash(
-        sourceRootIdentity,
-        structuralOccurrenceKey,
-        sourceEventIdentity,
-      );
+    sourceRootIdentity,
+    structuralOccurrenceKey,
+    sourceEventIdentity,
+  );
 }
 
 /// Stable identity for one resolved class element.
@@ -556,5 +557,4 @@ String _stableElementName(Element element, String role) {
 String _structuralOccurrenceKey(
   String sourceRootIdentity,
   List<String> segments,
-) =>
-    '$sourceRootIdentity|${segments.join('|')}';
+) => '$sourceRootIdentity|${segments.join('|')}';

@@ -16,31 +16,33 @@ import '../helpers.dart';
 /// and a host-seeded flow-state key must never egress via `terminalResult`.
 /// General-only; typed flows get NO new failure modes.
 void main() {
-  group('analytics-sink invariant (general-only, all analytics-reaching slots)',
-      () {
-    for (final slot in const ['customEvents', 'surveyAnswers', 'lifecycle']) {
-      test('a flow-state ref in $slot fails the build (general)', () async {
-        final result = await _build(
-          _sources(
-            delivery: 'general',
-            flowStateBlock: _internalState('secret', 'FlowDataType.string'),
-            outboundBlock: _analyticsSlotWithStateRef(slot, 'secret'),
-          ),
-        );
-        expect(result.succeeded, isFalse);
-        expect(result.logs, contains('[generalAnalyticsSinkStateRef]'));
-        // The message names the canonical trap so the author sees the rule.
-        expect(result.logs, contains('surveyAnswers'));
-      });
-    }
+  group(
+    'analytics-sink invariant (general-only, all analytics-reaching slots)',
+    () {
+      for (final slot in const ['customEvents', 'surveyAnswers', 'lifecycle']) {
+        test('a flow-state ref in $slot fails the build (general)', () async {
+          final result = await _build(
+            _sources(
+              delivery: 'general',
+              flowStateBlock: _internalState('secret', 'FlowDataType.string'),
+              outboundBlock: _analyticsSlotWithStateRef(slot, 'secret'),
+            ),
+          );
+          expect(result.succeeded, isFalse);
+          expect(result.logs, contains('[generalAnalyticsSinkStateRef]'));
+          // The message names the canonical trap so the author sees the rule.
+          expect(result.logs, contains('surveyAnswers'));
+        });
+      }
 
-    test('the corrected form (event-args ref in customEvents) builds (general)',
+      test(
+        'the corrected form (event-args ref in customEvents) builds (general)',
         () async {
-      final result = await _build(
-        _sources(
-          delivery: 'general',
-          flowStateBlock: '',
-          outboundBlock: '''
+          final result = await _build(
+            _sources(
+              delivery: 'general',
+              flowStateBlock: '',
+              outboundBlock: '''
         customEvents: {
           'evt': FlowOutboundPayloadDeclaration(
             fields: {
@@ -52,41 +54,53 @@ void main() {
           ),
         },
 ''',
-        ),
+            ),
+          );
+          expect(result.succeeded, isTrue);
+          expect(
+            result.logs,
+            isNot(contains('[generalAnalyticsSinkStateRef]')),
+          );
+        },
       );
-      expect(result.succeeded, isTrue);
-      expect(result.logs, isNot(contains('[generalAnalyticsSinkStateRef]')));
-    });
 
-    test('an IDENTICAL customEvents state-ref fails the build when TYPED too',
+      test(
+        'an IDENTICAL customEvents state-ref fails the build when TYPED too',
         () async {
-      final result = await _build(
-        _sources(
-          delivery: 'typed',
-          flowStateBlock: _internalState('secret', 'FlowDataType.string'),
-          outboundBlock: _analyticsSlotWithStateRef('customEvents', 'secret'),
-        ),
+          final result = await _build(
+            _sources(
+              delivery: 'typed',
+              flowStateBlock: _internalState('secret', 'FlowDataType.string'),
+              outboundBlock: _analyticsSlotWithStateRef(
+                'customEvents',
+                'secret',
+              ),
+            ),
+          );
+          expect(result.succeeded, isFalse);
+          expect(result.logs, contains('customEventStateRef'));
+        },
       );
-      expect(result.succeeded, isFalse);
-      expect(result.logs, contains('customEventStateRef'));
-    });
-  });
+    },
+  );
 
-  group('branch-only provenance (host-seeded state must not egress via result)',
-      () {
-    test('a host-seeded state ref in terminalResult fails the build (general)',
+  group(
+    'branch-only provenance (host-seeded state must not egress via result)',
+    () {
+      test(
+        'a host-seeded state ref in terminalResult fails the build (general)',
         () async {
-      final result = await _build(
-        _sources(
-          delivery: 'general',
-          flowStateBlock: '''
+          final result = await _build(
+            _sources(
+              delivery: 'general',
+              flowStateBlock: '''
         'userId': FlowStateDeclaration(
           type: FlowDataType.string,
           classification: FlowStateClassification.internal,
           hostSeedable: true,
         ),
 ''',
-          outboundBlock: '''
+              outboundBlock: '''
         terminalResult: FlowOutboundPayloadDeclaration(
           fields: {
             'uid': FlowOutboundField(
@@ -96,26 +110,28 @@ void main() {
           },
         ),
 ''',
-        ),
+            ),
+          );
+          expect(result.succeeded, isFalse);
+          expect(result.logs, contains('[generalHostSeededResultRef]'));
+          // The message names the offending outbound field.
+          expect(result.logs, contains('uid'));
+        },
       );
-      expect(result.succeeded, isFalse);
-      expect(result.logs, contains('[generalHostSeededResultRef]'));
-      // The message names the offending outbound field.
-      expect(result.logs, contains('uid'));
-    });
 
-    test('a non-seedable (in-flow-captured) result state ref builds (general)',
+      test(
+        'a non-seedable (in-flow-captured) result state ref builds (general)',
         () async {
-      final result = await _build(
-        _sources(
-          delivery: 'general',
-          flowStateBlock: '''
+          final result = await _build(
+            _sources(
+              delivery: 'general',
+              flowStateBlock: '''
         'completed': FlowStateDeclaration(
           type: FlowDataType.bool,
           classification: FlowStateClassification.exportable,
         ),
 ''',
-          outboundBlock: '''
+              outboundBlock: '''
         terminalResult: FlowOutboundPayloadDeclaration(
           fields: {
             'completed': FlowOutboundField(
@@ -125,19 +141,19 @@ void main() {
           },
         ),
 ''',
-        ),
+            ),
+          );
+          expect(result.succeeded, isTrue);
+          expect(result.logs, isNot(contains('[generalHostSeededResultRef]')));
+        },
       );
-      expect(result.succeeded, isTrue);
-      expect(result.logs, isNot(contains('[generalHostSeededResultRef]')));
-    });
 
-    test(
-        'a host-seeded result ref remains accepted in TYPED mode with a '
-        'declared fallback', () async {
-      final result = await _build(
-        _sources(
-          delivery: 'typed',
-          flowStateBlock: '''
+      test('a host-seeded result ref remains accepted in TYPED mode with a '
+          'declared fallback', () async {
+        final result = await _build(
+          _sources(
+            delivery: 'typed',
+            flowStateBlock: '''
         'userId': FlowStateDeclaration(
           type: FlowDataType.string,
           classification: FlowStateClassification.internal,
@@ -148,7 +164,7 @@ void main() {
           defaultValue: '',
         ),
 ''',
-          outboundBlock: '''
+            outboundBlock: '''
         terminalResult: FlowOutboundPayloadDeclaration(
           fields: {
             'uid': FlowOutboundField(
@@ -158,12 +174,13 @@ void main() {
           },
         ),
 ''',
-        ),
-      );
-      expect(result.succeeded, isTrue);
-      expect(result.logs, isNot(contains('[generalHostSeededResultRef]')));
-    });
-  });
+          ),
+        );
+        expect(result.succeeded, isTrue);
+        expect(result.logs, isNot(contains('[generalHostSeededResultRef]')));
+      });
+    },
+  );
 
   group('close-the-class guard', () {
     test('every serialized outbound slot is classified', () {
@@ -207,9 +224,11 @@ void main() {
           'a': ScreenFlowState(screen: 'a', on: {}),
         },
       );
-      final json = jsonDecode(
-        utf8.decode(FlowDocumentCodec.encodeCanonicalJson(document)),
-      ) as Map<String, Object?>;
+      final json =
+          jsonDecode(
+                utf8.decode(FlowDocumentCodec.encodeCanonicalJson(document)),
+              )
+              as Map<String, Object?>;
       final outbound = json['outbound']! as Map<String, Object?>;
       for (final key in outbound.keys) {
         expect(
@@ -240,7 +259,8 @@ const _payload = FlowOutboundPayloadDeclaration(
 
 final Uint8List _bytes = Uint8List.fromList(const [1, 2, 3]);
 
-String _internalState(String key, String type) => '''
+String _internalState(String key, String type) =>
+    '''
         '$key': FlowStateDeclaration(
           type: $type,
           classification: FlowStateClassification.internal,
@@ -275,17 +295,25 @@ Map<String, String> _sources({
   required String flowStateBlock,
   required String outboundBlock,
 }) {
-  final deliveryArg =
-      delivery == 'general' ? ', delivery: FlowDeliveryMode.general' : '';
+  final deliveryArg = delivery == 'general'
+      ? ', delivery: FlowDeliveryMode.general'
+      : '';
   final flowStateArg = flowStateBlock.isEmpty
       ? ''
       : 'flowState: const {\n$flowStateBlock      },';
   return {
-    'apps_examples|lib/onboarding/screens/welcome.dart':
-        _screenSource('welcome', 'WelcomeScreen', 'next'),
-    'apps_examples|lib/onboarding/screens/ready.dart':
-        _screenSource('ready', 'ReadyScreen', 'start'),
-    'apps_examples|lib/onboarding/flows/disc_flow.dart': '''
+    'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+      'welcome',
+      'WelcomeScreen',
+      'next',
+    ),
+    'apps_examples|lib/onboarding/screens/ready.dart': _screenSource(
+      'ready',
+      'ReadyScreen',
+      'start',
+    ),
+    'apps_examples|lib/onboarding/flows/disc_flow.dart':
+        '''
 import 'package:restage/restage.dart';
 
 import '../screens/ready.dart';
@@ -352,7 +380,8 @@ Future<_BuildResult> _build(Map<String, String> sources) async {
   );
 }
 
-String _screenSource(String id, String className, String eventName) => '''
+String _screenSource(String id, String className, String eventName) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 

@@ -31,14 +31,13 @@ import 'package:test/test.dart';
 import 'helpers.dart';
 
 ExpressionTranslator _prodTranslator() => ExpressionTranslator(
-      catalog: kEmptyCatalog,
-      helpers: HelperRegistry(),
-    );
+  catalog: kEmptyCatalog,
+  helpers: HelperRegistry(),
+);
 
 void main() {
   group('_alignmentGeometry — nested gradient begin/end', () {
-    test(
-        'a custom Alignment nested in a real LinearGradient defers — '
+    test('a custom Alignment nested in a real LinearGradient defers — '
         'no {x,y} substitution, no bare string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -65,8 +64,7 @@ void main() {
       expect(r.dsl, isNot(contains('"topLeft"')));
     });
 
-    test(
-        'a real-Flutter Alignment.topLeft in a real LinearGradient still '
+    test('a real-Flutter Alignment.topLeft in a real LinearGradient still '
         'emits {x: -1.0, y: -1.0} (positive guard)', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -85,8 +83,7 @@ void main() {
   });
 
   group('_borderSideExpression — nested shape-border side', () {
-    test(
-        'a custom BorderSide.none nested in a real RoundedRectangleBorder '
+    test('a custom BorderSide.none nested in a real RoundedRectangleBorder '
         'defers — no framework map, no bare string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -109,24 +106,25 @@ void main() {
     });
 
     test(
-        'a real-Flutter BorderSide.none in a real RoundedRectangleBorder still '
-        'emits {width: 0.0, style: "none"} (positive guard)', () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+      'a real-Flutter BorderSide.none in a real RoundedRectangleBorder still '
+      'emits {width: 0.0, style: "none"} (positive guard)',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/material.dart' show RoundedRectangleBorder, BorderSide;
         Object x() => RoundedRectangleBorder(side: BorderSide.none);
         ''',
-        rootPackage: 'apps_examples',
-      );
-      final r = _prodTranslator().translate(expr);
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('side: {width: 0.0, style: "none"}'));
-    });
+          rootPackage: 'apps_examples',
+        );
+        final r = _prodTranslator().translate(expr);
+        expect(r.issues, isEmpty);
+        expect(r.dsl, contains('side: {width: 0.0, style: "none"}'));
+      },
+    );
   });
 
   group('_borderSide — nested BorderStyle style', () {
-    test(
-        'a custom BorderStyle.solid nested in a real BorderSide defers — '
+    test('a custom BorderStyle.solid nested in a real BorderSide defers — '
         'no style substitution, no bare string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -148,8 +146,7 @@ void main() {
       expect(r.dsl, isNot(contains('"solid"')));
     });
 
-    test(
-        'a real-Flutter BorderStyle.solid in a real BorderSide still emits '
+    test('a real-Flutter BorderStyle.solid in a real BorderSide still emits '
         'style: "solid" (positive guard)', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -165,8 +162,7 @@ void main() {
   });
 
   group('recipe member-table — nested gradient center/focal', () {
-    test(
-        'a custom Alignment.center nested in a real RadialGradient defers — '
+    test('a custom Alignment.center nested in a real RadialGradient defers — '
         'no {x,y} substitution, no bare string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -188,8 +184,7 @@ void main() {
       expect(r.dsl, isNot(contains('"topLeft"')));
     });
 
-    test(
-        'a real-Flutter Alignment.topLeft center still emits '
+    test('a real-Flutter Alignment.topLeft center still emits '
         '{x: -1.0, y: -1.0} (positive guard)', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -207,8 +202,7 @@ void main() {
       expect(r.dsl, contains('center: {x: -1.0, y: -1.0}'));
     });
 
-    test(
-        'a real-Flutter Alignment(x, y) center still falls through the '
+    test('a real-Flutter Alignment(x, y) center still falls through the '
         'member-table fallback (positive guard)', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -228,8 +222,7 @@ void main() {
   });
 
   group('_alignmentGeometry — nested Alignment(x, y) ctor', () {
-    test(
-        'a custom Alignment(x, y) nested in a real LinearGradient defers — '
+    test('a custom Alignment(x, y) nested in a real LinearGradient defers — '
         'no coordinate map', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -252,8 +245,7 @@ void main() {
       expect(r.dsl, isNot(contains('begin: {x: 0.5, y: 0.3}')));
     });
 
-    test(
-        'a real-Flutter Alignment(x, y) in a real LinearGradient still emits '
+    test('a real-Flutter Alignment(x, y) in a real LinearGradient still emits '
         '{x: 0.5, y: 0.3} (positive guard)', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -272,8 +264,7 @@ void main() {
   });
 
   group('_linearBorderEdge — nested LinearBorderEdge ctor', () {
-    test(
-        'a custom LinearBorderEdge nested in a real LinearBorder defers — '
+    test('a custom LinearBorderEdge nested in a real LinearBorder defers — '
         'no edge map', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -295,8 +286,7 @@ void main() {
       expect(r.dsl, isNot(contains('start: {size: 0.5, alignment: -1.0}')));
     });
 
-    test(
-        'a real-Flutter LinearBorderEdge in a real LinearBorder still emits '
+    test('a real-Flutter LinearBorderEdge in a real LinearBorder still emits '
         '{size: 0.5, alignment: -1.0} (positive guard)', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''

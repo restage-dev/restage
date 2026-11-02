@@ -40,20 +40,22 @@ void main() {
     }
   });
 
-  test('the two colocated surfaces get distinct Measurement identities',
-      () async {
-    final output = await _compileFixture();
-    final carriers = [
-      for (final publication in output.publications)
-        ...publication.routePlan.routes.map((route) => route.carrier),
-    ];
-    expect(carriers, isNotEmpty);
-    expect(
-      carriers.toSet(),
-      hasLength(carriers.length),
-      reason: 'sharing a generated part must not merge two surfaces',
-    );
-  });
+  test(
+    'the two colocated surfaces get distinct Measurement identities',
+    () async {
+      final output = await _compileFixture();
+      final carriers = [
+        for (final publication in output.publications)
+          ...publication.routePlan.routes.map((route) => route.carrier),
+      ];
+      expect(carriers, isNotEmpty);
+      expect(
+        carriers.toSet(),
+        hasLength(carriers.length),
+        reason: 'sharing a generated part must not merge two surfaces',
+      );
+    },
+  );
 }
 
 Future<RestageMeasurementCompilerOutputV1> _compileFixture() async {
@@ -75,8 +77,9 @@ Future<RestageMeasurementCompilerOutputV1> _compileFixture() async {
       restageOutputsBuilder(_builderOptions('restage_codegen:outputs')),
     ],
     {
-      '$_package|$_sourcePath':
-          File(p.join(_fixtureRoot, _sourcePath)).readAsStringSync(),
+      '$_package|$_sourcePath': File(
+        p.join(_fixtureRoot, _sourcePath),
+      ).readAsStringSync(),
     },
     rootPackage: _package,
     readerWriter: readerWriter,
@@ -109,8 +112,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -122,13 +126,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');

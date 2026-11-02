@@ -29,10 +29,11 @@ Future<A2uiSchemaNode> reflectField(String source, String field) async {
 
 void main() {
   group('reflectType — shared nested-description resolver', () {
-    test('codegen consumes the compiler query facade across package boundary',
-        () async {
-      final data = await resolveClass(
-        '''
+    test(
+      'codegen consumes the compiler query facade across package boundary',
+      () async {
+        final data = await resolveClass(
+          '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         class Data {
@@ -42,20 +43,22 @@ void main() {
           final String value;
         }
       ''',
-        'Data',
-      );
+          'Data',
+        );
 
-      final resolution = resolveStructuredDescriptions(data.thisType);
-      _expectPublicFacade(resolution);
-      expect(
-        resolution.descriptionForField(data.fields.single),
-        'Facade value.',
-      );
-    });
+        final resolution = resolveStructuredDescriptions(data.thisType);
+        _expectPublicFacade(resolution);
+        expect(
+          resolution.descriptionForField(data.fields.single),
+          'Facade value.',
+        );
+      },
+    );
 
-    test('a resolved scalar field carries the shared explicit description',
-        () async {
-      const source = '''
+    test(
+      'a resolved scalar field carries the shared explicit description',
+      () async {
+        const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         class Data {
@@ -71,19 +74,20 @@ void main() {
         }
       ''';
 
-      final node =
-          await reflectViaOwnerResolved(source, 'Holder', 'data') as ObjectNode;
-      expect(
-        node.fields['label'],
-        const ScalarNode(
-          A2uiScalarType.string,
-          occurrenceDescription: 'Nested label.',
-        ),
-      );
-    });
+        final node =
+            await reflectViaOwnerResolved(source, 'Holder', 'data')
+                as ObjectNode;
+        expect(
+          node.fields['label'],
+          const ScalarNode(
+            A2uiScalarType.string,
+            occurrenceDescription: 'Nested label.',
+          ),
+        );
+      },
+    );
 
-    test(
-        'enum, list, map, and record members keep descriptions on their own '
+    test('enum, list, map, and record members keep descriptions on their own '
         'nodes', () async {
       const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -138,9 +142,9 @@ void main() {
     });
 
     test(
-        'unresolved explicit parameter metadata fails instead of name-guessing',
-        () async {
-      const source = '''
+      'unresolved explicit parameter metadata fails instead of name-guessing',
+      () async {
+        const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         class Data {
@@ -156,24 +160,26 @@ void main() {
         }
       ''';
 
-      final result = await reflectViaOwner(source, 'Holder', 'data');
-      expect(result, isA<A2uiShapeScopedOut>());
-      expect(
-        (result as A2uiShapeScopedOut).typeDescription,
-        allOf(
-          contains('no analyzer identity link'),
-          contains('constructor parameter'),
-          contains('`this.field`'),
-          contains('super-formal chain'),
-          contains('canonical wire DTO'),
-          isNot(contains('public field or getter')),
-        ),
-      );
-    });
+        final result = await reflectViaOwner(source, 'Holder', 'data');
+        expect(result, isA<A2uiShapeScopedOut>());
+        expect(
+          (result as A2uiShapeScopedOut).typeDescription,
+          allOf(
+            contains('no analyzer identity link'),
+            contains('constructor parameter'),
+            contains('`this.field`'),
+            contains('super-formal chain'),
+            contains('canonical wire DTO'),
+            isNot(contains('public field or getter')),
+          ),
+        );
+      },
+    );
 
-    test('unresolved explicit getter metadata fails with the same guidance',
-        () async {
-      const source = '''
+    test(
+      'unresolved explicit getter metadata fails with the same guidance',
+      () async {
+        const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         class Data {
@@ -190,21 +196,23 @@ void main() {
         }
       ''';
 
-      final result = await reflectViaOwner(source, 'Holder', 'data');
-      expect(result, isA<A2uiShapeScopedOut>());
-      expect(
-        (result as A2uiShapeScopedOut).typeDescription,
-        allOf(
-          contains('no analyzer identity link'),
-          contains('getter'),
-          contains('canonical wire DTO'),
-        ),
-      );
-    });
+        final result = await reflectViaOwner(source, 'Holder', 'data');
+        expect(result, isA<A2uiShapeScopedOut>());
+        expect(
+          (result as A2uiShapeScopedOut).typeDescription,
+          allOf(
+            contains('no analyzer identity link'),
+            contains('getter'),
+            contains('canonical wire DTO'),
+          ),
+        );
+      },
+    );
 
-    test('unresolved association without metadata remains undescribed',
-        () async {
-      const source = '''
+    test(
+      'unresolved association without metadata remains undescribed',
+      () async {
+        const source = '''
         class Data {
           const Data({required String label}) : label = label;
           final String label;
@@ -216,14 +224,17 @@ void main() {
         }
       ''';
 
-      final node =
-          await reflectViaOwnerResolved(source, 'Holder', 'data') as ObjectNode;
-      expect(node.fields['label'], const ScalarNode(A2uiScalarType.string));
-    });
+        final node =
+            await reflectViaOwnerResolved(source, 'Holder', 'data')
+                as ObjectNode;
+        expect(node.fields['label'], const ScalarNode(A2uiScalarType.string));
+      },
+    );
 
-    test('a transitive super-formal chain ending at a field-formal resolves',
-        () async {
-      const source = '''
+    test(
+      'a transitive super-formal chain ending at a field-formal resolves',
+      () async {
+        const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         class Base {
@@ -247,21 +258,23 @@ void main() {
         }
       ''';
 
-      final node =
-          await reflectViaOwnerResolved(source, 'Holder', 'data') as ObjectNode;
-      expect(
-        node.fields['label'],
-        const ScalarNode(
-          A2uiScalarType.string,
-          occurrenceDescription: 'Inherited label.',
-        ),
-      );
-    });
+        final node =
+            await reflectViaOwnerResolved(source, 'Holder', 'data')
+                as ObjectNode;
+        expect(
+          node.fields['label'],
+          const ScalarNode(
+            A2uiScalarType.string,
+            occurrenceDescription: 'Inherited label.',
+          ),
+        );
+      },
+    );
 
     test(
-        'a super-formal chain ending at an ordinary parameter stays unresolved',
-        () async {
-      const source = '''
+      'a super-formal chain ending at an ordinary parameter stays unresolved',
+      () async {
+        const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         class Base {
@@ -282,21 +295,23 @@ void main() {
         }
       ''';
 
-      final result = await reflectViaOwner(source, 'Holder', 'data');
-      expect(result, isA<A2uiShapeScopedOut>());
-      expect(
-        (result as A2uiShapeScopedOut).typeDescription,
-        allOf(
-          contains('no analyzer identity link'),
-          contains('constructor parameter'),
-          contains('canonical wire DTO'),
-        ),
-      );
-    });
+        final result = await reflectViaOwner(source, 'Holder', 'data');
+        expect(result, isA<A2uiShapeScopedOut>());
+        expect(
+          (result as A2uiShapeScopedOut).typeDescription,
+          allOf(
+            contains('no analyzer identity link'),
+            contains('constructor parameter'),
+            contains('canonical wire DTO'),
+          ),
+        );
+      },
+    );
 
-    test('a generic substituted occurrence retains its explicit description',
-        () async {
-      const source = '''
+    test(
+      'a generic substituted occurrence retains its explicit description',
+      () async {
+        const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         class Box<T> {
@@ -312,20 +327,23 @@ void main() {
         }
       ''';
 
-      final node =
-          await reflectViaOwnerResolved(source, 'Holder', 'box') as ObjectNode;
-      expect(
-        node.fields['value'],
-        const ScalarNode(
-          A2uiScalarType.integer,
-          occurrenceDescription: 'Generic reflected value.',
-        ),
-      );
-    });
+        final node =
+            await reflectViaOwnerResolved(source, 'Holder', 'box')
+                as ObjectNode;
+        expect(
+          node.fields['value'],
+          const ScalarNode(
+            A2uiScalarType.integer,
+            occurrenceDescription: 'Generic reflected value.',
+          ),
+        );
+      },
+    );
 
-    test('same-site duplicate metadata scopes the reflected shape out',
-        () async {
-      const source = '''
+    test(
+      'same-site duplicate metadata scopes the reflected shape out',
+      () async {
+        const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         class Data {
@@ -343,12 +361,13 @@ void main() {
         }
       ''';
 
-      final result = await reflectViaOwner(source, 'Holder', 'data');
-      expect(result, isA<A2uiShapeScopedOut>());
-      final description = (result as A2uiShapeScopedOut).typeDescription;
-      expect(description, contains('metadata #1'));
-      expect(description, contains('metadata #2'));
-    });
+        final result = await reflectViaOwner(source, 'Holder', 'data');
+        expect(result, isA<A2uiShapeScopedOut>());
+        final description = (result as A2uiShapeScopedOut).typeDescription;
+        expect(description, contains('metadata #1'));
+        expect(description, contains('metadata #2'));
+      },
+    );
 
     test('explicit metadata wins over both Dartdoc fallbacks', () async {
       const source = '''
@@ -466,14 +485,16 @@ void main() {
       }
     ''';
 
-    test('enum field → EnumNode with the resolved member set + identity',
-        () async {
-      final node = await reflectField(source, 'size') as EnumNode;
-      expect(node.members, ['small', 'medium', 'large']);
-      expect(node.dartTypeName, 'Size');
-      expect(node.libraryUri, isNotNull);
-      expect(node.nullable, isFalse);
-    });
+    test(
+      'enum field → EnumNode with the resolved member set + identity',
+      () async {
+        final node = await reflectField(source, 'size') as EnumNode;
+        expect(node.members, ['small', 'medium', 'large']);
+        expect(node.dartTypeName, 'Size');
+        expect(node.libraryUri, isNotNull);
+        expect(node.nullable, isFalse);
+      },
+    );
 
     test('a nullable enum carries the nullability flag', () async {
       final node = await reflectField(source, 'maybeSize') as EnumNode;
@@ -514,22 +535,24 @@ void main() {
       );
     });
 
-    test('List<double> and List<num> retain distinct Dart reconstruction',
-        () async {
-      expect(
-        await reflectField(source, 'weights'),
-        const ListNode(element: ScalarNode(A2uiScalarType.number)),
-      );
-      expect(
-        await reflectField(source, 'measurements'),
-        const ListNode(
-          element: ScalarNode(
-            A2uiScalarType.number,
-            preserveNumericRuntimeType: true,
+    test(
+      'List<double> and List<num> retain distinct Dart reconstruction',
+      () async {
+        expect(
+          await reflectField(source, 'weights'),
+          const ListNode(element: ScalarNode(A2uiScalarType.number)),
+        );
+        expect(
+          await reflectField(source, 'measurements'),
+          const ListNode(
+            element: ScalarNode(
+              A2uiScalarType.number,
+              preserveNumericRuntimeType: true,
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('a nullable list carries the nullability flag', () async {
       final node = await reflectField(source, 'maybeTags') as ListNode;
@@ -553,21 +576,23 @@ void main() {
       }
     ''';
 
-    test('a nested data class → ObjectNode with its fields + required set',
-        () async {
-      final node = await reflectField(source, 'item') as ObjectNode;
-      expect(node.fields.keys, ['label', 'value', 'note']);
-      expect(node.fields['label'], const ScalarNode(A2uiScalarType.string));
-      expect(node.fields['value'], const ScalarNode(A2uiScalarType.integer));
-      expect(
-        node.fields['note'],
-        const ScalarNode(A2uiScalarType.string, nullable: true),
-      );
-      // required = the constructor's required params (here all three positional
-      // params must be provided — a nullable-but-required param is required).
-      expect(node.required, {'label', 'value', 'note'});
-      expect(node.defId, isNotNull);
-    });
+    test(
+      'a nested data class → ObjectNode with its fields + required set',
+      () async {
+        final node = await reflectField(source, 'item') as ObjectNode;
+        expect(node.fields.keys, ['label', 'value', 'note']);
+        expect(node.fields['label'], const ScalarNode(A2uiScalarType.string));
+        expect(node.fields['value'], const ScalarNode(A2uiScalarType.integer));
+        expect(
+          node.fields['note'],
+          const ScalarNode(A2uiScalarType.string, nullable: true),
+        );
+        // required = the constructor's required params (here all three positional
+        // params must be provided — a nullable-but-required param is required).
+        expect(node.required, {'label', 'value', 'note'});
+        expect(node.defId, isNotNull);
+      },
+    );
 
     test('List<Inner> → ListNode(ObjectNode) (a list of objects)', () async {
       final node = await reflectField(source, 'items') as ListNode;
@@ -776,9 +801,10 @@ void main() {
       );
     });
 
-    test('one OUT field scopes the whole enclosing object out (loud)',
-        () async {
-      const source = '''
+    test(
+      'one OUT field scopes the whole enclosing object out (loud)',
+      () async {
+        const source = '''
         class Inner {
           final String label;
           final dynamic blob;
@@ -789,35 +815,38 @@ void main() {
           Data(this.item);
         }
       ''';
-      // The object is NOT partially emitted with the bad field silently
-      // dropped — the whole shape fails closed, loud.
-      expect(
-        await reflect(source, 'item'),
-        scopedOut(A2uiShapeScopeOutReason.dynamicOrObject),
-      );
-    });
+        // The object is NOT partially emitted with the bad field silently
+        // dropped — the whole shape fails closed, loud.
+        expect(
+          await reflect(source, 'item'),
+          scopedOut(A2uiShapeScopeOutReason.dynamicOrObject),
+        );
+      },
+    );
   });
 
   group('the reclassifications (NOT data scope-outs)', () {
-    test('a function/callback field is the event surface, not a data scope-out',
-        () async {
-      const source = '''
+    test(
+      'a function/callback field is the event surface, not a data scope-out',
+      () async {
+        const source = '''
         class Data {
           final void Function() onTap;
           Data(this.onTap);
         }
       ''';
-      final type = await resolveFieldType(
-        source,
-        className: 'Data',
-        fieldName: 'onTap',
-      );
-      final result = reflectType(type);
-      // A callback routes to the interactivity layer, and is NOT
-      // emitted as an unsupported-data diagnostic.
-      expect(result, isA<A2uiShapeEventSurface>());
-      expect(result, isNot(isA<A2uiShapeScopedOut>()));
-    });
+        final type = await resolveFieldType(
+          source,
+          className: 'Data',
+          fieldName: 'onTap',
+        );
+        final result = reflectType(type);
+        // A callback routes to the interactivity layer, and is NOT
+        // emitted as an unsupported-data diagnostic.
+        expect(result, isA<A2uiShapeEventSurface>());
+        expect(result, isNot(isA<A2uiShapeScopedOut>()));
+      },
+    );
 
     test('a concrete generic instantiation resolves → IN', () async {
       const source = '''
@@ -847,19 +876,20 @@ void main() {
     Matcher scopedOut(A2uiShapeScopeOutReason reason) =>
         isA<A2uiShapeScopedOut>().having((s) => s.reason, 'reason', reason);
 
-    test('a bare Function field is the event surface, not an empty object',
-        () async {
-      const source = '''
+    test(
+      'a bare Function field is the event surface, not an empty object',
+      () async {
+        const source = '''
         class Data {
           final Function callback;
           Data(this.callback);
         }
       ''';
-      expect(await reflect(source, 'callback'), isA<A2uiShapeEventSurface>());
-    });
+        expect(await reflect(source, 'callback'), isA<A2uiShapeEventSurface>());
+      },
+    );
 
-    test(
-        'a record with a PRIVATE field label → loud scope-out (unspellable '
+    test('a record with a PRIVATE field label → loud scope-out (unspellable '
         'cross-library)', () async {
       const source = '''
         class Data {
@@ -876,19 +906,21 @@ void main() {
       );
     });
 
-    test('a non-data dart: type (Set) → loud scope-out, not an empty object',
-        () async {
-      const source = '''
+    test(
+      'a non-data dart: type (Set) → loud scope-out, not an empty object',
+      () async {
+        const source = '''
         class Data {
           final Set<int> ids;
           Data(this.ids);
         }
       ''';
-      expect(
-        await reflect(source, 'ids'),
-        scopedOut(A2uiShapeScopeOutReason.unsupported),
-      );
-    });
+        expect(
+          await reflect(source, 'ids'),
+          scopedOut(A2uiShapeScopeOutReason.unsupported),
+        );
+      },
+    );
 
     test('a Future field → loud scope-out', () async {
       const source = '''
@@ -903,33 +935,37 @@ void main() {
       );
     });
 
-    test('Map<String, Function> → loud scope-out, NOT MapNode(empty object)',
-        () async {
-      const source = '''
+    test(
+      'Map<String, Function> → loud scope-out, NOT MapNode(empty object)',
+      () async {
+        const source = '''
         class Data {
           final Map<String, void Function()> handlers;
           Data(this.handlers);
         }
       ''';
-      expect(
-        await reflect(source, 'handlers'),
-        scopedOut(A2uiShapeScopeOutReason.unsupported),
-      );
-    });
+        expect(
+          await reflect(source, 'handlers'),
+          scopedOut(A2uiShapeScopeOutReason.unsupported),
+        );
+      },
+    );
 
-    test('List<Function> → loud scope-out (container over a non-data element)',
-        () async {
-      const source = '''
+    test(
+      'List<Function> → loud scope-out (container over a non-data element)',
+      () async {
+        const source = '''
         class Data {
           final List<void Function()> taps;
           Data(this.taps);
         }
       ''';
-      expect(
-        await reflect(source, 'taps'),
-        scopedOut(A2uiShapeScopeOutReason.unsupported),
-      );
-    });
+        expect(
+          await reflect(source, 'taps'),
+          scopedOut(A2uiShapeScopeOutReason.unsupported),
+        );
+      },
+    );
 
     test('an abstract base → DEFERRED union reason (not structural)', () async {
       const source = '''
@@ -982,8 +1018,7 @@ void main() {
       expect(node.required, containsAll(<String>['n', 'id']));
     });
 
-    test(
-        'a concrete custom generic (Box<int>) resolves IN with int '
+    test('a concrete custom generic (Box<int>) resolves IN with int '
         'substituted', () async {
       const source = '''
         class Box<T> {
@@ -1001,9 +1036,10 @@ void main() {
       expect(node.fields['label'], const ScalarNode(A2uiScalarType.string));
     });
 
-    test('prefers the unnamed generative constructor when several exist',
-        () async {
-      const source = '''
+    test(
+      'prefers the unnamed generative constructor when several exist',
+      () async {
+        const source = '''
         class WithPrimary {
           final String a;
           WithPrimary(this.a);
@@ -1014,12 +1050,12 @@ void main() {
           Data(this.item);
         }
       ''';
-      final node = await reflectField(source, 'item') as ObjectNode;
-      expect(node.fields.keys, ['a']);
-    });
+        final node = await reflectField(source, 'item') as ObjectNode;
+        expect(node.fields.keys, ['a']);
+      },
+    );
 
-    test(
-        'an ambiguous constructor set (named-only) → loud scope-out, never '
+    test('an ambiguous constructor set (named-only) → loud scope-out, never '
         'an arbitrary pick', () async {
       const source = '''
         class MultiCtor {
@@ -1081,13 +1117,12 @@ void main() {
     }
 
     Matcher scopedOutUnsupported() => isA<A2uiShapeScopedOut>().having(
-          (s) => s.reason,
-          'reason',
-          A2uiShapeScopeOutReason.unsupported,
-        );
+      (s) => s.reason,
+      'reason',
+      A2uiShapeScopeOutReason.unsupported,
+    );
 
-    test(
-        'a callback field INSIDE a data object → the object scopes out loud, '
+    test('a callback field INSIDE a data object → the object scopes out loud, '
         'not silently dropped', () async {
       const source = '''
         class Inner {
@@ -1103,8 +1138,7 @@ void main() {
       expect(await reflect(source, 'item'), scopedOutUnsupported());
     });
 
-    test(
-        'a computed getter colliding with a ctor-param name does not mistype '
+    test('a computed getter colliding with a ctor-param name does not mistype '
         'the field (uses the param type)', () async {
       const source = '''
         class Inner {
@@ -1123,8 +1157,7 @@ void main() {
       expect(node.fields['count'], const ScalarNode(A2uiScalarType.string));
     });
 
-    test(
-        'Box<String> and Box<String?> get distinct canonical defIds '
+    test('Box<String> and Box<String?> get distinct canonical defIds '
         '(type-arg nullability is part of the shape)', () async {
       const source = '''
         class Box<T> {
@@ -1144,9 +1177,9 @@ void main() {
     });
 
     test(
-        'a class with only a private (or factory) constructor → loud scope-out',
-        () async {
-      const source = '''
+      'a class with only a private (or factory) constructor → loud scope-out',
+      () async {
+        const source = '''
         class Secret {
           final String x;
           Secret._(this.x);
@@ -1157,11 +1190,11 @@ void main() {
           Data(this.s);
         }
       ''';
-      expect(await reflect(source, 's'), scopedOutUnsupported());
-    });
+        expect(await reflect(source, 's'), scopedOutUnsupported());
+      },
+    );
 
-    test(
-        'a REQUIRED private field-formal named parameter resolves — the '
+    test('a REQUIRED private field-formal named parameter resolves — the '
         'language gives it a public wire name', () async {
       const source = '''
         class Inner {
@@ -1204,8 +1237,7 @@ void main() {
   });
 
   group('reflectType — ObjectNode construction info', () {
-    test(
-        'a named-constructor data class carries its type, library, and '
+    test('a named-constructor data class carries its type, library, and '
         'named params in declaration order', () async {
       const source = '''
         class Inner {
@@ -1226,8 +1258,7 @@ void main() {
       expect(ctor.parameters.every((p) => p.named), isTrue);
     });
 
-    test(
-        'a positional-constructor data class records positional params in '
+    test('a positional-constructor data class records positional params in '
         'order', () async {
       const source = '''
         class Point {
@@ -1247,13 +1278,14 @@ void main() {
       expect(ctor.parameters.every((p) => !p.named), isTrue);
     });
 
-    test('a concrete generic data class carries its instantiated type spelling',
-        () async {
-      // The reflector substitutes Box<int>'s field types; the construction must
-      // also carry the instantiated spelling `Box<int>` (not the raw `Box`), so
-      // the value-builder emits type-correct source (a raw `Box` would not be
-      // assignable to a `Box<int>` parameter).
-      const source = '''
+    test(
+      'a concrete generic data class carries its instantiated type spelling',
+      () async {
+        // The reflector substitutes Box<int>'s field types; the construction must
+        // also carry the instantiated spelling `Box<int>` (not the raw `Box`), so
+        // the value-builder emits type-correct source (a raw `Box` would not be
+        // assignable to a `Box<int>` parameter).
+        const source = '''
         class Box<T extends num> {
           final T value;
           Box(this.value);
@@ -1263,23 +1295,26 @@ void main() {
           Data(this.box);
         }
       ''';
-      final node = await reflectField(source, 'box') as ObjectNode;
-      final ctor = node.construction! as A2uiClassConstruction;
-      expect(ctor.dartTypeName, 'Box<int>');
-      expect(node.fields['value'], const ScalarNode(A2uiScalarType.integer));
-    });
+        final node = await reflectField(source, 'box') as ObjectNode;
+        final ctor = node.construction! as A2uiClassConstruction;
+        expect(ctor.dartTypeName, 'Box<int>');
+        expect(node.fields['value'], const ScalarNode(A2uiScalarType.integer));
+      },
+    );
 
-    test('a named record carries record construction (no Dart type name)',
-        () async {
-      const source = '''
+    test(
+      'a named record carries record construction (no Dart type name)',
+      () async {
+        const source = '''
         class Data {
           final ({int x, String y}) point;
           Data(this.point);
         }
       ''';
-      final node = await reflectField(source, 'point') as ObjectNode;
-      expect(node.construction, isA<A2uiRecordConstruction>());
-    });
+        final node = await reflectField(source, 'point') as ObjectNode;
+        expect(node.construction, isA<A2uiRecordConstruction>());
+      },
+    );
 
     test('a list-of-objects carries construction on the element', () async {
       const source = '''
@@ -1333,9 +1368,10 @@ void main() {
       expect(node.fields.keys, ['title', 'tone']);
     });
 
-    test('a record with a nested-object field → recordNonScalarFieldDeferred',
-        () async {
-      const source = '''
+    test(
+      'a record with a nested-object field → recordNonScalarFieldDeferred',
+      () async {
+        const source = '''
         class Inner {
           final String label;
           Inner(this.label);
@@ -1345,11 +1381,12 @@ void main() {
           Data(this.header);
         }
       ''';
-      expect(
-        await reflect(source, 'header'),
-        scopedOut(A2uiShapeScopeOutReason.recordNonScalarFieldDeferred),
-      );
-    });
+        expect(
+          await reflect(source, 'header'),
+          scopedOut(A2uiShapeScopeOutReason.recordNonScalarFieldDeferred),
+        );
+      },
+    );
 
     test('a record with a list field → recordNonScalarFieldDeferred', () async {
       const source = '''
@@ -1364,8 +1401,7 @@ void main() {
       );
     });
 
-    test(
-        'an optional non-null nested-object param → '
+    test('an optional non-null nested-object param → '
         'optionalObjectParamDeferred', () async {
       // `Data.config` is optional (has a default), non-nullable, and an object
       // → no statically-synthesizable fallback → loud deferred scope-out.
@@ -1389,9 +1425,10 @@ void main() {
       );
     });
 
-    test('an optional NULLABLE object param resolves (null is the fallback)',
-        () async {
-      const source = '''
+    test(
+      'an optional NULLABLE object param resolves (null is the fallback)',
+      () async {
+        const source = '''
         class Inner {
           final String label;
           const Inner(this.label);
@@ -1405,19 +1442,21 @@ void main() {
           Holder(this.data);
         }
       ''';
-      final node = await reflectViaOwnerResolved(source, 'Holder', 'data');
-      final config = (node as ObjectNode).fields['config']! as ObjectNode;
-      expect(config.nullable, isTrue);
-      expect(node.required, isNot(contains('config')));
-    });
+        final node = await reflectViaOwnerResolved(source, 'Holder', 'data');
+        final config = (node as ObjectNode).fields['config']! as ObjectNode;
+        expect(config.nullable, isTrue);
+        expect(node.required, isNot(contains('config')));
+      },
+    );
 
     // The value-builder emits the type's spelling (helper return / constructor /
     // whereType) into a SEPARATE generated library, so an unspellable /
     // unimportable name (a private type, an unbound/phantom type argument) must
     // fail closed at the reflector — never an emit that cannot compile.
-    test('a private data class → scope-out (not referenceable cross-library)',
-        () async {
-      const source = '''
+    test(
+      'a private data class → scope-out (not referenceable cross-library)',
+      () async {
+        const source = '''
         class _Private {
           final String label;
           _Private(this.label);
@@ -1427,15 +1466,17 @@ void main() {
           Data(this.item);
         }
       ''';
-      expect(
-        await reflect(source, 'item'),
-        scopedOut(A2uiShapeScopeOutReason.unsupported),
-      );
-    });
+        expect(
+          await reflect(source, 'item'),
+          scopedOut(A2uiShapeScopeOutReason.unsupported),
+        );
+      },
+    );
 
-    test('a private TYPE ARGUMENT → scope-out (the spelling is unimportable)',
-        () async {
-      const source = '''
+    test(
+      'a private TYPE ARGUMENT → scope-out (the spelling is unimportable)',
+      () async {
+        const source = '''
         class _P {
           final int x;
           _P(this.x);
@@ -1449,11 +1490,12 @@ void main() {
           Data(this.box);
         }
       ''';
-      expect(
-        await reflect(source, 'box'),
-        scopedOut(A2uiShapeScopeOutReason.unsupported),
-      );
-    });
+        expect(
+          await reflect(source, 'box'),
+          scopedOut(A2uiShapeScopeOutReason.unsupported),
+        );
+      },
+    );
 
     test('a private enum → scope-out (the spelling is unimportable)', () async {
       const source = '''
@@ -1469,9 +1511,10 @@ void main() {
       );
     });
 
-    test('a phantom/unbound type argument → scope-out (T not in scope)',
-        () async {
-      const source = '''
+    test(
+      'a phantom/unbound type argument → scope-out (T not in scope)',
+      () async {
+        const source = '''
         class Box<T> {
           final String label;
           Box(this.label);
@@ -1481,12 +1524,13 @@ void main() {
           Data(this.box);
         }
       ''';
-      // Data is read UN-instantiated, so `box` is `Box<T>` with the open T.
-      expect(
-        await reflect(source, 'box'),
-        scopedOut(A2uiShapeScopeOutReason.unsupported),
-      );
-    });
+        // Data is read UN-instantiated, so `box` is `Box<T>` with the open T.
+        expect(
+          await reflect(source, 'box'),
+          scopedOut(A2uiShapeScopeOutReason.unsupported),
+        );
+      },
+    );
 
     test('an optional non-null SCALAR param resolves (defaultable)', () async {
       const source = '''
@@ -1516,8 +1560,11 @@ void main() {
       String source,
       String field,
     ) async {
-      final type =
-          await resolveFieldType(source, className: 'Data', fieldName: field);
+      final type = await resolveFieldType(
+        source,
+        className: 'Data',
+        fieldName: field,
+      );
       final result = reflectType(type);
       expect(
         result,
@@ -1527,23 +1574,25 @@ void main() {
       return (result as A2uiShapeEventSurface).signature;
     }
 
-    test('ValueChanged<bool> (void Function(bool)) → write-back(boolean)',
-        () async {
-      const source = '''
+    test(
+      'ValueChanged<bool> (void Function(bool)) → write-back(boolean)',
+      () async {
+        const source = '''
         class Data {
           final void Function(bool) onChanged;
           Data(this.onChanged);
         }
       ''';
-      expect(
-        await signatureOf(source, 'onChanged'),
-        const A2uiCallbackWriteBack(
-          A2uiScalarType.boolean,
-          nullable: false,
-          isList: false,
-        ),
-      );
-    });
+        expect(
+          await signatureOf(source, 'onChanged'),
+          const A2uiCallbackWriteBack(
+            A2uiScalarType.boolean,
+            nullable: false,
+            isList: false,
+          ),
+        );
+      },
+    );
 
     test('ValueChanged<bool?> → write-back(boolean, nullable)', () async {
       const source = '''
@@ -1606,57 +1655,63 @@ void main() {
       );
     });
 
-    test('ValueChanged<List<num?>?> preserves the complete list shape',
-        () async {
-      const source = '''
+    test(
+      'ValueChanged<List<num?>?> preserves the complete list shape',
+      () async {
+        const source = '''
         class Data {
           final void Function(List<num?>?) onChanged;
           Data(this.onChanged);
         }
       ''';
-      expect(
-        await signatureOf(source, 'onChanged'),
-        const A2uiCallbackWriteBack(
-          A2uiScalarType.number,
-          nullable: true,
-          isList: true,
-          elementNullable: true,
-          preserveNumericRuntimeType: true,
-        ),
-      );
-    });
+        expect(
+          await signatureOf(source, 'onChanged'),
+          const A2uiCallbackWriteBack(
+            A2uiScalarType.number,
+            nullable: true,
+            isList: true,
+            elementNullable: true,
+            preserveNumericRuntimeType: true,
+          ),
+        );
+      },
+    );
 
-    test('a multi-arg callback → unsupported (never mis-lowered to dispatch)',
-        () async {
-      const source = '''
+    test(
+      'a multi-arg callback → unsupported (never mis-lowered to dispatch)',
+      () async {
+        const source = '''
         class Data {
           final void Function(int, int) onResize;
           Data(this.onResize);
         }
       ''';
-      expect(
-        await signatureOf(source, 'onResize'),
-        isA<A2uiCallbackUnsupported>(),
-      );
-    });
+        expect(
+          await signatureOf(source, 'onResize'),
+          isA<A2uiCallbackUnsupported>(),
+        );
+      },
+    );
 
-    test('ValueChanged<List<non-scalar>> → unsupported (#L by construction)',
-        () async {
-      // The leaf-list element MUST be a scalar: a non-scalar element fails
-      // closed at the reflector, never a write-back. So a list write-back value
-      // is always a `List<scalar>` — never a list of maps — and the
-      // `{path}`/`{call}` map-pattern hazard cannot arise on a list value.
-      const source = '''
+    test(
+      'ValueChanged<List<non-scalar>> → unsupported (#L by construction)',
+      () async {
+        // The leaf-list element MUST be a scalar: a non-scalar element fails
+        // closed at the reflector, never a write-back. So a list write-back value
+        // is always a `List<scalar>` — never a list of maps — and the
+        // `{path}`/`{call}` map-pattern hazard cannot arise on a list value.
+        const source = '''
         class Data {
           final void Function(List<Object>) onChanged;
           Data(this.onChanged);
         }
       ''';
-      expect(
-        await signatureOf(source, 'onChanged'),
-        isA<A2uiCallbackUnsupported>(),
-      );
-    });
+        expect(
+          await signatureOf(source, 'onChanged'),
+          isA<A2uiCallbackUnsupported>(),
+        );
+      },
+    );
 
     test('a non-scalar value callback → unsupported', () async {
       const source = '''
@@ -1671,19 +1726,21 @@ void main() {
       );
     });
 
-    test('a single NAMED-arg callback is not a ValueChanged → unsupported',
-        () async {
-      const source = '''
+    test(
+      'a single NAMED-arg callback is not a ValueChanged → unsupported',
+      () async {
+        const source = '''
         class Data {
           final void Function({bool value}) onChanged;
           Data(this.onChanged);
         }
       ''';
-      expect(
-        await signatureOf(source, 'onChanged'),
-        isA<A2uiCallbackUnsupported>(),
-      );
-    });
+        expect(
+          await signatureOf(source, 'onChanged'),
+          isA<A2uiCallbackUnsupported>(),
+        );
+      },
+    );
 
     test('a bare Function carries an unsupported signature', () async {
       const source = '''
@@ -1698,52 +1755,58 @@ void main() {
       );
     });
 
-    test('a non-void single-arg callback → unsupported (not ValueChanged)',
-        () async {
-      // `int Function(bool)` returns a value — not a `void` setter — so it must
-      // NOT lower to a write-back (whose lambda returns void and would be
-      // unassignable).
-      const source = '''
+    test(
+      'a non-void single-arg callback → unsupported (not ValueChanged)',
+      () async {
+        // `int Function(bool)` returns a value — not a `void` setter — so it must
+        // NOT lower to a write-back (whose lambda returns void and would be
+        // unassignable).
+        const source = '''
         class Data {
           final int Function(bool) onChanged;
           Data(this.onChanged);
         }
       ''';
-      expect(
-        await signatureOf(source, 'onChanged'),
-        isA<A2uiCallbackUnsupported>(),
-      );
-    });
+        expect(
+          await signatureOf(source, 'onChanged'),
+          isA<A2uiCallbackUnsupported>(),
+        );
+      },
+    );
 
-    test('a non-void 0-arg callback → unsupported (not VoidCallback)',
-        () async {
-      const source = '''
+    test(
+      'a non-void 0-arg callback → unsupported (not VoidCallback)',
+      () async {
+        const source = '''
         class Data {
           final bool Function() onTap;
           Data(this.onTap);
         }
       ''';
-      expect(
-        await signatureOf(source, 'onTap'),
-        isA<A2uiCallbackUnsupported>(),
-      );
-    });
+        expect(
+          await signatureOf(source, 'onTap'),
+          isA<A2uiCallbackUnsupported>(),
+        );
+      },
+    );
 
-    test('an optional-positional value callback → unsupported (not required)',
-        () async {
-      // `void Function([bool])` has no required value argument — not the
-      // ValueChanged shape.
-      const source = '''
+    test(
+      'an optional-positional value callback → unsupported (not required)',
+      () async {
+        // `void Function([bool])` has no required value argument — not the
+        // ValueChanged shape.
+        const source = '''
         class Data {
           final void Function([bool]) onChanged;
           Data(this.onChanged);
         }
       ''';
-      expect(
-        await signatureOf(source, 'onChanged'),
-        isA<A2uiCallbackUnsupported>(),
-      );
-    });
+        expect(
+          await signatureOf(source, 'onChanged'),
+          isA<A2uiCallbackUnsupported>(),
+        );
+      },
+    );
   });
 }
 
@@ -1761,8 +1824,11 @@ Future<A2uiShapeResult> reflectViaOwner(
   String owner,
   String field,
 ) async {
-  final type =
-      await resolveFieldType(source, className: owner, fieldName: field);
+  final type = await resolveFieldType(
+    source,
+    className: owner,
+    fieldName: field,
+  );
   return reflectType(type);
 }
 

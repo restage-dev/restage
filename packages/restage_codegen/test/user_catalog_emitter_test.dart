@@ -13,19 +13,18 @@ WidgetEntry _widgetEntry({
   List<PropertyEntry> properties = const [],
   List<DecompositionRecipe> decomposes = const [],
   int sinceVersion = kBaselineCatalogVersion,
-}) =>
-    WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: name,
-      library: library,
-      category: category,
-      description: description,
-      flutterType: flutterType ?? 'package:acme/foo.dart#$name',
-      childrenSlot: childrenSlot,
-      properties: properties,
-      decomposes: decomposes,
-      sinceVersion: sinceVersion,
-    );
+}) => WidgetEntry(
+  wireId: WireId.unallocatedWidget,
+  name: name,
+  library: library,
+  category: category,
+  description: description,
+  flutterType: flutterType ?? 'package:acme/foo.dart#$name',
+  childrenSlot: childrenSlot,
+  properties: properties,
+  decomposes: decomposes,
+  sinceVersion: sinceVersion,
+);
 
 Catalog _fullGraphCatalog() {
   const library = WidgetLibrary.custom('acme.design_system');
@@ -104,8 +103,10 @@ Catalog _fullGraphCatalog() {
         description: 'Tone union.',
         sourceType: 'package:acme/tone.dart#AcmeToneBase',
         memberSourceTypes: ['package:acme/tone.dart#AcmeTone'],
-        discriminator:
-            DiscriminatorSpec(field: 'kind', values: [structuredRef]),
+        discriminator: DiscriminatorSpec(
+          field: 'kind',
+          values: [structuredRef],
+        ),
         members: [structuredRef],
       ),
     ],
@@ -142,40 +143,46 @@ void main() {
       expect(src, contains('GENERATED CODE - DO NOT MODIFY BY HAND'));
     });
 
-    test('end-to-end: a v2 widget survives allocate -> emit -> JSON decode',
-        () {
-      // The pipeline-preservation proof: a non-baseline content version must
-      // survive the wire-ID allocation copy, the source emit, and the JSON
-      // round-trip without silently resetting to the baseline.
-      final allocation = allocateUserCatalogFromWidgets(
-        package: 'acme.design_system',
-        widgets: [_widgetEntry(name: 'Hero', sinceVersion: 2)],
-      );
+    test(
+      'end-to-end: a v2 widget survives allocate -> emit -> JSON decode',
+      () {
+        // The pipeline-preservation proof: a non-baseline content version must
+        // survive the wire-ID allocation copy, the source emit, and the JSON
+        // round-trip without silently resetting to the baseline.
+        final allocation = allocateUserCatalogFromWidgets(
+          package: 'acme.design_system',
+          widgets: [_widgetEntry(name: 'Hero', sinceVersion: 2)],
+        );
 
-      // The allocation copy site preserved it.
-      expect(allocation.catalog.widgets.single.sinceVersion, 2);
-      // The emitter wrote it into the generated source.
-      expect(
-        emitUserCatalogDart(allocation.catalog),
-        contains('sinceVersion: 2'),
-      );
-      // It round-trips through the JSON codec to the derived content version.
-      final decoded = decodeCatalog(encodeCatalog(allocation.catalog));
-      expect(decoded.contentVersion, 2);
-    });
+        // The allocation copy site preserved it.
+        expect(allocation.catalog.widgets.single.sinceVersion, 2);
+        // The emitter wrote it into the generated source.
+        expect(
+          emitUserCatalogDart(allocation.catalog),
+          contains('sinceVersion: 2'),
+        );
+        // It round-trips through the JSON codec to the derived content version.
+        final decoded = decodeCatalog(encodeCatalog(allocation.catalog));
+        expect(decoded.contentVersion, 2);
+      },
+    );
 
-    test('emits sinceVersion for an above-baseline widget, omits at baseline',
-        () {
-      final above = emitUserCatalogDart(
-        userCatalogFromWidgets([_widgetEntry(name: 'Above', sinceVersion: 3)]),
-      );
-      expect(above, contains('sinceVersion: 3'));
+    test(
+      'emits sinceVersion for an above-baseline widget, omits at baseline',
+      () {
+        final above = emitUserCatalogDart(
+          userCatalogFromWidgets([
+            _widgetEntry(name: 'Above', sinceVersion: 3),
+          ]),
+        );
+        expect(above, contains('sinceVersion: 3'));
 
-      final baseline = emitUserCatalogDart(
-        userCatalogFromWidgets([_widgetEntry(name: 'Baseline')]),
-      );
-      expect(baseline, isNot(contains('sinceVersion:')));
-    });
+        final baseline = emitUserCatalogDart(
+          userCatalogFromWidgets([_widgetEntry(name: 'Baseline')]),
+        );
+        expect(baseline, isNot(contains('sinceVersion:')));
+      },
+    );
 
     test('emits a single widget entry with library + properties', () {
       final src = emitUserCatalogDart(
@@ -478,78 +485,81 @@ void main() {
     });
 
     test(
-        'rejects unsupported widget decompose data in widget-only builder path',
-        () {
-      expect(
-        () => userCatalogFromWidgets([
-          _widgetEntry(
-            name: 'UnsupportedDecompose',
-            decomposes: [
-              DecompositionRecipe(
-                structuredRef: const WireIdRef(
-                  library: 'acme.design_system',
-                  wireId: WireId.unallocatedStructured,
+      'rejects unsupported widget decompose data in widget-only builder path',
+      () {
+        expect(
+          () => userCatalogFromWidgets([
+            _widgetEntry(
+              name: 'UnsupportedDecompose',
+              decomposes: [
+                DecompositionRecipe(
+                  structuredRef: const WireIdRef(
+                    library: 'acme.design_system',
+                    wireId: WireId.unallocatedStructured,
+                  ),
+                  flatProperties: {
+                    WireId.unallocatedProperty: WireId.unallocatedProperty,
+                  },
                 ),
-                flatProperties: {
-                  WireId.unallocatedProperty: WireId.unallocatedProperty,
-                },
+              ],
+            ),
+          ]),
+          throwsA(
+            isA<UnsupportedError>().having(
+              (error) => error.message,
+              'message',
+              allOf(
+                contains('UnsupportedDecompose'),
+                contains('custom annotation pipeline cannot preserve'),
+                contains('decompose graph'),
               ),
-            ],
-          ),
-        ]),
-        throwsA(
-          isA<UnsupportedError>().having(
-            (error) => error.message,
-            'message',
-            allOf(
-              contains('UnsupportedDecompose'),
-              contains('custom annotation pipeline cannot preserve'),
-              contains('decompose graph'),
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('rejects nested structured value shapes in widget-only builder path',
-        () {
-      expect(
-        () => userCatalogFromWidgets([
-          _widgetEntry(
-            name: 'UnsupportedNestedShape',
-            properties: const [
-              PropertyEntry(
-                wireId: WireId.unallocatedProperty,
-                name: 'shadows',
-                type: PropertyType.boxShadowList,
-                description: 'Shadows.',
-                valueShape: ListShape(
-                  propertyType: PropertyType.boxShadowList,
-                  itemShape: StructuredShape(
-                    propertyType: PropertyType.structured,
-                    structuredRef: WireIdRef(
-                      library: 'acme.design_system',
-                      wireId: WireId.unallocatedStructured,
+    test(
+      'rejects nested structured value shapes in widget-only builder path',
+      () {
+        expect(
+          () => userCatalogFromWidgets([
+            _widgetEntry(
+              name: 'UnsupportedNestedShape',
+              properties: const [
+                PropertyEntry(
+                  wireId: WireId.unallocatedProperty,
+                  name: 'shadows',
+                  type: PropertyType.boxShadowList,
+                  description: 'Shadows.',
+                  valueShape: ListShape(
+                    propertyType: PropertyType.boxShadowList,
+                    itemShape: StructuredShape(
+                      propertyType: PropertyType.structured,
+                      structuredRef: WireIdRef(
+                        library: 'acme.design_system',
+                        wireId: WireId.unallocatedStructured,
+                      ),
                     ),
                   ),
                 ),
+              ],
+            ),
+          ]),
+          throwsA(
+            isA<UnsupportedError>().having(
+              (error) => error.message,
+              'message',
+              allOf(
+                contains('UnsupportedNestedShape'),
+                contains('shadows'),
+                contains('structured/union graph references'),
               ),
-            ],
-          ),
-        ]),
-        throwsA(
-          isA<UnsupportedError>().having(
-            (error) => error.message,
-            'message',
-            allOf(
-              contains('UnsupportedNestedShape'),
-              contains('shadows'),
-              contains('structured/union graph references'),
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('rejects nested union value shapes in widget-only builder path', () {
       expect(

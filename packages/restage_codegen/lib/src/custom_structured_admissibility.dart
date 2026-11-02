@@ -195,7 +195,8 @@ CustomStructuredAdmission computeAdmission({
               isCustomMapPropertySlot(prop),
         ) &&
         !isWholeWidgetEmittable(widget)) {
-      reason = 'the widget has a property the factory cannot emit — admitted '
+      reason =
+          'the widget has a property the factory cannot emit — admitted '
           'for its custom value property but not whole-widget emittable (an '
           'admitted-then-skipped incoherence, excluded at admission)';
     }
@@ -289,20 +290,22 @@ WidgetEntry _withoutProperty(WidgetEntry widget, PropertyEntry property) =>
         case _MapTargetPlanMissing():
           return (
             property: prop,
-            reason: "property '${prop.name}' has no map reconstruction plan"
+            reason: "property '${prop.name}' has no map reconstruction plan",
           );
         case _MapTargetDangling(:final targetFqn):
           return (
             property: prop,
-            reason: "property '${prop.name}' has a map value targeting "
-                "'$targetFqn', which is not an admitted structured type"
+            reason:
+                "property '${prop.name}' has a map value targeting "
+                "'$targetFqn', which is not an admitted structured type",
           );
         case _MapTargetUnrenderable(:final target, :final obstruction):
           return (
             property: prop,
-            reason: "property '${prop.name}' has a map value targeting "
+            reason:
+                "property '${prop.name}' has a map value targeting "
                 "'${target.name}' whose closure is not fully renderable "
-                '($obstruction)'
+                '($obstruction)',
           );
       }
     }
@@ -312,16 +315,18 @@ WidgetEntry _withoutProperty(WidgetEntry widget, PropertyEntry property) =>
     if (targetFqn == null) {
       return (
         property: prop,
-        reason: "property '${prop.name}' has no resolvable custom structured "
-            'target'
+        reason:
+            "property '${prop.name}' has no resolvable custom structured "
+            'target',
       );
     }
     final target = bySourceType[targetFqn];
     if (target == null) {
       return (
         property: prop,
-        reason: "property '${prop.name}' targets '$targetFqn', which is not an "
-            'admitted (renderable) structured type'
+        reason:
+            "property '${prop.name}' targets '$targetFqn', which is not an "
+            'admitted (renderable) structured type',
       );
     }
     final obstruction = _obstruction(
@@ -336,7 +341,7 @@ WidgetEntry _withoutProperty(WidgetEntry widget, PropertyEntry property) =>
         property: prop,
         reason:
             "property '${prop.name}' targets '${target.name}' whose closure "
-                'is not fully renderable ($obstruction)'
+            'is not fully renderable ($obstruction)',
       );
     }
   }
@@ -440,23 +445,22 @@ String? _mapValueObstruction(
   required Map<String, String> localUnrenderable,
   required Map<String, MapPlan> mapPlans,
   required Set<String> visiting,
-}) =>
-    switch (_resolveMapTarget(
-      structuredSlotKey(owner.sourceType, field.name),
-      bySourceType: bySourceType,
-      slotTargets: slotTargets,
-      localUnrenderable: localUnrenderable,
-      mapPlans: mapPlans,
-      visiting: visiting,
-    )) {
-      _MapTargetClear() => null,
-      _MapTargetPlanMissing() =>
-        '${owner.name}.${field.name}: missing map reconstruction plan',
-      _MapTargetDangling(:final targetFqn) =>
-        '${owner.name}.${field.name} map value -> $targetFqn '
-            '(not an admitted structured type)',
-      _MapTargetUnrenderable(:final obstruction) => obstruction,
-    };
+}) => switch (_resolveMapTarget(
+  structuredSlotKey(owner.sourceType, field.name),
+  bySourceType: bySourceType,
+  slotTargets: slotTargets,
+  localUnrenderable: localUnrenderable,
+  mapPlans: mapPlans,
+  visiting: visiting,
+)) {
+  _MapTargetClear() => null,
+  _MapTargetPlanMissing() =>
+    '${owner.name}.${field.name}: missing map reconstruction plan',
+  _MapTargetDangling(:final targetFqn) =>
+    '${owner.name}.${field.name} map value -> $targetFqn '
+        '(not an admitted structured type)',
+  _MapTargetUnrenderable(:final obstruction) => obstruction,
+};
 
 /// How a map slot's structured value target resolved.
 ///

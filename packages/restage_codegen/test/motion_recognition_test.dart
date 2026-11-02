@@ -26,9 +26,10 @@ Object x() => $body;
 
   group('springAdoptTarget (element-gated on package:flutter/)', () {
     test('a Flutter SpringDescription names RestageMotion', () async {
-      final expr =
-          await resolveFlutter('SpringDescription(mass: 1, stiffness: 100, '
-              'damping: 10)');
+      final expr = await resolveFlutter(
+        'SpringDescription(mass: 1, stiffness: 100, '
+        'damping: 10)',
+      );
       expect(springAdoptTarget(expr), 'RestageMotion');
     });
 
@@ -45,19 +46,21 @@ Object x() => $body;
       expect(springAdoptTarget(expr), isNull);
     });
 
-    test('a custom look-alike SpringDescription is NOT named (element gate)',
-        () async {
-      // A custom class named SpringDescription resolves to a non-flutter
-      // library; the gate withholds the hint (a coincidental name is not a
-      // Flutter spring).
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'a custom look-alike SpringDescription is NOT named (element gate)',
+      () async {
+        // A custom class named SpringDescription resolves to a non-flutter
+        // library; the gate withholds the hint (a coincidental name is not a
+        // Flutter spring).
+        final expr = await parseExpressionFromSourceForTest('''
 class SpringDescription {
   SpringDescription({double? mass, double? stiffness, double? damping});
 }
 Object x() => SpringDescription(mass: 1, stiffness: 100, damping: 10);
 ''');
-      expect(springAdoptTarget(expr as InstanceCreationExpression), isNull);
-    });
+        expect(springAdoptTarget(expr as InstanceCreationExpression), isNull);
+      },
+    );
   });
 
   group('isImperativeMotionType (element-gated motion State-field type)', () {
@@ -75,11 +78,13 @@ Object x() => SpringDescription(mass: 1, stiffness: 100, damping: 10);
       return expr.staticType!;
     }
 
-    test('a Flutter AnimationController is an imperative-motion type',
-        () async {
-      final type = await resolveFlutterType('AnimationController');
-      expect(isImperativeMotionType(type), isTrue);
-    });
+    test(
+      'a Flutter AnimationController is an imperative-motion type',
+      () async {
+        final type = await resolveFlutterType('AnimationController');
+        expect(isImperativeMotionType(type), isTrue);
+      },
+    );
 
     test('a Flutter Animation is an imperative-motion type', () async {
       final type = await resolveFlutterType('Animation<double>');
@@ -99,26 +104,30 @@ Object x() => SpringDescription(mass: 1, stiffness: 100, damping: 10);
       expect(isImperativeMotionType(type), isTrue);
     });
 
-    test('an unrelated Flutter physics type (Tolerance) is NOT motion',
-        () async {
-      final type = await resolveFlutterType(
-        'Tolerance',
-        import: 'package:flutter/physics.dart',
-      );
-      expect(isImperativeMotionType(type), isFalse);
-    });
+    test(
+      'an unrelated Flutter physics type (Tolerance) is NOT motion',
+      () async {
+        final type = await resolveFlutterType(
+          'Tolerance',
+          import: 'package:flutter/physics.dart',
+        );
+        expect(isImperativeMotionType(type), isFalse);
+      },
+    );
 
-    test('a look-alike AnimationController is NOT motion (element gate)',
-        () async {
-      // A custom class named AnimationController resolves to a non-flutter
-      // library; the gate withholds the hint (a coincidental name is not a
-      // Flutter animation controller).
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'a look-alike AnimationController is NOT motion (element gate)',
+      () async {
+        // A custom class named AnimationController resolves to a non-flutter
+        // library; the gate withholds the hint (a coincidental name is not a
+        // Flutter animation controller).
+        final expr = await parseExpressionFromSourceForTest('''
 class AnimationController {}
 Object? x() => (null as AnimationController);
 ''');
-      expect(isImperativeMotionType(expr.staticType), isFalse);
-    });
+        expect(isImperativeMotionType(expr.staticType), isFalse);
+      },
+    );
 
     test('a primitive type (String) is NOT motion', () async {
       final expr = await parseExpressionFromSourceForTest(

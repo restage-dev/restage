@@ -23,11 +23,11 @@ final class HelperDefinition {
     required this.libraryOrigin,
     required this.returnCategory,
     required this.translate,
-  })  : assert(name.length > 0, 'HelperDefinition.name must not be empty'),
-        assert(
-          libraryOrigin.length > 0,
-          'HelperDefinition.libraryOrigin must not be empty',
-        );
+  }) : assert(name.length > 0, 'HelperDefinition.name must not be empty'),
+       assert(
+         libraryOrigin.length > 0,
+         'HelperDefinition.libraryOrigin must not be empty',
+       );
 
   /// The function identifier as it appears in source (e.g. `paywallEvent`).
   final String name;

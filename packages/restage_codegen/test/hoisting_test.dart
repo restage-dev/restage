@@ -47,8 +47,9 @@ abstract final class Art {
 
 final Catalog _coreCatalog = requireNativeCatalog(
   decodeCatalog(
-    File('../restage_core/lib/src/widget_catalog/catalog.json')
-        .readAsStringSync(),
+    File(
+      '../restage_core/lib/src/widget_catalog/catalog.json',
+    ).readAsStringSync(),
   ),
 );
 
@@ -75,8 +76,10 @@ Future<TranslationResult> _translate(
     otherFiles: {'lib/tokens.dart': _tokens},
   );
   final method = expr.thisOrAncestorOfType<MethodDeclaration>()!;
-  return ExpressionTranslator(catalog: _coreCatalog, helpers: HelperRegistry())
-      .translate(
+  return ExpressionTranslator(
+    catalog: _coreCatalog,
+    helpers: HelperRegistry(),
+  ).translate(
     expr,
     hoistInMount: hoist,
     buildContextParameter:
@@ -88,8 +91,9 @@ const _inkTitle =
     "Text('Hi', style: Styles.title.copyWith(color: Palette.of(context).ink))";
 
 /// The error messages one translation reports.
-Future<List<String>> _messages(String body) async =>
-    [for (final issue in (await _translate(body)).issues) issue.message];
+Future<List<String>> _messages(String body) async => [
+  for (final issue in (await _translate(body)).issues) issue.message,
+];
 
 void main() {
   group('device scalar root computations', () {
@@ -103,16 +107,19 @@ void main() {
         final result = await _translate(source);
         expect(result.issues, isEmpty, reason: '${result.issues}');
         expect(result.hoisted, hasLength(1));
-        expect(result.hoisted.single.mountSource((name) => name),
-            contains('context'));
+        expect(
+          result.hoisted.single.mountSource((name) => name),
+          contains('context'),
+        );
       });
     }
   });
 
   group('runtime lookups move into the mount', () {
     test('an inherited Color result crosses as the native object', () async {
-      final result =
-          await _translate('ColoredBox(color: Palette.of(context).ink)');
+      final result = await _translate(
+        'ColoredBox(color: Palette.of(context).ink)',
+      );
       expect(result.issues, isEmpty);
       expect(result.hoisted.single.kind, HoistValueKind.nativeBinding);
       expect(result.hoisted.single.nativeContract?.type, 'flutter.Color');
@@ -131,8 +138,9 @@ void main() {
       expect(value.shape.toJson(), {'kind': 'double', 'label': scalar});
       expect(value.mountSource((name) => name), scalar);
       expect(
-          'SizedBox(height: data.context.${value.key})'.allMatches(result.dsl),
-          hasLength(2));
+        'SizedBox(height: data.context.${value.key})'.allMatches(result.dsl),
+        hasLength(2),
+      );
     });
 
     test('keys are stable across builds', () async {
@@ -141,8 +149,10 @@ void main() {
       for (final result in [a, b]) {
         expect(result.issues, isEmpty, reason: '${result.issues}');
         expect(result.hoisted, hasLength(1));
-        expect(result.dsl,
-            'SizedBox(height: data.context.${result.hoisted.single.key})');
+        expect(
+          result.dsl,
+          'SizedBox(height: data.context.${result.hoisted.single.key})',
+        );
       }
       expect(a.hoisted.single.key, b.hoisted.single.key);
       expect(a.hoisted.single.key, matches(RegExp(r'^_h[0-9a-f]{10}$')));
@@ -187,16 +197,19 @@ void main() {
       expect(result.hoisted.single.paints, ['foreground']);
     });
 
-    test('a copyWith argument over an app style is never dropped silently',
-        () async {
-      final result = await _translate(
-        "Text('Hi', style: Styles.title.copyWith(package: font, height: 2))",
-      );
-      expect(result.hoisted.single.label, 'Styles.title');
-      const message = "copyWith argument 'package' has no flat property on "
-          "'Text' to carry it.";
-      expect(result.issues.map((issue) => issue.message), [message]);
-    });
+    test(
+      'a copyWith argument over an app style is never dropped silently',
+      () async {
+        final result = await _translate(
+          "Text('Hi', style: Styles.title.copyWith(package: font, height: 2))",
+        );
+        expect(result.hoisted.single.label, 'Styles.title');
+        const message =
+            "copyWith argument 'package' has no flat property on "
+            "'Text' to carry it.";
+        expect(result.issues.map((issue) => issue.message), [message]);
+      },
+    );
 
     test('a comment edit keeps the contract hash', () async {
       Future<String?> hash(String body) async {
@@ -239,7 +252,8 @@ Text('Hi', style: Styles.title.copyWith(
 
   group('what the mount cannot compute', () {
     test('a lookup that returns a widget', () async {
-      const message = "'Palette.of(context).badge()' returns a widget. "
+      const message =
+          "'Palette.of(context).badge()' returns a widget. "
           'Register that widget as a custom widget to use it here.';
       expect(
         await _messages('Center(child: Palette.of(context).badge())'),
@@ -248,7 +262,8 @@ Text('Hi', style: Styles.title.copyWith(
     });
 
     test('a value only the surface has', () async {
-      const message = "'tint.withAlpha(Palette.of(context).ink.alpha)' "
+      const message =
+          "'tint.withAlpha(Palette.of(context).ink.alpha)' "
           "depends on 'tint', which exists only inside this surface. Pass the "
           'value in as a constructor input.';
       expect(
@@ -260,7 +275,8 @@ Text('Hi', style: Styles.title.copyWith(
     });
 
     test('a ref the build does not receive', () async {
-      const message = "'ref' needs this screen to extend a widget whose "
+      const message =
+          "'ref' needs this screen to extend a widget whose "
           'build receives it, such as ConsumerWidget.';
       expect(
         await _messages('ColoredBox(color: ref.watch(Color(0xFF000000)))'),
@@ -279,7 +295,8 @@ Text('Hi', style: Styles.title.copyWith(
     });
 
     test('a value of a type that cannot cross', () async {
-      const message = "'Spacing.of(context)' is a Spacing, which a surface "
+      const message =
+          "'Spacing.of(context)' is a Spacing, which a surface "
           "can't receive. Pass a color, number, string, text style or enum.";
       expect(await _messages('SizedBox(width: Spacing.of(context))'), [
         message,

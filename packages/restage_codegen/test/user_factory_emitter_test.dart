@@ -12,18 +12,17 @@ WidgetEntry _widgetEntry({
   String? flutterType,
   ChildrenSlot childrenSlot = ChildrenSlot.none,
   List<PropertyEntry> properties = const [],
-}) =>
-    WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: name,
-      library: library,
-      category: category,
-      description: description,
-      flutterType: flutterType ??
-          'package:acme/widgets/${name.toLowerCase()}.dart#$name',
-      childrenSlot: childrenSlot,
-      properties: properties,
-    );
+}) => WidgetEntry(
+  wireId: WireId.unallocatedWidget,
+  name: name,
+  library: library,
+  category: category,
+  description: description,
+  flutterType:
+      flutterType ?? 'package:acme/widgets/${name.toLowerCase()}.dart#$name',
+  childrenSlot: childrenSlot,
+  properties: properties,
+);
 
 void main() {
   group('emitUserFactoriesDart', () {
@@ -67,7 +66,8 @@ void main() {
       expect(
         source,
         contains(
-            "RestageDecoders.string(source, <Object>['label'], context: context)"),
+          "RestageDecoders.string(source, <Object>['label'], context: context)",
+        ),
       );
     });
 
@@ -110,8 +110,7 @@ void main() {
       );
     });
 
-    test(
-        'returns null when every entry is structurally non-emittable '
+    test('returns null when every entry is structurally non-emittable '
         '(e.g. malformed historical wire slot without its property)', () {
       // A historical `ChildrenSlot.single` wire value without the corresponding
       // `child` property is one rejection path in `_isMechanicallyEmittable`.
@@ -128,35 +127,36 @@ void main() {
       expect(src, isNull);
     });
 
-    test('onSkip fires once per non-emittable entry and is silent otherwise',
-        () {
-      final skipped = <String>[];
-      // One emittable + one non-emittable in the same call exercises the
-      // mixed-emittability path the catalog/factory split depends on.
-      emitUserFactoriesDart(
-        [
-          _widgetEntry(
-            name: 'Good',
-            properties: const [
-              PropertyEntry(
-                wireId: WireId.unallocatedProperty,
-                name: 'label',
-                type: PropertyType.string,
-                description: 'Visible label.',
-                required: true,
-              ),
-            ],
-          ),
-          _widgetEntry(name: 'Bad', childrenSlot: ChildrenSlot.single),
-        ],
-        onSkip: (entry) => skipped.add(entry.name),
-      );
-      expect(skipped, equals(<String>['Bad']));
-    });
+    test(
+      'onSkip fires once per non-emittable entry and is silent otherwise',
+      () {
+        final skipped = <String>[];
+        // One emittable + one non-emittable in the same call exercises the
+        // mixed-emittability path the catalog/factory split depends on.
+        emitUserFactoriesDart(
+          [
+            _widgetEntry(
+              name: 'Good',
+              properties: const [
+                PropertyEntry(
+                  wireId: WireId.unallocatedProperty,
+                  name: 'label',
+                  type: PropertyType.string,
+                  description: 'Visible label.',
+                  required: true,
+                ),
+              ],
+            ),
+            _widgetEntry(name: 'Bad', childrenSlot: ChildrenSlot.single),
+          ],
+          onSkip: (entry) => skipped.add(entry.name),
+        );
+        expect(skipped, equals(<String>['Bad']));
+      },
+    );
 
     for (final declares in [false, true]) {
-      test(
-          'the registration declares the surface list only when one is '
+      test('the registration declares the surface list only when one is '
           'generated ($declares)', () {
         final sources = [
           emitUserFactoriesDart(
@@ -166,16 +166,16 @@ void main() {
           emitEmptyUserFactoriesDart(declaresSurfaces: declares),
         ];
         for (final source in sources) {
-          final matcher =
-              declares ? contains : (Object s) => isNot(contains(s));
+          final matcher = declares
+              ? contains
+              : (Object s) => isNot(contains(s));
           expect(source, matcher("import 'restage_surfaces.g.dart';"));
           expect(source, matcher('Restage.declareSurfaces(restageSurfaces);'));
         }
       });
     }
 
-    test('emits header, imports, and the registration helpers for one entry',
-        () {
+    test('emits header, imports, and the registration helpers for one entry', () {
       final src = emitUserFactoriesDart([
         _widgetEntry(
           name: 'AcmeBadge',
@@ -257,8 +257,7 @@ void main() {
       );
     });
 
-    test(
-        'qualifies the constructor with the import alias when the package has '
+    test('qualifies the constructor with the import alias when the package has '
         'NO structured-type properties (regression)', () {
       // A `@RestageWidget` package where every property is a scalar (no
       // structured-type decomposition) has no structured-type context, so
@@ -294,13 +293,13 @@ void main() {
       expect(
         src,
         isNot(contains('return AcmeBadge(')),
-        reason: 'a bare constructor reference is undefined under the '
+        reason:
+            'a bare constructor reference is undefined under the '
             'prefixed import and would not analyze',
       );
     });
 
-    test(
-        'groups entries by library and calls registerWidgetLibrary once per '
+    test('groups entries by library and calls registerWidgetLibrary once per '
         'library, sorted by namespace', () {
       final src = emitUserFactoriesDart([
         _widgetEntry(
@@ -326,27 +325,29 @@ void main() {
       );
     });
 
-    test('imports are deduplicated when several entries share a source file',
-        () {
-      final src = emitUserFactoriesDart([
-        _widgetEntry(
-          name: 'Foo',
-          flutterType: 'package:acme/lib.dart#Foo',
-        ),
-        _widgetEntry(
-          name: 'Bar',
-          flutterType: 'package:acme/lib.dart#Bar',
-        ),
-      ]);
-      expect(src, isNotNull);
-      final firstImport = src!.indexOf("import 'package:acme/lib.dart'");
-      final lastImport = src.lastIndexOf("import 'package:acme/lib.dart'");
-      expect(
-        firstImport,
-        equals(lastImport),
-        reason: 'shared source file should emit a single import',
-      );
-    });
+    test(
+      'imports are deduplicated when several entries share a source file',
+      () {
+        final src = emitUserFactoriesDart([
+          _widgetEntry(
+            name: 'Foo',
+            flutterType: 'package:acme/lib.dart#Foo',
+          ),
+          _widgetEntry(
+            name: 'Bar',
+            flutterType: 'package:acme/lib.dart#Bar',
+          ),
+        ]);
+        expect(src, isNotNull);
+        final firstImport = src!.indexOf("import 'package:acme/lib.dart'");
+        final lastImport = src.lastIndexOf("import 'package:acme/lib.dart'");
+        expect(
+          firstImport,
+          equals(lastImport),
+          reason: 'shared source file should emit a single import',
+        );
+      },
+    );
 
     test('uses the typed singleton for built-in libraries', () {
       final src = emitUserFactoriesDart([
@@ -373,20 +374,22 @@ void main() {
       expect(src!.endsWith('\n'), isTrue);
     });
 
-    test(r'escapes single quote / backslash / $ in custom library namespace',
-        () {
-      final src = emitUserFactoriesDart([
-        _widgetEntry(
-          name: 'X',
-          library: const WidgetLibrary.custom(r"acme$it's.lib\path"),
-        ),
-      ]);
-      expect(src, isNotNull);
-      expect(
-        src,
-        contains(r"WidgetLibrary.custom('acme\$it\'s.lib\\path')"),
-      );
-    });
+    test(
+      r'escapes single quote / backslash / $ in custom library namespace',
+      () {
+        final src = emitUserFactoriesDart([
+          _widgetEntry(
+            name: 'X',
+            library: const WidgetLibrary.custom(r"acme$it's.lib\path"),
+          ),
+        ]);
+        expect(src, isNotNull);
+        expect(
+          src,
+          contains(r"WidgetLibrary.custom('acme\$it\'s.lib\\path')"),
+        );
+      },
+    );
 
     test('emits source.child(...) for a required single child slot', () {
       final src = emitUserFactoriesDart([
@@ -407,8 +410,10 @@ void main() {
       expect(src, isNotNull);
       expect(
         src,
-        contains('Widget _buildAcmeBorder(BuildContext context, '
-            'DataSource source)'),
+        contains(
+          'Widget _buildAcmeBorder(BuildContext context, '
+          'DataSource source)',
+        ),
       );
       expect(src, contains("child: source.child(const <Object>['child'])"));
       // Required child slot uses source.child (returns Widget), not
@@ -416,29 +421,31 @@ void main() {
       expect(src, isNot(contains('source.optionalChild')));
     });
 
-    test('emits source.optionalChild(...) for an optional single child slot',
-        () {
-      final src = emitUserFactoriesDart([
-        _widgetEntry(
-          name: 'AcmeWrapper',
-          childrenSlot: ChildrenSlot.single,
-          properties: const [
-            PropertyEntry(
-              wireId: WireId.unallocatedProperty,
-              name: 'child',
-              type: PropertyType.widget,
-              description: 'Optional wrapped child.',
-              constructorNullable: true,
-            ),
-          ],
-        ),
-      ]);
-      expect(src, isNotNull);
-      expect(
-        src,
-        contains("child: source.optionalChild(const <Object>['child'])"),
-      );
-    });
+    test(
+      'emits source.optionalChild(...) for an optional single child slot',
+      () {
+        final src = emitUserFactoriesDart([
+          _widgetEntry(
+            name: 'AcmeWrapper',
+            childrenSlot: ChildrenSlot.single,
+            properties: const [
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'child',
+                type: PropertyType.widget,
+                description: 'Optional wrapped child.',
+                constructorNullable: true,
+              ),
+            ],
+          ),
+        ]);
+        expect(src, isNotNull);
+        expect(
+          src,
+          contains("child: source.optionalChild(const <Object>['child'])"),
+        );
+      },
+    );
 
     test('emits the widget-list decoder for a children list slot', () {
       final src = emitUserFactoriesDart([
@@ -458,8 +465,10 @@ void main() {
       expect(src, isNotNull);
       expect(
         src,
-        contains('Widget _buildAcmeStack(BuildContext context, '
-            'DataSource source)'),
+        contains(
+          'Widget _buildAcmeStack(BuildContext context, '
+          'DataSource source)',
+        ),
       );
       expect(
         src?.replaceAll(RegExp(r'\s+'), ' '),

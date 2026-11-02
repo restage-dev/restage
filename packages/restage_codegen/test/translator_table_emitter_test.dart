@@ -8,8 +8,9 @@ import 'package:test/test.dart';
 void main() {
   test('the checked-in table is current', () {
     expect(
-      File('lib/src/widget_catalog/translator_tables.g.dart')
-          .readAsStringSync(),
+      File(
+        'lib/src/widget_catalog/translator_tables.g.dart',
+      ).readAsStringSync(),
       emitBuiltinTranslatorTable(),
     );
   });

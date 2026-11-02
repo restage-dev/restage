@@ -25,8 +25,9 @@ Set<String> paywallCompletionEvents(ClassElement paywall) {
 
 /// The event names [callback] fires from any branch of a conditional.
 Set<String> authoredEventNames(Expression callback) {
-  final expression =
-      callback is ParenthesizedExpression ? callback.expression : callback;
+  final expression = callback is ParenthesizedExpression
+      ? callback.expression
+      : callback;
   if (expression is ConditionalExpression) {
     return {
       ...authoredEventNames(expression.thenExpression),
@@ -39,8 +40,9 @@ Set<String> authoredEventNames(Expression callback) {
 /// The event name a `paywallEvent('name')` or `surfaceEvent(event)` callback
 /// fires, or null for any other callback.
 String? authoredEventName(Expression callback) {
-  final expression =
-      callback is ParenthesizedExpression ? callback.expression : callback;
+  final expression = callback is ParenthesizedExpression
+      ? callback.expression
+      : callback;
   if (expression is! MethodInvocation) return null;
   final name = expression.methodName.name;
   if (name != 'paywallEvent' && name != 'surfaceEvent') return null;
@@ -57,7 +59,7 @@ String? authoredEventName(Expression callback) {
   final variable = element is PropertyAccessorElement
       ? element.variable
       : element is VariableElement
-          ? element
-          : null;
+      ? element
+      : null;
   return variable?.computeConstantValue()?.getField('id')?.toStringValue();
 }

@@ -58,8 +58,9 @@ void main() {
     test('returns the return expression past leading const locals', () {
       // A `const` local is inert (compile-time); its reference folds at the
       // translation site, so the body still reduces to one returned widget.
-      final body =
-          _bodyOf('int f() { const x = 1; const y = 2; return x + y; }');
+      final body = _bodyOf(
+        'int f() { const x = 1; const y = 2; return x + y; }',
+      );
       expect(singleReturnExpressionOf(body), isA<BinaryExpression>());
     });
 

@@ -31,7 +31,8 @@ const String _header =
 /// the real visitor, the ONE admission point, and the real emitter.
 Future<String?> _emit(String declarations, String propertyType) async {
   final result = await runWidgetVisitorOn({
-    'lib/board.dart': '''
+    'lib/board.dart':
+        '''
 $_header
 $declarations
 @RestageWidget(name: 'Board', library: WidgetLibrary.custom('acme.ds'),
@@ -78,10 +79,9 @@ class Board {
 
 /// Every loop counter DECLARED in [source], in emission order. A repeat means
 /// one loop shadows an enclosing one.
-List<String> _declaredCounters(String source) => RegExp(r'for \(var (\w+) =')
-    .allMatches(source)
-    .map((m) => m.group(1)!)
-    .toList();
+List<String> _declaredCounters(String source) => RegExp(
+  r'for \(var (\w+) =',
+).allMatches(source).map((m) => m.group(1)!).toList();
 
 /// A list of structured elements, each carrying a list of structured elements.
 const String _listInList = '''
@@ -124,7 +124,8 @@ void main() {
     expect(
       counters.toSet().length,
       counters.length,
-      reason: 'a repeated counter shadows an enclosing loop: $counters\n'
+      reason:
+          'a repeated counter shadows an enclosing loop: $counters\n'
           '$source',
     );
   }
@@ -137,23 +138,30 @@ void main() {
     await expectDistinctCounters(_mapInStructured, 'List<Line>');
   });
 
-  test('a list below a TWO-LEVEL map does not reuse either map counter',
-      () async {
-    // The deepest reachable form: the map layers consume TWO counters before
-    // the list layer opens its own. It proves the counter is monotonic ACROSS
-    // the layers rather than merely "one more than the map's key depth" — a
-    // fix that derived the list counter from the key depth alone would pass
-    // the single-level case and collide here.
-    //
-    // Only reachable once nested maps over a custom data class emit at all;
-    // before that they failed the build in the emitter.
-    await expectDistinctCounters(_listInList, 'Map<String, Map<String, Line>>');
-  });
+  test(
+    'a list below a TWO-LEVEL map does not reuse either map counter',
+    () async {
+      // The deepest reachable form: the map layers consume TWO counters before
+      // the list layer opens its own. It proves the counter is monotonic ACROSS
+      // the layers rather than merely "one more than the map's key depth" — a
+      // fix that derived the list counter from the key depth alone would pass
+      // the single-level case and collide here.
+      //
+      // Only reachable once nested maps over a custom data class emit at all;
+      // before that they failed the build in the emitter.
+      await expectDistinctCounters(
+        _listInList,
+        'Map<String, Map<String, Line>>',
+      );
+    },
+  );
 
-  test('a map inside a MAP value does not reuse the outer map counter',
-      () async {
-    await expectDistinctCounters(_mapInStructured, 'Map<String, Line>');
-  });
+  test(
+    'a map inside a MAP value does not reuse the outer map counter',
+    () async {
+      await expectDistinctCounters(_mapInStructured, 'Map<String, Line>');
+    },
+  );
 
   test('the plain nested-list shape keeps its distinct counters', () async {
     // The control: this path already threads its depth, so it must stay green

@@ -281,7 +281,7 @@ _HelperIndex _indexHelpers(AstNode node) {
 /// The helpers reachable from [roots] through artifact-bound calls, or the
 /// first helper that calls itself (directly or transitively).
 Future<({Map<Element, HelperDef> helpers, ExecutableElement? recursive})>
-    reachableArtifactHelpers(
+reachableArtifactHelpers(
   Iterable<Expression> roots, {
   required Future<AstNode?> Function(Fragment fragment) astNodeFor,
   Set<String> admittedHelperPackages = const {},
@@ -297,8 +297,10 @@ Future<({Map<Element, HelperDef> helpers, ExecutableElement? recursive})>
     final known =
         helpers[element] ?? inlinableHelperDefinitionsIn(call)[element];
     if (known != null) return known;
-    final (:definition, :refusal) =
-        helperDefinitionOf(element, await astNodeFor(element.firstFragment));
+    final (:definition, :refusal) = helperDefinitionOf(
+      element,
+      await astNodeFor(element.firstFragment),
+    );
     if (refusal != null) _refusalsByHelper[element] = refusal;
     return definition;
   }
@@ -440,9 +442,7 @@ final Expando<_HelperIndex> _helperIndexCache = Expando<_HelperIndex>();
 final class _HelperIndex {
   const _HelperIndex({required this.definitions, required this.refusals});
 
-  const _HelperIndex.empty()
-      : definitions = const {},
-        refusals = const {};
+  const _HelperIndex.empty() : definitions = const {}, refusals = const {};
 
   final Map<Element, HelperDef> definitions;
   final Map<Element, String> refusals;
@@ -492,7 +492,8 @@ final class _HelperDefinitionIndexer extends RecursiveAstVisitor<void> {
   if (extracted == null) {
     return (
       definition: null,
-      refusal: preludeDeclarationProblem(body) ??
+      refusal:
+          preludeDeclarationProblem(body) ??
           'its body must be one returned expression, optionally preceded by '
               'initialized final or const locals',
     );
@@ -528,8 +529,8 @@ final class InlinedDefinitions {
 
   /// The empty set — a `build()` with no inlinable named intermediate.
   const InlinedDefinitions.empty()
-      : localBindings = const {},
-        helpers = const {};
+    : localBindings = const {},
+      helpers = const {};
 
   /// Leading `final`/`const` local bindings in `build()`, keyed by the
   /// binding's resolved [Element]; the value is the binding's initializer
@@ -603,10 +604,10 @@ final class CustomWidgetBlueprint {
     Map<String, RecognisedSetState> eventHandlers = const {},
     List<RecognisedModalSheet> modalSheets = const [],
     this.inlined = const InlinedDefinitions.empty(),
-  })  : params = List.unmodifiable(params),
-        state = state == null ? null : List.unmodifiable(state),
-        eventHandlers = Map.unmodifiable(eventHandlers),
-        modalSheets = List.unmodifiable(modalSheets);
+  }) : params = List.unmodifiable(params),
+       state = state == null ? null : List.unmodifiable(state),
+       eventHandlers = Map.unmodifiable(eventHandlers),
+       modalSheets = List.unmodifiable(modalSheets);
 
   /// Canonical `'<library URI>#<ClassName>'` key — matches the owning
   /// [WidgetClassification.classKey].
@@ -671,9 +672,9 @@ final class ClassificationResult {
     required Map<String, WidgetClassification> classifications,
     required Map<String, CustomWidgetBlueprint> blueprints,
     Map<String, String> collectionRefusals = const {},
-  })  : classifications = Map.unmodifiable(classifications),
-        blueprints = Map.unmodifiable(blueprints),
-        collectionRefusals = Map.unmodifiable(collectionRefusals);
+  }) : classifications = Map.unmodifiable(classifications),
+       blueprints = Map.unmodifiable(blueprints),
+       collectionRefusals = Map.unmodifiable(collectionRefusals);
 
   /// Every custom widget classified this pass, keyed by
   /// [WidgetClassification.classKey].

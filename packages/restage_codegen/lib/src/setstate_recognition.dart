@@ -108,7 +108,8 @@ RecognisedSetState recogniseSetState(
   final assignment = _extractSingleAssignment(closure.body);
   if (assignment == null) {
     return const SetStateUnrecognised(
-      reason: 'the setState closure does not contain a single assignment '
+      reason:
+          'the setState closure does not contain a single assignment '
           'expression',
     );
   }
@@ -120,29 +121,35 @@ RecognisedSetState recogniseSetState(
   }
   if (assignment.operator.lexeme != '=') {
     return SetStateUnrecognised(
-      reason: 'the assignment uses ${assignment.operator.lexeme} rather '
+      reason:
+          'the assignment uses ${assignment.operator.lexeme} rather '
           'than `=` — only direct assignment of a literal or a same-field '
           'bool flip is recognised',
     );
   }
-  final rhsBoolFlipField =
-      _boolFlipField(assignment.rightHandSide, stateFieldNames);
+  final rhsBoolFlipField = _boolFlipField(
+    assignment.rightHandSide,
+    stateFieldNames,
+  );
   if (rhsBoolFlipField != null) {
     if (rhsBoolFlipField != lhsField) {
       return SetStateUnrecognised(
-        reason: "the bool flip reads '$rhsBoolFlipField' but assigns to "
+        reason:
+            "the bool flip reads '$rhsBoolFlipField' but assigns to "
             "'$lhsField' — only a same-field flip is recognised",
       );
     }
     return SetStateBoolFlip(fieldName: lhsField);
   }
-  final value = tryFoldConstant(assignment.rightHandSide) ??
+  final value =
+      tryFoldConstant(assignment.rightHandSide) ??
       enumConstantName(assignment.rightHandSide);
   if (value != null) {
     return SetStateLiteral(fieldName: lhsField, value: value);
   }
   return const SetStateUnrecognised(
-    reason: 'the assignment right-hand side is not a recognised literal or '
+    reason:
+        'the assignment right-hand side is not a recognised literal or '
         'same-field bool flip — only constant scalars, enum values, and '
         '`!<field>` flips are emitted',
   );

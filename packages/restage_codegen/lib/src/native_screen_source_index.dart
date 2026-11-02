@@ -39,11 +39,10 @@ const _packageGraphZoneKey = Object();
 Future<T> runWithNativeScreenPackageGraphForTesting<T>({
   required String packageGraphSource,
   required Future<T> Function() body,
-}) =>
-    runZoned(
-      body,
-      zoneValues: {_packageGraphZoneKey: packageGraphSource},
-    );
+}) => runZoned(
+  body,
+  zoneValues: {_packageGraphZoneKey: packageGraphSource},
+);
 
 /// One static event marker retained from a native screen source.
 @immutable
@@ -89,8 +88,8 @@ final class NativeScreenSource {
     required this.a2uiTargetConfig,
     required this.widgetbookTargetConfig,
     required List<NativeScreenEventSource> events,
-  })  : importUris = List.unmodifiable(importUris),
-        events = List.unmodifiable(events);
+  }) : importUris = List.unmodifiable(importUris),
+       events = List.unmodifiable(events);
 
   /// Stable authored screen identifier.
   final String id;
@@ -148,8 +147,8 @@ final class NativeScreenSourceIndex {
   NativeScreenSourceIndex({
     required List<NativeScreenSource> screens,
     required List<Issue> issues,
-  })  : screens = List.unmodifiable(screens),
-        issues = List.unmodifiable(issues);
+  }) : screens = List.unmodifiable(screens),
+       issues = List.unmodifiable(issues);
 
   /// Screens in deterministic ID then class-identity order.
   final List<NativeScreenSource> screens;
@@ -211,18 +210,20 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
   // directly by tests while its public frontend settles.
   // ignore: invalid_use_of_visible_for_testing_member
   final roster = await collectRestageSourceRoster(buildStep, plan: plan);
-  final canonicalScreenDeclarations = roster.declarations
-      .where(
-        (source) =>
-            source.isCanonical && source.kind == RestageRosterSourceKind.screen,
-      )
-      .toList()
-    ..sort((left, right) {
-      final byId = left.effectiveId.compareTo(right.effectiveId);
-      return byId != 0
-          ? byId
-          : left.declarationIdentity.compareTo(right.declarationIdentity);
-    });
+  final canonicalScreenDeclarations =
+      roster.declarations
+          .where(
+            (source) =>
+                source.isCanonical &&
+                source.kind == RestageRosterSourceKind.screen,
+          )
+          .toList()
+        ..sort((left, right) {
+          final byId = left.effectiveId.compareTo(right.effectiveId);
+          return byId != 0
+              ? byId
+              : left.declarationIdentity.compareTo(right.declarationIdentity);
+        });
   final sourcesByLibraryIdentity = <String, ResolvedPackageLibrary>{
     for (final source in sources) source.library.identifier: source,
   };
@@ -250,7 +251,8 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetClass,
-          message: 'Native sibling generators cannot name private '
+          message:
+              'Native sibling generators cannot name private '
               'annotated screen class $identity. Make the $sourceAnnotation '
               'class public.',
           location: location,
@@ -262,7 +264,8 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetClass,
-          message: 'Native sibling generators cannot construct abstract '
+          message:
+              'Native sibling generators cannot construct abstract '
               '$sourceAnnotation class $identity. Make the screen class '
               'concrete.',
           location: location,
@@ -274,7 +277,8 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
       issues.add(
         Issue(
           code: IssueCode.unsupportedBaseClass,
-          message: '$sourceAnnotation class $identity must extend Flutter '
+          message:
+              '$sourceAnnotation class $identity must extend Flutter '
               'StatelessWidget or StatefulWidget so native sibling '
               'generators can construct it.',
           location: location,
@@ -291,7 +295,8 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetClass,
-          message: '$sourceAnnotation and @RestageWidget cannot annotate the '
+          message:
+              '$sourceAnnotation and @RestageWidget cannot annotate the '
               'same exact class $identity; the native screen and custom '
               'widget source contracts are disjoint.',
           location: location,
@@ -318,17 +323,17 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
     );
     final widgetbookTargetConfig =
         consumer == NativeScreenSourceConsumer.widgetbook
-            ? readWidgetbookTargetConfig(
-                cls,
-                source.assetId,
-                constructorInputs: constructorFacts.inputs,
-              )
-            : WidgetbookTargetConfigFacts(
-                expansion: null,
-                maxStories: null,
-                properties: const {},
-                issues: const [],
-              );
+        ? readWidgetbookTargetConfig(
+            cls,
+            source.assetId,
+            constructorInputs: constructorFacts.inputs,
+          )
+        : WidgetbookTargetConfigFacts(
+            expansion: null,
+            maxStories: null,
+            properties: const {},
+            issues: const [],
+          );
     issues
       ..addAll(constructorFacts.issues)
       ..addAll(a2uiTargetConfig.issues);
@@ -446,7 +451,8 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
 
   for (final declaration in canonicalScreenDeclarations) {
     final source = sourcesByLibraryIdentity[declaration.libraryIdentity];
-    final candidates = source?.library.classes
+    final candidates =
+        source?.library.classes
             .where(
               (cls) =>
                   '${source.library.identifier}#${cls.name ?? '<unnamed>'}' ==
@@ -458,7 +464,8 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
       issues.add(
         Issue(
           code: IssueCode.analyzerResolutionFailed,
-          message: 'The canonical @Screen roster declaration '
+          message:
+              'The canonical @Screen roster declaration '
               '${declaration.declarationIdentity} could not be resolved to '
               'exactly one analyzer class for native sibling generation.',
           location: declaration.span.location,
@@ -553,8 +560,9 @@ void _collectResolvedDefaultRequirements(
       symbol: ownerName,
       sourcePath: sourcePath,
       privateMember: constructorName?.startsWith('_') ?? false,
-      privateMemberName:
-          constructorName?.startsWith('_') ?? false ? constructorName : null,
+      privateMemberName: constructorName?.startsWith('_') ?? false
+          ? constructorName
+          : null,
     ),
   );
 }
@@ -567,10 +575,9 @@ void _validateDuplicateScreenIds(
   for (final screen in screens) {
     byId.putIfAbsent(screen.id, () => []).add(screen);
   }
-  final duplicates = byId.entries
-      .where((entry) => entry.value.length > 1)
-      .toList()
-    ..sort((left, right) => left.key.compareTo(right.key));
+  final duplicates =
+      byId.entries.where((entry) => entry.value.length > 1).toList()
+        ..sort((left, right) => left.key.compareTo(right.key));
   for (final duplicate in duplicates) {
     final declarations = duplicate.value
       ..sort(
@@ -582,15 +589,17 @@ void _validateDuplicateScreenIds(
               '${screen.classIdentity} (${screen.declarationSourcePath})',
         )
         .join(', ');
-    final sourceAnnotations =
-        declarations.map((screen) => screen.sourceAnnotation).toSet();
+    final sourceAnnotations = declarations
+        .map((screen) => screen.sourceAnnotation)
+        .toSet();
     final sourceLabel = sourceAnnotations.length == 1
         ? sourceAnnotations.single
         : 'Native screen';
     issues.add(
       Issue(
         code: IssueCode.duplicateId,
-        message: '$sourceLabel id "${duplicate.key}" is declared by '
+        message:
+            '$sourceLabel id "${duplicate.key}" is declared by '
             '$declarationList.',
         location: declarations.first.declarationSourcePath,
       ),
@@ -618,7 +627,9 @@ void _validateA2uiComponentNamespace(
         (element) => element.name == className,
       );
       if (matches.length != 1) continue;
-      widgetsByName.putIfAbsent(widget.name, () => []).add(
+      widgetsByName
+          .putIfAbsent(widget.name, () => [])
+          .add(
             _A2uiWidgetIdentity(
               classIdentity: widget.flutterType,
               declarationSourcePath: _elementSourcePath(
@@ -640,7 +651,8 @@ void _validateA2uiComponentNamespace(
       issues.add(
         Issue(
           code: IssueCode.duplicateWidgetName,
-          message: 'A2UI component name "${screen.id}" is declared by both '
+          message:
+              'A2UI component name "${screen.id}" is declared by both '
               '${screen.sourceAnnotation} ${screen.classIdentity} '
               '(${screen.declarationSourcePath}) and @RestageWidget '
               '${widget.classIdentity} (${widget.declarationSourcePath}).',
@@ -668,7 +680,8 @@ List<NativeScreenEventSource> _readEvents(
       issues.add(
         Issue(
           code: IssueCode.invalidEventConfiguration,
-          message: 'Static event $className.$fieldName must const-evaluate '
+          message:
+              'Static event $className.$fieldName must const-evaluate '
               'to a SurfaceEvent with a non-empty String id.',
           location: '$declarationPath#$className.$fieldName',
         ),
@@ -801,10 +814,10 @@ void _collectConstRequirements(
         ),
       );
     case DartConstInvocation(
-        :final type,
-        :final positional,
-        :final named,
-      ):
+      :final type,
+      :final positional,
+      :final named,
+    ):
       _collectTypeIdentityRequirements(
         type,
         sourcePath: sourcePath,
@@ -825,7 +838,7 @@ void _collectConstRequirements(
         );
       }
     case DartConstList(:final type, :final values) ||
-          DartConstSet(:final type, :final values):
+        DartConstSet(:final type, :final values):
       if (type != null) {
         _collectTypeIdentityRequirements(
           type,
@@ -885,10 +898,10 @@ void _collectTypeIdentityRequirements(
 }) {
   switch (type) {
     case DartNamedTypeIdentity(
-        :final libraryUri,
-        :final symbolName,
-        :final typeArguments,
-      ):
+      :final libraryUri,
+      :final symbolName,
+      :final typeArguments,
+    ):
       output.add(
         _ImportRequirement(
           libraryUri: libraryUri,
@@ -936,7 +949,8 @@ String? _resolveCanonicalImport(
     issues.add(
       Issue(
         code: IssueCode.invalidWidgetClass,
-        message: '${requirement.sourcePath} requires private Dart identity '
+        message:
+            '${requirement.sourcePath} requires private Dart identity '
             '${requirement.libraryUri}#$privateIdentity, which a '
             'generated native sibling library cannot name.',
         location: requirement.sourcePath,
@@ -966,8 +980,9 @@ String? _resolveCanonicalImport(
     final importedLibrary = import.importedLibrary;
     if (importedLibrary == null) continue;
     final prefix = import.prefix?.name;
-    final lookup =
-        prefix == null ? requirement.symbol : '$prefix.${requirement.symbol}';
+    final lookup = prefix == null
+        ? requirement.symbol
+        : '$prefix.${requirement.symbol}';
     final provided = import.namespace.get2(lookup);
     if (!_matchesRequirement(provided, requirement)) continue;
     candidates.add(_canonicalLibraryUri(importedLibrary));
@@ -976,17 +991,19 @@ String? _resolveCanonicalImport(
   final samePackageCandidates = definingPackage == null
       ? const <String>[]
       : candidates
-          .where((candidate) => _packageName(candidate) == definingPackage)
-          .toList();
-  final ordered = (samePackageCandidates.isEmpty
-      ? candidates.toList()
-      : samePackageCandidates)
-    ..sort();
+            .where((candidate) => _packageName(candidate) == definingPackage)
+            .toList();
+  final ordered =
+      (samePackageCandidates.isEmpty
+            ? candidates.toList()
+            : samePackageCandidates)
+        ..sort();
   if (ordered.isEmpty) {
     issues.add(
       Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: 'No exact analyzer-resolved canonical import provides '
+        message:
+            'No exact analyzer-resolved canonical import provides '
             '${requirement.libraryUri}#${requirement.symbol} required by '
             '${requirement.sourcePath}.',
         location: requirement.sourcePath,
@@ -998,7 +1015,8 @@ String? _resolveCanonicalImport(
     issues.add(
       Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: '${requirement.sourcePath} has ambiguous canonical imports '
+        message:
+            '${requirement.sourcePath} has ambiguous canonical imports '
             'for ${requirement.libraryUri}#${requirement.symbol}: '
             '${ordered.join(', ')}. Narrow the source import set.',
         location: requirement.sourcePath,
@@ -1029,7 +1047,8 @@ String? _normalizeSdkImport(
     issues.add(
       Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: '${requirement.sourcePath} has no public Dart/Flutter import '
+        message:
+            '${requirement.sourcePath} has no public Dart/Flutter import '
             'for ${requirement.libraryUri}#${requirement.symbol}: $error',
         location: requirement.sourcePath,
       ),
@@ -1051,7 +1070,8 @@ String? _validateCanonicalImportBoundary(
     issues.add(
       Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: '${requirement.sourcePath} resolves through non-canonical '
+        message:
+            '${requirement.sourcePath} resolves through non-canonical '
             'Dart import $canonicalUri; generated native imports must use '
             'dart: or package: identities.',
         location: requirement.sourcePath,
@@ -1064,7 +1084,8 @@ String? _validateCanonicalImportBoundary(
     issues.add(
       Issue(
         code: IssueCode.invalidWidgetClass,
-        message: '${requirement.sourcePath} requires dependency-private '
+        message:
+            '${requirement.sourcePath} requires dependency-private '
             'import $canonicalUri; generated native code may use only '
             'public dependency libraries.',
         location: requirement.sourcePath,
@@ -1076,7 +1097,8 @@ String? _validateCanonicalImportBoundary(
     issues.add(
       Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: '${requirement.sourcePath} requires package:$package, which '
+        message:
+            '${requirement.sourcePath} requires package:$package, which '
             'is not a declared direct dependency in dependencies: of the '
             'authoring package.',
         location: requirement.sourcePath,
@@ -1172,7 +1194,8 @@ Future<_PackageGraphFacts> _readPackageGraphFacts(
     issues.add(
       const Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: "Cannot validate generated native imports because Pub's "
+        message:
+            "Cannot validate generated native imports because Pub's "
             'generated .dart_tool/package_graph.json is unavailable. Run '
             '`dart pub get` before generation.',
         location: graphPath,
@@ -1188,7 +1211,8 @@ Future<_PackageGraphFacts> _readPackageGraphFacts(
     issues.add(
       Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: "Cannot validate generated native imports because Pub's "
+        message:
+            "Cannot validate generated native imports because Pub's "
             'package graph is not valid JSON: ${error.message}',
         location: graphPath,
       ),
@@ -1200,7 +1224,8 @@ Future<_PackageGraphFacts> _readPackageGraphFacts(
     issues.add(
       const Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: "Cannot validate generated native imports because Pub's "
+        message:
+            "Cannot validate generated native imports because Pub's "
             'package graph has no packages list.',
         location: graphPath,
       ),
@@ -1215,12 +1240,14 @@ Future<_PackageGraphFacts> _readPackageGraphFacts(
     }
     final dependencies = package['dependencies'];
     if (dependencies is! List<Object?> ||
-        dependencies
-            .any((dependency) => dependency is! String || dependency.isEmpty)) {
+        dependencies.any(
+          (dependency) => dependency is! String || dependency.isEmpty,
+        )) {
       issues.add(
         Issue(
           code: IssueCode.analyzerResolutionFailed,
-          message: "Cannot validate generated native imports because Pub's "
+          message:
+              "Cannot validate generated native imports because Pub's "
               'package graph has invalid production dependencies for '
               '$packageName.',
           location: graphPath,
@@ -1234,7 +1261,8 @@ Future<_PackageGraphFacts> _readPackageGraphFacts(
   issues.add(
     Issue(
       code: IssueCode.analyzerResolutionFailed,
-      message: "Cannot validate generated native imports because Pub's "
+      message:
+          "Cannot validate generated native imports because Pub's "
           'package graph has no entry for authoring package $packageName.',
       location: graphPath,
     ),

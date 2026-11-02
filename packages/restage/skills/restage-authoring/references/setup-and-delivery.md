@@ -55,7 +55,7 @@ across clean builds. `.restage/build/` is build output; `restage init` adds it t
 `.gitignore`.
 
 For output paths, inspection reports and reusable-package setup, read
-[build-configuration.md](build-configuration.md). For A2UI/GenUI and Widgetbook
+[build-configuration.md](build-configuration.md). For A2UI and Widgetbook
 outputs, their build order and how they connect to the app, read
 [emitters.md](emitters.md). Neither emitter needs bundled surface assets.
 
@@ -85,7 +85,7 @@ Changes to surface composition within an existing catalog generally need only
 regeneration and `restage surface push`, followed by publication when ready.
 A preview build does not activate surface delivery or distribute a new app
 binary to devices. New native capabilities still need an app release. Local
-A2UI/GenUI and Widgetbook output does not require a dashboard preview build.
+A2UI and Widgetbook output does not require a dashboard preview build.
 
 ## Mounts
 

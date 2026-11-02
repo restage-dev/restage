@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui/genui.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_widgetbook_example/widgets/restage.generated/bare_catalog_card.stories.dart'
     as bare_story;
@@ -169,40 +170,7 @@ widget Root = BareCatalogCard(
   testWidgets('bare marker executes its generated A2UI component', (
     tester,
   ) async {
-    final catalog = Catalog(buildRestageCatalogItems());
-    final dataContext = DataContext(InMemoryDataModel(), DataPath.root);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => catalog.buildWidget(
-            CatalogItemContext(
-              data: const <String, Object?>{
-                'props': <String, Object?>{'label': 'a2ui bare'},
-              },
-              id: 'bare-proof',
-              type: 'BareCatalogCard',
-              buildChild: (_, [_]) => const SizedBox.shrink(),
-              dispatchEvent: (_) {},
-              buildContext: context,
-              dataContext: dataContext,
-              getComponent: (_) => null,
-              getCatalogItem: (type) {
-                for (final item in catalog.items) {
-                  if (item.name == type) return item;
-                }
-                return null;
-              },
-              surfaceId: 'bare-proof-surface',
-              reportError: (error, stackTrace) => Error.throwWithStackTrace(
-                error,
-                stackTrace ?? StackTrace.current,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    await _mountA2ui(tester, 'BareCatalogCard', {'props_label': 'a2ui bare'});
 
     expect(find.byType(BareCatalogCard), findsOneWidget);
     expect(find.text('a2ui bare'), findsOneWidget);
@@ -211,68 +179,31 @@ widget Root = BareCatalogCard(
   testWidgets(
     'A2UI executes every exact CatalogShowcase child-bearing property',
     (tester) async {
-      final catalog = Catalog(buildRestageCatalogItems());
-      final dataContext = DataContext(InMemoryDataModel(), DataPath.root);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Material(
-            child: Builder(
-              builder: (context) => catalog.buildWidget(
-                CatalogItemContext(
-                  data: const <String, Object?>{
-                    'props': <String, Object?>{
-                      'title': 'multi-slot proof',
-                      'enabled': true,
-                      'status': 'ready',
-                      'hero': 'hero-id',
-                      'details': <String>['detail-a-id', 'detail-b-id'],
-                      'footer': 'footer-id',
-                      'data': <String, Object?>{
-                        'note': 'from props',
-                        'count': 2,
-                      },
-                    },
-                  },
-                  id: 'showcase-proof',
-                  type: 'CatalogShowcase',
-                  buildChild: (childId, [_]) => Text('child-$childId'),
-                  dispatchEvent: (_) {},
-                  buildContext: context,
-                  dataContext: dataContext,
-                  getComponent: (id) => Component(
-                    id: id,
-                    type: 'SectionHeader',
-                    properties: const <String, Object?>{},
-                  ),
-                  getCatalogItem: (type) {
-                    for (final item in catalog.items) {
-                      if (item.name == type) return item;
-                    }
-                    return null;
-                  },
-                  surfaceId: 'showcase-proof-surface',
-                  reportError: (error, stackTrace) => Error.throwWithStackTrace(
-                    error,
-                    stackTrace ?? StackTrace.current,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      await _mountA2ui(
+        tester,
+        'CatalogShowcase',
+        {
+          'props_title': 'multi-slot proof',
+          'props_enabled': true,
+          'props_status': 'ready',
+          'props_hero': 'hero_id',
+          'props_details': ['detail_a_id', 'detail_b_id'],
+          'props_footer': 'footer_id',
+          'props_data': {'note': 'from props', 'count': 2},
+        },
+        children: ['hero_id', 'detail_a_id', 'detail_b_id', 'footer_id'],
       );
 
       final showcase = tester.widget<CatalogShowcase>(
         find.byType(CatalogShowcase),
       );
-      expect(showcase.hero, isA<Text>());
+      expect(showcase.hero, isNotNull);
       expect(showcase.details, hasLength(2));
-      expect(showcase.footer, isA<Text>());
-      expect(find.text('child-hero-id'), findsOneWidget);
-      expect(find.text('child-detail-a-id'), findsOneWidget);
-      expect(find.text('child-detail-b-id'), findsOneWidget);
-      expect(find.text('child-footer-id'), findsOneWidget);
+      expect(showcase.footer, isNotNull);
+      expect(find.text('child-hero_id'), findsOneWidget);
+      expect(find.text('child-detail_a_id'), findsOneWidget);
+      expect(find.text('child-detail_b_id'), findsOneWidget);
+      expect(find.text('child-footer_id'), findsOneWidget);
       expect(find.text('ready: from props (2)'), findsOneWidget);
     },
   );
@@ -498,50 +429,61 @@ widget Root = RequiredNullableWidgetProof(
   testWidgets('A2UI instantiates generated data and executes write-back', (
     tester,
   ) async {
-    final catalog = Catalog(buildRestageCatalogItems());
-    final dataContext = DataContext(InMemoryDataModel(), DataPath.root)
-      ..update(DataPath('enabled'), false);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => catalog.buildWidget(
-            CatalogItemContext(
-              data: const <String, Object?>{
-                'props': <String, Object?>{
-                  'label': 'a2ui',
-                  'enabled': <String, Object?>{'path': 'enabled'},
-                  'optionalText': 'authored',
-                },
-              },
-              id: 'proof',
-              type: 'ConstructorFidelityProof',
-              buildChild: (_, [_]) => const SizedBox.shrink(),
-              dispatchEvent: (_) {},
-              buildContext: context,
-              dataContext: dataContext,
-              getComponent: (_) => null,
-              getCatalogItem: (type) {
-                for (final item in catalog.items) {
-                  if (item.name == type) return item;
-                }
-                return null;
-              },
-              surfaceId: 'proof-surface',
-              reportError: (error, stackTrace) => Error.throwWithStackTrace(
-                error,
-                stackTrace ?? StackTrace.current,
-              ),
-            ),
-          ),
-        ),
-      ),
+    final surface = await _mountA2ui(
+      tester,
+      'ConstructorFidelityProof',
+      {
+        'props_label': 'a2ui',
+        'props_enabled': {'@path': '/enabled'},
+        'props_optionalText': 'authored',
+      },
+      data: {'enabled': false},
     );
 
     expect(find.byType(ConstructorFidelityProof), findsOneWidget);
     expect(find.text('a2ui|false|authored'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('constructor-fidelity-toggle')));
     await tester.pump();
-    expect(dataContext.getValue<bool>(DataPath('enabled')), isTrue);
+    expect(surface.dataModel.get('/enabled'), isTrue);
   });
+}
+
+Future<SurfaceModel<ComponentImplementation>> _mountA2ui(
+  WidgetTester tester,
+  String type,
+  Map<String, Object?> props, {
+  List<String> children = const [],
+  Map<String, Object?> data = const {},
+}) async {
+  final catalog = buildRestageCatalog();
+  final processor = MessageProcessor<ComponentImplementation>(
+    catalogs: [catalog],
+    defaultVersion: A2uiProtocolVersion.v1_0,
+    validationConfig: ValidationConfig.strict,
+  );
+  addTearDown(processor.dispose);
+  processor.processMessages({
+    'version': 'v1.0',
+    'createSurface': {
+      'surfaceId': 's',
+      'catalogId': catalog.id,
+      'dataModel': data,
+      'components': [
+        {'id': 'root', 'component': type, ...props},
+        for (final id in children)
+          {
+            'id': id,
+            'component': 'BareCatalogCard',
+            'props_label': 'child-$id',
+          },
+      ],
+    },
+  });
+  final surface = processor.model.getSurface('s')!;
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(body: A2uiSurface(surface: surface)),
+    ),
+  );
+  return surface;
 }

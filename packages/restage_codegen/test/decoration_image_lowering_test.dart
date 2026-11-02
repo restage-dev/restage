@@ -12,8 +12,10 @@ import 'helpers.dart';
 /// `alignment` / `repeat` / `opacity` / `scale` carry through; an unsupported
 /// provider or a not-yet-lowered field defers LOUD, never a silent drop.
 void main() {
-  final translator =
-      ExpressionTranslator(catalog: kEmptyCatalog, helpers: HelperRegistry());
+  final translator = ExpressionTranslator(
+    catalog: kEmptyCatalog,
+    helpers: HelperRegistry(),
+  );
 
   Future<({String dsl, List<Issue> issues})> translateUnresolved(
     String source,
@@ -57,41 +59,47 @@ Object x() => $source;
     });
 
     test('AssetImage package is mapped onto the provider map', () async {
-      final r =
-          await translateUnresolved("AssetImage('x.png', package: 'my_pkg')");
+      final r = await translateUnresolved(
+        "AssetImage('x.png', package: 'my_pkg')",
+      );
       expect(r.issues, isEmpty);
       expect(r.dsl, '{kind: "asset", src: "x.png", package: "my_pkg"}');
     });
 
-    test('a NetworkImage non-serializable named arg (headers) defers loud',
-        () async {
-      final r =
-          await translateUnresolved("NetworkImage('u', headers: {'a': 'b'})");
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-      expect(r.issues.any((i) => i.message.contains('headers')), isTrue);
-      // Failure DSL — never a partial provider map that drops headers silently.
-      expect(r.dsl, isNot(contains('kind: "network"')));
-    });
+    test(
+      'a NetworkImage non-serializable named arg (headers) defers loud',
+      () async {
+        final r = await translateUnresolved(
+          "NetworkImage('u', headers: {'a': 'b'})",
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+        expect(r.issues.any((i) => i.message.contains('headers')), isTrue);
+        // Failure DSL — never a partial provider map that drops headers silently.
+        expect(r.dsl, isNot(contains('kind: "network"')));
+      },
+    );
 
-    test('an AssetImage non-serializable named arg (bundle) defers loud',
-        () async {
-      final r =
-          await translateUnresolved("AssetImage('x.png', bundle: someBundle)");
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-      expect(r.issues.any((i) => i.message.contains('bundle')), isTrue);
-      expect(r.dsl, isNot(contains('kind: "asset"')));
-    });
+    test(
+      'an AssetImage non-serializable named arg (bundle) defers loud',
+      () async {
+        final r = await translateUnresolved(
+          "AssetImage('x.png', bundle: someBundle)",
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+        expect(r.issues.any((i) => i.message.contains('bundle')), isTrue);
+        expect(r.dsl, isNot(contains('kind: "asset"')));
+      },
+    );
   });
 
   group('DecorationImage value lowering', () {
-    test(
-        'recurses the provider and threads fit + alignment member -> '
+    test('recurses the provider and threads fit + alignment member -> '
         'a self-describing map', () async {
       final r = await translateUnresolved(
         "DecorationImage(image: NetworkImage('https://x/h.jpg'), "
@@ -121,28 +129,32 @@ Object x() => $source;
       expect(r.dsl, contains('fit: "fill"'));
     });
 
-    test('threads repeat, an Alignment(x, y) ctor, opacity, and scale',
-        () async {
-      final r = await translateUnresolved(
-        "DecorationImage(image: NetworkImage('https://x/h.jpg'), "
-        'repeat: ImageRepeat.repeatX, alignment: Alignment(0.5, -0.25), '
-        'opacity: 0.8, scale: 2.0)',
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('repeat: "repeatX"'));
-      expect(r.dsl, contains('alignment: {x: 0.5, y: -0.25}'));
-      expect(r.dsl, contains('opacity: 0.8'));
-      expect(r.dsl, contains('scale: 2.0'));
-    });
+    test(
+      'threads repeat, an Alignment(x, y) ctor, opacity, and scale',
+      () async {
+        final r = await translateUnresolved(
+          "DecorationImage(image: NetworkImage('https://x/h.jpg'), "
+          'repeat: ImageRepeat.repeatX, alignment: Alignment(0.5, -0.25), '
+          'opacity: 0.8, scale: 2.0)',
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, contains('repeat: "repeatX"'));
+        expect(r.dsl, contains('alignment: {x: 0.5, y: -0.25}'));
+        expect(r.dsl, contains('opacity: 0.8'));
+        expect(r.dsl, contains('scale: 2.0'));
+      },
+    );
 
-    test('omits every optional field when unset — decoder applies defaults',
-        () async {
-      final r = await translateUnresolved(
-        "DecorationImage(image: NetworkImage('https://x/h.jpg'))",
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, '{image: {kind: "network", src: "https://x/h.jpg"}}');
-    });
+    test(
+      'omits every optional field when unset — decoder applies defaults',
+      () async {
+        final r = await translateUnresolved(
+          "DecorationImage(image: NetworkImage('https://x/h.jpg'))",
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, '{image: {kind: "network", src: "https://x/h.jpg"}}');
+      },
+    );
 
     test('an int opacity literal coerces to a double on the wire', () async {
       // `opacity: 1` is valid Dart (int -> double); the runtime decoder reads
@@ -157,54 +169,60 @@ Object x() => $source;
   });
 
   group('DecorationImage fails loud rather than silently dropping', () {
-    test('a not-yet-lowered field (colorFilter) defers loud — never silent',
-        () async {
-      final r = await translateUnresolved(
-        "DecorationImage(image: NetworkImage('https://x/h.jpg'), "
-        'colorFilter: ColorFilter.mode(Color(0xFF000000), BlendMode.darken))',
-      );
-      // The field is present but unsupported: one loud diagnostic, and the
-      // emit is the recipe's failure DSL (NOT a partial map that renders as if
-      // colorFilter were unset).
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-      expect(r.issues.any((i) => i.message.contains('colorFilter')), isTrue);
-      expect(r.dsl, isNot(contains('kind: "network"')));
-    });
+    test(
+      'a not-yet-lowered field (colorFilter) defers loud — never silent',
+      () async {
+        final r = await translateUnresolved(
+          "DecorationImage(image: NetworkImage('https://x/h.jpg'), "
+          'colorFilter: ColorFilter.mode(Color(0xFF000000), BlendMode.darken))',
+        );
+        // The field is present but unsupported: one loud diagnostic, and the
+        // emit is the recipe's failure DSL (NOT a partial map that renders as if
+        // colorFilter were unset).
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+        expect(r.issues.any((i) => i.message.contains('colorFilter')), isTrue);
+        expect(r.dsl, isNot(contains('kind: "network"')));
+      },
+    );
 
-    test('every named deferred field is reported when several are present',
-        () async {
-      final r = await translateUnresolved(
-        "DecorationImage(image: AssetImage('a.png'), "
-        'matchTextDirection: true, isAntiAlias: true)',
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-      expect(r.issues.any((i) => i.message.contains('isAntiAlias')), isTrue);
-      expect(
-        r.issues.any((i) => i.message.contains('matchTextDirection')),
-        isTrue,
-      );
-    });
+    test(
+      'every named deferred field is reported when several are present',
+      () async {
+        final r = await translateUnresolved(
+          "DecorationImage(image: AssetImage('a.png'), "
+          'matchTextDirection: true, isAntiAlias: true)',
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+        expect(r.issues.any((i) => i.message.contains('isAntiAlias')), isTrue);
+        expect(
+          r.issues.any((i) => i.message.contains('matchTextDirection')),
+          isTrue,
+        );
+      },
+    );
 
-    test('invertColors (render-affecting) defers loud — never a silent drop',
-        () async {
-      // invertColors changes the painted pixels (Flutter inverts the image
-      // colors), so dropping it is a wrong render, not a debug no-op.
-      final r = await translateUnresolved(
-        "DecorationImage(image: NetworkImage('u'), invertColors: true)",
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-      expect(r.issues.any((i) => i.message.contains('invertColors')), isTrue);
-      expect(r.dsl, isNot(contains('kind: "network"')));
-    });
+    test(
+      'invertColors (render-affecting) defers loud — never a silent drop',
+      () async {
+        // invertColors changes the painted pixels (Flutter inverts the image
+        // colors), so dropping it is a wrong render, not a debug no-op.
+        final r = await translateUnresolved(
+          "DecorationImage(image: NetworkImage('u'), invertColors: true)",
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+        expect(r.issues.any((i) => i.message.contains('invertColors')), isTrue);
+        expect(r.dsl, isNot(contains('kind: "network"')));
+      },
+    );
   });
 
   group('alignment geometry members', () {
@@ -225,10 +243,11 @@ Object x() => $source;
       expect(r.dsl, contains('alignment: {start: -1.0, y: 0.0}'));
     });
 
-    test('a resolved Alignment(x, y) constructor still lowers to {x, y}',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'a resolved Alignment(x, y) constructor still lowers to {x, y}',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/material.dart'
             show DecorationImage, NetworkImage, Alignment;
         Object x() => DecorationImage(
@@ -236,12 +255,13 @@ Object x() => $source;
           alignment: Alignment(0.5, -0.25),
         );
         ''',
-        rootPackage: 'apps_examples',
-      );
-      final r = translator.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('alignment: {x: 0.5, y: -0.25}'));
-    });
+          rootPackage: 'apps_examples',
+        );
+        final r = translator.translate(expr);
+        expect(r.issues, isEmpty);
+        expect(r.dsl, contains('alignment: {x: 0.5, y: -0.25}'));
+      },
+    );
 
     test('a resolved Alignment.<member> still lowers to {x, y}', () async {
       final expr = await parseExpressionFromSourceForTest(
@@ -262,8 +282,7 @@ Object x() => $source;
   });
 
   group('an unsupported provider defers loud (resolved)', () {
-    test(
-        'a real-Flutter MemoryImage provider is not lowered as a fabricated '
+    test('a real-Flutter MemoryImage provider is not lowered as a fabricated '
         'image — it defers loud', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -282,10 +301,11 @@ Object x() => $source;
       expect(r.dsl, isNot(contains('kind:')));
     });
 
-    test('a real-Flutter NetworkImage provider DOES lower when fully resolved',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'a real-Flutter NetworkImage provider DOES lower when fully resolved',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/material.dart'
             show DecorationImage, NetworkImage, BoxFit;
         Object x() => DecorationImage(
@@ -293,15 +313,16 @@ Object x() => $source;
           fit: BoxFit.cover,
         );
         ''',
-        rootPackage: 'apps_examples',
-      );
-      final r = translator.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        contains('image: {kind: "network", src: "https://x/h.jpg"}'),
-      );
-      expect(r.dsl, contains('fit: "cover"'));
-    });
+          rootPackage: 'apps_examples',
+        );
+        final r = translator.translate(expr);
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          contains('image: {kind: "network", src: "https://x/h.jpg"}'),
+        );
+        expect(r.dsl, contains('fit: "cover"'));
+      },
+    );
   });
 }

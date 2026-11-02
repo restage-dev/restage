@@ -10,28 +10,30 @@ import '../helpers.dart';
 import 'a2ui_safe_pattern_corpus.dart';
 
 void main() {
-  test('constraint IR has an empty default and value equality/hash semantics',
-      () {
-    const node = ScalarNode(A2uiScalarType.integer);
-    const empty = A2uiDataField(node);
-    final first = A2uiDataField(
-      node,
-      constraints: A2uiConstraintSet.fromTyped(
-        const RestageConstraints(minimum: 0.5, allowedValues: [1, 2]),
-      ),
-    );
-    final equal = A2uiDataField(
-      node,
-      constraints: A2uiConstraintSet.fromTyped(
-        const RestageConstraints(minimum: 0.5, allowedValues: [1, 2]),
-      ),
-    );
+  test(
+    'constraint IR has an empty default and value equality/hash semantics',
+    () {
+      const node = ScalarNode(A2uiScalarType.integer);
+      const empty = A2uiDataField(node);
+      final first = A2uiDataField(
+        node,
+        constraints: A2uiConstraintSet.fromTyped(
+          const RestageConstraints(minimum: 0.5, allowedValues: [1, 2]),
+        ),
+      );
+      final equal = A2uiDataField(
+        node,
+        constraints: A2uiConstraintSet.fromTyped(
+          const RestageConstraints(minimum: 0.5, allowedValues: [1, 2]),
+        ),
+      );
 
-    expect(empty.constraints, A2uiConstraintSet.empty);
-    expect(first, equal);
-    expect(first.hashCode, equal.hashCode);
-    expect(first, isNot(empty));
-  });
+      expect(empty.constraints, A2uiConstraintSet.empty);
+      expect(first, equal);
+      expect(first.hashCode, equal.hashCode);
+      expect(first, isNot(empty));
+    },
+  );
 
   test(
     'nullable constrained write-back scalar decorates only the literal arm',
@@ -52,8 +54,10 @@ void main() {
         [property, _property('onChanged', PropertyType.event, required: true)],
       );
       const richShapes = <(String, String), A2uiSchemaNode>{
-        ('BoundedStepper', 'count'):
-            ScalarNode(A2uiScalarType.integer, nullable: true),
+        ('BoundedStepper', 'count'): ScalarNode(
+          A2uiScalarType.integer,
+          nullable: true,
+        ),
       };
       const eventSeam = <(String, String), A2uiCallbackSignature>{
         ('BoundedStepper', 'onChanged'): A2uiCallbackWriteBack(
@@ -73,7 +77,7 @@ void main() {
         pairingSeam: pairingSeam,
       ).widgets.single;
       final schema = a2uiWidgetDataSchemaMapForPlan(plan);
-      final count = (schema['properties']! as Map)['count']! as Map;
+      final count = (schema['properties']! as Map)['props_count']! as Map;
       final arms = count['oneOf']! as List;
 
       expect(
@@ -142,7 +146,7 @@ void main() {
         richShapes: richShapes,
       ).widgets.single;
       final schema = a2uiWidgetDataSchemaMapForPlan(plan);
-      final tags = (schema['properties']! as Map)['tags']! as Map;
+      final tags = (schema['properties']! as Map)['props_tags']! as Map;
       final arms = tags['oneOf']! as List;
 
       expect(
@@ -219,7 +223,7 @@ void main() {
       final defs = schema[r'$defs']! as Map;
       final rootKey = (schema[r'$ref']! as String).split('/').last;
       final root = defs[rootKey]! as Map;
-      final items = (root['properties']! as Map)['items']! as Map;
+      final items = (root['properties']! as Map)['props_items']! as Map;
       final nonNull = (items['anyOf']! as List).first as Map;
 
       expect(nonNull['type'], 'array');
@@ -232,9 +236,11 @@ void main() {
       expect(
         source,
         allOf(
-          contains(r'$defs: {'),
-          contains("'__a2ui_root__': S.object"),
-          contains(r"$ref: '#/\$defs/RecursiveItem'"),
+          contains(r"\$defs': <String, Object?>{"),
+          contains("'__a2ui_root__': <String, Object?>{"),
+          contains(
+            r'#/\$defs/restage_component_RecursiveList/\$defs/RecursiveItem',
+          ),
           contains("'minItems': 1"),
           contains("'maxItems': 4"),
         ),
@@ -243,47 +249,49 @@ void main() {
   );
 
   group('constraint metadata cannot disappear through coverage omissions', () {
-    test('optional theme-default omission rejects typed and legacy metadata',
-        () {
-      final variants = <PropertyEntry>[
-        _property(
-          'label',
-          PropertyType.string,
-          defaultSource: const ThemeBindingDefault(
-            ThemeBindingPath.path('textTheme.bodyMedium'),
+    test(
+      'optional theme-default omission rejects typed and legacy metadata',
+      () {
+        final variants = <PropertyEntry>[
+          _property(
+            'label',
+            PropertyType.string,
+            defaultSource: const ThemeBindingDefault(
+              ThemeBindingPath.path('textTheme.bodyMedium'),
+            ),
+            constraints: const RestageConstraints(minLength: 1),
           ),
-          constraints: const RestageConstraints(minLength: 1),
-        ),
-        _property(
-          'label',
-          PropertyType.string,
-          defaultSource: const ThemeBindingDefault(
-            ThemeBindingPath.path('textTheme.bodyMedium'),
-          ),
-          validationRule: const ValidationExpr(
-            expression: 'matches(".+")',
-            message: 'Label is required.',
-          ),
-        ),
-      ];
-
-      for (final property in variants) {
-        expect(
-          () => classifyA2uiCatalogDart(_catalog('ThemedLabel', [property])),
-          throwsA(
-            isA<UnsupportedError>().having(
-              (error) => error.message,
-              'message',
-              allOf(
-                contains('widget "ThemedLabel"'),
-                contains('property "label"'),
-                contains('theme default'),
-              ),
+          _property(
+            'label',
+            PropertyType.string,
+            defaultSource: const ThemeBindingDefault(
+              ThemeBindingPath.path('textTheme.bodyMedium'),
+            ),
+            validationRule: const ValidationExpr(
+              expression: 'matches(".+")',
+              message: 'Label is required.',
             ),
           ),
-        );
-      }
-    });
+        ];
+
+        for (final property in variants) {
+          expect(
+            () => classifyA2uiCatalogDart(_catalog('ThemedLabel', [property])),
+            throwsA(
+              isA<UnsupportedError>().having(
+                (error) => error.message,
+                'message',
+                allOf(
+                  contains('widget "ThemedLabel"'),
+                  contains('property "label"'),
+                  contains('theme default'),
+                ),
+              ),
+            ),
+          );
+        }
+      },
+    );
 
     test('optional non-null rich omission rejects typed metadata', () {
       final property = _property(
@@ -327,10 +335,10 @@ void main() {
         _catalog('GeneratedNameValue', [property]),
       ).widgets.single;
       final schema = a2uiWidgetDataSchemaMapForPlan(plan);
-      final data = (schema['properties']! as Map)['data']! as Map;
+      final data = (schema['properties']! as Map)['props_data']! as Map;
 
-      expect(data['type'], 'string');
-      expect(data['minLength'], 1);
+      expect(((data['oneOf']! as List).first as Map)['type'], 'string');
+      expect(((data['oneOf']! as List).first as Map)['minLength'], 1);
     });
 
     test('decompose-consumed property rejects legacy metadata', () {
@@ -585,7 +593,7 @@ void main() {
       ).widgets.single;
       final value =
           (a2uiWidgetDataSchemaMapForPlan(unconstrained)['properties']!
-              as Map)['value'];
+              as Map)['props_value'];
       expect(value, {'type': 'string'});
     });
 
@@ -620,69 +628,72 @@ void main() {
         ),
       ).widgets.single;
       final schema = a2uiWidgetDataSchemaMapForPlan(plan);
-      final value = (schema['properties']! as Map)['value']! as Map;
+      final value = (schema['properties']! as Map)['props_value']! as Map;
 
-      expect(value['enum'], [null]);
+      expect(((value['oneOf']! as List).first as Map)['enum'], [null]);
     });
   });
 
   test('typed projection covers every admitted keyword in both projectors', () {
-    final cases = <({
-      PropertyType type,
-      RestageConstraints constraints,
-      Map<String, Object?> expectedLiteral,
-    })>[
-      (
-        type: PropertyType.integer,
-        constraints: const RestageConstraints(
-          minimum: -2,
-          maximum: 8,
-          allowedValues: [-2, 0, 8],
-        ),
-        expectedLiteral: {
-          'type': 'integer',
-          'minimum': -2,
-          'maximum': 8,
-          'enum': [-2, 0, 8],
-        },
-      ),
-      (
-        type: PropertyType.real,
-        constraints: const RestageConstraints(
-          exclusiveMinimum: 0.25,
-          exclusiveMaximum: 0.75,
-        ),
-        expectedLiteral: {
-          'type': 'number',
-          'exclusiveMinimum': 0.25,
-          'exclusiveMaximum': 0.75,
-        },
-      ),
-      (
-        type: PropertyType.string,
-        constraints: const RestageConstraints(
-          pattern: r'^[A-Z]{2}[0-9]+$',
-          minLength: 3,
-          maxLength: 8,
-        ),
-        expectedLiteral: {
-          'type': 'string',
-          'pattern': r'^[A-Z]{2}[0-9]+$',
-          'minLength': 3,
-          'maxLength': 8,
-        },
-      ),
-      (
-        type: PropertyType.stringList,
-        constraints: const RestageConstraints(minItems: 1, maxItems: 3),
-        expectedLiteral: {
-          'type': 'array',
-          'items': {'type': 'string'},
-          'minItems': 1,
-          'maxItems': 3,
-        },
-      ),
-    ];
+    final cases =
+        <
+          ({
+            PropertyType type,
+            RestageConstraints constraints,
+            Map<String, Object?> expectedLiteral,
+          })
+        >[
+          (
+            type: PropertyType.integer,
+            constraints: const RestageConstraints(
+              minimum: -2,
+              maximum: 8,
+              allowedValues: [-2, 0, 8],
+            ),
+            expectedLiteral: {
+              'type': 'integer',
+              'minimum': -2,
+              'maximum': 8,
+              'enum': [-2, 0, 8],
+            },
+          ),
+          (
+            type: PropertyType.real,
+            constraints: const RestageConstraints(
+              exclusiveMinimum: 0.25,
+              exclusiveMaximum: 0.75,
+            ),
+            expectedLiteral: {
+              'type': 'number',
+              'exclusiveMinimum': 0.25,
+              'exclusiveMaximum': 0.75,
+            },
+          ),
+          (
+            type: PropertyType.string,
+            constraints: const RestageConstraints(
+              pattern: r'^[A-Z]{2}[0-9]+$',
+              minLength: 3,
+              maxLength: 8,
+            ),
+            expectedLiteral: {
+              'type': 'string',
+              'pattern': r'^[A-Z]{2}[0-9]+$',
+              'minLength': 3,
+              'maxLength': 8,
+            },
+          ),
+          (
+            type: PropertyType.stringList,
+            constraints: const RestageConstraints(minItems: 1, maxItems: 3),
+            expectedLiteral: {
+              'type': 'array',
+              'items': {'type': 'string'},
+              'minItems': 1,
+              'maxItems': 3,
+            },
+          ),
+        ];
 
     for (final testCase in cases) {
       final plan = classifyA2uiCatalogDart(
@@ -717,43 +728,46 @@ void main() {
 
   group('exact legacy constraint grammar', () {
     test('translates each admitted family without projecting its message', () {
-      final cases = <({
-        PropertyType type,
-        String expression,
-        Map<String, Object?> expected,
-      })>[
-        (
-          type: PropertyType.real,
-          expression: ' range ( -1.5e2 , 20 ) ',
-          expected: {'minimum': -150.0, 'maximum': 20},
-        ),
-        (
-          type: PropertyType.real,
-          expression: 'oneOf(1, -2.5, 3e2, null)',
-          expected: {
-            'enum': [1, -2.5, 300.0, null],
-          },
-        ),
-        (
-          type: PropertyType.boolean,
-          expression: 'oneOf(true, false, null)',
-          expected: {
-            'enum': [true, false, null],
-          },
-        ),
-        (
-          type: PropertyType.string,
-          expression: 'oneOf("small", "large", null)',
-          expected: {
-            'enum': ['small', 'large', null],
-          },
-        ),
-        (
-          type: PropertyType.string,
-          expression: r'matches("^[A-Z]{2}[0-9]+$")',
-          expected: {'pattern': r'^[A-Z]{2}[0-9]+$'},
-        ),
-      ];
+      final cases =
+          <
+            ({
+              PropertyType type,
+              String expression,
+              Map<String, Object?> expected,
+            })
+          >[
+            (
+              type: PropertyType.real,
+              expression: ' range ( -1.5e2 , 20 ) ',
+              expected: {'minimum': -150.0, 'maximum': 20},
+            ),
+            (
+              type: PropertyType.real,
+              expression: 'oneOf(1, -2.5, 3e2, null)',
+              expected: {
+                'enum': [1, -2.5, 300.0, null],
+              },
+            ),
+            (
+              type: PropertyType.boolean,
+              expression: 'oneOf(true, false, null)',
+              expected: {
+                'enum': [true, false, null],
+              },
+            ),
+            (
+              type: PropertyType.string,
+              expression: 'oneOf("small", "large", null)',
+              expected: {
+                'enum': ['small', 'large', null],
+              },
+            ),
+            (
+              type: PropertyType.string,
+              expression: r'matches("^[A-Z]{2}[0-9]+$")',
+              expected: {'pattern': r'^[A-Z]{2}[0-9]+$'},
+            ),
+          ];
 
       for (final testCase in cases) {
         final property = _property(
@@ -818,52 +832,56 @@ void main() {
   });
 
   group('shared ASCII safe-pattern corpus', () {
-    test('typed and legacy patterns admit the same corpus in both projectors',
-        () {
-      for (final testCase in acceptedA2uiPatternCases) {
-        final authorings = <PropertyEntry>[
-          _property(
-            'value',
-            PropertyType.string,
-            required: true,
-            constraints: RestageConstraints(pattern: testCase.pattern),
-          ),
-          _property(
-            'value',
-            PropertyType.string,
-            required: true,
-            validationRule: ValidationExpr(
-              expression: 'matches(${_jsonString(testCase.pattern)})',
-              message: 'Pattern mismatch.',
+    test(
+      'typed and legacy patterns admit the same corpus in both projectors',
+      () {
+        for (final testCase in acceptedA2uiPatternCases) {
+          final authorings = <PropertyEntry>[
+            _property(
+              'value',
+              PropertyType.string,
+              required: true,
+              constraints: RestageConstraints(pattern: testCase.pattern),
             ),
-          ),
-        ];
+            _property(
+              'value',
+              PropertyType.string,
+              required: true,
+              validationRule: ValidationExpr(
+                expression: 'matches(${_jsonString(testCase.pattern)})',
+                message: 'Pattern mismatch.',
+              ),
+            ),
+          ];
 
-        for (final property in authorings) {
-          final plan = classifyA2uiCatalogDart(
-            _catalog('SafePattern', [property]),
-          ).widgets.single;
-          expect(_projectedValue(plan)['pattern'], testCase.pattern);
-          expect(_projectedExpression(plan), contains("'pattern':"));
+          for (final property in authorings) {
+            final plan = classifyA2uiCatalogDart(
+              _catalog('SafePattern', [property]),
+            ).widgets.single;
+            expect(_projectedValue(plan)['pattern'], testCase.pattern);
+            expect(_projectedExpression(plan), contains("'pattern':"));
+          }
         }
-      }
-    });
+      },
+    );
 
-    test('typed and legacy patterns reject the same corpus with full context',
-        () {
-      for (final pattern in rejectedA2uiPatterns) {
-        _expectInvalidConstraint(
-          type: PropertyType.string,
-          constraints: RestageConstraints(pattern: pattern),
-          expected: 'safe ASCII pattern grammar',
-        );
+    test(
+      'typed and legacy patterns reject the same corpus with full context',
+      () {
+        for (final pattern in rejectedA2uiPatterns) {
+          _expectInvalidConstraint(
+            type: PropertyType.string,
+            constraints: RestageConstraints(pattern: pattern),
+            expected: 'safe ASCII pattern grammar',
+          );
 
-        _expectInvalidLegacy(
-          'matches(${_jsonString(pattern)})',
-          type: PropertyType.string,
-        );
-      }
-    });
+          _expectInvalidLegacy(
+            'matches(${_jsonString(pattern)})',
+            type: PropertyType.string,
+          );
+        }
+      },
+    );
   });
 
   test('unsupported legacy syntax fails loud with complete source context', () {
@@ -902,10 +920,16 @@ void main() {
   });
 }
 
-Map<String, Object?> _projectedValue(A2uiDartWidgetPlan plan) =>
-    ((a2uiWidgetDataSchemaMapForPlan(plan)['properties']! as Map)['value']!
-            as Map)
-        .cast<String, Object?>();
+Map<String, Object?> _projectedValue(A2uiDartWidgetPlan plan) {
+  final field =
+      (a2uiWidgetDataSchemaMapForPlan(plan)['properties']!
+              as Map)['props_value']!
+          as Map;
+  return (field['oneOf'] is List
+          ? (field['oneOf']! as List).first as Map
+          : field)
+      .cast<String, Object?>();
+}
 
 String _projectedExpression(A2uiDartWidgetPlan plan) =>
     a2uiWidgetDataSchemaExpression([
@@ -961,31 +985,29 @@ PropertyEntry _property(
   ValidationExpr? validationRule,
   RestageConstraints constraints = RestageConstraints.empty,
   String? enumType,
-}) =>
-    PropertyEntry(
-      wireId: wireId,
-      name: name,
-      type: type,
-      description: '',
-      required: required,
-      defaultSource: defaultSource,
-      validationRule: validationRule,
-      constraints: constraints,
-      enumType: enumType,
-    );
+}) => PropertyEntry(
+  wireId: wireId,
+  name: name,
+  type: type,
+  description: '',
+  required: required,
+  defaultSource: defaultSource,
+  validationRule: validationRule,
+  constraints: constraints,
+  enumType: enumType,
+);
 
 Catalog _catalog(
   String name,
   List<PropertyEntry> properties, {
   String? flutterType,
-}) =>
-    catalogWith([
-      entry(
-        name: name,
-        flutterType: flutterType ?? 'package:fixture/fixture.dart#$name',
-        properties: properties,
-      ),
-    ]);
+}) => catalogWith([
+  entry(
+    name: name,
+    flutterType: flutterType ?? 'package:fixture/fixture.dart#$name',
+    properties: properties,
+  ),
+]);
 
 void _expectInvalidConstraint({
   required PropertyType type,

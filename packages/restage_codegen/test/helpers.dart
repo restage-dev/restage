@@ -12,7 +12,8 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart'
     hide resolveSources, testBuilder, testBuilders;
-import 'package:build_test/build_test.dart' as build_test
+import 'package:build_test/build_test.dart'
+    as build_test
     show resolveSources, testBuilder, testBuilders;
 import 'package:glob/glob.dart';
 import 'package:logging/logging.dart';
@@ -42,17 +43,17 @@ export 'package:build_test/build_test.dart'
 /// A minimal encoded widget library whose one widget is named [name], so each
 /// name gives distinct, decodable screen blob bytes.
 Uint8List screenBlobNamed(String name) => fmt.encodeLibraryBlob(
-      fmt.RemoteWidgetLibrary(
-        const [],
-        [
-          fmt.WidgetDeclaration(
-            name,
-            null,
-            fmt.ConstructorCall('Container', const <String, Object?>{}),
-          ),
-        ],
+  fmt.RemoteWidgetLibrary(
+    const [],
+    [
+      fmt.WidgetDeclaration(
+        name,
+        null,
+        fmt.ConstructorCall('Container', const <String, Object?>{}),
       ),
-    );
+    ],
+  ),
+);
 
 /// The library URI under which [parseExpressionFromSourceForTest] mounts a
 /// synthetic source — its value-type stubs AND (for the native-decompose
@@ -90,8 +91,9 @@ final Map<String, String> _builtInFlutterTypes = {
     'restage_cupertino',
   ])
     for (final widget in decodeCatalog(
-      File('../$package/lib/src/widget_catalog/catalog.json')
-          .readAsStringSync(),
+      File(
+        '../$package/lib/src/widget_catalog/catalog.json',
+      ).readAsStringSync(),
     ).widgets)
       widget.name: widget.flutterType,
 };
@@ -111,22 +113,22 @@ WidgetEntry entry({
   int sinceVersion = kBaselineCatalogVersion,
   String? deprecatedSince,
   String description = '',
-}) =>
-    WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: name,
-      library: library,
-      category: category,
-      description: description,
-      flutterType: flutterType ??
-          _builtInFlutterTypes[name] ??
-          'package:test_fixture/$name.dart#$name',
-      childrenSlot: childrenSlot,
-      properties: properties,
-      decomposes: decomposes,
-      sinceVersion: sinceVersion,
-      deprecatedSince: deprecatedSince,
-    );
+}) => WidgetEntry(
+  wireId: WireId.unallocatedWidget,
+  name: name,
+  library: library,
+  category: category,
+  description: description,
+  flutterType:
+      flutterType ??
+      _builtInFlutterTypes[name] ??
+      'package:test_fixture/$name.dart#$name',
+  childrenSlot: childrenSlot,
+  properties: properties,
+  decomposes: decomposes,
+  sinceVersion: sinceVersion,
+  deprecatedSince: deprecatedSince,
+);
 
 /// The libraries the probe helpers write stub framework classes into.
 const List<String> kProbeLibraryUris = [
@@ -141,36 +143,35 @@ Catalog probeCatalogWith(
   List<WidgetEntry> widgets, {
   WidgetLibrary library = WidgetLibrary.core,
   List<StructuredEntry> structuredTypes = const [],
-}) =>
-    catalogWith(
-      [
-        ...widgets,
-        for (final uri in kProbeLibraryUris) ...declaredIn(uri, widgets),
-      ],
-      library: library,
-      structuredTypes: structuredTypes,
-    );
+}) => catalogWith(
+  [
+    ...widgets,
+    for (final uri in kProbeLibraryUris) ...declaredIn(uri, widgets),
+  ],
+  library: library,
+  structuredTypes: structuredTypes,
+);
 
 /// [entries] again, as declared by same-named stub classes in [libraryUri].
 List<WidgetEntry> declaredIn(String libraryUri, List<WidgetEntry> entries) => [
-      for (final entry in entries)
-        WidgetEntry(
-          wireId: entry.wireId,
-          name: entry.name,
-          library: entry.library,
-          category: entry.category,
-          description: entry.description,
-          flutterType: '$libraryUri#${entry.name}',
-          childrenSlot: entry.childrenSlot,
-          properties: entry.properties,
-          displayLabel: entry.displayLabel,
-          decomposes: entry.decomposes,
-          sinceVersion: entry.sinceVersion,
-          deprecatedSince: entry.deprecatedSince,
-          stability: entry.stability,
-          deprecated: entry.deprecated,
-        ),
-    ];
+  for (final entry in entries)
+    WidgetEntry(
+      wireId: entry.wireId,
+      name: entry.name,
+      library: entry.library,
+      category: entry.category,
+      description: entry.description,
+      flutterType: '$libraryUri#${entry.name}',
+      childrenSlot: entry.childrenSlot,
+      properties: entry.properties,
+      displayLabel: entry.displayLabel,
+      decomposes: entry.decomposes,
+      sinceVersion: entry.sinceVersion,
+      deprecatedSince: entry.deprecatedSince,
+      stability: entry.stability,
+      deprecated: entry.deprecated,
+    ),
+];
 
 /// Builds a [PropertyEntry] with the always-required `description`
 /// stubbed empty by default (pass [description] to exercise a described
@@ -181,15 +182,14 @@ PropertyEntry prop(
   bool required = false,
   bool positional = false,
   String description = '',
-}) =>
-    PropertyEntry(
-      wireId: WireId.unallocatedProperty,
-      name: name,
-      type: type,
-      description: description,
-      required: required,
-      positional: positional,
-    );
+}) => PropertyEntry(
+  wireId: WireId.unallocatedProperty,
+  name: name,
+  type: type,
+  description: description,
+  required: required,
+  positional: positional,
+);
 
 /// The built-in core catalog plus an allocated `Probe` widget with
 /// [properties]; [structured] maps a property to its structured type name.
@@ -199,15 +199,18 @@ Catalog nativeProbeCatalog(
   Set<String> required = const {},
   Map<String, String> structured = const {},
 }) {
-  final native = decodeCatalog(File(
-          Directory('packages/restage_core').existsSync()
-              ? 'packages/restage_core/lib/src/widget_catalog/catalog.json'
-              : '../restage_core/lib/src/widget_catalog/catalog.json')
-      .readAsStringSync());
+  final native = decodeCatalog(
+    File(
+      Directory('packages/restage_core').existsSync()
+          ? 'packages/restage_core/lib/src/widget_catalog/catalog.json'
+          : '../restage_core/lib/src/widget_catalog/catalog.json',
+    ).readAsStringSync(),
+  );
   WireIdRef? refTo(String? type) {
     if (type == null) return null;
-    final entry =
-        native.structuredTypes.firstWhere((entry) => entry.name == type);
+    final entry = native.structuredTypes.firstWhere(
+      (entry) => entry.name == type,
+    );
     return WireIdRef(library: entry.library.namespace, wireId: entry.wireId);
   }
 
@@ -252,16 +255,15 @@ Catalog catalogWith(
   List<WidgetEntry> widgets, {
   WidgetLibrary library = WidgetLibrary.core,
   List<StructuredEntry> structuredTypes = const [],
-}) =>
-    Catalog(
-      schemaVersion: kSupportedSchemaVersion,
-      generatedAt: '1970-01-01T00:00:00Z',
-      libraries: <WidgetLibrary, LibraryInfo>{
-        library: const LibraryInfo(version: '0.1.0'),
-      },
-      widgets: widgets,
-      structuredTypes: structuredTypes,
-    );
+}) => Catalog(
+  schemaVersion: kSupportedSchemaVersion,
+  generatedAt: '1970-01-01T00:00:00Z',
+  libraries: <WidgetLibrary, LibraryInfo>{
+    library: const LibraryInfo(version: '0.1.0'),
+  },
+  widgets: widgets,
+  structuredTypes: structuredTypes,
+);
 
 /// Builds a minimal [StructuredEntry] for tests that only need the catalog's
 /// `structuredTypes` to advertise a decompose-able type by [name] (the
@@ -271,16 +273,15 @@ Catalog catalogWith(
 StructuredEntry structuredEntry(
   String name, {
   WidgetLibrary library = WidgetLibrary.core,
-}) =>
-    StructuredEntry(
-      wireId: WireId.unallocatedStructured,
-      name: name,
-      library: library,
-      description: '',
-      sourceType: 'package:test_fixture/$name.dart#$name',
-      fields: const [],
-      variants: const [ConstructorVariant(wireId: WireId.unallocatedVariant)],
-    );
+}) => StructuredEntry(
+  wireId: WireId.unallocatedStructured,
+  name: name,
+  library: library,
+  description: '',
+  sourceType: 'package:test_fixture/$name.dart#$name',
+  fields: const [],
+  variants: const [ConstructorVariant(wireId: WireId.unallocatedVariant)],
+);
 
 /// Stub declarations of `PaywallSource`, `StatelessWidget`, `Widget`, and
 /// `BuildContext` for tests that author paywall fixtures inline. The real
@@ -348,61 +349,62 @@ String widgetbookConstrainedConstructorDefaultFixture({
   }
   final fixture = switch (family) {
     'duration' => (
-        declarations: '''
+      declarations: '''
 const defaultDuration = Duration(milliseconds: 150);
 const chainedDuration = defaultDuration;
 ''',
-        className: 'ConstrainedDurationCard',
-        parameter: 'this.duration = $defaultExpression',
-        property: 'duration',
-        propertyType: 'Duration',
-        constraints: matching ? 'minimum: 100, maximum: 200' : 'minimum: 200',
-        build: 'const SizedBox()',
-        childrenSlot: '',
-      ),
+      className: 'ConstrainedDurationCard',
+      parameter: 'this.duration = $defaultExpression',
+      property: 'duration',
+      propertyType: 'Duration',
+      constraints: matching ? 'minimum: 100, maximum: 200' : 'minimum: 200',
+      build: 'const SizedBox()',
+      childrenSlot: '',
+    ),
     'font weight' => (
-        declarations: '''
+      declarations: '''
 const defaultWeight = FontWeight.w700;
 const chainedWeight = defaultWeight;
 ''',
-        className: 'ConstrainedFontWeightCard',
-        parameter: 'this.weight = $defaultExpression',
-        property: 'weight',
-        propertyType: 'FontWeight',
-        constraints: matching ? 'minimum: 600, maximum: 800' : 'minimum: 800',
-        build: 'const SizedBox()',
-        childrenSlot: '',
-      ),
+      className: 'ConstrainedFontWeightCard',
+      parameter: 'this.weight = $defaultExpression',
+      property: 'weight',
+      propertyType: 'FontWeight',
+      constraints: matching ? 'minimum: 600, maximum: 800' : 'minimum: 800',
+      build: 'const SizedBox()',
+      childrenSlot: '',
+    ),
     'color' => (
-        declarations: '''
+      declarations: '''
 const defaultColor = Color(0xFF336699);
 const chainedColor = defaultColor;
 ''',
-        className: 'ConstrainedColorCard',
-        parameter: 'this.color = $defaultExpression',
-        property: 'color',
-        propertyType: 'Color',
-        constraints:
-            matching ? r"pattern: r'^#FF336699$'" : r"pattern: r'^#FFFFFFFF$'",
-        build: 'const SizedBox()',
-        childrenSlot: '',
-      ),
+      className: 'ConstrainedColorCard',
+      parameter: 'this.color = $defaultExpression',
+      property: 'color',
+      propertyType: 'Color',
+      constraints: matching
+          ? r"pattern: r'^#FF336699$'"
+          : r"pattern: r'^#FFFFFFFF$'",
+      build: 'const SizedBox()',
+      childrenSlot: '',
+    ),
     'widget-list length' => (
-        declarations: '''
+      declarations: '''
 const defaultChildren = <Widget>[SizedBox.shrink(), SizedBox.shrink()];
 const chainedChildren = defaultChildren;
 ''',
-        className: 'ConstrainedChildrenCard',
-        parameter: 'this.children = $defaultExpression',
-        property: 'children',
-        propertyType: 'List<Widget>',
-        constraints: _widgetbookCollectionConstraints(
-          matching: matching,
-          maximumMismatch: collectionMaximumMismatch,
-        ),
-        build: 'Column(children: children)',
-        childrenSlot: 'childrenSlot: ChildrenSlot.list,',
+      className: 'ConstrainedChildrenCard',
+      parameter: 'this.children = $defaultExpression',
+      property: 'children',
+      propertyType: 'List<Widget>',
+      constraints: _widgetbookCollectionConstraints(
+        matching: matching,
+        maximumMismatch: collectionMaximumMismatch,
       ),
+      build: 'Column(children: children)',
+      childrenSlot: 'childrenSlot: ChildrenSlot.list,',
+    ),
     _ => throw ArgumentError.value(family, 'family'),
   };
   return '''
@@ -505,21 +507,21 @@ String widgetbookPatternValidationFixture({
   final defaultValue = nullable ? 'null' : "'ready'";
   final constraint = legacy
       ? malformed
-          ? '''
+            ? '''
 validationRule: ValidationExpr(
         expression: 'matches("[")',
         message: 'Must match.',
       )'''
-              .trimLeft()
-          : r'''
+                  .trimLeft()
+            : r'''
 validationRule: ValidationExpr(
         expression: r'matches("^(ready|set)$")',
         message: 'Must match.',
       )'''
-              .trimLeft()
+                  .trimLeft()
       : malformed
-          ? "constraints: RestageConstraints(pattern: '[')"
-          : r"constraints: RestageConstraints(pattern: r'^(ready|set)$')";
+      ? "constraints: RestageConstraints(pattern: '[')"
+      : r"constraints: RestageConstraints(pattern: r'^(ready|set)$')";
   return '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -794,7 +796,7 @@ Future<List<T>> _runOnLibraries<T>(
   Map<String, String> sources, {
   required String packageName,
   required Future<T> Function(LibraryElement library, AssetId assetId)
-      onLibrary,
+  onLibrary,
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: _kRootPackage,
@@ -891,18 +893,19 @@ Future<Expression> parseExpressionFromSourceForTest(
     _CapturingBuilder(
       (library, assetId) async {
         final executable = enclosingClassName == null
-            ? library.topLevelFunctions
-                .firstWhere((f) => f.name == functionName)
+            ? library.topLevelFunctions.firstWhere(
+                (f) => f.name == functionName,
+              )
             : library.classes
-                .firstWhere((c) => c.name == enclosingClassName)
-                .methods
-                .firstWhere((m) => m.name == 'x');
+                  .firstWhere((c) => c.name == enclosingClassName)
+                  .methods
+                  .firstWhere((m) => m.name == 'x');
         // Use the *resolved* library so that element references (e.g.
         // MethodInvocation.methodName.element) are populated. This is
         // necessary for helper-call recognition tests where the translator
         // reads element.library.identifier to match against the registry.
-        final resolvedResult =
-            await library.session.getResolvedLibraryByElement(library);
+        final resolvedResult = await library.session
+            .getResolvedLibraryByElement(library);
         if (resolvedResult is! ResolvedLibraryResult) return;
         final node = resolvedResult
             .getFragmentDeclaration(executable.firstFragment)
@@ -966,15 +969,18 @@ Future<ResolvedMethodExpressionForTest> parseMethodExpressionFromSourceForTest(
   await testBuilder(
     _CapturingBuilder(
       (library, assetId) async {
-        final classElement =
-            library.classes.firstWhere((element) => element.name == className);
-        final method = classElement.methods
-            .firstWhere((element) => element.name == methodName);
-        final resolvedResult =
-            await library.session.getResolvedLibraryByElement(library);
+        final classElement = library.classes.firstWhere(
+          (element) => element.name == className,
+        );
+        final method = classElement.methods.firstWhere(
+          (element) => element.name == methodName,
+        );
+        final resolvedResult = await library.session
+            .getResolvedLibraryByElement(library);
         if (resolvedResult is! ResolvedLibraryResult) return;
-        final node =
-            resolvedResult.getFragmentDeclaration(method.firstFragment)?.node;
+        final node = resolvedResult
+            .getFragmentDeclaration(method.firstFragment)
+            ?.node;
         if (node is! MethodDeclaration) return;
         final body = node.body;
         Expression? expression;
@@ -1056,22 +1062,21 @@ Future<TestBuilderResult> testBuilder(
   TestReaderWriter? readerWriter,
   bool verbose = false,
   bool flattenOutput = false,
-}) =>
-    build_test.testBuilder(
-      builder,
-      sourceAssets,
-      generateFor: generateFor,
-      isInput: isInput,
-      rootPackage: rootPackage,
-      outputs: outputs,
-      onLog: onLog,
-      reportUnusedAssetsForInput: reportUnusedAssetsForInput,
-      packageConfig: packageConfig,
-      resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
-      readerWriter: readerWriter,
-      verbose: verbose,
-      flattenOutput: flattenOutput,
-    );
+}) => build_test.testBuilder(
+  builder,
+  sourceAssets,
+  generateFor: generateFor,
+  isInput: isInput,
+  rootPackage: rootPackage,
+  outputs: outputs,
+  onLog: onLog,
+  reportUnusedAssetsForInput: reportUnusedAssetsForInput,
+  packageConfig: packageConfig,
+  resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
+  readerWriter: readerWriter,
+  verbose: verbose,
+  flattenOutput: flattenOutput,
+);
 
 /// `build_test`'s `testBuilders`, resolving on [sharedResolvers] unless the
 /// call names its own resolvers or a custom package config.
@@ -1094,27 +1099,26 @@ Future<TestBuilderResult> testBuilders(
   TestReaderWriter? readerWriter,
   bool verbose = false,
   bool flattenOutput = false,
-}) =>
-    build_test.testBuilders(
-      builders,
-      sourceAssets,
-      postProcessBuilders: postProcessBuilders,
-      generateFor: generateFor,
-      isInput: isInput,
-      rootPackage: rootPackage,
-      outputs: outputs,
-      onLog: onLog,
-      reportUnusedAssetsForInput: reportUnusedAssetsForInput,
-      packageConfig: packageConfig,
-      resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
-      optionalBuilders: optionalBuilders,
-      visibleOutputBuilders: visibleOutputBuilders,
-      appliesBuilders: appliesBuilders,
-      testingBuilderConfig: testingBuilderConfig,
-      readerWriter: readerWriter,
-      verbose: verbose,
-      flattenOutput: flattenOutput,
-    );
+}) => build_test.testBuilders(
+  builders,
+  sourceAssets,
+  postProcessBuilders: postProcessBuilders,
+  generateFor: generateFor,
+  isInput: isInput,
+  rootPackage: rootPackage,
+  outputs: outputs,
+  onLog: onLog,
+  reportUnusedAssetsForInput: reportUnusedAssetsForInput,
+  packageConfig: packageConfig,
+  resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
+  optionalBuilders: optionalBuilders,
+  visibleOutputBuilders: visibleOutputBuilders,
+  appliesBuilders: appliesBuilders,
+  testingBuilderConfig: testingBuilderConfig,
+  readerWriter: readerWriter,
+  verbose: verbose,
+  flattenOutput: flattenOutput,
+);
 
 /// `build_test`'s `resolveSources`, resolving on [sharedResolvers] unless the
 /// call names its own resolvers or a custom package config. Prefer
@@ -1191,7 +1195,8 @@ Future<T> resolveWorkspaceSources<T>(
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: rootPackage,
-    includeFlutter: includeFlutter ??
+    includeFlutter:
+        includeFlutter ??
         (rootPackage == 'apps_examples' || _importsFlutter(inputs.values)),
     includeIntl: includeIntl || _importsIntl(inputs.values),
     includeDesignPackages:
@@ -1221,8 +1226,8 @@ final class _ResolverProbeBuilder<T> implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '': ['.resolver_probe'],
-      };
+    '': ['.resolver_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -1403,15 +1408,15 @@ class _CapturingBuilder implements Builder {
   _CapturingBuilder(this.onLibrary, {required this.allowedAssetIds});
 
   final Future<void> Function(LibraryElement library, AssetId assetId)
-      onLibrary;
+  onLibrary;
 
   /// Only invoke [onLibrary] for these exact asset ids.
   final Set<AssetId> allowedAssetIds;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.noop'],
-      };
+    '.dart': ['.noop'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {
@@ -1435,15 +1440,13 @@ Future<WidgetClassification> classifyFixture(
   required String widgetName,
   Catalog catalog = kEmptyCatalog,
   HelperRegistry? helpers,
-}) async =>
-    (await _runClassifierProbe(
-      sources,
-      inputPath: inputPath,
-      widgetName: widgetName,
-      catalog: catalog,
-      helpers: helpers,
-    ))
-        .named;
+}) async => (await _runClassifierProbe(
+  sources,
+  inputPath: inputPath,
+  widgetName: widgetName,
+  catalog: catalog,
+  helpers: helpers,
+)).named;
 
 /// Like [classifyFixture], but returns the whole-pass [ClassificationResult]
 /// — the classification verdicts plus the emission blueprints the classifier
@@ -1454,15 +1457,13 @@ Future<ClassificationResult> classifyFixtureResult(
   required String widgetName,
   Catalog catalog = kEmptyCatalog,
   HelperRegistry? helpers,
-}) async =>
-    (await _runClassifierProbe(
-      sources,
-      inputPath: inputPath,
-      widgetName: widgetName,
-      catalog: catalog,
-      helpers: helpers,
-    ))
-        .result;
+}) async => (await _runClassifierProbe(
+  sources,
+  inputPath: inputPath,
+  widgetName: widgetName,
+  catalog: catalog,
+  helpers: helpers,
+)).result;
 
 /// Runs the [WidgetClassifier] over the `@RestageWidget` class named
 /// [widgetName] declared in the synthetic [sources] file at [inputPath]
@@ -1474,7 +1475,7 @@ Future<ClassificationResult> classifyFixtureResult(
 /// `<library URI>#<Class>` the classifier derives for them — see
 /// `widget_classifier_test.dart` for the pattern.
 Future<({ClassificationResult result, WidgetClassification named})>
-    _runClassifierProbe(
+_runClassifierProbe(
   Map<String, String> sources, {
   required String inputPath,
   required String widgetName,
@@ -1542,19 +1543,20 @@ class _ClassifierProbeBuilder implements Builder {
   final Catalog catalog;
   final HelperRegistry? helpers;
   final void Function(ClassificationResult result, WidgetClassification named)
-      onResult;
+  onResult;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.classifierprobe'],
-      };
+    '.dart': ['.classifierprobe'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {
     if (step.inputId != inputAssetId) return;
     final library = await step.inputLibrary;
-    final widgetClass =
-        library.classes.where((c) => c.name == widgetName).firstOrNull;
+    final widgetClass = library.classes
+        .where((c) => c.name == widgetName)
+        .firstOrNull;
     if (widgetClass == null) return;
     final classifier = WidgetClassifier(
       catalog: catalog,
@@ -1620,9 +1622,9 @@ List<int> artifactFor(Map<String, List<int>> artifacts, String base) {
 
 /// Every emitted variant of [base], as comparable byte strings.
 Set<String> variantBytes(Map<String, List<int>> artifacts, String base) => {
-      for (final key in measurementArtifactPaths(artifacts.keys, base))
-        base64Encode(artifacts[key]!),
-    };
+  for (final key in measurementArtifactPaths(artifacts.keys, base))
+    base64Encode(artifacts[key]!),
+};
 
 /// Collapses runs of whitespace so a wrapped generated declaration still
 /// matches the type it declares.

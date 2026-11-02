@@ -9,7 +9,8 @@ import 'package:test/test.dart';
 import 'helpers.dart';
 
 /// A message screen whose buttons emit [emitted], each declared as an event.
-String _screen(List<String> emitted) => '''
+String _screen(List<String> emitted) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -21,8 +22,7 @@ final class NoticeScreen extends StatelessWidget {
 
   static const done = SurfaceEvent<void>('done');
 ${[
-      for (final event in emitted)
-        "  static const ${_field(event)} = SurfaceEvent<void>('$event');",
+      for (final event in emitted) "  static const ${_field(event)} = SurfaceEvent<void>('$event');",
     ].join('\n')}
 
   @override
@@ -30,8 +30,7 @@ ${[
         children: [
           TextButton(onPressed: surfaceEvent(done), child: const Text('Done')),
 ${[
-      for (final event in emitted)
-        '          TextButton(onPressed: surfaceEvent(${_field(event)}), '
+      for (final event in emitted) '          TextButton(onPressed: surfaceEvent(${_field(event)}), '
             "child: const Text('$event')),",
     ].join('\n')}
         ],
@@ -43,7 +42,8 @@ String _field(String event) => '${event}Event';
 
 /// The compact form: `done` completes; [extra] adds transitions and
 /// [outbound] declares custom events.
-String _compactFlow({String extra = '', String outbound = ''}) => '''
+String _compactFlow({String extra = '', String outbound = ''}) =>
+    '''
 import 'package:restage/restage.dart';
 
 import '../screens/notice.dart';
@@ -63,7 +63,8 @@ $extra
 
 /// The builder form: `done` completes; [extra] adds `.on` transitions to the
 /// screen state and [outbound] declares custom events.
-String _builderFlow({String extra = '', String outbound = ''}) => '''
+String _builderFlow({String extra = '', String outbound = ''}) =>
+    '''
 import 'package:restage/restage.dart';
 
 import '../screens/notice.dart';
@@ -133,7 +134,8 @@ void main() {
         await _compile(
           ['skip'],
           _compactFlow(
-              extra: '    Transition.complete(NoticeScreen.skipEvent),'),
+            extra: '    Transition.complete(NoticeScreen.skipEvent),',
+          ),
         ),
       );
     });
@@ -175,8 +177,10 @@ void main() {
         await _compile(
           ['skip'],
           _builderFlow(
-              extra: '            .on(NoticeScreen.skipEvent)\n'
-                  '            .goTo(finish)'),
+            extra:
+                '            .on(NoticeScreen.skipEvent)\n'
+                '            .goTo(finish)',
+          ),
         ),
       );
     });

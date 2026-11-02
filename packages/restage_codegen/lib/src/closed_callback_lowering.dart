@@ -5,11 +5,13 @@ import 'package:restage_shared/restage_shared.dart';
 
 /// Shared lexical statement lowering for closed value and widget callbacks.
 final class ClosedCallbackLowering<T> {
-  ClosedCallbackLowering(this.expressions,
-      {required this.result,
-      required this.sequence,
-      required this.branch,
-      this.guardBranch});
+  ClosedCallbackLowering(
+    this.expressions, {
+    required this.result,
+    required this.sequence,
+    required this.branch,
+    this.guardBranch,
+  });
   final BuilderExpressionLowering expressions;
   final T Function(Expression) result;
   final T Function(int, T) sequence;
@@ -19,7 +21,9 @@ final class ClosedCallbackLowering<T> {
   T body(FunctionBody body) {
     if (body.isAsynchronous || body.isGenerator) {
       throw BuilderLoweringException(
-          body, 'Closed callback must be synchronous');
+        body,
+        'Closed callback must be synchronous',
+      );
     }
     return switch (body) {
       ExpressionFunctionBody() => result(body.expression),
@@ -64,19 +68,29 @@ final class ClosedCallbackLowering<T> {
     if (statement is VariableDeclarationStatement) {
       if (statement.variables.isLate)
         throw BuilderLoweringException(
-            statement, 'Late local initialization is unsupported');
+          statement,
+          'Late local initialization is unsupported',
+        );
       final eager = <int>[];
       for (final variable in statement.variables.variables) {
         if (variable.initializer == null || variable.declaredFragment == null) {
           throw BuilderLoweringException(
-              variable, 'Local requires an initializer');
+            variable,
+            'Local requires an initializer',
+          );
         }
         if (expressions.bindContextAlias(
-            variable.declaredFragment!.element, variable.initializer!))
+          variable.declaredFragment!.element,
+          variable.initializer!,
+        ))
           continue;
-        eager.add(expressions.declareLocal(variable,
+        eager.add(
+          expressions.declareLocal(
+            variable,
             mutable:
-                !statement.variables.isFinal && !statement.variables.isConst));
+                !statement.variables.isFinal && !statement.variables.isConst,
+          ),
+        );
       }
       var value = next();
       for (final node in eager.reversed) {
@@ -96,60 +110,75 @@ final class ClosedCallbackLowering<T> {
       List<Statement> items(Statement? value) => value == null
           ? []
           : value is Block
-              ? value.statements.toList()
-              : [value];
+          ? value.statements.toList()
+          : [value];
       final returns = _Returns();
       statement.accept(returns);
       if (!returns.found) {
         int effect(Statement? value) {
           final lower = closedValueCallback(expressions);
-          return lower.scoped(() => lower.statements(
+          return lower.scoped(
+            () => lower.statements(
               items(value),
-              () => expressions
-                  .add(const ValueNode('literal', ValueType.nullType))));
+              () => expressions.add(
+                const ValueNode('literal', ValueType.nullType),
+              ),
+            ),
+          );
         }
 
         final yes = effect(statement.thenStatement);
         final no = effect(statement.elseStatement);
-        final effectNode = expressions.add(ValueNode(
-            'conditional', ValueType.nullType,
-            inputs: [condition, yes, no]));
+        final effectNode = expressions.add(
+          ValueNode(
+            'conditional',
+            ValueType.nullType,
+            inputs: [condition, yes, no],
+          ),
+        );
         return sequence(effectNode, next());
       }
       T arm(Statement? statement, bool selected) => scoped(() {
-            T lower() => this.statements(items(statement), next);
-            return guardBranch == null
-                ? lower()
-                : guardBranch!(condition, selected, lower);
-          });
+        T lower() => this.statements(items(statement), next);
+        return guardBranch == null
+            ? lower()
+            : guardBranch!(condition, selected, lower);
+      });
       final yes = arm(statement.thenStatement, true);
       final no = arm(statement.elseStatement, false);
       return branch(condition, yes, no);
     }
     throw BuilderLoweringException(
-        statement, 'Unsupported closed callback statement');
+      statement,
+      'Unsupported closed callback statement',
+    );
   }
 }
 
 /// Builds scalar returns and sequencing with the existing value graph.
 ClosedCallbackLowering<int> closedValueCallback(
-        BuilderExpressionLowering expressions) =>
-    ClosedCallbackLowering(expressions,
-        result: expressions.lower,
-        sequence: (node, value) => expressions.add(ValueNode(
-            'let', expressions.nodes[value].type,
-            inputs: [node, value])),
-        branch: (condition, yes, no) {
-          final a = expressions.nodes[yes].type;
-          final b = expressions.nodes[no].type;
-          final base = a.kind == 'Null' ? b : a;
-          final type = ValueType(base.kind,
-              nullable: a.nullable || b.nullable,
-              item: base.item,
-              fields: base.fields);
-          return expressions.add(
-              ValueNode('conditional', type, inputs: [condition, yes, no]));
-        });
+  BuilderExpressionLowering expressions,
+) => ClosedCallbackLowering(
+  expressions,
+  result: expressions.lower,
+  sequence: (node, value) => expressions.add(
+    ValueNode('let', expressions.nodes[value].type, inputs: [node, value]),
+  ),
+  branch: (condition, yes, no) {
+    final a = expressions.nodes[yes].type;
+    final b = expressions.nodes[no].type;
+    final base = a.kind == 'Null' ? b : a;
+    final type = ValueType(
+      base.kind,
+      nullable: a.nullable || b.nullable,
+      item: base.item,
+      fields: base.fields,
+    );
+    return expressions.add(
+      ValueNode('conditional', type, inputs: [condition, yes, no]),
+    );
+  },
+);
 
 final class _Returns extends RecursiveAstVisitor<void> {
   bool found = false;

@@ -137,12 +137,25 @@ consuming app. Neither consumer needs hosted publication or `restage build push`
 that command creates dashboard previews.
 
 **A2UI.** The generator can turn your `@RestageWidget` and `@Screen` classes into a
-[genui](https://pub.dev/packages/genui) A2UI catalog. Restage still delivers
+[a2ui_flutter](https://pub.dev/packages/a2ui_flutter) A2UI catalog. Restage still delivers
 surfaces as RFW; A2UI is an extra output. The
 [A2UI walkthrough](../restage_a2ui/README.md#generate-an-a2ui-catalog-from-your-widgets)
-covers dependencies, the builder, and wiring `buildRestageCatalog()` into a
-GenUI `SurfaceController` and `Surface`. The app supplies the model transport,
-messages and action handling.
+covers dependencies, the builder, and wiring `buildRestageCatalog()` into an
+A2UI `MessageProcessor` and `A2uiSurface`. The app supplies the model transport,
+messages and action handling. This v1 candidate migration is unreleased; use
+repository/workspace packages with `a2ui_flutter 0.0.1-wip003` and
+`a2ui_core ^0.4.0`. Published `restage_codegen 2.0.0` and
+`restage_a2ui 0.2.0` do not provide it.
+
+Ordinary constructor names use `props_<DartName>` when that name is a valid
+upstream UAX31 identifier and the source name does not start with `encoded_`.
+Other names, including `$value`, and all source names starting with `encoded_`
+use `props_encoded_<hex>`. The hex concatenates the source name's UTF-16 code
+units as exactly four lowercase digits each; `$value` becomes
+`props_encoded_002400760061006c00750065`. Reserving `encoded_` prevents a normal
+source name from colliding with an encoded name. Producers must use the property
+keys in the generated catalog schema and instructions. Dart constructor arguments
+and nested rich-data keys keep their original names. Nested rich-data keys that start with `@` are written as `@@` on the wire; the runtime unescapes them.
 
 **Widgetbook.** The generator can write a Widgetbook v4 story for each of your
 widgets and annotated screens from their constructors and doc comments. Add

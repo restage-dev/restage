@@ -13,18 +13,19 @@ import 'package:restage_shared/restage_shared.dart';
 
 /// Lowers pure native scalar callbacks through the shared value evaluator.
 final class ScalarCallbackLowering {
-  ScalarCallbackLowering(
-      {required this.capture,
-      required this.contract,
-      this.resolve,
-      this.helperFor,
-      this.operations = const {
-        ...kCollectionValueOperations,
-        ...kGridValueOperations,
-        ...kIntlValueOperations
-      },
-      this.valueExtension,
-      this.parent});
+  ScalarCallbackLowering({
+    required this.capture,
+    required this.contract,
+    this.resolve,
+    this.helperFor,
+    this.operations = const {
+      ...kCollectionValueOperations,
+      ...kGridValueOperations,
+      ...kIntlValueOperations,
+    },
+    this.valueExtension,
+    this.parent,
+  });
   final String Function(Expression) capture;
   final Expression Function(Expression)? resolve;
   final ScalarCallbackContract contract;
@@ -33,27 +34,34 @@ final class ScalarCallbackLowering {
   final Map<String, ValueOperation> operations;
   final int? Function(Expression, BuilderExpressionLowering)? valueExtension;
   late final BuilderExpressionLowering expressions = BuilderExpressionLowering(
-      parent: parent,
-      capture: capture,
-      operations: operations,
-      extension: _extension);
+    parent: parent,
+    capture: capture,
+    operations: operations,
+    extension: _extension,
+  );
 
   String lower(FunctionExpression callback) {
     final parameters = callback.parameters?.parameters;
     if (parameters == null ||
         parameters.any((p) => p.declaredFragment == null)) {
       throw BuilderLoweringException(
-          callback, 'Unresolved scalar callback parameters');
+        callback,
+        'Unresolved scalar callback parameters',
+      );
     }
-    return lowerBody(callback.body,
-        parameters.map((p) => p.declaredFragment!.element).toList());
+    return lowerBody(
+      callback.body,
+      parameters.map((p) => p.declaredFragment!.element).toList(),
+    );
   }
 
   /// Lowers a resolved native callback body with its exact parameter elements.
   String lowerBody(FunctionBody body, List<FormalParameterElement> parameters) {
     if (body.isAsynchronous || body.isGenerator) {
       throw BuilderLoweringException(
-          body, 'A pure callback must be synchronous');
+        body,
+        'A pure callback must be synchronous',
+      );
     }
     _bind(parameters, body);
     return _encode(_body(body, expressions), body);
@@ -61,8 +69,11 @@ final class ScalarCallbackLowering {
 
   /// Lowers a same-unit callback helper through the shared lexical bindings.
   String lowerDefinition(HelperDef helper) {
-    _bind(helper.params, helper.functionBody ?? helper.body,
-        locals: helper.localBindings.values);
+    _bind(
+      helper.params,
+      helper.functionBody ?? helper.body,
+      locals: helper.localBindings.values,
+    );
     final eager = <int>[];
     for (final local in helper.localBindings.entries) {
       final node = expressions.lower(local.value);
@@ -74,13 +85,17 @@ final class ScalarCallbackLowering {
         : _body(helper.functionBody!, expressions);
     for (final node in eager.reversed) {
       root = expressions.add(
-          ValueNode('let', expressions.nodes[root].type, inputs: [node, root]));
+        ValueNode('let', expressions.nodes[root].type, inputs: [node, root]),
+      );
     }
     return _encode(root, helper.body);
   }
 
-  void _bind(List<FormalParameterElement> parameters, AstNode body,
-      {Iterable<Expression> locals = const []}) {
+  void _bind(
+    List<FormalParameterElement> parameters,
+    AstNode body, {
+    Iterable<Expression> locals = const [],
+  }) {
     if (parameters.length != contract.parameters.length) {
       throw BuilderLoweringException(body, 'Scalar callback signature differs');
     }
@@ -89,7 +104,10 @@ final class ScalarCallbackLowering {
       switch (contract.parameters[i]) {
         case ScalarCallbackParameter.itemIndex:
           expressions.parameter(
-              element, callbackParameterName(i), ValueType.integer);
+            element,
+            callbackParameterName(i),
+            ValueType.integer,
+          );
         case ScalarCallbackParameter.widget:
           break;
         case ScalarCallbackParameter.valueKey:
@@ -99,8 +117,11 @@ final class ScalarCallbackLowering {
             local.accept(probe);
           }
           if (probe.types.isNotEmpty) {
-            expressions.parameter(element, callbackParameterName(i),
-                ValueType('record', fields: probe.types));
+            expressions.parameter(
+              element,
+              callbackParameterName(i),
+              ValueType('record', fields: probe.types),
+            );
           }
       }
     }
@@ -110,11 +131,15 @@ final class ScalarCallbackLowering {
     final expected = ValueType('int', nullable: contract.nullableResult);
     if (!expected.accepts(expressions.nodes[root].type)) {
       throw BuilderLoweringException(
-          body, 'Scalar callback must return int or null');
+        body,
+        'Scalar callback must return int or null',
+      );
     }
     final program = expressions.program(root);
     program.validate(
-        operations: operations, context: expressions.lexicalContext);
+      operations: operations,
+      context: expressions.lexicalContext,
+    );
     validateScalarCallbackProgramContract(program, contract);
     return '__RestageBuilderContinuation(version:1,program:${jsonEncode(program.encode())},captures:{${expressions.captureDsl.entries.map((e) => '${e.key}:${e.value}').join(',')}})';
   }
@@ -135,10 +160,13 @@ final class ScalarCallbackLowering {
         final shape = lowering.nodes[key].type;
         if (shape.fields[projection.$1] == null) {
           throw BuilderLoweringException(
-              expression, 'Key cast has no native scalar projection');
+            expression,
+            'Key cast has no native scalar projection',
+          );
         }
-        final value = lowering.add(ValueNode('field', projection.$2,
-            inputs: [key], name: projection.$1));
+        final value = lowering.add(
+          ValueNode('field', projection.$2, inputs: [key], name: projection.$1),
+        );
         return lowering.add(ValueNode('let', shape, inputs: [value, key]));
       }
     }
@@ -153,10 +181,13 @@ final class ScalarCallbackLowering {
         final key = lowering.lower(target);
         if (lowering.nodes[key].type.fields[projection.$1] == null) {
           throw BuilderLoweringException(
-              expression, 'Key value has no native scalar projection');
+            expression,
+            'Key value has no native scalar projection',
+          );
         }
-        return lowering.add(ValueNode('field', projection.$2,
-            inputs: [key], name: projection.$1));
+        return lowering.add(
+          ValueNode('field', projection.$2, inputs: [key], name: projection.$1),
+        );
       }
     }
     if (expression is MethodInvocation &&
@@ -169,61 +200,79 @@ final class ScalarCallbackLowering {
       if (callback is! FunctionExpression ||
           callback.parameters?.parameters.length != 1) {
         throw BuilderLoweringException(
-            expression, 'Index predicate requires a pure closure');
+          expression,
+          'Index predicate requires a pure closure',
+        );
       }
       final list = lowering.lower(expression.target!);
       final listType = lowering.nodes[list].type;
       if (listType.kind != 'list' || listType.nullable) {
         throw BuilderLoweringException(
-            expression, 'Index predicate requires a list');
+          expression,
+          'Index predicate requires a list',
+        );
       }
       final parameter =
           callback.parameters!.parameters.single.declaredFragment?.element;
       if (parameter == null) {
         throw BuilderLoweringException(
-            callback, 'Unresolved predicate parameter');
+          callback,
+          'Unresolved predicate parameter',
+        );
       }
       final outer = <int>[];
       late final BuilderExpressionLowering predicate;
       predicate = BuilderExpressionLowering(
-          lexicalParent: lowering,
-          capture: (_) =>
-              throw StateError('Predicate capture escaped its bindings'),
-          operations: operations,
-          extension: (value, nested) {
-            if (deviceRead(value) != null || themeReadSegments(value) != null) {
-              final node = lowering.lower(value);
-              final index = outer.indexOf(node);
-              final slot = index < 0 ? outer.length : index;
-              if (index < 0) outer.add(node);
-              final name = 'outer$slot';
-              final type = lowering.nodes[node].type;
-              nested.parameters[name] = type;
-              return nested.add(ValueNode('parameter', type, name: name));
-            }
-            if (value is SimpleIdentifier &&
-                !nested.bindings.containsKey(value.element) &&
-                (value.element is VariableElement ||
-                    value.element is GetterElement)) {
-              final node = lowering.lower(value);
-              final index = outer.indexOf(node);
-              final slot = index < 0 ? outer.length : index;
-              if (index < 0) outer.add(node);
-              return nested.parameter(
-                  value.element!, 'outer$slot', lowering.nodes[node].type);
-            }
-            return _extension(value, nested);
-          });
+        lexicalParent: lowering,
+        capture: (_) =>
+            throw StateError('Predicate capture escaped its bindings'),
+        operations: operations,
+        extension: (value, nested) {
+          if (deviceRead(value) != null || themeReadSegments(value) != null) {
+            final node = lowering.lower(value);
+            final index = outer.indexOf(node);
+            final slot = index < 0 ? outer.length : index;
+            if (index < 0) outer.add(node);
+            final name = 'outer$slot';
+            final type = lowering.nodes[node].type;
+            nested.parameters[name] = type;
+            return nested.add(ValueNode('parameter', type, name: name));
+          }
+          if (value is SimpleIdentifier &&
+              !nested.bindings.containsKey(value.element) &&
+              (value.element is VariableElement ||
+                  value.element is GetterElement)) {
+            final node = lowering.lower(value);
+            final index = outer.indexOf(node);
+            final slot = index < 0 ? outer.length : index;
+            if (index < 0) outer.add(node);
+            return nested.parameter(
+              value.element!,
+              'outer$slot',
+              lowering.nodes[node].type,
+            );
+          }
+          return _extension(value, nested);
+        },
+      );
       predicate.parameter(parameter, 'item', listType.item!);
       final root = _body(callback.body, predicate);
       final program = predicate.program(root);
       program.validate(
+        operations: operations,
+        context: ValueOperationContext(
           operations: operations,
-          context: ValueOperationContext(
-              operations: operations,
-              locals: {...lowering.outerLocals, ...lowering.locals}));
-      return lowering.add(ValueNode('grid.indexWhere', ValueType.integer,
-          inputs: [list, ...outer], value: program.encode()));
+          locals: {...lowering.outerLocals, ...lowering.locals},
+        ),
+      );
+      return lowering.add(
+        ValueNode(
+          'grid.indexWhere',
+          ValueType.integer,
+          inputs: [list, ...outer],
+          value: program.encode(),
+        ),
+      );
     }
     if (expression is MethodInvocation) {
       final helper = helperFor?.call(expression);
@@ -241,7 +290,8 @@ final class ScalarCallbackLowering {
       target.element.name != 'ValueKey' ||
       target.element.library.identifier !=
           'package:flutter/src/foundation/key.dart' ||
-      target.typeArguments.length != 1) return null;
+      target.typeArguments.length != 1)
+    return null;
   final type = valueTypeFor(target.typeArguments.single, node);
   if (!const {'String', 'int', 'double', 'num', 'bool'}.contains(type.kind)) {
     throw BuilderLoweringException(node, 'Key cast requires a scalar generic');
@@ -262,7 +312,9 @@ final class _KeyValueTypes extends RecursiveAstVisitor<void> {
     if (helper == null) return;
     if (_activeHelpers.contains(helper.body)) {
       throw BuilderLoweringException(
-          node, 'Recursive pure helper is unsupported');
+        node,
+        'Recursive pure helper is unsupported',
+      );
     }
     if (!_visitedHelpers.add(helper.body)) return;
     _activeHelpers.add(helper.body);

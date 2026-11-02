@@ -48,8 +48,10 @@ void main() {
 
   group('WidgetClassification', () {
     test('every variant carries the classKey through the base', () {
-      const unclassifiable =
-          UnclassifiableWidget('pkg#A', reason: 'build() body');
+      const unclassifiable = UnclassifiableWidget(
+        'pkg#A',
+        reason: 'build() body',
+      );
       final composable = ComposableWidget(
         'pkg#B',
         requiredMechanisms: const {},

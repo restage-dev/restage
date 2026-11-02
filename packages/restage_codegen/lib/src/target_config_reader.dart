@@ -25,8 +25,8 @@ final class WidgetbookPropertyTargetConfigFacts {
     required this.storyValuesLocation,
     required this.allValuesLocation,
   }) : storyValues = storyValues == null
-            ? null
-            : List<DartObject>.unmodifiable(storyValues);
+           ? null
+           : List<DartObject>.unmodifiable(storyValues);
 
   /// Authored values in declaration order, or `null` when absent.
   final List<DartObject>? storyValues;
@@ -50,8 +50,8 @@ final class WidgetbookTargetConfigFacts {
     required this.maxStories,
     required Map<String, WidgetbookPropertyTargetConfigFacts> properties,
     required List<Issue> issues,
-  })  : properties = Map.unmodifiable(properties),
-        issues = List.unmodifiable(issues);
+  }) : properties = Map.unmodifiable(properties),
+       issues = List.unmodifiable(issues);
 
   /// Explicit expansion policy, or `null` for the default policy.
   final StoryExpansion? expansion;
@@ -94,7 +94,8 @@ WidgetbookTargetConfigFacts readWidgetbookTargetConfig(
       issues.add(
         Issue(
           code: IssueCode.invalidTargetConfigPlacement,
-          message: 'wb.Config storyValues and allValues are legal only on a '
+          message:
+              'wb.Config storyValues and allValues are legal only on a '
               'constructor property field.',
           location: location,
         ),
@@ -150,7 +151,8 @@ WidgetbookTargetConfigFacts readWidgetbookTargetConfig(
   }
 
   final hasConstructorFacts = constructorInputs != null;
-  final inputs = constructorInputs?.toList(growable: false) ??
+  final inputs =
+      constructorInputs?.toList(growable: false) ??
       const <WidgetConstructorInput>[];
   for (final input in inputs) {
     for (final formal in input.formalChain) {
@@ -176,7 +178,8 @@ WidgetbookTargetConfigFacts readWidgetbookTargetConfig(
     var fieldConfigIndex = 0;
     for (final annotation in field.metadata.annotations) {
       if (!_isConfig(annotation, _widgetbookConfigOrigin)) continue;
-      final location = '${_annotationSourcePath(annotation, assetId)}#'
+      final location =
+          '${_annotationSourcePath(annotation, assetId)}#'
           '$ownerName.$fieldName@wb.Config[$fieldConfigIndex]';
       fieldConfigIndex++;
       final input = _exactInputForField(field, inputs);
@@ -186,12 +189,12 @@ WidgetbookTargetConfigFacts readWidgetbookTargetConfig(
             code: IssueCode.invalidTargetConfigPlacement,
             message: !hasConstructorFacts
                 ? 'wb.Config on $ownerName.$fieldName cannot be validated '
-                    'because constructor facts are unavailable. Property '
-                    'configuration is legal only on the exact backing field '
-                    'of an admitted unnamed-constructor input.'
+                      'because constructor facts are unavailable. Property '
+                      'configuration is legal only on the exact backing field '
+                      'of an admitted unnamed-constructor input.'
                 : 'wb.Config on $ownerName.$fieldName is not on the exact '
-                    'backing field of an admitted unnamed-constructor input. '
-                    'Property configuration cannot admit a field by name.',
+                      'backing field of an admitted unnamed-constructor input. '
+                      'Property configuration cannot admit a field by name.',
             location: location,
           ),
         );
@@ -206,7 +209,8 @@ WidgetbookTargetConfigFacts readWidgetbookTargetConfig(
         issues.add(
           Issue(
             code: IssueCode.invalidTargetConfigPlacement,
-            message: 'wb.Config expansion and maxStories are legal only on '
+            message:
+                'wb.Config expansion and maxStories are legal only on '
                 'a widget class.',
             location: location,
           ),
@@ -271,14 +275,16 @@ void _rejectWidgetbookFormalConfig(
   var configIndex = 0;
   for (final annotation in declaration.metadata.annotations) {
     if (!_isConfig(annotation, _widgetbookConfigOrigin)) continue;
-    final location = '${_annotationSourcePath(annotation, contextAsset)}#'
+    final location =
+        '${_annotationSourcePath(annotation, contextAsset)}#'
         '${owner.name ?? '<unnamed>'}.$selector.$formalName'
         '@wb.Config[$configIndex]';
     configIndex++;
     issues.add(
       Issue(
         code: IssueCode.invalidTargetConfigPlacement,
-        message: 'wb.Config is not legal on a constructor formal. Put '
+        message:
+            'wb.Config is not legal on a constructor formal. Put '
             'expansion or maxStories on the widget class, and put '
             'storyValues or allValues on the exact admitted backing field.',
         location: location,
@@ -342,7 +348,8 @@ StoryExpansion? _readStoryExpansion(
 ) {
   final type = value.type;
   final enumElement = type is InterfaceType ? type.element : null;
-  final isExpectedIdentity = enumElement is EnumElement &&
+  final isExpectedIdentity =
+      enumElement is EnumElement &&
       enumElement.name == 'StoryExpansion' &&
       enumElement.library.identifier == _widgetbookConfigOrigin;
   final canonical = isExpectedIdentity
@@ -352,7 +359,8 @@ StoryExpansion? _readStoryExpansion(
     issues.add(
       Issue(
         code: IssueCode.unknownEnumValue,
-        message: 'wb.Config expansion must resolve to StoryExpansion from '
+        message:
+            'wb.Config expansion must resolve to StoryExpansion from '
             'package:rfw_catalog_schema/widgetbook.dart.',
         location: location,
       ),
@@ -415,7 +423,8 @@ final class _MutableWidgetbookPropertyConfig {
     final storyValues = _storyValues;
     final allValues = _allValues;
     if (storyValues == null || allValues == null) return;
-    final message = 'wb.Config storyValues and allValues are mutually '
+    final message =
+        'wb.Config storyValues and allValues are mutually '
         'exclusive at ${storyValues.location} and ${allValues.location}.';
     if (issues.any(
       (issue) =>
@@ -466,8 +475,8 @@ final class A2uiTargetConfigFacts {
     required this.usage,
     required Map<String, String> writeBackValues,
     required List<Issue> issues,
-  })  : writeBackValues = Map.unmodifiable(writeBackValues),
-        issues = List.unmodifiable(issues);
+  }) : writeBackValues = Map.unmodifiable(writeBackValues),
+       issues = List.unmodifiable(issues);
 
   /// Producer-facing usage guidance, or `null` when absent.
   final String? usage;
@@ -520,7 +529,8 @@ A2uiTargetConfigFacts readA2uiTargetConfig(
       issues.add(
         Issue(
           code: IssueCode.invalidTargetConfigPlacement,
-          message: 'a2ui.Config.writeBackValue is legal only on a callback '
+          message:
+              'a2ui.Config.writeBackValue is legal only on a callback '
               'field.',
           location: location,
         ),
@@ -545,7 +555,8 @@ A2uiTargetConfigFacts readA2uiTargetConfig(
           issues.add(
             Issue(
               code: IssueCode.missingAnnotationField,
-              message: 'a2ui.Config.writeBackValues must contain only '
+              message:
+                  'a2ui.Config.writeBackValues must contain only '
                   'compile-time String keys and values.',
               location: location,
             ),
@@ -558,7 +569,8 @@ A2uiTargetConfigFacts readA2uiTargetConfig(
   }
 
   if (readsWriteBackConfig) {
-    final configFields = <FieldElement>{...cls.fields}..addAll(
+    final configFields = <FieldElement>{...cls.fields}
+      ..addAll(
         constructorInputs?.map((input) => input.field) ??
             const <FieldElement>[],
       );
@@ -579,7 +591,8 @@ A2uiTargetConfigFacts readA2uiTargetConfig(
           issues.add(
             Issue(
               code: IssueCode.invalidTargetConfigPlacement,
-              message: 'a2ui.Config usage and writeBackValues are legal only '
+              message:
+                  'a2ui.Config usage and writeBackValues are legal only '
                   'on a widget class.',
               location: location,
             ),
@@ -628,8 +641,8 @@ bool _writesA2uiUsage(ElementAnnotation annotation) {
   final declaration = parsed.declarations.whereType<ClassDeclaration>().first;
   final arguments = declaration.metadata.single.arguments?.arguments;
   return arguments?.whereType<NamedArgument>().any(
-            (argument) => argument.name.lexeme == 'usage',
-          ) ??
+        (argument) => argument.name.lexeme == 'usage',
+      ) ??
       false;
 }
 
@@ -649,7 +662,8 @@ void _validateA2uiPairings(
       issues.add(
         Issue(
           code: IssueCode.invalidTargetConfigReference,
-          message: 'A2UI write-back callback "${entry.key}" is not an input '
+          message:
+              'A2UI write-back callback "${entry.key}" is not an input '
               'of the unnamed generative constructor on $owner.',
           location: entry.value.location,
         ),
@@ -658,7 +672,8 @@ void _validateA2uiPairings(
       issues.add(
         Issue(
           code: IssueCode.invalidTargetConfigReference,
-          message: 'A2UI write-back callback "${entry.key}" on $owner must '
+          message:
+              'A2UI write-back callback "${entry.key}" on $owner must '
               'resolve to a callback constructor input.',
           location: entry.value.location,
         ),
@@ -668,7 +683,8 @@ void _validateA2uiPairings(
       issues.add(
         Issue(
           code: IssueCode.invalidTargetConfigReference,
-          message: 'A2UI write-back value "${entry.value.value}" is not an '
+          message:
+              'A2UI write-back value "${entry.value.value}" is not an '
               'input of the unnamed generative constructor on $owner.',
           location: entry.value.location,
         ),
@@ -677,7 +693,8 @@ void _validateA2uiPairings(
       issues.add(
         Issue(
           code: IssueCode.invalidTargetConfigReference,
-          message: 'A2UI write-back value "${entry.value.value}" on $owner '
+          message:
+              'A2UI write-back value "${entry.value.value}" on $owner '
               'must resolve to a non-callback constructor input.',
           location: entry.value.location,
         ),
@@ -701,10 +718,10 @@ bool _hasClassOnlyA2uiKey(DartObject value) {
 }
 
 Issue _evaluationIssue(String annotation, String location) => Issue(
-      code: IssueCode.missingAnnotationField,
-      message: '$annotation could not be const-evaluated.',
-      location: location,
-    );
+  code: IssueCode.missingAnnotationField,
+  message: '$annotation could not be const-evaluated.',
+  location: location,
+);
 
 void _mergePairing(
   Map<String, _Sourced<String>> pairings,
@@ -721,10 +738,10 @@ void _mergePairing(
   final duplicate = current.value == target;
   final message = duplicate
       ? 'Duplicate A2UI write-back pairing for "$callback" -> "$target" at '
-          '${current.location} and $location.'
+            '${current.location} and $location.'
       : 'Conflicting A2UI write-back pairing for "$callback": '
-          '"${current.value}" at ${current.location} and "$target" at '
-          '$location.';
+            '"${current.value}" at ${current.location} and "$target" at '
+            '$location.';
   final code = duplicate
       ? IssueCode.duplicateTargetConfig
       : IssueCode.conflictingTargetConfig;
@@ -742,7 +759,8 @@ _Sourced<T> _mergeValue<T>({
 }) {
   if (current == null) return next;
   if (equals(current.value, next.value)) return current;
-  final message = 'Conflicting target configuration for $key at '
+  final message =
+      'Conflicting target configuration for $key at '
       '${current.location} and ${next.location}.';
   issues
     ..add(

@@ -73,22 +73,10 @@ void main() {
       expect(result.components.single.dataSchema, {
         'type': 'object',
         'properties': {
-          'props': {
-            'type': 'object',
-            'properties': {
-              'id': {'type': 'string'},
-              'component': {'type': 'string'},
-              'catalogId': {'type': 'string'},
-              'props': {'type': 'string'},
-            },
-            'required': ['id'],
-          },
-          'component': {
-            'type': 'string',
-            'enum': ['CollisionCard'],
-          },
+          for (final name in ['id', 'component', 'catalogId', 'props'])
+            'props_$name': _dynamic('string'),
         },
-        'required': ['component', 'props'],
+        'required': ['props_id'],
       });
     });
 
@@ -96,8 +84,7 @@ void main() {
       // emitA2uiCatalog emits over the A2UI-emittable set, so the fixtures use
       // emittable widgets (scalar/enum/child-with-field), never an unrealistic
       // children-slot-without-a-children-field (which scopes out of both arts).
-      // The component schema replicates genui's `CatalogItem.dataSchema`
-      // getter: the data properties plus a `component` const-enum, `component`
+      // The component schema holds the data properties plus a `component` const-enum, `component`
       // ahead of the data's required set, and NO `additionalProperties`.
       final catalog = catalogWith([
         entry(
@@ -120,13 +107,9 @@ void main() {
       expect(text.dataSchema, {
         'type': 'object',
         'properties': {
-          'text': {'type': 'string'},
-          'component': {
-            'type': 'string',
-            'enum': ['Text'],
-          },
+          'props_text': _dynamic('string'),
         },
-        'required': ['component', 'text'],
+        'required': ['props_text'],
       });
 
       // An OPTIONAL property: carried in `properties` but NOT in `required`.
@@ -134,57 +117,55 @@ void main() {
       expect(column.dataSchema, {
         'type': 'object',
         'properties': {
-          'spacing': {'type': 'number'},
-          'component': {
-            'type': 'string',
-            'enum': ['Column'],
-          },
+          'props_spacing': _dynamic('number'),
         },
-        'required': ['component'],
+        'required': <String>[],
       });
     });
 
-    test('a component with no data fields is the bare discriminator', () {
+    test('a component with no data fields has an empty property schema', () {
       final result = emitA2uiCatalog(
         catalogWith([entry(name: 'Spacer', properties: [])]),
       );
       expect(result.components.single.dataSchema, {
         'type': 'object',
-        'properties': {
-          'component': {
-            'type': 'string',
-            'enum': ['Spacer'],
-          },
-        },
-        'required': ['component'],
+        'properties': <String, Object?>{},
+        'required': <String>[],
       });
     });
 
-    test('manifest component set == the Dart CatalogItem set (no divergence)',
-        () {
-      // The manifest (catalog.json) and the Dart CatalogItem set must agree by
-      // construction: a widget scoped out of one is scoped out of the other.
-      final catalog = catalogWith([
-        entry(
-          name: 'Emittable',
-          properties: [prop('label', PropertyType.string)],
-        ),
-        // A children slot with no children field is A2UI-unemittable — it must
-        // be absent from BOTH artifacts.
-        entry(name: 'Dropped', childrenSlot: ChildrenSlot.list, properties: []),
-      ]);
+    test(
+      'manifest component set == the Dart CatalogItem set (no divergence)',
+      () {
+        // The manifest (catalog.json) and the Dart CatalogItem set must agree
+        // by construction: a widget scoped out of one is scoped out of the
+        // other.
+        final catalog = catalogWith([
+          entry(
+            name: 'Emittable',
+            properties: [prop('label', PropertyType.string)],
+          ),
+          // A children slot with no children field is A2UI-unemittable — it
+          // must be absent from BOTH artifacts.
+          entry(
+            name: 'Dropped',
+            childrenSlot: ChildrenSlot.list,
+            properties: [],
+          ),
+        ]);
 
-      final manifestNames =
-          emitA2uiCatalog(catalog).components.map((c) => c.name).toSet();
-      final dartItemNames = classifyA2uiCatalogDart(catalog)
-          .widgets
-          .map((plan) => plan.entry.name)
-          .toSet();
+        final manifestNames = emitA2uiCatalog(
+          catalog,
+        ).components.map((c) => c.name).toSet();
+        final dartItemNames = classifyA2uiCatalogDart(
+          catalog,
+        ).widgets.map((plan) => plan.entry.name).toSet();
 
-      expect(manifestNames, dartItemNames);
-      expect(manifestNames, {'Emittable'});
-      expect(manifestNames, isNot(contains('Dropped')));
-    });
+        expect(manifestNames, dartItemNames);
+        expect(manifestNames, {'Emittable'});
+        expect(manifestNames, isNot(contains('Dropped')));
+      },
+    );
   });
 
   group('emitA2uiCatalog — the built-in content-version axis', () {
@@ -227,57 +208,63 @@ void main() {
       );
     });
 
-    test('carries a declared break into the stamp and the generated catalog',
-        () {
-      final catalog = _mixedCatalog(acmeCompatibleSince: 3);
-      final result = emitA2uiCatalog(catalog);
-      expect(result.stamp.availableLibraries, [
-        const A2uiLibraryCapability(
-          namespace: 'acme.widgets',
-          version: 3,
-          compatibleSince: 3,
-        ),
-      ]);
-      expect(
-        result.stamp.toJson()['availableLibraries'],
-        [
-          {'namespace': 'acme.widgets', 'version': 3, 'compatibleSince': 3},
-        ],
-      );
-      expect(
-        _packed(emitA2uiCatalogDart(catalog, registration: result)),
-        contains(
-          "A2uiAvailableLibrary(namespace:'acme.widgets',version:3,"
-          'compatibleSince:3)',
-        ),
-      );
-    });
+    test(
+      'carries a declared break into the stamp and the generated catalog',
+      () {
+        final catalog = _mixedCatalog(acmeCompatibleSince: 3);
+        final result = emitA2uiCatalog(catalog);
+        expect(result.stamp.availableLibraries, [
+          const A2uiLibraryCapability(
+            namespace: 'acme.widgets',
+            version: 3,
+            compatibleSince: 3,
+          ),
+        ]);
+        expect(
+          result.stamp.toJson()['availableLibraries'],
+          [
+            {'namespace': 'acme.widgets', 'version': 3, 'compatibleSince': 3},
+          ],
+        );
+        expect(
+          _packed(emitA2uiCatalogDart(catalog, registration: result)),
+          contains(
+            "A2uiAvailableLibrary(namespace:'acme.widgets',version:3,"
+            'compatibleSince:3)',
+          ),
+        );
+      },
+    );
 
-    test('leaves compatibleSince 1 out of the stamp and the generated catalog',
-        () {
-      final catalog = _mixedCatalog();
-      final result = emitA2uiCatalog(catalog);
-      expect(
-        result.stamp.toJson()['availableLibraries'],
-        [
-          {'namespace': 'acme.widgets', 'version': 3},
-        ],
-      );
-      final source = emitA2uiCatalogDart(catalog, registration: result);
-      expect(
-        _packed(source),
-        contains("A2uiAvailableLibrary(namespace:'acme.widgets',version:3)"),
-      );
-      expect(source, isNot(contains('compatibleSince')));
-    });
+    test(
+      'leaves compatibleSince 1 out of the stamp and the generated catalog',
+      () {
+        final catalog = _mixedCatalog();
+        final result = emitA2uiCatalog(catalog);
+        expect(
+          result.stamp.toJson()['availableLibraries'],
+          [
+            {'namespace': 'acme.widgets', 'version': 3},
+          ],
+        );
+        final source = emitA2uiCatalogDart(catalog, registration: result);
+        expect(
+          _packed(source),
+          contains("A2uiAvailableLibrary(namespace:'acme.widgets',version:3)"),
+        );
+        expect(source, isNot(contains('compatibleSince')));
+      },
+    );
 
-    test('throws when a present custom library declares no capability version',
-        () {
-      expect(
-        () => emitA2uiCatalog(_mixedCatalog(acmeCapabilityVersion: null)),
-        throwsArgumentError,
-      );
-    });
+    test(
+      'throws when a present custom library declares no capability version',
+      () {
+        expect(
+          () => emitA2uiCatalog(_mixedCatalog(acmeCapabilityVersion: null)),
+          throwsArgumentError,
+        );
+      },
+    );
   });
 
   group('emitA2uiCatalog — duplicate component names fail loud', () {
@@ -299,52 +286,65 @@ void main() {
   });
 
   group('emitA2uiCatalog — interactive parity with the Dart emitter', () {
-    test('an interactive widget the Dart path keeps is in the manifest too',
-        () {
-      // The manifest and the Dart CatalogItem set must agree by construction. A
-      // required interactive callback is LOWERED on the Dart path (the widget
-      // is emitted); the manifest must see the SAME eventSeam so it keeps the
-      // widget too — not drop it via the catalog-fed required-`eventProperty`
-      // path. Without threading the seam, the two artifacts diverge.
-      final catalog = catalogWith([
-        entry(
-          name: 'IconButton',
-          flutterType: 'package:fixture/fixture.dart#IconButton',
-          properties: [
-            prop('icon', PropertyType.string, required: true),
-            prop('onPressed', PropertyType.event, required: true),
-          ],
-        ),
-      ]);
-      final seam = <(String, String), A2uiCallbackSignature>{
-        ('IconButton', 'onPressed'): const A2uiCallbackDispatch(),
-      };
+    test(
+      'an interactive widget the Dart path keeps is in the manifest too',
+      () {
+        // The manifest and the Dart CatalogItem set must agree by construction.
+        // A required interactive callback is LOWERED on the Dart path (the
+        // widget is emitted); the manifest must see the SAME eventSeam so it
+        // keeps the widget too — not drop it via the catalog-fed
+        // required-`eventProperty` path. Without threading the seam, the two
+        // artifacts diverge.
+        final catalog = catalogWith([
+          entry(
+            name: 'IconButton',
+            flutterType: 'package:fixture/fixture.dart#IconButton',
+            properties: [
+              prop('icon', PropertyType.string, required: true),
+              prop('onPressed', PropertyType.event, required: true),
+            ],
+          ),
+        ]);
+        final seam = <(String, String), A2uiCallbackSignature>{
+          ('IconButton', 'onPressed'): const A2uiCallbackDispatch(),
+        };
 
-      final dartSet = classifyA2uiCatalogDart(catalog, eventSeam: seam)
-          .widgets
-          .map((w) => w.entry.name)
-          .toSet();
-      expect(dartSet, contains('IconButton'));
+        final dartSet = classifyA2uiCatalogDart(
+          catalog,
+          eventSeam: seam,
+        ).widgets.map((w) => w.entry.name).toSet();
+        expect(dartSet, contains('IconButton'));
 
-      final manifestSet = emitA2uiCatalog(catalog, eventSeam: seam)
-          .components
-          .map((c) => c.name)
-          .toSet();
-      expect(manifestSet, dartSet);
-    });
+        final manifestSet = emitA2uiCatalog(
+          catalog,
+          eventSeam: seam,
+        ).components.map((c) => c.name).toSet();
+        expect(manifestSet, dartSet);
+      },
+    );
 
-    test('a built-in catalog (no seam) is byte-neutral on the manifest path',
-        () {
-      // No seam → identical to before the parameter existed.
-      final catalog = catalogWith([
-        entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
-      ]);
-      expect(
-        emitA2uiCatalog(catalog).components.map((c) => c.name).toSet(),
-        {'Text'},
-      );
-    });
+    test(
+      'a built-in catalog (no seam) is byte-neutral on the manifest path',
+      () {
+        // No seam → identical to before the parameter existed.
+        final catalog = catalogWith([
+          entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
+        ]);
+        expect(
+          emitA2uiCatalog(catalog).components.map((c) => c.name).toSet(),
+          {'Text'},
+        );
+      },
+    );
   });
 }
 
 String _packed(String source) => source.replaceAll(RegExp(r'\s+'), '');
+
+Map<String, Object?> _dynamic(String type) => {
+  'oneOf': [
+    {'type': type},
+    {r'$ref': r'common_types.json#/$defs/DataBinding'},
+    {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+  ],
+};

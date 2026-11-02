@@ -27,7 +27,8 @@ import 'helpers.dart';
 const String _header =
     "import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';";
 
-String _widget(String declarations, String valueType) => '''
+String _widget(String declarations, String valueType) =>
+    '''
 $_header
 $declarations
 @RestageWidget(name: 'FieldNotes', library: WidgetLibrary.custom('acme.ds'),
@@ -65,11 +66,13 @@ class Node {
 ''';
 
 Future<
-    ({
-      CustomStructuredAdmission admission,
-      WidgetVisitorResult result,
-      String? source,
-    })> _run(String declarations, String valueType) async {
+  ({
+    CustomStructuredAdmission admission,
+    WidgetVisitorResult result,
+    String? source,
+  })
+>
+_run(String declarations, String valueType) async {
   final result = await runWidgetVisitorOn({
     'lib/field_notes.dart': _widget(declarations, valueType),
   });
@@ -122,8 +125,10 @@ void main() {
       final reason = r.admission.excluded.single.reason;
       expect(
         reason,
-        contains("has a map value targeting 'Plan' whose closure is not "
-            'fully renderable'),
+        contains(
+          "has a map value targeting 'Plan' whose closure is not "
+          'fully renderable',
+        ),
       );
       // The inner cause travels out with it, so the author is told WHICH field
       // inside the value type is the problem rather than only that one is.
@@ -134,22 +139,26 @@ void main() {
       expect(reason, isNot(contains('has no map reconstruction plan')));
     });
 
-    test('a cyclic value type excludes the widget and names the cycle',
-        () async {
-      // A second obstruction through the same arm. One shape passing would not
-      // show the arm reaches the value generally — this one is refused deeper
-      // in, by the cycle check rather than by a dropped field.
-      final r = await _run(_cyclicNode, 'Node');
+    test(
+      'a cyclic value type excludes the widget and names the cycle',
+      () async {
+        // A second obstruction through the same arm. One shape passing would not
+        // show the arm reaches the value generally — this one is refused deeper
+        // in, by the cycle check rather than by a dropped field.
+        final r = await _run(_cyclicNode, 'Node');
 
-      expect(r.admission.admitted, isEmpty);
-      final reason = r.admission.excluded.single.reason;
-      expect(
-        reason,
-        contains("has a map value targeting 'Node' whose closure is not "
-            'fully renderable'),
-      );
-      expect(reason, contains('cyclic structured type'));
-    });
+        expect(r.admission.admitted, isEmpty);
+        final reason = r.admission.excluded.single.reason;
+        expect(
+          reason,
+          contains(
+            "has a map value targeting 'Node' whose closure is not "
+            'fully renderable',
+          ),
+        );
+        expect(reason, contains('cyclic structured type'));
+      },
+    );
   });
 
   test('an admitted map value joins the admitted structured closure', () async {
@@ -159,7 +168,8 @@ void main() {
     expect(
       r.admission.admittedSourceTypes.map((s) => s.split('#').last),
       contains('Plan'),
-      reason: 'the map value type must be collected, or it would be emitted '
+      reason:
+          'the map value type must be collected, or it would be emitted '
           'as a dangling reference',
     );
     // The plan carries the value identity that the closure walk followed.
@@ -186,26 +196,29 @@ void main() {
     expect(src, isNot(contains(opaqueScalarRead)));
   });
 
-  test('a framework recipe value is not treated as a custom data class',
-      () async {
-    // The custom-authored gate. The walk policy reports framework recipe
-    // types as concrete too, so without it a map of one is captured by the
-    // custom-value branch and excluded as an unresolvable structured target.
-    // This pins the shapes that must keep working; no test can pin WHICH form
-    // of the gate is in place, because every candidate agrees on every shape.
-    final r = await _run('', 'Duration');
+  test(
+    'a framework recipe value is not treated as a custom data class',
+    () async {
+      // The custom-authored gate. The walk policy reports framework recipe
+      // types as concrete too, so without it a map of one is captured by the
+      // custom-value branch and excluded as an unresolvable structured target.
+      // This pins the shapes that must keep working; no test can pin WHICH form
+      // of the gate is in place, because every candidate agrees on every shape.
+      final r = await _run('', 'Duration');
 
-    expect(r.admission.admitted.map((w) => w.name), ['FieldNotes']);
-    expect(r.result.mapPlans.values.single.valueSourceType, isNull);
-    expect(r.source, contains('final m0 = <String, Duration>{};'));
-    expect(r.source, contains('RestageDecoders.duration('));
-    // Paired absence: the shape must not acquire the structured-value
-    // treatment, whose failure surfaces as this exclusion wording.
-    expect(
-      r.admission.excluded,
-      isEmpty,
-      reason: 'a framework recipe value must stay admitted; got '
-          '${r.admission.excluded.map((e) => e.reason).toList()}',
-    );
-  });
+      expect(r.admission.admitted.map((w) => w.name), ['FieldNotes']);
+      expect(r.result.mapPlans.values.single.valueSourceType, isNull);
+      expect(r.source, contains('final m0 = <String, Duration>{};'));
+      expect(r.source, contains('RestageDecoders.duration('));
+      // Paired absence: the shape must not acquire the structured-value
+      // treatment, whose failure surfaces as this exclusion wording.
+      expect(
+        r.admission.excluded,
+        isEmpty,
+        reason:
+            'a framework recipe value must stay admitted; got '
+            '${r.admission.excluded.map((e) => e.reason).toList()}',
+      );
+    },
+  );
 }

@@ -91,7 +91,8 @@ String? springAdoptTarget(InstanceCreationExpression expr) {
 /// the family by use-case. Manual-adopt only: imperative motion is never
 /// auto-substituted (see the file-level note).
 String motionDeferMessage([String? adoptTarget]) {
-  const base = 'Imperative animation (AnimationController / SpringSimulation, '
+  const base =
+      'Imperative animation (AnimationController / SpringSimulation, '
       'or a package-backed motion system such as motor or cue) is not a '
       'supported paywall expression.';
   if (adoptTarget == kRestageSpringWidget) {

@@ -10,25 +10,27 @@ import 'helpers.dart';
 
 void main() {
   group('selectRestageCandidateLibraries', () {
-    test('returns only the candidates whose raw source spells a token',
-        () async {
-      final selected = await _select(
-        const {
-          'lib/annotated.dart': '''
+    test(
+      'returns only the candidates whose raw source spells a token',
+      () async {
+        final selected = await _select(
+          const {
+            'lib/annotated.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 @RestageWidget()
 class Badge {}
 ''',
-          'lib/plain.dart': '''
+            'lib/plain.dart': '''
 class Ordinary {}
 ''',
-        },
-        restageWidgetSourceTokens,
-      );
+          },
+          restageWidgetSourceTokens,
+        );
 
-      expect(selected, ['lib/annotated.dart']);
-    });
+        expect(selected, ['lib/annotated.dart']);
+      },
+    );
 
     test('returns nothing for a package that spells no token', () async {
       final selected = await _select(
@@ -56,22 +58,24 @@ class MyPaywallPresenter {}
       expect(selected, isEmpty);
     });
 
-    test('matches a deprecated surface spelling behind an import prefix',
-        () async {
-      final selected = await _select(
-        const {
-          'lib/legacy.dart': '''
+    test(
+      'matches a deprecated surface spelling behind an import prefix',
+      () async {
+        final selected = await _select(
+          const {
+            'lib/legacy.dart': '''
 import 'package:restage/restage.dart' as rs;
 
 @rs.ScreenSource(id: 'legacy')
 class LegacyScreen {}
 ''',
-        },
-        restageSurfaceSourceTokens,
-      );
+          },
+          restageSurfaceSourceTokens,
+        );
 
-      expect(selected, ['lib/legacy.dart']);
-    });
+        expect(selected, ['lib/legacy.dart']);
+      },
+    );
 
     test('selects SDK runtime widgets used as source annotations', () async {
       final selected = await _selectSurfaceLane({
@@ -116,100 +120,107 @@ class TypedefAliasUpgrade {}
       ]);
     });
 
-    test('matches the canonical const-instance spelling of an annotation',
-        () async {
-      final selected = await _select(
-        const {
-          'lib/instance.dart': '''
+    test(
+      'matches the canonical const-instance spelling of an annotation',
+      () async {
+        final selected = await _select(
+          const {
+            'lib/instance.dart': '''
 @screen
 class Welcome {}
 ''',
-        },
-        restageSurfaceSourceTokens,
-      );
+          },
+          restageSurfaceSourceTokens,
+        );
 
-      expect(selected, ['lib/instance.dart']);
-    });
+        expect(selected, ['lib/instance.dart']);
+      },
+    );
 
-    test('adds the owning library of a token-bearing part named by URI',
-        () async {
-      final selected = await _select(
-        const {
-          'lib/onboarding/screens/host.dart': '''
+    test(
+      'adds the owning library of a token-bearing part named by URI',
+      () async {
+        final selected = await _select(
+          const {
+            'lib/onboarding/screens/host.dart': '''
 library shared_screens;
 
 import 'package:restage/restage.dart' as rs;
 
 part '../../src/host_part.dart';
 ''',
-          'lib/src/host_part.dart': '''
+            'lib/src/host_part.dart': '''
 part of '../onboarding/screens/host.dart';
 
 @rs.ScreenSource(id: 'host')
 class HostScreen {}
 ''',
-          // Present so a successful join is distinguishable from a full
-          // fallback, which would return this file too.
-          'lib/unrelated.dart': 'class Unrelated {}',
-        },
-        restageSurfaceSourceTokens,
-      );
+            // Present so a successful join is distinguishable from a full
+            // fallback, which would return this file too.
+            'lib/unrelated.dart': 'class Unrelated {}',
+          },
+          restageSurfaceSourceTokens,
+        );
 
-      expect(selected, [
-        'lib/onboarding/screens/host.dart',
-        'lib/src/host_part.dart',
-      ]);
-    });
+        expect(selected, [
+          'lib/onboarding/screens/host.dart',
+          'lib/src/host_part.dart',
+        ]);
+      },
+    );
 
     test(
-        'adds the owning library of a token-bearing part named by library name',
-        () async {
-      final selected = await _select(
-        const {
-          'lib/named_host.dart': '''
+      'adds the owning library of a token-bearing part named by library name',
+      () async {
+        final selected = await _select(
+          const {
+            'lib/named_host.dart': '''
 library shared_screens;
 
 import 'package:restage/restage.dart' as rs;
 
 part 'src/named_part.dart';
 ''',
-          'lib/src/named_part.dart': '''
+            'lib/src/named_part.dart': '''
 part of shared_screens;
 
 @rs.ScreenSource(id: 'named')
 class NamedScreen {}
 ''',
-          'lib/unrelated.dart': 'class Unrelated {}',
-        },
-        restageSurfaceSourceTokens,
-      );
+            'lib/unrelated.dart': 'class Unrelated {}',
+          },
+          restageSurfaceSourceTokens,
+        );
 
-      expect(selected, [
-        'lib/named_host.dart',
-        'lib/src/named_part.dart',
-      ]);
-    });
+        expect(selected, [
+          'lib/named_host.dart',
+          'lib/src/named_part.dart',
+        ]);
+      },
+    );
 
-    test('falls back to every candidate when a part owner cannot be joined',
-        () async {
-      final selected = await _select(
-        const {
-          'lib/orphan_part.dart': '''
+    test(
+      'falls back to every candidate when a part owner cannot be joined',
+      () async {
+        final selected = await _select(
+          const {
+            'lib/orphan_part.dart': '''
 part of nowhere_at_all;
 
 @rs.ScreenSource(id: 'orphan')
 class OrphanScreen {}
 ''',
-          'lib/unrelated.dart': 'class Unrelated {}',
-        },
-        restageSurfaceSourceTokens,
-      );
+            'lib/unrelated.dart': 'class Unrelated {}',
+          },
+          restageSurfaceSourceTokens,
+        );
 
-      expect(selected, [
-        'lib/orphan_part.dart',
-        'lib/unrelated.dart',
-      ]);
-    });
+        expect(selected, [
+          'lib/orphan_part.dart',
+          'lib/unrelated.dart',
+        ]);
+      },
+    );
 
     test('does not fall back when a part is owned outside the walk', () async {
       final selected = await _select(
@@ -230,8 +241,7 @@ class Foreign {}
       expect(selected, ['lib/foreign_part.dart']);
     });
 
-    test(
-        'joins the owner of a token-bearing part the surface lane may not '
+    test('joins the owner of a token-bearing part the surface lane may not '
         'resolve', () async {
       // A `.g.dart` is not an authored library, so the surface lane never
       // resolves one — but it can still be a `part`, and the declaration it
@@ -259,35 +269,37 @@ class GreetingScreen {}
       expect(selected, ['lib/screens/host.dart']);
     });
 
-    test('warns when a joined owner is one this walk will not resolve',
-        () async {
-      // The part is authored and carries the token; its owner is a generated
-      // library the surface lane never resolves. The declaration is lost —
-      // it was lost before this filter existed too — but silence is what made
-      // it hard to find.
-      final logs = await _laneLogs(const {
-        'lib/host.g.dart': '''
+    test(
+      'warns when a joined owner is one this walk will not resolve',
+      () async {
+        // The part is authored and carries the token; its owner is a generated
+        // library the surface lane never resolves. The declaration is lost —
+        // it was lost before this filter existed too — but silence is what made
+        // it hard to find.
+        final logs = await _laneLogs(const {
+          'lib/host.g.dart': '''
 library acme_host;
 
 part 'card_part.dart';
 ''',
-        'lib/card_part.dart': '''
+          'lib/card_part.dart': '''
 part of 'host.g.dart';
 
 @rs.Screen(id: 'greeting')
 class GreetingScreen {}
 ''',
-      });
+        });
 
-      expect(
-        logs.join('\n'),
-        allOf(
-          contains('WARNING'),
-          contains('lib/host.g.dart'),
-          contains('lib/card_part.dart'),
-        ),
-      );
-    });
+        expect(
+          logs.join('\n'),
+          allOf(
+            contains('WARNING'),
+            contains('lib/host.g.dart'),
+            contains('lib/card_part.dart'),
+          ),
+        );
+      },
+    );
 
     test('names every part when one unresolvable owner has several', () async {
       // Each part's declaration is equally lost, so a warning that mentions
@@ -313,15 +325,15 @@ class BScreen {}
 ''',
       });
 
-      final warnings =
-          logs.where((log) => log.startsWith('WARNING')).join('\n');
+      final warnings = logs
+          .where((log) => log.startsWith('WARNING'))
+          .join('\n');
       expect(warnings, contains('lib/a_part.dart'));
       expect(warnings, contains('lib/b_part.dart'));
       expect(warnings, contains('lib/host.g.dart'));
     });
 
-    test(
-        'does not warn for a token-bearing library that is merely not '
+    test('does not warn for a token-bearing library that is merely not '
         'resolvable', () async {
       // Nothing joined this file; it carries a token of its own and simply is
       // not something the surface lane resolves. That is the ordinary case
@@ -533,30 +545,32 @@ class Badge {}
       expect(selected, isEmpty);
     });
 
-    test('follows the same alias once it is declared in this package',
-        () async {
-      // The control for the test above: identical shape, alias moved into the
-      // walked package. If this were to fail the same way, the test above
-      // would be pinning a broken fixture rather than the package boundary.
-      final selected = await _select(
-        const {
-          'lib/annotations.dart': '''
+    test(
+      'follows the same alias once it is declared in this package',
+      () async {
+        // The control for the test above: identical shape, alias moved into the
+        // walked package. If this were to fail the same way, the test above
+        // would be pinning a broken fixture rather than the package boundary.
+        final selected = await _select(
+          const {
+            'lib/annotations.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const card = RestageWidget(description: 'A card.');
 ''',
-          'lib/uses_alias.dart': '''
+            'lib/uses_alias.dart': '''
 import 'annotations.dart';
 
 @card
 class Badge {}
 ''',
-        },
-        restageWidgetSourceTokens,
-      );
+          },
+          restageWidgetSourceTokens,
+        );
 
-      expect(selected, ['lib/annotations.dart', 'lib/uses_alias.dart']);
-    });
+        expect(selected, ['lib/annotations.dart', 'lib/uses_alias.dart']);
+      },
+    );
 
     test('follows an alias of an alias', () async {
       final selected = await _select(
@@ -594,8 +608,10 @@ class ProductCard {}
       // tolerates the damage, so the file keeps its place in the walk, and the
       // one complaint about it names it.
       final bytes = utf8
-          .encode("// Copyright (c) 2026\n@rs.Screen(id: 'legacy')\n"
-              'class LegacyScreen {}\n')
+          .encode(
+            "// Copyright (c) 2026\n@rs.Screen(id: 'legacy')\n"
+            'class LegacyScreen {}\n',
+          )
           .toList();
       bytes[13] = 0xA9;
 
@@ -615,63 +631,67 @@ class ProductCard {}
       );
     });
 
-    test('returns a deterministic, duplicate-free, path-sorted selection',
-        () async {
-      final selected = await _select(
-        const {
-          'lib/z_host.dart': '''
+    test(
+      'returns a deterministic, duplicate-free, path-sorted selection',
+      () async {
+        final selected = await _select(
+          const {
+            'lib/z_host.dart': '''
 library z_host;
 
 part 'a_part.dart';
 part 'm_part.dart';
 ''',
-          'lib/a_part.dart': '''
+            'lib/a_part.dart': '''
 part of 'z_host.dart';
 
 @RestageWidget()
 class A {}
 ''',
-          'lib/m_part.dart': '''
+            'lib/m_part.dart': '''
 part of 'z_host.dart';
 
 @RestageWidget()
 class M {}
 ''',
-        },
-        restageWidgetSourceTokens,
-      );
+          },
+          restageWidgetSourceTokens,
+        );
 
-      expect(selected, [
-        'lib/a_part.dart',
-        'lib/m_part.dart',
-        'lib/z_host.dart',
-      ]);
-    });
+        expect(selected, [
+          'lib/a_part.dart',
+          'lib/m_part.dart',
+          'lib/z_host.dart',
+        ]);
+      },
+    );
   });
 
   group('selectRestageNativeScreenCandidates', () {
-    test('does not admit a generated file at the deprecated screen path',
-        () async {
-      // The two rules this lane composes could contradict each other: it
-      // examines every file at the deprecated screen path whatever it says,
-      // and it declines to resolve a generated library. An ordinary code
-      // generator writes `welcome.g.dart` next to an annotated screen, so
-      // that pair is common rather than exotic. It is settled where the rules
-      // are chosen — the file is never admitted — so nothing downstream has
-      // to decide what a file admitted-and-unresolvable means, and no build
-      // says anything about it.
-      final result = await _runNativeScreenLane(const {
-        'lib/onboarding/screens/welcome.g.dart': 'class Welcome {}',
-      });
+    test(
+      'does not admit a generated file at the deprecated screen path',
+      () async {
+        // The two rules this lane composes could contradict each other: it
+        // examines every file at the deprecated screen path whatever it says,
+        // and it declines to resolve a generated library. An ordinary code
+        // generator writes `welcome.g.dart` next to an annotated screen, so
+        // that pair is common rather than exotic. It is settled where the rules
+        // are chosen — the file is never admitted — so nothing downstream has
+        // to decide what a file admitted-and-unresolvable means, and no build
+        // says anything about it.
+        final result = await _runNativeScreenLane(const {
+          'lib/onboarding/screens/welcome.g.dart': 'class Welcome {}',
+        });
 
-      expect(result.paths, isEmpty);
-      expect(
-        result.logs.where(
-          (log) => log.startsWith('WARNING') || log.startsWith('SEVERE'),
-        ),
-        isEmpty,
-      );
-    });
+        expect(result.paths, isEmpty);
+        expect(
+          result.logs.where(
+            (log) => log.startsWith('WARNING') || log.startsWith('SEVERE'),
+          ),
+          isEmpty,
+        );
+      },
+    );
 
     test('admits an unannotated file at the deprecated screen path', () async {
       // The admission itself: a file there is examined whatever it says, which
@@ -731,29 +751,26 @@ Future<List<String>> _laneLogs(Map<String, Object> sources) async =>
 /// location as well as its text.
 Future<({List<String> paths, List<String> logs})> _runNativeScreenLane(
   Map<String, Object> sources,
-) =>
-    _runLane(
-      (buildStep) => selectRestageNativeScreenCandidates(
-        buildStep,
-        resolvable: isAuthoredDartLibraryAsset,
-      ),
-      sources,
-    );
+) => _runLane(
+  (buildStep) => selectRestageNativeScreenCandidates(
+    buildStep,
+    resolvable: isAuthoredDartLibraryAsset,
+  ),
+  sources,
+);
 
 /// The paths the shared primitive selected for [sources] on [tokens].
 Future<List<String>> _select(
   Map<String, Object> sources,
   RestageTokenSet tokens,
-) async =>
-    (await _runLane(
-      (buildStep) async => selectRestageCandidateLibraries(
-        buildStep,
-        candidates: await buildStep.findAssets(Glob('lib/**.dart')).toList(),
-        tokens: tokens,
-      ),
-      sources,
-    ))
-        .paths;
+) async => (await _runLane(
+  (buildStep) async => selectRestageCandidateLibraries(
+    buildStep,
+    candidates: await buildStep.findAssets(Glob('lib/**.dart')).toList(),
+    tokens: tokens,
+  ),
+  sources,
+)).paths;
 
 final class _LaneProbeBuilder implements Builder {
   const _LaneProbeBuilder({required this.select, required this.onSelected});
@@ -763,8 +780,8 @@ final class _LaneProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$package$': ['restage.lane_probe'],
-      };
+    r'$package$': ['restage.lane_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async =>

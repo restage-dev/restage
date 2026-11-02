@@ -9,22 +9,22 @@ import '../helpers.dart';
 /// A nested-data-class node modelling `PlanTier({required String tier,
 /// double price})` defined in a custom library.
 ObjectNode _planTierNode({bool nullable = false}) => ObjectNode(
-      fields: const {
-        'tier': ScalarNode(A2uiScalarType.string),
-        'price': ScalarNode(A2uiScalarType.number),
-      },
-      required: const {'tier'},
-      defId: 'package:fixture/fixture.dart#PlanTier',
-      nullable: nullable,
-      construction: A2uiClassConstruction(
-        dartTypeName: 'PlanTier',
-        libraryUri: 'package:fixture/fixture.dart',
-        parameters: const [
-          A2uiConstructorParameter(name: 'tier', named: true),
-          A2uiConstructorParameter(name: 'price', named: true),
-        ],
-      ),
-    );
+  fields: const {
+    'tier': ScalarNode(A2uiScalarType.string),
+    'price': ScalarNode(A2uiScalarType.number),
+  },
+  required: const {'tier'},
+  defId: 'package:fixture/fixture.dart#PlanTier',
+  nullable: nullable,
+  construction: A2uiClassConstruction(
+    dartTypeName: 'PlanTier',
+    libraryUri: 'package:fixture/fixture.dart',
+    parameters: const [
+      A2uiConstructorParameter(name: 'tier', named: true),
+      A2uiConstructorParameter(name: 'price', named: true),
+    ],
+  ),
+);
 
 void main() {
   group('richShapes — classify', () {
@@ -66,85 +66,93 @@ void main() {
   });
 
   group('richShapes — ObjectNode (class) construction', () {
-    test('a custom ref-rooted schema nests beneath props without moving defs',
-        () {
-      const customLibrary = WidgetLibrary.custom('acme.widgets');
-      const treeId = 'package:fixture/fixture.dart#TreeNode';
-      final tree = ObjectNode(
-        fields: const {
-          'value': ScalarNode(A2uiScalarType.integer),
-          'children': ListNode(element: RefNode(treeId)),
-        },
-        required: const {'value'},
-        defId: treeId,
-        construction: A2uiClassConstruction(
-          dartTypeName: 'TreeNode',
-          libraryUri: 'package:fixture/fixture.dart',
-          parameters: const [
-            A2uiConstructorParameter(name: 'value', named: true),
-            A2uiConstructorParameter(name: 'children', named: true),
-          ],
-        ),
-      );
-      final catalog = Catalog(
-        schemaVersion: kSupportedSchemaVersion,
-        generatedAt: '1970-01-01T00:00:00Z',
-        libraries: {
-          customLibrary: const LibraryInfo(
-            version: '1.0.0',
-            capabilityVersion: 1,
-          ),
-        },
-        widgets: [
-          entry(
-            name: 'Tree',
-            library: customLibrary,
-            flutterType: 'package:fixture/fixture.dart#Tree',
-            properties: [
-              prop('root', PropertyType.structured, required: true),
+    test(
+      'a custom ref-rooted schema nests beneath props without moving defs',
+      () {
+        const customLibrary = WidgetLibrary.custom('acme.widgets');
+        const treeId = 'package:fixture/fixture.dart#TreeNode';
+        final tree = ObjectNode(
+          fields: const {
+            'value': ScalarNode(A2uiScalarType.integer),
+            'children': ListNode(element: RefNode(treeId)),
+          },
+          required: const {'value'},
+          defId: treeId,
+          construction: A2uiClassConstruction(
+            dartTypeName: 'TreeNode',
+            libraryUri: 'package:fixture/fixture.dart',
+            parameters: const [
+              A2uiConstructorParameter(name: 'value', named: true),
+              A2uiConstructorParameter(name: 'children', named: true),
             ],
           ),
-        ],
-      );
-      final shapes = <(String, String), A2uiSchemaNode>{
-        ('Tree', 'root'): tree,
-      };
+        );
+        final catalog = Catalog(
+          schemaVersion: kSupportedSchemaVersion,
+          generatedAt: '1970-01-01T00:00:00Z',
+          libraries: {
+            customLibrary: const LibraryInfo(
+              version: '1.0.0',
+              capabilityVersion: 1,
+            ),
+          },
+          widgets: [
+            entry(
+              name: 'Tree',
+              library: customLibrary,
+              flutterType: 'package:fixture/fixture.dart#Tree',
+              properties: [
+                prop('root', PropertyType.structured, required: true),
+              ],
+            ),
+          ],
+        );
+        final shapes = <(String, String), A2uiSchemaNode>{
+          ('Tree', 'root'): tree,
+        };
 
-      final component = emitA2uiCatalog(
-        catalog,
-        richShapes: shapes,
-      ).components.single.dataSchema;
-      expect(component[r'$ref'], r'#/$defs/__a2ui_root__');
-      final defs = component[r'$defs']! as Map<String, Object?>;
-      final root = defs['__a2ui_root__']! as Map<String, Object?>;
-      expect(root['required'], <String>['props']);
-      final rootProperties = root['properties']! as Map<String, Object?>;
-      final props = rootProperties['props']! as Map<String, Object?>;
-      expect(props['required'], <String>['root']);
-      final customProperties = props['properties']! as Map<String, Object?>;
-      expect(
-        customProperties['root'],
-        <String, Object?>{r'$ref': r'#/$defs/TreeNode'},
-      );
-      expect(defs, contains('TreeNode'));
-      expect(
-        component['required'],
-        <Object?>['component'],
-        reason: 'the ref-root requires props inside the synthetic root',
-      );
+        final component = emitA2uiCatalog(
+          catalog,
+          richShapes: shapes,
+        ).components.single.dataSchema;
+        expect(
+          component[r'$ref'],
+          r'#/$defs/restage_component_Tree/$defs/__a2ui_root__',
+        );
+        final defs = component[r'$defs']! as Map<String, Object?>;
+        final root = defs['__a2ui_root__']! as Map<String, Object?>;
+        expect(root['required'], <String>['props_root']);
+        final rootProperties = root['properties']! as Map<String, Object?>;
+        final customProperties = rootProperties;
 
-      final source = emitA2uiCatalogDart(catalog, richShapes: shapes);
-      expect(
-        source,
-        contains(
-          "final props = (data['props']! as Map).cast<String, Object?>();",
-        ),
-      );
-      expect(source, contains("_restageA2uiBuild_TreeNode(props['root'], 0)"));
-    });
+        expect(
+          customProperties['props_root'],
+          <String, Object?>{
+            r'$ref': r'#/$defs/restage_component_Tree/$defs/TreeNode',
+          },
+        );
+        expect(defs, contains('TreeNode'));
+        expect(
+          component['required'],
+          isNull,
+          reason: 'the ref-root requires props inside the synthetic root',
+        );
 
-    test(
-        'a required nested-data-class arg binds via BoundObject and '
+        final source = emitA2uiCatalogDart(catalog, richShapes: shapes);
+        expect(
+          source,
+          contains(
+            'restageProps.value(key)',
+          ),
+        );
+        expect(
+          source,
+          contains("_restageA2uiBuild_TreeNode(data['props_root'], 0)"),
+        );
+      },
+    );
+
+    test('a required nested-data-class arg binds via BoundObject and '
         'reconstructs, failing the widget safe on null', () {
       final catalog = catalogWith([
         entry(
@@ -161,7 +169,7 @@ void main() {
 
       // Schema: the nested object projects to S.object with its fields (the
       // formatter may wrap S.object( onto its own line, so assert the pieces).
-      expect(source, contains("'plan': S.object("));
+      expect(source, contains("'props_plan': S.object("));
       expect(source, contains("'tier': S.string()"));
       expect(source, contains("'price': S.number()"));
       expect(source, contains("required: <String>['tier']"));
@@ -172,7 +180,10 @@ void main() {
       // never a force-unwrap.
       expect(source, isNot(contains('BoundObject(')));
       expect(source, contains('final _restageA2uiArg_plan ='));
-      expect(source, contains("_restageA2uiBuild_PlanTier(data['plan'], 0)"));
+      expect(
+        source,
+        contains("_restageA2uiBuild_PlanTier(data['props_plan'], 0)"),
+      );
       expect(
         source,
         contains(
@@ -202,49 +213,56 @@ void main() {
       // A nullable arg accepts null, so the reconstruction passes through —
       // never a SizedBox fail-safe (the widget asked for a nullable value).
       expect(source, contains('final _restageA2uiArg_plan ='));
-      expect(source, contains("_restageA2uiBuild_PlanTier(data['plan'], 0)"));
+      expect(
+        source,
+        contains("_restageA2uiBuild_PlanTier(data['props_plan'], 0)"),
+      );
       expect(source, isNot(contains('return const SizedBox.shrink();')));
       expect(source, contains('plan: _restageA2uiArg_plan,'));
     });
 
-    test('a required RECORD arg fails the widget safe when missing/malformed',
-        () {
-      final recordNode = ObjectNode(
-        fields: const {
-          'title': ScalarNode(A2uiScalarType.string),
-          'count': ScalarNode(A2uiScalarType.integer),
-        },
-        required: const {'title', 'count'},
-        construction: const A2uiRecordConstruction(),
-      );
-      final catalog = catalogWith([
-        entry(
-          name: 'HeaderCard',
-          flutterType: 'package:fixture/fixture.dart#HeaderCard',
-          properties: [prop('header', PropertyType.structured, required: true)],
-        ),
-      ]);
+    test(
+      'a required RECORD arg fails the widget safe when missing/malformed',
+      () {
+        final recordNode = ObjectNode(
+          fields: const {
+            'title': ScalarNode(A2uiScalarType.string),
+            'count': ScalarNode(A2uiScalarType.integer),
+          },
+          required: const {'title', 'count'},
+          construction: const A2uiRecordConstruction(),
+        );
+        final catalog = catalogWith([
+          entry(
+            name: 'HeaderCard',
+            flutterType: 'package:fixture/fixture.dart#HeaderCard',
+            properties: [
+              prop('header', PropertyType.structured, required: true),
+            ],
+          ),
+        ]);
 
-      final source = emitA2uiCatalogDart(
-        catalog,
-        richShapes: {('HeaderCard', 'header'): recordNode},
-      );
+        final source = emitA2uiCatalogDart(
+          catalog,
+          richShapes: {('HeaderCard', 'header'): recordNode},
+        );
 
-      // A non-null record reconstructs to null when its raw is not a map, so a
-      // required record arg fails the widget safe (SizedBox.shrink) rather than
-      // fabricating a record from per-field fallbacks.
-      expect(source, contains('final _restageA2uiArg_header ='));
-      expect(source, contains('title:'));
-      expect(source, isNot(contains('BoundObject(')));
-      expect(
-        source,
-        contains(
-          'if (_restageA2uiArg_header == null) '
-          'return const SizedBox.shrink();',
-        ),
-      );
-      expect(source, contains('header: _restageA2uiArg_header,'));
-    });
+        // A non-null record reconstructs to null when its raw is not a map, so
+        // a required record arg fails the widget safe (SizedBox.shrink) rather
+        // than fabricating a record from per-field fallbacks.
+        expect(source, contains('final _restageA2uiArg_header ='));
+        expect(source, contains('title:'));
+        expect(source, isNot(contains('BoundObject(')));
+        expect(
+          source,
+          contains(
+            'if (_restageA2uiArg_header == null) '
+            'return const SizedBox.shrink();',
+          ),
+        );
+        expect(source, contains('header: _restageA2uiArg_header,'));
+      },
+    );
 
     test('a String-keyed map arg reconstructs via the map helper', () {
       final catalog = catalogWith([
@@ -269,7 +287,7 @@ void main() {
       expect(source, contains('S.object(additionalProperties: S.integer())'));
       expect(source, isNot(contains('BoundObject(')));
       expect(source, contains('_restageA2uiMap<int>('));
-      expect(source, contains("data['counts']"));
+      expect(source, contains("data['props_counts']"));
       expect(source, contains('Map<String, V>? _restageA2uiMap<V>('));
     });
 
@@ -292,90 +310,94 @@ void main() {
       expect(source, contains('S.list('));
       expect(source, contains("'tier': S.string()"));
       expect(source, contains('_restageA2uiAs<List<Object?>>('));
-      expect(source, contains("data['plans']"));
+      expect(source, contains("data['props_plans']"));
       // The element type is prefixed (the custom library is imported as p0).
       expect(source, contains('.whereType<p0.PlanTier>()'));
       expect(source, contains('_restageA2uiBuild_PlanTier(e, 0)'));
     });
 
-    test(r'a self-recursive object arg emits $defs/$ref + a recursive helper',
-        () {
-      const treeId = 'package:fixture/fixture.dart#TreeNode';
-      final tree = ObjectNode(
-        fields: const {
-          'value': ScalarNode(A2uiScalarType.integer),
-          'children': ListNode(element: RefNode(treeId)),
-        },
-        required: const {'value'},
-        defId: treeId,
-        construction: A2uiClassConstruction(
-          dartTypeName: 'TreeNode',
-          libraryUri: 'package:fixture/fixture.dart',
-          parameters: const [
-            A2uiConstructorParameter(name: 'value', named: true),
-            A2uiConstructorParameter(name: 'children', named: true),
-          ],
-        ),
-      );
-      final catalog = catalogWith([
-        entry(
-          name: 'Tree',
-          flutterType: 'package:fixture/fixture.dart#Tree',
-          properties: [prop('root', PropertyType.structured, required: true)],
-        ),
-      ]);
+    test(
+      r'a self-recursive object arg emits $defs/$ref + a recursive helper',
+      () {
+        const treeId = 'package:fixture/fixture.dart#TreeNode';
+        final tree = ObjectNode(
+          fields: const {
+            'value': ScalarNode(A2uiScalarType.integer),
+            'children': ListNode(element: RefNode(treeId)),
+          },
+          required: const {'value'},
+          defId: treeId,
+          construction: A2uiClassConstruction(
+            dartTypeName: 'TreeNode',
+            libraryUri: 'package:fixture/fixture.dart',
+            parameters: const [
+              A2uiConstructorParameter(name: 'value', named: true),
+              A2uiConstructorParameter(name: 'children', named: true),
+            ],
+          ),
+        );
+        final catalog = catalogWith([
+          entry(
+            name: 'Tree',
+            flutterType: 'package:fixture/fixture.dart#Tree',
+            properties: [prop('root', PropertyType.structured, required: true)],
+          ),
+        ]);
 
-      final source = emitA2uiCatalogDart(
-        catalog,
-        richShapes: {('Tree', 'root'): tree},
-      );
+        final source = emitA2uiCatalogDart(
+          catalog,
+          richShapes: {('Tree', 'root'): tree},
+        );
 
-      // Recursion → a $defs definition + a $ref back-edge in the schema, and a
-      // single depth-bounded reconstruction helper the children reuse.
-      expect(source, contains(r'$defs:'));
-      expect(source, contains(r'$ref:'));
-      expect(source, contains('TreeNode? _restageA2uiBuild_TreeNode('));
-      expect(source, contains('_depth + 1'));
-    });
+        // Recursion → a $defs definition + a $ref back-edge in the schema, and
+        // a single depth-bounded reconstruction helper the children reuse.
+        expect(source, contains(r"\$defs':"));
+        expect(source, contains(r'$ref:'));
+        expect(source, contains('TreeNode? _restageA2uiBuild_TreeNode('));
+        expect(source, contains('_depth + 1'));
+      },
+    );
 
-    test('an OPTIONAL non-null complex arg is omitted (widget default applies)',
-        () {
-      final catalog = catalogWith([
-        entry(
-          name: 'PlanCard',
-          flutterType: 'package:fixture/fixture.dart#PlanCard',
-          properties: [
-            prop('label', PropertyType.string),
-            // optional (required: false), non-null nested object.
-            prop('plan', PropertyType.structured),
-          ],
-        ),
-      ]);
+    test(
+      'an OPTIONAL non-null complex arg is omitted (widget default applies)',
+      () {
+        final catalog = catalogWith([
+          entry(
+            name: 'PlanCard',
+            flutterType: 'package:fixture/fixture.dart#PlanCard',
+            properties: [
+              prop('label', PropertyType.string),
+              // optional (required: false), non-null nested object.
+              prop('plan', PropertyType.structured),
+            ],
+          ),
+        ]);
 
-      final plan = classifyA2uiCatalogDart(
-        catalog,
-        richShapes: {('PlanCard', 'plan'): _planTierNode()},
-      );
-      final source = emitA2uiCatalogDart(
-        catalog,
-        richShapes: {('PlanCard', 'plan'): _planTierNode()},
-      );
+        final plan = classifyA2uiCatalogDart(
+          catalog,
+          richShapes: {('PlanCard', 'plan'): _planTierNode()},
+        );
+        final source = emitA2uiCatalogDart(
+          catalog,
+          richShapes: {('PlanCard', 'plan'): _planTierNode()},
+        );
 
-      expect(source, contains("name: 'PlanCard'"));
-      expect(source, isNot(contains('plan: plan')));
-      expect(source, isNot(contains('_restageA2uiBuild_PlanTier(')));
-      final omission =
-          plan.coverage.omittedFields.singleWhere((o) => o.fieldName == 'plan');
-      expect(
-        omission.reason,
-        A2uiDartCoverageReason.optionalUnsupportedPropertyType,
-      );
-    });
+        expect(source, contains("name: 'PlanCard'"));
+        expect(source, isNot(contains('plan: plan')));
+        expect(source, isNot(contains('_restageA2uiBuild_PlanTier(')));
+        final omission = plan.coverage.omittedFields.singleWhere(
+          (o) => o.fieldName == 'plan',
+        );
+        expect(
+          omission.reason,
+          A2uiDartCoverageReason.optionalUnsupportedPropertyType,
+        );
+      },
+    );
   });
 
   group('richShapes — unsupported shapes fail closed', () {
-    test(
-        'HIGH#1(a): a rich property named `data` is collision-proof '
+    test('HIGH#1(a): a rich property named `data` is collision-proof '
         '(reserved-prefixed local, no shadow of the data map)', () {
       final catalog = catalogWith([
         entry(
@@ -394,37 +416,44 @@ void main() {
       // the data map by key. No `final data = …` that would shadow the map.
       // (The formatter may wrap the long `final … =` declaration.)
       expect(source, contains('final _restageA2uiArg_data ='));
-      expect(source, contains("_restageA2uiBuild_PlanTier(data['data'], 0)"));
+      expect(
+        source,
+        contains("_restageA2uiBuild_PlanTier(data['props_data'], 0)"),
+      );
       expect(source, contains('data: _restageA2uiArg_data,'));
       expect(source, isNot(contains('final data = _restageA2uiBuild')));
     });
 
-    test('HIGH#1(b): a LEAF field named `data` uses a collision-safe local',
-        () {
-      final catalog = catalogWith([
-        entry(
-          name: 'Banner',
-          properties: [
-            prop('title', PropertyType.string),
-            prop('data', PropertyType.string),
-          ],
-        ),
-      ]);
-
-      final plan = classifyA2uiCatalogDart(catalog);
-      final source = emitA2uiCatalogDart(catalog);
-
-      // The custom schema key and constructor label remain exact while only
-      // the local binding moves away from the generated data-map name.
-      expect(source, contains("value: data['title'],"));
-      expect(source, contains("value: data['data'],"));
-      expect(source, contains('builder: (context, data_2)'));
-      expect(source, contains('data: data_2 ??'));
-      expect(plan.coverage.omittedFields, isEmpty);
-    });
-
     test(
-        'MED#1: an optional non-null POSITIONAL rich field drops the widget '
+      'HIGH#1(b): a LEAF field named `data` uses a collision-safe local',
+      () {
+        final catalog = catalogWith([
+          entry(
+            name: 'Banner',
+            properties: [
+              prop('title', PropertyType.string),
+              prop('data', PropertyType.string),
+            ],
+          ),
+        ]);
+
+        final plan = classifyA2uiCatalogDart(catalog);
+        final source = emitA2uiCatalogDart(catalog);
+
+        // The custom schema key and constructor label remain exact while only
+        // the local binding moves away from the generated data-map name.
+        expect(
+          source,
+          contains("ComponentProps.asString(data['props_title'])"),
+        );
+        expect(source, contains("ComponentProps.asString(data['props_data'])"));
+        expect(source, contains('final data_2 ='));
+        expect(source, contains('data: data_2 ??'));
+        expect(plan.coverage.omittedFields, isEmpty);
+      },
+    );
+
+    test('MED#1: an optional non-null POSITIONAL rich field drops the widget '
         '(never an argument shift)', () {
       final catalog = catalogWith([
         entry(
@@ -450,8 +479,7 @@ void main() {
       );
     });
 
-    test(
-        'HIGH#2: a catalog enum lacking a libraryUri is scoped out when the '
+    test('HIGH#2: a catalog enum lacking a libraryUri is scoped out when the '
         'file prefixes custom libs', () {
       // A custom widget (prefixable lib) makes the file prefix; a sibling enum
       // property with only `enumType` (no EnumShape → no libraryUri) cannot be
@@ -484,8 +512,7 @@ void main() {
       );
     });
 
-    test(
-        'HIGH#2 inverse: a flutter enum lacking a libraryUri stays bare when '
+    test('HIGH#2 inverse: a flutter enum lacking a libraryUri stays bare when '
         'nothing is prefixed (byte-neutral)', () {
       final catalog = catalogWith([
         entry(
@@ -530,23 +557,25 @@ void main() {
         richShapes: {('PlanCard', 'plan'): _planTierNode()},
       );
 
-      // The custom library is imported with a prefix, and EVERY custom
-      // type spelling carries it — the widget constructor, the value-builder
-      // helper return type, and the reconstruction. Collisions become
-      // unrepresentable by construction.
+      // The custom library is imported with a prefix, and EVERY custom type
+      // spelling carries it — the widget constructor, the value- builder helper
+      // return type, and the reconstruction. Collisions become unrepresentable
+      // by construction.
       expect(source, contains("import 'package:fixture/fixture.dart' as p0;"));
       expect(source, contains('p0.PlanCard('));
       expect(source, contains('p0.PlanTier? _restageA2uiBuild_PlanTier('));
       expect(source, contains('return p0.PlanTier('));
-      // Flutter / genui / json_schema_builder are NOT prefixed.
+      // Flutter / A2UI / json_schema_builder are NOT prefixed.
       expect(source, contains("import 'package:flutter/widgets.dart';"));
-      expect(source, contains("import 'package:genui/genui.dart';"));
+      expect(
+        source,
+        contains("import 'package:a2ui_flutter/a2ui_flutter.dart';"),
+      );
       // No bare custom-type spelling leaks through.
       expect(source, isNot(contains('return PlanTier(')));
     });
 
-    test(
-        'a rich data class in a DIFFERENT library than the widget is '
+    test('a rich data class in a DIFFERENT library than the widget is '
         'imported + prefixed', () {
       // The widget ctor and its data class live in different custom
       // libraries; BOTH must be imported (each with its own prefix), or the
@@ -605,27 +634,30 @@ void main() {
       expect(source, contains('.whereType<p0.PlanTier>()'));
     });
 
-    test('the built-in (flutter-only) catalog stays byte-neutral (no prefix)',
-        () {
-      final catalog = catalogWith([
-        entry(
-          name: 'Visibility',
-          flutterType: 'package:flutter/widgets.dart#Visibility',
-          childrenSlot: ChildrenSlot.single,
-          properties: [
-            prop('visible', PropertyType.boolean),
-            prop('child', PropertyType.widget, required: true),
-          ],
-        ),
-      ]);
+    test(
+      'the built-in (flutter-only) catalog stays byte-neutral (no prefix)',
+      () {
+        final catalog = catalogWith([
+          entry(
+            name: 'Visibility',
+            flutterType: 'package:flutter/widgets.dart#Visibility',
+            childrenSlot: ChildrenSlot.single,
+            properties: [
+              prop('visible', PropertyType.boolean),
+              prop('child', PropertyType.widget, required: true),
+            ],
+          ),
+        ]);
 
-      final source = emitA2uiCatalogDart(catalog);
+        final source = emitA2uiCatalogDart(catalog);
 
-      // No prefixed import and no `pN.` spelling when only flutter is imported.
-      expect(source, contains("import 'package:flutter/widgets.dart';"));
-      expect(source, isNot(contains(' as p0;')));
-      expect(source, isNot(contains('p0.')));
-    });
+        // No prefixed import and no `pN.` spelling when only flutter is
+        // imported.
+        expect(source, contains("import 'package:flutter/widgets.dart';"));
+        expect(source, isNot(contains(' as p0;')));
+        expect(source, isNot(contains('p0.')));
+      },
+    );
 
     test('a custom-generic-over-custom-type fails closed LOUD at emit', () {
       // `Box<Inner>` — a custom generic class instantiated with another
@@ -645,7 +677,8 @@ void main() {
           ],
         ),
       );
-      const boxId = 'package:fixture/fixture.dart#Box<package:fixture/'
+      const boxId =
+          'package:fixture/fixture.dart#Box<package:fixture/'
           'fixture.dart#Inner>';
       final box = ObjectNode(
         fields: {'item': inner},

@@ -70,9 +70,9 @@ void main() {
   ]);
 
   List<Issue> validate(String dsl) => validateModelAgainstCatalog(
-        parseLibraryFile(dsl, sourceIdentifier: 'test'),
-        catalog,
-      );
+    parseLibraryFile(dsl, sourceIdentifier: 'test'),
+    catalog,
+  );
 
   group('property-value-type validation — silent-loss cases now diagnose', () {
     test('S1: a string on a length slot (width: "infinity") diagnoses', () {
@@ -84,7 +84,8 @@ void main() {
       expect(
         validate(dsl),
         isNotEmpty,
-        reason: 'a string in a `length` slot must produce a build-time '
+        reason:
+            'a string in a `length` slot must produce a build-time '
             'diagnostic, never a silently-nulled blob',
       );
     });
@@ -113,18 +114,20 @@ void main() {
       expect(validate(dsl), isNotEmpty);
     });
 
-    test('S3: a string on an alignment slot (alignment: "center") diagnoses',
-        () {
-      // The `alignment` decoder (`ArgumentDecoders.alignment`) reads a
-      // `{x, y}` map and returns null for any non-map — so a bare member-name
-      // string is the same silent-loss vector as S1/S2, not a valid enum
-      // string. It must diagnose, never pass through as `"center"`.
-      const dsl = '''
+    test(
+      'S3: a string on an alignment slot (alignment: "center") diagnoses',
+      () {
+        // The `alignment` decoder (`ArgumentDecoders.alignment`) reads a
+        // `{x, y}` map and returns null for any non-map — so a bare member-name
+        // string is the same silent-loss vector as S1/S2, not a valid enum
+        // string. It must diagnose, never pass through as `"center"`.
+        const dsl = '''
         import restage.core;
         widget Paywall = Container(alignment: "center");
       ''';
-      expect(validate(dsl), isNotEmpty);
-    });
+        expect(validate(dsl), isNotEmpty);
+      },
+    );
 
     test('an issue location starts at the authored class name', () {
       final library = parseLibraryFile(
@@ -162,8 +165,7 @@ void main() {
       expect(validate(dsl), isNotEmpty);
     });
 
-    test(
-        'a non-canonical fontWeight member-name (fontWeight: "bogus") '
+    test('a non-canonical fontWeight member-name (fontWeight: "bogus") '
         'diagnoses', () {
       // `enumValue<FontWeight>(FontWeight.values, …)` resolves only the nine
       // `w100`..`w900` member names; any other string is silently nulled to the
@@ -176,8 +178,7 @@ void main() {
       expect(validate(dsl), isNotEmpty);
     });
 
-    test(
-        'an unsupported real Curves member (curve: "fastEaseInToSlowEaseOut") '
+    test('an unsupported real Curves member (curve: "fastEaseInToSlowEaseOut") '
         'diagnoses', () {
       // `fastEaseInToSlowEaseOut` is a real `Curves` member, but it is outside
       // the runtime decoder's closed lookup table, so it is silently nulled to
@@ -351,8 +352,7 @@ void main() {
     // pin that documented scope so a future change that broadens or narrows it
     // is a deliberate, visible decision rather than a silent drift.
 
-    test(
-        'a wrong-typed scalar nested in a structured map is NOT flagged by the '
+    test('a wrong-typed scalar nested in a structured map is NOT flagged by the '
         'validator (closed by emitter-arm discipline, not here)', () {
       // The `{x, y}` alignment map is the structured-map shape the decoder
       // expects; a nested non-numeric value would be silently dropped by the
@@ -366,14 +366,14 @@ void main() {
       expect(
         validate(dsl),
         isEmpty,
-        reason: 'the validator type-checks top-level scalar slots only; a '
+        reason:
+            'the validator type-checks top-level scalar slots only; a '
             'scalar nested inside a structured map is closed by emitter-arm '
             'discipline and the emit-layer guard, not by this validator',
       );
     });
 
-    test(
-        'the top-level scalar floor still fires when the SLOT itself takes a '
+    test('the top-level scalar floor still fires when the SLOT itself takes a '
         'scalar of the wrong type', () {
       // The boundary above is about NESTED scalars inside a map. The top-level
       // floor is unaffected: a bare scalar of the wrong type bound directly to

@@ -41,10 +41,11 @@ void main() {
       expect(blueprint.rootExpression, isNotNull);
     });
 
-    test('derives stateless root host data params in declaration order',
-        () async {
-      final result = await _extractBlueprint(
-        '''
+    test(
+      'derives stateless root host data params in declaration order',
+      () async {
+        final result = await _extractBlueprint(
+          '''
         import 'package:flutter/widgets.dart';
 
         class Foo extends StatelessWidget {
@@ -62,42 +63,44 @@ void main() {
           Widget build(BuildContext context) => const SizedBox.shrink();
         }
       ''',
-        className: 'Foo',
-      );
+          className: 'Foo',
+        );
 
-      expect(result.issues, isEmpty);
-      final params = result.blueprint!.rootParams;
-      expect(
-        params.map((param) => param.name),
-        ['title', 'count', 'nickname', 'heading'],
-      );
-      expect(params[0].isNullable, isFalse);
-      expect(params[1].isNullable, isTrue);
-      expect(params.map((param) => param.field), everyElement(isNotNull));
-      expect(
-        params.map((param) => param.isRequired),
-        [true, false, false, false],
-      );
-      expect(
-        params.map((param) => param.kind),
-        everyElement(RootContextParamKind.named),
-      );
-      expect(
-        params.map((param) => param.typeCode),
-        ['String', 'int?', 'String?', 'String'],
-      );
-      expect(params[0].defaultValueCode, isNull);
-      expect(params[1].defaultValueCode, isNull);
-      expect(params[2].defaultValueCode, 'null');
-      expect(params[2].hasNullDefault, isTrue);
-      expect(params[3].defaultValueCode, "'Welcome'");
-      expect(params[3].hasNonNullDefault, isTrue);
-    });
+        expect(result.issues, isEmpty);
+        final params = result.blueprint!.rootParams;
+        expect(
+          params.map((param) => param.name),
+          ['title', 'count', 'nickname', 'heading'],
+        );
+        expect(params[0].isNullable, isFalse);
+        expect(params[1].isNullable, isTrue);
+        expect(params.map((param) => param.field), everyElement(isNotNull));
+        expect(
+          params.map((param) => param.isRequired),
+          [true, false, false, false],
+        );
+        expect(
+          params.map((param) => param.kind),
+          everyElement(RootContextParamKind.named),
+        );
+        expect(
+          params.map((param) => param.typeCode),
+          ['String', 'int?', 'String?', 'String'],
+        );
+        expect(params[0].defaultValueCode, isNull);
+        expect(params[1].defaultValueCode, isNull);
+        expect(params[2].defaultValueCode, 'null');
+        expect(params[2].hasNullDefault, isTrue);
+        expect(params[3].defaultValueCode, "'Welcome'");
+        expect(params[3].hasNonNullDefault, isTrue);
+      },
+    );
 
-    test('retains positional constructor forms and field type spelling',
-        () async {
-      final result = await _extractBlueprint(
-        '''
+    test(
+      'retains positional constructor forms and field type spelling',
+      () async {
+        final result = await _extractBlueprint(
+          '''
         $kSourceStateStubs
 
         class Foo extends StatelessWidget {
@@ -107,25 +110,27 @@ void main() {
           Widget build(BuildContext context) => const Widget();
         }
       ''',
-        className: 'Foo',
-      );
+          className: 'Foo',
+        );
 
-      expect(result.issues, isEmpty);
-      final params = result.blueprint!.rootParams;
-      expect(params.map((param) => param.name), ['title', 'count']);
-      expect(
-        params.map((param) => param.kind),
-        [
-          RootContextParamKind.requiredPositional,
-          RootContextParamKind.optionalPositional,
-        ],
-      );
-      expect(params.map((param) => param.typeCode), ['String', 'int']);
-      expect(params[1].defaultValueCode, '2');
-    });
+        expect(result.issues, isEmpty);
+        final params = result.blueprint!.rootParams;
+        expect(params.map((param) => param.name), ['title', 'count']);
+        expect(
+          params.map((param) => param.kind),
+          [
+            RootContextParamKind.requiredPositional,
+            RootContextParamKind.optionalPositional,
+          ],
+        );
+        expect(params.map((param) => param.typeCode), ['String', 'int']);
+        expect(params[1].defaultValueCode, '2');
+      },
+    );
 
     test('renders function-typed formals as reusable function types', () async {
-      const source = '''
+      const source =
+          '''
         // @dart=3.6
         import 'dart:typed_data';
         import 'dart:typed_data' as data;
@@ -246,7 +251,8 @@ void main() {
     });
 
     test('derives the closed recursive host-data shape', () async {
-      const acceptedSource = '''
+      const acceptedSource =
+          '''
         $kSourceStateStubs
 
         final class Habit {
@@ -303,151 +309,151 @@ void main() {
 
       final cases =
           <({String name, String declarations, String type, String path})>[
-        (
-          name: 'dynamic',
-          declarations: '',
-          type: 'dynamic',
-          path: 'value',
-        ),
-        (
-          name: 'object',
-          declarations: '',
-          type: 'Object',
-          path: 'value',
-        ),
-        (
-          name: 'enum',
-          declarations: 'enum Choice { one }',
-          type: 'Choice',
-          path: 'value',
-        ),
-        (
-          name: 'record',
-          declarations: '',
-          type: '(String, int)',
-          path: 'value',
-        ),
-        (
-          name: 'function',
-          declarations: '',
-          type: 'String Function()',
-          path: 'value',
-        ),
-        (
-          name: 'set',
-          declarations: '',
-          type: 'Set<String>',
-          path: 'value',
-        ),
-        (
-          name: 'iterable',
-          declarations: '',
-          type: 'Iterable<String>',
-          path: 'value',
-        ),
-        (
-          name: 'map key',
-          declarations: '',
-          type: 'Map<int, String>',
-          path: 'value{key}',
-        ),
-        (
-          name: 'mutable field',
-          declarations: 'class Value { Value(this.name); String name; }',
-          type: 'Value',
-          path: 'value',
-        ),
-        (
-          name: 'private field',
-          declarations: '''
+            (
+              name: 'dynamic',
+              declarations: '',
+              type: 'dynamic',
+              path: 'value',
+            ),
+            (
+              name: 'object',
+              declarations: '',
+              type: 'Object',
+              path: 'value',
+            ),
+            (
+              name: 'enum',
+              declarations: 'enum Choice { one }',
+              type: 'Choice',
+              path: 'value',
+            ),
+            (
+              name: 'record',
+              declarations: '',
+              type: '(String, int)',
+              path: 'value',
+            ),
+            (
+              name: 'function',
+              declarations: '',
+              type: 'String Function()',
+              path: 'value',
+            ),
+            (
+              name: 'set',
+              declarations: '',
+              type: 'Set<String>',
+              path: 'value',
+            ),
+            (
+              name: 'iterable',
+              declarations: '',
+              type: 'Iterable<String>',
+              path: 'value',
+            ),
+            (
+              name: 'map key',
+              declarations: '',
+              type: 'Map<int, String>',
+              path: 'value{key}',
+            ),
+            (
+              name: 'mutable field',
+              declarations: 'class Value { Value(this.name); String name; }',
+              type: 'Value',
+              path: 'value',
+            ),
+            (
+              name: 'private field',
+              declarations: '''
             class Value { const Value(this._name); final String _name; }
           ''',
-          type: 'Value',
-          path: 'value._name',
-        ),
-        (
-          name: 'computed field',
-          declarations: '''
+              type: 'Value',
+              path: 'value._name',
+            ),
+            (
+              name: 'computed field',
+              declarations: '''
             class Value {
               const Value(this.name);
               final String name;
               String get label => name;
             }
           ''',
-          type: 'Value',
-          path: 'value.label',
-        ),
-        (
-          name: 'non-const construction',
-          declarations: 'class Value { Value(); }',
-          type: 'Value',
-          path: 'value',
-        ),
-        (
-          name: 'missing unnamed construction',
-          declarations: 'class Value { const Value.named(); }',
-          type: 'Value',
-          path: 'value',
-        ),
-        (
-          name: 'empty object',
-          declarations: 'final class Value { const Value(); }',
-          type: 'Value',
-          path: 'value',
-        ),
-        (
-          name: 'method',
-          declarations: '''
+              type: 'Value',
+              path: 'value.label',
+            ),
+            (
+              name: 'non-const construction',
+              declarations: 'class Value { Value(); }',
+              type: 'Value',
+              path: 'value',
+            ),
+            (
+              name: 'missing unnamed construction',
+              declarations: 'class Value { const Value.named(); }',
+              type: 'Value',
+              path: 'value',
+            ),
+            (
+              name: 'empty object',
+              declarations: 'final class Value { const Value(); }',
+              type: 'Value',
+              path: 'value',
+            ),
+            (
+              name: 'method',
+              declarations: '''
             class Value { const Value(); String read() => 'value'; }
           ''',
-          type: 'Value',
-          path: 'value',
-        ),
-        (
-          name: 'generic',
-          declarations: '''
+              type: 'Value',
+              path: 'value',
+            ),
+            (
+              name: 'generic',
+              declarations: '''
             class Value<T> { const Value(this.value); final T value; }
           ''',
-          type: 'Value<String>',
-          path: 'value',
-        ),
-        (
-          name: 'inherited',
-          declarations: '''
+              type: 'Value<String>',
+              path: 'value',
+            ),
+            (
+              name: 'inherited',
+              declarations: '''
             class Base { const Base(this.id); final String id; }
             class Value extends Base { const Value(super.id); }
           ''',
-          type: 'Value',
-          path: 'value',
-        ),
-        (
-          name: 'mixed in',
-          declarations: '''
+              type: 'Value',
+              path: 'value',
+            ),
+            (
+              name: 'mixed in',
+              declarations: '''
             mixin Extra { final String extra = ''; }
             class Value with Extra { const Value(); }
           ''',
-          type: 'Value',
-          path: 'value',
-        ),
-        (
-          name: 'nested bad field',
-          declarations: '''
+              type: 'Value',
+              path: 'value',
+            ),
+            (
+              name: 'nested bad field',
+              declarations: '''
             class Value { const Value(this.child); final Child child; }
             class Child { const Child(this.names); final Set<String> names; }
           ''',
-          type: 'Value',
-          path: 'value.child.names',
-        ),
-        (
-          name: 'cycle',
-          declarations: '''
+              type: 'Value',
+              path: 'value.child.names',
+            ),
+            (
+              name: 'cycle',
+              declarations: '''
             class Value { const Value(this.child); final Child child; }
             class Child { const Child(this.value); final Value value; }
           ''',
-          type: 'Value',
-          path: 'value.child.value',
-        ),
-      ];
+              type: 'Value',
+              path: 'value.child.value',
+            ),
+          ];
 
       for (final entry in cases) {
         final result = await _extractBlueprint(
@@ -516,10 +522,11 @@ void main() {
       );
     });
 
-    test('keeps non-field formals without assigning a readable field',
-        () async {
-      final result = await _extractBlueprint(
-        '''
+    test(
+      'keeps non-field formals without assigning a readable field',
+      () async {
+        final result = await _extractBlueprint(
+          '''
         $kSourceStateStubs
 
         class Foo extends StatelessWidget {
@@ -529,18 +536,18 @@ void main() {
           Widget build(BuildContext context) => const Widget();
         }
       ''',
-        className: 'Foo',
-      );
+          className: 'Foo',
+        );
 
-      expect(result.issues, isEmpty);
-      final param = result.blueprint!.rootParams.single;
-      expect(param.name, 'label');
-      expect(param.field, isNull);
-      expect(param.isRequired, isFalse);
-    });
+        expect(result.issues, isEmpty);
+        final param = result.blueprint!.rootParams.single;
+        expect(param.name, 'label');
+        expect(param.field, isNull);
+        expect(param.isRequired, isFalse);
+      },
+    );
 
-    test(
-        'records application-defined types in root host data params for '
+    test('records application-defined types in root host data params for '
         'read refusal', () async {
       final result = await _extractBlueprint(
         '''
@@ -568,10 +575,11 @@ void main() {
       expect(params[1].isHostData, isFalse);
     });
 
-    test('derives StatefulWidget root host data from the widget class',
-        () async {
-      final result = await _extractBlueprint(
-        '''
+    test(
+      'derives StatefulWidget root host data from the widget class',
+      () async {
+        final result = await _extractBlueprint(
+          '''
         $kSourceStateStubs
 
         class Foo extends StatefulWidget {
@@ -585,15 +593,16 @@ void main() {
           Widget build(BuildContext context) => const Widget();
         }
       ''',
-        className: 'Foo',
-      );
+          className: 'Foo',
+        );
 
-      expect(result.issues, isEmpty);
-      expect(
-        result.blueprint!.rootParams.map((param) => param.name),
-        ['title', 'count'],
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(
+          result.blueprint!.rootParams.map((param) => param.name),
+          ['title', 'count'],
+        );
+      },
+    );
 
     test('rejects lifecycle methods on the State class', () async {
       final result = await _extractBlueprint('''
@@ -624,9 +633,10 @@ void main() {
       );
     });
 
-    test('rejects StatefulWidget roots with unresolvable State class',
-        () async {
-      final result = await _extractBlueprint('''
+    test(
+      'rejects StatefulWidget roots with unresolvable State class',
+      () async {
+        final result = await _extractBlueprint('''
         $kSourceStateStubs
 
         class ProPaywall extends StatefulWidget {
@@ -634,19 +644,20 @@ void main() {
         }
       ''');
 
-      expect(result.blueprint, isNull);
-      expect(result.issues.map((issue) => issue.code), [
-        IssueCode.stateShapeUnsupported,
-      ]);
-      expect(
-        result.issues.single.message,
-        allOf(
-          contains('StatefulWidget root ProPaywall'),
-          contains('createState()'),
-          contains('concrete State class'),
-        ),
-      );
-    });
+        expect(result.blueprint, isNull);
+        expect(result.issues.map((issue) => issue.code), [
+          IssueCode.stateShapeUnsupported,
+        ]);
+        expect(
+          result.issues.single.message,
+          allOf(
+            contains('StatefulWidget root ProPaywall'),
+            contains('createState()'),
+            contains('concrete State class'),
+          ),
+        );
+      },
+    );
 
     test('rejects non-primitive State fields', () async {
       final result = await _extractBlueprint('''
@@ -724,9 +735,10 @@ void main() {
       ]);
     });
 
-    test('rejects referenced handlers with unrecognised setState bodies',
-        () async {
-      final result = await _extractBlueprint('''
+    test(
+      'rejects referenced handlers with unrecognised setState bodies',
+      () async {
+        final result = await _extractBlueprint('''
         $kSourceStateStubs
 
         class GestureDetector extends Widget {
@@ -751,18 +763,19 @@ void main() {
         }
       ''');
 
-      expect(result.blueprint, isNull);
-      expect(result.issues.map((issue) => issue.code), [
-        IssueCode.stateShapeUnsupported,
-      ]);
-      expect(
-        result.issues.single.message,
-        allOf(
-          contains("State handler 'toggle' cannot be lowered"),
-          contains('single assignment expression'),
-        ),
-      );
-    });
+        expect(result.blueprint, isNull);
+        expect(result.issues.map((issue) => issue.code), [
+          IssueCode.stateShapeUnsupported,
+        ]);
+        expect(
+          result.issues.single.message,
+          allOf(
+            contains("State handler 'toggle' cannot be lowered"),
+            contains('single assignment expression'),
+          ),
+        );
+      },
+    );
 
     test('accepts unused ordinary helper methods', () async {
       final result = await _extractBlueprint('''
@@ -880,9 +893,10 @@ void main() {
       expect(result.blueprint!.localBindings, isEmpty);
     });
 
-    test('collects a State handler referenced only through a prelude local',
-        () async {
-      final result = await _extractBlueprint('''
+    test(
+      'collects a State handler referenced only through a prelude local',
+      () async {
+        final result = await _extractBlueprint('''
         $kSourceStateStubs
 
         class GestureDetector extends Widget {
@@ -905,10 +919,11 @@ void main() {
         }
       ''');
 
-      expect(result.issues, isEmpty);
-      expect(result.blueprint, isNotNull);
-      expect(result.blueprint!.eventHandlers.keys, contains('toggle'));
-    });
+        expect(result.issues, isEmpty);
+        expect(result.blueprint, isNotNull);
+        expect(result.blueprint!.eventHandlers.keys, contains('toggle'));
+      },
+    );
 
     test('rejects a prelude local that is never read', () async {
       final result = await _extractBlueprint('''
@@ -1330,7 +1345,7 @@ abstract class State<T extends StatefulWidget> {
 ''';
 
 Future<({SourceBuildBlueprint? blueprint, List<Issue> issues})>
-    _extractBlueprint(
+_extractBlueprint(
   String source, {
   String className = 'ProPaywall',
 }) async {
@@ -1372,19 +1387,20 @@ class _SourceStateProbeBuilder implements Builder {
   final AssetId inputId;
   final String className;
   final void Function(SourceBuildBlueprint? blueprint, List<Issue> issues)
-      onResult;
+  onResult;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.source_state_probe'],
-      };
+    '.dart': ['.source_state_probe'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {
     if (step.inputId != inputId) return;
     final library = await step.inputLibrary;
-    final sourceClass =
-        library.classes.firstWhere((element) => element.name == className);
+    final sourceClass = library.classes.firstWhere(
+      (element) => element.name == className,
+    );
     final issues = <Issue>[];
     final blueprint = await extractSourceBuildBlueprint(
       sourceClass: sourceClass,

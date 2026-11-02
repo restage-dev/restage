@@ -99,8 +99,10 @@ void cleanLegacyRestageOutputsInDirectory(
       // Preserve authored files that share a former generated filename.
     }
   }
-  final compiler =
-      _regularFile(root, kRestageSurfacePublicationCompilerBundlePath);
+  final compiler = _regularFile(
+    root,
+    kRestageSurfacePublicationCompilerBundlePath,
+  );
   if (compiler != null) {
     try {
       RestageSurfacePublicationBundle.fromJson(

@@ -31,8 +31,11 @@ void main() {
   });
 
   test('both fixtures compile', () {
-    expect(compiled.output.valid, isTrue,
-        reason: compiled.output.errors.join('\n'));
+    expect(
+      compiled.output.valid,
+      isTrue,
+      reason: compiled.output.errors.join('\n'),
+    );
   });
 
   test('generated screen and paywall parts opt out of lints', () {
@@ -67,8 +70,10 @@ void main() {
     );
     final taps = rfwEventHandlers(library)
         .whereType<fmt.EventHandler>()
-        .where((handler) =>
-            handler.eventName == kMeasurementPublicationTapEventNameV1)
+        .where(
+          (handler) =>
+              handler.eventName == kMeasurementPublicationTapEventNameV1,
+        )
         .toList();
     expect(taps, hasLength(1), reason: 'the Clear tap stays measured');
     final references = _references(library);
@@ -136,13 +141,13 @@ final class _Compiled {
       .map((node) => node.structuralOccurrenceKey);
 
   Set<String> routedKeys(String source) => {
-        for (final node in output.ledgerNodes)
-          if (node.structuralOccurrenceKey.startsWith('$source|'))
-            for (final event in node.events)
-              if (event.active)
-                '${node.structuralOccurrenceKey}\u0000'
-                    '${event.sourceEventIdentity.value}',
-      };
+    for (final node in output.ledgerNodes)
+      if (node.structuralOccurrenceKey.startsWith('$source|'))
+        for (final event in node.events)
+          if (event.active)
+            '${node.structuralOccurrenceKey}\u0000'
+                '${event.sourceEventIdentity.value}',
+  };
 
   int itemRouteCount(String slug) => output.publications
       .singleWhere((publication) => publication.selector.slug == slug)
@@ -151,12 +156,16 @@ final class _Compiled {
       .where((route) => route.orderedCaptureV1?.interactionItemsV1 ?? false)
       .length;
 
-  List<fmt.EventHandler> measuredHandlers(String sourcePath) => eventHandlers(
-        sourcePath,
-      )
+  List<fmt.EventHandler> measuredHandlers(String sourcePath) =>
+      eventHandlers(
+            sourcePath,
+          )
           .whereType<fmt.EventHandler>()
-          .where((handler) => handler.eventArguments
-              .containsKey(kMeasurementPublicationRouteArgumentKeyV1))
+          .where(
+            (handler) => handler.eventArguments.containsKey(
+              kMeasurementPublicationRouteArgumentKeyV1,
+            ),
+          )
           .toList();
 
   fmt.RemoteWidgetLibrary library(String sourcePath) {
@@ -251,8 +260,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -264,13 +274,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');

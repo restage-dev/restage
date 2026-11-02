@@ -84,8 +84,9 @@ final class A2uiDefinitionRegistry {
       case MapNode(:final valueType):
         _visit(valueType, ancestorIds);
       case ObjectNode(:final fields, :final defId):
-        final descendants =
-            defId == null ? ancestorIds : <String>[...ancestorIds, defId];
+        final descendants = defId == null
+            ? ancestorIds
+            : <String>[...ancestorIds, defId];
         if (defId != null) {
           _register(defId, node);
           _ancestorIdsByDefinition
@@ -101,8 +102,9 @@ final class A2uiDefinitionRegistry {
       case RefNode(:final defId):
         _referenceTargets.add(defId);
       case UnionNode(:final variants, :final defId):
-        final descendants =
-            defId == null ? ancestorIds : <String>[...ancestorIds, defId];
+        final descendants = defId == null
+            ? ancestorIds
+            : <String>[...ancestorIds, defId];
         if (defId != null) {
           _register(defId, node);
           _ancestorIdsByDefinition
@@ -130,10 +132,10 @@ final class A2uiDefinitionRegistry {
     }
     final canonicalOrder =
         _hasCanonicalDocumentation(existing, atDefinitionRoot: true) ||
-            _hasCanonicalDocumentation(
-              canonicalCandidate,
-              atDefinitionRoot: true,
-            );
+        _hasCanonicalDocumentation(
+          canonicalCandidate,
+          atDefinitionRoot: true,
+        );
     _mutableDefinitions[id] = _mergeDefinition(
       _orderedDefinition(
         existing,
@@ -227,21 +229,20 @@ final class A2uiDefinitionRegistry {
     A2uiSchemaNode node, {
     required bool canonicalOrder,
     A2uiSchemaNode? documentationPeer,
-  }) =>
-      _orderedCanonicalNode(
-        node,
-        documentationPeer: documentationPeer,
-        atDefinitionRoot: true,
-        insideDocumentedSubtree: false,
-        forceCurrentObjectOrder: canonicalOrder,
-      );
+  }) => _orderedCanonicalNode(
+    node,
+    documentationPeer: documentationPeer,
+    atDefinitionRoot: true,
+    insideDocumentedSubtree: false,
+    forceCurrentObjectOrder: canonicalOrder,
+  );
 }
 
 String? _definitionDescription(A2uiSchemaNode node) => switch (node) {
-      ObjectNode(:final definitionDescription) => definitionDescription,
-      UnionNode(:final definitionDescription) => definitionDescription,
-      _ => null,
-    };
+  ObjectNode(:final definitionDescription) => definitionDescription,
+  UnionNode(:final definitionDescription) => definitionDescription,
+  _ => null,
+};
 
 /// Whether a canonical definition contains documentation that participates in
 /// registry reconciliation. The named definition root's occurrence text is a
@@ -255,26 +256,30 @@ bool _hasCanonicalDocumentation(
       !atDefinitionRoot && _description(node.occurrenceDescription) != null;
   return switch (node) {
     ScalarNode() || EnumNode() || RefNode() => hasOccurrence,
-    ListNode(:final element) => hasOccurrence ||
-        _hasCanonicalDocumentation(element, atDefinitionRoot: false),
-    MapNode(:final valueType) => hasOccurrence ||
-        _hasCanonicalDocumentation(valueType, atDefinitionRoot: false),
-    ObjectNode(:final fields, :final definitionDescription) => hasOccurrence ||
-        _description(definitionDescription) != null ||
-        fields.values.any(
-          (field) => _hasCanonicalDocumentation(
-            field,
-            atDefinitionRoot: false,
+    ListNode(:final element) =>
+      hasOccurrence ||
+          _hasCanonicalDocumentation(element, atDefinitionRoot: false),
+    MapNode(:final valueType) =>
+      hasOccurrence ||
+          _hasCanonicalDocumentation(valueType, atDefinitionRoot: false),
+    ObjectNode(:final fields, :final definitionDescription) =>
+      hasOccurrence ||
+          _description(definitionDescription) != null ||
+          fields.values.any(
+            (field) => _hasCanonicalDocumentation(
+              field,
+              atDefinitionRoot: false,
+            ),
           ),
-        ),
-    UnionNode(:final variants, :final definitionDescription) => hasOccurrence ||
-        _description(definitionDescription) != null ||
-        variants.any(
-          (variant) => _hasCanonicalDocumentation(
-            variant,
-            atDefinitionRoot: false,
+    UnionNode(:final variants, :final definitionDescription) =>
+      hasOccurrence ||
+          _description(definitionDescription) != null ||
+          variants.any(
+            (variant) => _hasCanonicalDocumentation(
+              variant,
+              atDefinitionRoot: false,
+            ),
           ),
-        ),
   };
 }
 
@@ -299,7 +304,8 @@ A2uiSchemaNode _orderedCanonicalNode(
   required bool insideDocumentedSubtree,
   required bool forceCurrentObjectOrder,
 }) {
-  final ownDocumentation = _hasOwnCanonicalDocumentation(
+  final ownDocumentation =
+      _hasOwnCanonicalDocumentation(
         node,
         atDefinitionRoot: atDefinitionRoot,
       ) ||
@@ -314,10 +320,10 @@ A2uiSchemaNode _orderedCanonicalNode(
     case ScalarNode() || EnumNode() || RefNode():
       return node;
     case ListNode(
-        :final element,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final element,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final peer = documentationPeer is ListNode ? documentationPeer : null;
       return ListNode(
         element: _orderedCanonicalNode(
@@ -331,10 +337,10 @@ A2uiSchemaNode _orderedCanonicalNode(
         nullable: nullable,
       );
     case MapNode(
-        :final valueType,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final valueType,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final peer = documentationPeer is MapNode ? documentationPeer : null;
       return MapNode(
         valueType: _orderedCanonicalNode(
@@ -348,16 +354,17 @@ A2uiSchemaNode _orderedCanonicalNode(
         nullable: nullable,
       );
     case ObjectNode(
-        :final fields,
-        :final required,
-        :final defId,
-        :final construction,
-        :final definitionDescription,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final fields,
+      :final required,
+      :final defId,
+      :final construction,
+      :final definitionDescription,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final peer = documentationPeer is ObjectNode ? documentationPeer : null;
-      final containsDocumentation = _hasCanonicalDocumentation(
+      final containsDocumentation =
+          _hasCanonicalDocumentation(
             node,
             atDefinitionRoot: atDefinitionRoot,
           ) ||
@@ -366,7 +373,8 @@ A2uiSchemaNode _orderedCanonicalNode(
                 peer,
                 atDefinitionRoot: atDefinitionRoot,
               ));
-      final canonicalOrder = forceCurrentObjectOrder ||
+      final canonicalOrder =
+          forceCurrentObjectOrder ||
           insideDocumentedSubtree ||
           containsDocumentation;
       final fieldNames = fields.keys.toList();
@@ -394,13 +402,13 @@ A2uiSchemaNode _orderedCanonicalNode(
         nullable: nullable,
       );
     case UnionNode(
-        :final variants,
-        :final discriminatorField,
-        :final defId,
-        :final definitionDescription,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final variants,
+      :final discriminatorField,
+      :final defId,
+      :final definitionDescription,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final peer = documentationPeer is UnionNode ? documentationPeer : null;
       return UnionNode(
         variants: [
@@ -458,11 +466,11 @@ String? _mergeMemberDescription(
 A2uiSchemaNode _canonicalizeNode(A2uiSchemaNode node, String path) {
   switch (node) {
     case ScalarNode(
-        :final type,
-        :final preserveNumericRuntimeType,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final type,
+      :final preserveNumericRuntimeType,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       return ScalarNode(
         type,
         preserveNumericRuntimeType: preserveNumericRuntimeType,
@@ -470,12 +478,12 @@ A2uiSchemaNode _canonicalizeNode(A2uiSchemaNode node, String path) {
         nullable: nullable,
       );
     case EnumNode(
-        :final members,
-        :final dartTypeName,
-        :final libraryUri,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final members,
+      :final dartTypeName,
+      :final libraryUri,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       return EnumNode(
         members: members,
         dartTypeName: dartTypeName,
@@ -484,34 +492,34 @@ A2uiSchemaNode _canonicalizeNode(A2uiSchemaNode node, String path) {
         nullable: nullable,
       );
     case ListNode(
-        :final element,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final element,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       return ListNode(
         element: _canonicalizeNode(element, '$path[]'),
         occurrenceDescription: _description(occurrenceDescription),
         nullable: nullable,
       );
     case MapNode(
-        :final valueType,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final valueType,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       return MapNode(
         valueType: _canonicalizeNode(valueType, '$path{}'),
         occurrenceDescription: _description(occurrenceDescription),
         nullable: nullable,
       );
     case ObjectNode(
-        :final fields,
-        :final required,
-        :final defId,
-        :final construction,
-        :final definitionDescription,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final fields,
+      :final required,
+      :final defId,
+      :final construction,
+      :final definitionDescription,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       return ObjectNode(
         fields: {
           for (final entry in fields.entries)
@@ -528,23 +536,23 @@ A2uiSchemaNode _canonicalizeNode(A2uiSchemaNode node, String path) {
         nullable: nullable,
       );
     case RefNode(
-        :final defId,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final defId,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       return RefNode(
         defId,
         occurrenceDescription: _description(occurrenceDescription),
         nullable: nullable,
       );
     case UnionNode(
-        :final variants,
-        :final discriminatorField,
-        :final defId,
-        :final definitionDescription,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final variants,
+      :final discriminatorField,
+      :final defId,
+      :final definitionDescription,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       return UnionNode(
         variants: [
           for (var index = 0; index < variants.length; index++)
@@ -566,11 +574,11 @@ A2uiSchemaNode _mergeNode(
 ) {
   switch (existing) {
     case ScalarNode(
-        :final type,
-        :final preserveNumericRuntimeType,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final type,
+      :final preserveNumericRuntimeType,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final other = candidate as ScalarNode;
       return ScalarNode(
         type,
@@ -583,12 +591,12 @@ A2uiSchemaNode _mergeNode(
         nullable: nullable,
       );
     case EnumNode(
-        :final members,
-        :final dartTypeName,
-        :final libraryUri,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final members,
+      :final dartTypeName,
+      :final libraryUri,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final other = candidate as EnumNode;
       return EnumNode(
         members: members,
@@ -602,10 +610,10 @@ A2uiSchemaNode _mergeNode(
         nullable: nullable,
       );
     case ListNode(
-        :final element,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final element,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final other = candidate as ListNode;
       return ListNode(
         element: _mergeNode(element, other.element, '$path[]'),
@@ -617,10 +625,10 @@ A2uiSchemaNode _mergeNode(
         nullable: nullable,
       );
     case MapNode(
-        :final valueType,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final valueType,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final other = candidate as MapNode;
       return MapNode(
         valueType: _mergeNode(valueType, other.valueType, '$path{}'),
@@ -632,14 +640,14 @@ A2uiSchemaNode _mergeNode(
         nullable: nullable,
       );
     case ObjectNode(
-        :final fields,
-        :final required,
-        :final defId,
-        :final construction,
-        :final definitionDescription,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final fields,
+      :final required,
+      :final defId,
+      :final construction,
+      :final definitionDescription,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final other = candidate as ObjectNode;
       return ObjectNode(
         fields: {
@@ -666,10 +674,10 @@ A2uiSchemaNode _mergeNode(
         nullable: nullable,
       );
     case RefNode(
-        :final defId,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final defId,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final other = candidate as RefNode;
       return RefNode(
         defId,
@@ -681,13 +689,13 @@ A2uiSchemaNode _mergeNode(
         nullable: nullable,
       );
     case UnionNode(
-        :final variants,
-        :final discriminatorField,
-        :final defId,
-        :final definitionDescription,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final variants,
+      :final discriminatorField,
+      :final defId,
+      :final definitionDescription,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       final other = candidate as UnionNode;
       return UnionNode(
         variants: [
@@ -737,8 +745,10 @@ bool _sameFieldStructure(
   Map<String, A2uiSchemaNode> left,
   Map<String, A2uiSchemaNode> right,
 ) {
-  if (!const SetEquality<String>()
-      .equals(left.keys.toSet(), right.keys.toSet())) {
+  if (!const SetEquality<String>().equals(
+    left.keys.toSet(),
+    right.keys.toSet(),
+  )) {
     return false;
   }
   for (final name in left.keys) {

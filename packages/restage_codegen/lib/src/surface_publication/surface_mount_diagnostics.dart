@@ -70,13 +70,15 @@ final class _SurfaceMountVisitor extends RecursiveAstVisitor<void> {
     final reference = arguments[argumentName];
     if (reference == null) return;
     if (argumentName == 'flow') {
-      final compiled =
-          reference.computeConstantValue()?.value?.getField('compiled');
+      final compiled = reference.computeConstantValue()?.value?.getField(
+        'compiled',
+      );
       if (_hasCompleteScreenBuilders(compiled)) return;
     }
     final unavailable = arguments['unavailable'];
-    final fallback =
-        unavailable?.computeConstantValue()?.value?.getField('fallbackBuilder');
+    final fallback = unavailable?.computeConstantValue()?.value?.getField(
+      'fallbackBuilder',
+    );
     if (fallback != null && !fallback.isNull) return;
     if (unavailable is InstanceCreationExpression &&
         unavailable.constructorName.name?.name == 'fallback') {
@@ -124,8 +126,8 @@ bool _hasCompleteScreenBuilders(DartObject? compiled) {
     };
     return document.screenArtifacts.keys.every(screenIds.contains) &&
         document.states.values.whereType<SubFlowState>().every(
-              (state) => _hasCompleteScreenBuilders(childFlows[state.flow]),
-            );
+          (state) => _hasCompleteScreenBuilders(childFlows[state.flow]),
+        );
   } on Object {
     // Invalid constant metadata does not establish an available fallback.
     return false;

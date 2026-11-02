@@ -4,13 +4,12 @@
 // widget's callback parameters into callback signatures (the event seam) and
 // reads the widget's `@a2ui.Config.writeBackValues` target configuration (the
 // pairing seam), runs the catalog through the production A2UI
-// emitter, and renders the generated catalog against real genui — then drives
+// emitter, and renders the generated catalog against the real A2UI runtime, then drives
 // interaction (tap -> write-back -> re-render; tap -> dispatch). Each widget is
 // a CONTROLLED COMPONENT: a value property + a `ValueChanged` callback that
-// writes it (the genui data model is the state store), or a `VoidCallback` that
-// dispatches an outward action. (The `@RestageWidget` class annotation itself is
-// build-phase discovery — a tracked follow-up — and is not needed to reflect the
-// callback types or read the target configuration.)
+// writes it (the A2UI data model is the state store), or a `VoidCallback` that
+// dispatches an outward action. (The `@RestageWidget` class annotation is not needed
+// to reflect the callback types or read the target configuration.)
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
 

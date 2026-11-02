@@ -5,10 +5,12 @@ import 'package:test/test.dart';
 import 'helpers.dart';
 
 Future<
-    ({
-      CustomStructuredAdmission admission,
-      WidgetVisitorResult result,
-    })> _admit(Map<String, String> sources) async {
+  ({
+    CustomStructuredAdmission admission,
+    WidgetVisitorResult result,
+  })
+>
+_admit(Map<String, String> sources) async {
   final result = await runWidgetVisitorOn(sources);
   return (
     admission: computeAdmission(

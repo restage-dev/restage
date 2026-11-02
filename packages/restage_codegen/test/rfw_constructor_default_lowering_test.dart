@@ -7,8 +7,7 @@ import 'package:test/test.dart';
 import 'helpers.dart';
 
 void main() {
-  test(
-      'production factory builder lowers references, invocations, collections, '
+  test('production factory builder lowers references, invocations, collections, '
       'children, and structured-default omission', () async {
     const source = '''
       import 'package:flutter/widgets.dart';
@@ -149,12 +148,11 @@ void main() {
     String presenceLocal(String property) =>
         'restagePresence${property[0].toUpperCase()}'
         '${property.substring(1)}';
-    final factory = parseString(content: dart)
-        .unit
-        .declarations
+    final factory = parseString(content: dart).unit.declarations
         .whereType<FunctionDeclaration>()
         .singleWhere(
-            (declaration) => declaration.name.lexeme == '_buildDefaultProbe');
+          (declaration) => declaration.name.lexeme == '_buildDefaultProbe',
+        );
     final arguments = _symbolArguments(factory).toList();
     String argumentSource(String property) {
       final matches = arguments
@@ -181,7 +179,8 @@ void main() {
         '#retries:RestageValueBinding.read<int>('
         'source,restagePresenceRetries.valuePath,context)',
       ),
-      reason: 'Function.apply must include a supplied scalar even when its '
+      reason:
+          'Function.apply must include a supplied scalar even when its '
           'decoded value is null or the wrong scalar type',
     );
     expect(
@@ -194,9 +193,14 @@ void main() {
     );
     expect(
       flat.replaceAll(' ', ''),
-      isNot(contains('RestageValueBinding.read<int>('
-          'source,restagePresenceRetries.valuePath,context)??Tokens.retries')),
-      reason: 'a supplied malformed scalar must not silently take the Dart '
+      isNot(
+        contains(
+          'RestageValueBinding.read<int>('
+          'source,restagePresenceRetries.valuePath,context)??Tokens.retries',
+        ),
+      ),
+      reason:
+          'a supplied malformed scalar must not silently take the Dart '
           'constructor default',
     );
     expect(
@@ -228,7 +232,8 @@ void main() {
       expect(
         flat,
         contains('$local.hasValue'),
-        reason: '$property must distinguish supplied no-value from wrong '
+        reason:
+            '$property must distinguish supplied no-value from wrong '
             'shape',
       );
     }
@@ -264,7 +269,8 @@ void main() {
     expect(
       flat.replaceAll(' ', ''),
       contains(
-          'RestageDecoders.isWidgetList(source,restagePresenceChildren.valuePath)'),
+        'RestageDecoders.isWidgetList(source,restagePresenceChildren.valuePath)',
+      ),
       reason: 'canonical children must validate the nested supplied value',
     );
     for (final property in ['tone', 'tones', 'scores', 'summary', 'children']) {
@@ -297,7 +303,8 @@ void main() {
       expect(
         flat,
         contains('DefaultProbe.$property is required.'),
-        reason: '$property must still throw when a supplied value has the '
+        reason:
+            '$property must still throw when a supplied value has the '
             'wrong shape',
       );
     }
@@ -310,7 +317,8 @@ void main() {
     expect(
       dart,
       contains('NullableChildrenProbe.children is required.'),
-      reason: 'wrong-shape nullable children must throw even though supplied '
+      reason:
+          'wrong-shape nullable children must throw even though supplied '
           'no-value becomes null',
     );
     expect(

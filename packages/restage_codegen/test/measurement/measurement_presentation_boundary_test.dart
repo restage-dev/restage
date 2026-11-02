@@ -58,21 +58,23 @@ void main() {
     );
   });
 
-  test('explicit presentation witnesses ignore nonidentity publication data',
-      () {
-    final first = MeasurementCompilerBoundary.produceBoundaryV1(_input());
-    final second = MeasurementCompilerBoundary.produceBoundaryV1(
-      _input(
-        analyticsSurfaceKey: 'presentation-boundary-renamed',
-        minimumMeasurementClient: 3,
-      ),
-    );
+  test(
+    'explicit presentation witnesses ignore nonidentity publication data',
+    () {
+      final first = MeasurementCompilerBoundary.produceBoundaryV1(_input());
+      final second = MeasurementCompilerBoundary.produceBoundaryV1(
+        _input(
+          analyticsSurfaceKey: 'presentation-boundary-renamed',
+          minimumMeasurementClient: 3,
+        ),
+      );
 
-    expect(
-      _presentationWitnesses(first.completeMeasurementManifest!),
-      _presentationWitnesses(second.completeMeasurementManifest!),
-    );
-  });
+      expect(
+        _presentationWitnesses(first.completeMeasurementManifest!),
+        _presentationWitnesses(second.completeMeasurementManifest!),
+      );
+    },
+  );
 }
 
 List<String> _presentationWitnesses(CompleteMeasurementManifestV1 manifest) {
@@ -123,8 +125,9 @@ MeasurementCompilerBoundaryInput _input({
     deliverySurfaceType: DeliverySurfaceTypeId('fixture.surface'),
     minimumMeasurementClient: minimumMeasurementClient,
     completeManifestId: MeasurementManifestId('manifest.presentation-boundary'),
-    privacyPolicyRevisionId:
-        AuthorityRevisionId('privacy.presentation-boundary'),
+    privacyPolicyRevisionId: AuthorityRevisionId(
+      'privacy.presentation-boundary',
+    ),
     collectionBudgetRevisionId: AuthorityRevisionId(
       'budget.presentation-boundary',
     ),

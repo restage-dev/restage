@@ -31,9 +31,10 @@ builder: (_) {
         builder: 'builder: sheetBuilder',
       ),
     ]) {
-      test('${scenario.name} fatal-defers with modalSheetFormUnsupported',
-          () async {
-        final result = await translateModalSheetSource('''
+      test(
+        '${scenario.name} fatal-defers with modalSheetFormUnsupported',
+        () async {
+          final result = await translateModalSheetSource('''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -43,13 +44,15 @@ ElevatedButton(
 )
 ''');
 
-        expectModalSheetUnsupported(result);
-      });
+          expectModalSheetUnsupported(result);
+        },
+      );
     }
 
-    test('Navigator.pop(context, result) fatal-defers with the named code',
-        () async {
-      final result = await translateModalSheetSource('''
+    test(
+      'Navigator.pop(context, result) fatal-defers with the named code',
+      () async {
+        final result = await translateModalSheetSource('''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -62,12 +65,14 @@ ElevatedButton(
 )
 ''');
 
-      expectModalSheetUnsupported(result, messageContains: 'Navigator.pop');
-    });
+        expectModalSheetUnsupported(result, messageContains: 'Navigator.pop');
+      },
+    );
 
-    test('Navigator.pop(context) lowers to closing the synthetic flag',
-        () async {
-      final result = await translateModalSheetSource('''
+    test(
+      'Navigator.pop(context) lowers to closing the synthetic flag',
+      () async {
+        final result = await translateModalSheetSource('''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -80,12 +85,13 @@ ElevatedButton(
 )
 ''');
 
-      expect(result.issues, isEmpty);
-      expect(
-        result.dsl,
-        contains('onPressed: set state._restageSheet0Open = false'),
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          contains('onPressed: set state._restageSheet0Open = false'),
+        );
+      },
+    );
 
     test('a custom Navigator.pop look-alike is not lowered as close', () async {
       // `Navigator` here is a shadowing parameter, not the framework class, so
@@ -162,20 +168,22 @@ Object x(BuildContext context, {required dynamic Navigator}) => ElevatedButton(
 ''',
       ),
     ]) {
-      test('Future-result use at trigger (${scenario.name}) fatal-defers',
-          () async {
-        final result = await translateModalSheetSource('''
+      test(
+        'Future-result use at trigger (${scenario.name}) fatal-defers',
+        () async {
+          final result = await translateModalSheetSource('''
 ElevatedButton(
   onPressed: ${scenario.callback},
   child: const Text('Open'),
 )
 ''');
 
-        expectModalSheetUnsupported(
-          result,
-          messageContains: 'result value cannot be observed',
-        );
-      });
+          expectModalSheetUnsupported(
+            result,
+            messageContains: 'result value cannot be observed',
+          );
+        },
+      );
     }
 
     for (final scenario in <({String name, String argument})>[
@@ -200,9 +208,10 @@ ElevatedButton(
         argument: 'requestFocus: false,',
       ),
     ]) {
-      test('material no-faithful-slot arg ${scenario.name} fatal-defers',
-          () async {
-        final result = await translateModalSheetSource('''
+      test(
+        'material no-faithful-slot arg ${scenario.name} fatal-defers',
+        () async {
+          final result = await translateModalSheetSource('''
 ElevatedButton(
   onPressed: () => showModalBottomSheet<void>(
     context: context,
@@ -213,8 +222,9 @@ ElevatedButton(
 )
 ''');
 
-        expectModalSheetUnsupported(result, messageContains: scenario.name);
-      });
+          expectModalSheetUnsupported(result, messageContains: scenario.name);
+        },
+      );
     }
 
     for (final scenario in <({String name, String argument})>[
@@ -227,9 +237,10 @@ ElevatedButton(
         argument: 'topGap: 0.5,',
       ),
     ]) {
-      test('cupertino no-faithful-slot arg ${scenario.name} fatal-defers',
-          () async {
-        final result = await translateModalSheetSource('''
+      test(
+        'cupertino no-faithful-slot arg ${scenario.name} fatal-defers',
+        () async {
+          final result = await translateModalSheetSource('''
 ElevatedButton(
   onPressed: () => cupertino.showCupertinoSheet<void>(
     context: context,
@@ -240,13 +251,15 @@ ElevatedButton(
 )
 ''');
 
-        expectModalSheetUnsupported(result, messageContains: scenario.name);
-      });
+          expectModalSheetUnsupported(result, messageContains: scenario.name);
+        },
+      );
     }
 
-    test('non-recognisable trigger slot fatal-defers with the named code',
-        () async {
-      final result = await translateModalSheetSource('''
+    test(
+      'non-recognisable trigger slot fatal-defers with the named code',
+      () async {
+        final result = await translateModalSheetSource('''
 GestureDetector(
   onLongPress: () => showModalBottomSheet<void>(
     context: context,
@@ -256,12 +269,14 @@ GestureDetector(
 )
 ''');
 
-      expectModalSheetUnsupported(result);
-    });
+        expectModalSheetUnsupported(result);
+      },
+    );
 
-    test('two recognised sheet triggers in one root fatal-defer as ambiguous',
-        () async {
-      final result = await translateModalSheetSource('''
+    test(
+      'two recognised sheet triggers in one root fatal-defer as ambiguous',
+      () async {
+        final result = await translateModalSheetSource('''
 Column(
   children: [
     ElevatedButton(
@@ -282,8 +297,9 @@ Column(
 )
 ''');
 
-      expectModalSheetUnsupported(result, messageContains: 'only one');
-    });
+        expectModalSheetUnsupported(result, messageContains: 'only one');
+      },
+    );
   });
 }
 

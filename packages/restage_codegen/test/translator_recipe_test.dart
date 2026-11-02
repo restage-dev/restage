@@ -72,17 +72,22 @@ void main() {
       );
     });
 
-    test('a framework type does not collide with a same-named library type',
-        () {
-      final frameworkColor =
-          recipeKey(library: null, typeName: 'Color', variant: null);
-      final libraryColor = recipeKey(
-        library: 'restage.material',
-        typeName: 'Color',
-        variant: null,
-      );
-      expect(frameworkColor, isNot(libraryColor));
-    });
+    test(
+      'a framework type does not collide with a same-named library type',
+      () {
+        final frameworkColor = recipeKey(
+          library: null,
+          typeName: 'Color',
+          variant: null,
+        );
+        final libraryColor = recipeKey(
+          library: 'restage.material',
+          typeName: 'Color',
+          variant: null,
+        );
+        expect(frameworkColor, isNot(libraryColor));
+      },
+    );
   });
 
   group('ValidationCheck', () {

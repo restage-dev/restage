@@ -38,8 +38,8 @@ final class OnboardingVisitorResult {
   OnboardingVisitorResult({
     required List<OnboardingScreenSourceFound> sources,
     required List<Issue> issues,
-  })  : sources = List.unmodifiable(sources),
-        issues = List.unmodifiable(issues);
+  }) : sources = List.unmodifiable(sources),
+       issues = List.unmodifiable(issues);
 
   final List<OnboardingScreenSourceFound> sources;
   final List<Issue> issues;
@@ -94,7 +94,8 @@ Future<OnboardingVisitorResult> visitOnboardingSources(
       issues.add(
         Issue(
           code: IssueCode.unsupportedBaseClass,
-          message: 'Flow screens must extend StatelessWidget or a '
+          message:
+              'Flow screens must extend StatelessWidget or a '
               'supported StatefulWidget. '
               'Found: extends $supertypeName.',
           location: location,
@@ -139,7 +140,8 @@ Future<OnboardingVisitorResult> visitOnboardingSources(
       issues.add(
         Issue(
           code: IssueCode.duplicateId,
-          message: 'Multiple @ScreenSource classes share id "$id": '
+          message:
+              'Multiple @ScreenSource classes share id "$id": '
               '$classes.',
           location: assetId.path,
         ),

@@ -7,45 +7,48 @@ import 'helpers.dart';
 
 void main() {
   group('per-widget target routing', () {
-    test('one package supports default, solo, and pairwise target sets',
-        () async {
-      const sources = {'lib/routing.dart': _widgetTargetMatrixSource};
-      final expected = <WidgetVisitorTarget, Set<String>>{
-        WidgetVisitorTarget.rfw: {
-          'DefaultCard',
-          'RfwOnlyCard',
-          'RfwA2uiCard',
-          'RfwWidgetbookCard',
-        },
-        WidgetVisitorTarget.a2ui: {
-          'DefaultCard',
-          'A2uiOnlyCard',
-          'RfwA2uiCard',
-          'A2uiWidgetbookCard',
-        },
-        WidgetVisitorTarget.widgetbook: {
-          'DefaultCard',
-          'WidgetbookOnlyCard',
-          'RfwWidgetbookCard',
-          'A2uiWidgetbookCard',
-        },
-      };
+    test(
+      'one package supports default, solo, and pairwise target sets',
+      () async {
+        const sources = {'lib/routing.dart': _widgetTargetMatrixSource};
+        final expected = <WidgetVisitorTarget, Set<String>>{
+          WidgetVisitorTarget.rfw: {
+            'DefaultCard',
+            'RfwOnlyCard',
+            'RfwA2uiCard',
+            'RfwWidgetbookCard',
+          },
+          WidgetVisitorTarget.a2ui: {
+            'DefaultCard',
+            'A2uiOnlyCard',
+            'RfwA2uiCard',
+            'A2uiWidgetbookCard',
+          },
+          WidgetVisitorTarget.widgetbook: {
+            'DefaultCard',
+            'WidgetbookOnlyCard',
+            'RfwWidgetbookCard',
+            'A2uiWidgetbookCard',
+          },
+        };
 
-      for (final target in WidgetVisitorTarget.values) {
-        final result = await runWidgetVisitorOn(sources, target: target);
-        expect(result.issues, isEmpty, reason: target.name);
-        expect(
-          result.widgets.map((widget) => widget.name).toSet(),
-          expected[target],
-          reason: target.name,
-        );
-      }
-    });
+        for (final target in WidgetVisitorTarget.values) {
+          final result = await runWidgetVisitorOn(sources, target: target);
+          expect(result.issues, isEmpty, reason: target.name);
+          expect(
+            result.widgets.map((widget) => widget.name).toSet(),
+            expected[target],
+            reason: target.name,
+          );
+        }
+      },
+    );
 
-    test('disabled widget exits before constructor and capability validation',
-        () async {
-      const sources = {
-        'lib/probe.dart': '''
+    test(
+      'disabled widget exits before constructor and capability validation',
+      () async {
+        const sources = {
+          'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -65,21 +68,22 @@ class Probe {
   final Object hostObject;
 }
 ''',
-      };
+        };
 
-      final a2ui = await runWidgetVisitorOn(
-        sources,
-        target: WidgetVisitorTarget.a2ui,
-      );
-      final rfw = await runWidgetVisitorOn(sources);
+        final a2ui = await runWidgetVisitorOn(
+          sources,
+          target: WidgetVisitorTarget.a2ui,
+        );
+        final rfw = await runWidgetVisitorOn(sources);
 
-      expect(a2ui.widgets, isEmpty);
-      expect(a2ui.issues, isEmpty);
-      expect(
-        rfw.issues.map((issue) => issue.code),
-        contains(IssueCode.invalidWidgetConstructorInput),
-      );
-    });
+        expect(a2ui.widgets, isEmpty);
+        expect(a2ui.issues, isEmpty);
+        expect(
+          rfw.issues.map((issue) => issue.code),
+          contains(IssueCode.invalidWidgetConstructorInput),
+        );
+      },
+    );
 
     test('disabled widget exits before library ownership resolution', () async {
       const sources = {
@@ -150,10 +154,11 @@ class SecondProbe {
       );
     });
 
-    test('rejects inherited property placement of class-only enabled',
-        () async {
-      const sources = {
-        'lib/probe.dart': '''
+    test(
+      'rejects inherited property placement of class-only enabled',
+      () async {
+        const sources = {
+          'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -174,23 +179,24 @@ class Probe extends BaseProbe {
   const Probe({super.label});
 }
 ''',
-      };
+        };
 
-      final result = await runWidgetVisitorOn(
-        sources,
-        target: WidgetVisitorTarget.a2ui,
-      );
+        final result = await runWidgetVisitorOn(
+          sources,
+          target: WidgetVisitorTarget.a2ui,
+        );
 
-      expect(result.widgets, isEmpty);
-      expect(
-        result.issues.map((issue) => issue.code),
-        contains(IssueCode.invalidTargetConfigPlacement),
-      );
-      expect(
-        result.issues.map((issue) => issue.location),
-        contains('lib/probe.dart#Probe.label@a2ui.Config[0]'),
-      );
-    });
+        expect(result.widgets, isEmpty);
+        expect(
+          result.issues.map((issue) => issue.code),
+          contains(IssueCode.invalidTargetConfigPlacement),
+        );
+        expect(
+          result.issues.map((issue) => issue.location),
+          contains('lib/probe.dart#Probe.label@a2ui.Config[0]'),
+        );
+      },
+    );
   });
 
   group('selective Ignore routing', () {
@@ -221,36 +227,40 @@ class Probe {
       );
     });
 
-    test('list, set, aliases, duplicates, and order normalize by target',
-        () async {
-      const sources = {'lib/ignore_matrix.dart': _ignoreMatrixSource};
-      final expected = <WidgetVisitorTarget, List<String>>{
-        WidgetVisitorTarget.rfw: ['nativeHidden'],
-        WidgetVisitorTarget.a2ui: ['rfwHidden', 'edgeHidden'],
-        WidgetVisitorTarget.widgetbook: ['rfwHidden'],
-      };
+    test(
+      'list, set, aliases, duplicates, and order normalize by target',
+      () async {
+        const sources = {'lib/ignore_matrix.dart': _ignoreMatrixSource};
+        final expected = <WidgetVisitorTarget, List<String>>{
+          WidgetVisitorTarget.rfw: ['nativeHidden'],
+          WidgetVisitorTarget.a2ui: ['rfwHidden', 'edgeHidden'],
+          WidgetVisitorTarget.widgetbook: ['rfwHidden'],
+        };
 
-      for (final target in WidgetVisitorTarget.values) {
-        final result = await runWidgetVisitorOn(sources, target: target);
-        expect(result.issues, isEmpty, reason: target.name);
-        expect(
-          result.widgets.single.properties.map((property) => property.name),
-          expected[target],
-          reason: target.name,
-        );
-        expect(
-          result.exclusions,
-          isEmpty,
-          reason: 'authored routing must stay distinct from automatic '
-              'decoder exclusions (${target.name})',
-        );
-      }
-    });
+        for (final target in WidgetVisitorTarget.values) {
+          final result = await runWidgetVisitorOn(sources, target: target);
+          expect(result.issues, isEmpty, reason: target.name);
+          expect(
+            result.widgets.single.properties.map((property) => property.name),
+            expected[target],
+            reason: target.name,
+          );
+          expect(
+            result.exclusions,
+            isEmpty,
+            reason:
+                'authored routing must stay distinct from automatic '
+                'decoder exclusions (${target.name})',
+          );
+        }
+      },
+    );
 
-    test('explicit empty selection fails loudly instead of becoming a no-op',
-        () async {
-      const sources = {
-        'lib/probe.dart': '''
+    test(
+      'explicit empty selection fails loudly instead of becoming a no-op',
+      () async {
+        const sources = {
+          'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Empty target-selection probe.
@@ -265,22 +275,24 @@ class Probe {
   final String label;
 }
 ''',
-      };
+        };
 
-      for (final target in WidgetVisitorTarget.values) {
-        final result = await runWidgetVisitorOn(sources, target: target);
-        final issue = result.issues.singleWhere(
-          (candidate) =>
-              candidate.code == IssueCode.invalidWidgetConstructorInput,
-        );
-        expect(issue.message, contains('must not be empty'));
-      }
-    });
+        for (final target in WidgetVisitorTarget.values) {
+          final result = await runWidgetVisitorOn(sources, target: target);
+          final issue = result.issues.singleWhere(
+            (candidate) =>
+                candidate.code == IssueCode.invalidWidgetConstructorInput,
+          );
+          expect(issue.message, contains('must not be empty'));
+        }
+      },
+    );
 
-    test('custom const Iterable fails with a const list or set diagnostic',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'custom const Iterable fails with a const list or set diagnostic',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 class CustomTargets extends Iterable<EmitTarget> {
@@ -302,14 +314,15 @@ class Probe {
   final String label;
 }
 ''',
-      });
+        });
 
-      final issue = result.issues.singleWhere(
-        (candidate) =>
-            candidate.code == IssueCode.invalidWidgetConstructorInput,
-      );
-      expect(issue.message, contains('const list or set'));
-    });
+        final issue = result.issues.singleWhere(
+          (candidate) =>
+              candidate.code == IssueCode.invalidWidgetConstructorInput,
+        );
+        expect(issue.message, contains('const list or set'));
+      },
+    );
 
     test('foreign EmitTarget members fail resolved enum identity', () async {
       final result = await runWidgetVisitorOn({
@@ -339,10 +352,11 @@ class Probe {
       expect(issue.message, contains('EmitTarget'));
     });
 
-    test('required and assert-required errors affect only selected target',
-        () async {
-      const sources = {
-        'lib/probe.dart': '''
+    test(
+      'required and assert-required errors affect only selected target',
+      () async {
+        const sources = {
+          'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Required selective exclusion probe.
@@ -363,44 +377,46 @@ class Probe {
   final String? assertedValue;
 }
 ''',
-      };
+        };
 
-      final a2ui = await runWidgetVisitorOn(
-        sources,
-        target: WidgetVisitorTarget.a2ui,
-      );
-      expect(
-        a2ui.issues
-            .where(
+        final a2ui = await runWidgetVisitorOn(
+          sources,
+          target: WidgetVisitorTarget.a2ui,
+        );
+        expect(
+          a2ui.issues
+              .where(
+                (issue) =>
+                    issue.code == IssueCode.invalidWidgetConstructorInput,
+              )
+              .map((issue) => issue.location)
+              .toSet(),
+          {
+            'lib/probe.dart#Probe.requiredValue',
+            'lib/probe.dart#Probe.assertedValue',
+          },
+        );
+
+        for (final target in const [
+          WidgetVisitorTarget.rfw,
+          WidgetVisitorTarget.widgetbook,
+        ]) {
+          final sibling = await runWidgetVisitorOn(sources, target: target);
+          expect(
+            sibling.issues.where(
               (issue) => issue.code == IssueCode.invalidWidgetConstructorInput,
-            )
-            .map((issue) => issue.location)
-            .toSet(),
-        {
-          'lib/probe.dart#Probe.requiredValue',
-          'lib/probe.dart#Probe.assertedValue',
-        },
-      );
-
-      for (final target in const [
-        WidgetVisitorTarget.rfw,
-        WidgetVisitorTarget.widgetbook,
-      ]) {
-        final sibling = await runWidgetVisitorOn(sources, target: target);
-        expect(
-          sibling.issues.where(
-            (issue) => issue.code == IssueCode.invalidWidgetConstructorInput,
-          ),
-          isEmpty,
-          reason: target.name,
-        );
-        expect(
-          sibling.widgets.single.properties.map((property) => property.name),
-          ['requiredValue', 'assertedValue'],
-          reason: target.name,
-        );
-      }
-    });
+            ),
+            isEmpty,
+            reason: target.name,
+          );
+          expect(
+            sibling.widgets.single.properties.map((property) => property.name),
+            ['requiredValue', 'assertedValue'],
+            reason: target.name,
+          );
+        }
+      },
+    );
 
     test('positional hole fails only the selected target', () async {
       const sources = {
@@ -454,10 +470,11 @@ class Probe {
       }
     });
 
-    test('positional omission is valid when every later input is auto-excluded',
-        () async {
-      const sources = {
-        'lib/probe.dart': '''
+    test(
+      'positional omission is valid when every later input is auto-excluded',
+      () async {
+        const sources = {
+          'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Positional final-set probe.
@@ -480,21 +497,22 @@ class Probe {
   final Object? hostObject;
 }
 ''',
-      };
+        };
 
-      final result = await runWidgetVisitorOn(
-        sources,
-        target: WidgetVisitorTarget.a2ui,
-      );
+        final result = await runWidgetVisitorOn(
+          sources,
+          target: WidgetVisitorTarget.a2ui,
+        );
 
-      expect(result.issues, isEmpty);
-      expect(result.widgets, hasLength(1));
-      expect(result.widgets.single.properties, isEmpty);
-      expect(
-        result.exclusions.map((exclusion) => exclusion.property),
-        ['hostObject'],
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(result.widgets, hasLength(1));
+        expect(result.widgets.single.properties, isEmpty);
+        expect(
+          result.exclusions.map((exclusion) => exclusion.property),
+          ['hostObject'],
+        );
+      },
+    );
 
     test('selective Ignore keeps the input on included siblings', () async {
       const sources = {
@@ -536,31 +554,34 @@ class Probe {
       }
     });
 
-    test('selective Ignore keeps constructor order among surviving fields',
-        () async {
-      final sources = {
-        'lib/probe.dart': _orderMigrationSource(
-          '@Ignore({EmitTarget.a2ui})',
-        ),
-      };
+    test(
+      'selective Ignore keeps constructor order among surviving fields',
+      () async {
+        final sources = {
+          'lib/probe.dart': _orderMigrationSource(
+            '@Ignore({EmitTarget.a2ui})',
+          ),
+        };
 
-      for (final target in WidgetVisitorTarget.values) {
-        final result = await runWidgetVisitorOn(sources, target: target);
-        expect(result.issues, isEmpty, reason: target.name);
-        expect(
-          result.widgets.single.properties.map((property) => property.name),
-          target == WidgetVisitorTarget.a2ui
-              ? ['first', 'second']
-              : ['hidden', 'first', 'second'],
-          reason: target.name,
-        );
-      }
-    });
+        for (final target in WidgetVisitorTarget.values) {
+          final result = await runWidgetVisitorOn(sources, target: target);
+          expect(result.issues, isEmpty, reason: target.name);
+          expect(
+            result.widgets.single.properties.map((property) => property.name),
+            target == WidgetVisitorTarget.a2ui
+                ? ['first', 'second']
+                : ['hidden', 'first', 'second'],
+            reason: target.name,
+          );
+        }
+      },
+    );
 
-    test('selective Ignore removes unreachable structured closure by target',
-        () async {
-      const sources = {
-        'lib/probe.dart': '''
+    test(
+      'selective Ignore removes unreachable structured closure by target',
+      () async {
+        const sources = {
+          'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 class ProbeData {
@@ -588,81 +609,83 @@ class Probe {
   final String title;
 }
 ''',
-      };
+        };
 
-      final rfw = await runWidgetVisitorOn(sources);
-      expect(
-        rfw.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      expect(
-        rfw.widgets.single.properties.map((property) => property.name),
-        ['data', 'title'],
-      );
-      expect(rfw.structuredTypes.map((entry) => entry.name), ['ProbeData']);
-
-      for (final target in const [
-        WidgetVisitorTarget.a2ui,
-        WidgetVisitorTarget.widgetbook,
-      ]) {
-        final result = await runWidgetVisitorOn(sources, target: target);
+        final rfw = await runWidgetVisitorOn(sources);
         expect(
-          result.issues.where((issue) => !issue.code.isInformational),
+          rfw.issues.where((issue) => !issue.code.isInformational),
           isEmpty,
-          reason: target.name,
         );
         expect(
-          result.widgets.single.properties.map((property) => property.name),
-          ['title'],
-          reason: target.name,
+          rfw.widgets.single.properties.map((property) => property.name),
+          ['data', 'title'],
         );
-        expect(result.structuredTypes, isEmpty, reason: target.name);
-        expect(result.slotTargets, isEmpty, reason: target.name);
-      }
-    });
+        expect(rfw.structuredTypes.map((entry) => entry.name), ['ProbeData']);
 
-    test('selective callback routing preserves target-local write-back closure',
-        () async {
-      const widgetbookOmission = {
-        'lib/probe.dart': _callbackRoutingSource,
-      };
-
-      for (final target in const [
-        WidgetVisitorTarget.rfw,
-        WidgetVisitorTarget.a2ui,
-      ]) {
-        final result = await runWidgetVisitorOn(
-          widgetbookOmission,
-          target: target,
-        );
-        expect(
-          result.issues.where((issue) => !issue.code.isInformational),
-          isEmpty,
-          reason: target.name,
-        );
-        expect(
-          result.widgets.single.properties.map((property) => property.name),
-          ['value', 'onChanged'],
-          reason: target.name,
-        );
-      }
-
-      final widgetbook = await runWidgetVisitorOn(
-        widgetbookOmission,
-        target: WidgetVisitorTarget.widgetbook,
-      );
-      expect(
-        widgetbook.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      expect(
-        widgetbook.widgets.single.properties.map((property) => property.name),
-        ['value'],
-      );
-    });
+        for (final target in const [
+          WidgetVisitorTarget.a2ui,
+          WidgetVisitorTarget.widgetbook,
+        ]) {
+          final result = await runWidgetVisitorOn(sources, target: target);
+          expect(
+            result.issues.where((issue) => !issue.code.isInformational),
+            isEmpty,
+            reason: target.name,
+          );
+          expect(
+            result.widgets.single.properties.map((property) => property.name),
+            ['title'],
+            reason: target.name,
+          );
+          expect(result.structuredTypes, isEmpty, reason: target.name);
+          expect(result.slotTargets, isEmpty, reason: target.name);
+        }
+      },
+    );
 
     test(
-        'invalid selective positional omission is reported only for the '
+      'selective callback routing preserves target-local write-back closure',
+      () async {
+        const widgetbookOmission = {
+          'lib/probe.dart': _callbackRoutingSource,
+        };
+
+        for (final target in const [
+          WidgetVisitorTarget.rfw,
+          WidgetVisitorTarget.a2ui,
+        ]) {
+          final result = await runWidgetVisitorOn(
+            widgetbookOmission,
+            target: target,
+          );
+          expect(
+            result.issues.where((issue) => !issue.code.isInformational),
+            isEmpty,
+            reason: target.name,
+          );
+          expect(
+            result.widgets.single.properties.map((property) => property.name),
+            ['value', 'onChanged'],
+            reason: target.name,
+          );
+        }
+
+        final widgetbook = await runWidgetVisitorOn(
+          widgetbookOmission,
+          target: WidgetVisitorTarget.widgetbook,
+        );
+        expect(
+          widgetbook.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        expect(
+          widgetbook.widgets.single.properties.map((property) => property.name),
+          ['value'],
+        );
+      },
+    );
+
+    test('invalid selective positional omission is reported only for the '
         'omitting target', () async {
       const sources = {
         'lib/probe.dart': _positionalOrderMigrationSource,
@@ -692,7 +715,8 @@ class Probe {
   });
 }
 
-String _orderMigrationSource(String ignore) => '''
+String _orderMigrationSource(String ignore) =>
+    '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Order migration routing probe.

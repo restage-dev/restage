@@ -29,8 +29,8 @@ final class AnalyticsIdLoweringResult {
     required this.text,
     required Iterable<AnalyticsIdDeclaration> declarations,
     required Iterable<Issue> issues,
-  })  : declarations = List.unmodifiable(declarations),
-        issues = List.unmodifiable(issues);
+  }) : declarations = List.unmodifiable(declarations),
+       issues = List.unmodifiable(issues);
 
   /// The sanitized parsed library used by all downstream compiler work.
   final fmt.RemoteWidgetLibrary library;
@@ -124,7 +124,8 @@ AnalyticsIdLoweringResult lowerAnalyticsIds({
       state.issues.add(
         Issue(
           code: IssueCode.invalidAnalyticsId,
-          message: 'Sanitized RFW does not match its frozen catalog '
+          message:
+              'Sanitized RFW does not match its frozen catalog '
               'occurrences: $error',
           location: location,
         ),
@@ -171,7 +172,7 @@ final class _AnalyticsIdLoweringState {
   final Set<fmt.ConstructorCall> _constructorsToStrip =
       Set<fmt.ConstructorCall>.identity();
   final Map<RfwCatalogOccurrenceHandle, _AnalyticsIdDeclarationDraft>
-      _declarationByPresentationHandle =
+  _declarationByPresentationHandle =
       <RfwCatalogOccurrenceHandle, _AnalyticsIdDeclarationDraft>{};
 
   void walk(Object? node, List<String> path) {
@@ -242,7 +243,8 @@ final class _AnalyticsIdLoweringState {
   ) {
     final hasAnalyticsId = call.arguments.containsKey(kAnalyticsIdPropertyName);
     final path = <String>[...parentPath, _pathPart('call', call.name)];
-    final occurrence = occurrenceSet?.occurrenceForCall(call) ??
+    final occurrence =
+        occurrenceSet?.occurrenceForCall(call) ??
         occurrenceRebinding?.bindingForCall(call)?.occurrence;
     if (occurrence == null) {
       if (hasAnalyticsId) _missingPresentationHandle(path);
@@ -265,7 +267,8 @@ final class _AnalyticsIdLoweringState {
       issues.add(
         Issue(
           code: IssueCode.invalidAnalyticsId,
-          message: 'analyticsId could not be located in the parsed constructor '
+          message:
+              'analyticsId could not be located in the parsed constructor '
               'source.',
           location: _locationFor(path),
         ),
@@ -280,7 +283,8 @@ final class _AnalyticsIdLoweringState {
       issues.add(
         Issue(
           code: IssueCode.invalidAnalyticsId,
-          message: 'analyticsId must be a static lowercase identifier of 1 to '
+          message:
+              'analyticsId must be a static lowercase identifier of 1 to '
               '$kAnalyticsIdMaximumLength ASCII characters.',
           location: _locationFor(path),
         ),
@@ -296,7 +300,8 @@ final class _AnalyticsIdLoweringState {
       issues.add(
         Issue(
           code: IssueCode.invalidAnalyticsId,
-          message: 'Conflicting analyticsId declarations share one compiler '
+          message:
+              'Conflicting analyticsId declarations share one compiler '
               'occurrence handle.',
           location: _locationFor(path),
         ),
@@ -312,7 +317,8 @@ final class _AnalyticsIdLoweringState {
     issues.add(
       Issue(
         code: IssueCode.invalidAnalyticsId,
-        message: 'analyticsId requires an authoritative catalog occurrence '
+        message:
+            'analyticsId requires an authoritative catalog occurrence '
             'for the same parsed constructor call.',
         location: _locationFor(path),
       ),
@@ -332,14 +338,14 @@ final class _AnalyticsIdLoweringState {
         (throw StateError('RFW typed copy produced an unexpected null'));
 
     fmt.DynamicMap copyDynamicMap(fmt.DynamicMap value) => <String, Object?>{
-          for (final entry in value.entries) entry.key: copyValue(entry.value),
-        };
+      for (final entry in value.entries) entry.key: copyValue(entry.value),
+    };
 
-    Map<Object?, Object> copySwitchOutputs(Map<Object?, Object> value) =>
-        <Object?, Object>{
-          for (final entry in value.entries)
-            entry.key: copyRequired(entry.value),
-        };
+    Map<Object?, Object> copySwitchOutputs(
+      Map<Object?, Object> value,
+    ) => <Object?, Object>{
+      for (final entry in value.entries) entry.key: copyRequired(entry.value),
+    };
 
     fmt.ConstructorCall copyConstructor(fmt.ConstructorCall value) {
       final stripAnalyticsId = _constructorsToStrip.contains(value);

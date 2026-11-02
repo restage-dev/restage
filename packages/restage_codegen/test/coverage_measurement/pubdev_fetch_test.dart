@@ -35,16 +35,20 @@ void main() {
       expect(dir, isNull);
     });
 
-    test('picks the highest version when unpinned (numeric segment compare)',
-        () {
-      final dir = locatePackageInCache(cacheRoot: cache.path, package: 'gap');
-      // 2.0.10 > 2.0.1 numerically (not lexicographically).
-      expect(dir, endsWith('/gap-2.0.10'));
-    });
+    test(
+      'picks the highest version when unpinned (numeric segment compare)',
+      () {
+        final dir = locatePackageInCache(cacheRoot: cache.path, package: 'gap');
+        // 2.0.10 > 2.0.1 numerically (not lexicographically).
+        expect(dir, endsWith('/gap-2.0.10'));
+      },
+    );
 
     test('returns null when no matching package is cached', () {
-      final dir =
-          locatePackageInCache(cacheRoot: cache.path, package: 'absent');
+      final dir = locatePackageInCache(
+        cacheRoot: cache.path,
+        package: 'absent',
+      );
       expect(dir, isNull);
     });
 
@@ -81,49 +85,50 @@ void main() {
     });
     tearDown(() => fakeCache.deleteSync(recursive: true));
 
-    test('copies the located package to a temp dir and resolves the version',
-        () async {
-      final calls = <List<String>>[];
-      Future<ProcessResult> fakeRun(
-        String exe,
-        List<String> args, {
-        String? workingDirectory,
-      }) async {
-        calls.add([exe, ...args]);
-        return ProcessResult(0, 0, '', '');
-      }
+    test(
+      'copies the located package to a temp dir and resolves the version',
+      () async {
+        final calls = <List<String>>[];
+        Future<ProcessResult> fakeRun(
+          String exe,
+          List<String> args, {
+          String? workingDirectory,
+        }) async {
+          calls.add([exe, ...args]);
+          return ProcessResult(0, 0, '', '');
+        }
 
-      final fetched = await fetchPubPackageToTemp(
-        package: 'gap',
-        version: '1.2.3',
-        pubCacheRoot: fakeCache.path,
-        runProcess: fakeRun,
-      );
-      addTearDown(fetched.dispose);
+        final fetched = await fetchPubPackageToTemp(
+          package: 'gap',
+          version: '1.2.3',
+          pubCacheRoot: fakeCache.path,
+          runProcess: fakeRun,
+        );
+        addTearDown(fetched.dispose);
 
-      expect(fetched.version, '1.2.3');
-      expect(File('${fetched.directory}/lib/gap.dart').existsSync(), isTrue);
-      expect(File('${fetched.directory}/pubspec.yaml').existsSync(), isTrue);
-      // The temp copy is a fresh location, not the cache dir itself.
-      expect(fetched.directory, isNot(contains('hosted/pub.dev')));
-      // `pub cache add` then `flutter pub get` were both invoked.
-      expect(
-        calls.any((c) => c.contains('cache') && c.contains('add')),
-        isTrue,
-      );
-      expect(
-        calls.any((c) => c.first == 'flutter' && c.contains('get')),
-        isTrue,
-      );
-    });
+        expect(fetched.version, '1.2.3');
+        expect(File('${fetched.directory}/lib/gap.dart').existsSync(), isTrue);
+        expect(File('${fetched.directory}/pubspec.yaml').existsSync(), isTrue);
+        // The temp copy is a fresh location, not the cache dir itself.
+        expect(fetched.directory, isNot(contains('hosted/pub.dev')));
+        // `pub cache add` then `flutter pub get` were both invoked.
+        expect(
+          calls.any((c) => c.contains('cache') && c.contains('add')),
+          isTrue,
+        );
+        expect(
+          calls.any((c) => c.first == 'flutter' && c.contains('get')),
+          isTrue,
+        );
+      },
+    );
 
     test('throws PubFetchException when pub cache add fails', () async {
       Future<ProcessResult> failRun(
         String exe,
         List<String> args, {
         String? workingDirectory,
-      }) async =>
-          ProcessResult(0, 1, '', 'cache add boom');
+      }) async => ProcessResult(0, 1, '', 'cache add boom');
 
       await expectLater(
         fetchPubPackageToTemp(
@@ -136,34 +141,34 @@ void main() {
       );
     });
 
-    test('throws PubFetchException when the package is not cached after add',
-        () async {
-      Future<ProcessResult> okRun(
-        String exe,
-        List<String> args, {
-        String? workingDirectory,
-      }) async =>
-          ProcessResult(0, 0, '', '');
+    test(
+      'throws PubFetchException when the package is not cached after add',
+      () async {
+        Future<ProcessResult> okRun(
+          String exe,
+          List<String> args, {
+          String? workingDirectory,
+        }) async => ProcessResult(0, 0, '', '');
 
-      await expectLater(
-        fetchPubPackageToTemp(
-          package: 'absent',
-          pubCacheRoot: fakeCache.path,
-          runProcess: okRun,
-        ),
-        throwsA(isA<PubFetchException>()),
-      );
-    });
+        await expectLater(
+          fetchPubPackageToTemp(
+            package: 'absent',
+            pubCacheRoot: fakeCache.path,
+            runProcess: okRun,
+          ),
+          throwsA(isA<PubFetchException>()),
+        );
+      },
+    );
 
     test('throws (and cleans up) when flutter pub get fails', () async {
       Future<ProcessResult> getFailsRun(
         String exe,
         List<String> args, {
         String? workingDirectory,
-      }) async =>
-          exe == 'flutter'
-              ? ProcessResult(0, 1, '', 'pub get boom')
-              : ProcessResult(0, 0, '', '');
+      }) async => exe == 'flutter'
+          ? ProcessResult(0, 1, '', 'pub get boom')
+          : ProcessResult(0, 0, '', '');
 
       await expectLater(
         fetchPubPackageToTemp(

@@ -22,8 +22,8 @@ final class _CollectionProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['map_capability_probe.txt'],
-      };
+    r'$lib$': ['map_capability_probe.txt'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -40,11 +40,13 @@ final class _CollectionProbeBuilder implements Builder {
 }
 
 Future<
-    ({
-      RestageWidgetCollection? collection,
-      Object? error,
-      List<String> logs,
-    })> _collect(String source) async {
+  ({
+    RestageWidgetCollection? collection,
+    Object? error,
+    List<String> logs,
+  })
+>
+_collect(String source) async {
   final builder = _CollectionProbeBuilder();
   final logs = <String>[];
   final readerWriter = await readerWriterWithFilesystemSources(
@@ -72,7 +74,8 @@ Future<
 }
 
 /// A library whose only render capability is a map-typed widget property.
-String _fixture({int? capabilityVersion}) => '''
+String _fixture({int? capabilityVersion}) =>
+    '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
   @RestageLibrary(
@@ -104,7 +107,8 @@ void main() {
     expect(
       declaredRun.error,
       isNull,
-      reason: 'the fixture must build when the version is declared; got '
+      reason:
+          'the fixture must build when the version is declared; got '
           '${declaredRun.error}',
     );
 
@@ -121,7 +125,8 @@ void main() {
     expect(
       matchingIssues,
       hasLength(1),
-      reason: 'the raise must name its own issue code and the offending '
+      reason:
+          'the raise must name its own issue code and the offending '
           'namespace; got ${undeclaredRun.logs}',
     );
   });

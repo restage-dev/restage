@@ -79,19 +79,19 @@ String? emitUserFactoriesDart(
   // and import aliases. No allocated wire IDs are needed.
   final custom =
       structuredTypes.isEmpty && mapPlans.isEmpty && recordPlans.isEmpty
-          ? null
-          : (
-              structuredBySourceType: {
-                for (final structured in structuredTypes)
-                  structured.sourceType: structured,
-              },
-              plansBySourceType: reconstructionPlans,
-              mapPlans: mapPlans,
-              recordPlans: recordPlans,
-              slotTargets: slotTargets,
-              nullableStructuredSlots: nullableStructuredSlots,
-              aliases: aliasByUri,
-            );
+      ? null
+      : (
+          structuredBySourceType: {
+            for (final structured in structuredTypes)
+              structured.sourceType: structured,
+          },
+          plansBySourceType: reconstructionPlans,
+          mapPlans: mapPlans,
+          recordPlans: recordPlans,
+          slotTargets: slotTargets,
+          nullableStructuredSlots: nullableStructuredSlots,
+          aliases: aliasByUri,
+        );
 
   final emittable = <(WidgetEntry, String)>[];
   for (final entry in widgets) {
@@ -378,31 +378,30 @@ Set<String> referencedAppWidgetLibraryUris(
   required Map<String, String> slotTargets,
   required Map<String, MapPlan> mapPlans,
   required Map<String, RecordPlan> recordPlans,
-}) =>
-    {
-      for (final entry in widgets) _libraryUriOf(entry.flutterType),
-      for (final structured in structuredTypes)
-        _libraryUriOf(structured.sourceType),
-      for (final entry in widgets)
-        for (final property in entry.properties)
-          if (_enumLibOf(property.valueShape) case final uri?) uri,
-      for (final entry in widgets)
-        for (final property in entry.properties)
-          if (property.constructorDefault case final value?
-              when _constructorDefaultIsEmitted(entry, property))
-            ...dartConstValueLibraryUris(value),
-      for (final structured in structuredTypes)
-        for (final field in structured.fields)
-          if (_enumLibOf(field.valueShape) case final uri?) uri,
-      for (final plan in mapPlans.values)
-        for (final key in plan.keys)
-          if (key.enumRef?.libraryUri case final uri?) uri,
-      for (final plan in mapPlans.values)
-        if (_enumLibOf(plan.valueShape) case final uri?) uri,
-      for (final plan in recordPlans.values)
-        for (final label in plan.labels)
-          if (label.enumLibraryUri case final uri?) uri,
-    };
+}) => {
+  for (final entry in widgets) _libraryUriOf(entry.flutterType),
+  for (final structured in structuredTypes)
+    _libraryUriOf(structured.sourceType),
+  for (final entry in widgets)
+    for (final property in entry.properties)
+      if (_enumLibOf(property.valueShape) case final uri?) uri,
+  for (final entry in widgets)
+    for (final property in entry.properties)
+      if (property.constructorDefault case final value?
+          when _constructorDefaultIsEmitted(entry, property))
+        ...dartConstValueLibraryUris(value),
+  for (final structured in structuredTypes)
+    for (final field in structured.fields)
+      if (_enumLibOf(field.valueShape) case final uri?) uri,
+  for (final plan in mapPlans.values)
+    for (final key in plan.keys)
+      if (key.enumRef?.libraryUri case final uri?) uri,
+  for (final plan in mapPlans.values)
+    if (_enumLibOf(plan.valueShape) case final uri?) uri,
+  for (final plan in recordPlans.values)
+    for (final label in plan.labels)
+      if (label.enumLibraryUri case final uri?) uri,
+};
 
 bool _constructorDefaultIsEmitted(
   WidgetEntry entry,

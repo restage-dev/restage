@@ -248,14 +248,15 @@ class ManualCard {}
     }
   });
 
-  test('mixed startup discovery reserves all annotations but no plain class',
-      () {
-    final temp = Directory.systemTemp.createTempSync(
-      'widgetbook-mixed-output-discovery-',
-    );
-    try {
-      final lib = Directory('${temp.path}/lib')..createSync(recursive: true);
-      File('${lib.path}/cards.dart').writeAsStringSync('''
+  test(
+    'mixed startup discovery reserves all annotations but no plain class',
+    () {
+      final temp = Directory.systemTemp.createTempSync(
+        'widgetbook-mixed-output-discovery-',
+      );
+      try {
+        final lib = Directory('${temp.path}/lib')..createSync(recursive: true);
+        File('${lib.path}/cards.dart').writeAsStringSync('''
 class RestageWidget {
   const RestageWidget();
 }
@@ -273,114 +274,123 @@ class ReservedOnlyCard {}
 
 class PlainCard {}
 ''');
-      expect(
-        createWidgetbookStoryBuilderForLib(
-          BuilderOptions.empty,
-          lib,
-        ).buildExtensions,
-        const {
+        expect(
+          createWidgetbookStoryBuilderForLib(
+            BuilderOptions.empty,
+            lib,
+          ).buildExtensions,
+          const {
+            r'$lib$': [
+              'generated/.restage_widgetbook_story_builder',
+              'restage.generated/direct_card.stories.dart',
+              'restage.generated/local_alias_card.stories.dart',
+              'restage.generated/reserved_only_card.stories.dart',
+            ],
+          },
+        );
+      } finally {
+        temp.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'package tests do not mutate the process-wide working directory',
+    () async {
+      final packageLibrary = await Isolate.resolvePackageUri(
+        Uri.parse('package:restage_codegen/restage_codegen.dart'),
+      );
+      expect(packageLibrary, isNotNull);
+      final packageRoot = File.fromUri(packageLibrary!).parent.parent;
+      final mutationPattern = RegExp(
+        '${'Directory'}\\.${'current'}\\s*=',
+      );
+      final offenders =
+          Directory('${packageRoot.path}/test')
+              .listSync(recursive: true, followLinks: false)
+              .whereType<File>()
+              .where((file) => file.path.endsWith('.dart'))
+              .where(
+                (file) => mutationPattern.hasMatch(file.readAsStringSync()),
+              )
+              .map((file) => file.path)
+              .toList()
+            ..sort();
+
+      expect(offenders, isEmpty);
+    },
+  );
+
+  test(
+    'resolved const aliases own outputs while unrelated metadata is inert',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      await testBuilder(
+        const WidgetbookStoryBuilder({
           r'$lib$': [
-            'generated/.restage_widgetbook_story_builder',
-            'restage.generated/direct_card.stories.dart',
+            'restage.generated/imported_alias_card.stories.dart',
             'restage.generated/local_alias_card.stories.dart',
             'restage.generated/reserved_only_card.stories.dart',
           ],
+        }),
+        const {
+          'apps_examples|lib/indirect_annotations.dart': _indirectAnnotations,
+          'apps_examples|lib/indirect_alias_cards.dart': _indirectAliasCards,
+          'apps_examples|lib/imported_alias_cards.dart': _importedAliasCards,
+          'widgetbook|lib/widgetbook.dart': _widgetbookStub,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/restage.generated/imported_alias_card.stories.dart':
+              decodedMatches(contains('ImportedAliasCard')),
+          'apps_examples|lib/restage.generated/local_alias_card.stories.dart':
+              decodedMatches(contains('LocalAliasCard')),
         },
       );
-    } finally {
-      temp.deleteSync(recursive: true);
-    }
-  });
+    },
+  );
 
-  test('package tests do not mutate the process-wide working directory',
-      () async {
-    final packageLibrary = await Isolate.resolvePackageUri(
-      Uri.parse('package:restage_codegen/restage_codegen.dart'),
-    );
-    expect(packageLibrary, isNotNull);
-    final packageRoot = File.fromUri(packageLibrary!).parent.parent;
-    final mutationPattern = RegExp(
-      '${'Directory'}\\.${'current'}\\s*=',
-    );
-    final offenders = Directory('${packageRoot.path}/test')
-        .listSync(recursive: true, followLinks: false)
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.dart'))
-        .where((file) => mutationPattern.hasMatch(file.readAsStringSync()))
-        .map((file) => file.path)
-        .toList()
-      ..sort();
+  test(
+    'genuine widget fails loud without owning a hand-authored story',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final logs = <String>[];
+      await testBuilder(
+        const WidgetbookStoryBuilder({
+          r'$lib$': ['generated/.restage_widgetbook_story_builder'],
+        }),
+        const {
+          'apps_examples|lib/manual_card.dart': _genuineManualCard,
+          'apps_examples|lib/restage.generated/manual_card.stories.dart':
+              _foreignGeneratedManualStory,
+          'widgetbook|lib/widgetbook.dart': _widgetbookStub,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
+      );
 
-    expect(offenders, isEmpty);
-  });
-
-  test('resolved const aliases own outputs while unrelated metadata is inert',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    await testBuilder(
-      const WidgetbookStoryBuilder({
-        r'$lib$': [
-          'restage.generated/imported_alias_card.stories.dart',
-          'restage.generated/local_alias_card.stories.dart',
-          'restage.generated/reserved_only_card.stories.dart',
-        ],
-      }),
-      const {
-        'apps_examples|lib/indirect_annotations.dart': _indirectAnnotations,
-        'apps_examples|lib/indirect_alias_cards.dart': _indirectAliasCards,
-        'apps_examples|lib/imported_alias_cards.dart': _importedAliasCards,
-        'widgetbook|lib/widgetbook.dart': _widgetbookStub,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      outputs: {
-        'apps_examples|lib/restage.generated/imported_alias_card.stories.dart':
-            decodedMatches(contains('ImportedAliasCard')),
-        'apps_examples|lib/restage.generated/local_alias_card.stories.dart':
-            decodedMatches(contains('LocalAliasCard')),
-      },
-    );
-  });
-
-  test('genuine widget fails loud without owning a hand-authored story',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final logs = <String>[];
-    await testBuilder(
-      const WidgetbookStoryBuilder({
-        r'$lib$': ['generated/.restage_widgetbook_story_builder'],
-      }),
-      const {
-        'apps_examples|lib/manual_card.dart': _genuineManualCard,
-        'apps_examples|lib/restage.generated/manual_card.stories.dart':
-            _foreignGeneratedManualStory,
-        'widgetbook|lib/widgetbook.dart': _widgetbookStub,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
-    );
-
-    expect(
-      logs.join('\n'),
-      allOf(
-        contains('lib/manual_card.dart#ManualCard'),
-        contains(
-          'conflicts with the existing hand-authored Widgetbook story at '
-          'lib/restage.generated/manual_card.stories.dart',
+      expect(
+        logs.join('\n'),
+        allOf(
+          contains('lib/manual_card.dart#ManualCard'),
+          contains(
+            'conflicts with the existing hand-authored Widgetbook story at '
+            'lib/restage.generated/manual_card.stories.dart',
+          ),
+          contains('Move or rename the hand-authored story'),
+          isNot(contains('Restart dart run build_runner watch')),
         ),
-        contains('Move or rename the hand-authored story'),
-        isNot(contains('Restart dart run build_runner watch')),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('genuine widget owns its output despite a same-stem lookalike',
-      () async {
+  test('genuine widget owns its output despite a same-stem lookalike', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );
@@ -398,19 +408,19 @@ class PlainCard {}
       outputs: {
         'apps_examples|lib/restage.generated/same_card.stories.dart':
             decodedMatches(
-          allOf(
-            contains(
-              '// GENERATED CODE - DO NOT MODIFY BY HAND\n'
-              '// GENERATED BY RESTAGE WIDGETBOOK STORY BUILDER\n'
-              '// ignore_for_file: '
-              'library_private_types_in_public_api, unused_import',
+              allOf(
+                contains(
+                  '// GENERATED CODE - DO NOT MODIFY BY HAND\n'
+                  '// GENERATED BY RESTAGE WIDGETBOOK STORY BUILDER\n'
+                  '// ignore_for_file: '
+                  'library_private_types_in_public_api, unused_import',
+                ),
+                contains(
+                  "import 'package:apps_examples/genuine.dart' show SameCard;",
+                ),
+                isNot(contains('lookalike.dart')),
+              ),
             ),
-            contains(
-              "import 'package:apps_examples/genuine.dart' show SameCard;",
-            ),
-            isNot(contains('lookalike.dart')),
-          ),
-        ),
       },
     );
   });
@@ -435,37 +445,39 @@ class PlainCard {}
     expect(logs.join('\n'), isNot(contains('ambiguous')));
   });
 
-  test('two genuine same-stem owners fail with exact resolved declarations',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final logs = <String>[];
-    await testBuilder(
-      const WidgetbookStoryBuilder({
-        r'$lib$': ['restage.generated/same_card.stories.dart'],
-      }),
-      const {
-        'apps_examples|lib/first.dart': _firstGenuineSameCard,
-        'apps_examples|lib/second.dart': _secondGenuineSameCard,
-        'widgetbook|lib/widgetbook.dart': _widgetbookStub,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
-    );
-    expect(
-      logs.join('\n'),
-      allOf(
-        contains(
-          "Widgetbook story output 'lib/restage.generated/same_card.stories.dart'",
+  test(
+    'two genuine same-stem owners fail with exact resolved declarations',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final logs = <String>[];
+      await testBuilder(
+        const WidgetbookStoryBuilder({
+          r'$lib$': ['restage.generated/same_card.stories.dart'],
+        }),
+        const {
+          'apps_examples|lib/first.dart': _firstGenuineSameCard,
+          'apps_examples|lib/second.dart': _secondGenuineSameCard,
+          'widgetbook|lib/widgetbook.dart': _widgetbookStub,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
+      );
+      expect(
+        logs.join('\n'),
+        allOf(
+          contains(
+            "Widgetbook story output 'lib/restage.generated/same_card.stories.dart'",
+          ),
+          contains('lib/first.dart#SameCard'),
+          contains('lib/second.dart#SameCard'),
+          contains('genuine @RestageWidget declarations'),
         ),
-        contains('lib/first.dart#SameCard'),
-        contains('lib/second.dart#SameCard'),
-        contains('genuine @RestageWidget declarations'),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   test('part owner paths are exact and sorted in genuine collisions', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
@@ -503,64 +515,69 @@ class PlainCard {}
     );
   });
 
-  test('package-URI part owner paths are exact in genuine collisions',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final logs = <String>[];
-    await testBuilder(
-      const WidgetbookStoryBuilder({
-        r'$lib$': ['restage.generated/same_card.stories.dart'],
-      }),
-      const {
-        'apps_examples|lib/package_part_owner.dart': _packagePartOwnerLibrary,
-        'apps_examples|lib/src/package_part_piece.dart': _packagePartOwnerPiece,
-        'apps_examples|lib/source_owner.dart': _sourceOwnerSameCard,
-        'widgetbook|lib/widgetbook.dart': _widgetbookStub,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
-    );
-    final output = logs.join('\n');
-    expect(
-      output,
-      allOf(
-        contains('lib/src/package_part_piece.dart#SameCard'),
-        contains('lib/source_owner.dart#SameCard'),
-        isNot(contains('lib/package_part_owner.dart#SameCard')),
-      ),
-    );
-  });
+  test(
+    'package-URI part owner paths are exact in genuine collisions',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final logs = <String>[];
+      await testBuilder(
+        const WidgetbookStoryBuilder({
+          r'$lib$': ['restage.generated/same_card.stories.dart'],
+        }),
+        const {
+          'apps_examples|lib/package_part_owner.dart': _packagePartOwnerLibrary,
+          'apps_examples|lib/src/package_part_piece.dart':
+              _packagePartOwnerPiece,
+          'apps_examples|lib/source_owner.dart': _sourceOwnerSameCard,
+          'widgetbook|lib/widgetbook.dart': _widgetbookStub,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
+      );
+      final output = logs.join('\n');
+      expect(
+        output,
+        allOf(
+          contains('lib/src/package_part_piece.dart#SameCard'),
+          contains('lib/source_owner.dart#SameCard'),
+          isNot(contains('lib/package_part_owner.dart#SameCard')),
+        ),
+      );
+    },
+  );
 
-  test('one package build emits multiple genuine classes including a part',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    await testBuilder(
-      const WidgetbookStoryBuilder({
-        r'$lib$': [
-          'restage.generated/first_card.stories.dart',
-          'restage.generated/second_card.stories.dart',
-        ],
-      }),
-      const {
-        'apps_examples|lib/cards.dart': _genuineCardsLibrary,
-        'apps_examples|lib/cards_part.dart': _genuineCardsPart,
-        'widgetbook|lib/widgetbook.dart': _widgetbookStub,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      outputs: {
-        'apps_examples|lib/restage.generated/first_card.stories.dart':
-            decodedMatches(contains('FirstCard')),
-        'apps_examples|lib/restage.generated/second_card.stories.dart':
-            decodedMatches(contains('SecondCard')),
-      },
-    );
-  });
+  test(
+    'one package build emits multiple genuine classes including a part',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      await testBuilder(
+        const WidgetbookStoryBuilder({
+          r'$lib$': [
+            'restage.generated/first_card.stories.dart',
+            'restage.generated/second_card.stories.dart',
+          ],
+        }),
+        const {
+          'apps_examples|lib/cards.dart': _genuineCardsLibrary,
+          'apps_examples|lib/cards_part.dart': _genuineCardsPart,
+          'widgetbook|lib/widgetbook.dart': _widgetbookStub,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/restage.generated/first_card.stories.dart':
+              decodedMatches(contains('FirstCard')),
+          'apps_examples|lib/restage.generated/second_card.stories.dart':
+              decodedMatches(contains('SecondCard')),
+        },
+      );
+    },
+  );
 
   test(
     'Widgetbook emits a same-name widget and screen at distinct paths',
@@ -588,20 +605,20 @@ class PlainCard {}
           outputs: {
             'apps_examples|lib/onboarding/screens/restage.generated/shared_card.stories.dart':
                 decodedMatches(
-              allOf(
-                contains('name: "shared"'),
-                contains("path: 'decoration'"),
-                isNot(contains("path: 'Screens'")),
-              ),
-            ),
+                  allOf(
+                    contains('name: "shared"'),
+                    contains("path: 'decoration'"),
+                    isNot(contains("path: 'Screens'")),
+                  ),
+                ),
             'apps_examples|lib/onboarding/screens/restage.generated/shared_screen.stories.dart':
                 decodedMatches(
-              allOf(
-                contains('name: "shared"'),
-                contains("path: 'Screens'"),
-                isNot(contains("path: 'decoration'")),
-              ),
-            ),
+                  allOf(
+                    contains('name: "shared"'),
+                    contains("path: 'Screens'"),
+                    isNot(contains("path: 'decoration'")),
+                  ),
+                ),
           },
         ),
       );
@@ -736,7 +753,7 @@ class PlainCard {}
         body: () => testBuilder(
           const WidgetbookStoryBuilder({
             r'$lib$': [
-              'features/restage.generated/collision_screen.stories.dart'
+              'features/restage.generated/collision_screen.stories.dart',
             ],
           }),
           const {
@@ -771,7 +788,8 @@ class PlainCard {}
     'generated ScreenSource story compiles when its class shadows the '
     'Restage dispatcher',
     () async {
-      const output = 'apps_examples|lib/onboarding/screens/restage.generated/'
+      const output =
+          'apps_examples|lib/onboarding/screens/restage.generated/'
           'restage_event_dispatcher.stories.dart';
       final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
@@ -830,8 +848,9 @@ class PlainCard {}
               'lib/onboarding/screens/restage.generated/restage_event_dispatcher.stories.dart',
             ),
           );
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
+          final resolved = await library.session.getResolvedLibraryByElement(
+            library,
+          );
           if (resolved is! ResolvedLibraryResult) {
             throw StateError(
               'Generated dispatcher-named story did not resolve.',
@@ -869,7 +888,7 @@ class PlainCard {}
           body: () => testBuilder(
             const WidgetbookStoryBuilder({
               r'$lib$': [
-                'onboarding/screens/restage.generated/part_decoy.stories.dart'
+                'onboarding/screens/restage.generated/part_decoy.stories.dart',
               ],
             }),
             {
@@ -896,8 +915,7 @@ class PlainCard {}
     );
   }
 
-  test('Widgetbook rejects a non-Widget ScreenSource before emission',
-      () async {
+  test('Widgetbook rejects a non-Widget ScreenSource before emission', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );
@@ -907,7 +925,7 @@ class PlainCard {}
       body: () => testBuilder(
         const WidgetbookStoryBuilder({
           r'$lib$': [
-            'onboarding/screens/restage.generated/not_awidget_screen.stories.dart'
+            'onboarding/screens/restage.generated/not_awidget_screen.stories.dart',
           ],
         }),
         const {
@@ -934,42 +952,46 @@ class PlainCard {}
     );
   });
 
-  test('ScreenSource output membership changes retain the restart rule',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final logs = <String>[];
-    await runWithNativeScreenPackageGraphForTesting(
-      packageGraphSource: _screenSourcePackageGraph,
-      body: () => testBuilder(
-        const WidgetbookStoryBuilder({
-          r'$lib$': ['generated/.restage_widgetbook_story_builder'],
-        }),
-        const {
-          'apps_examples|lib/onboarding/screens/opaque-screen-v1.dart':
-              _genuineScreenSource,
-          'apps_examples|pubspec.yaml': _screenSourcePubspec,
-          'widgetbook|lib/widgetbook.dart': _widgetbookStub,
-        },
+  test(
+    'ScreenSource output membership changes retain the restart rule',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
-      ),
-    );
-
-    expect(
-      logs.join('\n'),
-      allOf(
-        contains(
-          'lib/onboarding/screens/opaque-screen-v1.dart#OpaqueScreen',
+      );
+      final logs = <String>[];
+      await runWithNativeScreenPackageGraphForTesting(
+        packageGraphSource: _screenSourcePackageGraph,
+        body: () => testBuilder(
+          const WidgetbookStoryBuilder({
+            r'$lib$': ['generated/.restage_widgetbook_story_builder'],
+          }),
+          const {
+            'apps_examples|lib/onboarding/screens/opaque-screen-v1.dart':
+                _genuineScreenSource,
+            'apps_examples|pubspec.yaml': _screenSourcePubspec,
+            'widgetbook|lib/widgetbook.dart': _widgetbookStub,
+          },
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          onLog: (record) =>
+              logs.add('${record.level.name}: ${record.message}'),
         ),
-        contains(
-            'lib/onboarding/screens/restage.generated/opaque_screen.stories.dart'),
-        contains('Restart dart run build_runner watch'),
-      ),
-    );
-  });
+      );
+
+      expect(
+        logs.join('\n'),
+        allOf(
+          contains(
+            'lib/onboarding/screens/opaque-screen-v1.dart#OpaqueScreen',
+          ),
+          contains(
+            'lib/onboarding/screens/restage.generated/opaque_screen.stories.dart',
+          ),
+          contains('Restart dart run build_runner watch'),
+        ),
+      );
+    },
+  );
 
   test('rejects legacy auxiliary authoring options', () {
     expect(
@@ -998,200 +1020,210 @@ class PlainCard {}
     );
   });
 
-  test('preserves public callback defaults through production story output',
-      () async {
-    const output =
-        'apps_examples|lib/restage.generated/callback_default_card.stories.dart';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    var generated = '';
-    await testBuilder(
-      const WidgetbookStoryBuilder({
-        r'$lib$': [
-          'restage.generated/callback_default_card.stories.dart',
-        ],
-      }),
-      const {
-        'apps_examples|lib/callback_defaults.dart': _publicCallbackDefaults,
-        'apps_examples|lib/callback_default_card.dart': _callbackDefaultCard,
-        'widgetbook|lib/widgetbook.dart': _widgetbookStub,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      outputs: {
-        output: decodedMatches(
-          allOf(<Matcher>[
-            predicate<String>(
-              (source) {
-                generated = source;
-                return true;
-              },
-              'captures generated story source',
-            ),
-            contains(
-              "import 'package:apps_examples/callback_defaults.dart' "
-              'as restage_native_0;',
-            ),
-            contains('this.onTap = true'),
-            contains('this.onChanged = true'),
-            contains('this.onSubmitted = true'),
-            contains('this.onDismissed = false'),
-            contains(
-              'onTap: restage_native_0.topLevelCallback',
-            ),
-            matches(
-              RegExp(
-                r'onChanged: args\.onChanged\s*\?\s*'
-                r'restage_native_0\.PublicCallbacks\.staticCallback\s*:\s*null',
-              ),
-            ),
-            contains('onSubmitted: (_) {}'),
-            contains('onDismissed: args.onDismissed ? () {} : null'),
-            contains(
-              'onTap: _RestageEventArg(\n'
-              '      true,',
-            ),
-            contains(
-              'onSubmitted: _RestageEventArg(\n'
-              '      true,',
-            ),
-            contains(
-              'onChanged: _RestageBoolArg(\n'
-              '      true,',
-            ),
-            contains(
-              'onDismissed: _RestageBoolArg(\n'
-              '      false,',
-            ),
-            contains(
-              'final class _RestageEventArg extends widgetbook.Arg<bool>\n'
-              '    with widgetbook.NoFields<bool>',
-            ),
-          ]),
-        ),
-      },
-    );
-
-    await resolveSources(
-      {
-        'apps_examples|lib/callback_defaults.dart': _publicCallbackDefaults,
-        'apps_examples|lib/callback_default_card.dart': _callbackDefaultCard,
-        output: generated,
-        'apps_examples|lib/restage.generated/callback_default_card.stories.g.dart':
-            _storyPartStub,
-        'widgetbook|lib/widgetbook.dart': _widgetbookStub,
-      },
-      (resolver) async {
-        final library = await resolver.libraryFor(
-          AssetId(
-            'apps_examples',
-            'lib/restage.generated/callback_default_card.stories.dart',
-          ),
-        );
-        final resolved =
-            await library.session.getResolvedLibraryByElement(library);
-        if (resolved is! ResolvedLibraryResult) {
-          throw StateError('Generated callback-default story did not resolve.');
-        }
-        final errors = [
-          for (final unit in resolved.units)
-            for (final diagnostic in unit.diagnostics)
-              if (diagnostic.severity == Severity.error)
-                diagnostic.problemMessage.messageText(includeUrl: false),
-        ];
-        expect(errors, isEmpty, reason: generated);
-      },
-      resolverFor: output,
-      rootPackage: 'apps_examples',
-      readAllSourcesFromFilesystem: true,
-    );
-  });
-
-  test('rejects a private callback default at its constructor-default path',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final logs = <String>[];
-    await testBuilder(
-      const WidgetbookStoryBuilder({
-        r'$lib$': [
-          'restage.generated/private_callback_card.stories.dart',
-        ],
-      }),
-      const {
-        'apps_examples|lib/private_callback_card.dart': _privateCallbackCard,
-        'widgetbook|lib/widgetbook.dart': _widgetbookStub,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
-    );
-    expect(
-      logs.join('\n'),
-      allOf(
-        contains('/constructorDefaults/onTap'),
-        contains('_privateCallback'),
-      ),
-    );
-  });
-
-  test('emits ComponentMeta with explicit root or category placement',
-      () async {
-    for (final fixture in <({String arguments, Matcher matcher})>[
-      (
-        arguments: '',
-        matcher: allOf(
-          contains('const meta = widgetbook.Meta('),
-          contains('const component = widgetbook.ComponentMeta('),
-          contains("path: ''"),
-          isNot(contains("name: 'RootCard'")),
-        ),
-      ),
-      (
-        arguments: 'category: WidgetCategory.action,',
-        matcher: allOf(
-          contains('const component = widgetbook.ComponentMeta('),
-          contains("path: 'action'"),
-          isNot(contains("name: 'RootCard'")),
-        ),
-      ),
-      (
-        arguments: "name: 'CatalogRootCard',",
-        matcher: allOf(
-          contains('const component = widgetbook.ComponentMeta('),
-          contains('name: "CatalogRootCard"'),
-          contains("path: ''"),
-        ),
-      ),
-    ]) {
-      final source = _metadataStorySource(fixture.arguments);
+  test(
+    'preserves public callback defaults through production story output',
+    () async {
+      const output =
+          'apps_examples|lib/restage.generated/callback_default_card.stories.dart';
       final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
       );
+      var generated = '';
       await testBuilder(
         const WidgetbookStoryBuilder({
           r'$lib$': [
-            'restage.generated/root_card.stories.dart',
+            'restage.generated/callback_default_card.stories.dart',
           ],
         }),
-        {
-          'apps_examples|lib/root_card.dart': source,
+        const {
+          'apps_examples|lib/callback_defaults.dart': _publicCallbackDefaults,
+          'apps_examples|lib/callback_default_card.dart': _callbackDefaultCard,
           'widgetbook|lib/widgetbook.dart': _widgetbookStub,
         },
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         outputs: {
-          'apps_examples|lib/restage.generated/root_card.stories.dart':
-              decodedMatches(fixture.matcher),
+          output: decodedMatches(
+            allOf(<Matcher>[
+              predicate<String>(
+                (source) {
+                  generated = source;
+                  return true;
+                },
+                'captures generated story source',
+              ),
+              contains(
+                "import 'package:apps_examples/callback_defaults.dart' "
+                'as restage_native_0;',
+              ),
+              contains('this.onTap = true'),
+              contains('this.onChanged = true'),
+              contains('this.onSubmitted = true'),
+              contains('this.onDismissed = false'),
+              contains(
+                'onTap: restage_native_0.topLevelCallback',
+              ),
+              matches(
+                RegExp(
+                  r'onChanged: args\.onChanged\s*\?\s*'
+                  r'restage_native_0\.PublicCallbacks\.staticCallback\s*:\s*null',
+                ),
+              ),
+              contains('onSubmitted: (_) {}'),
+              contains('onDismissed: args.onDismissed ? () {} : null'),
+              contains(
+                'onTap: _RestageEventArg(\n'
+                '      true,',
+              ),
+              contains(
+                'onSubmitted: _RestageEventArg(\n'
+                '      true,',
+              ),
+              contains(
+                'onChanged: _RestageBoolArg(\n'
+                '      true,',
+              ),
+              contains(
+                'onDismissed: _RestageBoolArg(\n'
+                '      false,',
+              ),
+              contains(
+                'final class _RestageEventArg extends widgetbook.Arg<bool>\n'
+                '    with widgetbook.NoFields<bool>',
+              ),
+            ]),
+          ),
         },
       );
-    }
-  });
+
+      await resolveSources(
+        {
+          'apps_examples|lib/callback_defaults.dart': _publicCallbackDefaults,
+          'apps_examples|lib/callback_default_card.dart': _callbackDefaultCard,
+          output: generated,
+          'apps_examples|lib/restage.generated/callback_default_card.stories.g.dart':
+              _storyPartStub,
+          'widgetbook|lib/widgetbook.dart': _widgetbookStub,
+        },
+        (resolver) async {
+          final library = await resolver.libraryFor(
+            AssetId(
+              'apps_examples',
+              'lib/restage.generated/callback_default_card.stories.dart',
+            ),
+          );
+          final resolved = await library.session.getResolvedLibraryByElement(
+            library,
+          );
+          if (resolved is! ResolvedLibraryResult) {
+            throw StateError(
+              'Generated callback-default story did not resolve.',
+            );
+          }
+          final errors = [
+            for (final unit in resolved.units)
+              for (final diagnostic in unit.diagnostics)
+                if (diagnostic.severity == Severity.error)
+                  diagnostic.problemMessage.messageText(includeUrl: false),
+          ];
+          expect(errors, isEmpty, reason: generated);
+        },
+        resolverFor: output,
+        rootPackage: 'apps_examples',
+        readAllSourcesFromFilesystem: true,
+      );
+    },
+  );
+
+  test(
+    'rejects a private callback default at its constructor-default path',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final logs = <String>[];
+      await testBuilder(
+        const WidgetbookStoryBuilder({
+          r'$lib$': [
+            'restage.generated/private_callback_card.stories.dart',
+          ],
+        }),
+        const {
+          'apps_examples|lib/private_callback_card.dart': _privateCallbackCard,
+          'widgetbook|lib/widgetbook.dart': _widgetbookStub,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
+      );
+      expect(
+        logs.join('\n'),
+        allOf(
+          contains('/constructorDefaults/onTap'),
+          contains('_privateCallback'),
+        ),
+      );
+    },
+  );
+
+  test(
+    'emits ComponentMeta with explicit root or category placement',
+    () async {
+      for (final fixture in <({String arguments, Matcher matcher})>[
+        (
+          arguments: '',
+          matcher: allOf(
+            contains('const meta = widgetbook.Meta('),
+            contains('const component = widgetbook.ComponentMeta('),
+            contains("path: ''"),
+            isNot(contains("name: 'RootCard'")),
+          ),
+        ),
+        (
+          arguments: 'category: WidgetCategory.action,',
+          matcher: allOf(
+            contains('const component = widgetbook.ComponentMeta('),
+            contains("path: 'action'"),
+            isNot(contains("name: 'RootCard'")),
+          ),
+        ),
+        (
+          arguments: "name: 'CatalogRootCard',",
+          matcher: allOf(
+            contains('const component = widgetbook.ComponentMeta('),
+            contains('name: "CatalogRootCard"'),
+            contains("path: ''"),
+          ),
+        ),
+      ]) {
+        final source = _metadataStorySource(fixture.arguments);
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        await testBuilder(
+          const WidgetbookStoryBuilder({
+            r'$lib$': [
+              'restage.generated/root_card.stories.dart',
+            ],
+          }),
+          {
+            'apps_examples|lib/root_card.dart': source,
+            'widgetbook|lib/widgetbook.dart': _widgetbookStub,
+          },
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|lib/restage.generated/root_card.stories.dart':
+                decodedMatches(fixture.matcher),
+          },
+        );
+      }
+    },
+  );
 }
 
-String _metadataStorySource(String arguments) => '''
+String _metadataStorySource(String arguments) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -1265,7 +1297,8 @@ final String _screenSourcePackageGraph = nativeScreenPackageGraph(
   const {'flutter', 'restage', 'rfw_catalog_schema'},
 );
 
-String _screenWithPartDirectiveDecoy(String decoy) => '''
+String _screenWithPartDirectiveDecoy(String decoy) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -1637,7 +1670,8 @@ final class RestageEventDispatcherArgs {
 }
 ''';
 
-String _lookalikeStorySource(String className) => '''
+String _lookalikeStorySource(String className) =>
+    '''
 class RestageWidget {
   const RestageWidget();
 }

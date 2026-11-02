@@ -50,12 +50,12 @@ void main() {
 
     final rootProperties =
         a2uiWidgetDataSchemaMapForPlan(constrained)['properties']! as Map;
-    final props = rootProperties['props']! as Map;
+    final field = rootProperties['props_count']! as Map;
+    expect(field['description'], 'Count.');
     expect(
-      (props['properties']! as Map)['count'],
+      (field['oneOf']! as List).first,
       {
         'type': 'integer',
-        'description': 'Count.',
         'minimum': 1,
         'maximum': 5,
         'enum': [1, 3, 5],
@@ -66,40 +66,39 @@ void main() {
 
 Catalog _catalog([
   RestageConstraints constraints = RestageConstraints.empty,
-]) =>
-    Catalog(
-      schemaVersion: kSupportedSchemaVersion,
-      generatedAt: '2026-07-20T00:00:00.000Z',
-      libraries: {
-        const WidgetLibrary.custom('fixture.design_system'):
-            const LibraryInfo(version: '1.0.0'),
-      },
-      widgets: [
-        WidgetEntry(
-          wireId: WireId.unallocatedWidget,
-          name: 'ConstraintWidget',
-          library: const WidgetLibrary.custom('fixture.design_system'),
-          category: WidgetCategory.input,
-          description: 'Constraint widget.',
-          flutterType: 'package:fixture/fixture.dart#ConstraintWidget',
-          childrenSlot: ChildrenSlot.none,
-          properties: [
-            PropertyEntry(
-              wireId: WireId.unallocatedProperty,
-              name: 'count',
-              type: PropertyType.integer,
-              description: 'Count.',
-              constraints: constraints,
-            ),
-          ],
+]) => Catalog(
+  schemaVersion: kSupportedSchemaVersion,
+  generatedAt: '2026-07-20T00:00:00.000Z',
+  libraries: {
+    const WidgetLibrary.custom('fixture.design_system'): const LibraryInfo(
+      version: '1.0.0',
+    ),
+  },
+  widgets: [
+    WidgetEntry(
+      wireId: WireId.unallocatedWidget,
+      name: 'ConstraintWidget',
+      library: const WidgetLibrary.custom('fixture.design_system'),
+      category: WidgetCategory.input,
+      description: 'Constraint widget.',
+      flutterType: 'package:fixture/fixture.dart#ConstraintWidget',
+      childrenSlot: ChildrenSlot.none,
+      properties: [
+        PropertyEntry(
+          wireId: WireId.unallocatedProperty,
+          name: 'count',
+          type: PropertyType.integer,
+          description: 'Count.',
+          constraints: constraints,
         ),
       ],
-    );
+    ),
+  ],
+);
 
 Catalog _allocatedCatalog([
   RestageConstraints constraints = RestageConstraints.empty,
-]) =>
-    allocateUserCatalogFromWidgets(
-      package: 'fixture.design_system',
-      widgets: _catalog(constraints).widgets,
-    ).catalog;
+]) => allocateUserCatalogFromWidgets(
+  package: 'fixture.design_system',
+  widgets: _catalog(constraints).widgets,
+).catalog;

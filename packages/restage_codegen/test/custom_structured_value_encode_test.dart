@@ -25,144 +25,145 @@ WireIdRef _ref(String library, String wireId) =>
 /// `Plan`, keyed by a source type under the synthetic probe URI so a resolved
 /// `Price(...)` / `Plan(...)` construction in the probe source matches.
 Catalog _catalog(List<StructuredEntry> structuredTypes) => Catalog(
-      schemaVersion: kSupportedSchemaVersion,
-      generatedAt: '1970-01-01T00:00:00Z',
-      libraries: {
-        WidgetLibrary.material: const LibraryInfo(version: '1.0.0'),
-      },
-      widgets: const [],
-      structuredTypes: structuredTypes,
-    );
+  schemaVersion: kSupportedSchemaVersion,
+  generatedAt: '1970-01-01T00:00:00Z',
+  libraries: {
+    WidgetLibrary.material: const LibraryInfo(version: '1.0.0'),
+  },
+  widgets: const [],
+  structuredTypes: structuredTypes,
+);
 
 /// `Price(this.amount, {this.currency = 'USD'})` — a mixed ctor: `amount` is
 /// positional (`integer`), `currency` is named (`string`).
 StructuredEntry _priceEntry() => StructuredEntry(
-      wireId: WireId('s0001'),
-      name: 'Price',
-      library: WidgetLibrary.material,
+  wireId: WireId('s0001'),
+  name: 'Price',
+  library: WidgetLibrary.material,
+  description: '',
+  sourceType: '$_probe#Price',
+  fields: [
+    StructuredField(
+      wireId: WireId('p0001'),
+      name: 'amount',
+      type: PropertyType.integer,
       description: '',
-      sourceType: '$_probe#Price',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0001'),
-          name: 'amount',
-          type: PropertyType.integer,
-          description: '',
-          required: true,
-        ),
-        StructuredField(
-          wireId: WireId('p0002'),
-          name: 'currency',
-          type: PropertyType.string,
-          description: '',
-        ),
-      ],
-      variants: [ConstructorVariant(wireId: WireId('v0001'))],
-    );
+      required: true,
+    ),
+    StructuredField(
+      wireId: WireId('p0002'),
+      name: 'currency',
+      type: PropertyType.string,
+      description: '',
+    ),
+  ],
+  variants: [ConstructorVariant(wireId: WireId('v0001'))],
+);
 
 /// `Plan({required name, required price, badge, tier = ...})` — all named;
 /// `price` is a NESTED structured field (→ [_priceEntry]); `badge` is an
 /// optional string; `tier` is an optional enum.
 StructuredEntry _planEntry() => StructuredEntry(
-      wireId: WireId('s0002'),
-      name: 'Plan',
-      library: WidgetLibrary.material,
+  wireId: WireId('s0002'),
+  name: 'Plan',
+  library: WidgetLibrary.material,
+  description: '',
+  sourceType: '$_probe#Plan',
+  fields: [
+    StructuredField(
+      wireId: WireId('p0003'),
+      name: 'name',
+      type: PropertyType.string,
       description: '',
-      sourceType: '$_probe#Plan',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0003'),
-          name: 'name',
-          type: PropertyType.string,
-          description: '',
-          required: true,
-        ),
-        StructuredField(
-          wireId: WireId('p0004'),
-          name: 'price',
-          type: PropertyType.structured,
-          description: '',
-          required: true,
-          structuredRef: _ref('restage.material', 's0001'),
-        ),
-        StructuredField(
-          wireId: WireId('p0005'),
-          name: 'badge',
-          type: PropertyType.string,
-          description: '',
-        ),
-        StructuredField(
-          wireId: WireId('p0006'),
-          name: 'tier',
-          type: PropertyType.enumValue,
-          description: '',
-        ),
-      ],
-      variants: [ConstructorVariant(wireId: WireId('v0002'))],
-    );
+      required: true,
+    ),
+    StructuredField(
+      wireId: WireId('p0004'),
+      name: 'price',
+      type: PropertyType.structured,
+      description: '',
+      required: true,
+      structuredRef: _ref('restage.material', 's0001'),
+    ),
+    StructuredField(
+      wireId: WireId('p0005'),
+      name: 'badge',
+      type: PropertyType.string,
+      description: '',
+    ),
+    StructuredField(
+      wireId: WireId('p0006'),
+      name: 'tier',
+      type: PropertyType.enumValue,
+      description: '',
+    ),
+  ],
+  variants: [ConstructorVariant(wireId: WireId('v0002'))],
+);
 
 /// `Metrics(this.ratio, {this.weight = 1.0})` — `ratio` positional `double`,
 /// `weight` named `double`. Exercises the `asLength` (double → length) path
 /// PricingCard has no field for (so it lives here, not on the public demo).
 StructuredEntry _metricsEntry() => StructuredEntry(
-      wireId: WireId('s0003'),
-      name: 'Metrics',
-      library: WidgetLibrary.material,
+  wireId: WireId('s0003'),
+  name: 'Metrics',
+  library: WidgetLibrary.material,
+  description: '',
+  sourceType: '$_probe#Metrics',
+  fields: [
+    StructuredField(
+      wireId: WireId('p0007'),
+      name: 'ratio',
+      type: PropertyType.real,
       description: '',
-      sourceType: '$_probe#Metrics',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0007'),
-          name: 'ratio',
-          type: PropertyType.real,
-          description: '',
-          required: true,
-        ),
-        StructuredField(
-          wireId: WireId('p0008'),
-          name: 'weight',
-          type: PropertyType.real,
-          description: '',
-        ),
-      ],
-      variants: [ConstructorVariant(wireId: WireId('v0003'))],
-    );
+      required: true,
+    ),
+    StructuredField(
+      wireId: WireId('p0008'),
+      name: 'weight',
+      type: PropertyType.real,
+      description: '',
+    ),
+  ],
+  variants: [ConstructorVariant(wireId: WireId('v0003'))],
+);
 
 /// `Plan({required name, badge})` plus a convenience `Plan.pro` named ctor —
 /// two variants (the unnamed canonical + `pro`). Exercises the
 /// per-constructor encoding.
 StructuredEntry _planWithNamedCtorEntry() => StructuredEntry(
-      wireId: WireId('s0006'),
-      name: 'Plan',
-      library: WidgetLibrary.material,
+  wireId: WireId('s0006'),
+  name: 'Plan',
+  library: WidgetLibrary.material,
+  description: '',
+  sourceType: '$_probe#Plan',
+  fields: [
+    StructuredField(
+      wireId: WireId('p0011'),
+      name: 'name',
+      type: PropertyType.string,
       description: '',
-      sourceType: '$_probe#Plan',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0011'),
-          name: 'name',
-          type: PropertyType.string,
-          description: '',
-          required: true,
-        ),
-        StructuredField(
-          wireId: WireId('p0012'),
-          name: 'badge',
-          type: PropertyType.string,
-          description: '',
-        ),
-      ],
-      variants: [
-        ConstructorVariant(wireId: WireId('v0006')),
-        ConstructorVariant(wireId: WireId('v0007'), namedConstructor: 'pro'),
-      ],
-    );
+      required: true,
+    ),
+    StructuredField(
+      wireId: WireId('p0012'),
+      name: 'badge',
+      type: PropertyType.string,
+      description: '',
+    ),
+  ],
+  variants: [
+    ConstructorVariant(wireId: WireId('v0006')),
+    ConstructorVariant(wireId: WireId('v0007'), namedConstructor: 'pro'),
+  ],
+);
 
 void main() {
   group('custom structured value encode', () {
-    test('a MIXED-ctor custom data class encodes to a field-name-keyed map',
-        () async {
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'a MIXED-ctor custom data class encodes to a field-name-keyed map',
+      () async {
+        final expr = await parseExpressionFromSourceForTest('''
         class Price {
           const Price(this.amount, {this.currency = 'USD'});
           final int amount;
@@ -170,20 +171,22 @@ void main() {
         }
         Object x() => const Price(999, currency: 'EUR');
       ''');
-      final translator = ExpressionTranslator(
-        catalog: _catalog([_priceEntry()]),
-        helpers: HelperRegistry(),
-      );
+        final translator = ExpressionTranslator(
+          catalog: _catalog([_priceEntry()]),
+          helpers: HelperRegistry(),
+        );
 
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, '{amount: 999, currency: "EUR"}');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, '{amount: 999, currency: "EUR"}');
+      },
+    );
 
-    test('a NESTED (two-level) data class recurses into the inner map',
-        () async {
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'a NESTED (two-level) data class recurses into the inner map',
+      () async {
+        final expr = await parseExpressionFromSourceForTest('''
         class Price {
           const Price(this.amount, {this.currency = 'USD'});
           final int amount;
@@ -201,26 +204,27 @@ void main() {
           badge: 'Best value',
         );
       ''');
-      final translator = ExpressionTranslator(
-        catalog: _catalog([_priceEntry(), _planEntry()]),
-        helpers: HelperRegistry(),
-      );
+        final translator = ExpressionTranslator(
+          catalog: _catalog([_priceEntry(), _planEntry()]),
+          helpers: HelperRegistry(),
+        );
 
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(
-        result.dsl,
-        '{name: "Pro", price: {amount: 1999, currency: "EUR"}, '
-        'badge: "Best value"}',
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          '{name: "Pro", price: {amount: 1999, currency: "EUR"}, '
+          'badge: "Best value"}',
+        );
+      },
+    );
 
     test(
-        'an OPTIONAL field the author omits is OMITTED from the wire map '
-        '(the decoder reads the absent key as null / the constructor default)',
-        () async {
-      final expr = await parseExpressionFromSourceForTest('''
+      'an OPTIONAL field the author omits is OMITTED from the wire map '
+      '(the decoder reads the absent key as null / the constructor default)',
+      () async {
+        final expr = await parseExpressionFromSourceForTest('''
         class Price {
           const Price(this.amount, {this.currency = 'USD'});
           final int amount;
@@ -234,24 +238,25 @@ void main() {
         }
         Object x() => const Plan(name: 'Basic', price: Price(0));
       ''');
-      final translator = ExpressionTranslator(
-        catalog: _catalog([_priceEntry(), _planEntry()]),
-        helpers: HelperRegistry(),
-      );
+        final translator = ExpressionTranslator(
+          catalog: _catalog([_priceEntry(), _planEntry()]),
+          helpers: HelperRegistry(),
+        );
 
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      // `currency` (Price) and `badge`/`tier` (Plan) are omitted — never
-      // emitted as an explicit null.
-      expect(result.dsl, '{name: "Basic", price: {amount: 0}}');
-    });
+        expect(result.issues, isEmpty);
+        // `currency` (Price) and `badge`/`tier` (Plan) are omitted — never
+        // emitted as an explicit null.
+        expect(result.dsl, '{name: "Basic", price: {amount: 0}}');
+      },
+    );
 
     test(
-        'a DOUBLE field is coerced to a double literal (asLength) so the '
-        "decoder's source.v<double> does not null an author-written int",
-        () async {
-      final expr = await parseExpressionFromSourceForTest('''
+      'a DOUBLE field is coerced to a double literal (asLength) so the '
+      "decoder's source.v<double> does not null an author-written int",
+      () async {
+        final expr = await parseExpressionFromSourceForTest('''
         class Metrics {
           const Metrics(this.ratio, {this.weight = 1.0});
           final double ratio;
@@ -259,19 +264,19 @@ void main() {
         }
         Object x() => const Metrics(2, weight: 3);
       ''');
-      final translator = ExpressionTranslator(
-        catalog: _catalog([_metricsEntry()]),
-        helpers: HelperRegistry(),
-      );
+        final translator = ExpressionTranslator(
+          catalog: _catalog([_metricsEntry()]),
+          helpers: HelperRegistry(),
+        );
 
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, '{ratio: 2.0, weight: 3.0}');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, '{ratio: 2.0, weight: 3.0}');
+      },
+    );
 
-    test(
-        'a custom ENUM field encodes to its member-name string (the wire '
+    test('a custom ENUM field encodes to its member-name string (the wire '
         'representation the decoder reads back to the enum value)', () async {
       final expr = await parseExpressionFromSourceForTest('''
         enum PlanTier { starter, pro, team }
@@ -317,8 +322,7 @@ void main() {
     // and a field with NO same-named parameter is excluded-loud. There is no
     // admitted-but-mis-decoded case.
 
-    test(
-        'a SAME-NAMED transforming field encodes the author ARGUMENT (not the '
+    test('a SAME-NAMED transforming field encodes the author ARGUMENT (not the '
         'materialized value) — so the decoder re-applies the transform and the '
         'round-trip is faithful by construction', () async {
       // `Bumped(count: 5)` materialises `count == 10`, but the wire must carry
@@ -361,8 +365,7 @@ void main() {
       expect(result.dsl, '{count: 5}'); // the argument, NOT the materialized 10
     });
 
-    test(
-        'a value authored with a named constructor encodes the constructor '
+    test('a value authored with a named constructor encodes the constructor '
         'name and its arguments', () async {
       final expr = await parseExpressionFromSourceForTest('''
         class Plan {
@@ -384,8 +387,7 @@ void main() {
       expect(result.dsl, '{"#constructor": "pro", name: "X"}');
     });
 
-    test(
-        'authoring via the CANONICAL constructor (the one the decoder '
+    test('authoring via the CANONICAL constructor (the one the decoder '
         'reconstructs through) still encodes normally', () async {
       final expr = await parseExpressionFromSourceForTest('''
         class Plan {
@@ -408,16 +410,16 @@ void main() {
     });
 
     test(
-        'a NESTED value authored via a non-canonical constructor defers the '
-        'WHOLE OUTER value — never a partial map with an empty inner entry',
-        () async {
-      // `price` is authored via `Price.eur(...)`, a non-canonical ctor (the
-      // same class as the top-level negative fixture above, just nested one
-      // level in). The inner `tryEmit` for `Price.eur(...)` correctly defers
-      // to '' and raises its own issue — but the OUTER map must not simply
-      // splice that '' in as `price: `, which would emit a syntactically
-      // broken partial map. The whole `Plan(...)` value must defer too.
-      final expr = await parseExpressionFromSourceForTest('''
+      'a NESTED value authored via a non-canonical constructor defers the '
+      'WHOLE OUTER value — never a partial map with an empty inner entry',
+      () async {
+        // `price` is authored via `Price.eur(...)`, a non-canonical ctor (the
+        // same class as the top-level negative fixture above, just nested one
+        // level in). The inner `tryEmit` for `Price.eur(...)` correctly defers
+        // to '' and raises its own issue — but the OUTER map must not simply
+        // splice that '' in as `price: `, which would emit a syntactically
+        // broken partial map. The whole `Plan(...)` value must defer too.
+        final expr = await parseExpressionFromSourceForTest('''
         class Price {
           const Price(this.amount);
           const Price.eur(int value) : amount = value;
@@ -430,137 +432,143 @@ void main() {
         }
         Object x() => const Plan(name: 'Pro', price: Price.eur(1999));
       ''');
-      final priceEntryWithNamedCtor = StructuredEntry(
-        wireId: WireId('s0007'),
-        name: 'Price',
-        library: WidgetLibrary.material,
-        description: '',
-        sourceType: '$_probe#Price',
-        fields: [
-          StructuredField(
-            wireId: WireId('p0013'),
-            name: 'amount',
-            type: PropertyType.integer,
-            description: '',
-            required: true,
-          ),
-        ],
-        variants: [
-          ConstructorVariant(wireId: WireId('v0008')),
-          ConstructorVariant(wireId: WireId('v0009'), namedConstructor: 'eur'),
-        ],
-      );
-      final planEntryNestingPrice = StructuredEntry(
-        wireId: WireId('s0008'),
-        name: 'Plan',
-        library: WidgetLibrary.material,
-        description: '',
-        sourceType: '$_probe#Plan',
-        fields: [
-          StructuredField(
-            wireId: WireId('p0014'),
-            name: 'name',
-            type: PropertyType.string,
-            description: '',
-            required: true,
-          ),
-          StructuredField(
-            wireId: WireId('p0015'),
-            name: 'price',
-            type: PropertyType.structured,
-            description: '',
-            required: true,
-            structuredRef: _ref('restage.material', 's0007'),
-          ),
-        ],
-        variants: [ConstructorVariant(wireId: WireId('v0010'))],
-      );
-      final translator = ExpressionTranslator(
-        catalog: _catalog([priceEntryWithNamedCtor, planEntryNestingPrice]),
-        helpers: HelperRegistry(),
-      );
+        final priceEntryWithNamedCtor = StructuredEntry(
+          wireId: WireId('s0007'),
+          name: 'Price',
+          library: WidgetLibrary.material,
+          description: '',
+          sourceType: '$_probe#Price',
+          fields: [
+            StructuredField(
+              wireId: WireId('p0013'),
+              name: 'amount',
+              type: PropertyType.integer,
+              description: '',
+              required: true,
+            ),
+          ],
+          variants: [
+            ConstructorVariant(wireId: WireId('v0008')),
+            ConstructorVariant(
+              wireId: WireId('v0009'),
+              namedConstructor: 'eur',
+            ),
+          ],
+        );
+        final planEntryNestingPrice = StructuredEntry(
+          wireId: WireId('s0008'),
+          name: 'Plan',
+          library: WidgetLibrary.material,
+          description: '',
+          sourceType: '$_probe#Plan',
+          fields: [
+            StructuredField(
+              wireId: WireId('p0014'),
+              name: 'name',
+              type: PropertyType.string,
+              description: '',
+              required: true,
+            ),
+            StructuredField(
+              wireId: WireId('p0015'),
+              name: 'price',
+              type: PropertyType.structured,
+              description: '',
+              required: true,
+              structuredRef: _ref('restage.material', 's0007'),
+            ),
+          ],
+          variants: [ConstructorVariant(wireId: WireId('v0010'))],
+        );
+        final translator = ExpressionTranslator(
+          catalog: _catalog([priceEntryWithNamedCtor, planEntryNestingPrice]),
+          helpers: HelperRegistry(),
+        );
 
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      // Deferred as a whole — never `{name: "Pro", price: }`.
-      expect(result.dsl, '');
-      expect(
-        result.issues.map((i) => i.message).join('\n'),
-        contains('Price.eur cannot be encoded'),
-      );
-    });
+        // Deferred as a whole — never `{name: "Pro", price: }`.
+        expect(result.dsl, '');
+        expect(
+          result.issues.map((i) => i.message).join('\n'),
+          contains('Price.eur cannot be encoded'),
+        );
+      },
+    );
 
     test(
-        'a REQUIRED field with NO same-named constructor parameter is '
-        'DEFERRED LOUD (fail-closed) — never a partial or mis-sourced map',
-        () async {
-      // `Doubler(int n) : value = n * 2` — the field `value` has no ctor
-      // parameter named `value`, so the encode cannot faithfully source it.
-      // (the decode-side admission gate already excludes this shape as
-      // required-param-no-field; this asserts the encode's own fail-closed
-      // defense-in-depth.)
-      final expr = await parseExpressionFromSourceForTest('''
+      'a REQUIRED field with NO same-named constructor parameter is '
+      'DEFERRED LOUD (fail-closed) — never a partial or mis-sourced map',
+      () async {
+        // `Doubler(int n) : value = n * 2` — the field `value` has no ctor
+        // parameter named `value`, so the encode cannot faithfully source it.
+        // (the decode-side admission gate already excludes this shape as
+        // required-param-no-field; this asserts the encode's own fail-closed
+        // defense-in-depth.)
+        final expr = await parseExpressionFromSourceForTest('''
         class Doubler {
           const Doubler(int n) : value = n * 2;
           final int value;
         }
         Object x() => const Doubler(5);
       ''');
-      final structured = StructuredEntry(
-        wireId: WireId('s0005'),
-        name: 'Doubler',
-        library: WidgetLibrary.material,
-        description: '',
-        sourceType: '$_probe#Doubler',
-        fields: [
-          StructuredField(
-            wireId: WireId('p0010'),
-            name: 'value',
-            type: PropertyType.integer,
-            description: '',
-            required: true,
-          ),
-        ],
-        variants: [ConstructorVariant(wireId: WireId('v0005'))],
-      );
-      final translator = ExpressionTranslator(
-        catalog: _catalog([structured]),
-        helpers: HelperRegistry(),
-      );
+        final structured = StructuredEntry(
+          wireId: WireId('s0005'),
+          name: 'Doubler',
+          library: WidgetLibrary.material,
+          description: '',
+          sourceType: '$_probe#Doubler',
+          fields: [
+            StructuredField(
+              wireId: WireId('p0010'),
+              name: 'value',
+              type: PropertyType.integer,
+              description: '',
+              required: true,
+            ),
+          ],
+          variants: [ConstructorVariant(wireId: WireId('v0005'))],
+        );
+        final translator = ExpressionTranslator(
+          catalog: _catalog([structured]),
+          helpers: HelperRegistry(),
+        );
 
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(result.dsl, ''); // deferred, never a partial map
-      expect(
-        result.issues.map((i) => i.message).join('\n'),
-        contains('cannot be encoded'),
-      );
-    });
+        expect(result.dsl, ''); // deferred, never a partial map
+        expect(
+          result.issues.map((i) => i.message).join('\n'),
+          contains('cannot be encoded'),
+        );
+      },
+    );
 
     test(
-        'a custom type that is NOT a discovered structured value falls '
-        'through (the branch never swallows a non-structured construction)',
-        () async {
-      // `Gadget` is not in the catalog's structuredTypes, so tryEmit returns
-      // null and the construction routes to widget construction — which, with
-      // no matching catalog widget, surfaces the unchanged unknownWidget
-      // diagnostic (proving the encode branch did not intercept it).
-      final expr = await parseExpressionFromSourceForTest('''
+      'a custom type that is NOT a discovered structured value falls '
+      'through (the branch never swallows a non-structured construction)',
+      () async {
+        // `Gadget` is not in the catalog's structuredTypes, so tryEmit returns
+        // null and the construction routes to widget construction — which, with
+        // no matching catalog widget, surfaces the unchanged unknownWidget
+        // diagnostic (proving the encode branch did not intercept it).
+        final expr = await parseExpressionFromSourceForTest('''
         class Gadget { const Gadget(this.label); final String label; }
         Object x() => const Gadget('x');
       ''');
-      final translator = ExpressionTranslator(
-        catalog: _catalog([_priceEntry()]),
-        helpers: HelperRegistry(),
-      );
+        final translator = ExpressionTranslator(
+          catalog: _catalog([_priceEntry()]),
+          helpers: HelperRegistry(),
+        );
 
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(
-        result.issues.map((i) => i.code),
-        contains(IssueCode.unknownWidget),
-      );
-    });
+        expect(
+          result.issues.map((i) => i.code),
+          contains(IssueCode.unknownWidget),
+        );
+      },
+    );
   });
 
   group('constants from another file', () {

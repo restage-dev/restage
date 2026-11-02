@@ -17,8 +17,10 @@ void main() {
     generatedAt: '1970-01-01T00:00:00Z',
     libraries: {
       WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
-      const WidgetLibrary.custom('acme.widgets'):
-          const LibraryInfo(version: '0.1.0', capabilityVersion: 1),
+      const WidgetLibrary.custom('acme.widgets'): const LibraryInfo(
+        version: '0.1.0',
+        capabilityVersion: 1,
+      ),
     },
     widgets: [
       entry(
@@ -201,8 +203,9 @@ widget Root = Column(children: [
       expect(sidecar(withRenamedLabel), sidecar(withoutLabel));
       expect(withLabel.declarations, hasLength(3));
       expect(
-        withLabel.declarations
-            .map((declaration) => declaration.presentationHandle),
+        withLabel.declarations.map(
+          (declaration) => declaration.presentationHandle,
+        ),
         hasLength(3),
       );
       expect(
@@ -210,8 +213,9 @@ widget Root = Column(children: [
         everyElement('checkout.primary'),
       );
       expect(
-        withRenamedLabel.declarations
-            .map((declaration) => declaration.analyticsId),
+        withRenamedLabel.declarations.map(
+          (declaration) => declaration.analyticsId,
+        ),
         everyElement('checkout.confirm'),
       );
       expect(
@@ -375,34 +379,36 @@ widget Root = Column(children: [
       );
     });
 
-    test('rejects malformed and dynamic values while still removing the key',
-        () {
-      for (final value in [
-        '""',
-        '"Upper"',
-        '"has space"',
-        '"café"',
-        'args.label',
-        'data.label',
-        r'"label-${args.value}"',
-      ]) {
-        final result = lower(
-          '''
+    test(
+      'rejects malformed and dynamic values while still removing the key',
+      () {
+        for (final value in [
+          '""',
+          '"Upper"',
+          '"has space"',
+          '"café"',
+          'args.label',
+          'data.label',
+          r'"label-${args.value}"',
+        ]) {
+          final result = lower(
+            '''
 import restage.core;
 widget Root = Card(analyticsId: $value);
 ''',
-          authoritative: true,
-        );
+            authoritative: true,
+          );
 
-        expect(
-          result.issues.map((issue) => issue.code),
-          contains(IssueCode.invalidAnalyticsId),
-          reason: value,
-        );
-        expect(result.text, isNot(contains('analyticsId')), reason: value);
-        expect(result.declarations, isEmpty, reason: value);
-      }
-    });
+          expect(
+            result.issues.map((issue) => issue.code),
+            contains(IssueCode.invalidAnalyticsId),
+            reason: value,
+          );
+          expect(result.text, isNot(contains('analyticsId')), reason: value);
+          expect(result.declarations, isEmpty, reason: value);
+        }
+      },
+    );
 
     test('binds an inlined local call only through exact-call discovery', () {
       const source = '''

@@ -19,23 +19,22 @@ import '../helpers.dart';
 /// with the analyzer, reflects each widget's data parameter into a rich shape
 /// node via the REAL reflector (condition #2: real reflector, not
 /// hand-constructed IR), runs the nodes through the PRODUCTION emitter, and
-/// regenerates the committed `.g.dart` that `restage_a2ui` renders against real
-/// genui. The only test-boundary normalization is rewriting the resolved
+/// regenerates the committed `.g.dart` that `restage_a2ui` renders against the
+/// real A2UI runtime. The only test-boundary normalization is rewriting the resolved
 /// `file://` fixture URI to the relative import the committed file uses — the
 /// uniform-prefix emission (`pN.Type`) is untouched, so the render proves the
-/// real prefix output. (The reflector is not yet build-wired; the build-phase
-/// auto-wiring is a tracked follow-up.)
+/// real prefix output. (The reflector is not build-wired.)
 const _fixtureRelativePath =
     '../restage_a2ui/test/generated/rich_shape_fixture.dart';
 
-/// The committed generated catalog lives in restage_a2ui (which has the genui
-/// dependency), beside the fixture it imports.
+/// The committed generated catalog lives in restage_a2ui (which has the A2UI
+/// runtime dependency), beside the fixture it imports.
 const _generatedPath =
     '../restage_a2ui/test/generated/rich_shape_catalog.g.dart';
 
 /// The committed standalone A2UI document for the same fixture. Its
-/// per-component data schemas are tied — against the real genui SDK — to the
-/// generated catalog's `CatalogItem.dataSchema` by the `restage_a2ui`
+/// per-component data schemas are tied, through the real A2UI core, to the
+/// generated catalog's component schemas by the `restage_a2ui`
 /// `a2ui_schema_document_tie_test`. It carries the rich shapes (nested objects,
 /// lists-of-objects, maps, and a recursive `CommentThread`), so that tie
 /// exercises the document projection over every shape the emitter produces.
@@ -46,29 +45,30 @@ const _manifestPath =
 /// `file://` URI is normalized to this at the test boundary).
 const _fixtureImport = 'rich_shape_fixture.dart';
 
-/// Each proof widget: its genui catalog name, the fixture widget class the
+/// Each proof widget: its A2UI catalog name, the fixture widget class the
 /// emitter constructs, and the single data parameter reflected for it.
 const _proofWidgets =
     <({String catalogName, String widgetClass, String param})>[
-  (catalogName: 'PlanCard', widgetClass: 'PlanCardFixture', param: 'plan'),
-  (
-    catalogName: 'FeatureGrid',
-    widgetClass: 'FeatureGridFixture',
-    param: 'features',
-  ),
-  (catalogName: 'Glossary', widgetClass: 'GlossaryFixture', param: 'terms'),
-  (catalogName: 'MetaBar', widgetClass: 'MetaBarFixture', param: 'meta'),
-  (catalogName: 'LinkCard', widgetClass: 'LinkCardFixture', param: 'link'),
-  (
-    catalogName: 'CommentThread',
-    widgetClass: 'CommentThreadFixture',
-    param: 'root',
-  ),
-];
+      (catalogName: 'PlanCard', widgetClass: 'PlanCardFixture', param: 'plan'),
+      (
+        catalogName: 'FeatureGrid',
+        widgetClass: 'FeatureGridFixture',
+        param: 'features',
+      ),
+      (catalogName: 'Glossary', widgetClass: 'GlossaryFixture', param: 'terms'),
+      (catalogName: 'MetaBar', widgetClass: 'MetaBarFixture', param: 'meta'),
+      (catalogName: 'LinkCard', widgetClass: 'LinkCardFixture', param: 'link'),
+      (
+        catalogName: 'CommentThread',
+        widgetClass: 'CommentThreadFixture',
+        param: 'root',
+      ),
+    ];
 
 Future<ResolvedLibraryResult> _resolveFixture() async {
-  final abs = File('${Directory.current.path}/$_fixtureRelativePath')
-      .resolveSymbolicLinksSync();
+  final abs = File(
+    '${Directory.current.path}/$_fixtureRelativePath',
+  ).resolveSymbolicLinksSync();
   final collection = AnalysisContextCollection(includedPaths: [abs]);
   final context = collection.contextFor(abs);
   final resolved = await context.currentSession.getResolvedLibrary(abs);
@@ -109,10 +109,13 @@ A2uiSchemaNode _reflectDataParam(
 
 /// The reflector's rich-shape map keyed on (catalog name, data parameter).
 A2uiRichShapes _richShapes(ResolvedLibraryResult library) => {
-      for (final w in _proofWidgets)
-        (w.catalogName, w.param):
-            _reflectDataParam(library, w.widgetClass, w.param),
-    };
+  for (final w in _proofWidgets)
+    (w.catalogName, w.param): _reflectDataParam(
+      library,
+      w.widgetClass,
+      w.param,
+    ),
+};
 
 /// The resolved fixture's library URI (carried on a reflected class node).
 String _fixtureUri(A2uiRichShapes shapes) {
@@ -122,7 +125,7 @@ String _fixtureUri(A2uiRichShapes shapes) {
 
 /// Developer-authored descriptions for a subset of the proof widgets' data
 /// properties, so the described-schema path (`description:` on an `S.*(...)`
-/// call) is exercised by the SAME real-genui document-tie test that pins
+/// call) is exercised by the SAME document-tie test that pins
 /// every other rich shape — not just the plain (undescribed) case. `PlanCard`
 /// covers a described object field; `CommentThread` covers a described
 /// recursive (self-referential, `$ref`-cycle-adjacent) field.
@@ -134,7 +137,7 @@ const _propertyDescriptions = <String, String>{
 /// Developer-authored widget-root description for a single proof widget, so
 /// a component-root `S.object(description:)` (from `@RestageWidget(...)`'s
 /// own `description`, distinct from a property-level description) is ALSO
-/// exercised by the real-genui document tie — not just property-level
+/// exercised by the document tie — not just property-level
 /// descriptions. Kept on a widget without its own `_propertyDescriptions`
 /// entry so the two description kinds are independently observable.
 const _widgetRootDescription = <String, String>{
@@ -144,21 +147,21 @@ const _widgetRootDescription = <String, String>{
 /// A test-built catalog whose entries name the fixture widget classes (the
 /// emitter constructs them) and carry the single required data property each.
 Catalog _proofCatalog(String fixtureUri) => catalogWith([
-      for (final w in _proofWidgets)
-        entry(
-          name: w.catalogName,
-          flutterType: '$fixtureUri#${w.widgetClass}',
-          description: _widgetRootDescription[w.catalogName] ?? '',
-          properties: [
-            prop(
-              w.param,
-              PropertyType.structured,
-              required: true,
-              description: _propertyDescriptions[w.catalogName] ?? '',
-            ),
-          ],
+  for (final w in _proofWidgets)
+    entry(
+      name: w.catalogName,
+      flutterType: '$fixtureUri#${w.widgetClass}',
+      description: _widgetRootDescription[w.catalogName] ?? '',
+      properties: [
+        prop(
+          w.param,
+          PropertyType.structured,
+          required: true,
+          description: _propertyDescriptions[w.catalogName] ?? '',
         ),
-    ]);
+      ],
+    ),
+]);
 
 void main() {
   group('rich-shape proof — the real reflector reads the real fixture', () {
@@ -168,8 +171,7 @@ void main() {
       library = await _resolveFixture();
     });
 
-    test(
-        'the nested data class reflects with its fields, required set, '
+    test('the nested data class reflects with its fields, required set, '
         'nullable enum + nullable string', () {
       final node = _reflectDataParam(library, 'PlanCardFixture', 'plan');
       expect(node, isA<ObjectNode>());
@@ -231,22 +233,23 @@ void main() {
       expect(object.fields['count'], const ScalarNode(A2uiScalarType.integer));
     });
 
-    test('the path-field object reflects (the binding-sentinel hazard shape)',
-        () {
-      final node = _reflectDataParam(library, 'LinkCardFixture', 'link');
-      expect(node, isA<ObjectNode>());
-      final object = node as ObjectNode;
-      expect(
-        (object.construction! as A2uiClassConstruction).dartTypeName,
-        'LinkData',
-      );
-      // The field literally named `path` is carried as data, not a binding.
-      expect(object.fields['path'], const ScalarNode(A2uiScalarType.string));
-      expect(object.required, {'path', 'label'});
-    });
-
     test(
-        'the self-recursive object reflects with a RefNode back-edge on the '
+      'the path-field object reflects (the binding-sentinel hazard shape)',
+      () {
+        final node = _reflectDataParam(library, 'LinkCardFixture', 'link');
+        expect(node, isA<ObjectNode>());
+        final object = node as ObjectNode;
+        expect(
+          (object.construction! as A2uiClassConstruction).dartTypeName,
+          'LinkData',
+        );
+        // The field literally named `path` is carried as data, not a binding.
+        expect(object.fields['path'], const ScalarNode(A2uiScalarType.string));
+        expect(object.required, {'path', 'label'});
+      },
+    );
+
+    test('the self-recursive object reflects with a RefNode back-edge on the '
         'nullable nested-class field', () {
       final node = _reflectDataParam(library, 'CommentThreadFixture', 'root');
       expect(node, isA<ObjectNode>());
@@ -285,81 +288,85 @@ void main() {
     });
   });
 
-  group('rich-shape proof — the production emitter regenerates the catalog',
-      () {
-    test('the committed generated rich-shape catalog is current (drift guard)',
-        () async {
-      final library = await _resolveFixture();
-      final shapes = _richShapes(library);
-      final fixtureUri = _fixtureUri(shapes);
-      final catalog = _proofCatalog(fixtureUri);
-      final registration = emitA2uiCatalog(catalog, richShapes: shapes);
+  group('rich-shape proof — the production emitter regenerates the catalog', () {
+    test(
+      'the committed generated rich-shape catalog is current (drift guard)',
+      () async {
+        final library = await _resolveFixture();
+        final shapes = _richShapes(library);
+        final fixtureUri = _fixtureUri(shapes);
+        final catalog = _proofCatalog(fixtureUri);
+        final registration = emitA2uiCatalog(catalog, richShapes: shapes);
 
-      final emitted = emitA2uiCatalogDart(
-        catalog,
-        registration: registration,
-        richShapes: shapes,
-      );
-      // Test-boundary URI normalization (URI string only): the resolved
-      // `file://` fixture URI → the relative import the committed file uses.
-      // The uniform-prefix spellings (`pN.Type`) are untouched, so the render
-      // proof exercises the REAL prefix emission; re-formatting collapses the
-      // (now short) import the long file:// URI had wrapped across two lines.
-      final normalized = formatGeneratedDart(
-        emitted.replaceAll(fixtureUri, _fixtureImport),
-      ).trimRight();
-      expect(
-        normalized,
-        contains("import '$_fixtureImport' as p0;"),
-        reason: 'the emitter should import + prefix the fixture library',
-      );
-      expect(
-        normalized,
-        contains('p0.PlanCardFixture('),
-        reason: 'the widget constructor should carry the import prefix',
-      );
+        final emitted = emitA2uiCatalogDart(
+          catalog,
+          registration: registration,
+          richShapes: shapes,
+        );
+        // Test-boundary URI normalization (URI string only): the resolved
+        // `file://` fixture URI → the relative import the committed file uses.
+        // The uniform-prefix spellings (`pN.Type`) are untouched, so the render
+        // proof exercises the REAL prefix emission; re-formatting collapses the
+        // (now short) import the long file:// URI had wrapped across two lines.
+        final normalized = formatGeneratedDart(
+          emitted.replaceAll(fixtureUri, _fixtureImport),
+        ).trimRight();
+        expect(
+          normalized,
+          contains("import '$_fixtureImport' as p0;"),
+          reason: 'the emitter should import + prefix the fixture library',
+        );
+        expect(
+          normalized,
+          contains('p0.PlanCardFixture('),
+          reason: 'the widget constructor should carry the import prefix',
+        );
 
-      final file = File(_generatedPath);
-      if (Platform.environment['REGEN_A2UI_DART_GOLDEN'] == '1') {
-        file.parent.createSync(recursive: true);
-        file.writeAsStringSync('$normalized\n');
-      }
-      expect(
-        file.existsSync(),
-        isTrue,
-        reason: 'run with REGEN_A2UI_DART_GOLDEN=1 to generate $_generatedPath',
-      );
-      expect(
-        normalized,
-        file.readAsStringSync().trimRight(),
-        reason: 'the committed rich-shape catalog has drifted from the '
-            'emitter; regenerate with REGEN_A2UI_DART_GOLDEN=1',
-      );
+        final file = File(_generatedPath);
+        if (Platform.environment['REGEN_A2UI_DART_GOLDEN'] == '1') {
+          file.parent.createSync(recursive: true);
+          file.writeAsStringSync('$normalized\n');
+        }
+        expect(
+          file.existsSync(),
+          isTrue,
+          reason:
+              'run with REGEN_A2UI_DART_GOLDEN=1 to generate $_generatedPath',
+        );
+        expect(
+          normalized,
+          file.readAsStringSync().trimRight(),
+          reason:
+              'the committed rich-shape catalog has drifted from the '
+              'emitter; regenerate with REGEN_A2UI_DART_GOLDEN=1',
+        );
 
-      // The standalone A2UI document for the SAME fixture/shapes — its
-      // per-component data schemas carry the full rich data shapes. Emitted
-      // from the SAME `shapes` so the document and the `.g.dart` `CatalogItem`
-      // schema agree by construction; the `restage_a2ui` document-tie pins that
-      // equivalence against the real genui SDK. No URI normalization: the
-      // document carries no import URIs (the `$defs` keys are symbol-derived).
-      const encoder = JsonEncoder.withIndent('  ');
-      final manifestJson = encoder.convert(registration.toJson());
-      final manifestFile = File(_manifestPath);
-      if (Platform.environment['REGEN_A2UI_GOLDEN'] == '1') {
-        manifestFile.parent.createSync(recursive: true);
-        manifestFile.writeAsStringSync('$manifestJson\n');
-      }
-      expect(
-        manifestFile.existsSync(),
-        isTrue,
-        reason: 'run with REGEN_A2UI_GOLDEN=1 to generate $_manifestPath',
-      );
-      expect(
-        manifestJson,
-        manifestFile.readAsStringSync().trimRight(),
-        reason: 'the committed rich-shape A2UI document has drifted from the '
-            'emitter; regenerate with REGEN_A2UI_GOLDEN=1',
-      );
-    });
+        // The standalone A2UI document for the SAME fixture/shapes — its
+        // per-component data schemas carry the full rich data shapes. Emitted
+        // from the SAME `shapes` so the document and the `.g.dart` `CatalogItem`
+        // schema agree by construction; the `restage_a2ui` document-tie pins that
+        // equivalence against the real A2UI core. No URI normalization: the
+        // document carries no import URIs (the `$defs` keys are symbol-derived).
+        const encoder = JsonEncoder.withIndent('  ');
+        final manifestJson = encoder.convert(registration.toJson());
+        final manifestFile = File(_manifestPath);
+        if (Platform.environment['REGEN_A2UI_GOLDEN'] == '1') {
+          manifestFile.parent.createSync(recursive: true);
+          manifestFile.writeAsStringSync('$manifestJson\n');
+        }
+        expect(
+          manifestFile.existsSync(),
+          isTrue,
+          reason: 'run with REGEN_A2UI_GOLDEN=1 to generate $_manifestPath',
+        );
+        expect(
+          manifestJson,
+          manifestFile.readAsStringSync().trimRight(),
+          reason:
+              'the committed rich-shape A2UI document has drifted from the '
+              'emitter; regenerate with REGEN_A2UI_GOLDEN=1',
+        );
+      },
+    );
   });
 }

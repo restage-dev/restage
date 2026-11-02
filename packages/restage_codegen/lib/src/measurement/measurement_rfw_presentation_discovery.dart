@@ -8,8 +8,8 @@ import 'package:restage_shared/rfw_formats.dart' as rfw;
 typedef MeasurementRfwPresentationDescriptor = RfwCatalogOccurrenceDescriptor;
 
 /// Shared anchor for an ordinary reachable local RFW declaration body.
-typedef MeasurementRfwPresentationLocalDeclarationAnchor
-    = RfwCatalogOccurrenceLocalDeclarationAnchor;
+typedef MeasurementRfwPresentationLocalDeclarationAnchor =
+    RfwCatalogOccurrenceLocalDeclarationAnchor;
 
 /// Shared exact parsed call selected before artifact encoding.
 typedef MeasurementRfwPresentationOccurrence = RfwCatalogOccurrence;
@@ -75,10 +75,10 @@ final class MeasurementRfwPresentationPublicationPlan {
     required this.routePlan,
     required Map<String, CodeIdentityId> codeIdentityByStructuralOccurrenceKey,
     required Iterable<MeasurementRfwPresentationPlannedOccurrence> occurrences,
-  })  : codeIdentityByStructuralOccurrenceKey = Map.unmodifiable(
-          Map.of(codeIdentityByStructuralOccurrenceKey),
-        ),
-        occurrences = List.unmodifiable(occurrences) {
+  }) : codeIdentityByStructuralOccurrenceKey = Map.unmodifiable(
+         Map.of(codeIdentityByStructuralOccurrenceKey),
+       ),
+       occurrences = List.unmodifiable(occurrences) {
     final byKey = <String, MeasurementRfwPresentationPlannedOccurrence>{};
     final descriptorKeys = <String>{};
     final handles = <MeasurementPresentationOccurrenceHandle>{};
@@ -122,11 +122,9 @@ final class MeasurementRfwPresentationPublicationPlan {
     }
     if (this.codeIdentityByStructuralOccurrenceKey.length !=
             expectedDescriptorKeys.length ||
-        !this
-            .codeIdentityByStructuralOccurrenceKey
-            .keys
-            .toSet()
-            .containsAll(expectedDescriptorKeys) ||
+        !this.codeIdentityByStructuralOccurrenceKey.keys.toSet().containsAll(
+          expectedDescriptorKeys,
+        ) ||
         !expectedDescriptorKeys.containsAll(
           this.codeIdentityByStructuralOccurrenceKey.keys,
         )) {
@@ -142,7 +140,8 @@ final class MeasurementRfwPresentationPublicationPlan {
       );
       if (byKey.putIfAbsent(key, () => occurrence) != occurrence) {
         throw ArgumentError(
-            'A presentation descriptor has two route witnesses');
+          'A presentation descriptor has two route witnesses',
+        );
       }
       if (!descriptorKeys.add(occurrence.structuralOccurrenceKey)) {
         throw ArgumentError('A presentation descriptor was repeated');
@@ -153,8 +152,8 @@ final class MeasurementRfwPresentationPublicationPlan {
       if (!references.add(occurrence.presentationReferenceId.value)) {
         throw ArgumentError('A presentation route witness was repeated');
       }
-      if (codeIdentityByStructuralOccurrenceKey[
-              occurrence.structuralOccurrenceKey] !=
+      if (codeIdentityByStructuralOccurrenceKey[occurrence
+              .structuralOccurrenceKey] !=
           occurrence.nodeCodeIdentityId) {
         throw ArgumentError(
           'A presentation occurrence must retain its reconciled code identity',
@@ -163,8 +162,9 @@ final class MeasurementRfwPresentationPublicationPlan {
       if (occurrence.measurementSurfaceId != routePlan.surfaceId ||
           occurrence.routeDraftClosureDigest !=
               routePlan.routeDraftClosureDigest ||
-          !artifactEdges
-              .contains(occurrence.artifactOccurrenceEdgeToken.value)) {
+          !artifactEdges.contains(
+            occurrence.artifactOccurrenceEdgeToken.value,
+          )) {
         throw ArgumentError(
           'A presentation occurrence must retain its route-plan surface and '
           'artifact closure',
@@ -217,7 +217,7 @@ final class MeasurementRfwPresentationPublicationPlan {
   final List<MeasurementRfwPresentationPlannedOccurrence> occurrences;
 
   late final Map<String, MeasurementRfwPresentationPlannedOccurrence>
-      _occurrencesByKey;
+  _occurrencesByKey;
 
   /// Materializes exact final parsed-call joins from [occurrenceSet].
   ///
@@ -247,15 +247,22 @@ final class MeasurementRfwPresentationPublicationPlan {
       }
     }
     final joins = <MeasurementPresentationOccurrenceJoin>[];
-    final joinsByCall = Map<rfw.ConstructorCall,
-        MeasurementPresentationOccurrenceJoin>.identity();
-    final joinsByHandle = <MeasurementPresentationOccurrenceHandle,
-        MeasurementPresentationOccurrenceJoin>{};
+    final joinsByCall =
+        Map<
+          rfw.ConstructorCall,
+          MeasurementPresentationOccurrenceJoin
+        >.identity();
+    final joinsByHandle =
+        <
+          MeasurementPresentationOccurrenceHandle,
+          MeasurementPresentationOccurrenceJoin
+        >{};
     for (final binding in rebinding.bindings) {
-      final planned = _occurrencesByKey[_plannedOccurrenceKey(
-        artifactOccurrenceEdgeToken,
-        binding.descriptor.structuralOccurrenceKey,
-      )];
+      final planned =
+          _occurrencesByKey[_plannedOccurrenceKey(
+            artifactOccurrenceEdgeToken,
+            binding.descriptor.structuralOccurrenceKey,
+          )];
       if (planned == null) {
         throw const FormatException(
           'A final RFW catalog occurrence has no presentation witness',
@@ -378,13 +385,15 @@ final class MeasurementRfwPresentationArtifactMaterialization {
     required this.artifactOccurrenceEdgeToken,
     required Iterable<MeasurementPresentationOccurrenceJoin> joins,
     required Map<rfw.ConstructorCall, MeasurementPresentationOccurrenceJoin>
-        joinsByCall,
-    required Map<MeasurementPresentationOccurrenceHandle,
-            MeasurementPresentationOccurrenceJoin>
-        joinsByHandle,
-  })  : joins = List.unmodifiable(joins),
-        _joinsByCall = UnmodifiableMapView(joinsByCall),
-        _joinsByHandle = UnmodifiableMapView(joinsByHandle);
+    joinsByCall,
+    required Map<
+      MeasurementPresentationOccurrenceHandle,
+      MeasurementPresentationOccurrenceJoin
+    >
+    joinsByHandle,
+  }) : joins = List.unmodifiable(joins),
+       _joinsByCall = UnmodifiableMapView(joinsByCall),
+       _joinsByHandle = UnmodifiableMapView(joinsByHandle);
 
   /// Frozen source occurrence set that established [joins].
   final ResolvedRfwCatalogOccurrenceSet occurrenceSet;
@@ -402,21 +411,22 @@ final class MeasurementRfwPresentationArtifactMaterialization {
   final List<MeasurementPresentationOccurrenceJoin> joins;
 
   final Map<rfw.ConstructorCall, MeasurementPresentationOccurrenceJoin>
-      _joinsByCall;
-  final Map<MeasurementPresentationOccurrenceHandle,
-      MeasurementPresentationOccurrenceJoin> _joinsByHandle;
+  _joinsByCall;
+  final Map<
+    MeasurementPresentationOccurrenceHandle,
+    MeasurementPresentationOccurrenceJoin
+  >
+  _joinsByHandle;
 
   /// Finds a join by exact parsed final call identity.
   MeasurementPresentationOccurrenceJoin? presentationJoinForCall(
     rfw.ConstructorCall constructorCall,
-  ) =>
-      _joinsByCall[constructorCall];
+  ) => _joinsByCall[constructorCall];
 
   /// Finds a join by its value-stable compiler-owned handle.
   MeasurementPresentationOccurrenceJoin? presentationJoinForHandle(
     MeasurementPresentationOccurrenceHandle handle,
-  ) =>
-      _joinsByHandle[handle];
+  ) => _joinsByHandle[handle];
 
   /// Requires one known value-stable handle.
   MeasurementPresentationOccurrenceJoin requirePresentationJoinForHandle(
@@ -434,7 +444,7 @@ final class MeasurementRfwPresentationArtifactMaterialization {
   /// Local build output does not depend on this helper. It checks a manifest
   /// that the caller already holds and returns the matching final reference.
   GeneratedPresentationReferenceV1
-      requireFinalizedPresentationReferenceForHandle({
+  requireFinalizedPresentationReferenceForHandle({
     required MeasurementPresentationOccurrenceHandle handle,
     required CompleteMeasurementManifestV1 completeManifest,
   }) {
@@ -445,8 +455,9 @@ final class MeasurementRfwPresentationArtifactMaterialization {
       );
     }
     final matches = completeManifest.generatedPresentationReferences
-        .where((reference) =>
-            reference.referenceId == join.presentationReferenceId)
+        .where(
+          (reference) => reference.referenceId == join.presentationReferenceId,
+        )
         .toList(growable: false);
     if (matches.length != 1) {
       throw const FormatException(
@@ -467,8 +478,7 @@ final class MeasurementRfwPresentationArtifactMaterialization {
 String _plannedOccurrenceKey(
   ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken,
   String structuralOccurrenceKey,
-) =>
-    '${artifactOccurrenceEdgeToken.value}\u0000$structuralOccurrenceKey';
+) => '${artifactOccurrenceEdgeToken.value}\u0000$structuralOccurrenceKey';
 
 bool _samePresentationRoute(
   MeasurementPublicationDraftPresentationRouteV1 left,

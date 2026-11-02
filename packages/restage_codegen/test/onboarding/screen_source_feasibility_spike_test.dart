@@ -40,9 +40,10 @@ class Probe extends StatelessWidget {
     );
   });
 
-  test('dual source annotations are currently admitted independently',
-      () async {
-    const source = '''
+  test(
+    'dual source annotations are currently admitted independently',
+    () async {
+      const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -62,18 +63,21 @@ class DualScreen extends StatelessWidget {
 }
 ''';
 
-    final screens = await runOnboardingVisitorOn({'lib/dual.dart': source});
-    final widgets = await runWidgetVisitorOn({'lib/dual.dart': source});
+      final screens = await runOnboardingVisitorOn({'lib/dual.dart': source});
+      final widgets = await runWidgetVisitorOn({'lib/dual.dart': source});
 
-    expect(screens.issues, isEmpty);
-    expect(widgets.issues, isEmpty);
-    expect(screens.sources.single.id, 'dual');
-    expect(widgets.widgets.single.name, 'dual');
-  });
+      expect(screens.issues, isEmpty);
+      expect(widgets.issues, isEmpty);
+      expect(screens.sources.single.id, 'dual');
+      expect(widgets.widgets.single.name, 'dual');
+    },
+  );
 
-  test('duplicate screen IDs in separate libraries escape visitor diagnostics',
-      () async {
-    String source(String className) => '''
+  test(
+    'duplicate screen IDs in separate libraries escape visitor diagnostics',
+    () async {
+      String source(String className) =>
+          '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -86,15 +90,16 @@ class $className extends StatelessWidget {
 }
 ''';
 
-    final result = await runOnboardingVisitorOn({
-      'lib/first.dart': source('FirstScreen'),
-      'lib/second.dart': source('SecondScreen'),
-    });
+      final result = await runOnboardingVisitorOn({
+        'lib/first.dart': source('FirstScreen'),
+        'lib/second.dart': source('SecondScreen'),
+      });
 
-    expect(result.issues, isEmpty);
-    expect(result.sources.map((screen) => screen.id), <String>[
-      'duplicate',
-      'duplicate',
-    ]);
-  });
+      expect(result.issues, isEmpty);
+      expect(result.sources.map((screen) => screen.id), <String>[
+        'duplicate',
+        'duplicate',
+      ]);
+    },
+  );
 }

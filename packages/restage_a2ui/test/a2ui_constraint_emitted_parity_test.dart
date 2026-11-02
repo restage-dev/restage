@@ -10,13 +10,13 @@ const _documentPath = 'test/generated/constraint_parity_catalog.a2ui.json';
 
 void main() {
   test(
-    'actual emitted CatalogItem schema exactly matches the standalone twin',
+    'actual emitted ComponentImplementation schema exactly matches the standalone twin',
     () {
       final emittedItems = buildRestageCatalogItems();
       final item = emittedItems.singleWhere(
         (candidate) => candidate.name == 'ConstraintParity',
       );
-      final actual = item.dataSchema.value;
+      final actual = item.schema.value;
       final document =
           jsonDecode(File(_documentPath).readAsStringSync())
               as Map<String, Object?>;
@@ -25,7 +25,7 @@ void main() {
               .cast<String, Object?>();
       for (final emittedItem in emittedItems) {
         expect(
-          _canonicalJson(emittedItem.dataSchema.value),
+          _canonicalJson(emittedItem.schema.value),
           _canonicalJson(components[emittedItem.name]),
           reason: '${emittedItem.name} real builder must match standalone',
         );
@@ -35,12 +35,15 @@ void main() {
           .cast<String, Object?>();
       expect(_canonicalJson(actual), _canonicalJson(standalone));
 
-      final defs = (actual[r'$defs']! as Map).cast<String, Object?>();
-      final rootKey = (actual[r'$ref']! as String).split('/').last;
+      final scoped =
+          buildRestageCatalogDefinitions()['restage_component_ConstraintParity']!
+              as Map;
+      final defs = (scoped[r'$defs']! as Map).cast<String, Object?>();
+      const rootKey = '__a2ui_root__';
       final root = (defs[rootKey]! as Map).cast<String, Object?>();
       final properties = (root['properties']! as Map).cast<String, Object?>();
 
-      final count = (properties['count']! as Map).cast<String, Object?>();
+      final count = (properties['props_count']! as Map).cast<String, Object?>();
       final countArms = count['oneOf']! as List;
       expect(countArms.first, {
         'anyOf': [
@@ -58,7 +61,7 @@ void main() {
       expect(countArms[2], isNot(contains('maximum')));
       expect(countArms[2], isNot(contains('enum')));
 
-      final tags = (properties['tags']! as Map).cast<String, Object?>();
+      final tags = (properties['props_tags']! as Map).cast<String, Object?>();
       final tagArms = tags['oneOf']! as List;
       expect(tagArms.first, {
         'anyOf': [
@@ -74,38 +77,38 @@ void main() {
       expect(tagArms[1], isNot(contains('minItems')));
       expect(tagArms[2], isNot(contains('maxItems')));
 
-      expect(properties['ratio'], {
+      expect(_literal(properties['props_ratio']), {
         'type': 'number',
         'exclusiveMinimum': 0.25,
         'exclusiveMaximum': 0.75,
       });
-      expect(properties['code'], {
+      expect(_literal(properties['props_code']), {
         'type': 'string',
         'pattern': r'^[A-Z]{2}[0-9]+$',
         'minLength': 3,
         'maxLength': 8,
       });
 
-      final items = (properties['items']! as Map).cast<String, Object?>();
+      final items = (properties['props_items']! as Map).cast<String, Object?>();
       final constrainedItems = (items['anyOf']! as List).first as Map;
       expect(constrainedItems['minItems'], 1);
       expect(constrainedItems['maxItems'], 4);
       expect(
         (constrainedItems['items']! as Map)[r'$ref'],
-        r'#/$defs/ConstraintRecursiveItem',
+        r'#/$defs/restage_component_ConstraintParity/$defs/ConstraintRecursiveItem',
       );
       expect(defs, contains('ConstraintRecursiveItem'));
 
-      expect(properties['legacyCount'], {
+      expect(_literal(properties['props_legacyCount']), {
         'type': 'number',
         'minimum': -10,
         'maximum': 10,
       });
-      expect(properties['legacyMode'], {
+      expect(_literal(properties['props_legacyMode']), {
         'type': 'string',
         'enum': ['compact', 'expanded'],
       });
-      expect(properties['legacyCode'], {
+      expect(_literal(properties['props_legacyCode']), {
         'type': 'string',
         'pattern': r'^[a-z]+$',
       });
@@ -128,17 +131,23 @@ void main() {
           (candidate) => candidate.name == widgetName,
         );
         final actualPatternProperties =
-            (patternItem.dataSchema.value['properties']! as Map)
+            (patternItem.schema.value['properties']! as Map)
                 .cast<String, Object?>();
         final standalonePatternProperties =
             ((components[widgetName]! as Map)['properties']! as Map)
                 .cast<String, Object?>();
-        final actualTyped = actualPatternProperties['typedPattern']! as Map;
-        final actualLegacy = actualPatternProperties['legacyPattern']! as Map;
-        final standaloneTyped =
-            standalonePatternProperties['typedPattern']! as Map;
-        final standaloneLegacy =
-            standalonePatternProperties['legacyPattern']! as Map;
+        final actualTyped = _literal(
+          actualPatternProperties['props_typedPattern'],
+        );
+        final actualLegacy = _literal(
+          actualPatternProperties['props_legacyPattern'],
+        );
+        final standaloneTyped = _literal(
+          standalonePatternProperties['props_typedPattern'],
+        );
+        final standaloneLegacy = _literal(
+          standalonePatternProperties['props_legacyPattern'],
+        );
 
         expect(
           actualTyped['pattern'],
@@ -166,11 +175,6 @@ Object? _canonical(Object? node) {
   if (node is Map) {
     final sorted = SplayTreeMap<String, Object?>();
     for (final entry in node.entries) {
-      // json_schema_builder 0.1.6 makes the JSON-schema default explicit on the
-      // runtime `Schema.value` (`additionalProperties: true`) while the emitted
-      // document omits it. Drop ONLY that default-elision; a schema-valued
-      // additionalProperties stays for deep comparison.
-      if (entry.key == 'additionalProperties' && entry.value == true) continue;
       sorted[entry.key as String] = _canonical(entry.value);
     }
     return sorted;
@@ -178,3 +182,6 @@ Object? _canonical(Object? node) {
   if (node is List) return [for (final element in node) _canonical(element)];
   return node;
 }
+
+Map<String, Object?> _literal(Object? value) =>
+    (((value! as Map)['oneOf']! as List).first as Map).cast<String, Object?>();

@@ -66,8 +66,9 @@ String? emitFactoryFunction(
   final customAliases = aliases.isNotEmpty
       ? aliases
       : (custom?.aliases ?? const <String, String>{});
-  final functionName =
-      publicName ? publicFunctionNameFor(entry) : functionNameFor(entry);
+  final functionName = publicName
+      ? publicFunctionNameFor(entry)
+      : functionNameFor(entry);
   // Built-in catalog builders are part of a package's public API and so
   // carry a dartdoc line; app-local factories stay private.
   final signatureDoc = publicName
@@ -286,8 +287,11 @@ String? emitFactoryFunction(
       // When the entry declares the four corner siblings, the uniform
       // expression becomes the fall-through arm of the per-corner
       // conditional; otherwise it emits unchanged (byte-identical).
-      final value =
-          _borderRadiusEmitWithCorners(uniform, entry, index: nativeIndex);
+      final value = _borderRadiusEmitWithCorners(
+        uniform,
+        entry,
+        index: nativeIndex,
+      );
       argLines.add('    ${p.name}: $value,');
       continue;
     }
@@ -315,8 +319,11 @@ String? emitFactoryFunction(
       // Gate the onPressed handler with the bool synthetic. Setting
       // `onPressed: null` is Flutter's convention for the disabled
       // state across button widgets.
-      final decoded =
-          _decoderCallFor(p, _sourcePath(p.name), index: nativeIndex);
+      final decoded = _decoderCallFor(
+        p,
+        _sourcePath(p.name),
+        index: nativeIndex,
+      );
       argLines.add(
         '    ${p.name}: ${gatingProp.name} ? null : $decoded,',
       );
@@ -404,30 +411,30 @@ String? emitFactoryFunction(
     final decoded = hoistedChildListSlots.contains(canonicalChild.name)
         ? canonicalChild.name
         : presence == null
-            ? _decodeExpression(
-                canonicalChild,
-                entry.name,
-                index: nativeIndex,
-                aliases: customAliases,
-                widgetLibrary: entry.library,
-                widgetFlutterType: entry.flutterType,
-                customChildProperties: customChildProperties,
-              )
-            : _presenceAwareCanonicalChildrenValue(
-                canonicalChild,
-                entry,
-                presence,
-                index: nativeIndex,
-                aliases: customAliases,
-                customChildProperties: customChildProperties,
-              );
+        ? _decodeExpression(
+            canonicalChild,
+            entry.name,
+            index: nativeIndex,
+            aliases: customAliases,
+            widgetLibrary: entry.library,
+            widgetFlutterType: entry.flutterType,
+            customChildProperties: customChildProperties,
+          )
+        : _presenceAwareCanonicalChildrenValue(
+            canonicalChild,
+            entry,
+            presence,
+            index: nativeIndex,
+            aliases: customAliases,
+            customChildProperties: customChildProperties,
+          );
     argLines.add('    ${canonicalChild.name}: $decoded,');
   }
 
   final gatingDeclaration = gatingProp == null
       ? null
       : '  final ${gatingProp.name} = '
-          'source.v<bool>(const ${_sourcePath(gatingProp.name)}) ?? false;';
+            'source.v<bool>(const ${_sourcePath(gatingProp.name)}) ?? false;';
   final preambleLines = <String>[
     if (gatingDeclaration != null) gatingDeclaration,
     ...presencePlans.values.map((plan) => plan.declaration),
@@ -440,13 +447,16 @@ String? emitFactoryFunction(
           presence: presencePlans[property.name],
         ),
     ...hoistedChildListSlots.map(
-      (slot) => '  final $slot = RestageDecoders.widgetList(source, '
+      (slot) =>
+          '  final $slot = RestageDecoders.widgetList(source, '
           '${_sourcePath(slot)}, context: context, bindings: builderBindings);',
     ),
   ];
-  final preamble =
-      preambleLines.isEmpty ? '' : '${preambleLines.join('\n')}\n\n';
-  String emitBody(String invocation) => '''
+  final preamble = preambleLines.isEmpty
+      ? ''
+      : '${preambleLines.join('\n')}\n\n';
+  String emitBody(String invocation) =>
+      '''
 ${signatureDoc}Widget $functionName(BuildContext context, DataSource source) {
   source = RestageValueBinding.dataSource(source, context);
   return RestageBuilderBinding.construct((builderBindings) {
@@ -512,7 +522,8 @@ Iterable<String> _builderBindingDeclarations(
   RfwConstructorPresenceFactoryPlan? presence,
 }) sync* {
   final name = _builderBindingName(property);
-  final path = presence?.valuePathExpression ??
+  final path =
+      presence?.valuePathExpression ??
       _directSourcePath(property.name, _sourcePath(property.name));
   if (property.type == PropertyType.scalarCallback &&
       property.scalarContract!.parameters.singleOrNull ==
@@ -530,7 +541,8 @@ Iterable<String> _builderBindingDeclarations(
     final parameters = contract.parameters
         .map((parameter) => 'ScalarCallbackParameter.${parameter.name}')
         .join(', ');
-    contractCode = 'scalarContract: const '
+    contractCode =
+        'scalarContract: const '
         'ScalarCallbackContract(parameters: [$parameters], '
         'nullableResult: ${contract.nullableResult})';
   } else {
@@ -538,7 +550,8 @@ Iterable<String> _builderBindingDeclarations(
     final parameters = contract.parameters
         .map((parameter) => 'WidgetBuilderParameter.${parameter.name}')
         .join(', ');
-    contractCode = 'contract: const '
+    contractCode =
+        'contract: const '
         'WidgetBuilderContract(parameters: [$parameters], '
         'nullableResult: ${contract.nullableResult})';
   }
@@ -619,8 +632,9 @@ String _presenceAwareInvocation(
     if (match != null) {
       final name = match.group(1)!;
       final condition = omissionConditions[name];
-      final prefix =
-          condition == null ? '    #$name:' : '    if ($condition) #$name:';
+      final prefix = condition == null
+          ? '    #$name:'
+          : '    if ($condition) #$name:';
       named.add(line.replaceFirst(match.group(0)!, prefix));
       continue;
     }
@@ -688,7 +702,8 @@ String _presenceAwareCanonicalChildrenValue(
 
   final path = presence.valuePathExpression;
   final requiredMessage = "'${entry.name}.${property.name} is required.'";
-  final guarded = 'RestageDecoders.isWidgetList(source, $path) ? $decoded '
+  final guarded =
+      'RestageDecoders.isWidgetList(source, $path) ? $decoded '
       ': (throw ArgumentError($requiredMessage))';
   return _presenceAwareValue(
     presence: presence,
@@ -719,7 +734,7 @@ String _positionalEmit(
     final read = 'source.v<int>(${_directSourcePath(prop.name, path)})';
     final fallback = prop.required
         ? '(throw ArgumentError('
-            '${dartStringLiteral('$widgetName.${prop.name} is required.')}))'
+              '${dartStringLiteral('$widgetName.${prop.name} is required.')}))'
         : '0';
     final family = _iconFontFamilyExpression(entry);
     final mirroring = _iconMatchTextDirectionArgument(entry);
@@ -767,16 +782,16 @@ String _iconMatchTextDirectionArgument(WidgetEntry entry) {
 /// The `InputDecoration` arguments [entry]'s decoration synthetics build, in
 /// catalog order. Empty when the entry declares none.
 List<String> _inputDecorationArguments(WidgetEntry entry) => [
-      for (final p in entry.properties)
-        switch (p.synthetic) {
-          _inputDecorationTextSynthetic =>
-            '${p.name}: source.v<String>(const ${_sourcePath(p.name)})',
-          _inputBorderSynthetic => '${p.name}: ${_inputBorderExpression(p)}',
-          _inputDecorationPrefixIconSynthetic =>
-            'prefixIcon: ${_prefixIconExpression(p, entry)}',
-          _ => null,
-        },
-    ].nonNulls.toList();
+  for (final p in entry.properties)
+    switch (p.synthetic) {
+      _inputDecorationTextSynthetic =>
+        '${p.name}: source.v<String>(const ${_sourcePath(p.name)})',
+      _inputBorderSynthetic => '${p.name}: ${_inputBorderExpression(p)}',
+      _inputDecorationPrefixIconSynthetic =>
+        'prefixIcon: ${_prefixIconExpression(p, entry)}',
+      _ => null,
+    },
+].nonNulls.toList();
 
 /// A switch from [prop]'s closed border names to Flutter input borders; an
 /// absent or unknown name leaves the theme's border.
@@ -810,7 +825,7 @@ String _prefixIconExpression(PropertyEntry prop, WidgetEntry entry) {
   final mirroringArgument = mirroring == null
       ? ''
       : ', matchTextDirection: '
-          'source.v<bool>(const ${_sourcePath(mirroring.name)}) ?? false';
+            'source.v<bool>(const ${_sourcePath(mirroring.name)}) ?? false';
   return '$read == null ? null : restageIcon(context, codePoint: $read!, '
       'fontFamily: $familyExpression$mirroringArgument)';
 }
@@ -871,7 +886,8 @@ String _nativeRecipeEmit(
       continue;
     }
     final fieldIds = _targetFieldsForParameter(variant, parameter);
-    final propertyRef = recipe.parameterMappings
+    final propertyRef =
+        recipe.parameterMappings
             .firstWhereOrNull(
               (mapping) => mapping.parameterRef == parameter.wireId,
             )
@@ -928,7 +944,7 @@ String _nativeFactoryInvocationExpression({
       return '$receiver.$member('
           '${_nativeArgumentList(parameters, argumentForParameter)})';
     case StaticGetterVariant(:final staticAccessor) ||
-          ConstValueVariant(:final staticAccessor):
+        ConstValueVariant(:final staticAccessor):
       final member = invocation.memberName ?? staticAccessor;
       return '$receiver.$member';
   }
@@ -953,10 +969,11 @@ String _nativeArgumentList(
 }
 
 List<FactoryParameter> _orderedParameters(List<FactoryParameter> parameters) {
-  final positional = parameters
-      .where((p) => p.kind == FactoryParameterKind.positional)
-      .toList()
-    ..sort((a, b) => a.position!.compareTo(b.position!));
+  final positional =
+      parameters
+          .where((p) => p.kind == FactoryParameterKind.positional)
+          .toList()
+        ..sort((a, b) => a.position!.compareTo(b.position!));
   final named = parameters
       .where((p) => p.kind == FactoryParameterKind.named)
       .toList(growable: false);
@@ -1454,8 +1471,12 @@ String _borderRadiusEmitWithCorners(
   // surfaces at build time rather than as a silent wrong-render.
   if (corners.length != _kBorderRadiusCorners.length &&
       !(corners.length == 4 &&
-          const ['topLeft', 'topRight', 'bottomLeft', 'bottomRight']
-              .every(corners.containsKey))) {
+          const [
+            'topLeft',
+            'topRight',
+            'bottomLeft',
+            'bottomRight',
+          ].every(corners.containsKey))) {
     throw StateError(
       "Catalog entry '${entry.name}' declares ${corners.length} of "
       '${_kBorderRadiusCorners.length} borderRadius corner synthetics. The '
@@ -1478,8 +1499,9 @@ String _borderRadiusEmitWithCorners(
     final directional =
         corner.corner.endsWith('Start') || corner.corner.endsWith('End');
     if (directional) directionalReads.add(read(prop));
-    (directional ? directionalArgs : onlyArgs)
-        .add('${corner.corner}: Radius.circular(${read(prop)} ?? 0.0)');
+    (directional ? directionalArgs : onlyArgs).add(
+      '${corner.corner}: Radius.circular(${read(prop)} ?? 0.0)',
+    );
   }
   final physical = 'BorderRadius.only(${onlyArgs.join(', ')})';
   final directional =
@@ -1658,8 +1680,8 @@ const Set<String> kSupportedSyntheticStrategies = {
 };
 
 bool _declaresPrefixIcon(WidgetEntry entry) => entry.properties.any(
-      (p) => p.synthetic == _inputDecorationPrefixIconSynthetic,
-    );
+  (p) => p.synthetic == _inputDecorationPrefixIconSynthetic,
+);
 
 /// Returns the non-exported function identifier for [entry]'s factory closure.
 ///
@@ -1694,13 +1716,12 @@ bool isFactoryEmittable(
   NativeCatalogIndex? nativeIndex,
   CustomReconstruction? custom,
   bool customChildProperties = false,
-}) =>
-    _isMechanicallyEmittable(
-      entry,
-      nativeIndex: nativeIndex,
-      custom: custom,
-      customChildProperties: customChildProperties,
-    );
+}) => _isMechanicallyEmittable(
+  entry,
+  nativeIndex: nativeIndex,
+  custom: custom,
+  customChildProperties: customChildProperties,
+);
 
 /// True when every aspect of [entry] can be emitted by the current
 /// generator surface. See [emitFactoryFunction] for the per-category
@@ -1970,10 +1991,10 @@ bool _isSupportedNativeTransform(
     case IdentityTransform():
       return true;
     case ConstructVariantTransform(
-        :final resultStructuredRef,
-        :final invocation,
-        :final argumentBindings,
-      ):
+      :final resultStructuredRef,
+      :final invocation,
+      :final argumentBindings,
+    ):
       if (index.structuredByRef(resultStructuredRef) == null) return false;
       if (index.variantByRef(invocation.variantRef) == null) return false;
       for (final binding in argumentBindings) {
@@ -2174,8 +2195,9 @@ bool _isSupportedSynthetic(PropertyEntry prop, WidgetEntry entry) {
       return prop.type == PropertyType.real &&
           !prop.required &&
           !prop.positional &&
-          entry.properties
-              .any((property) => _isScaffoldAppBar(property, entry));
+          entry.properties.any(
+            (property) => _isScaffoldAppBar(property, entry),
+          );
     case _preferredSizeHeightSynthetic:
       // The synthetic supplies the height of the entry's
       // `PreferredSizeWidget` slot, so the entry must declare one.
@@ -2401,8 +2423,9 @@ String _decodeExpression(
   // throw on missing values. Custom widget parameters follow constructor
   // nullability; curated widget slots, widget lists and callbacks use their
   // separate rules above and below.
-  final defaultExpr =
-      applyDefault ? _defaultExpressionFor(prop, aliases: aliases) : null;
+  final defaultExpr = applyDefault
+      ? _defaultExpressionFor(prop, aliases: aliases)
+      : null;
   if (defaultExpr != null) {
     if (prop.type == PropertyType.widgetList) {
       return 'RestageDecoders.isWidgetList(source, $directPath) '
@@ -2424,8 +2447,9 @@ String _decodeExpression(
       return decoded;
     }
     if (!applyDefault) {
-      final message =
-          dartStringLiteral('$widgetName.${prop.name} is required.');
+      final message = dartStringLiteral(
+        '$widgetName.${prop.name} is required.',
+      );
       return '$decoded ?? (throw ArgumentError($message))';
     }
     final signature = prop.callbackSignature;
@@ -2444,7 +2468,8 @@ String _decodeExpression(
   // A registered structured-ref decoder returns a nullable Flutter value
   // (e.g. `Size?`), so a required slot can throw on a missing value just
   // like the other nullable-decoder scalar paths.
-  final nullable = _structuredRefDecoderFor(prop, index) != null ||
+  final nullable =
+      _structuredRefDecoderFor(prop, index) != null ||
       _decoderReturnsNullable(prop.type);
   if (!nullable) return decoded;
   final message = dartStringLiteral('$widgetName.${prop.name} is required.');
@@ -2614,8 +2639,10 @@ String? _structuredRefDecoderFor(
   final native = nativeBindingRoute(structured.sourceType);
   if (native != null)
     return 'RestageDecoders.nativeBinding<${native.dartType}>';
-  final optional = optionalNativeDecoder(structured.sourceType,
-      namespace: structured.library.namespace);
+  final optional = optionalNativeDecoder(
+    structured.sourceType,
+    namespace: structured.library.namespace,
+  );
   if (optional != null) {
     final prefix = aliases['package:restage_svg/src/native_values.dart'];
     return '${prefix == null ? '' : '$prefix.'}SvgNativeValues.$optional';
@@ -2900,14 +2927,19 @@ String _customMapValue(
   final keyEnumRef = keyPlan.enumRef;
   final String keyRead;
   if (keyEnumRef == null) {
-    keyRead = 'source.v<String>(${_pathLiteral(keyPath)}) ?? '
+    keyRead =
+        'source.v<String>(${_pathLiteral(keyPath)}) ?? '
         "(throw ArgumentError('$ownerLabel entry key is required.'))";
   } else {
-    final qualified =
-        _qualifyName(keyEnumRef.symbolName, keyEnumRef.libraryUri, ctx.aliases);
+    final qualified = _qualifyName(
+      keyEnumRef.symbolName,
+      keyEnumRef.libraryUri,
+      ctx.aliases,
+    );
     // A defaulted field changes one value. Defaulting a key can discard the
     // author's entry and insert a different entry that was never sent.
-    keyRead = 'RestageDecoders.enumByName<$qualified>('
+    keyRead =
+        'RestageDecoders.enumByName<$qualified>('
         '$qualified.values, source, ${_pathLiteral(keyPath)}) ?? '
         "(throw ArgumentError('$ownerLabel entry key is not a known "
         "member.'))";
@@ -2934,7 +2966,8 @@ String _customMapValue(
   // The entry count is read ONCE. Left in the condition it is re-evaluated per
   // entry, and each evaluation allocates a fresh path list plus a key and a
   // hash on the app's device; a nested map multiplies that per level.
-  final map = '() { '
+  final map =
+      '() { '
       'final $mapName = <$keyType, $valueType>{}; '
       'final $lengthName = source.length($pathLiteral); '
       'for (var $indexName = 0; '
@@ -3083,7 +3116,8 @@ String? _customMapOrRecordPropValue(
     ctx: custom,
     nativeIndex: nativeIndex,
   );
-  final guarded = 'source.isMap($pathLiteral) ? $record '
+  final guarded =
+      'source.isMap($pathLiteral) ? $record '
       ": (throw ArgumentError('$ownerLabel is required.'))";
   if (presence != null) {
     return _presenceAwareValue(
@@ -3161,8 +3195,7 @@ bool _customReconstructableProp(
   PropertyEntry prop,
   WidgetEntry entry,
   CustomReconstruction? custom,
-) =>
-    _customPropSourceType(prop, entry, custom) != null;
+) => _customPropSourceType(prop, entry, custom) != null;
 
 final class _PathIndex {
   const _PathIndex(this.expression);
@@ -3237,7 +3270,8 @@ String _customStructuredPropValue(
   );
   final pathLiteral = _pathLiteral(effectivePath);
   final requiredMessage = "'${entry.name}.${p.name} is required.'";
-  final guarded = 'source.isMap($pathLiteral) ? $reconstruction '
+  final guarded =
+      'source.isMap($pathLiteral) ? $reconstruction '
       ': (throw ArgumentError($requiredMessage))';
   if (presence != null) {
     return _presenceAwareValue(
@@ -3285,12 +3319,14 @@ String _customStructuredListValue(
   // re-evaluated per element, allocating a fresh path list and a lookup each
   // time, and a nested list multiplies that per level.
   final lengthName = 'n$depth';
-  final list = '[for (var $indexName = 0, '
+  final list =
+      '[for (var $indexName = 0, '
       '$lengthName = source.length($listPath); '
       '$indexName < $lengthName; $indexName++) '
       'source.isMap($itemPathLiteral) ? $item '
       ': (throw ArgumentError($elementMessage))]';
-  final guarded = 'source.isList($listPath) ? $list '
+  final guarded =
+      'source.isList($listPath) ? $list '
       ': (throw ArgumentError($requiredMessage))';
   if (presence != null) {
     return _presenceAwareValue(
@@ -3490,8 +3526,11 @@ String _customFieldDecode(
         'metadata; the reconstruction plan and lowered field disagree.',
       );
     }
-    final qualified =
-        _qualifyName(enumType, _enumLibraryUri(synthetic), ctx.aliases);
+    final qualified = _qualifyName(
+      enumType,
+      _enumLibraryUri(synthetic),
+      ctx.aliases,
+    );
     return '$decoded ?? $qualified.$defaultEnumValue';
   }
   if (defaultCode != null) {
@@ -3711,7 +3750,7 @@ ScalarRoute? _scalarDecoderRouteFor(
 
 /// Routes built-in slots whose safe value depends on another argument.
 const Map<(String, String), DerivedPreflightRoute>
-    _derivedPreflightByWidgetProperty = {
+_derivedPreflightByWidgetProperty = {
   ('Row', 'spacing'): _rowDerivedSpacingRoute,
   ('Column', 'spacing'): _columnDerivedSpacingRoute,
 };
@@ -3918,7 +3957,7 @@ const Map<(String, String), String> _scalarDecoderExemptions = {
   ('TransformScale', 'scaleY'): _transformPaintReason,
   ('RestageShaderMask', 'rotation'):
       'gradient rotation reaches shader creation during paint; child layout '
-          'does not depend on the angle',
+      'does not depend on the angle',
   ('Slider', 'value'): _sliderAndProgressPaintReason,
   ('Slider', 'secondaryTrackValue'): _sliderAndProgressPaintReason,
   ('Slider', 'min'): _sliderAndProgressPaintReason,
@@ -3981,7 +4020,7 @@ Map<(String, String), ScalarRoute> get scalarDecoderRoutesForTesting =>
 /// Derived preflight routes exposed for catalog completeness checks.
 @visibleForTesting
 Map<(String, String), DerivedPreflightRoute>
-    get derivedPreflightRoutesForTesting => _derivedPreflightByWidgetProperty;
+get derivedPreflightRoutesForTesting => _derivedPreflightByWidgetProperty;
 
 /// Scalar decoder exemptions exposed for catalog completeness checks.
 @visibleForTesting
@@ -3996,19 +4035,19 @@ Map<(String, String), String> get scalarDecoderDeferredForTesting =>
 /// All per-slot decoder classifications used by completeness checks.
 @visibleForTesting
 List<Map<(String, String), Object>>
-    get scalarDecoderClassificationTablesForTesting => [
-          scalarDecoderRoutesForTesting,
-          derivedPreflightRoutesForTesting,
-          scalarDecoderExemptionsForTesting,
-          scalarDecoderDeferredForTesting,
-        ];
+get scalarDecoderClassificationTablesForTesting => [
+  scalarDecoderRoutesForTesting,
+  derivedPreflightRoutesForTesting,
+  scalarDecoderExemptionsForTesting,
+  scalarDecoderDeferredForTesting,
+];
 
 /// The derived union of every routed, exempt, and deferred scalar slot.
 @visibleForTesting
 Set<(String, String)> get scalarDecoderCoveredSlotsForTesting => {
-      for (final table in scalarDecoderClassificationTablesForTesting)
-        ...table.keys,
-    };
+  for (final table in scalarDecoderClassificationTablesForTesting)
+    ...table.keys,
+};
 
 /// Property types repaired uniformly by their type-level decoder.
 @visibleForTesting
@@ -4038,15 +4077,16 @@ String _decoderCallFor(
   // paths can contain runtime indices or spreads and must remain mutable.
   // Extensible ArgumentDecoders also retain their existing mutable inputs.
   final directPath = _directSourcePath(prop.name, path);
-  final isAppBarBottom = widgetName == 'AppBar' &&
+  final isAppBarBottom =
+      widgetName == 'AppBar' &&
       widgetLibrary == WidgetLibrary.material &&
       widgetFlutterType == 'package:flutter/src/material/app_bar.dart#AppBar' &&
       prop.name == 'bottom';
   final preferredSizeHeightHint = preferredSizeHeightPath == null
       ? null
       : isAppBarBottom
-          ? 'RestageDecoders.number(source, $preferredSizeHeightPath)'
-          : 'source.v<double>($preferredSizeHeightPath)';
+      ? 'RestageDecoders.number(source, $preferredSizeHeightPath)'
+      : 'source.v<double>($preferredSizeHeightPath)';
   switch (prop.type) {
     case PropertyType.boolean:
       return 'RestageValueBinding.read<bool>(source, $directPath, context)';
@@ -4201,8 +4241,9 @@ String _decoderCallFor(
       // unconditionally, while `optionalChild` preserves an explicit null.
       // Curated factories deliberately retain their historical requiredness
       // policy so core/material/Cupertino generated bytes do not change.
-      final nullableDecoder =
-          customChildProperties ? prop.constructorNullable : !prop.required;
+      final nullableDecoder = customChildProperties
+          ? prop.constructorNullable
+          : !prop.required;
       final base = nullableDecoder
           ? 'source.optionalChild($directPath)'
           : 'source.child($directPath)';
@@ -4220,8 +4261,9 @@ String _decoderCallFor(
         }
         // A built slot value never implements the interface, so the
         // adapter wraps it at the height carried beside the slot.
-        final height =
-            preferredSizeHeightPath == null ? '' : ', $preferredSizeHeightHint';
+        final height = preferredSizeHeightPath == null
+            ? ''
+            : ', $preferredSizeHeightHint';
         return nullableDecoder
             ? 'RestageDecoders.optionalPreferredSize($base$height)'
             : 'RestageDecoders.preferredSize($base$height)';
@@ -4275,8 +4317,8 @@ String _decoderCallFor(
       final binding = _builderBindingName(prop);
       final invocation =
           contract.parameters.singleOrNull == ScalarCallbackParameter.valueKey
-              ? '$binding.evaluateKey(context, ${callbackParameterName(0)})'
-              : '$binding.evaluate(context, {${values.join(', ')}})';
+          ? '$binding.evaluateKey(context, ${callbackParameterName(0)})'
+          : '$binding.evaluate(context, {${values.join(', ')}})';
       final callback =
           '(${arguments.join(', ')}) => $invocation as $resultType';
       return _nullableBuilderBinding(prop)
@@ -4307,7 +4349,8 @@ String _decoderCallFor(
       }
       final method = contract.nullableResult ? 'buildNullable' : 'build';
       final binding = _builderBindingName(prop);
-      final callback = '(${arguments.join(', ')}) => '
+      final callback =
+          '(${arguments.join(', ')}) => '
           '$binding.$method(${callbackParameterName(0)}, {${projections.join(', ')}})';
       return _nullableBuilderBinding(prop)
           ? '$binding == null ? null : $callback'
@@ -4342,9 +4385,11 @@ String _decoderCallFor(
         return '$decoder(source, $path, context: context, bindings: builderBindings)';
       }
       if (decoder != null) {
-        final arguments = (kContextualStructuredDecoders.contains(decoder) ||
+        final arguments =
+            (kContextualStructuredDecoders.contains(decoder) ||
                 optionalContextualNativeDecoders.any(
-                    (method) => decoder.endsWith('SvgNativeValues.$method')))
+                  (method) => decoder.endsWith('SvgNativeValues.$method'),
+                ))
             ? 'context, source, $path'
             : 'source, $path';
         return '$decoder($arguments)';
@@ -4497,8 +4542,9 @@ String? _defaultExpressionFor(
     if (value.length != 4 || !keys.every((key) => value[key] is num)) {
       throw StateError("Invalid inset default for '${prop.name}': $value.");
     }
-    final args =
-        keys.map((key) => '${(value[key] as num).toDouble()}').join(', ');
+    final args = keys
+        .map((key) => '${(value[key] as num).toDouble()}')
+        .join(', ');
     return directional
         ? 'const EdgeInsetsDirectional.fromSTEB($args)'
         : 'const EdgeInsets.fromLTRB($args)';

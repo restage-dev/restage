@@ -72,7 +72,8 @@ Future<String> _generatedPart(Map<String, String> sources) async {
   );
 }
 
-String _screenSource(String id, String className, String event) => '''
+String _screenSource(String id, String className, String event) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -90,9 +91,13 @@ final class $className extends StatelessWidget {
 ''';
 
 Map<String, String> _flowSources({required String delivery}) => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart':
+      '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -107,7 +112,7 @@ const firstRun = FlowDefinition(
   ],
 );
 ''',
-    };
+};
 
 Map<String, String> _generalFlowSources() =>
     _flowSources(delivery: ', delivery: FlowDeliveryMode.general');

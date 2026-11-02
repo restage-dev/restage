@@ -67,40 +67,42 @@ void main() {
     BuilderOptions.empty,
   );
 
-  test('a legacy screen no flow references still gets its generated part',
-      () async {
-    final sources = <String, String>{'apps_examples|$_screenPath': _screen};
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilders(
-      [
-        onboardingScreenBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-      ],
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    expect(result.succeeded, isTrue);
-
-    final bundle = _handoff(result);
-    expect(
-      bundle.valid,
-      isTrue,
-      reason: 'the compiler must not demand artifacts it does not own: '
-          '${bundle.errors.join('; ')}',
-    );
-    expect(
-      bundle.ownedOutputs,
-      contains(neutralPartPath(plan, _screenPath)),
-      reason: 'the generated part reaches the one owner through the compiler',
-    );
-  });
-
   test(
-      'a legacy flow gets its generated part, and its flow document is still '
+    'a legacy screen no flow references still gets its generated part',
+    () async {
+      final sources = <String, String>{'apps_examples|$_screenPath': _screen};
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(result.succeeded, isTrue);
+
+      final bundle = _handoff(result);
+      expect(
+        bundle.valid,
+        isTrue,
+        reason:
+            'the compiler must not demand artifacts it does not own: '
+            '${bundle.errors.join('; ')}',
+      );
+      expect(
+        bundle.ownedOutputs,
+        contains(neutralPartPath(plan, _screenPath)),
+        reason: 'the generated part reaches the one owner through the compiler',
+      );
+    },
+  );
+
+  test('a legacy flow gets its generated part, and its flow document is still '
       'the borrowed bytes', () async {
     final sources = <String, String>{
       'apps_examples|$_screenPath': _screen,
@@ -158,7 +160,8 @@ void main() {
         borrowed.copyWith(screenArtifacts: produced.screenArtifacts),
       ),
       emitted,
-      reason: 'the compiler borrows the exact emitted document and re-records '
+      reason:
+          'the compiler borrows the exact emitted document and re-records '
           'only the screen locator',
     );
     // The re-recorded locator must name the artifact this bundle emits, which
@@ -185,7 +188,8 @@ void main() {
     expect(
       bundle.ownedOutputs,
       contains(screenText),
-      reason: "a deprecated library's bundle carries its rfw text like every "
+      reason:
+          "a deprecated library's bundle carries its rfw text like every "
           'other library',
     );
     expect(

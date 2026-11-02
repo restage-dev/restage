@@ -380,8 +380,9 @@ final foreignGeneratedRef = Object();
         for (final carrier in carriers.cast<String>()) {
           expect(carrier, startsWith('mrv1.'));
           expect(
-            MeasurementPublicationRouteCarrierV1.parse(carrier)
-                .artifactOccurrenceEdgeToken,
+            MeasurementPublicationRouteCarrierV1.parse(
+              carrier,
+            ).artifactOccurrenceEdgeToken,
             routePlan.routes.first.artifactOccurrenceEdgeToken,
           );
         }
@@ -431,325 +432,339 @@ final foreignGeneratedRef = Object();
       },
     );
 
-    test('accepts only the exact final draft carrier for a measured source',
-        () async {
-      final scenario = await _loadScenario();
-      const referenceIds = <String>['reference.route-final'];
-      final announcementBlob = _routeLibraryBlob(referenceIds);
-      final baseInput = PackageSurfaceCompilationInput(
-        roster: scenario.input.roster,
-        flows: scenario.input.flows,
-        renderedSources: <CompiledSurfaceArtifact>[
-          _artifactWithBlob(
-            scenario.input.renderedSources[0].declaration,
-            id: 'announcement',
-            blob: announcementBlob,
-          ),
-          _artifactWithBlob(
-            scenario.input.renderedSources[1].declaration,
-            id: 'welcome',
-            blob: _emptyRfwLibraryBlob(),
-          ),
-          CompiledSurfaceArtifact.fromPaywallAdapter(
-            declaration: scenario.input.renderedSources[2].declaration,
-            facts: _paywallFacts(
-              standaloneBlob: _emptyRfwLibraryBlob(),
-              adapterBlob: _emptyRfwLibraryBlob(),
+    test(
+      'accepts only the exact final draft carrier for a measured source',
+      () async {
+        final scenario = await _loadScenario();
+        const referenceIds = <String>['reference.route-final'];
+        final announcementBlob = _routeLibraryBlob(referenceIds);
+        final baseInput = PackageSurfaceCompilationInput(
+          roster: scenario.input.roster,
+          flows: scenario.input.flows,
+          renderedSources: <CompiledSurfaceArtifact>[
+            _artifactWithBlob(
+              scenario.input.renderedSources[0].declaration,
+              id: 'announcement',
+              blob: announcementBlob,
             ),
-            flowArtifactPath: 'premium.rfw',
-            rfwText: utf8.encode('premium'),
-          ),
-        ],
-        standaloneScreens: scenario.input.standaloneScreens,
-      );
-      final provisional = compilePackageSurfacePublications(baseInput).bundle!;
-      final announcement = provisional.manifest.publications.singleWhere(
-        (entry) => entry.publication.slug == 'announcement',
-      );
-      final selector = MeasurementPublicationSelectorV1.fromPublication(
-        announcement.publication,
-      );
-      final routePlan = _routePlanForEntry(announcement, referenceIds);
-      final routeReferences = <String>[
-        for (final route in routePlan.routes) route.generatedReferenceId.value,
-      ];
-
-      PackageSurfaceCompilationInput measurementInput({
-        Map<String, String> carrierDraftDigests = const <String, String>{},
-      }) =>
-          PackageSurfaceCompilationInput(
-            roster: baseInput.roster,
-            flows: baseInput.flows,
-            renderedSources: <CompiledSurfaceArtifact>[
-              _artifactWithBlob(
-                baseInput.renderedSources[0].declaration,
-                id: 'announcement',
-                blob: announcementBlob,
-                text: _routeLibraryText(routePlan, routeReferences),
+            _artifactWithBlob(
+              scenario.input.renderedSources[1].declaration,
+              id: 'welcome',
+              blob: _emptyRfwLibraryBlob(),
+            ),
+            CompiledSurfaceArtifact.fromPaywallAdapter(
+              declaration: scenario.input.renderedSources[2].declaration,
+              facts: _paywallFacts(
+                standaloneBlob: _emptyRfwLibraryBlob(),
+                adapterBlob: _emptyRfwLibraryBlob(),
               ),
-              ...baseInput.renderedSources.skip(1),
-            ],
-            standaloneScreens: baseInput.standaloneScreens,
-            measurementRoutePlansByPublicationKey: <String,
-                MeasurementPublicationRoutePlanV1>{
-              selector.key: routePlan,
-            },
-            generatedSourceCarrierDraftDigestsByPublicationKey:
-                carrierDraftDigests,
-          );
-
-      final finalized = compilePackageSurfacePublications(measurementInput());
-      expect(finalized.issues, isEmpty);
-      final finalizedBundle = finalized.bundle!;
-      final finalDraftDigest =
-          finalizedBundle.measurementPublications.single.draft.canonicalDigest;
-      final carried = compilePackageSurfacePublications(
-        measurementInput(
-          carrierDraftDigests: <String, String>{
-            selector.key: finalDraftDigest.hex,
-          },
-        ),
-      );
-
-      expect(carried.issues, isEmpty);
-      expect(carried.bundle!.manifestJson, finalizedBundle.manifestJson);
-      expect(
-        _encodeFiles(carried.bundle!.outputFiles),
-        _encodeFiles(finalizedBundle.outputFiles),
-      );
-      expect(
-        carried.bundle!.generatedParts.values.join('\n'),
-        allOf(
-          contains('generatedWithMeasurementPublicationDraftDigest'),
-          contains(finalDraftDigest.hex),
-        ),
-      );
-      await _assertGeneratedPartsAnalyze(
-        scenario.source,
-        carried.bundle!.generatedParts,
-      );
-
-      final stale = compilePackageSurfacePublications(
-        measurementInput(
-          carrierDraftDigests: <String, String>{selector.key: '0' * 64},
-        ),
-      );
-      expect(stale.bundle, isNull);
-      expect(
-        stale.issues.map((issue) => issue.message).join('\n'),
-        contains('does not match the exact final publication draft'),
-      );
-    });
-
-    test('rejects authored reserved arguments and incomplete route closure',
-        () async {
-      final scenario = await _loadScenario();
-      const refs = [
-        'reference.route-ordinary',
-        'reference.route-inline',
-        'reference.route-opaque',
-        'reference.route-repeated',
-      ];
-      final cases = <List<String>>[
-        [
-          ...refs.take(refs.length - 1),
-          '__authored_reserved_argument__',
-        ],
-        refs.take(refs.length - 1).toList(),
-        [...refs, 'reference.route-extra'],
-        [refs.first, refs.first, ...refs.skip(2)],
-      ];
-      for (final caseRefs in cases) {
+              flowArtifactPath: 'premium.rfw',
+              rfwText: utf8.encode('premium'),
+            ),
+          ],
+          standaloneScreens: scenario.input.standaloneScreens,
+        );
         final provisional = compilePackageSurfacePublications(
-          PackageSurfaceCompilationInput(
-            roster: scenario.input.roster,
-            flows: scenario.input.flows,
-            renderedSources: [
-              _artifactWithBlob(
-                scenario.input.renderedSources[0].declaration,
-                id: 'announcement',
-                blob: _routeLibraryBlob(refs),
-              ),
-              scenario.input.renderedSources[1],
-              scenario.input.renderedSources[2],
-            ],
-            standaloneScreens: scenario.input.standaloneScreens,
-          ),
+          baseInput,
         ).bundle!;
         final announcement = provisional.manifest.publications.singleWhere(
           (entry) => entry.publication.slug == 'announcement',
         );
-        final routePlan = _routePlanForEntry(announcement, refs);
-        final result = compilePackageSurfacePublications(
-          PackageSurfaceCompilationInput(
-            roster: scenario.input.roster,
-            flows: scenario.input.flows,
-            renderedSources: [
-              _artifactWithBlob(
-                scenario.input.renderedSources[0].declaration,
-                id: 'announcement',
-                blob: _routeLibraryBlob(
-                  caseRefs,
-                  authoredReserved: caseRefs.contains(
-                    '__authored_reserved_argument__',
-                  ),
-                ),
-              ),
-              _artifactWithBlob(
-                scenario.input.renderedSources[1].declaration,
-                id: 'welcome',
-                blob: _emptyRfwLibraryBlob(),
-              ),
-              CompiledSurfaceArtifact.fromPaywallAdapter(
-                declaration: scenario.input.renderedSources[2].declaration,
-                facts: _paywallFacts(
-                  standaloneBlob: _emptyRfwLibraryBlob(),
-                  adapterBlob: _emptyRfwLibraryBlob(),
-                ),
-                flowArtifactPath: 'premium.rfw',
-              ),
-            ],
-            standaloneScreens: scenario.input.standaloneScreens,
-            measurementRoutePlansByPublicationKey: {
-              MeasurementPublicationSelectorV1.fromPublication(
-                announcement.publication,
-              ).key: routePlan,
+        final selector = MeasurementPublicationSelectorV1.fromPublication(
+          announcement.publication,
+        );
+        final routePlan = _routePlanForEntry(announcement, referenceIds);
+        final routeReferences = <String>[
+          for (final route in routePlan.routes)
+            route.generatedReferenceId.value,
+        ];
+
+        PackageSurfaceCompilationInput measurementInput({
+          Map<String, String> carrierDraftDigests = const <String, String>{},
+        }) => PackageSurfaceCompilationInput(
+          roster: baseInput.roster,
+          flows: baseInput.flows,
+          renderedSources: <CompiledSurfaceArtifact>[
+            _artifactWithBlob(
+              baseInput.renderedSources[0].declaration,
+              id: 'announcement',
+              blob: announcementBlob,
+              text: _routeLibraryText(routePlan, routeReferences),
+            ),
+            ...baseInput.renderedSources.skip(1),
+          ],
+          standaloneScreens: baseInput.standaloneScreens,
+          measurementRoutePlansByPublicationKey:
+              <String, MeasurementPublicationRoutePlanV1>{
+                selector.key: routePlan,
+              },
+          generatedSourceCarrierDraftDigestsByPublicationKey:
+              carrierDraftDigests,
+        );
+
+        final finalized = compilePackageSurfacePublications(measurementInput());
+        expect(finalized.issues, isEmpty);
+        final finalizedBundle = finalized.bundle!;
+        final finalDraftDigest = finalizedBundle
+            .measurementPublications
+            .single
+            .draft
+            .canonicalDigest;
+        final carried = compilePackageSurfacePublications(
+          measurementInput(
+            carrierDraftDigests: <String, String>{
+              selector.key: finalDraftDigest.hex,
             },
           ),
         );
-        expect(result.bundle, isNull);
-        expect(result.issues, isNotEmpty);
-      }
-    });
 
-    test('records the authoring sources every publication compiled from',
-        () async {
-      final scenario = await _loadScenario();
-      final result = compilePackageSurfacePublications(scenario.input);
+        expect(carried.issues, isEmpty);
+        expect(carried.bundle!.manifestJson, finalizedBundle.manifestJson);
+        expect(
+          _encodeFiles(carried.bundle!.outputFiles),
+          _encodeFiles(finalizedBundle.outputFiles),
+        );
+        expect(
+          carried.bundle!.generatedParts.values.join('\n'),
+          allOf(
+            contains('generatedWithMeasurementPublicationDraftDigest'),
+            contains(finalDraftDigest.hex),
+          ),
+        );
+        await _assertGeneratedPartsAnalyze(
+          scenario.source,
+          carried.bundle!.generatedParts,
+        );
 
-      expect(result.issues, isEmpty);
-      final sourcesBySlug = <String, List<String>>{
-        for (final entry in result.bundle!.manifest.publications)
-          entry.publication.slug: entry.sources,
-      };
+        final stale = compilePackageSurfacePublications(
+          measurementInput(
+            carrierDraftDigests: <String, String>{selector.key: '0' * 64},
+          ),
+        );
+        expect(stale.bundle, isNull);
+        expect(
+          stale.issues.map((issue) => issue.message).join('\n'),
+          contains('does not match the exact final publication draft'),
+        );
+      },
+    );
 
-      // A standalone screen names its own declaring file and the library
-      // that owns it; it does not inherit the sources of unrelated
-      // publications compiled in the same build.
-      expect(
-        sourcesBySlug['announcement'],
-        orderedEquals(<String>[
-          'lib/authoring.dart',
-          'lib/screens/announcement.dart',
-        ]),
-      );
+    test(
+      'rejects authored reserved arguments and incomplete route closure',
+      () async {
+        final scenario = await _loadScenario();
+        const refs = [
+          'reference.route-ordinary',
+          'reference.route-inline',
+          'reference.route-opaque',
+          'reference.route-repeated',
+        ];
+        final cases = <List<String>>[
+          [
+            ...refs.take(refs.length - 1),
+            '__authored_reserved_argument__',
+          ],
+          refs.take(refs.length - 1).toList(),
+          [...refs, 'reference.route-extra'],
+          [refs.first, refs.first, ...refs.skip(2)],
+        ];
+        for (final caseRefs in cases) {
+          final provisional = compilePackageSurfacePublications(
+            PackageSurfaceCompilationInput(
+              roster: scenario.input.roster,
+              flows: scenario.input.flows,
+              renderedSources: [
+                _artifactWithBlob(
+                  scenario.input.renderedSources[0].declaration,
+                  id: 'announcement',
+                  blob: _routeLibraryBlob(refs),
+                ),
+                scenario.input.renderedSources[1],
+                scenario.input.renderedSources[2],
+              ],
+              standaloneScreens: scenario.input.standaloneScreens,
+            ),
+          ).bundle!;
+          final announcement = provisional.manifest.publications.singleWhere(
+            (entry) => entry.publication.slug == 'announcement',
+          );
+          final routePlan = _routePlanForEntry(announcement, refs);
+          final result = compilePackageSurfacePublications(
+            PackageSurfaceCompilationInput(
+              roster: scenario.input.roster,
+              flows: scenario.input.flows,
+              renderedSources: [
+                _artifactWithBlob(
+                  scenario.input.renderedSources[0].declaration,
+                  id: 'announcement',
+                  blob: _routeLibraryBlob(
+                    caseRefs,
+                    authoredReserved: caseRefs.contains(
+                      '__authored_reserved_argument__',
+                    ),
+                  ),
+                ),
+                _artifactWithBlob(
+                  scenario.input.renderedSources[1].declaration,
+                  id: 'welcome',
+                  blob: _emptyRfwLibraryBlob(),
+                ),
+                CompiledSurfaceArtifact.fromPaywallAdapter(
+                  declaration: scenario.input.renderedSources[2].declaration,
+                  facts: _paywallFacts(
+                    standaloneBlob: _emptyRfwLibraryBlob(),
+                    adapterBlob: _emptyRfwLibraryBlob(),
+                  ),
+                  flowArtifactPath: 'premium.rfw',
+                ),
+              ],
+              standaloneScreens: scenario.input.standaloneScreens,
+              measurementRoutePlansByPublicationKey: {
+                MeasurementPublicationSelectorV1.fromPublication(
+                  announcement.publication,
+                ).key: routePlan,
+              },
+            ),
+          );
+          expect(result.bundle, isNull);
+          expect(result.issues, isNotEmpty);
+        }
+      },
+    );
 
-      // A flow names the file declaring it AND the file declaring every
-      // screen in its closure, so pointing at a screen inside a flow
-      // resolves the flow that publishes it.
-      expect(
-        sourcesBySlug['general_flow'],
-        orderedEquals(<String>[
-          'lib/authoring.dart',
-          'lib/flows/general_flow.dart',
-          'lib/paywalls/premium.dart',
-          'lib/screens/welcome.dart',
-        ]),
-      );
-      // follow_up is declared in a DIFFERENT library from the screen in its
-      // closure, so this pins that each declaration contributes its OWN
-      // library rather than a shared constant or a neighbour's.
-      expect(
-        sourcesBySlug['follow_up'],
-        orderedEquals(<String>[
-          'lib/authoring.dart',
-          'lib/flows/follow_up.dart',
-          'lib/follow_up_library.dart',
-          'lib/screens/welcome.dart',
-        ]),
-      );
-      expect(
-        sourcesBySlug['premium'],
-        orderedEquals(<String>[
-          'lib/authoring.dart',
-          'lib/paywalls/premium.dart',
-        ]),
-      );
+    test(
+      'records the authoring sources every publication compiled from',
+      () async {
+        final scenario = await _loadScenario();
+        final result = compilePackageSurfacePublications(scenario.input);
 
-      // The sources survive the canonical encode the CLI re-checks.
-      final encoded = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
-        result.bundle!.manifest,
-      );
-      expect(
-        SurfacePublicationManifestV1Codec.decodeJson(encoded)
-            .publications
-            .map((entry) => entry.sources)
-            .toList(),
-        result.bundle!.manifest.publications
-            .map((entry) => entry.sources)
-            .toList(),
-      );
-    });
+        expect(result.issues, isEmpty);
+        final sourcesBySlug = <String, List<String>>{
+          for (final entry in result.bundle!.manifest.publications)
+            entry.publication.slug: entry.sources,
+        };
 
-    test('is deterministic when aggregate inputs arrive in a different order',
-        () async {
-      final scenario = await _loadScenario();
-      final first = compilePackageSurfacePublications(scenario.input);
-      final reversed = compilePackageSurfacePublications(
-        PackageSurfaceCompilationInput(
-          roster: scenario.input.roster,
-          flows: scenario.input.flows.reversed,
-          renderedSources: scenario.input.renderedSources.reversed,
-          standaloneScreens: scenario.input.standaloneScreens.reversed,
-        ),
-      );
+        // A standalone screen names its own declaring file and the library
+        // that owns it; it does not inherit the sources of unrelated
+        // publications compiled in the same build.
+        expect(
+          sourcesBySlug['announcement'],
+          orderedEquals(<String>[
+            'lib/authoring.dart',
+            'lib/screens/announcement.dart',
+          ]),
+        );
 
-      expect(first.issues, isEmpty);
-      expect(reversed.issues, isEmpty);
-      expect(first.bundle!.manifestJson, reversed.bundle!.manifestJson);
-      expect(first.bundle!.generatedParts, reversed.bundle!.generatedParts);
-      expect(
-        _encodeFiles(first.bundle!.outputFiles),
-        _encodeFiles(reversed.bundle!.outputFiles),
-      );
-    });
+        // A flow names the file declaring it AND the file declaring every
+        // screen in its closure, so pointing at a screen inside a flow
+        // resolves the flow that publishes it.
+        expect(
+          sourcesBySlug['general_flow'],
+          orderedEquals(<String>[
+            'lib/authoring.dart',
+            'lib/flows/general_flow.dart',
+            'lib/paywalls/premium.dart',
+            'lib/screens/welcome.dart',
+          ]),
+        );
+        // follow_up is declared in a DIFFERENT library from the screen in its
+        // closure, so this pins that each declaration contributes its OWN
+        // library rather than a shared constant or a neighbour's.
+        expect(
+          sourcesBySlug['follow_up'],
+          orderedEquals(<String>[
+            'lib/authoring.dart',
+            'lib/flows/follow_up.dart',
+            'lib/follow_up_library.dart',
+            'lib/screens/welcome.dart',
+          ]),
+        );
+        expect(
+          sourcesBySlug['premium'],
+          orderedEquals(<String>[
+            'lib/authoring.dart',
+            'lib/paywalls/premium.dart',
+          ]),
+        );
 
-    test('a flow reference carries the union over the screens it contains',
-        () async {
-      final scenario = await _loadScenario();
-      final result = compilePackageSurfacePublications(
-        _withScreenVocabularies(scenario.input),
-      );
+        // The sources survive the canonical encode the CLI re-checks.
+        final encoded = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
+          result.bundle!.manifest,
+        );
+        expect(
+          SurfacePublicationManifestV1Codec.decodeJson(
+            encoded,
+          ).publications.map((entry) => entry.sources).toList(),
+          result.bundle!.manifest.publications
+              .map((entry) => entry.sources)
+              .toList(),
+        );
+      },
+    );
 
-      expect(result.issues, isEmpty);
-      // general_flow contains `welcome` and the embedded `paywall_premium`,
-      // so the vocabulary its reference installs names a widget from each.
-      final union = _packed(
-        _referenceBody(
-          _authoringPart(result),
-          'const _generalFlowRefVocabulary =',
-        ),
-      );
-      expect(union, contains("'Text':buildText"));
-      expect(union, contains("'Chip':buildChip"));
+    test(
+      'is deterministic when aggregate inputs arrive in a different order',
+      () async {
+        final scenario = await _loadScenario();
+        final first = compilePackageSurfacePublications(scenario.input);
+        final reversed = compilePackageSurfacePublications(
+          PackageSurfaceCompilationInput(
+            roster: scenario.input.roster,
+            flows: scenario.input.flows.reversed,
+            renderedSources: scenario.input.renderedSources.reversed,
+            standaloneScreens: scenario.input.standaloneScreens.reversed,
+          ),
+        );
 
-      // Take the widget away from the embedded paywall and the same flow
-      // stops naming it: the reference tracks the screens it contains rather
-      // than the package or the catalog.
-      final narrowed = compilePackageSurfacePublications(
-        _withScreenVocabularies(scenario.input, premiumWidgetNames: const []),
-      );
+        expect(first.issues, isEmpty);
+        expect(reversed.issues, isEmpty);
+        expect(first.bundle!.manifestJson, reversed.bundle!.manifestJson);
+        expect(first.bundle!.generatedParts, reversed.bundle!.generatedParts);
+        expect(
+          _encodeFiles(first.bundle!.outputFiles),
+          _encodeFiles(reversed.bundle!.outputFiles),
+        );
+      },
+    );
 
-      expect(narrowed.issues, isEmpty);
-      final withoutPremium = _packed(
-        _referenceBody(
-          _authoringPart(narrowed),
-          'const _generalFlowRefVocabulary =',
-        ),
-      );
-      expect(withoutPremium, contains("'Text':buildText"));
-      expect(withoutPremium, isNot(contains('buildChip')));
-    });
+    test(
+      'a flow reference carries the union over the screens it contains',
+      () async {
+        final scenario = await _loadScenario();
+        final result = compilePackageSurfacePublications(
+          _withScreenVocabularies(scenario.input),
+        );
+
+        expect(result.issues, isEmpty);
+        // general_flow contains `welcome` and the embedded `paywall_premium`,
+        // so the vocabulary its reference installs names a widget from each.
+        final union = _packed(
+          _referenceBody(
+            _authoringPart(result),
+            'const _generalFlowRefVocabulary =',
+          ),
+        );
+        expect(union, contains("'Text':buildText"));
+        expect(union, contains("'Chip':buildChip"));
+
+        // Take the widget away from the embedded paywall and the same flow
+        // stops naming it: the reference tracks the screens it contains rather
+        // than the package or the catalog.
+        final narrowed = compilePackageSurfacePublications(
+          _withScreenVocabularies(scenario.input, premiumWidgetNames: const []),
+        );
+
+        expect(narrowed.issues, isEmpty);
+        final withoutPremium = _packed(
+          _referenceBody(
+            _authoringPart(narrowed),
+            'const _generalFlowRefVocabulary =',
+          ),
+        );
+        expect(withoutPremium, contains("'Text':buildText"));
+        expect(withoutPremium, isNot(contains('buildChip')));
+      },
+    );
 
     test('a flow reference rebuilds the icons its screens render', () async {
       final scenario = await _loadScenario();
@@ -781,55 +796,59 @@ final foreignGeneratedRef = Object();
       );
     });
 
-    test('a screen reference names the widgets and icons that screen draws',
-        () async {
-      final scenario = await _loadScenario();
-      final result = compilePackageSurfacePublications(
-        _withStandaloneVocabulary(
-          scenario.input,
-          SurfaceVocabularyReferences(
-            widgetNames: const ['restage.core:Text'],
-            icons: const [
-              IconDataReference(
-                codePoint: 0xe156,
-                fontFamily: 'MaterialIcons',
-              ),
-            ],
+    test(
+      'a screen reference names the widgets and icons that screen draws',
+      () async {
+        final scenario = await _loadScenario();
+        final result = compilePackageSurfacePublications(
+          _withStandaloneVocabulary(
+            scenario.input,
+            SurfaceVocabularyReferences(
+              widgetNames: const ['restage.core:Text'],
+              icons: const [
+                IconDataReference(
+                  codePoint: 0xe156,
+                  fontFamily: 'MaterialIcons',
+                ),
+              ],
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(result.issues, isEmpty);
-      const provenance = 'final _announcementProvenance =';
-      final reference = _packed(
-        _referenceBody(_authoringPart(result), provenance),
-      );
-      expect(reference, contains("'Text':buildText"));
-      expect(
-        reference,
-        contains(
-          "RestageIconTable.fromFamilies(families:{'MaterialIcons':"
-          '{0xe156:IconData(0xe156,',
-        ),
-      );
-      expect(reference, contains("fontFamily:'MaterialIcons'"));
+        expect(result.issues, isEmpty);
+        const provenance = 'final _announcementProvenance =';
+        final reference = _packed(
+          _referenceBody(_authoringPart(result), provenance),
+        );
+        expect(reference, contains("'Text':buildText"));
+        expect(
+          reference,
+          contains(
+            "RestageIconTable.fromFamilies(families:{'MaterialIcons':"
+            '{0xe156:IconData(0xe156,',
+          ),
+        );
+        expect(reference, contains("fontFamily:'MaterialIcons'"));
 
-      // A screen naming nothing installable still emits no argument: a
-      // custom-library widget reaches the runtime through the app's own
-      // generated factories.
-      final custom = compilePackageSurfacePublications(
-        _withStandaloneVocabulary(
-          scenario.input,
-          SurfaceVocabularyReferences(widgetNames: const ['app.custom:Badge']),
-        ),
-      );
+        // A screen naming nothing installable still emits no argument: a
+        // custom-library widget reaches the runtime through the app's own
+        // generated factories.
+        final custom = compilePackageSurfacePublications(
+          _withStandaloneVocabulary(
+            scenario.input,
+            SurfaceVocabularyReferences(
+              widgetNames: const ['app.custom:Badge'],
+            ),
+          ),
+        );
 
-      expect(custom.issues, isEmpty);
-      expect(
-        _referenceBody(_authoringPart(custom), provenance),
-        isNot(contains('vocabulary:')),
-      );
-    });
+        expect(custom.issues, isEmpty);
+        expect(
+          _referenceBody(_authoringPart(custom), provenance),
+          isNot(contains('vocabulary:')),
+        );
+      },
+    );
 
     test('records every catalog entry its compiled surfaces render', () async {
       final scenario = await _loadScenario();
@@ -844,234 +863,238 @@ final foreignGeneratedRef = Object();
       );
     });
 
-    test('resolves child flow closure by surface and id, never slug alone',
-        () async {
-      final scenario = await _loadScenario();
-      final baseFlow = scenario.input.flows.singleWhere(
-        (flow) => flow.id == 'general_flow',
-      );
-      final source = scenario.input.roster.declarations.singleWhere(
-        (candidate) =>
-            candidate.kind == RestageRosterSourceKind.flow &&
-            candidate.effectiveId == baseFlow.id,
-      );
-      const generalIdentity = NormalizedFlowIdentity(
-        surface: Surface.general,
-        id: 'child',
-      );
-      const messageIdentity = NormalizedFlowIdentity(
-        surface: Surface.message,
-        id: 'child',
-      );
-      final generalChild = FlowDocumentCodec.encodeCanonicalJson(
-        const FlowDocument(
-          flow: 'child',
-          version: 1,
-          schemaVersion: 1,
-          minClient: 1,
-          initial: 'general_done',
-          screenArtifacts: {},
-          states: {'general_done': EndFlowState(result: {})},
-        ),
-      );
-      final messageChild = FlowDocumentCodec.encodeCanonicalJson(
-        const FlowDocument(
-          flow: 'child',
-          version: 1,
-          schemaVersion: 1,
-          minClient: 1,
-          initial: 'message_done',
-          screenArtifacts: {},
-          states: {'message_done': EndFlowState(result: {})},
-        ),
-      );
-      final flow = NormalizedFlowSource(
-        id: baseFlow.id,
-        hasExplicitId: true,
-        version: 1,
-        minClient: 1,
-        surface: Surface.general,
-        delivery: FlowDeliveryMode.typed,
-        declaration: baseFlow.declaration,
-        isCanonical: true,
-        graph: NormalizedFlowGraph(
-          flow: baseFlow.id,
+    test(
+      'resolves child flow closure by surface and id, never slug alone',
+      () async {
+        final scenario = await _loadScenario();
+        final baseFlow = scenario.input.flows.singleWhere(
+          (flow) => flow.id == 'general_flow',
+        );
+        final source = scenario.input.roster.declarations.singleWhere(
+          (candidate) =>
+              candidate.kind == RestageRosterSourceKind.flow &&
+              candidate.effectiveId == baseFlow.id,
+        );
+        const generalIdentity = NormalizedFlowIdentity(
+          surface: Surface.general,
+          id: 'child',
+        );
+        const messageIdentity = NormalizedFlowIdentity(
+          surface: Surface.message,
+          id: 'child',
+        );
+        final generalChild = FlowDocumentCodec.encodeCanonicalJson(
+          const FlowDocument(
+            flow: 'child',
+            version: 1,
+            schemaVersion: 1,
+            minClient: 1,
+            initial: 'general_done',
+            screenArtifacts: {},
+            states: {'general_done': EndFlowState(result: {})},
+          ),
+        );
+        final messageChild = FlowDocumentCodec.encodeCanonicalJson(
+          const FlowDocument(
+            flow: 'child',
+            version: 1,
+            schemaVersion: 1,
+            minClient: 1,
+            initial: 'message_done',
+            screenArtifacts: {},
+            states: {'message_done': EndFlowState(result: {})},
+          ),
+        );
+        final flow = NormalizedFlowSource(
+          id: baseFlow.id,
+          hasExplicitId: true,
           version: 1,
           minClient: 1,
+          surface: Surface.general,
           delivery: FlowDeliveryMode.typed,
-          initial: 'child_state',
-          states: {
-            'child_state': SubFlowState(
-              flow: 'child',
-              version: 1,
-              schemaVersion: 1,
-              minClient: 1,
-              contentHash: FlowContentHash.compute(const []),
-              input: const {},
-              onComplete: const [],
-              defaultBranch: const FlowBranchTarget(target: 'done'),
-            ),
-            'done': const EndFlowState(result: {}),
+          declaration: baseFlow.declaration,
+          isCanonical: true,
+          graph: NormalizedFlowGraph(
+            flow: baseFlow.id,
+            version: 1,
+            minClient: 1,
+            delivery: FlowDeliveryMode.typed,
+            initial: 'child_state',
+            states: {
+              'child_state': SubFlowState(
+                flow: 'child',
+                version: 1,
+                schemaVersion: 1,
+                minClient: 1,
+                contentHash: FlowContentHash.compute(const []),
+                input: const {},
+                onComplete: const [],
+                defaultBranch: const FlowBranchTarget(target: 'done'),
+              ),
+              'done': const EndFlowState(result: {}),
+            },
+            flowState: const {},
+            outbound: const FlowOutboundDeclarations(),
+            actions: const {},
+            screens: const {},
+            childFlows: {
+              generalIdentity: const NormalizedChildFlowReference(
+                identity: generalIdentity,
+                version: 1,
+                minClient: 1,
+                declarationIdentity: 'package:fixture/general.dart#child',
+                referenceName: 'generalChildRef',
+              ),
+              messageIdentity: const NormalizedChildFlowReference(
+                identity: messageIdentity,
+                version: 1,
+                minClient: 1,
+                declarationIdentity: 'package:fixture/message.dart#child',
+                referenceName: 'messageChildRef',
+              ),
+            },
+          ),
+        );
+
+        final result = compileCanonicalFlowArtifact(
+          flow: flow,
+          source: source,
+          screenArtifacts: const {},
+          childFlowDocuments: {
+            generalIdentity: generalChild,
+            messageIdentity: messageChild,
           },
-          flowState: const {},
-          outbound: const FlowOutboundDeclarations(),
-          actions: const {},
-          screens: const {},
-          childFlows: {
-            generalIdentity: const NormalizedChildFlowReference(
-              identity: generalIdentity,
-              version: 1,
-              minClient: 1,
-              declarationIdentity: 'package:fixture/general.dart#child',
-              referenceName: 'generalChildRef',
-            ),
-            messageIdentity: const NormalizedChildFlowReference(
-              identity: messageIdentity,
-              version: 1,
-              minClient: 1,
-              declarationIdentity: 'package:fixture/message.dart#child',
-              referenceName: 'messageChildRef',
-            ),
-          },
-        ),
-      );
+        );
 
-      final result = compileCanonicalFlowArtifact(
-        flow: flow,
-        source: source,
-        screenArtifacts: const {},
-        childFlowDocuments: {
-          generalIdentity: generalChild,
-          messageIdentity: messageChild,
-        },
-      );
+        expect(result.issues, isEmpty);
+        expect(
+          result.compilation!.generatedTopLevelSymbols,
+          equals({
+            'GeneralFlowSurface',
+            'generalFlowPlacementDefinition',
+            '_generalFlowPlacementDefinitionValue',
+            'generalFlowRef',
+            '_decodeGeneralFlowResult',
+            'GeneralFlowResult',
+          }),
+        );
+        final document = FlowDocumentCodec.decodeJson(
+          utf8.decode(result.compilation!.flowDocumentBytes),
+        );
+        expect(
+          (document.states['child_state']! as SubFlowState).contentHash,
+          FlowContentHash.compute(generalChild),
+        );
+        expect(
+          (document.states['child_state']! as SubFlowState).contentHash,
+          isNot(FlowContentHash.compute(messageChild)),
+        );
+        expect(
+          result.compilation!.generatedPart,
+          contains(dartStringLiteral(utf8.decode(generalChild))),
+        );
+        expect(
+          result.compilation!.generatedPart,
+          isNot(contains(dartStringLiteral(utf8.decode(messageChild)))),
+        );
+      },
+    );
 
-      expect(result.issues, isEmpty);
-      expect(
-        result.compilation!.generatedTopLevelSymbols,
-        equals({
-          'GeneralFlowSurface',
-          'generalFlowPlacementDefinition',
-          '_generalFlowPlacementDefinitionValue',
-          'generalFlowRef',
-          '_decodeGeneralFlowResult',
-          'GeneralFlowResult',
-        }),
-      );
-      final document = FlowDocumentCodec.decodeJson(
-        utf8.decode(result.compilation!.flowDocumentBytes),
-      );
-      expect(
-        (document.states['child_state']! as SubFlowState).contentHash,
-        FlowContentHash.compute(generalChild),
-      );
-      expect(
-        (document.states['child_state']! as SubFlowState).contentHash,
-        isNot(FlowContentHash.compute(messageChild)),
-      );
-      expect(
-        result.compilation!.generatedPart,
-        contains(dartStringLiteral(utf8.decode(generalChild))),
-      );
-      expect(
-        result.compilation!.generatedPart,
-        isNot(contains(dartStringLiteral(utf8.decode(messageChild)))),
-      );
-    });
-
-    test('a flow reference names the references of the flows it enters',
-        () async {
-      final scenario = await _loadScenario();
-      final baseFlow = scenario.input.flows.singleWhere(
-        (flow) => flow.id == 'general_flow',
-      );
-      final source = scenario.input.roster.declarations.singleWhere(
-        (candidate) =>
-            candidate.kind == RestageRosterSourceKind.flow &&
-            candidate.effectiveId == baseFlow.id,
-      );
-      const childIdentity = NormalizedFlowIdentity(
-        surface: Surface.general,
-        id: 'child',
-      );
-      final childDocument = FlowDocumentCodec.encodeCanonicalJson(
-        const FlowDocument(
-          flow: 'child',
-          version: 1,
-          schemaVersion: 1,
-          minClient: 1,
-          initial: 'child_done',
-          screenArtifacts: {},
-          states: {'child_done': EndFlowState(result: {})},
-        ),
-      );
-      final parent = NormalizedFlowSource(
-        id: baseFlow.id,
-        hasExplicitId: true,
-        version: 1,
-        minClient: 1,
-        surface: Surface.general,
-        delivery: FlowDeliveryMode.typed,
-        declaration: baseFlow.declaration,
-        isCanonical: true,
-        graph: NormalizedFlowGraph(
-          flow: baseFlow.id,
+    test(
+      'a flow reference names the references of the flows it enters',
+      () async {
+        final scenario = await _loadScenario();
+        final baseFlow = scenario.input.flows.singleWhere(
+          (flow) => flow.id == 'general_flow',
+        );
+        final source = scenario.input.roster.declarations.singleWhere(
+          (candidate) =>
+              candidate.kind == RestageRosterSourceKind.flow &&
+              candidate.effectiveId == baseFlow.id,
+        );
+        const childIdentity = NormalizedFlowIdentity(
+          surface: Surface.general,
+          id: 'child',
+        );
+        final childDocument = FlowDocumentCodec.encodeCanonicalJson(
+          const FlowDocument(
+            flow: 'child',
+            version: 1,
+            schemaVersion: 1,
+            minClient: 1,
+            initial: 'child_done',
+            screenArtifacts: {},
+            states: {'child_done': EndFlowState(result: {})},
+          ),
+        );
+        final parent = NormalizedFlowSource(
+          id: baseFlow.id,
+          hasExplicitId: true,
           version: 1,
           minClient: 1,
+          surface: Surface.general,
           delivery: FlowDeliveryMode.typed,
-          initial: 'child_state',
-          states: {
-            'child_state': SubFlowState(
-              flow: 'child',
-              version: 1,
-              schemaVersion: 1,
-              minClient: 1,
-              contentHash: FlowContentHash.compute(const []),
-              input: const {},
-              onComplete: const [],
-              defaultBranch: const FlowBranchTarget(target: 'done'),
-            ),
-            'done': const EndFlowState(result: {}),
-          },
-          flowState: const {},
-          outbound: const FlowOutboundDeclarations(),
-          actions: const {},
-          screens: const {},
-          childFlows: {
-            childIdentity: const NormalizedChildFlowReference(
-              identity: childIdentity,
-              version: 1,
-              minClient: 1,
-              declarationIdentity: 'package:fixture/general.dart#child',
-              referenceName: 'childFlowRef',
-            ),
-          },
-        ),
-      );
+          declaration: baseFlow.declaration,
+          isCanonical: true,
+          graph: NormalizedFlowGraph(
+            flow: baseFlow.id,
+            version: 1,
+            minClient: 1,
+            delivery: FlowDeliveryMode.typed,
+            initial: 'child_state',
+            states: {
+              'child_state': SubFlowState(
+                flow: 'child',
+                version: 1,
+                schemaVersion: 1,
+                minClient: 1,
+                contentHash: FlowContentHash.compute(const []),
+                input: const {},
+                onComplete: const [],
+                defaultBranch: const FlowBranchTarget(target: 'done'),
+              ),
+              'done': const EndFlowState(result: {}),
+            },
+            flowState: const {},
+            outbound: const FlowOutboundDeclarations(),
+            actions: const {},
+            screens: const {},
+            childFlows: {
+              childIdentity: const NormalizedChildFlowReference(
+                identity: childIdentity,
+                version: 1,
+                minClient: 1,
+                declarationIdentity: 'package:fixture/general.dart#child',
+                referenceName: 'childFlowRef',
+              ),
+            },
+          ),
+        );
 
-      final entering = compileCanonicalFlowArtifact(
-        flow: parent,
-        source: source,
-        screenArtifacts: const {},
-        childFlowDocuments: {childIdentity: childDocument},
-      );
+        final entering = compileCanonicalFlowArtifact(
+          flow: parent,
+          source: source,
+          screenArtifacts: const {},
+          childFlowDocuments: {childIdentity: childDocument},
+        );
 
-      expect(entering.issues, isEmpty);
-      expect(
-        entering.compilation!.generatedPart,
-        contains('subFlows: [childFlowRef]'),
-      );
+        expect(entering.issues, isEmpty);
+        expect(
+          entering.compilation!.generatedPart,
+          contains('subFlows: [childFlowRef]'),
+        );
 
-      // A flow that enters nothing names no list at all, so every reference
-      // generated before sub-flow vocabulary stays byte-identical.
-      final plain = compilePackageSurfacePublications(scenario.input);
+        // A flow that enters nothing names no list at all, so every reference
+        // generated before sub-flow vocabulary stays byte-identical.
+        final plain = compilePackageSurfacePublications(scenario.input);
 
-      expect(plain.issues, isEmpty);
-      expect(
-        _referenceBody(_authoringPart(plain), 'const generalFlowRef ='),
-        isNot(contains('subFlows')),
-      );
-    });
+        expect(plain.issues, isEmpty);
+        expect(
+          _referenceBody(_authoringPart(plain), 'const generalFlowRef ='),
+          isNot(contains('subFlows')),
+        );
+      },
+    );
 
     test('refuses a child flow whose reference cannot be named', () async {
       // Dropping it would deliver the parent with the child's widgets missing
@@ -1159,69 +1182,72 @@ final foreignGeneratedRef = Object();
       );
     });
 
-    test('rejects a categorized ordinary screen in another flow category',
-        () async {
-      final scenario = await _loadScenario();
-      final result = compilePackageSurfacePublications(
-        PackageSurfaceCompilationInput(
-          roster: scenario.mismatchedRoster,
-          flows: [...scenario.input.flows, scenario.mismatchedFlow],
-          renderedSources: scenario.input.renderedSources,
-          standaloneScreens: scenario.input.standaloneScreens,
-        ),
-      );
-
-      expect(result.bundle, isNull);
-      expect(
-        result.issues.map((issue) => issue.message).join('\n'),
-        contains('cannot be included in flow mismatch_flow'),
-      );
-    });
-
-    test('consumes the paywall adapter as an embedded flow-screen artifact',
-        () async {
-      final scenario = await _loadScenario();
-      final premium = scenario.input.renderedSources.singleWhere(
-        (artifact) => artifact.declaration.name == 'Premium',
-      );
-      final standaloneBlob = Uint8List.fromList(utf8.encode('standalone'));
-      final adapterBlob = Uint8List.fromList(utf8.encode('adapter'));
-      final facts = PaywallArtifactAdapter.fromFiles(
-        slug: 'premium',
-        standaloneBlobPath: 'assets/paywalls/premium.rfw',
-        standaloneCapabilityPath: 'assets/paywalls/premium.capability.json',
-        adapterBlobPath: 'assets/paywalls/screens/paywall_premium.rfw',
-        adapterCapabilityPath:
-            'assets/paywalls/screens/paywall_premium.capability.json',
-        flowDocumentPath: 'assets/paywalls/premium.flow.json',
-        files: {
-          'assets/paywalls/premium.rfw': standaloneBlob,
-          'assets/paywalls/premium.capability.json': _sidecarBytes(
-            standaloneBlob,
+    test(
+      'rejects a categorized ordinary screen in another flow category',
+      () async {
+        final scenario = await _loadScenario();
+        final result = compilePackageSurfacePublications(
+          PackageSurfaceCompilationInput(
+            roster: scenario.mismatchedRoster,
+            flows: [...scenario.input.flows, scenario.mismatchedFlow],
+            renderedSources: scenario.input.renderedSources,
+            standaloneScreens: scenario.input.standaloneScreens,
           ),
-          'assets/paywalls/screens/paywall_premium.rfw': adapterBlob,
-          'assets/paywalls/screens/paywall_premium.capability.json':
-              _sidecarBytes(adapterBlob),
-        },
-      );
+        );
 
-      final artifact = CompiledSurfaceArtifact.fromPaywallAdapter(
-        declaration: premium.declaration,
-        facts: facts,
-        flowArtifactPath: 'paywall_premium.rfw',
-        rfwText: utf8.encode('remote paywall'),
-      );
-
-      expect(artifact.flowScreenId, 'paywall_premium');
-      expect(artifact.blob, orderedEquals(adapterBlob));
-      expect(
-        artifact.capabilitySidecar,
-        orderedEquals(_sidecarBytes(adapterBlob)),
-      );
-    });
+        expect(result.bundle, isNull);
+        expect(
+          result.issues.map((issue) => issue.message).join('\n'),
+          contains('cannot be included in flow mismatch_flow'),
+        );
+      },
+    );
 
     test(
-        'returns no partial bundle when a roster-owned output family is '
+      'consumes the paywall adapter as an embedded flow-screen artifact',
+      () async {
+        final scenario = await _loadScenario();
+        final premium = scenario.input.renderedSources.singleWhere(
+          (artifact) => artifact.declaration.name == 'Premium',
+        );
+        final standaloneBlob = Uint8List.fromList(utf8.encode('standalone'));
+        final adapterBlob = Uint8List.fromList(utf8.encode('adapter'));
+        final facts = PaywallArtifactAdapter.fromFiles(
+          slug: 'premium',
+          standaloneBlobPath: 'assets/paywalls/premium.rfw',
+          standaloneCapabilityPath: 'assets/paywalls/premium.capability.json',
+          adapterBlobPath: 'assets/paywalls/screens/paywall_premium.rfw',
+          adapterCapabilityPath:
+              'assets/paywalls/screens/paywall_premium.capability.json',
+          flowDocumentPath: 'assets/paywalls/premium.flow.json',
+          files: {
+            'assets/paywalls/premium.rfw': standaloneBlob,
+            'assets/paywalls/premium.capability.json': _sidecarBytes(
+              standaloneBlob,
+            ),
+            'assets/paywalls/screens/paywall_premium.rfw': adapterBlob,
+            'assets/paywalls/screens/paywall_premium.capability.json':
+                _sidecarBytes(adapterBlob),
+          },
+        );
+
+        final artifact = CompiledSurfaceArtifact.fromPaywallAdapter(
+          declaration: premium.declaration,
+          facts: facts,
+          flowArtifactPath: 'paywall_premium.rfw',
+          rfwText: utf8.encode('remote paywall'),
+        );
+
+        expect(artifact.flowScreenId, 'paywall_premium');
+        expect(artifact.blob, orderedEquals(adapterBlob));
+        expect(
+          artifact.capabilitySidecar,
+          orderedEquals(_sidecarBytes(adapterBlob)),
+        );
+      },
+    );
+
+    test('returns no partial bundle when a roster-owned output family is '
         'incomplete', () async {
       final scenario = await _loadScenario();
       final incomplete = <CompiledSurfaceArtifact>[
@@ -1274,7 +1300,7 @@ Future<_Scenario> _loadScenario() async {
 }
 
 Future<PackageSurfaceCompilationResult>
-    _normalizedScreenSymbolCollision() async {
+_normalizedScreenSymbolCollision() async {
   const sourceId = 'apps_examples|lib/authoring.dart';
   const source = '''
 import 'package:flutter/widgets.dart';
@@ -1393,9 +1419,7 @@ final bindingFlow = Object();
       final screenInput = (await inspectCanonicalScreenDeclarations(
         library,
         assetId,
-      ))
-          .screens
-          .singleWhere((candidate) => candidate.declaration == screen);
+      )).screens.singleWhere((candidate) => candidate.declaration == screen);
       final inspection = inspectStandaloneScreenContract(
         ResolvedStandaloneScreenContractInput(
           assetId: assetId,
@@ -1466,7 +1490,8 @@ final bindingFlow = Object();
             CompiledFlowArtifact(
               declaration: flowDeclaration,
               flowDocumentBytes: document,
-              generatedPart: "part of 'authoring.dart';\n\n"
+              generatedPart:
+                  "part of 'authoring.dart';\n\n"
                   'const bool $binding = true;',
               generatedTopLevelSymbols: const {binding},
             ),
@@ -1583,8 +1608,9 @@ _Scenario _scenarioFromLibrary(LibraryElement library, AssetId assetId) {
     isPaywall: true,
   );
   final premiumBlob = screenBlobNamed('premium');
-  final standalonePremiumBlob =
-      Uint8List.fromList(utf8.encode('standalone:premium'));
+  final standalonePremiumBlob = Uint8List.fromList(
+    utf8.encode('standalone:premium'),
+  );
   final premiumFacts = PaywallArtifactAdapter.fromFiles(
     slug: 'premium',
     standaloneBlobPath:
@@ -1782,45 +1808,44 @@ RestageSourceDeclaration _flowDeclaration({
   required Surface surface,
   required String sourcePath,
   String libraryPath = 'lib/authoring.dart',
-}) =>
-    RestageSourceDeclaration.frozen(
-      kind: RestageRosterSourceKind.flow,
-      libraryIdentity: library.identifier,
-      libraryPath: libraryPath,
-      declarationIdentity: _identity(declaration),
-      sourcePath: sourcePath,
-      explicitId: id,
-      span: const RestageSourceSpan(
-        path: 'lib/authoring.dart',
-        startLine: 1,
-        startColumn: 1,
-        endLine: 1,
-        endColumn: 1,
-      ),
-      identityClaims: [
-        RestageIdentityClaim(
-          namespace: 'test/flow/${surface.wireName}',
-          key: id,
-        ),
-      ],
-      outputs: [
-        RestageOutputClaim(
-          path: 'lib/restage.generated/authoring.restage.g.dart',
-          role: 'flow-descriptor',
-          builder: 'test',
-          ownershipKey: 'library:${library.identifier}',
-        ),
-        RestageOutputClaim(
-          path: 'assets/restage/generated/${surface.wireName}/$id/flow.json',
-          role: 'flow-document',
-          builder: 'test',
-          ownershipKey: 'publication:${surface.wireName}/$id',
-        ),
-      ],
-      surface: surface,
-      delivery: FlowDeliveryMode.typed,
-      isCanonical: true,
-    );
+}) => RestageSourceDeclaration.frozen(
+  kind: RestageRosterSourceKind.flow,
+  libraryIdentity: library.identifier,
+  libraryPath: libraryPath,
+  declarationIdentity: _identity(declaration),
+  sourcePath: sourcePath,
+  explicitId: id,
+  span: const RestageSourceSpan(
+    path: 'lib/authoring.dart',
+    startLine: 1,
+    startColumn: 1,
+    endLine: 1,
+    endColumn: 1,
+  ),
+  identityClaims: [
+    RestageIdentityClaim(
+      namespace: 'test/flow/${surface.wireName}',
+      key: id,
+    ),
+  ],
+  outputs: [
+    RestageOutputClaim(
+      path: 'lib/restage.generated/authoring.restage.g.dart',
+      role: 'flow-descriptor',
+      builder: 'test',
+      ownershipKey: 'library:${library.identifier}',
+    ),
+    RestageOutputClaim(
+      path: 'assets/restage/generated/${surface.wireName}/$id/flow.json',
+      role: 'flow-document',
+      builder: 'test',
+      ownershipKey: 'publication:${surface.wireName}/$id',
+    ),
+  ],
+  surface: surface,
+  delivery: FlowDeliveryMode.typed,
+  isCanonical: true,
+);
 
 NormalizedScreenReference _screenReference({
   required String id,
@@ -1828,34 +1853,32 @@ NormalizedScreenReference _screenReference({
   required Surface effectiveSurface,
   Surface? declaredSurface,
   bool isPaywall = false,
-}) =>
-    NormalizedScreenReference(
-      id: id,
-      element: element,
-      declaredSurface: declaredSurface,
-      effectiveSurface: effectiveSurface,
-      isPaywall: isPaywall,
-      version: 1,
-      minClient: 1,
-    );
+}) => NormalizedScreenReference(
+  id: id,
+  element: element,
+  declaredSurface: declaredSurface,
+  effectiveSurface: effectiveSurface,
+  isPaywall: isPaywall,
+  version: 1,
+  minClient: 1,
+);
 
 NormalizedFlowSource _flow({
   required TopLevelVariableElement declaration,
   required String id,
   required Surface surface,
   required NormalizedFlowGraph graph,
-}) =>
-    NormalizedFlowSource(
-      id: id,
-      hasExplicitId: true,
-      version: 1,
-      minClient: 1,
-      surface: surface,
-      delivery: FlowDeliveryMode.typed,
-      declaration: declaration,
-      isCanonical: true,
-      graph: graph,
-    );
+}) => NormalizedFlowSource(
+  id: id,
+  hasExplicitId: true,
+  version: 1,
+  minClient: 1,
+  surface: surface,
+  delivery: FlowDeliveryMode.typed,
+  declaration: declaration,
+  isCanonical: true,
+  graph: graph,
+);
 
 CompiledSurfaceArtifact _artifact(
   ClassElement declaration, {
@@ -1889,29 +1912,28 @@ PackageSurfaceCompilationInput _withScreenVocabularies(
   PackageSurfaceCompilationInput input, {
   List<IconDataReference> welcomeIcons = const [],
   List<String> premiumWidgetNames = const ['restage.material:Chip'],
-}) =>
-    PackageSurfaceCompilationInput(
-      roster: input.roster,
-      flows: input.flows,
-      renderedSources: [
-        for (final artifact in input.renderedSources)
-          switch (artifact.flowArtifactPath) {
-            'welcome.rfw' => _revocabularize(
-                artifact,
-                SurfaceVocabularyReferences(
-                  widgetNames: const ['restage.core:Text'],
-                  icons: welcomeIcons,
-                ),
-              ),
-            'premium.rfw' => _revocabularize(
-                artifact,
-                SurfaceVocabularyReferences(widgetNames: premiumWidgetNames),
-              ),
-            _ => artifact,
-          },
-      ],
-      standaloneScreens: input.standaloneScreens,
-    );
+}) => PackageSurfaceCompilationInput(
+  roster: input.roster,
+  flows: input.flows,
+  renderedSources: [
+    for (final artifact in input.renderedSources)
+      switch (artifact.flowArtifactPath) {
+        'welcome.rfw' => _revocabularize(
+          artifact,
+          SurfaceVocabularyReferences(
+            widgetNames: const ['restage.core:Text'],
+            icons: welcomeIcons,
+          ),
+        ),
+        'premium.rfw' => _revocabularize(
+          artifact,
+          SurfaceVocabularyReferences(widgetNames: premiumWidgetNames),
+        ),
+        _ => artifact,
+      },
+  ],
+  standaloneScreens: input.standaloneScreens,
+);
 
 /// [input] with [vocabulary] on its one standalone screen contract.
 PackageSurfaceCompilationInput _withStandaloneVocabulary(
@@ -1947,20 +1969,19 @@ PackageSurfaceCompilationInput _withStandaloneVocabulary(
 CompiledSurfaceArtifact _revocabularize(
   CompiledSurfaceArtifact artifact,
   SurfaceVocabularyReferences vocabulary,
-) =>
-    CompiledSurfaceArtifact(
-      declaration: artifact.declaration,
-      blob: artifact.blob,
-      capabilitySidecar: artifact.capabilitySidecar,
-      flowArtifactPath: artifact.flowArtifactPath,
-      flowScreenId: artifact.flowScreenId,
-      paywallFacts: artifact.paywallFacts,
-      vocabulary: vocabulary,
-      rfwText: artifact.rfwText,
-      navigationPlan: artifact.navigationPlan,
-      rfwCatalogOccurrenceSetsByOutputRole:
-          artifact.rfwCatalogOccurrenceSetsByOutputRole,
-    );
+) => CompiledSurfaceArtifact(
+  declaration: artifact.declaration,
+  blob: artifact.blob,
+  capabilitySidecar: artifact.capabilitySidecar,
+  flowArtifactPath: artifact.flowArtifactPath,
+  flowScreenId: artifact.flowScreenId,
+  paywallFacts: artifact.paywallFacts,
+  vocabulary: vocabulary,
+  rfwText: artifact.rfwText,
+  navigationPlan: artifact.navigationPlan,
+  rfwCatalogOccurrenceSetsByOutputRole:
+      artifact.rfwCatalogOccurrenceSetsByOutputRole,
+);
 
 /// [source] with its whitespace removed, so an assertion about an emitted
 /// expression survives the formatter's line breaks.
@@ -2027,7 +2048,7 @@ PaywallArtifactFacts _paywallFacts({
 List<int> _emptyRfwLibraryBlob() {
   final library = fmt.RemoteWidgetLibrary(
     [
-      fmt.Import(fmt.LibraryName(const ['core', 'widgets']))
+      fmt.Import(fmt.LibraryName(const ['core', 'widgets'])),
     ],
     [
       const fmt.WidgetDeclaration(
@@ -2055,8 +2076,8 @@ List<int> _routeLibraryBlob(
     } else {
       eventArguments[kMeasurementRouteReferenceMarkerKeyV1] =
           MeasurementRouteEmissionPlan.markerForGeneratedReference(
-        GeneratedReferenceId(reference),
-      );
+            GeneratedReferenceId(reference),
+          );
     }
     children.add(
       fmt.ConstructorCall(
@@ -2069,7 +2090,7 @@ List<int> _routeLibraryBlob(
   }
   final library = fmt.RemoteWidgetLibrary(
     [
-      fmt.Import(fmt.LibraryName(const ['core', 'widgets']))
+      fmt.Import(fmt.LibraryName(const ['core', 'widgets'])),
     ],
     [
       fmt.WidgetDeclaration(
@@ -2173,8 +2194,8 @@ MeasurementPublicationRoutePlanV1 _routePlanForEntry(
           ),
           parentOccurrenceEdgeToken:
               artifact.role == SurfacePublicationArtifactRole.screenBlob
-                  ? null
-                  : edge,
+              ? null
+              : edge,
         ),
     ],
     codeIdentityBindings: [
@@ -2256,27 +2277,28 @@ ClassElement _class(LibraryElement library, String name) =>
     library.classes.singleWhere((candidate) => candidate.name == name);
 
 TopLevelVariableElement _variable(LibraryElement library, String name) =>
-    library.topLevelVariables
-        .singleWhere((candidate) => candidate.name == name);
+    library.topLevelVariables.singleWhere(
+      (candidate) => candidate.name == name,
+    );
 
 String _identity(Element element) =>
     '${element.library!.identifier}#${element.name ?? '<unnamed>'}';
 
 Map<String, String> _encodeFiles(Map<String, Uint8List> files) => {
-      for (final entry in files.entries) entry.key: base64Encode(entry.value),
-    };
+  for (final entry in files.entries) entry.key: base64Encode(entry.value),
+};
 
 List<int> _sidecarBytes(List<int> blob) => utf8.encode(
-      jsonEncode(
-        CapabilitySidecar(
-          blobSha256: CapabilitySidecar.hashBlob(blob),
-          manifest: CapabilityManifest(
-            builtInFloor: 1,
-            requiredLibraries: const [],
-          ),
-        ).toJson(),
+  jsonEncode(
+    CapabilitySidecar(
+      blobSha256: CapabilitySidecar.hashBlob(blob),
+      manifest: CapabilityManifest(
+        builtInFloor: 1,
+        requiredLibraries: const [],
       ),
-    );
+    ).toJson(),
+  ),
+);
 
 Future<void> _assertGeneratedPartsAnalyze(
   String source,
@@ -2291,8 +2313,9 @@ Future<void> _assertGeneratedPartsAnalyze(
     },
     (resolver) async {
       final library = await resolver.libraryFor(AssetId.parse(sourceId));
-      final resolved =
-          await library.session.getResolvedLibraryByElement(library);
+      final resolved = await library.session.getResolvedLibraryByElement(
+        library,
+      );
       if (resolved is! ResolvedLibraryResult) {
         throw StateError('Generated package source did not resolve.');
       }
@@ -2367,8 +2390,8 @@ final class _ScenarioProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.package_surface_probe'],
-      };
+    '.dart': ['.package_surface_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

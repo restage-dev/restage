@@ -21,138 +21,138 @@ const _documentPath =
     '../restage_a2ui/test/generated/constraint_parity_catalog.a2ui.json';
 
 String _fixtureUri() => Uri.file(
-      File(_fixtureRelativePath).resolveSymbolicLinksSync(),
-    ).toString();
+  File(_fixtureRelativePath).resolveSymbolicLinksSync(),
+).toString();
 
 Catalog _catalog(String fixtureUri) => catalogWith([
-      entry(
-        name: 'ConstraintParity',
-        flutterType: '$fixtureUri#ConstraintParityFixture',
-        properties: const [
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'count',
-            type: PropertyType.integer,
-            description: '',
-            required: true,
-            constraints: RestageConstraints(
-              minimum: 0.5,
-              maximum: 9.5,
-              allowedValues: [1, 2],
-            ),
-          ),
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'tags',
-            type: PropertyType.stringList,
-            description: '',
-            required: true,
-            constraints: RestageConstraints(minItems: 1, maxItems: 3),
-          ),
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'ratio',
-            type: PropertyType.real,
-            description: '',
-            required: true,
-            constraints: RestageConstraints(
-              exclusiveMinimum: 0.25,
-              exclusiveMaximum: 0.75,
-            ),
-          ),
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'code',
-            type: PropertyType.string,
-            description: '',
-            required: true,
-            constraints: RestageConstraints(
-              pattern: r'^[A-Z]{2}[0-9]+$',
-              minLength: 3,
-              maxLength: 8,
-            ),
-          ),
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'items',
-            type: PropertyType.unknown,
-            description: '',
-            required: true,
-            constraints: RestageConstraints(minItems: 1, maxItems: 4),
-          ),
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'legacyCount',
-            type: PropertyType.real,
-            description: '',
-            required: true,
-            validationRule: ValidationExpr(
-              expression: 'range(-10, 10)',
-              message: 'Keep count within the authored range.',
-            ),
-          ),
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'legacyMode',
-            type: PropertyType.string,
-            description: '',
-            required: true,
-            validationRule: ValidationExpr(
-              expression: 'oneOf("compact", "expanded")',
-              message: 'Choose an authored mode.',
-            ),
-          ),
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'legacyCode',
-            type: PropertyType.string,
-            description: '',
-            required: true,
-            validationRule: ValidationExpr(
-              expression: r'matches("^[a-z]+$")',
-              message: 'Use lowercase ASCII letters.',
-            ),
-          ),
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'onCountChanged',
-            type: PropertyType.event,
-            description: '',
-            required: true,
-          ),
-        ],
-      ),
-      for (var index = 0; index < acceptedA2uiPatternCases.length; index++)
-        entry(
-          name: _patternWidgetName(index),
-          flutterType: '$fixtureUri#PatternCorpusFixture',
-          properties: [
-            PropertyEntry(
-              wireId: WireId.unallocatedProperty,
-              name: 'typedPattern',
-              type: PropertyType.string,
-              description: '',
-              required: true,
-              constraints: RestageConstraints(
-                pattern: acceptedA2uiPatternCases[index].pattern,
-              ),
-            ),
-            PropertyEntry(
-              wireId: WireId.unallocatedProperty,
-              name: 'legacyPattern',
-              type: PropertyType.string,
-              description: '',
-              required: true,
-              validationRule: ValidationExpr(
-                expression: _legacyPatternExpression(
-                  acceptedA2uiPatternCases[index].pattern,
-                ),
-                message: 'Pattern corpus case $index.',
-              ),
-            ),
-          ],
+  entry(
+    name: 'ConstraintParity',
+    flutterType: '$fixtureUri#ConstraintParityFixture',
+    properties: const [
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'count',
+        type: PropertyType.integer,
+        description: '',
+        required: true,
+        constraints: RestageConstraints(
+          minimum: 0.5,
+          maximum: 9.5,
+          allowedValues: [1, 2],
         ),
-    ]);
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'tags',
+        type: PropertyType.stringList,
+        description: '',
+        required: true,
+        constraints: RestageConstraints(minItems: 1, maxItems: 3),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'ratio',
+        type: PropertyType.real,
+        description: '',
+        required: true,
+        constraints: RestageConstraints(
+          exclusiveMinimum: 0.25,
+          exclusiveMaximum: 0.75,
+        ),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'code',
+        type: PropertyType.string,
+        description: '',
+        required: true,
+        constraints: RestageConstraints(
+          pattern: r'^[A-Z]{2}[0-9]+$',
+          minLength: 3,
+          maxLength: 8,
+        ),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'items',
+        type: PropertyType.unknown,
+        description: '',
+        required: true,
+        constraints: RestageConstraints(minItems: 1, maxItems: 4),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'legacyCount',
+        type: PropertyType.real,
+        description: '',
+        required: true,
+        validationRule: ValidationExpr(
+          expression: 'range(-10, 10)',
+          message: 'Keep count within the authored range.',
+        ),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'legacyMode',
+        type: PropertyType.string,
+        description: '',
+        required: true,
+        validationRule: ValidationExpr(
+          expression: 'oneOf("compact", "expanded")',
+          message: 'Choose an authored mode.',
+        ),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'legacyCode',
+        type: PropertyType.string,
+        description: '',
+        required: true,
+        validationRule: ValidationExpr(
+          expression: r'matches("^[a-z]+$")',
+          message: 'Use lowercase ASCII letters.',
+        ),
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'onCountChanged',
+        type: PropertyType.event,
+        description: '',
+        required: true,
+      ),
+    ],
+  ),
+  for (var index = 0; index < acceptedA2uiPatternCases.length; index++)
+    entry(
+      name: _patternWidgetName(index),
+      flutterType: '$fixtureUri#PatternCorpusFixture',
+      properties: [
+        PropertyEntry(
+          wireId: WireId.unallocatedProperty,
+          name: 'typedPattern',
+          type: PropertyType.string,
+          description: '',
+          required: true,
+          constraints: RestageConstraints(
+            pattern: acceptedA2uiPatternCases[index].pattern,
+          ),
+        ),
+        PropertyEntry(
+          wireId: WireId.unallocatedProperty,
+          name: 'legacyPattern',
+          type: PropertyType.string,
+          description: '',
+          required: true,
+          validationRule: ValidationExpr(
+            expression: _legacyPatternExpression(
+              acceptedA2uiPatternCases[index].pattern,
+            ),
+            message: 'Pattern corpus case $index.',
+          ),
+        ),
+      ],
+    ),
+]);
 
 String _patternWidgetName(int index) =>
     'PatternCorpus${index.toString().padLeft(2, '0')}';
@@ -179,8 +179,10 @@ A2uiRichShapes _richShapes(String fixtureUri) {
     required: const {'label', 'children'},
   );
   return <(String, String), A2uiSchemaNode>{
-    ('ConstraintParity', 'count'):
-        const ScalarNode(A2uiScalarType.integer, nullable: true),
+    ('ConstraintParity', 'count'): const ScalarNode(
+      A2uiScalarType.integer,
+      nullable: true,
+    ),
     ('ConstraintParity', 'tags'): const ListNode(
       element: ScalarNode(A2uiScalarType.string),
       nullable: true,

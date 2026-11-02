@@ -74,11 +74,11 @@ final class RestageSourceRosterBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$package$': [
-          'assets/restage/source-index.json',
-          'assets/restage/output-roster.json',
-        ],
-      };
+    r'$package$': [
+      'assets/restage/source-index.json',
+      'assets/restage/output-roster.json',
+    ],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -177,24 +177,23 @@ RestageSourceRoster _withFixedPublicationManifest({
   RestageOwnedOutput fixedOutput({
     required String path,
     required String role,
-  }) =>
-      RestageOwnedOutput(
-        path: path,
-        role: role,
-        builder: _canonicalPublicationOwner,
-        owner: 'package:$packageName#surface-publication',
-        declarationIdentity: 'package:$packageName#surface-publication',
-        identities: [
-          RestageIdentityClaim(namespace: 'fixed-output', key: path),
-        ],
-        span: RestageSourceSpan(
-          path: path,
-          startLine: 1,
-          startColumn: 1,
-          endLine: 1,
-          endColumn: 1,
-        ),
-      );
+  }) => RestageOwnedOutput(
+    path: path,
+    role: role,
+    builder: _canonicalPublicationOwner,
+    owner: 'package:$packageName#surface-publication',
+    declarationIdentity: 'package:$packageName#surface-publication',
+    identities: [
+      RestageIdentityClaim(namespace: 'fixed-output', key: path),
+    ],
+    span: RestageSourceSpan(
+      path: path,
+      startLine: 1,
+      startColumn: 1,
+      endLine: 1,
+      endColumn: 1,
+    ),
+  );
   return RestageSourceRoster(
     declarations: roster.declarations,
     issues: roster.issues,
@@ -281,10 +280,10 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
       final annotatedClasses = [for (final entry in annotated) entry.cls];
 
       if (checkedAdmissionKinds.add(kind)) {
-        final sourceText =
-            sourceTexts[assetId] ??= await buildStep.readAsString(
-          assetId,
-        );
+        final sourceText = sourceTexts[assetId] ??= await buildStep
+            .readAsString(
+              assetId,
+            );
         issues.addAll(
           _legacyAdmissionIssues(
             assetId: assetId,
@@ -309,7 +308,8 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
           issues.add(
             Issue(
               code: IssueCode.annotationEvaluationFailed,
-              message: '@$annotationName on ${cls.name ?? '<unnamed>'} '
+              message:
+                  '@$annotationName on ${cls.name ?? '<unnamed>'} '
                   'could not be const-evaluated for package ownership.',
               location: span.location,
             ),
@@ -321,7 +321,8 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
           issues.add(
             Issue(
               code: IssueCode.annotationEvaluationFailed,
-              message: '@$annotationName.id is required and must be a '
+              message:
+                  '@$annotationName.id is required and must be a '
                   'non-empty String literal.',
               location: span.location,
             ),
@@ -338,7 +339,8 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
           issues.add(
             Issue(
               code: IssueCode.invalidScreenSourceLocation,
-              message: '@$annotationName is not admitted outside the current '
+              message:
+                  '@$annotationName is not admitted outside the current '
                   'legacy source topology. Use canonical @Screen, @Paywall, '
                   'or @FlowGraph authoring for directory-free sources and '
                   'colocated declarations.',
@@ -353,7 +355,8 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
           issues.add(
             Issue(
               code: IssueCode.filenameMismatch,
-              message: 'Legacy ${kind.wireName} source id "$id" does not '
+              message:
+                  'Legacy ${kind.wireName} source id "$id" does not '
                   'match the owning file name "$stem.dart".',
               location: span.location,
             ),
@@ -426,7 +429,8 @@ List<Issue> _runtimeWidgetAnnotationIssues(
       issues.add(
         Issue(
           code: IssueCode.runtimeWidgetUsedAsAnnotation,
-          message: '$runtimeName is a runtime mount widget and cannot be used '
+          message:
+              '$runtimeName is a runtime mount widget and cannot be used '
               'as source metadata. Use $authoring on '
               '${declaration.name ?? 'this declaration'}.',
           location: _elementSpan(declaration, sourcePath).location,
@@ -466,7 +470,8 @@ Future<bool> _collectCanonicalDeclarations({
       issues.add(
         Issue(
           code: IssueCode.duplicateId,
-          message: 'A class cannot be both @Screen and @Paywall; '
+          message:
+              'A class cannot be both @Screen and @Paywall; '
               'source kind must be unambiguous.',
           location: '${assetId.path}#${cls.name ?? '<unnamed>'}',
         ),
@@ -488,12 +493,14 @@ Future<bool> _collectCanonicalDeclarations({
     );
     if (metadata == null) continue;
     if (!_isSupportedCanonicalWidget(cls)) {
-      final sourceKind =
-          kind == RestageRosterSourceKind.paywall ? 'Paywall' : 'Screen';
+      final sourceKind = kind == RestageRosterSourceKind.paywall
+          ? 'Paywall'
+          : 'Screen';
       issues.add(
         Issue(
           code: IssueCode.unsupportedBaseClass,
-          message: '@$sourceKind '
+          message:
+              '@$sourceKind '
               '${cls.name ?? '<unnamed>'} must resolve to a Flutter '
               'StatelessWidget or StatefulWidget.',
           location: '${assetId.path}#${cls.name ?? '<unnamed>'}',
@@ -514,14 +521,14 @@ Future<bool> _collectCanonicalDeclarations({
       );
     }
 
-    final includePaywallMount = kind == RestageRosterSourceKind.paywall &&
+    final includePaywallMount =
+        kind == RestageRosterSourceKind.paywall &&
         (await _neutralPartIssues(
           buildStep: buildStep,
           assetId: assetId,
           sourceTexts: sourceTexts,
           plan: plan,
-        ))
-            .isEmpty;
+        )).isEmpty;
     final id = metadata.id ?? _fileStem(assetId.path);
     declarations.add(
       RestageSourceDeclaration.frozen(
@@ -554,7 +561,8 @@ Future<bool> _collectCanonicalDeclarations({
     );
   }
 
-  final hasCanonicalFlow = library.topLevelVariables.any(
+  final hasCanonicalFlow =
+      library.topLevelVariables.any(
         (variable) =>
             firstAnnotationFromOriginAny(
               variable,
@@ -601,7 +609,8 @@ Future<bool> _collectCanonicalDeclarations({
       issues.add(
         Issue(
           code: IssueCode.annotationEvaluationFailed,
-          message: '@FlowGraph.id must be a non-empty, trimmed, path-safe '
+          message:
+              '@FlowGraph.id must be a non-empty, trimmed, path-safe '
               'String literal.',
           location: '${assetId.path}#${flow.declaration.name}',
         ),
@@ -672,7 +681,8 @@ _CanonicalClassMetadata? _canonicalClassMetadata(
     issues.add(
       Issue(
         code: IssueCode.unresolvedIdentifier,
-        message: 'Canonical source annotation on $className must resolve to '
+        message:
+            'Canonical source annotation on $className must resolve to '
             'the Restage SDK.',
         location: '${assetId.path}#$className',
       ),
@@ -699,7 +709,8 @@ _CanonicalClassMetadata? _canonicalClassMetadata(
     issues.add(
       Issue(
         code: IssueCode.annotationEvaluationFailed,
-        message: '@${owner.name}.id must be a non-empty, trimmed, path-safe '
+        message:
+            '@${owner.name}.id must be a non-empty, trimmed, path-safe '
             'String literal.',
         location: '${assetId.path}#$className',
       ),
@@ -804,8 +815,8 @@ List<RestageOutputClaim> _canonicalOutputClaims({
           role: kind == RestageRosterSourceKind.flow
               ? 'flow-descriptor'
               : kind == RestageRosterSourceKind.paywall
-                  ? 'paywall-descriptor'
-                  : 'screen-descriptor',
+              ? 'paywall-descriptor'
+              : 'screen-descriptor',
           builder: _canonicalGeneratedDartOwner,
           ownershipKey: 'canonical-library:$libraryIdentity',
         );
@@ -827,8 +838,9 @@ List<RestageOutputClaim> _canonicalOutputClaims({
   }
 
   final isPaywall = kind == RestageRosterSourceKind.paywall;
-  final root =
-      isPaywall ? 'assets/paywalls/$id' : 'assets/$surfaceKey/screens/$id';
+  final root = isPaywall
+      ? 'assets/paywalls/$id'
+      : 'assets/$surfaceKey/screens/$id';
   // A screen publishes one payload, so its whole set is written for every
   // lowering. A paywall may lower to a standalone payload, to a navigation
   // flow whose closure publishes it instead, or to nothing but the adapter
@@ -1110,8 +1122,9 @@ List<Issue> _legacyAdmissionIssues({
   final parsed = parseUnresolvedDart(sourceText, path: assetId.path);
 
   final pathMatch = switch (kind) {
-    RestageRosterSourceKind.screen =>
-      _screenSourcePath.firstMatch(assetId.path),
+    RestageRosterSourceKind.screen => _screenSourcePath.firstMatch(
+      assetId.path,
+    ),
     RestageRosterSourceKind.flow => _flowSourcePath.firstMatch(assetId.path),
     RestageRosterSourceKind.paywall => null,
   };
@@ -1119,7 +1132,8 @@ List<Issue> _legacyAdmissionIssues({
     issues.add(
       Issue(
         code: IssueCode.invalidScreenSourceLocation,
-        message: 'Legacy ${kind.wireName} sources must remain under their '
+        message:
+            'Legacy ${kind.wireName} sources must remain under their '
             'current surface-specific source directory; found '
             '`${assetId.path}`.',
         location: assetId.path,
@@ -1131,7 +1145,8 @@ List<Issue> _legacyAdmissionIssues({
     issues.add(
       Issue(
         code: IssueCode.invalidScreenSourceCount,
-        message: 'A legacy ScreenSource library must declare exactly one '
+        message:
+            'A legacy ScreenSource library must declare exactly one '
             'annotated screen class; found ${annotatedClasses.length}.',
         location: assetId.path,
       ),
@@ -1331,7 +1346,9 @@ bool _validCanonicalId(String value) {
     return false;
   }
   if (value.startsWith('/') || value.contains(r'\')) return false;
-  return value.split('/').every(
+  return value
+      .split('/')
+      .every(
         (segment) => segment.isNotEmpty && segment != '.' && segment != '..',
       );
 }

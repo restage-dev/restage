@@ -22,87 +22,90 @@ import 'helpers.dart';
 /// an alias, an alias carrying type arguments, or an alias to a non-class type
 /// are all unexamined. **Do not read the green as licence to delete the
 /// unwrap**; read it as a gap in this table.
-const _shapes = <({
-  String closureTypeName,
-  String declarations,
-  bool isCustomDataClass,
-  String valueType,
-})>[
-  (
-    declarations: '''
+const _shapes =
+    <
+      ({
+        String closureTypeName,
+        String declarations,
+        bool isCustomDataClass,
+        String valueType,
+      })
+    >[
+      (
+        declarations: '''
       class Plan {
         const Plan({required this.name});
         final String name;
       }
     ''',
-    valueType: 'Plan',
-    closureTypeName: 'Plan',
-    isCustomDataClass: true,
-  ),
-  // Abstract AND takes constructor parameters, deliberately. Without the
-  // parameters this shape is already excluded for having no usable
-  // constructor, so it would pass whether or not being-abstract is still
-  // checked — a witness that cannot fail is not a witness.
-  (
-    declarations: '''
+        valueType: 'Plan',
+        closureTypeName: 'Plan',
+        isCustomDataClass: true,
+      ),
+      // Abstract AND takes constructor parameters, deliberately. Without the
+      // parameters this shape is already excluded for having no usable
+      // constructor, so it would pass whether or not being-abstract is still
+      // checked — a witness that cannot fail is not a witness.
+      (
+        declarations: '''
       abstract class AbsPlan {
         AbsPlan(this.name);
         final String name;
       }
     ''',
-    valueType: 'AbsPlan',
-    closureTypeName: 'AbsPlan',
-    isCustomDataClass: false,
-  ),
-  (
-    declarations: '''
+        valueType: 'AbsPlan',
+        closureTypeName: 'AbsPlan',
+        isCustomDataClass: false,
+      ),
+      (
+        declarations: '''
       class Empty {
         const Empty();
       }
     ''',
-    valueType: 'Empty',
-    closureTypeName: 'Empty',
-    isCustomDataClass: false,
-  ),
-  // A `dart:` class that clears every OTHER condition — concrete, and its
-  // generative constructor takes a parameter. It is excluded only by being
-  // outside the app's own code, so it is the one shape that fails if that
-  // check is dropped. Sibling SDK types were tried and do not work: their
-  // constructors are factories or take nothing, so a stricter condition
-  // already excludes them and they could not detect this one going missing.
-  (
-    declarations: '',
-    valueType: 'StringBuffer',
-    closureTypeName: 'StringBuffer',
-    isCustomDataClass: false,
-  ),
-  (
-    declarations: '',
-    valueType: 'void Function()',
-    closureTypeName: 'void Function()',
-    isCustomDataClass: false,
-  ),
-  // A type alias for an admitted data class. Both copies answer the same, and
-  // the row is kept precisely because their PRE-CHECKS differ: one resolves the
-  // element without unwrapping aliases, the other unwraps first. That is where
-  // two hand-copied predicates would plausibly drift, so an agreeing row here
-  // is evidence rather than filler — do not delete it as redundant.
-  //
-  // The closure entry is named for the underlying class, not the alias, which
-  // is why this row carries a different closureTypeName.
-  (
-    declarations: '''
+        valueType: 'Empty',
+        closureTypeName: 'Empty',
+        isCustomDataClass: false,
+      ),
+      // A `dart:` class that clears every OTHER condition — concrete, and its
+      // generative constructor takes a parameter. It is excluded only by being
+      // outside the app's own code, so it is the one shape that fails if that
+      // check is dropped. Sibling SDK types were tried and do not work: their
+      // constructors are factories or take nothing, so a stricter condition
+      // already excludes them and they could not detect this one going missing.
+      (
+        declarations: '',
+        valueType: 'StringBuffer',
+        closureTypeName: 'StringBuffer',
+        isCustomDataClass: false,
+      ),
+      (
+        declarations: '',
+        valueType: 'void Function()',
+        closureTypeName: 'void Function()',
+        isCustomDataClass: false,
+      ),
+      // A type alias for an admitted data class. Both copies answer the same, and
+      // the row is kept precisely because their PRE-CHECKS differ: one resolves the
+      // element without unwrapping aliases, the other unwraps first. That is where
+      // two hand-copied predicates would plausibly drift, so an agreeing row here
+      // is evidence rather than filler — do not delete it as redundant.
+      //
+      // The closure entry is named for the underlying class, not the alias, which
+      // is why this row carries a different closureTypeName.
+      (
+        declarations: '''
       class Plan {
         const Plan({required this.name});
         final String name;
       }
       typedef PlanAlias = Plan;
     ''',
-    valueType: 'PlanAlias',
-    closureTypeName: 'Plan',
-    isCustomDataClass: true,
-  ),
-];
+        valueType: 'PlanAlias',
+        closureTypeName: 'Plan',
+        isCustomDataClass: true,
+      ),
+    ];
 
 /// Discovery's verdict: does [valueType] join the closure when reached only
 /// through a map on a widget property?
@@ -112,7 +115,8 @@ Future<bool> _joinsClosure(
   String closureTypeName,
 ) async {
   final result = await runWidgetVisitorOn({
-    'lib/agreement_widget.dart': '''
+    'lib/agreement_widget.dart':
+        '''
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
       $declarations
@@ -140,7 +144,8 @@ Future<bool> _joinsClosure(
 /// the value of a map on a field of a data class?
 Future<bool> _getsDeferredCause(String declarations, String valueType) async {
   final result = await runWidgetVisitorOn({
-    'lib/agreement_holder_widget.dart': '''
+    'lib/agreement_holder_widget.dart':
+        '''
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
       $declarations
@@ -178,35 +183,41 @@ Future<bool> _getsDeferredCause(String declarations, String valueType) async {
 }
 
 void main() {
-  test('both custom-data-class decisions agree on every boundary shape',
-      () async {
-    // The two packages each carry their own copy of this decision because the
-    // dependency runs one way, so they cannot share it. If the copies drift,
-    // nothing crashes: the classifier and discovery simply disagree about
-    // what a custom data class is, and the visible result is a diagnostic
-    // that is quietly wrong. This test turns that into a failure.
-    for (final shape in _shapes) {
-      final joined = await _joinsClosure(
-        shape.declarations,
-        shape.valueType,
-        shape.closureTypeName,
-      );
-      final deferred =
-          await _getsDeferredCause(shape.declarations, shape.valueType);
-      expect(
-        joined,
-        deferred,
-        reason: 'the two decisions disagree for ${shape.valueType}: '
-            'discovery ${joined ? 'collected' : 'did not collect'} it, '
-            'while the classifier '
-            '${deferred ? 'called it' : 'did not call it'} custom-authored',
-      );
-      expect(
-        joined,
-        shape.isCustomDataClass,
-        reason: 'expected ${shape.valueType} to be '
-            '${shape.isCustomDataClass ? '' : 'not '}a custom data class',
-      );
-    }
-  });
+  test(
+    'both custom-data-class decisions agree on every boundary shape',
+    () async {
+      // The two packages each carry their own copy of this decision because the
+      // dependency runs one way, so they cannot share it. If the copies drift,
+      // nothing crashes: the classifier and discovery simply disagree about
+      // what a custom data class is, and the visible result is a diagnostic
+      // that is quietly wrong. This test turns that into a failure.
+      for (final shape in _shapes) {
+        final joined = await _joinsClosure(
+          shape.declarations,
+          shape.valueType,
+          shape.closureTypeName,
+        );
+        final deferred = await _getsDeferredCause(
+          shape.declarations,
+          shape.valueType,
+        );
+        expect(
+          joined,
+          deferred,
+          reason:
+              'the two decisions disagree for ${shape.valueType}: '
+              'discovery ${joined ? 'collected' : 'did not collect'} it, '
+              'while the classifier '
+              '${deferred ? 'called it' : 'did not call it'} custom-authored',
+        );
+        expect(
+          joined,
+          shape.isCustomDataClass,
+          reason:
+              'expected ${shape.valueType} to be '
+              '${shape.isCustomDataClass ? '' : 'not '}a custom data class',
+        );
+      }
+    },
+  );
 }

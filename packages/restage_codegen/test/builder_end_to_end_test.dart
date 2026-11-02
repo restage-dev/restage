@@ -14,7 +14,8 @@ import 'helpers.dart';
 void main() {
   group('RestageCodegenBuilder end-to-end', () {
     test('valid @PaywallSource emits paywall artifacts and adapter', () async {
-      const source = '''
+      const source =
+          '''
         $kStubAnnotationsAndBases
 
         @PaywallSource(id: 'hello')
@@ -57,9 +58,9 @@ void main() {
       );
     });
 
-    test('an unread constructor parameter does not change the emitted surface',
-        () async {
-      const baseSource = '''
+    test('an unread constructor parameter does not change the emitted surface', () async {
+      const baseSource =
+          '''
         $kStubAnnotationsAndBases
 
         @PaywallSource(id: 'unread_param_base')
@@ -68,7 +69,8 @@ void main() {
           Widget build(BuildContext context) => Center(child: SizedBox());
         }
       ''';
-      const unreadParamSource = '''
+      const unreadParamSource =
+          '''
         $kStubAnnotationsAndBases
 
         class Tag {
@@ -102,22 +104,22 @@ void main() {
         outputs: {
           'apps_examples|assets/paywalls/unread_param_base.capability.json':
               predicate<List<int>>((value) {
-            baseCapabilityBytes = List<int>.unmodifiable(value);
-            return true;
-          }),
+                baseCapabilityBytes = List<int>.unmodifiable(value);
+                return true;
+              }),
           'apps_examples|assets/paywalls/unread_param_base.rfwtxt':
               decodedMatches(
-            predicate<String>((value) {
-              baseRfwtxt = value;
-              return true;
-            }),
-          ),
+                predicate<String>((value) {
+                  baseRfwtxt = value;
+                  return true;
+                }),
+              ),
           'apps_examples|assets/paywalls/unread_param_base.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/screens/paywall_unread_param_base.capability.json':
               predicate<List<int>>((value) {
-            baseScreenCapabilityBytes = List<int>.unmodifiable(value);
-            return true;
-          }),
+                baseScreenCapabilityBytes = List<int>.unmodifiable(value);
+                return true;
+              }),
           'apps_examples|assets/paywalls/screens/paywall_unread_param_base.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -155,7 +157,8 @@ void main() {
       final diagnostic = RegExp(r'\[[a-z][A-Za-z]+\]');
       expect(logs.where(diagnostic.hasMatch), isEmpty);
 
-      const usedParamSource = '''
+      const usedParamSource =
+          '''
         $kStubAnnotationsAndBases
 
         @PaywallSource(id: 'used_param_title')
@@ -193,9 +196,11 @@ void main() {
       expect(usedParamResult.succeeded, isTrue);
     });
 
-    test('emits a capability-manifest sidecar for a built-in-only paywall',
-        () async {
-      const source = '''
+    test(
+      'emits a capability-manifest sidecar for a built-in-only paywall',
+      () async {
+        const source =
+            '''
         $kStubAnnotationsAndBases
 
         @PaywallSource(id: 'cap')
@@ -205,93 +210,95 @@ void main() {
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: false,
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/paywalls/cap.dart'),
-        source,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: false,
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/paywalls/cap.dart'),
+          source,
+        );
 
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/paywalls/cap.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/paywalls/cap.rfwtxt': anything,
-          'apps_examples|assets/paywalls/cap.rfw': isNotEmpty,
-          'apps_examples|assets/paywalls/screens/paywall_cap.rfw': anything,
-          // A built-in-only paywall derives a baseline floor and no required
-          // custom libraries; the sidecar carries the manifest to the publisher.
-          'apps_examples|assets/paywalls/cap.capability.json': decodedMatches(
-            allOf(
-              contains('"builtInFloor": 1'),
-              contains('"requiredLibraries": []'),
+        await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/paywalls/cap.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|assets/paywalls/cap.rfwtxt': anything,
+            'apps_examples|assets/paywalls/cap.rfw': isNotEmpty,
+            'apps_examples|assets/paywalls/screens/paywall_cap.rfw': anything,
+            // A built-in-only paywall derives a baseline floor and no required
+            // custom libraries; the sidecar carries the manifest to the publisher.
+            'apps_examples|assets/paywalls/cap.capability.json': decodedMatches(
+              allOf(
+                contains('"builtInFloor": 1'),
+                contains('"requiredLibraries": []'),
+              ),
             ),
-          ),
-          // The paywall-as-flow-screen carries its OWN sidecar too, so the CLI
-          // flow union declares every library the screen needs when the paywall
-          // is hosted-published as a flow.
-          'apps_examples|assets/paywalls/screens/paywall_cap.capability.json':
-              decodedMatches(
-            allOf(
-              contains('"builtInFloor": 1'),
-              contains('"requiredLibraries": []'),
-            ),
-          ),
-        },
-      );
-    });
+            // The paywall-as-flow-screen carries its OWN sidecar too, so the CLI
+            // flow union declares every library the screen needs when the paywall
+            // is hosted-published as a flow.
+            'apps_examples|assets/paywalls/screens/paywall_cap.capability.json':
+                decodedMatches(
+                  allOf(
+                    contains('"builtInFloor": 1'),
+                    contains('"requiredLibraries": []'),
+                  ),
+                ),
+          },
+        );
+      },
+    );
 
     test(
-        'a custom-library paywall emits a capability manifest carrying the '
-        'required library (real build through the merged custom catalog)',
-        () async {
-      // The hand-authored DSL references a custom widget (AcmeBanner). The
-      // app's generated catalog — merged into the build-time catalog by
-      // loadMergedCatalog — declares it in library "acme.widgets" at
-      // capabilityVersion 2, so the derivation emits a populated
-      // requiredLibraries. This exercises the requiredLibraries path in a real
-      // build, not just the unit derivation.
-      const source = '''
+      'a custom-library paywall emits a capability manifest carrying the '
+      'required library (real build through the merged custom catalog)',
+      () async {
+        // The hand-authored DSL references a custom widget (AcmeBanner). The
+        // app's generated catalog — merged into the build-time catalog by
+        // loadMergedCatalog — declares it in library "acme.widgets" at
+        // capabilityVersion 2, so the derivation emits a populated
+        // requiredLibraries. This exercises the requiredLibraries path in a real
+        // build, not just the unit derivation.
+        const source = '''
 import acme.widgets;
 widget Paywall = AcmeBanner();
 ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: false,
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/paywalls/promo.rfwtxt'),
-        source,
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
-        encodeCatalog(_acmeCustomCatalog()),
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: false,
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/paywalls/promo.rfwtxt'),
+          source,
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
+          encodeCatalog(_acmeCustomCatalog()),
+        );
 
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/paywalls/promo.rfwtxt': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/paywalls/promo.rfw': isNotEmpty,
-          'apps_examples|assets/paywalls/promo.capability.json': decodedMatches(
-            allOf(
-              contains('"namespace": "acme.widgets"'),
-              contains('"minVersion": 2'),
-            ),
-          ),
-        },
-      );
-    });
+        await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/paywalls/promo.rfwtxt': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|assets/paywalls/promo.rfw': isNotEmpty,
+            'apps_examples|assets/paywalls/promo.capability.json':
+                decodedMatches(
+                  allOf(
+                    contains('"namespace": "acme.widgets"'),
+                    contains('"minVersion": 2'),
+                  ),
+                ),
+          },
+        );
+      },
+    );
 
-    test(
-        'Container(clipBehavior: Clip.antiAlias) lowers the clip slot against '
+    test('Container(clipBehavior: Clip.antiAlias) lowers the clip slot against '
         'the real catalog — no translator change', () async {
       // Depth-coverage proof for the `Container` clip slot: the `clipBehavior`
       // parameter, formerly stripped from reflector inference, is now surfaced
@@ -300,7 +307,8 @@ widget Paywall = AcmeBanner();
       // to its wire string against the REAL merged catalog, with no change to
       // the expression translator — the generic enum-slot lowering already in
       // place (the same path that lowers `ClipRect` / `Stack` clip behavior).
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -345,8 +353,7 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'Container(constraints: BoxConstraints(...)) lowers to flat min/max '
+    test('Container(constraints: BoxConstraints(...)) lowers to flat min/max '
         'slots against the real catalog — no translator change', () async {
       // Depth-coverage proof for the `Container` constraints slot: the
       // `constraints` parameter (a `BoxConstraints`) is surfaced through the
@@ -357,7 +364,8 @@ widget Paywall = AcmeBanner();
       // REAL merged catalog, with no change to the expression translator —
       // only the explicitly-set fields emit, so an absent `maxHeight` never
       // leaks a literal `double.infinity` onto the wire.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -386,8 +394,7 @@ widget Paywall = AcmeBanner();
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         outputs: {
-          'apps_examples|assets/paywalls/constrained_box.rfwtxt':
-              decodedMatches(
+          'apps_examples|assets/paywalls/constrained_box.rfwtxt': decodedMatches(
             allOf(
               contains('Container('),
               // FLAT keys — the decompose hoists the set fields onto flat
@@ -412,8 +419,7 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'AppBar chrome slots lower against the real catalog — leading, '
+    test('AppBar chrome slots lower against the real catalog — leading, '
         'implied-leading, spacing and tint', () async {
       // A screen-owned app bar customises its own chrome: the leading control,
       // the implied-leading switch, the toolbar metrics and the tint colors.
@@ -482,8 +488,10 @@ widget Paywall = AcmeBanner();
               contains('shadowColor: 0xFF101010'),
               contains('surfaceTintColor: 0xFF202020'),
               contains('forceMaterialTransparency: true'),
-              contains('actionsPadding: '
-                  '{left: 0.0, top: 0.0, right: 12.0, bottom: 0.0}'),
+              contains(
+                'actionsPadding: '
+                '{left: 0.0, top: 0.0, right: 12.0, bottom: 0.0}',
+              ),
             ]),
           ),
           'apps_examples|assets/paywalls/chrome_bar.rfw': isNotEmpty,
@@ -496,10 +504,10 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'CupertinoNavigationBar chrome slots lower against the real '
+    test('CupertinoNavigationBar chrome slots lower against the real '
         'catalog — implied leading, previous-page title, background', () async {
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/cupertino.dart';
         $kStubAnnotationsAndBases
 
@@ -555,10 +563,8 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'FilledButton(style: styleFrom(minimumSize: Size(...))) lowers the '
-        'size slot to a {width, height} map against the real catalog',
-        () async {
+    test('FilledButton(style: styleFrom(minimumSize: Size(...))) lowers the '
+        'size slot to a {width, height} map against the real catalog', () async {
       // Depth-coverage proof for the registered structured `Size` value slot:
       // a button's `minimumSize` (a `ButtonStyle` field hoisted via
       // `<Button>.styleFrom`) is a `structured` slot whose `Size(width,
@@ -567,7 +573,8 @@ widget Paywall = AcmeBanner();
       // registered `Size` runtime decoder. The translator emits the map from
       // the `Size` recipe; the factory reads it through the structured-ref
       // decoder.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -616,8 +623,7 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'OutlinedButton(style: styleFrom(side: BorderSide(...))) lowers the '
+    test('OutlinedButton(style: styleFrom(side: BorderSide(...))) lowers the '
         'side slot to a {color, width} map against the real catalog', () async {
       // Depth-coverage proof for the registered structured `BorderSide` value
       // slot: a button's `side` (a `ButtonStyle` field hoisted via
@@ -627,7 +633,8 @@ widget Paywall = AcmeBanner();
       // source-lowering reuses the existing `BorderSide(...)` recognizer (the
       // same one used by `shape.side`); the factory reads it through the
       // structured-ref decoder.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -680,8 +687,7 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'FilledButton(style: styleFrom(textStyle: TextStyle(...))) lowers the '
+    test('FilledButton(style: styleFrom(textStyle: TextStyle(...))) lowers the '
         'textStyle slot to a map against the real catalog', () async {
       // Depth-coverage proof for the registered structured `TextStyle` value
       // slot: a button's `textStyle` (a `ButtonStyle` field hoisted via
@@ -689,7 +695,8 @@ widget Paywall = AcmeBanner();
       // source lowers to a map on the wire and decodes through the registered
       // `TextStyle` runtime decoder. Distinct from the FLAT TextStyle
       // decompose on Text / DefaultTextStyle (which coexists by context).
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -754,15 +761,15 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'Column/Row(spacing:) lowers the spacing slot against the real catalog '
+    test('Column/Row(spacing:) lowers the spacing slot against the real catalog '
         '— no translator change', () async {
       // Depth seed D#2: `spacing` (the dominant modern Flutter layout idiom,
       // Flex.spacing) was stripped from `kFlexExcludes`; it is now surfaced as
       // a `length`/`real` slot reusing the existing decoder (`Wrap` already
       // proved the path). Layout-critical: absent spacing renders children
       // cramped, so this slot's fidelity matters most.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -808,8 +815,7 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'Image.network(color/colorBlendMode/repeat/filterQuality/alignment) '
+    test('Image.network(color/colorBlendMode/repeat/filterQuality/alignment) '
         'lowers the visual slots against the real catalog — no translator '
         'change', () async {
       // Depth seed D#1: the visual modifiers (`color`, `colorBlendMode`,
@@ -817,7 +823,8 @@ widget Paywall = AcmeBanner();
       // `kImageVisualExcludes`; they are now surfaced reusing the existing
       // color / enum / alignment decoders. The async-loader knobs (scale,
       // cache*, gaplessPlayback, …) stay excluded by design.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -869,16 +876,15 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'Text(softWrap/overflow/textWidthBasis/semanticsLabel) lowers the '
-        'layout slots against the real catalog — no translator change',
-        () async {
+    test('Text(softWrap/overflow/textWidthBasis/semanticsLabel) lowers the '
+        'layout slots against the real catalog — no translator change', () async {
       // Depth seed D#6: the widget-level text-layout knobs (`softWrap`,
       // `overflow`, `textWidthBasis`, `semanticsLabel`) were stripped from the
       // `Text` `excludeParams`; they are now surfaced reusing the boolean /
       // enum / string decoders, matching what RestagePrice / RestageFormattedNumber
       // already expose.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -929,14 +935,14 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'Card(clipBehavior:) lowers — the clip slot is surfaced library-wide '
+    test('Card(clipBehavior:) lowers — the clip slot is surfaced library-wide '
         '(Material), reusing the enum decoder', () async {
       // Representative proof that the `clipBehavior` drain generalizes across
       // libraries: the same `enumByName<Clip>` slot is now surfaced on every
       // clip-capable widget (here a Material `Card`), not just the core
       // Container seed — curation-only, no translator change.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -982,9 +988,11 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test('filename / id mismatch emits filenameMismatch and no outputs',
-        () async {
-      const source = '''
+    test(
+      'filename / id mismatch emits filenameMismatch and no outputs',
+      () async {
+        const source =
+            '''
         $kStubAnnotationsAndBases
 
         @PaywallSource(id: 'pro_upgrade')
@@ -994,32 +1002,34 @@ widget Paywall = AcmeBanner();
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: false,
-      );
-      // Filename is `wrong.dart`, not `pro_upgrade.dart` — the
-      // generator must reject before writing artifacts.
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/paywalls/wrong.dart'),
-        source,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: false,
+        );
+        // Filename is `wrong.dart`, not `pro_upgrade.dart` — the
+        // generator must reject before writing artifacts.
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/paywalls/wrong.dart'),
+          source,
+        );
 
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/paywalls/wrong.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: const {},
-      );
-    });
+        await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/paywalls/wrong.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: const {},
+        );
+      },
+    );
 
     test('emitted .rfw round-trips cleanly via the shared decoder', () async {
       // The runtime mounts paywalls by calling decodeLibraryBlob on
       // the .rfw bytes; this round-trip confirms the full codegen
       // pipeline emits a byte sequence the decoder accepts and the
       // resulting widget tree matches the source shape.
-      const source = '''
+      const source =
+          '''
         $kStubAnnotationsAndBases
 
         @PaywallSource(id: 'round_trip')
@@ -1047,8 +1057,9 @@ widget Paywall = AcmeBanner();
         readerWriter: readerWriter,
         outputs: {
           'apps_examples|assets/paywalls/round_trip.capability.json': anything,
-          'apps_examples|assets/paywalls/round_trip.rfwtxt':
-              decodedMatches(contains('widget Paywall =')),
+          'apps_examples|assets/paywalls/round_trip.rfwtxt': decodedMatches(
+            contains('widget Paywall ='),
+          ),
           'apps_examples|assets/paywalls/round_trip.rfw':
               const _RoundTripMatcher(),
           'apps_examples|assets/paywalls/screens/paywall_round_trip.capability.json':
@@ -1060,10 +1071,11 @@ widget Paywall = AcmeBanner();
     });
 
     test(
-        'Text(NumberFormat.currency(...).format(v), style, textAlign) '
-        'retains Text with a native value program, style carried, byte-stable',
-        () async {
-      const source = '''
+      'Text(NumberFormat.currency(...).format(v), style, textAlign) '
+      'retains Text with a native value program, style carried, byte-stable',
+      () async {
+        const source =
+            '''
         import 'package:flutter/material.dart';
         import 'package:intl/intl.dart' show NumberFormat;
         $kStubAnnotationsAndBases
@@ -1080,44 +1092,45 @@ widget Paywall = AcmeBanner();
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: true,
-        includeIntl: true,
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/paywalls/price_tag.dart'),
-        source,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: true,
+          includeIntl: true,
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/paywalls/price_tag.dart'),
+          source,
+        );
 
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/paywalls/price_tag.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/paywalls/price_tag.capability.json': anything,
-          'apps_examples|assets/paywalls/price_tag.rfwtxt': decodedMatches(
-            allOf(
-              contains('Text('),
-              contains('intl.number.format'),
-              contains('decimalDigits'),
-              contains('fontSize: 24'),
-              contains('textAlign:'),
-              // The imperative formatting call is gone from the blob.
-              isNot(contains('NumberFormat')),
-              isNot(contains('.format(')),
+        await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/paywalls/price_tag.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|assets/paywalls/price_tag.capability.json': anything,
+            'apps_examples|assets/paywalls/price_tag.rfwtxt': decodedMatches(
+              allOf(
+                contains('Text('),
+                contains('intl.number.format'),
+                contains('decimalDigits'),
+                contains('fontSize: 24'),
+                contains('textAlign:'),
+                // The imperative formatting call is gone from the blob.
+                isNot(contains('NumberFormat')),
+                isNot(contains('.format(')),
+              ),
             ),
-          ),
-          'apps_examples|assets/paywalls/price_tag.rfw':
-              const _NativeNumberValueMatcher(),
-          'apps_examples|assets/paywalls/screens/paywall_price_tag.capability.json':
-              anything,
-          'apps_examples|assets/paywalls/screens/paywall_price_tag.rfw':
-              const _RootWidgetMatcher('OnboardingScreen'),
-        },
-      );
-    });
+            'apps_examples|assets/paywalls/price_tag.rfw':
+                const _NativeNumberValueMatcher(),
+            'apps_examples|assets/paywalls/screens/paywall_price_tag.capability.json':
+                anything,
+            'apps_examples|assets/paywalls/screens/paywall_price_tag.rfw':
+                const _RootWidgetMatcher('OnboardingScreen'),
+          },
+        );
+      },
+    );
 
     test('withdrawn commerce helpers fail codegen without outputs', () async {
       final cases = <String, String>{
@@ -1128,7 +1141,8 @@ widget Paywall = AcmeBanner();
 
       for (final entry in cases.entries) {
         final id = 'withdrawn_${entry.key}';
-        final source = '''
+        final source =
+            '''
           import 'package:flutter/material.dart';
           import 'package:restage/restage.dart';
           $kStubAnnotationsAndBases
@@ -1144,8 +1158,10 @@ widget Paywall = AcmeBanner();
           includeFlutter: true,
         );
         final path = 'lib/paywalls/$id.dart';
-        readerWriter.testing
-            .writeString(AssetId('apps_examples', path), source);
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', path),
+          source,
+        );
         final logs = <String>[];
 
         final result = await testBuilder(
@@ -1169,15 +1185,15 @@ widget Paywall = AcmeBanner();
       }
     });
 
-    test(
-        'PageView(children:) aliases to a RestagePager node, byte-stable + '
+    test('PageView(children:) aliases to a RestagePager node, byte-stable + '
         'round-trips', () async {
       // The Mojo testimonial-carousel idiom: a dev writes vanilla-Flutter
       // PageView; the transpiler aliases it to the declarative RestagePager
       // catalog widget. The .rfwtxt carries RestagePager; the binary .rfw
       // decodes to a RestagePager root with the three child pages (the
       // alias→wire mapping survives encode/decode — the render proof).
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -1213,8 +1229,9 @@ widget Paywall = AcmeBanner();
               isNot(contains('PageView')),
             ),
           ),
-          'apps_examples|assets/paywalls/carousel.rfw':
-              const _PagerMatcher(childCount: 3),
+          'apps_examples|assets/paywalls/carousel.rfw': const _PagerMatcher(
+            childCount: 3,
+          ),
           'apps_examples|assets/paywalls/screens/paywall_carousel.capability.json':
               anything,
           'apps_examples|assets/paywalls/screens/paywall_carousel.rfw':
@@ -1223,10 +1240,10 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'PageView controller PageController(initialPage:, viewportFraction:) '
+    test('PageView controller PageController(initialPage:, viewportFraction:) '
         'flattens onto RestagePager props', () async {
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -1266,10 +1283,10 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/carousel_ctrl.rfw':
               const _PagerMatcher(
-            childCount: 2,
-            initialPage: 1,
-            viewportFraction: 0.85,
-          ),
+                childCount: 2,
+                initialPage: 1,
+                viewportFraction: 0.85,
+              ),
           'apps_examples|assets/paywalls/screens/paywall_carousel_ctrl.capability.json':
               anything,
           'apps_examples|assets/paywalls/screens/paywall_carousel_ctrl.rfw':
@@ -1282,7 +1299,8 @@ widget Paywall = AcmeBanner();
       // The whole-widget defer is fatal at the production builder: an
       // unexpressible PageView form emits NO paywall artifacts rather than a
       // degraded RestagePager that drops the `physics` behaviour.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -1314,8 +1332,7 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'a vanilla RadioGroup aliases to a RestageRadioGroup node, '
+    test('a vanilla RadioGroup aliases to a RestageRadioGroup node, '
         'byte-stable + round-trips with its option list', () async {
       // A dev writes a vanilla-Flutter RadioGroup of RadioListTile rows (a
       // remote surface tier/choice picker); the transpiler aliases it to the
@@ -1324,7 +1341,8 @@ widget Paywall = AcmeBanner();
       // gone); the binary .rfw decodes to a RestageRadioGroup root carrying the
       // {value, label} option list in source order — the proof a remote radio
       // renders the same options the dev authored, none silently dropped.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -1371,13 +1389,13 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/plan_radio.rfw':
               const _SingleSelectMatcher(
-            rootName: 'RestageRadioGroupString',
-            options: [
-              ('monthly', 'Monthly'),
-              ('annual', 'Annual'),
-            ],
-            selected: 'annual',
-          ),
+                rootName: 'RestageRadioGroupString',
+                options: [
+                  ('monthly', 'Monthly'),
+                  ('annual', 'Annual'),
+                ],
+                selected: 'annual',
+              ),
           'apps_examples|assets/paywalls/screens/paywall_plan_radio.capability.json':
               anything,
           'apps_examples|assets/paywalls/screens/paywall_plan_radio.rfw':
@@ -1386,15 +1404,15 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'a vanilla DropdownButton aliases to a RestageDropdown node, '
+    test('a vanilla DropdownButton aliases to a RestageDropdown node, '
         'byte-stable + round-trips with its option list', () async {
       // A dev writes a vanilla-Flutter DropdownButton of DropdownMenuItem
       // entries; the transpiler aliases it to the declarative RestageDropdown
       // catalog widget. The .rfw decodes to a RestageDropdown root carrying the
       // {value, label} option list — the overlay/route DropdownButton owns is
       // hidden behind the compiled widget.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -1430,26 +1448,26 @@ widget Paywall = AcmeBanner();
               anything,
           'apps_examples|assets/paywalls/currency_dropdown.rfwtxt':
               decodedMatches(
-            allOf([
-              contains('RestageDropdownString('),
-              contains('items:'),
-              contains('"usd"'),
-              contains('"US Dollar"'),
-              contains('"eur"'),
-              contains('"Euro"'),
-              isNot(contains('DropdownButton<')),
-              isNot(contains('DropdownMenuItem')),
-            ]),
-          ),
+                allOf([
+                  contains('RestageDropdownString('),
+                  contains('items:'),
+                  contains('"usd"'),
+                  contains('"US Dollar"'),
+                  contains('"eur"'),
+                  contains('"Euro"'),
+                  isNot(contains('DropdownButton<')),
+                  isNot(contains('DropdownMenuItem')),
+                ]),
+              ),
           'apps_examples|assets/paywalls/currency_dropdown.rfw':
               const _SingleSelectMatcher(
-            rootName: 'RestageDropdownString',
-            options: [
-              ('usd', 'US Dollar'),
-              ('eur', 'Euro'),
-            ],
-            selected: 'usd',
-          ),
+                rootName: 'RestageDropdownString',
+                options: [
+                  ('usd', 'US Dollar'),
+                  ('eur', 'Euro'),
+                ],
+                selected: 'usd',
+              ),
           'apps_examples|assets/paywalls/screens/paywall_currency_dropdown.capability.json':
               anything,
           'apps_examples|assets/paywalls/screens/paywall_currency_dropdown.rfw':
@@ -1458,15 +1476,15 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'a RadioGroup with an unparseable group (a non-carrier leaf) defers — '
+    test('a RadioGroup with an unparseable group (a non-carrier leaf) defers — '
         'no artifacts, never a partial group', () async {
       // The all-or-defer-loud contract at the production builder: a single
       // non-RadioListTile leaf defers the WHOLE widget, emitting NO paywall
       // artifacts rather than a RestageRadioGroup that silently drops the
       // un-extractable option. A silently-wrong remote radio is the failure we
       // must not ship.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -1501,10 +1519,8 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'a vanilla SegmentedButton aliases to a RestageSegmentedButton node '
-        'against the REAL catalog, with its segments + selected list',
-        () async {
+    test('a vanilla SegmentedButton aliases to a RestageSegmentedButton node '
+        'against the REAL catalog, with its segments + selected list', () async {
       // A dev writes a vanilla-Flutter SegmentedButton (a remote surface
       // segmented selector); the transpiler aliases it to the declarative
       // RestageSegmentedButton catalog widget against the REAL merged catalog.
@@ -1512,7 +1528,8 @@ widget Paywall = AcmeBanner();
       // gone); it carries the {value, label} segments in source order + the
       // selected value list — the proof a remote segmented button renders the
       // same segments the dev authored, none silently dropped or reordered.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -1567,14 +1584,14 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'a SegmentedButton with an icon-only segment defers — no artifacts, '
+    test('a SegmentedButton with an icon-only segment defers — no artifacts, '
         'never a partial set', () async {
       // The all-or-defer-loud contract at the production builder: a single
       // icon-only segment (no flat string label) defers the WHOLE widget,
       // emitting NO paywall artifacts rather than a RestageSegmentedButton that
       // silently drops the un-extractable segment.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -1609,15 +1626,15 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'a canonical DraggableScrollableSheet aliases to a '
+    test('a canonical DraggableScrollableSheet aliases to a '
         'RestageDraggableSheet node, byte-stable + round-trips', () async {
       // A dev writes vanilla-Flutter DraggableScrollableSheet with the
       // canonical builder; the transpiler aliases it to the declarative
       // RestageDraggableSheet catalog widget against the REAL merged catalog.
       // The .rfwtxt carries RestageDraggableSheet (the source forms are gone);
       // the binary .rfw decodes to a RestageDraggableSheet root.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -1673,13 +1690,13 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'a DraggableScrollableSheet with an author controller defers — no '
+    test('a DraggableScrollableSheet with an author controller defers — no '
         'artifacts', () async {
       // The whole-widget defer is fatal at the production builder: an
       // author-supplied controller (an imperative escape hatch) emits NO
       // paywall artifacts rather than a surface that silently drops it.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -1714,13 +1731,15 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test('Icons.X reference resolves to integer codepoint in the emitted .rfw',
-        () async {
-      // End-to-end: `Icon(iconCodepoint: Icons.favorite)` emits a bare integer
-      // codepoint, not `"favorite"` (string). `Icons` is gated to the real
-      // package:flutter namespace (no name-only path), so the fixture imports
-      // the real `Icons`/`IconData` only; the unresolved `Icon` binds by name.
-      const source = '''
+    test(
+      'Icons.X reference resolves to integer codepoint in the emitted .rfw',
+      () async {
+        // End-to-end: `Icon(iconCodepoint: Icons.favorite)` emits a bare integer
+        // codepoint, not `"favorite"` (string). `Icons` is gated to the real
+        // package:flutter namespace (no name-only path), so the fixture imports
+        // the real `Icons`/`IconData` only; the unresolved `Icon` binds by name.
+        const source =
+            '''
         import 'package:flutter/material.dart' show Icons, IconData;
         $kStubAnnotationsAndBases
 
@@ -1732,49 +1751,53 @@ widget Paywall = AcmeBanner();
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: true,
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/paywalls/icon_canary.dart'),
-        source,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: true,
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/paywalls/icon_canary.dart'),
+          source,
+        );
 
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/paywalls/icon_canary.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/paywalls/icon_canary.capability.json': anything,
-          'apps_examples|assets/paywalls/icon_canary.rfwtxt': decodedMatches(
-            allOf(
-              contains('Icon('),
-              matches(RegExp(r'iconCodepoint: \d+')),
-              isNot(contains('"favorite"')),
+        await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/paywalls/icon_canary.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|assets/paywalls/icon_canary.capability.json':
+                anything,
+            'apps_examples|assets/paywalls/icon_canary.rfwtxt': decodedMatches(
+              allOf(
+                contains('Icon('),
+                matches(RegExp(r'iconCodepoint: \d+')),
+                isNot(contains('"favorite"')),
+              ),
             ),
-          ),
-          'apps_examples|assets/paywalls/icon_canary.rfw': isNotEmpty,
-          'apps_examples|assets/paywalls/screens/paywall_icon_canary.capability.json':
-              anything,
-          'apps_examples|assets/paywalls/screens/paywall_icon_canary.rfw':
-              const _RootWidgetMatcher('OnboardingScreen'),
-        },
-      );
-    });
+            'apps_examples|assets/paywalls/icon_canary.rfw': isNotEmpty,
+            'apps_examples|assets/paywalls/screens/paywall_icon_canary.capability.json':
+                anything,
+            'apps_examples|assets/paywalls/screens/paywall_icon_canary.rfw':
+                const _RootWidgetMatcher('OnboardingScreen'),
+          },
+        );
+      },
+    );
 
-    test('previously-working shapes still translate through resolved AST',
-        () async {
-      // Regression for the AST-substrate switch: factory ctors and
-      // alignment members already had per-shape handling under
-      // parsed AST. They must continue to land on the same DSL
-      // fragments when the build pipeline runs against the resolved
-      // AST. Exercises a single fixture covering Color literal +
-      // EdgeInsets factory + Alignment member (via LinearGradient
-      // begin/end) + a second Icons reference to guard against any
-      // per-element caching surprise.
-      const source = '''
+    test(
+      'previously-working shapes still translate through resolved AST',
+      () async {
+        // Regression for the AST-substrate switch: factory ctors and
+        // alignment members already had per-shape handling under
+        // parsed AST. They must continue to land on the same DSL
+        // fragments when the build pipeline runs against the resolved
+        // AST. Exercises a single fixture covering Color literal +
+        // EdgeInsets factory + Alignment member (via LinearGradient
+        // begin/end) + a second Icons reference to guard against any
+        // per-element caching surprise.
+        const source =
+            '''
         // The value types (Color / EdgeInsets / Alignment / LinearGradient)
         // resolve to REAL Flutter so the value-substitution gate recognises
         // them — a custom-stub look-alike would (correctly) defer. Container /
@@ -1805,53 +1828,56 @@ widget Paywall = AcmeBanner();
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: true,
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/paywalls/mixed_shapes.dart'),
-        source,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: true,
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/paywalls/mixed_shapes.dart'),
+          source,
+        );
 
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/paywalls/mixed_shapes.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/paywalls/mixed_shapes.capability.json':
-              anything,
-          'apps_examples|assets/paywalls/mixed_shapes.rfwtxt': decodedMatches(
-            allOf(
-              // Physical insets retain physical component names.
-              contains(
-                  'padding: {left: 12.0, top: 12.0, right: 12.0, bottom: 12.0}'),
-              // Color literal still emits 0xAARRGGBB.
-              contains('color: 0xFF112233'),
-              // Alignment members still resolve to {x, y} maps inside
-              // LinearGradient's begin/end.
-              contains('begin: {x: -1.0, y: -1.0}'),
-              contains('end: {x: 1.0, y: 1.0}'),
-              // Second Icons reference resolves independently to a bare integer
-              // codepoint — guards against per-element caching.
-              matches(RegExp(r'iconCodepoint: \d+')),
+        await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/paywalls/mixed_shapes.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|assets/paywalls/mixed_shapes.capability.json':
+                anything,
+            'apps_examples|assets/paywalls/mixed_shapes.rfwtxt': decodedMatches(
+              allOf(
+                // Physical insets retain physical component names.
+                contains(
+                  'padding: {left: 12.0, top: 12.0, right: 12.0, bottom: 12.0}',
+                ),
+                // Color literal still emits 0xAARRGGBB.
+                contains('color: 0xFF112233'),
+                // Alignment members still resolve to {x, y} maps inside
+                // LinearGradient's begin/end.
+                contains('begin: {x: -1.0, y: -1.0}'),
+                contains('end: {x: 1.0, y: 1.0}'),
+                // Second Icons reference resolves independently to a bare integer
+                // codepoint — guards against per-element caching.
+                matches(RegExp(r'iconCodepoint: \d+')),
+              ),
             ),
-          ),
-          'apps_examples|assets/paywalls/mixed_shapes.rfw': isNotEmpty,
-          'apps_examples|assets/paywalls/screens/paywall_mixed_shapes.capability.json':
-              anything,
-          'apps_examples|assets/paywalls/screens/paywall_mixed_shapes.rfw':
-              const _RootWidgetMatcher('OnboardingScreen'),
-        },
-      );
-    });
+            'apps_examples|assets/paywalls/mixed_shapes.rfw': isNotEmpty,
+            'apps_examples|assets/paywalls/screens/paywall_mixed_shapes.capability.json':
+                anything,
+            'apps_examples|assets/paywalls/screens/paywall_mixed_shapes.rfw':
+                const _RootWidgetMatcher('OnboardingScreen'),
+          },
+        );
+      },
+    );
 
     test('a const local in build() folds at its reference site', () async {
       // End-to-end: a `const` local before the single return is permitted by
       // the body-shape rule, and a reference to it folds to its literal value
       // (`SizedBox(width: w)` → `width: 320.0`), not a deferral.
-      const source = '''
+      const source =
+          '''
         $kStubAnnotationsAndBases
 
         @PaywallSource(id: 'const_local')
@@ -1896,7 +1922,8 @@ widget Paywall = AcmeBanner();
     });
 
     test('stateful @PaywallSource emits root state and handlers', () async {
-      const source = '''
+      const source =
+          '''
         $kStubAnnotationsAndBases
 
         abstract class StatefulWidget extends Widget {
@@ -1950,33 +1977,35 @@ widget Paywall = AcmeBanner();
               anything,
           'apps_examples|assets/paywalls/stateful_toggle.rfwtxt':
               decodedMatches(
-            allOf(
-              contains('widget Paywall { annual: false } ='),
-              contains(
-                'onTap: set state.annual = switch state.annual '
-                '{ true: false, false: true }',
+                allOf(
+                  contains('widget Paywall { annual: false } ='),
+                  contains(
+                    'onTap: set state.annual = switch state.annual '
+                    '{ true: false, false: true }',
+                  ),
+                  contains(
+                    'text: switch state.annual '
+                    '{ true: "Annual", false: "Monthly" }',
+                  ),
+                ),
               ),
-              contains(
-                'text: switch state.annual '
-                '{ true: "Annual", false: "Monthly" }',
-              ),
-            ),
-          ),
           'apps_examples|assets/paywalls/stateful_toggle.rfw':
               const _StatefulRootMatcher('Paywall', {'annual': false}),
           'apps_examples|assets/paywalls/screens/paywall_stateful_toggle.capability.json':
               anything,
           'apps_examples|assets/paywalls/screens/paywall_stateful_toggle.rfw':
               const _StatefulRootMatcher('OnboardingScreen', {
-            'annual': false,
-          }),
+                'annual': false,
+              }),
         },
       );
     });
 
-    test('state string interpolation emits TextRich span state reference',
-        () async {
-      const source = '''
+    test(
+      'state string interpolation emits TextRich span state reference',
+      () async {
+        const source =
+            '''
         $kStubAnnotationsAndBases
 
         abstract class StatefulWidget extends Widget {
@@ -2004,46 +2033,48 @@ widget Paywall = AcmeBanner();
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: false,
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/paywalls/state_price_string.dart'),
-        source,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: false,
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/paywalls/state_price_string.dart'),
+          source,
+        );
 
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/paywalls/state_price_string.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/paywalls/state_price_string.capability.json':
-              anything,
-          'apps_examples|assets/paywalls/state_price_string.rfwtxt':
-              decodedMatches(
-            allOf(
-              contains('widget Paywall { trialLabel: "7 days free" } ='),
-              contains('TextRich('),
-              contains('text: state.trialLabel'),
-              contains('text: " remaining"'),
-            ),
-          ),
-          'apps_examples|assets/paywalls/state_price_string.rfw':
-              const _TextRichStateStringMatcher(),
-          'apps_examples|assets/paywalls/screens/paywall_state_price_string.capability.json':
-              anything,
-          'apps_examples|assets/paywalls/screens/paywall_state_price_string.rfw':
-              const _StatefulRootMatcher('OnboardingScreen', {
-            'trialLabel': '7 days free',
-          }),
-        },
-      );
-    });
+        await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/paywalls/state_price_string.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|assets/paywalls/state_price_string.capability.json':
+                anything,
+            'apps_examples|assets/paywalls/state_price_string.rfwtxt':
+                decodedMatches(
+                  allOf(
+                    contains('widget Paywall { trialLabel: "7 days free" } ='),
+                    contains('TextRich('),
+                    contains('text: state.trialLabel'),
+                    contains('text: " remaining"'),
+                  ),
+                ),
+            'apps_examples|assets/paywalls/state_price_string.rfw':
+                const _TextRichStateStringMatcher(),
+            'apps_examples|assets/paywalls/screens/paywall_state_price_string.capability.json':
+                anything,
+            'apps_examples|assets/paywalls/screens/paywall_state_price_string.rfw':
+                const _StatefulRootMatcher('OnboardingScreen', {
+                  'trialLabel': '7 days free',
+                }),
+          },
+        );
+      },
+    );
 
     test('unsupported stateful @PaywallSource emits no outputs', () async {
-      const source = '''
+      const source =
+          '''
         $kStubAnnotationsAndBases
 
         abstract class StatefulWidget extends Widget {
@@ -2089,8 +2120,7 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'Container(decoration: BoxDecoration(image: DecorationImage(...))) '
+    test('Container(decoration: BoxDecoration(image: DecorationImage(...))) '
         'drives the full production path: field mapping -> decorationImage '
         'flat slot -> self-describing image map', () async {
       // End-to-end production-path proof for DecorationImage on Container: the
@@ -2099,7 +2129,8 @@ widget Paywall = AcmeBanner();
       // against the REAL merged catalog, and the value lowers to the
       // self-describing image map (provider + fit + alignment) — never a
       // `decoration: {...}` map.
-      const source = '''
+      const source =
+          '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -2159,14 +2190,15 @@ widget Paywall = AcmeBanner();
     });
 
     test(
-        'AnimatedContainer(decoration: BoxDecoration(image: DecorationImage)) '
-        'drives the same production path on the implicit-animation widget',
-        () async {
-      // The `decorationImage` synthetic is shared by Container AND
-      // AnimatedContainer (both consume the shared BoxDecoration synthetics);
-      // this proves the field-mapping wiring on the second consumer through the
-      // real catalog.
-      const source = '''
+      'AnimatedContainer(decoration: BoxDecoration(image: DecorationImage)) '
+      'drives the same production path on the implicit-animation widget',
+      () async {
+        // The `decorationImage` synthetic is shared by Container AND
+        // AnimatedContainer (both consume the shared BoxDecoration synthetics);
+        // this proves the field-mapping wiring on the second consumer through the
+        // real catalog.
+        const source =
+            '''
         import 'package:flutter/material.dart';
         $kStubAnnotationsAndBases
 
@@ -2186,40 +2218,41 @@ widget Paywall = AcmeBanner();
         }
       ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: true,
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/paywalls/anim_hero.dart'),
-        source,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: true,
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/paywalls/anim_hero.dart'),
+          source,
+        );
 
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/paywalls/anim_hero.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/paywalls/anim_hero.rfwtxt': decodedMatches(
-            allOf(
-              contains('AnimatedContainer('),
-              contains('decorationImage:'),
-              isNot(contains('decoration:')),
-              contains('kind: "asset"'),
-              contains('src: "assets/bg.png"'),
-              contains('fit: "fill"'),
+        await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/paywalls/anim_hero.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|assets/paywalls/anim_hero.rfwtxt': decodedMatches(
+              allOf(
+                contains('AnimatedContainer('),
+                contains('decorationImage:'),
+                isNot(contains('decoration:')),
+                contains('kind: "asset"'),
+                contains('src: "assets/bg.png"'),
+                contains('fit: "fill"'),
+              ),
             ),
-          ),
-          'apps_examples|assets/paywalls/anim_hero.rfw': isNotEmpty,
-          'apps_examples|assets/paywalls/anim_hero.capability.json': anything,
-          'apps_examples|assets/paywalls/screens/paywall_anim_hero.capability.json':
-              anything,
-          'apps_examples|assets/paywalls/screens/paywall_anim_hero.rfw':
-              const _RootWidgetMatcher('OnboardingScreen'),
-        },
-      );
-    });
+            'apps_examples|assets/paywalls/anim_hero.rfw': isNotEmpty,
+            'apps_examples|assets/paywalls/anim_hero.capability.json': anything,
+            'apps_examples|assets/paywalls/screens/paywall_anim_hero.capability.json':
+                anything,
+            'apps_examples|assets/paywalls/screens/paywall_anim_hero.rfw':
+                const _RootWidgetMatcher('OnboardingScreen'),
+          },
+        );
+      },
+    );
 
     test('source with no @PaywallSource silently skips', () async {
       const source = '''
@@ -2293,8 +2326,7 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test(
-        'a malformed token in a custom widget source fails the build instead '
+    test('a malformed token in a custom widget source fails the build instead '
         'of emitting a silently-recovered catalog entry', () async {
       // The walker resolves custom sources with `allowSyntaxErrors: true`.
       // An incomplete hex literal `0x` is a scanner error whose parser
@@ -2349,25 +2381,27 @@ widget Paywall = AcmeBanner();
 /// capability version — the shape `loadMergedCatalog` merges from the package
 /// being built so a surface referencing the widget derives a required library.
 Catalog _acmeCustomCatalog() => Catalog(
-      schemaVersion: kSupportedSchemaVersion,
-      generatedAt: '2026-06-19T00:00:00Z',
-      libraries: {
-        const WidgetLibrary.custom('acme.widgets'):
-            const LibraryInfo(version: '0.0.0', capabilityVersion: 2),
-      },
-      widgets: [
-        WidgetEntry(
-          wireId: WireId('w0001'),
-          name: 'AcmeBanner',
-          library: const WidgetLibrary.custom('acme.widgets'),
-          category: WidgetCategory.layout,
-          description: 'A custom banner.',
-          flutterType: 'package:acme/banner.dart#AcmeBanner',
-          childrenSlot: ChildrenSlot.none,
-          properties: const [],
-        ),
-      ],
-    );
+  schemaVersion: kSupportedSchemaVersion,
+  generatedAt: '2026-06-19T00:00:00Z',
+  libraries: {
+    const WidgetLibrary.custom('acme.widgets'): const LibraryInfo(
+      version: '0.0.0',
+      capabilityVersion: 2,
+    ),
+  },
+  widgets: [
+    WidgetEntry(
+      wireId: WireId('w0001'),
+      name: 'AcmeBanner',
+      library: const WidgetLibrary.custom('acme.widgets'),
+      category: WidgetCategory.layout,
+      description: 'A custom banner.',
+      flutterType: 'package:acme/banner.dart#AcmeBanner',
+      childrenSlot: ChildrenSlot.none,
+      properties: const [],
+    ),
+  ],
+);
 
 /// Matcher that decodes the emitted `.rfw` blob via the shared decoder
 /// and asserts the round-tripped library shape: one widget named
@@ -2391,7 +2425,8 @@ class _RoundTripMatcher extends Matcher {
     }
     final paywall = decoded.widgets.single;
     if (paywall.name != 'Paywall') {
-      matchState['shape'] = "expected widget name 'Paywall', got "
+      matchState['shape'] =
+          "expected widget name 'Paywall', got "
           "'${paywall.name}'";
       return false;
     }
@@ -2406,7 +2441,8 @@ class _RoundTripMatcher extends Matcher {
       return false;
     }
     if (child.arguments['width'] != 64.0 || child.arguments['height'] != 64.0) {
-      matchState['shape'] = 'expected SizedBox 64x64, got '
+      matchState['shape'] =
+          'expected SizedBox 64x64, got '
           'width=${child.arguments['width']}, '
           'height=${child.arguments['height']}';
       return false;
@@ -2416,9 +2452,9 @@ class _RoundTripMatcher extends Matcher {
 
   @override
   Description describe(Description description) => description.add(
-        'a .rfw blob that round-trips to '
-        'Center(child: SizedBox(width: 64, height: 64))',
-      );
+    'a .rfw blob that round-trips to '
+    'Center(child: SizedBox(width: 64, height: 64))',
+  );
 
   @override
   Description describeMismatch(
@@ -2466,13 +2502,15 @@ class _StatefulRootMatcher extends Matcher {
     }
     final initialState = root.initialState ?? const <String, Object?>{};
     if (initialState.length != expectedState.length) {
-      matchState['shape'] = 'expected state $expectedState, got '
+      matchState['shape'] =
+          'expected state $expectedState, got '
           '$initialState';
       return false;
     }
     for (final entry in expectedState.entries) {
       if (initialState[entry.key] != entry.value) {
-        matchState['shape'] = 'expected state ${entry.key}=${entry.value}, '
+        matchState['shape'] =
+            'expected state ${entry.key}=${entry.value}, '
             'got ${initialState[entry.key]}';
         return false;
       }
@@ -2529,19 +2567,22 @@ class _NativeNumberValueMatcher extends Matcher {
     final text = root.arguments['text'];
     if (text is! Map<String, Object?> || text['program'] is! String)
       return false;
-    final program = ValueProgram.decode(text['program']! as String,
-        operations: kIntlValueOperations);
+    final program = ValueProgram.decode(
+      text['program']! as String,
+      operations: kIntlValueOperations,
+    );
     if (program.nodes[program.root].op != 'intl.number.format') return false;
-    final literals =
-        program.nodes.where((n) => n.op == 'literal').map((n) => n.value);
+    final literals = program.nodes
+        .where((n) => n.op == 'literal')
+        .map((n) => n.value);
     if (!literals.toSet().containsAll({'en_US', r'$', 2, 9.99})) return false;
     return true;
   }
 
   @override
   Description describe(Description description) => description.add(
-        'a .rfw blob whose Text contains the native currency value program',
-      );
+    'a .rfw blob whose Text contains the native currency value program',
+  );
 
   @override
   Description describeMismatch(
@@ -2558,8 +2599,9 @@ class _NativeNumberValueMatcher extends Matcher {
     if (matchState.containsKey('shape')) {
       return mismatchDescription.add(matchState['shape'] as String);
     }
-    return mismatchDescription
-        .add('did not carry the native currency value program');
+    return mismatchDescription.add(
+      'did not carry the native currency value program',
+    );
   }
 }
 
@@ -2603,13 +2645,15 @@ class _PagerMatcher extends Matcher {
       return false;
     }
     if (initialPage != null && root.arguments['initialPage'] != initialPage) {
-      matchState['shape'] = 'expected initialPage $initialPage, got '
+      matchState['shape'] =
+          'expected initialPage $initialPage, got '
           '${root.arguments['initialPage']}';
       return false;
     }
     if (viewportFraction != null &&
         root.arguments['viewportFraction'] != viewportFraction) {
-      matchState['shape'] = 'expected viewportFraction $viewportFraction, got '
+      matchState['shape'] =
+          'expected viewportFraction $viewportFraction, got '
           '${root.arguments['viewportFraction']}';
       return false;
     }
@@ -2618,8 +2662,8 @@ class _PagerMatcher extends Matcher {
 
   @override
   Description describe(Description description) => description.add(
-        'a .rfw blob whose body root is a RestagePager with $childCount pages',
-      );
+    'a .rfw blob whose body root is a RestagePager with $childCount pages',
+  );
 
   @override
   Description describeMismatch(
@@ -2627,12 +2671,11 @@ class _PagerMatcher extends Matcher {
     Description mismatchDescription,
     Map<dynamic, dynamic> matchState,
     bool verbose,
-  ) =>
-      _describeBlobMismatch(
-        mismatchDescription,
-        matchState,
-        fallback: 'did not decode to the expected RestagePager',
-      );
+  ) => _describeBlobMismatch(
+    mismatchDescription,
+    matchState,
+    fallback: 'did not decode to the expected RestagePager',
+  );
 }
 
 class _TextRichStateStringMatcher extends Matcher {
@@ -2650,7 +2693,8 @@ class _TextRichStateStringMatcher extends Matcher {
     }
     final paywall = decoded.widgets.single;
     if (paywall.initialState?['trialLabel'] != '7 days free') {
-      matchState['shape'] = 'expected trialLabel initial state, got '
+      matchState['shape'] =
+          'expected trialLabel initial state, got '
           '${paywall.initialState}';
       return false;
     }
@@ -2668,7 +2712,8 @@ class _TextRichStateStringMatcher extends Matcher {
       return false;
     }
     if (_spanText(children[1]) != ' remaining') {
-      matchState['shape'] = 'expected trailing literal span, got '
+      matchState['shape'] =
+          'expected trailing literal span, got '
           '${children[1]}';
       return false;
     }
@@ -2677,8 +2722,8 @@ class _TextRichStateStringMatcher extends Matcher {
 
   @override
   Description describe(Description description) => description.add(
-        'a stateful .rfw blob whose TextRich span reads state.trialLabel',
-      );
+    'a stateful .rfw blob whose TextRich span reads state.trialLabel',
+  );
 
   @override
   Description describeMismatch(
@@ -2686,12 +2731,11 @@ class _TextRichStateStringMatcher extends Matcher {
     Description mismatchDescription,
     Map<dynamic, dynamic> matchState,
     bool verbose,
-  ) =>
-      _describeBlobMismatch(
-        mismatchDescription,
-        matchState,
-        fallback: 'did not decode to the expected TextRich',
-      );
+  ) => _describeBlobMismatch(
+    mismatchDescription,
+    matchState,
+    fallback: 'did not decode to the expected TextRich',
+  );
 }
 
 List<Object?>? _textSpanChildren(
@@ -2779,13 +2823,15 @@ class _SingleSelectMatcher extends Matcher {
         return false;
       }
       if (entry['value'] != options[i].$1 || entry['label'] != options[i].$2) {
-        matchState['shape'] = 'item $i expected ${options[i]}, got '
+        matchState['shape'] =
+            'item $i expected ${options[i]}, got '
             '(${entry['value']}, ${entry['label']})';
         return false;
       }
     }
     if (selected != null && root.arguments['selected'] != selected) {
-      matchState['shape'] = 'expected selected $selected, got '
+      matchState['shape'] =
+          'expected selected $selected, got '
           '${root.arguments['selected']}';
       return false;
     }
@@ -2794,9 +2840,9 @@ class _SingleSelectMatcher extends Matcher {
 
   @override
   Description describe(Description description) => description.add(
-        'a .rfw blob whose body root is a $rootName with '
-        '${options.length} options',
-      );
+    'a .rfw blob whose body root is a $rootName with '
+    '${options.length} options',
+  );
 
   @override
   Description describeMismatch(
@@ -2804,12 +2850,11 @@ class _SingleSelectMatcher extends Matcher {
     Description mismatchDescription,
     Map<dynamic, dynamic> matchState,
     bool verbose,
-  ) =>
-      _describeBlobMismatch(
-        mismatchDescription,
-        matchState,
-        fallback: 'did not decode to the expected $rootName',
-      );
+  ) => _describeBlobMismatch(
+    mismatchDescription,
+    matchState,
+    fallback: 'did not decode to the expected $rootName',
+  );
 }
 
 class _RootWidgetMatcher extends Matcher {

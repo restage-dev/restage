@@ -27,23 +27,27 @@ void main() {
         ]),
       );
       expect(
-        first.occurrences
-            .where((occurrence) => occurrence.constructorCall.name == 'Card'),
+        first.occurrences.where(
+          (occurrence) => occurrence.constructorCall.name == 'Card',
+        ),
         isEmpty,
       );
       expect(
         first.occurrences.where(
-            (occurrence) => occurrence.constructorCall.name == 'Generic'),
+          (occurrence) => occurrence.constructorCall.name == 'Generic',
+        ),
         isEmpty,
       );
       expect(
-        first.occurrences
-            .where((occurrence) => occurrence.constructorCall.name == 'Dead'),
+        first.occurrences.where(
+          (occurrence) => occurrence.constructorCall.name == 'Dead',
+        ),
         isEmpty,
       );
       expect(
-        first.localDeclarationAnchors
-            .where((anchor) => anchor.localName == 'InlineBadge'),
+        first.localDeclarationAnchors.where(
+          (anchor) => anchor.localName == 'InlineBadge',
+        ),
         isEmpty,
       );
       expect(
@@ -74,10 +78,13 @@ void main() {
 
       final inline = first.occurrences
           .where(
-              (occurrence) => occurrence.constructorCall.name == 'InlineBadge')
+            (occurrence) => occurrence.constructorCall.name == 'InlineBadge',
+          )
           .toList(growable: false);
       expect(
-          inline.map((occurrence) => occurrence.handle).toSet(), hasLength(2));
+        inline.map((occurrence) => occurrence.handle).toSet(),
+        hasLength(2),
+      );
       expect(
         changedValues.occurrences
             .map((occurrence) => occurrence.handle)
@@ -112,8 +119,10 @@ void main() {
         );
         expect(join.constructorCall, same(exactFinal.constructorCall));
         expect(join.measurementSurfaceId, publication.routePlan.surfaceId);
-        expect(join.routeDraftClosureDigest,
-            publication.routePlan.routeDraftClosureDigest);
+        expect(
+          join.routeDraftClosureDigest,
+          publication.routePlan.routeDraftClosureDigest,
+        );
         expect(join.presentationRouteCarrier, join.presentationRoute.carrier);
         expect(
           join.presentationRouteFingerprint,
@@ -140,14 +149,16 @@ void main() {
       final boundary = MeasurementCompilerBoundary.produceBoundaryV1(
         _boundaryInput(publication.routePlan),
       );
-      expect(boundary.disposition,
-          MeasurementCompilerBoundaryDisposition.accepted);
-      final finalManifest = boundary.completeMeasurementManifest!;
-      final resolved =
-          materialization.requireFinalizedPresentationReferenceForHandle(
-        handle: provisional.occurrences.first.handle,
-        completeManifest: finalManifest,
+      expect(
+        boundary.disposition,
+        MeasurementCompilerBoundaryDisposition.accepted,
       );
+      final finalManifest = boundary.completeMeasurementManifest!;
+      final resolved = materialization
+          .requireFinalizedPresentationReferenceForHandle(
+            handle: provisional.occurrences.first.handle,
+            completeManifest: finalManifest,
+          );
       expect(
         resolved.referenceId,
         materialization.joins.first.presentationReferenceId,
@@ -228,121 +239,128 @@ void main() {
     );
   });
 
-  test('rejects forged routes and duplicate descriptor or handle witnesses',
-      () {
-    final occurrenceSet = _discover(_topologySource());
-    final publication = _publicationPlan(occurrenceSet);
-    final first = publication.occurrences.first;
-    final forgedEdge = ArtifactOccurrenceEdgeToken('edge.presentation.forged');
-    final forgedCarrier =
-        MeasurementPublicationRouteCarrierV1.derivePresentation(
-      routeDraftClosureDigest: publication.routePlan.routeDraftClosureDigest,
-      artifactOccurrenceEdgeToken: forgedEdge,
-      generatedPresentationReferenceId: first.presentationReferenceId,
-    );
-    final forgedRoute = MeasurementPublicationDraftPresentationRouteV1(
-      generatedPresentationReferenceId: first.presentationReferenceId,
-      artifactOccurrenceEdgeToken: forgedEdge,
-      carrier: forgedCarrier.value,
-      opaqueRouteToken:
-          OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(forgedCarrier.value),
-    );
-    final forgedWitnesses = [...publication.occurrences];
-    forgedWitnesses[0] = _copyPlannedOccurrence(
-      first,
-      presentationRoute: forgedRoute,
-    );
-    expect(
-      () => MeasurementRfwPresentationPublicationPlan(
-        routePlan: publication.routePlan,
-        codeIdentityByStructuralOccurrenceKey:
-            publication.codeIdentityByStructuralOccurrenceKey,
-        occurrences: forgedWitnesses,
-      ),
-      throwsArgumentError,
-    );
-    expect(
-      () => MeasurementRfwPresentationPublicationPlan(
-        routePlan: publication.routePlan,
-        codeIdentityByStructuralOccurrenceKey:
-            publication.codeIdentityByStructuralOccurrenceKey,
-        occurrences: [...publication.occurrences, first],
-      ),
-      throwsArgumentError,
-    );
-    final duplicateHandleWitnesses = [...publication.occurrences];
-    duplicateHandleWitnesses[1] = _copyPlannedOccurrence(
-      duplicateHandleWitnesses[1],
-      handle: first.handle,
-    );
-    expect(
-      () => MeasurementRfwPresentationPublicationPlan(
-        routePlan: publication.routePlan,
-        codeIdentityByStructuralOccurrenceKey:
-            publication.codeIdentityByStructuralOccurrenceKey,
-        occurrences: duplicateHandleWitnesses,
-      ),
-      throwsArgumentError,
-    );
-    final second = publication.occurrences[1];
-    final permutedWitnesses = [...publication.occurrences];
-    permutedWitnesses[0] = _copyPlannedOccurrence(
-      first,
-      nodeCodeIdentityId: second.nodeCodeIdentityId,
-      canonicalNodeTokenId: second.canonicalNodeTokenId,
-      presentationLineageId: second.presentationLineageId,
-      presentationReferenceId: second.presentationReferenceId,
-      presentationDisplayMetadataRef: second.presentationDisplayMetadataRef,
-      presentationRoute: second.presentationRoute,
-    );
-    permutedWitnesses[1] = _copyPlannedOccurrence(
-      second,
-      nodeCodeIdentityId: first.nodeCodeIdentityId,
-      canonicalNodeTokenId: first.canonicalNodeTokenId,
-      presentationLineageId: first.presentationLineageId,
-      presentationReferenceId: first.presentationReferenceId,
-      presentationDisplayMetadataRef: first.presentationDisplayMetadataRef,
-      presentationRoute: first.presentationRoute,
-    );
-    expect(
-      () => MeasurementRfwPresentationPublicationPlan(
-        routePlan: publication.routePlan,
-        codeIdentityByStructuralOccurrenceKey:
-            publication.codeIdentityByStructuralOccurrenceKey,
-        occurrences: permutedWitnesses,
-      ),
-      throwsArgumentError,
-    );
+  test(
+    'rejects forged routes and duplicate descriptor or handle witnesses',
+    () {
+      final occurrenceSet = _discover(_topologySource());
+      final publication = _publicationPlan(occurrenceSet);
+      final first = publication.occurrences.first;
+      final forgedEdge = ArtifactOccurrenceEdgeToken(
+        'edge.presentation.forged',
+      );
+      final forgedCarrier =
+          MeasurementPublicationRouteCarrierV1.derivePresentation(
+            routeDraftClosureDigest:
+                publication.routePlan.routeDraftClosureDigest,
+            artifactOccurrenceEdgeToken: forgedEdge,
+            generatedPresentationReferenceId: first.presentationReferenceId,
+          );
+      final forgedRoute = MeasurementPublicationDraftPresentationRouteV1(
+        generatedPresentationReferenceId: first.presentationReferenceId,
+        artifactOccurrenceEdgeToken: forgedEdge,
+        carrier: forgedCarrier.value,
+        opaqueRouteToken: OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(
+          forgedCarrier.value,
+        ),
+      );
+      final forgedWitnesses = [...publication.occurrences];
+      forgedWitnesses[0] = _copyPlannedOccurrence(
+        first,
+        presentationRoute: forgedRoute,
+      );
+      expect(
+        () => MeasurementRfwPresentationPublicationPlan(
+          routePlan: publication.routePlan,
+          codeIdentityByStructuralOccurrenceKey:
+              publication.codeIdentityByStructuralOccurrenceKey,
+          occurrences: forgedWitnesses,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => MeasurementRfwPresentationPublicationPlan(
+          routePlan: publication.routePlan,
+          codeIdentityByStructuralOccurrenceKey:
+              publication.codeIdentityByStructuralOccurrenceKey,
+          occurrences: [...publication.occurrences, first],
+        ),
+        throwsArgumentError,
+      );
+      final duplicateHandleWitnesses = [...publication.occurrences];
+      duplicateHandleWitnesses[1] = _copyPlannedOccurrence(
+        duplicateHandleWitnesses[1],
+        handle: first.handle,
+      );
+      expect(
+        () => MeasurementRfwPresentationPublicationPlan(
+          routePlan: publication.routePlan,
+          codeIdentityByStructuralOccurrenceKey:
+              publication.codeIdentityByStructuralOccurrenceKey,
+          occurrences: duplicateHandleWitnesses,
+        ),
+        throwsArgumentError,
+      );
+      final second = publication.occurrences[1];
+      final permutedWitnesses = [...publication.occurrences];
+      permutedWitnesses[0] = _copyPlannedOccurrence(
+        first,
+        nodeCodeIdentityId: second.nodeCodeIdentityId,
+        canonicalNodeTokenId: second.canonicalNodeTokenId,
+        presentationLineageId: second.presentationLineageId,
+        presentationReferenceId: second.presentationReferenceId,
+        presentationDisplayMetadataRef: second.presentationDisplayMetadataRef,
+        presentationRoute: second.presentationRoute,
+      );
+      permutedWitnesses[1] = _copyPlannedOccurrence(
+        second,
+        nodeCodeIdentityId: first.nodeCodeIdentityId,
+        canonicalNodeTokenId: first.canonicalNodeTokenId,
+        presentationLineageId: first.presentationLineageId,
+        presentationReferenceId: first.presentationReferenceId,
+        presentationDisplayMetadataRef: first.presentationDisplayMetadataRef,
+        presentationRoute: first.presentationRoute,
+      );
+      expect(
+        () => MeasurementRfwPresentationPublicationPlan(
+          routePlan: publication.routePlan,
+          codeIdentityByStructuralOccurrenceKey:
+              publication.codeIdentityByStructuralOccurrenceKey,
+          occurrences: permutedWitnesses,
+        ),
+        throwsArgumentError,
+      );
 
-    final extraKeyMap = <String, CodeIdentityId>{
-      ...publication.codeIdentityByStructuralOccurrenceKey,
-      occurrenceSet.artifactAnchorStructuralOccurrenceKey:
-          CodeIdentityId('code.presentation.anchor'),
-    };
-    expect(
-      () => MeasurementRfwPresentationPublicationPlan(
-        routePlan: publication.routePlan,
-        codeIdentityByStructuralOccurrenceKey: extraKeyMap,
-        occurrences: publication.occurrences,
-      ),
-      throwsArgumentError,
-    );
+      final extraKeyMap = <String, CodeIdentityId>{
+        ...publication.codeIdentityByStructuralOccurrenceKey,
+        occurrenceSet.artifactAnchorStructuralOccurrenceKey: CodeIdentityId(
+          'code.presentation.anchor',
+        ),
+      };
+      expect(
+        () => MeasurementRfwPresentationPublicationPlan(
+          routePlan: publication.routePlan,
+          codeIdentityByStructuralOccurrenceKey: extraKeyMap,
+          occurrences: publication.occurrences,
+        ),
+        throwsArgumentError,
+      );
 
-    final duplicateCodeIdentityMap = <String, CodeIdentityId>{
-      ...publication.codeIdentityByStructuralOccurrenceKey
-    };
-    final duplicateCodeKey = duplicateCodeIdentityMap.keys.elementAt(1);
-    duplicateCodeIdentityMap[duplicateCodeKey] =
-        duplicateCodeIdentityMap.values.first;
-    expect(
-      () => MeasurementRfwPresentationPublicationPlan(
-        routePlan: publication.routePlan,
-        codeIdentityByStructuralOccurrenceKey: duplicateCodeIdentityMap,
-        occurrences: publication.occurrences,
-      ),
-      throwsArgumentError,
-    );
-  });
+      final duplicateCodeIdentityMap = <String, CodeIdentityId>{
+        ...publication.codeIdentityByStructuralOccurrenceKey,
+      };
+      final duplicateCodeKey = duplicateCodeIdentityMap.keys.elementAt(1);
+      duplicateCodeIdentityMap[duplicateCodeKey] =
+          duplicateCodeIdentityMap.values.first;
+      expect(
+        () => MeasurementRfwPresentationPublicationPlan(
+          routePlan: publication.routePlan,
+          codeIdentityByStructuralOccurrenceKey: duplicateCodeIdentityMap,
+          occurrences: publication.occurrences,
+        ),
+        throwsArgumentError,
+      );
+    },
+  );
 
   test('accepts the shared presentation reservation capacity', () {
     final occurrenceSet = _discoverCapacity(1023);
@@ -417,24 +435,23 @@ MeasurementRfwPresentationPlannedOccurrence _copyPlannedOccurrence(
   GeneratedPresentationReferenceId? presentationReferenceId,
   DisplayMetadataRef? presentationDisplayMetadataRef,
   MeasurementPublicationDraftPresentationRouteV1? presentationRoute,
-}) =>
-    MeasurementRfwPresentationPlannedOccurrence(
-      handle: handle ?? occurrence.handle,
-      structuralOccurrenceKey: occurrence.structuralOccurrenceKey,
-      measurementSurfaceId: occurrence.measurementSurfaceId,
-      routeDraftClosureDigest: occurrence.routeDraftClosureDigest,
-      nodeCodeIdentityId: nodeCodeIdentityId ?? occurrence.nodeCodeIdentityId,
-      canonicalNodeTokenId:
-          canonicalNodeTokenId ?? occurrence.canonicalNodeTokenId,
-      artifactOccurrenceEdgeToken: occurrence.artifactOccurrenceEdgeToken,
-      presentationLineageId:
-          presentationLineageId ?? occurrence.presentationLineageId,
-      presentationReferenceId:
-          presentationReferenceId ?? occurrence.presentationReferenceId,
-      presentationDisplayMetadataRef: presentationDisplayMetadataRef ??
-          occurrence.presentationDisplayMetadataRef,
-      presentationRoute: presentationRoute ?? occurrence.presentationRoute,
-    );
+}) => MeasurementRfwPresentationPlannedOccurrence(
+  handle: handle ?? occurrence.handle,
+  structuralOccurrenceKey: occurrence.structuralOccurrenceKey,
+  measurementSurfaceId: occurrence.measurementSurfaceId,
+  routeDraftClosureDigest: occurrence.routeDraftClosureDigest,
+  nodeCodeIdentityId: nodeCodeIdentityId ?? occurrence.nodeCodeIdentityId,
+  canonicalNodeTokenId: canonicalNodeTokenId ?? occurrence.canonicalNodeTokenId,
+  artifactOccurrenceEdgeToken: occurrence.artifactOccurrenceEdgeToken,
+  presentationLineageId:
+      presentationLineageId ?? occurrence.presentationLineageId,
+  presentationReferenceId:
+      presentationReferenceId ?? occurrence.presentationReferenceId,
+  presentationDisplayMetadataRef:
+      presentationDisplayMetadataRef ??
+      occurrence.presentationDisplayMetadataRef,
+  presentationRoute: presentationRoute ?? occurrence.presentationRoute,
+);
 
 final _edge = ArtifactOccurrenceEdgeToken('edge.presentation.fixture');
 
@@ -514,11 +531,14 @@ MeasurementRfwPresentationPublicationPlan _publicationPlan(
   ResolvedRfwCatalogOccurrenceSet occurrenceSet,
 ) {
   final codes = <String, CodeIdentityId>{
-    occurrenceSet.artifactAnchorStructuralOccurrenceKey:
-        CodeIdentityId('code.presentation.anchor'),
-    for (var index = 0;
-        index < occurrenceSet.localDeclarationAnchors.length;
-        index += 1)
+    occurrenceSet.artifactAnchorStructuralOccurrenceKey: CodeIdentityId(
+      'code.presentation.anchor',
+    ),
+    for (
+      var index = 0;
+      index < occurrenceSet.localDeclarationAnchors.length;
+      index += 1
+    )
       occurrenceSet.localDeclarationAnchors[index].structuralOccurrenceKey:
           CodeIdentityId('code.presentation.local.$index'),
     for (var index = 0; index < occurrenceSet.occurrences.length; index += 1)
@@ -533,8 +553,11 @@ MeasurementRfwPresentationPublicationPlan _publicationPlan(
   final presentations = [
     for (var index = 0; index < occurrenceSet.occurrences.length; index += 1)
       MeasurementPublicationDraftPresentationV1(
-        nodeCodeIdentityId: codes[occurrenceSet
-            .occurrences[index].descriptor.structuralOccurrenceKey]!,
+        nodeCodeIdentityId:
+            codes[occurrenceSet
+                .occurrences[index]
+                .descriptor
+                .structuralOccurrenceKey]!,
         lineageId: PointLineageId('lineage.presentation.$index'),
         generatedPresentationReferenceId: GeneratedPresentationReferenceId(
           'reference.presentation.$index',
@@ -550,10 +573,12 @@ MeasurementRfwPresentationPublicationPlan _publicationPlan(
     deliverySurfaceType: DeliverySurfaceTypeId('fixture.surface'),
     minimumMeasurementClient: 2,
     completeManifestId: MeasurementManifestId('manifest.presentation.fixture'),
-    privacyPolicyRevisionId:
-        AuthorityRevisionId('privacy.presentation.fixture'),
-    collectionBudgetRevisionId:
-        AuthorityRevisionId('budget.presentation.fixture'),
+    privacyPolicyRevisionId: AuthorityRevisionId(
+      'privacy.presentation.fixture',
+    ),
+    collectionBudgetRevisionId: AuthorityRevisionId(
+      'budget.presentation.fixture',
+    ),
     artifacts: [
       MeasurementPublicationRouteArtifactV1(
         artifactId: ArtifactId('artifact.presentation.fixture'),
@@ -588,7 +613,7 @@ MeasurementRfwPresentationPublicationPlan _publicationPlan(
           artifactOccurrenceEdgeToken: _edge,
           parentCodeIdentityId:
               codes[occurrence.descriptor.parentStructuralOccurrenceKey] ??
-                  codes[occurrenceSet.artifactAnchorStructuralOccurrenceKey],
+              codes[occurrenceSet.artifactAnchorStructuralOccurrenceKey],
         ),
     ],
     events: const [],
@@ -620,21 +645,31 @@ MeasurementRfwPresentationPublicationPlan _publicationPlan(
         MeasurementRfwPresentationPlannedOccurrence(
           handle: occurrenceSet.occurrences[index].handle,
           structuralOccurrenceKey: occurrenceSet
-              .occurrences[index].descriptor.structuralOccurrenceKey,
+              .occurrences[index]
+              .descriptor
+              .structuralOccurrenceKey,
           measurementSurfaceId: routePlan.surfaceId,
           routeDraftClosureDigest: routePlan.routeDraftClosureDigest,
-          nodeCodeIdentityId: codes[occurrenceSet
-              .occurrences[index].descriptor.structuralOccurrenceKey]!,
-          canonicalNodeTokenId: tokens[occurrenceSet
-              .occurrences[index].descriptor.structuralOccurrenceKey]!,
+          nodeCodeIdentityId:
+              codes[occurrenceSet
+                  .occurrences[index]
+                  .descriptor
+                  .structuralOccurrenceKey]!,
+          canonicalNodeTokenId:
+              tokens[occurrenceSet
+                  .occurrences[index]
+                  .descriptor
+                  .structuralOccurrenceKey]!,
           artifactOccurrenceEdgeToken: _edge,
           presentationLineageId: presentations[index].lineageId,
           presentationReferenceId:
               presentations[index].generatedPresentationReferenceId,
           presentationDisplayMetadataRef:
               presentations[index].displayMetadataRef,
-          presentationRoute: routesByReference[
-              presentations[index].generatedPresentationReferenceId.value]!,
+          presentationRoute:
+              routesByReference[presentations[index]
+                  .generatedPresentationReferenceId
+                  .value]!,
         ),
     ],
   );

@@ -42,8 +42,10 @@ void main() {
       final catalog = await loadMergedCatalogFromDisk();
       final actual = <String, dynamic>{};
       for (final (package, version) in _kTargets) {
-        final fetched =
-            await fetchPubPackageToTemp(package: package, version: version);
+        final fetched = await fetchPubPackageToTemp(
+          package: package,
+          version: version,
+        );
         try {
           final result = await scanPackage(
             packagePath: fetched.directory,
@@ -78,7 +80,8 @@ void main() {
       expect(
         snapshotFile.existsSync(),
         isTrue,
-        reason: 'Snapshot missing at ${snapshotFile.path}; regenerate with '
+        reason:
+            'Snapshot missing at ${snapshotFile.path}; regenerate with '
             'REGEN_PUBDEV_SNAPSHOT=1.',
       );
       final expected =
@@ -86,7 +89,8 @@ void main() {
       expect(
         actual,
         expected,
-        reason: 'pub.dev coverage drifted from the committed snapshot. If a '
+        reason:
+            'pub.dev coverage drifted from the committed snapshot. If a '
             'codegen mechanism landed (intentional), regenerate with '
             'REGEN_PUBDEV_SNAPSHOT=1 and update the findings note.',
       );
