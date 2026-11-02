@@ -327,47 +327,45 @@ RestageSourceDeclaration _screenDeclaration({
 RestageSourceDeclaration _flowDeclaration(
   LibraryElement library,
   NormalizedFlowSource flow,
-) =>
-    RestageSourceDeclaration.frozen(
-      kind: RestageRosterSourceKind.flow,
-      libraryIdentity: library.identifier,
-      libraryPath: 'lib/authoring.dart',
-      declarationIdentity: flow.declarationIdentity,
-      sourcePath: 'lib/authoring.dart',
-      explicitId: flow.id,
-      span: _span,
-      identityClaims: [
-        RestageIdentityClaim(
-          namespace: 'test/flow/general',
-          key: flow.id,
-        ),
-      ],
-      outputs: [
-        const RestageOutputClaim(
-          path: 'lib/authoring.rsflow.g.dart',
-          role: 'flow-descriptor',
-          builder: 'test',
-          ownershipKey: 'library:authoring',
-        ),
-        RestageOutputClaim(
-          path: _flowDocumentPath(flow.id),
-          role: 'flow-document',
-          builder: 'test',
-          ownershipKey: 'publication:general/${flow.id}',
-        ),
-      ],
-      surface: Surface.general,
-      delivery: flow.delivery,
-      isCanonical: true,
-    );
+) => RestageSourceDeclaration.frozen(
+  kind: RestageRosterSourceKind.flow,
+  libraryIdentity: library.identifier,
+  libraryPath: 'lib/authoring.dart',
+  declarationIdentity: flow.declarationIdentity,
+  sourcePath: 'lib/authoring.dart',
+  explicitId: flow.id,
+  span: _span,
+  identityClaims: [
+    RestageIdentityClaim(
+      namespace: 'test/flow/general',
+      key: flow.id,
+    ),
+  ],
+  outputs: [
+    const RestageOutputClaim(
+      path: 'lib/authoring.rsflow.g.dart',
+      role: 'flow-descriptor',
+      builder: 'test',
+      ownershipKey: 'library:authoring',
+    ),
+    RestageOutputClaim(
+      path: _flowDocumentPath(flow.id),
+      role: 'flow-document',
+      builder: 'test',
+      ownershipKey: 'publication:general/${flow.id}',
+    ),
+  ],
+  surface: Surface.general,
+  delivery: flow.delivery,
+  isCanonical: true,
+);
 
 FlowDocument _flowDocument(
   PackageSurfaceCompilationBundle bundle,
   String flowId,
-) =>
-    FlowDocumentCodec.decodeJson(
-      utf8.decode(bundle.outputFiles[_flowDocumentPath(flowId)]!),
-    );
+) => FlowDocumentCodec.decodeJson(
+  utf8.decode(bundle.outputFiles[_flowDocumentPath(flowId)]!),
+);
 
 int _generatedReferenceFloor(String generatedPart, String referenceName) {
   final match = RegExp(
@@ -387,16 +385,16 @@ String _identity(Element element) =>
     '${element.library!.identifier}#${element.name ?? '<unnamed>'}';
 
 List<int> _sidecarBytes(List<int> blob, int builtInFloor) => utf8.encode(
-      jsonEncode(
-        CapabilitySidecar(
-          blobSha256: CapabilitySidecar.hashBlob(blob),
-          manifest: CapabilityManifest(
-            builtInFloor: builtInFloor,
-            requiredLibraries: const [],
-          ),
-        ).toJson(),
+  jsonEncode(
+    CapabilitySidecar(
+      blobSha256: CapabilitySidecar.hashBlob(blob),
+      manifest: CapabilityManifest(
+        builtInFloor: builtInFloor,
+        requiredLibraries: const [],
       ),
-    );
+    ).toJson(),
+  ),
+);
 
 const _paywallRoot = 'assets/restage/generated/paywall/premium';
 String _flowDocumentPath(String flowId) =>
@@ -414,12 +412,12 @@ final class _ProbeBuilder implements Builder {
   const _ProbeBuilder(this.onLibrary);
 
   final Future<void> Function(LibraryElement library, AssetId assetId)
-      onLibrary;
+  onLibrary;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.aggregate_probe'],
-      };
+    '.dart': ['.aggregate_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

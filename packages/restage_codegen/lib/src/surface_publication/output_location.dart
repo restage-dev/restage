@@ -60,9 +60,9 @@ enum RestageSourceOutputLayout {
       'generated_directory' => generatedDirectory,
       'adjacent' => adjacent,
       _ => throw FormatException(
-          'Unsupported source_output_layout "$value". Supported values are '
-          '"generated_directory" and "adjacent".',
-        ),
+        'Unsupported source_output_layout "$value". Supported values are '
+        '"generated_directory" and "adjacent".',
+      ),
     };
   }
 }
@@ -78,10 +78,11 @@ void requireOnlyRestageOutputLocationOptions(
   BuilderOptions options, {
   required String featureLabel,
 }) {
-  final unsupported = options.config.keys
-      .where((key) => !kRestageOutputLocationOptionNames.contains(key))
-      .toList()
-    ..sort();
+  final unsupported =
+      options.config.keys
+          .where((key) => !kRestageOutputLocationOptionNames.contains(key))
+          .toList()
+        ..sort();
   if (unsupported.isNotEmpty) {
     throw ArgumentError(
       '$featureLabel has no per-widget authoring options; remove unsupported '
@@ -139,7 +140,8 @@ final class RestageOutputLocationPlan {
       requireUnderLib: true,
       rejectHiddenSegments: true,
     );
-    final outputRoot = _parseRoot(
+    final outputRoot =
+        _parseRoot(
           config['output_root'],
           optionName: 'output_root',
           requireUnderLib: false,
@@ -340,10 +342,10 @@ final class RestageSourceOutputLocation {
   RestageSourceOutputLocation._({
     required RestageOutputLocationPlan plan,
     required String dartPath,
-  })  : _plan = plan,
-        _dartPath = dartPath,
-        _dir = p.posix.dirname(dartPath),
-        _stem = p.posix.basenameWithoutExtension(dartPath);
+  }) : _plan = plan,
+       _dartPath = dartPath,
+       _dir = p.posix.dirname(dartPath),
+       _stem = p.posix.basenameWithoutExtension(dartPath);
 
   final RestageOutputLocationPlan _plan;
   final String _dartPath;
@@ -357,8 +359,8 @@ final class RestageSourceOutputLocation {
   /// fallback output location, which `dart_output_root` never affects.
   String get _sourceLayoutDir =>
       _plan.sourceOutputLayout == RestageSourceOutputLayout.adjacent
-          ? _dir
-          : p.posix.join(_dir, kRestageGeneratedDirectoryName);
+      ? _dir
+      : p.posix.join(_dir, kRestageGeneratedDirectoryName);
 
   /// The directory holding this library's generated Dart, honoring
   /// [RestageOutputLocationPlan.dartOutputRoot] when configured.
@@ -392,8 +394,11 @@ final class RestageSourceOutputLocation {
     }
     final root = _plan.outputRoot;
     if (root != null) {
-      return p.posix
-          .join(root, 'bundles', '$_dartPathWithoutExtension.rsbundle');
+      return p.posix.join(
+        root,
+        'bundles',
+        '$_dartPathWithoutExtension.rsbundle',
+      );
     }
     return p.posix.join(_sourceLayoutDir, '$_stem.rsbundle');
   }
@@ -404,8 +409,11 @@ final class RestageSourceOutputLocation {
     if (!_plan.inspectionReport) return null;
     final root = _plan.outputRoot;
     if (root != null) {
-      return p.posix
-          .join(root, 'reports', '$_dartPathWithoutExtension.restage.md');
+      return p.posix.join(
+        root,
+        'reports',
+        '$_dartPathWithoutExtension.restage.md',
+      );
     }
     return p.posix.join(_sourceLayoutDir, '$_stem.restage.md');
   }

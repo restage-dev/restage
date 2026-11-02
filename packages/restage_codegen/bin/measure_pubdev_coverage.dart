@@ -39,11 +39,15 @@ Future<void> main(List<String> args) async {
 
   if (positional.length != 1) {
     stderr
-      ..writeln('Usage: dart run restage_codegen:measure_pubdev_coverage '
-          '<package> [--version <v>] [--json] [--annotated-only]')
+      ..writeln(
+        'Usage: dart run restage_codegen:measure_pubdev_coverage '
+        '<package> [--version <v>] [--json] [--annotated-only]',
+      )
       ..writeln()
-      ..writeln('Fetches a published Flutter package and measures the '
-          'inlinability of its widget surface.')
+      ..writeln(
+        'Fetches a published Flutter package and measures the '
+        'inlinability of its widget surface.',
+      )
       ..writeln('Requires network and a Flutter SDK on PATH.');
     exitCode = 64; // EX_USAGE
     return;
@@ -65,8 +69,9 @@ Future<void> main(List<String> args) async {
     final result = await scanPackage(
       packagePath: fetched.directory,
       catalog: catalog,
-      widgetSelector:
-          annotatedOnly ? restageAnnotatedWidgets : allFlutterWidgets,
+      widgetSelector: annotatedOnly
+          ? restageAnnotatedWidgets
+          : allFlutterWidgets,
     );
     final histogram = IdiomHistogram.from(result.classifications);
 

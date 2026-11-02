@@ -35,8 +35,11 @@ typedef AppWidgetMountInstall = ({
   String? problem,
 });
 
-const AppWidgetMountInstall _nothing =
-    (libraries: null, fragments: <String>[], problem: null);
+const AppWidgetMountInstall _nothing = (
+  libraries: null,
+  fragments: <String>[],
+  problem: null,
+);
 
 /// Where the app widget factory sidecar sits in a package.
 const String kAppWidgetFactoriesPath =
@@ -71,7 +74,9 @@ final class AppWidgetMountFactories {
 
   // Keeps only the prefixed imports some factory spells.
   static Map<String, String> _usedImports(
-      Map<String, _Factory> factories, Map<String, String> uriByAlias) {
+    Map<String, _Factory> factories,
+    Map<String, String> uriByAlias,
+  ) {
     final aliases = uriByAlias.keys.toSet();
     final used = {
       for (final factory in factories.values)
@@ -94,14 +99,14 @@ final class AppWidgetMountFactories {
       slotTargets: collection.slotTargets,
       mapPlans: collection.mapPlans,
       recordPlans: collection.recordPlans,
-    ).where((uri) => uri != 'dart:core').toList()
-      ..sort();
+    ).where((uri) => uri != 'dart:core').toList()..sort();
     // Every library is named through a placeholder prefix, spelled later for
     // the library that owns the part.
     final aliases = {
       for (var i = 0; i < uris.length; i++) uris[i]: '$_aliasStem$i',
     };
-    final custom = collection.structuredTypes.isEmpty &&
+    final custom =
+        collection.structuredTypes.isEmpty &&
             collection.mapPlans.isEmpty &&
             collection.recordPlans.isEmpty
         ? null
@@ -130,7 +135,10 @@ final class AppWidgetMountFactories {
       factories[WidgetVocabulary.qualifiedName(
         entry.library.namespace,
         entry.name,
-      )] = _Factory(functionNameFor(entry), body);
+      )] = _Factory(
+        functionNameFor(entry),
+        body,
+      );
     }
     return AppWidgetMountFactories._(
       factories,
@@ -147,19 +155,27 @@ final class AppWidgetMountFactories {
         ...referencedAppWidgetLibraryUris(
           catalog.widgets,
           structuredTypes: catalog.structuredTypes
-              .where((entry) =>
-                  optionalNativeDecoder(entry.sourceType,
-                      namespace: entry.library.namespace) ==
-                  null)
+              .where(
+                (entry) =>
+                    optionalNativeDecoder(
+                      entry.sourceType,
+                      namespace: entry.library.namespace,
+                    ) ==
+                    null,
+              )
               .toList(),
           slotTargets: const {},
           mapPlans: const {},
           recordPlans: const {},
         ),
-        if (catalog.structuredTypes.any((entry) =>
-            optionalNativeDecoder(entry.sourceType,
-                namespace: entry.library.namespace) !=
-            null))
+        if (catalog.structuredTypes.any(
+          (entry) =>
+              optionalNativeDecoder(
+                entry.sourceType,
+                namespace: entry.library.namespace,
+              ) !=
+              null,
+        ))
           'package:restage_svg/src/native_values.dart',
       },
       prefixStem: 'restageLibrary',
@@ -168,26 +184,37 @@ final class AppWidgetMountFactories {
     final index = NativeCatalogIndex(catalog);
     final factories = <String, _Factory>{};
     for (final widget in catalog.widgets) {
-      final body =
-          emitFactoryFunction(widget, nativeIndex: index, aliases: aliases);
+      final body = emitFactoryFunction(
+        widget,
+        nativeIndex: index,
+        aliases: aliases,
+      );
       if (body == null) {
         throw StateError('No native factory for ${widget.name}.');
       }
       factories[WidgetVocabulary.qualifiedName(
         widget.library.namespace,
         widget.name,
-      )] = _Factory(functionNameFor(widget), body);
+      )] = _Factory(
+        functionNameFor(widget),
+        body,
+      );
     }
-    return AppWidgetMountFactories._(factories, {
-      for (final entry in aliases.entries) entry.value: entry.key,
-    }, {
-      for (final entry in catalog.libraries.entries)
-        if (entry.value.capabilityVersion case final version?)
-          entry.key.namespace: version,
-    }, {
-      for (final entry in catalog.libraries.entries)
-        entry.key.namespace: entry.value.compatibleSince,
-    });
+    return AppWidgetMountFactories._(
+      factories,
+      {
+        for (final entry in aliases.entries) entry.value: entry.key,
+      },
+      {
+        for (final entry in catalog.libraries.entries)
+          if (entry.value.capabilityVersion case final version?)
+            entry.key.namespace: version,
+      },
+      {
+        for (final entry in catalog.libraries.entries)
+          entry.key.namespace: entry.value.compatibleSince,
+      },
+    );
   }
 
   /// Reads the factories [toJson] wrote.
@@ -196,11 +223,10 @@ final class AppWidgetMountFactories {
     return AppWidgetMountFactories._(
       {
         for (final MapEntry(:key, :value) in factories.entries)
-          if (value
-              case {
-                'function': final String function,
-                'source': final String source
-              })
+          if (value case {
+            'function': final String function,
+            'source': final String source,
+          })
             key: _Factory(function, source),
       },
       (json['libraries']! as Map<String, Object?>).cast<String, String>(),
@@ -216,11 +242,9 @@ final class AppWidgetMountFactories {
   ) {
     final inputs = packages.values.toList();
     if (inputs.length == 1) return inputs.single;
-    final uris = inputs
-        .expand((input) => input._uriByAlias.values)
-        .toSet()
-        .toList()
-      ..sort();
+    final uris =
+        inputs.expand((input) => input._uriByAlias.values).toSet().toList()
+          ..sort();
     final aliasByUri = {
       for (var i = 0; i < uris.length; i++) uris[i]: '$_aliasStem$i',
     };
@@ -242,12 +266,13 @@ final class AppWidgetMountFactories {
       for (final entry in input._factories.entries) {
         final factory = entry.value;
         var source = factory.source;
-        final uses = factory
-            .names(input._uriByAlias.keys.toSet())
-            .uses
-            .where((use) => use.alias != null)
-            .toList()
-          ..sort((a, b) => b.offset.compareTo(a.offset));
+        final uses =
+            factory
+                .names(input._uriByAlias.keys.toSet())
+                .uses
+                .where((use) => use.alias != null)
+                .toList()
+              ..sort((a, b) => b.offset.compareTo(a.offset));
         for (final use in uses) {
           final alias = use.alias!;
           source = source.replaceRange(
@@ -293,8 +318,9 @@ final class AppWidgetMountFactories {
       }
     }
     for (final entry in _uriByAlias.entries) {
-      output
-          .writeln('import ${dartStringLiteral(entry.value)} as ${entry.key};');
+      output.writeln(
+        'import ${dartStringLiteral(entry.value)} as ${entry.key};',
+      );
     }
     for (final factory in _factories.values) {
       output.writeln(factory.source);
@@ -321,8 +347,9 @@ final class AppWidgetMountFactories {
         final factory =
             _factories[WidgetVocabulary.qualifiedName(namespace, name)]!;
         final function = _factoryFunctionName(namespace, name);
-        final declaration =
-            factory.unit.declarations.whereType<FunctionDeclaration>().single;
+        final declaration = factory.unit.declarations
+            .whereType<FunctionDeclaration>()
+            .single;
         declarations.writeln(
           factory.source.replaceRange(
             declaration.name.offset,
@@ -352,8 +379,12 @@ final class AppWidgetMountFactories {
   }
 
   /// A package with no app widget.
-  static final AppWidgetMountFactories none =
-      AppWidgetMountFactories._(const {}, const {}, const {}, const {});
+  static final AppWidgetMountFactories none = AppWidgetMountFactories._(
+    const {},
+    const {},
+    const {},
+    const {},
+  );
 
   final Map<String, _Factory> _factories;
   final Map<String, String> _uriByAlias;
@@ -368,14 +399,14 @@ final class AppWidgetMountFactories {
 
   /// The sidecar form [AppWidgetMountFactories.fromJson] reads.
   Map<String, Object?> toJson() => {
-        'libraries': _uriByAlias,
-        'capabilityVersions': _versions,
-        if (_compatibleSince.isNotEmpty) 'compatibleSince': _compatibleSince,
-        'factories': {
-          for (final MapEntry(:key, :value) in _factories.entries)
-            key: {'function': value.function, 'source': value.source},
-        },
-      };
+    'libraries': _uriByAlias,
+    'capabilityVersions': _versions,
+    if (_compatibleSince.isNotEmpty) 'compatibleSince': _compatibleSince,
+    'factories': {
+      for (final MapEntry(:key, :value) in _factories.entries)
+        key: {'function': value.function, 'source': value.source},
+    },
+  };
 
   /// Plans registration of complete custom libraries used by [widgetNames].
   /// Delivery may select any widget within an admitted library version.
@@ -397,8 +428,10 @@ final class AppWidgetMountFactories {
     }
     if (drawn.isEmpty) return _nothing;
 
-    final speller =
-        _spellers[library] ??= _PartSpeller(library, _uriByAlias.keys.toSet());
+    final speller = _spellers[library] ??= _PartSpeller(
+      library,
+      _uriByAlias.keys.toSet(),
+    );
     final declared = _functionsByLibrary[library] ??= {};
     final fragments = <String>[];
     final registrations = StringBuffer('[');
@@ -468,8 +501,9 @@ final class AppWidgetMountFactories {
     final byNamespace = <String, List<String>>{};
     for (final qualified in _factories.keys) {
       final separator = qualified.indexOf(':');
-      (byNamespace[qualified.substring(0, separator)] ??= [])
-          .add(qualified.substring(separator + 1));
+      (byNamespace[qualified.substring(0, separator)] ??= []).add(
+        qualified.substring(separator + 1),
+      );
     }
     for (final names in byNamespace.values) {
       names.sort();
@@ -505,17 +539,18 @@ final class _Factory {
 }
 
 AppWidgetMountInstall _unavailable(String widget, String reason) => (
-      libraries: null,
-      fragments: const <String>[],
-      problem: 'The generated mount cannot install the app widget $widget: '
-          '$reason. Published versions of this surface render only after '
-          'registerRestageWidgets() runs at startup.',
-    );
+  libraries: null,
+  fragments: const <String>[],
+  problem:
+      'The generated mount cannot install the app widget $widget: '
+      '$reason. Published versions of this surface render only after '
+      'registerRestageWidgets() runs at startup.',
+);
 
 /// Spells generated factory source for the library that owns a part.
 final class _PartSpeller {
   _PartSpeller(this.library, this.aliases)
-      : namespace = OwningLibraryNamespace(library);
+    : namespace = OwningLibraryNamespace(library);
 
   final LibraryElement library;
   final Set<String> aliases;
@@ -580,13 +615,13 @@ final class _PartSpeller {
 
   // A name the factory source leaves bare: an SDK, Flutter or core name.
   String? _freeSpelling(String name) => _spelling(name, (element) {
-        final uri = element.library?.identifier ?? '';
-        if (uri.startsWith('dart:') || uri.startsWith('package:flutter/')) {
-          return true;
-        }
-        final exported = _sdkLibrary_()?.exportNamespace.get2(name);
-        return exported != null && _same(exported, element);
-      });
+    final uri = element.library?.identifier ?? '';
+    if (uri.startsWith('dart:') || uri.startsWith('package:flutter/')) {
+      return true;
+    }
+    final exported = _sdkLibrary_()?.exportNamespace.get2(name);
+    return exported != null && _same(exported, element);
+  });
 
   String? _librarySpelling(String uri, String name) =>
       _spelling(name, (element) => element.library?.identifier == uri);

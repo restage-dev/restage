@@ -324,8 +324,7 @@ String recipeKey({
   required String? library,
   required String typeName,
   required String? variant,
-}) =>
-    '${library ?? ''}#$typeName${variant == null ? '' : '.$variant'}';
+}) => '${library ?? ''}#$typeName${variant == null ? '' : '.$variant'}';
 
 /// Converts a single Dart factory call of a known `(library, typeName,
 /// variant)` triple into an RFW DSL fragment. Pure data: structural shaping

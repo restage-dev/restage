@@ -8,7 +8,7 @@ import 'installed_capability.dart';
 /// The code generator creates this as a `const` value from the same canonical
 /// registration model that writes `restage_a2ui_catalog.a2ui.json`. It carries
 /// metadata only: catalog components, JSON schemas, and widget builders remain
-/// represented by the generated GenUI Dart catalog rather than being copied
+/// represented by the generated A2UI Dart catalog rather than being copied
 /// into this value.
 @immutable
 final class RestageA2uiCapability {

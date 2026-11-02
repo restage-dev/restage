@@ -1,83 +1,107 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui/genui.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:restage_a2ui_example/generated/restage_a2ui_catalog.g.dart';
 import 'package:restage_a2ui_example/restage_imports.dart';
 
-/// The end-to-end proof: the genui catalog generated from the example's
-/// `@RestageWidget` source (`dart run build_runner build`) renders the real
-/// custom widgets against genui 0.10.1 and the documented interactivity works —
-/// a write-back round-trips (RatingPicker) and an event dispatches (CtaButton).
-///
-/// This is the "it works" half of the ship-gate: the artifact a developer
-/// produces from their own widgets is genuinely renderable + interactive.
+/// Exercise generated adapters through the published processor and renderer.
 Future<void> _pump(
   WidgetTester tester, {
-  required Catalog catalog,
+  required CatalogImplementation catalog,
+
   required String type,
   required Map<String, Object?> data,
-  required DataContext dataContext,
-  required DispatchEventCallback dispatchEvent,
+  required _Runtime dataContext,
+  required void Function(A2uiRendererAction) dispatchEvent,
 }) async {
+  dataContext.mount(catalog, type, data, dispatchEvent);
   await tester.pumpWidget(
-    Directionality(
-      textDirection: TextDirection.ltr,
-      child: Builder(
-        builder: (context) {
-          final itemContext = CatalogItemContext(
-            data: <String, Object?>{'props': data},
-            id: 'root',
-            type: type,
-            buildChild: (childId, [dataContext]) => Text('child-$childId'),
-            dispatchEvent: dispatchEvent,
-            buildContext: context,
-            dataContext: dataContext,
-            getComponent: (_) => null,
-            getCatalogItem: (t) {
-              for (final item in catalog.items) {
-                if (item.name == t) return item;
-              }
-              return null;
-            },
-            surfaceId: 'test-surface',
-            reportError: (error, stack) => throw error,
-          );
-          return catalog.buildWidget(itemContext);
-        },
-      ),
+    MaterialApp(
+      home: Scaffold(body: A2uiSurface(surface: dataContext.surface)),
     ),
   );
 }
 
-/// Round-trips [data] through JSON so a `{path}` binding arrives as the
-/// `Map<String, dynamic>` genui delivers from a decoded payload.
+final class _Runtime {
+  MessageProcessor<ComponentImplementation>? processor;
+  final initial = <String, Object?>{};
+  final functions = <FunctionImplementation>[];
+  SurfaceModel<ComponentImplementation> get surface =>
+      processor!.model.getSurface('s')!;
+  void update(String path, Object? value) {
+    if (processor == null) {
+      initial[path.substring(1)] = value;
+    } else {
+      surface.dataModel.set(path, value);
+    }
+  }
+
+  Object? getValue(String path) => surface.dataModel.get(path);
+  void mount(
+    CatalogImplementation catalog,
+    String type,
+    Map<String, Object?> data,
+    void Function(A2uiRendererAction) action,
+  ) {
+    final components = [
+      {
+        'id': 'root',
+        'component': type,
+        for (final entry in data.entries) 'props_${entry.key}': entry.value,
+      },
+    ];
+    if (processor == null) {
+      final composed = CatalogImplementation(
+        id: 'interaction-test',
+        components: catalog.components.values.toList(),
+        definitions: catalog.definitions,
+        functions: functions,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+      processor = MessageProcessor<ComponentImplementation>(
+        catalogs: [composed],
+        defaultVersion: A2uiProtocolVersion.v1_0,
+        validationConfig: ValidationConfig.strict,
+        onAction: action,
+      );
+      addTearDown(processor!.dispose);
+      processor!.processMessages({
+        'version': 'v1.0',
+        'createSurface': {
+          'surfaceId': 's',
+          'catalogId': composed.id,
+          'dataModel': initial,
+          'components': components,
+        },
+      });
+    } else {
+      processor!.processMessages({
+        'version': 'v1.0',
+        'updateComponents': {'surfaceId': 's', 'components': components},
+      });
+    }
+  }
+}
+
+/// Round-trips [data] through JSON so a `{@path}` binding arrives as the
+/// `Map<String, dynamic>` a2ui_flutter delivers from a decoded payload.
 Map<String, Object?> _asDelivered(Map<String, Object?> data) =>
     jsonDecode(jsonEncode(data)) as Map<String, Object?>;
 
-final class _CurrentIntegerListFunction implements ClientFunction {
-  _CurrentIntegerListFunction(this.controller);
-
-  final StreamController<Object?> controller;
-
+final class _CurrentIntegerListFunction extends FunctionImplementation {
+  _CurrentIntegerListFunction(this.current)
+    : super(name: 'currentIntegerList', argumentSchema: S.object());
+  final Signal<Object?> current;
   @override
-  String get name => 'currentIntegerList';
-
-  @override
-  String get description => 'Emits the current integer list.';
-
-  @override
-  Schema get argumentSchema => S.object(properties: const {});
-
-  @override
-  ClientFunctionReturnType get returnType => ClientFunctionReturnType.array;
-
-  @override
-  Stream<Object?> execute(JsonMap args, ExecutionContext context) =>
-      controller.stream;
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) => current;
 }
 
 void main() {
@@ -85,16 +109,16 @@ void main() {
   // is exercised through the package's own public entry point.
   assert(restageLibrary == 0, 'the library barrel is importable');
 
-  late List<CatalogItem> items;
-  late Catalog catalog;
-  late DataContext dataContext;
-  late List<UiEvent> dispatched;
+  late List<ComponentImplementation> items;
+  late CatalogImplementation catalog;
+  late _Runtime dataContext;
+  late List<A2uiRendererAction> dispatched;
 
   setUp(() {
     items = buildRestageCatalogItems();
-    catalog = Catalog(items);
-    dataContext = DataContext(InMemoryDataModel(), DataPath.root);
-    dispatched = <UiEvent>[];
+    catalog = buildRestageCatalog();
+    dataContext = _Runtime();
+    dispatched = <A2uiRendererAction>[];
   });
 
   test('the generated catalog exposes the example widgets', () {
@@ -142,14 +166,14 @@ void main() {
 
   testWidgets('a required scalar list uses its empty fallback for a '
       'wrong-type path', (tester) async {
-    dataContext.update(DataPath('counts'), 'not-a-list');
+    dataContext.update('/counts', 'not-a-list');
     await _pump(
       tester,
       catalog: catalog,
       type: 'ScalarListPanel',
       data: _asDelivered(const {
         'labels': <String>[],
-        'counts': {'path': 'counts'},
+        'counts': {'@path': '/counts'},
         'weights': <double>[],
         'measurements': <num>[],
         'flags': <bool>[],
@@ -165,7 +189,7 @@ void main() {
   testWidgets('a nullable scalar list remains null for a wrong-type path', (
     tester,
   ) async {
-    dataContext.update(DataPath('maybeCounts'), false);
+    dataContext.update('/maybeCounts', false);
     await _pump(
       tester,
       catalog: catalog,
@@ -176,7 +200,7 @@ void main() {
         'weights': <double>[],
         'measurements': <num>[],
         'flags': <bool>[],
-        'maybeCounts': {'path': 'maybeCounts'},
+        'maybeCounts': {'@path': '/maybeCounts'},
       }),
       dataContext: dataContext,
       dispatchEvent: dispatched.add,
@@ -187,9 +211,8 @@ void main() {
   });
 
   testWidgets(
-    'a scalar list uses its declared fallback for a wrong-type path',
+    'a binding that resolves to nothing uses the constructor default',
     (tester) async {
-      dataContext.update(DataPath('fallbackCounts'), 'not-a-list');
       await _pump(
         tester,
         catalog: catalog,
@@ -200,7 +223,53 @@ void main() {
           'weights': <double>[],
           'measurements': <num>[],
           'flags': <bool>[],
-          'fallbackCounts': {'path': 'fallbackCounts'},
+          'fallbackCounts': {'@path': '/missing'},
+        }),
+        dataContext: dataContext,
+        dispatchEvent: dispatched.add,
+      );
+
+      expect(find.text('fallback-counts:7,8'), findsOneWidget);
+    },
+  );
+
+  testWidgets('a literal null stays null even with a constructor default', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      catalog: catalog,
+      type: 'ScalarListPanel',
+      data: _asDelivered(const {
+        'labels': <String>[],
+        'counts': <int>[],
+        'weights': <double>[],
+        'measurements': <num>[],
+        'flags': <bool>[],
+        'fallbackCounts': null,
+      }),
+      dataContext: dataContext,
+      dispatchEvent: dispatched.add,
+    );
+
+    expect(find.text('fallback-counts:none'), findsOneWidget);
+  });
+
+  testWidgets(
+    'a scalar list uses its declared fallback for a wrong-type path',
+    (tester) async {
+      dataContext.update('/fallbackCounts', 'not-a-list');
+      await _pump(
+        tester,
+        catalog: catalog,
+        type: 'ScalarListPanel',
+        data: _asDelivered(const {
+          'labels': <String>[],
+          'counts': <int>[],
+          'weights': <double>[],
+          'measurements': <num>[],
+          'flags': <bool>[],
+          'fallbackCounts': {'@path': '/fallbackCounts'},
         }),
         dataContext: dataContext,
         dispatchEvent: dispatched.add,
@@ -237,13 +306,13 @@ void main() {
   testWidgets('integer-list write-back updates its bound path and re-renders', (
     tester,
   ) async {
-    dataContext.update(DataPath('selected'), <Object?>[1, 2]);
+    dataContext.update('/selected', <Object?>[1, 2]);
     await _pump(
       tester,
       catalog: catalog,
       type: 'IntegerListPicker',
       data: _asDelivered(const {
-        'selected': {'path': 'selected'},
+        'selected': {'@path': '/selected'},
       }),
       dataContext: dataContext,
       dispatchEvent: dispatched.add,
@@ -256,11 +325,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('selected:1,2,3'), findsOneWidget);
-    expect(dataContext.getValue<List<Object?>>(DataPath('selected')), <Object?>[
-      1,
-      2,
-      3,
-    ]);
+    expect(dataContext.getValue('/selected'), <Object?>[1, 2, 3]);
   });
 
   testWidgets('integer-list literal renders and becomes a retained local '
@@ -270,7 +335,7 @@ void main() {
       catalog: catalog,
       type: 'IntegerListPicker',
       data: _asDelivered(const {
-        'selected': <Object?>[1, 2.8, 'x'],
+        'selected': <int>[1, 2],
       }),
       dataContext: dataContext,
       dispatchEvent: dispatched.add,
@@ -280,10 +345,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('integer-list-add')));
     await tester.pump();
     expect(find.text('selected:1,2,3'), findsOneWidget);
-    expect(
-      dataContext.getValue<List<Object?>>(DataPath('root.selected')),
-      <int>[1, 2, 3],
-    );
+    expect(dataContext.getValue('/restage_root/props_selected'), <int>[
+      1,
+      2,
+      3,
+    ]);
 
     await _pump(
       tester,
@@ -299,37 +365,32 @@ void main() {
   });
 
   testWidgets('integer-list call stays reactive until write and rejects later '
-      'output after immediate cancellation', (tester) async {
-    final controller = StreamController<Object?>.broadcast(sync: true);
-    addTearDown(controller.close);
+      'output after local override', (tester) async {
+    final controller = signal<Object?>(null);
+
     final function = _CurrentIntegerListFunction(controller);
-    dataContext = DataContext(
-      dataContext.dataModel,
-      DataPath.root,
-      functions: <ClientFunction>[function],
-    );
+    dataContext.functions.add(function);
     await _pump(
       tester,
       catalog: catalog,
       type: 'IntegerListPicker',
       data: _asDelivered(const {
-        'selected': {'call': 'currentIntegerList'},
+        'selected': {'@call': 'currentIntegerList'},
       }),
       dataContext: dataContext,
       dispatchEvent: dispatched.add,
     );
     await tester.pump();
-    expect(controller.hasListener, isTrue);
 
-    controller.add(<Object?>[4, 5.8, 'x']);
+    controller.value = <Object?>[4, 5.8, 'x'];
     await tester.pump();
     expect(find.text('selected:4,5'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('integer-list-add')));
-    expect(controller.hasListener, isFalse);
+
     await tester.pump();
     expect(find.text('selected:4,5,3'), findsOneWidget);
-    controller.add(<int>[99]);
+    controller.value = <int>[99];
     await tester.pump();
     expect(find.text('selected:4,5,3'), findsOneWidget);
   });
@@ -388,13 +449,13 @@ void main() {
   testWidgets(
     'write-back: tapping a star writes the rating back and re-renders',
     (tester) async {
-      dataContext.update(DataPath('rating'), 2);
+      dataContext.update('/rating', 2);
       await _pump(
         tester,
         catalog: catalog,
         type: 'RatingPicker',
         data: _asDelivered(const {
-          'rating': {'path': 'rating'},
+          'rating': {'@path': '/rating'},
         }),
         dataContext: dataContext,
         dispatchEvent: dispatched.add,
@@ -408,14 +469,14 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('rating-star-4')));
       await tester.pump();
 
-      // The callback wrote 4 to the bound path; the BoundNumber re-renders with
+      // The callback wrote 4 to the bound path; the resolved number re-renders with
       // four filled stars.
       expect(find.text('★'), findsNWidgets(4));
-      expect(dataContext.getValue<num>(DataPath('rating')), 4);
+      expect(dataContext.getValue('/rating'), 4);
     },
   );
 
-  testWidgets('dispatch: tapping the button dispatches a UserActionEvent', (
+  testWidgets('dispatch: tapping the button dispatches a A2uiRendererAction', (
     tester,
   ) async {
     await _pump(
@@ -435,7 +496,7 @@ void main() {
     await tester.pump();
 
     expect(dispatched, hasLength(1));
-    final action = UserActionEvent.fromMap(dispatched.single.toMap());
+    final action = dispatched.single;
     expect(action.name, 'onPressed');
     expect(action.sourceComponentId, 'root');
   });

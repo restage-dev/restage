@@ -17,17 +17,19 @@ import 'helpers.dart';
 /// when a surface was authored against a design package.
 void main() {
   group('framework identity canonicalisation', () {
-    test('maps a design-package implementation library to the framework one',
-        () {
-      expect(
-        canonicalFrameworkLibraryUri('package:material_ui/src/card.dart'),
-        'package:flutter/src/material/card.dart',
-      );
-      expect(
-        canonicalFrameworkLibraryUri('package:cupertino_ui/src/button.dart'),
-        'package:flutter/src/cupertino/button.dart',
-      );
-    });
+    test(
+      'maps a design-package implementation library to the framework one',
+      () {
+        expect(
+          canonicalFrameworkLibraryUri('package:material_ui/src/card.dart'),
+          'package:flutter/src/material/card.dart',
+        );
+        expect(
+          canonicalFrameworkLibraryUri('package:cupertino_ui/src/button.dart'),
+          'package:flutter/src/cupertino/button.dart',
+        );
+      },
+    );
 
     test('leaves framework, SDK and application libraries untouched', () {
       for (final uri in const [
@@ -45,17 +47,19 @@ void main() {
   });
 
   group('generated-code imports', () {
-    test('routes a design-package implementation library through its barrel',
-        () {
-      expect(
-        publicDartImportUri('package:material_ui/src/snack_bar_theme.dart'),
-        'package:material_ui/material_ui.dart',
-      );
-      expect(
-        publicDartImportUri('package:cupertino_ui/src/button.dart'),
-        'package:cupertino_ui/cupertino_ui.dart',
-      );
-    });
+    test(
+      'routes a design-package implementation library through its barrel',
+      () {
+        expect(
+          publicDartImportUri('package:material_ui/src/snack_bar_theme.dart'),
+          'package:material_ui/material_ui.dart',
+        );
+        expect(
+          publicDartImportUri('package:cupertino_ui/src/button.dart'),
+          'package:cupertino_ui/cupertino_ui.dart',
+        );
+      },
+    );
 
     test('still routes framework implementation libraries to their barrel', () {
       expect(
@@ -221,19 +225,19 @@ Future<List<String>> _buildPaywall(
   Map<String, String> sources, {
   required String stem,
   required Matcher rfwTextMatcher,
-}) =>
-    _runPaywallBuilder(
-      sources,
-      outputs: {
-        'apps_examples|assets/paywalls/$stem.rfwtxt':
-            decodedMatches(rfwTextMatcher),
-        'apps_examples|assets/paywalls/$stem.rfw': anything,
-        'apps_examples|assets/paywalls/$stem.capability.json': anything,
-        'apps_examples|assets/paywalls/screens/paywall_$stem.rfw': anything,
-        'apps_examples|assets/paywalls/screens/paywall_$stem.capability.json':
-            anything,
-      },
-    );
+}) => _runPaywallBuilder(
+  sources,
+  outputs: {
+    'apps_examples|assets/paywalls/$stem.rfwtxt': decodedMatches(
+      rfwTextMatcher,
+    ),
+    'apps_examples|assets/paywalls/$stem.rfw': anything,
+    'apps_examples|assets/paywalls/$stem.capability.json': anything,
+    'apps_examples|assets/paywalls/screens/paywall_$stem.rfw': anything,
+    'apps_examples|assets/paywalls/screens/paywall_$stem.capability.json':
+        anything,
+  },
+);
 
 Future<List<String>> _runPaywallBuilder(
   Map<String, String> sources, {
@@ -244,8 +248,10 @@ Future<List<String>> _runPaywallBuilder(
     includeDesignPackages: importsDesignPackages(sources.values),
   );
   for (final entry in sources.entries) {
-    readerWriter.testing
-        .writeString(AssetId('apps_examples', entry.key), entry.value);
+    readerWriter.testing.writeString(
+      AssetId('apps_examples', entry.key),
+      entry.value,
+    );
   }
 
   final diagnostics = <String>[];

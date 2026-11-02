@@ -212,42 +212,44 @@ void main() {
     ),
   ];
 
-  test('one exhaustive malformed-value matrix rejects through every target',
-      () {
-    for (final candidate in malformed) {
-      final issue = validateRestageConstraintValues(candidate.constraints);
-      expect(issue, isNotNull, reason: candidate.name);
-      expect(issue!.pathSuffix, candidate.pathSuffix, reason: candidate.name);
-      final property = _property(candidate.type, candidate.constraints);
-      final catalog = _catalog(property);
+  test(
+    'one exhaustive malformed-value matrix rejects through every target',
+    () {
+      for (final candidate in malformed) {
+        final issue = validateRestageConstraintValues(candidate.constraints);
+        expect(issue, isNotNull, reason: candidate.name);
+        expect(issue!.pathSuffix, candidate.pathSuffix, reason: candidate.name);
+        final property = _property(candidate.type, candidate.constraints);
+        final catalog = _catalog(property);
 
-      expect(
-        () => encodeCatalog(catalog),
-        throwsA(isA<CatalogSchemaException>()),
-        reason: 'catalog codec: ${candidate.name}',
-      );
-      expect(
-        () => classifyA2uiCatalogDart(catalog),
-        throwsA(isA<UnsupportedError>()),
-        reason: 'A2UI: ${candidate.name}',
-      );
-      expect(
-        () => validateWidgetbookConstraintApplicability(
-          property,
-          candidate.constraints,
-          path: 'ConstraintParity.value',
-        ),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            contains('Widgetbook constraints at ConstraintParity.value'),
+        expect(
+          () => encodeCatalog(catalog),
+          throwsA(isA<CatalogSchemaException>()),
+          reason: 'catalog codec: ${candidate.name}',
+        );
+        expect(
+          () => classifyA2uiCatalogDart(catalog),
+          throwsA(isA<UnsupportedError>()),
+          reason: 'A2UI: ${candidate.name}',
+        );
+        expect(
+          () => validateWidgetbookConstraintApplicability(
+            property,
+            candidate.constraints,
+            path: 'ConstraintParity.value',
           ),
-        ),
-        reason: 'Widgetbook: ${candidate.name}',
-      );
-    }
-  });
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              contains('Widgetbook constraints at ConstraintParity.value'),
+            ),
+          ),
+          reason: 'Widgetbook: ${candidate.name}',
+        );
+      }
+    },
+  );
 
   test('valid shared value boundaries remain accepted by every target', () {
     const valid = <_ConstraintCase>[
@@ -357,31 +359,31 @@ void main() {
 }
 
 List<_ConstraintCase> _nonFiniteBounds(double value) => [
-      _ConstraintCase(
-        'non-finite minimum $value',
-        RestageConstraints(minimum: value),
-        PropertyType.real,
-        '.minimum',
-      ),
-      _ConstraintCase(
-        'non-finite exclusiveMinimum $value',
-        RestageConstraints(exclusiveMinimum: value),
-        PropertyType.real,
-        '.exclusiveMinimum',
-      ),
-      _ConstraintCase(
-        'non-finite maximum $value',
-        RestageConstraints(maximum: value),
-        PropertyType.real,
-        '.maximum',
-      ),
-      _ConstraintCase(
-        'non-finite exclusiveMaximum $value',
-        RestageConstraints(exclusiveMaximum: value),
-        PropertyType.real,
-        '.exclusiveMaximum',
-      ),
-    ];
+  _ConstraintCase(
+    'non-finite minimum $value',
+    RestageConstraints(minimum: value),
+    PropertyType.real,
+    '.minimum',
+  ),
+  _ConstraintCase(
+    'non-finite exclusiveMinimum $value',
+    RestageConstraints(exclusiveMinimum: value),
+    PropertyType.real,
+    '.exclusiveMinimum',
+  ),
+  _ConstraintCase(
+    'non-finite maximum $value',
+    RestageConstraints(maximum: value),
+    PropertyType.real,
+    '.maximum',
+  ),
+  _ConstraintCase(
+    'non-finite exclusiveMaximum $value',
+    RestageConstraints(exclusiveMaximum: value),
+    PropertyType.real,
+    '.exclusiveMaximum',
+  ),
+];
 
 const _knownConstraintKeywords = <String>[
   'minimum',
@@ -413,32 +415,31 @@ final class _ConstraintCase {
 PropertyEntry _property(
   PropertyType type,
   RestageConstraints constraints,
-) =>
-    PropertyEntry(
-      wireId: WireId('p0001'),
-      name: 'value',
-      type: type,
-      description: 'Constraint parity value.',
-      required: true,
-      constraints: constraints,
-    );
+) => PropertyEntry(
+  wireId: WireId('p0001'),
+  name: 'value',
+  type: type,
+  description: 'Constraint parity value.',
+  required: true,
+  constraints: constraints,
+);
 
 Catalog _catalog(PropertyEntry property) => Catalog(
-      schemaVersion: kSupportedSchemaVersion,
-      generatedAt: '2026-08-09T00:00:00.000Z',
-      libraries: {
-        WidgetLibrary.core: const LibraryInfo(version: '1.0.0'),
-      },
-      widgets: [
-        WidgetEntry(
-          wireId: WireId('w0001'),
-          name: 'ConstraintParity',
-          library: WidgetLibrary.core,
-          category: WidgetCategory.input,
-          description: 'Constraint parity fixture.',
-          flutterType: 'package:fixture/fixture.dart#ConstraintParity',
-          childrenSlot: ChildrenSlot.none,
-          properties: [property],
-        ),
-      ],
-    );
+  schemaVersion: kSupportedSchemaVersion,
+  generatedAt: '2026-08-09T00:00:00.000Z',
+  libraries: {
+    WidgetLibrary.core: const LibraryInfo(version: '1.0.0'),
+  },
+  widgets: [
+    WidgetEntry(
+      wireId: WireId('w0001'),
+      name: 'ConstraintParity',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.input,
+      description: 'Constraint parity fixture.',
+      flutterType: 'package:fixture/fixture.dart#ConstraintParity',
+      childrenSlot: ChildrenSlot.none,
+      properties: [property],
+    ),
+  ],
+);

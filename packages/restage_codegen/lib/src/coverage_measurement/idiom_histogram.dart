@@ -155,21 +155,22 @@ class IdiomHistogram {
       }
     }
 
-    final rows = [
-      for (final key in counts.keys)
-        IdiomRow(
-          key: key,
-          count: counts[key]!,
-          disposition: dispositions[key],
-          isUnrecognisedComposition: unrecognisedCompositions.contains(key),
-          // Sorted before truncation so the kept three are stable regardless of
-          // iteration order (deterministic even if a key recurs >3 times).
-          examples: List.unmodifiable((examples[key]!..sort()).take(3)),
-        ),
-    ]..sort((a, b) {
-        final byCount = b.count.compareTo(a.count);
-        return byCount != 0 ? byCount : a.label.compareTo(b.label);
-      });
+    final rows =
+        [
+          for (final key in counts.keys)
+            IdiomRow(
+              key: key,
+              count: counts[key]!,
+              disposition: dispositions[key],
+              isUnrecognisedComposition: unrecognisedCompositions.contains(key),
+              // Sorted before truncation so the kept three are stable regardless of
+              // iteration order (deterministic even if a key recurs >3 times).
+              examples: List.unmodifiable((examples[key]!..sort()).take(3)),
+            ),
+        ]..sort((a, b) {
+          final byCount = b.count.compareTo(a.count);
+          return byCount != 0 ? byCount : a.label.compareTo(b.label);
+        });
     return IdiomHistogram._(List.unmodifiable(rows));
   }
 
@@ -181,17 +182,17 @@ class IdiomHistogram {
   /// and `subject` are the structured aggregation key; `label` is their
   /// `' · '` join, retained for readers that key on the display string.
   List<Map<String, dynamic>> toJson() => [
-        for (final r in rows)
-          <String, dynamic>{
-            'kind': r.key.kind,
-            'subject': r.key.subject,
-            'label': r.label,
-            'count': r.count,
-            if (r.disposition != null) 'disposition': r.disposition!.name,
-            'unrecognisedComposition': r.isUnrecognisedComposition,
-            'examples': r.examples,
-          },
-      ];
+    for (final r in rows)
+      <String, dynamic>{
+        'kind': r.key.kind,
+        'subject': r.key.subject,
+        'label': r.label,
+        'count': r.count,
+        if (r.disposition != null) 'disposition': r.disposition!.name,
+        'unrecognisedComposition': r.isUnrecognisedComposition,
+        'examples': r.examples,
+      },
+  ];
 
   /// A human-readable table. The unambiguous idiom gaps and the
   /// unrecognised-composition rows are listed under separate headings, so the
@@ -199,8 +200,9 @@ class IdiomHistogram {
   /// the clean idiom signals.
   String render() {
     final idiomGaps = rows.where((r) => !r.isUnrecognisedComposition).toList();
-    final compositions =
-        rows.where((r) => r.isUnrecognisedComposition).toList();
+    final compositions = rows
+        .where((r) => r.isUnrecognisedComposition)
+        .toList();
 
     String line(IdiomRow r) => '  ${r.count.toString().padLeft(4)}  ${r.label}';
 
@@ -215,9 +217,11 @@ class IdiomHistogram {
     if (compositions.isNotEmpty) {
       buf
         ..writeln()
-        ..writeln('Unrecognised compositions (inspect the type — a mix of '
-            'in-package sub-widgets [recursion-gate artifact, under-states '
-            'inlinability] and non-catalog framework widgets [a real gap]):');
+        ..writeln(
+          'Unrecognised compositions (inspect the type — a mix of '
+          'in-package sub-widgets [recursion-gate artifact, under-states '
+          'inlinability] and non-catalog framework widgets [a real gap]):',
+        );
       for (final r in compositions) {
         buf.writeln(line(r));
       }

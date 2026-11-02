@@ -42,9 +42,9 @@ final Catalog _iconCatalog = catalogWith([
 ]);
 
 ExpressionTranslator _translator() => ExpressionTranslator(
-      catalog: _iconCatalog,
-      helpers: HelperRegistry(),
-    );
+  catalog: _iconCatalog,
+  helpers: HelperRegistry(),
+);
 
 void main() {
   group('icon font family lowering', () {
@@ -82,25 +82,27 @@ void main() {
       expect(r.dsl, 'Icon(iconCodepoint: 57490, iconMatchTextDirection: true)');
     });
 
-    test('a mirroring Cupertino icon carries both slots, family first',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'a mirroring Cupertino icon carries both slots, family first',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/cupertino.dart';
         Object x() => Icon(CupertinoIcons.back);
         ''',
-        rootPackage: 'apps_examples',
-      );
+          rootPackage: 'apps_examples',
+        );
 
-      final r = _translator().translate(expr);
+        final r = _translator().translate(expr);
 
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'Icon(iconCodepoint: 62415, iconFontFamily: "CupertinoIcons", '
-        'iconMatchTextDirection: true)',
-      );
-    });
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'Icon(iconCodepoint: 62415, iconFontFamily: "CupertinoIcons", '
+          'iconMatchTextDirection: true)',
+        );
+      },
+    );
 
     test('a mirroring icon does not leak into the next icon', () async {
       // The slot is cleared before each codepoint translates, so a mirroring
@@ -142,8 +144,10 @@ void main() {
       expect(
         r.dsl,
         matches(
-          RegExp(r'^Icon\(iconCodepoint: \d+, '
-              r'iconFontFamily: "CupertinoIcons"\)$'),
+          RegExp(
+            r'^Icon\(iconCodepoint: \d+, '
+            r'iconFontFamily: "CupertinoIcons"\)$',
+          ),
         ),
       );
       expect(r.dsl, isNot(contains('iconMatchTextDirection')));

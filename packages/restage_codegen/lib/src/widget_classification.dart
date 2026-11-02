@@ -112,22 +112,21 @@ extension BlockerKindDisposition on BlockerKind {
   /// Whether this kind is, on its own, a genuine RFW capability boundary
   /// (`deadEnd`) vs a not-yet-supported-but-reducible construct (`reducible`).
   CustomWidgetDisposition get disposition => switch (this) {
-        // Genuine RFW boundaries — declarative-only (rule 4) + primitive-only
-        // state. No future increment expresses these.
-        BlockerKind.customPainter => CustomWidgetDisposition.deadEnd,
-        BlockerKind.runtimeComputedValue => CustomWidgetDisposition.deadEnd,
-        BlockerKind.asyncOrLifecycle => CustomWidgetDisposition.deadEnd,
-        BlockerKind.nonSimpleState => CustomWidgetDisposition.deadEnd,
-        // Default deadEnd, but per-instance overridden to the child's
-        // disposition at construction (see `Blocker.disposition`).
-        BlockerKind.composesImperativeWidget => CustomWidgetDisposition.deadEnd,
-        // Not supported yet but reducible: a dart call could become a recipe /
-        // registered helper / auto-substitution; an unrecognised composed
-        // widget could be added to the catalog.
-        BlockerKind.dartCall => CustomWidgetDisposition.reducible,
-        BlockerKind.unrecognisedComposedWidget =>
-          CustomWidgetDisposition.reducible,
-      };
+    // Genuine RFW boundaries — declarative-only (rule 4) + primitive-only
+    // state. No future increment expresses these.
+    BlockerKind.customPainter => CustomWidgetDisposition.deadEnd,
+    BlockerKind.runtimeComputedValue => CustomWidgetDisposition.deadEnd,
+    BlockerKind.asyncOrLifecycle => CustomWidgetDisposition.deadEnd,
+    BlockerKind.nonSimpleState => CustomWidgetDisposition.deadEnd,
+    // Default deadEnd, but per-instance overridden to the child's
+    // disposition at construction (see `Blocker.disposition`).
+    BlockerKind.composesImperativeWidget => CustomWidgetDisposition.deadEnd,
+    // Not supported yet but reducible: a dart call could become a recipe /
+    // registered helper / auto-substitution; an unrecognised composed
+    // widget could be added to the catalog.
+    BlockerKind.dartCall => CustomWidgetDisposition.reducible,
+    BlockerKind.unrecognisedComposedWidget => CustomWidgetDisposition.reducible,
+  };
 }
 
 /// One construct that disqualifies a custom widget from transpilation,
@@ -200,8 +199,8 @@ final class ComposableWidget extends WidgetClassification {
     super.classKey, {
     required Set<InliningMechanism> requiredMechanisms,
     required List<String> composedCustomWidgets,
-  })  : requiredMechanisms = Set.unmodifiable(requiredMechanisms),
-        composedCustomWidgets = List.unmodifiable(composedCustomWidgets);
+  }) : requiredMechanisms = Set.unmodifiable(requiredMechanisms),
+       composedCustomWidgets = List.unmodifiable(composedCustomWidgets);
 
   /// Inlining mechanisms this widget needs, **rolled up transitively** across
   /// its whole composition closure: if it composes another custom widget
@@ -224,8 +223,8 @@ final class ImperativeWidget extends WidgetClassification {
   /// Creates an imperative classification. [blockers] must be non-empty;
   /// `blockers.first` is the construct the diagnostic names.
   ImperativeWidget(super.classKey, {required List<Blocker> blockers})
-      : assert(blockers.isNotEmpty, 'an ImperativeWidget needs a blocker'),
-        blockers = List.unmodifiable(blockers);
+    : assert(blockers.isNotEmpty, 'an ImperativeWidget needs a blocker'),
+      blockers = List.unmodifiable(blockers);
 
   /// The disqualifying construct(s).
   final List<Blocker> blockers;
@@ -236,8 +235,8 @@ final class ImperativeWidget extends WidgetClassification {
   /// a dead end; an all-reducible-blocker widget is a backlog candidate.
   CustomWidgetDisposition get disposition =>
       blockers.any((b) => b.disposition == CustomWidgetDisposition.deadEnd)
-          ? CustomWidgetDisposition.deadEnd
-          : CustomWidgetDisposition.reducible;
+      ? CustomWidgetDisposition.deadEnd
+      : CustomWidgetDisposition.reducible;
 }
 
 /// The widget is a recognised `@RestageWidget` but the classifier could not

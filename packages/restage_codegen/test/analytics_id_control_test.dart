@@ -48,7 +48,9 @@ void main() {
       primary.entries
           .map(
             (entry) => entry
-                .presentationReservation.generatedPresentationReferenceId.value,
+                .presentationReservation
+                .generatedPresentationReferenceId
+                .value,
           )
           .toList(),
       ['reference.one', 'reference.two'],
@@ -191,9 +193,11 @@ void main() {
       () => AnalyticsIdControlPublication(
         scope: primaryScope,
         entries: [
-          for (var index = 0;
-              index <= kMaximumMeasurementPublicationRuntimeRouteCount;
-              index += 1)
+          for (
+            var index = 0;
+            index <= kMaximumMeasurementPublicationRuntimeRouteCount;
+            index += 1
+          )
             AnalyticsIdControlEntry(
               analyticsId: 'label.$index',
               presentationReservation: _reservation(
@@ -288,14 +292,13 @@ void main() {
 AnalyticsIdControlBuildResult _buildWithLabel(
   String analyticsId,
   AnalyticsIdControlPublicationScope scope,
-) =>
-    buildAnalyticsIdControlOutputFromReservations(
-      packageName: 'apps_examples',
-      scopes: [scope],
-      captures: [_capture(analyticsId, 'handle.one')],
-      reservations: [_resolved(scope, 'one')],
-      location: 'lib/surfaces.dart',
-    );
+) => buildAnalyticsIdControlOutputFromReservations(
+  packageName: 'apps_examples',
+  scopes: [scope],
+  captures: [_capture(analyticsId, 'handle.one')],
+  reservations: [_resolved(scope, 'one')],
+  location: 'lib/surfaces.dart',
+);
 
 AnalyticsIdControlCapture _capture(String analyticsId, String handle) =>
     AnalyticsIdControlCapture(
@@ -327,18 +330,18 @@ AnalyticsIdResolvedControlReservation _resolved(
   String? reservationSuffix,
   String? generatedReferenceSuffix,
   AnalyticsIdPresentationReservation? presentationReservation,
-}) =>
-    AnalyticsIdResolvedControlReservation(
-      sourceDeclarationIdentity: _sourceDeclarationIdentity,
-      presentationHandle: _fixtureHandle('handle.$handleSuffix'),
-      scope: scope,
-      presentationReservation: presentationReservation ??
-          _reservation(
-            scope,
-            reservationSuffix ?? handleSuffix,
-            generatedReferenceSuffix: generatedReferenceSuffix,
-          ),
-    );
+}) => AnalyticsIdResolvedControlReservation(
+  sourceDeclarationIdentity: _sourceDeclarationIdentity,
+  presentationHandle: _fixtureHandle('handle.$handleSuffix'),
+  scope: scope,
+  presentationReservation:
+      presentationReservation ??
+      _reservation(
+        scope,
+        reservationSuffix ?? handleSuffix,
+        generatedReferenceSuffix: generatedReferenceSuffix,
+      ),
+);
 
 AnalyticsIdPresentationReservation _reservation(
   AnalyticsIdControlPublicationScope scope,
@@ -400,19 +403,19 @@ AnalyticsIdPresentationReservation _remappedReservation(
 AnalyticsIdPresentationReservation _reservationWithCarrier(
   String suffix,
   String carrier,
-) =>
-    AnalyticsIdPresentationReservation(
-      generatedPresentationReferenceId:
-          GeneratedPresentationReferenceId('reference.$suffix'),
-      nodeCodeIdentityId: CodeIdentityId('node.$suffix'),
-      canonicalNodeTokenId: NodeTokenId('token.$suffix'),
-      artifactOccurrenceEdgeToken: ArtifactOccurrenceEdgeToken('edge.$suffix'),
-      presentationLineageId: PointLineageId('lineage.$suffix'),
-      displayMetadataRef: DisplayMetadataRef('display.$suffix'),
-      presentationRouteCarrier: carrier,
-      presentationRouteFingerprint:
-          OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(carrier).fingerprint,
-    );
+) => AnalyticsIdPresentationReservation(
+  generatedPresentationReferenceId: GeneratedPresentationReferenceId(
+    'reference.$suffix',
+  ),
+  nodeCodeIdentityId: CodeIdentityId('node.$suffix'),
+  canonicalNodeTokenId: NodeTokenId('token.$suffix'),
+  artifactOccurrenceEdgeToken: ArtifactOccurrenceEdgeToken('edge.$suffix'),
+  presentationLineageId: PointLineageId('lineage.$suffix'),
+  displayMetadataRef: DisplayMetadataRef('display.$suffix'),
+  presentationRouteCarrier: carrier,
+  presentationRouteFingerprint:
+      OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(carrier).fingerprint,
+);
 
 Map<String, Object?> _withoutEntries(Map<String, Object?> source) {
   final publications = source['publications']! as List<Object?>;

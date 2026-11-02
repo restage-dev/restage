@@ -30,17 +30,17 @@ final class SourceBuildBlueprint {
     Map<String, RecognisedSetState> eventHandlers = const {},
     Map<Element, Expression> localBindings = const {},
     Map<Element, HelperDef> helpers = const {},
-  })  : state = state == null ? null : List.unmodifiable(state),
-        rootParams = List.unmodifiable(rootParams),
-        constructorParams = List.unmodifiable(constructorParams ?? rootParams),
-        buildArguments = List.unmodifiable(buildArguments),
-        eventHandlers = Map.unmodifiable(eventHandlers),
-        inlined = InlinedDefinitions(
-          localBindings: Map.unmodifiable(
-            withHelperLocals(localBindings, helpers.values),
-          ),
-          helpers: Map.unmodifiable(helpers),
-        );
+  }) : state = state == null ? null : List.unmodifiable(state),
+       rootParams = List.unmodifiable(rootParams),
+       constructorParams = List.unmodifiable(constructorParams ?? rootParams),
+       buildArguments = List.unmodifiable(buildArguments),
+       eventHandlers = Map.unmodifiable(eventHandlers),
+       inlined = InlinedDefinitions(
+         localBindings: Map.unmodifiable(
+           withHelperLocals(localBindings, helpers.values),
+         ),
+         helpers: Map.unmodifiable(helpers),
+       );
 
   /// The returned expression from the effective `build()` host.
   final Expression rootExpression;
@@ -132,7 +132,8 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
       issues.add(
         Issue(
           code: IssueCode.stateShapeUnsupported,
-          message: 'StatefulWidget root ${sourceClass.name ?? '<unnamed>'} '
+          message:
+              'StatefulWidget root ${sourceClass.name ?? '<unnamed>'} '
               'must expose a createState() method that resolves to a '
               'concrete State class. This transpiler increment can only lower '
               'root state once the State class is statically known.',
@@ -144,8 +145,9 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     buildHost = stateClass;
   }
 
-  final buildMethod =
-      buildHost.methods.where((method) => method.name == 'build').firstOrNull;
+  final buildMethod = buildHost.methods
+      .where((method) => method.name == 'build')
+      .firstOrNull;
   if (buildMethod == null) {
     issues.add(
       Issue(
@@ -161,7 +163,8 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     issues.add(
       Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: 'Could not locate the effective build() method declaration '
+        message:
+            'Could not locate the effective build() method declaration '
             'in the resolved AST.',
         location: '$location.build',
       ),
@@ -173,7 +176,8 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: preludeDeclarationProblem(buildNode.body) ??
+        message:
+            preludeDeclarationProblem(buildNode.body) ??
             'build() must be one returned widget expression, optionally '
                 'preceded by initialized simple final or const variable '
                 'declarations.',
@@ -203,7 +207,8 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: "build() makes a recursive helper call ('${helper.name}'); "
+        message:
+            "build() makes a recursive helper call ('${helper.name}'); "
             'a helper cannot call itself.',
         location: '$location.${helper.name}',
       ),
@@ -251,7 +256,8 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
       issues.add(
         Issue(
           code: IssueCode.stateShapeUnsupported,
-          message: "State handler '${entry.key}' cannot be lowered: "
+          message:
+              "State handler '${entry.key}' cannot be lowered: "
               '${verdict.reason}. Rewrite it as a single setState(...) '
               'assignment to one supported State field.',
           location: '$location.${entry.key}',
@@ -274,7 +280,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
 }
 
 Future<({List<RootContextParam> params, String? mountProblem})>
-    _constructorParams(
+_constructorParams(
   ClassElement sourceClass,
   Future<AstNode?> Function(Fragment fragment) astNodeFor,
 ) async {
@@ -294,8 +300,9 @@ Future<({List<RootContextParam> params, String? mountProblem})>
     final name = parameter.name;
     if (name == null || name.isEmpty) continue;
     final resolved = resolvedConstructor.formals[index];
-    final defaultValue =
-        parameter.hasDefaultValue ? parameter.computeConstantValue() : null;
+    final defaultValue = parameter.hasDefaultValue
+        ? parameter.computeConstantValue()
+        : null;
     final typeFact = await _rootParamTypeFact(
       parameter,
       resolved.type,
@@ -316,14 +323,15 @@ Future<({List<RootContextParam> params, String? mountProblem})>
         kind: parameter.isOptionalPositional
             ? RootContextParamKind.optionalPositional
             : parameter.isNamed
-                ? RootContextParamKind.named
-                : RootContextParamKind.requiredPositional,
+            ? RootContextParamKind.named
+            : RootContextParamKind.requiredPositional,
         hostDataShape: hostData.shape,
         hostDataProblem: hostData.problem,
         field: resolved.field,
         isRequired: parameter.isRequired,
         defaultValueCode: parameter.defaultValueCode,
-        hasNullDefault: parameter.hasDefaultValue &&
+        hasNullDefault:
+            parameter.hasDefaultValue &&
             defaultValue != null &&
             defaultValue.isNull,
         mountDefaultValueCode: mountDefault.code,
@@ -350,8 +358,9 @@ Future<({String? code, String? problem})> _mountDefaultExpression(
   if (!parameter.hasDefaultValue) return (code: null, problem: null);
   for (final declaration in resolved.defaultDeclarations) {
     final node = await astNodeFor(declaration.firstFragment);
-    final expression =
-        node is FormalParameter ? node.defaultClause?.value : null;
+    final expression = node is FormalParameter
+        ? node.defaultClause?.value
+        : null;
     if (expression == null) continue;
     final contents = declaration.firstFragment.libraryFragment?.source.contents;
     if (contents == null || expression.end > contents.data.length) {
@@ -593,12 +602,15 @@ Future<({String? code, bool hasExplicitType})> _rootParamTypeFact(
   final explicit = _formalTypeCode(formal);
   if (explicit != null) return (code: explicit, hasExplicitType: true);
 
-  final field =
-      parameter is FieldFormalParameterElement ? parameter.field : null;
+  final field = parameter is FieldFormalParameterElement
+      ? parameter.field
+      : null;
   if (field != null) {
-    for (var fieldNode = await astNodeFor(field.firstFragment);
-        fieldNode != null;
-        fieldNode = fieldNode.parent) {
+    for (
+      var fieldNode = await astNodeFor(field.firstFragment);
+      fieldNode != null;
+      fieldNode = fieldNode.parent
+    ) {
       if (fieldNode case VariableDeclarationList(:final type?)) {
         return (code: type.toSource(), hasExplicitType: false);
       }
@@ -613,8 +625,8 @@ Future<({String? code, bool hasExplicitType})> _rootParamTypeFact(
 /// The authored type spelling of [formal], or null when it has none.
 String? _formalTypeCode(FormalParameter formal) =>
     formal.functionTypedSuffix == null
-        ? formal.type?.toSource()
-        : _functionFormalType(formal);
+    ? formal.type?.toSource()
+    : _functionFormalType(formal);
 
 /// Renders an old-style function-typed formal as a function type. Parameter
 /// modifiers, metadata and defaults are declaration-only and are dropped.
@@ -647,7 +659,8 @@ String _functionFormalType(FormalParameter formal) {
     if (optionalPositional.isNotEmpty) '[${optionalPositional.join(', ')}]',
     if (named.isNotEmpty) '{${named.join(', ')}}',
   ].join(', ');
-  final source = '${returnType?.toSource() ?? 'dynamic'} Function'
+  final source =
+      '${returnType?.toSource() ?? 'dynamic'} Function'
       '${typeParameters?.toSource() ?? ''}($arguments)';
   return question == null ? source : '$source?';
 }
@@ -667,8 +680,11 @@ _SourceWidgetKind? _widgetKind(ClassElement cls) {
   // A widget whose own build() receives more than its context, such as a
   // ConsumerWidget, builds from that method.
   final build = cls.methods.where((method) => method.name == 'build');
-  if (build.firstOrNull?.formalParameters case [final context, _, ...]
-      when context.type.element?.name == 'BuildContext') {
+  if (build.firstOrNull?.formalParameters case [
+    final context,
+    _,
+    ...,
+  ] when context.type.element?.name == 'BuildContext') {
     return _SourceWidgetKind.stateless;
   }
   var supertype = cls.supertype;
@@ -718,7 +734,8 @@ Future<List<CustomWidgetStateField>?> _collectStateFields(
       issues.add(
         Issue(
           code: IssueCode.stateShapeUnsupported,
-          message: 'State lifecycle method ${method.name}() cannot be '
+          message:
+              'State lifecycle method ${method.name}() cannot be '
               'represented in declarative root source state. Move lifecycle '
               'work into host code or a custom widget.',
           location: '$location.${method.name}',
@@ -734,7 +751,8 @@ Future<List<CustomWidgetStateField>?> _collectStateFields(
       issues.add(
         Issue(
           code: IssueCode.stateShapeUnsupported,
-          message: "State field '${field.name}' has unsupported type "
+          message:
+              "State field '${field.name}' has unsupported type "
               '${field.type}. Root source state supports only bool, int, '
               'double, num, String, and enum fields with constant '
               'initializers.',
@@ -755,7 +773,8 @@ Future<List<CustomWidgetStateField>?> _collectStateFields(
       issues.add(
         Issue(
           code: IssueCode.stateShapeUnsupported,
-          message: "State field '${field.name}' must have a non-null "
+          message:
+              "State field '${field.name}' must have a non-null "
               'constant scalar or enum initializer for root source state.',
           location: '$location.${field.name ?? '<unnamed>'}',
         ),
@@ -803,12 +822,12 @@ Future<Map<String, RecognisedSetState>> _collectReferencedHandlers(
     for (var i = 0; i < methods.length; i++)
       methods[i].name ?? '<unnamed>': switch (methodNodes[i]) {
         final MethodDeclaration methodNode => recogniseSetState(
-            methodNode,
-            stateFieldNames: stateFieldNames,
-          ),
+          methodNode,
+          stateFieldNames: stateFieldNames,
+        ),
         _ => const SetStateUnrecognised(
-            reason: 'the method source was not available to the transpiler',
-          ),
+          reason: 'the method source was not available to the transpiler',
+        ),
       },
   };
 }

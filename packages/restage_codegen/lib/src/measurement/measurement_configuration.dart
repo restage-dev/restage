@@ -70,7 +70,8 @@ Future<MeasurementConfigurationResult> resolveMeasurementConfiguration(
       issues.add(
         Issue(
           code: IssueCode.measurementConfigurationInvalid,
-          message: 'The Measurement setting in ${assetId.path} could not be '
+          message:
+              'The Measurement setting in ${assetId.path} could not be '
               'resolved: $error',
           location: assetId.path,
         ),
@@ -84,7 +85,8 @@ Future<MeasurementConfigurationResult> resolveMeasurementConfiguration(
       issues.add(
         Issue(
           code: IssueCode.measurementConfigurationInvalid,
-          message: 'The Measurement setting in ${assetId.path} could not be '
+          message:
+              'The Measurement setting in ${assetId.path} could not be '
               'resolved.',
           location: assetId.path,
         ),
@@ -111,7 +113,8 @@ Future<MeasurementConfigurationResult> resolveMeasurementConfiguration(
     issues.add(
       Issue(
         code: IssueCode.measurementConfigurationInvalid,
-        message: 'All Restage.configure measurementEnabled values must '
+        message:
+            'All Restage.configure measurementEnabled values must '
             'agree. Found conflicting values at $locations.',
         location: locations,
       ),
@@ -165,7 +168,8 @@ final class _MeasurementConfigurationVisitor extends RecursiveAstVisitor<void> {
       issues.add(
         Issue(
           code: IssueCode.measurementConfigurationInvalid,
-          message: 'Restage.configure may specify measurementEnabled only '
+          message:
+              'Restage.configure may specify measurementEnabled only '
               'once.',
           location: location,
         ),
@@ -180,7 +184,8 @@ final class _MeasurementConfigurationVisitor extends RecursiveAstVisitor<void> {
       issues.add(
         Issue(
           code: IssueCode.measurementConfigurationInvalid,
-          message: 'Restage.configure measurementEnabled must be a '
+          message:
+              'Restage.configure measurementEnabled must be a '
               'compile-time bool literal or const bool reference.',
           location: location,
         ),

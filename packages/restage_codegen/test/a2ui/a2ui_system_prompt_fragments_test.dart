@@ -10,15 +10,15 @@ import 'package:test/test.dart';
 Catalog _threeWidgets() {
   const acme = WidgetLibrary.custom('acme.widgets');
   WidgetEntry widget(String name, String description) => WidgetEntry(
-        wireId: WireId.unallocatedWidget,
-        name: name,
-        library: acme,
-        category: WidgetCategory.decoration,
-        description: description,
-        flutterType: 'package:acme_widgets/$name.dart#$name',
-        childrenSlot: ChildrenSlot.none,
-        properties: const [],
-      );
+    wireId: WireId.unallocatedWidget,
+    name: name,
+    library: acme,
+    category: WidgetCategory.decoration,
+    description: description,
+    flutterType: 'package:acme_widgets/$name.dart#$name',
+    childrenSlot: ChildrenSlot.none,
+    properties: const [],
+  );
   return Catalog(
     schemaVersion: kSupportedSchemaVersion,
     generatedAt: '1970-01-01T00:00:00Z',
@@ -59,77 +59,82 @@ Catalog _noMetadataWidget() {
 }
 
 void main() {
-  test('emits one reviewed catalog ID across the constant and Catalog wiring',
-      () {
-    final catalog = _threeWidgets();
-    final registration = emitA2uiCatalog(
-      catalog,
-      usageByWidget: const {'Alpha': 'Use Alpha for X.'},
-    );
-    final dart = emitA2uiCatalogDart(
-      catalog,
-      registration: registration,
-      usageByWidget: const {'Alpha': 'Use Alpha for X.'},
-    );
+  test(
+    'emits one reviewed catalog ID across the constant and Catalog wiring',
+    () {
+      final catalog = _threeWidgets();
+      final registration = emitA2uiCatalog(
+        catalog,
+        usageByWidget: const {'Alpha': 'Use Alpha for X.'},
+      );
+      final dart = emitA2uiCatalogDart(
+        catalog,
+        registration: registration,
+        usageByWidget: const {'Alpha': 'Use Alpha for X.'},
+      );
 
-    expect(
-      dart,
-      matches(
-        RegExp(
-          r'const String restageA2uiCatalogId =\s*'
-          "'${RegExp.escape(registration.documentId)}';",
-        ),
-      ),
-    );
-    expect(
-      dart,
-      contains(registration.systemPromptFragments.first),
-    );
-    expect(dart, contains('catalogId: restageA2uiCatalogId'));
-
-    final standalone =
-        registration.toJson()['a2uiCatalog']! as Map<String, Object?>;
-    final capability =
-        registration.toJson()['restageCapability']! as Map<String, Object?>;
-    expect(standalone[r'$id'], registration.documentId);
-    expect(standalone['catalogId'], registration.documentId);
-    expect(
-      standalone['systemPromptFragments'],
-      registration.systemPromptFragments,
-    );
-    expect(dart, contains('const RestageA2uiCapability restageA2uiCapability'));
-    expect(
-      dart,
-      contains("schemaDialect: '${standalone[r'$schema']}'"),
-    );
-    expect(
-      dart,
-      contains(
-        "a2uiProtocolVersion: '${standalone['a2uiProtocolVersion']}'",
-      ),
-    );
-    expect(
-      dart,
-      contains(registration.fingerprint),
-    );
-    expect(
-      dart,
-      contains(
-        'catalogContentVersion: ${capability['catalogContentVersion']}',
-      ),
-    );
-    for (final library in capability['availableLibraries']! as List) {
-      final entry = library as Map;
       expect(
         dart,
-        contains("namespace: '${entry['namespace']}'"),
+        matches(
+          RegExp(
+            r'const String restageA2uiCatalogId =\s*'
+            "'${RegExp.escape(registration.documentId)}';",
+          ),
+        ),
       );
-      expect(dart, contains('version: ${entry['version']}'));
-    }
-    for (final entry in (capability['perItemSinceVersion']! as Map).entries) {
-      expect(dart, contains("'${entry.key}': ${entry.value}"));
-    }
-  });
+      expect(
+        dart,
+        contains(registration.systemPromptFragments.first),
+      );
+      expect(dart, contains('id: restageA2uiCatalogId'));
+
+      final standalone =
+          registration.toJson()['a2uiCatalog']! as Map<String, Object?>;
+      final capability =
+          registration.toJson()['restageCapability']! as Map<String, Object?>;
+      expect(standalone[r'$id'], registration.documentId);
+      expect(standalone['catalogId'], registration.documentId);
+      expect(
+        standalone['instructions'],
+        registration.systemPromptFragments.join('\n'),
+      );
+      expect(
+        dart,
+        contains('const RestageA2uiCapability restageA2uiCapability'),
+      );
+      expect(
+        dart,
+        contains("schemaDialect: '${standalone[r'$schema']}'"),
+      );
+      expect(
+        dart,
+        contains(
+          "a2uiProtocolVersion: '${standalone['protocolVersion']}'",
+        ),
+      );
+      expect(
+        dart,
+        contains(registration.fingerprint),
+      );
+      expect(
+        dart,
+        contains(
+          'catalogContentVersion: ${capability['catalogContentVersion']}',
+        ),
+      );
+      for (final library in capability['availableLibraries']! as List) {
+        final entry = library as Map;
+        expect(
+          dart,
+          contains("namespace: '${entry['namespace']}'"),
+        );
+        expect(dart, contains('version: ${entry['version']}'));
+      }
+      for (final entry in (capability['perItemSinceVersion']! as Map).entries) {
+        expect(dart, contains("'${entry.key}': ${entry.value}"));
+      }
+    },
+  );
 
   test('documents the generated identity and integration boundaries', () {
     final catalog = _threeWidgets();
@@ -152,35 +157,17 @@ void main() {
         '/// Content address for exactly the generated custom-only catalog.',
       ),
     );
+    expect(dart, isNot(contains('supportedCatalogIds')));
     expect(
       dart,
       contains(
-        '/// Default A2A supportedCatalogIds use requires server registration',
-      ),
-    );
-    expect(
-      dart,
-      contains('/// of this exact predefined catalog contract.'),
-    );
-    expect(
-      dart,
-      contains('/// GenUI 0.10.1 inline catalogs are serialization-only here;'),
-    );
-    expect(
-      dart,
-      contains('/// no end-to-end inline server interoperability is claimed.'),
-    );
-    expect(
-      dart,
-      contains(
-        '/// Builds the generated custom-only GenUI catalog identified by',
+        '/// Builds the generated custom-only A2UI catalog identified by',
       ),
     );
     expect(dart, contains('/// [restageA2uiCatalogId].'));
   });
 
-  test(
-      'usage overrides description; description is the fallback; '
+  test('usage overrides description; description is the fallback; '
       'both-absent skips the widget', () {
     final dart = emitA2uiCatalogDart(
       _threeWidgets(),
@@ -189,10 +176,16 @@ void main() {
     expect(dart, contains("'Alpha: Use Alpha for X.'"));
     expect(dart, contains("'Beta: Beta desc'"));
     expect(dart, isNot(contains('Gamma:')));
-    expect(dart, contains('Catalog buildRestageCatalog()'));
     expect(
       dart,
-      contains('systemPromptFragments: _restageA2uiSystemPromptFragments'),
+      contains(
+        'CatalogImplementation buildRestageCatalog({required '
+        'String catalogId})',
+      ),
+    );
+    expect(
+      dart,
+      contains('instructions: _restageA2uiSystemPromptFragments.join'),
     );
   });
 
@@ -204,8 +197,8 @@ void main() {
     final stamp = registration.toJson();
     final a2uiCatalog = stamp['a2uiCatalog']! as Map<String, Object?>;
     expect(
-      a2uiCatalog['systemPromptFragments'],
-      registration.systemPromptFragments,
+      a2uiCatalog['instructions'],
+      registration.systemPromptFragments.join('\n'),
     );
     expect(
       registration.nonIdentitySystemPromptFragments,
@@ -235,21 +228,23 @@ void main() {
   });
 
   test(
-      r'a usage containing "$", a CRLF, a single quote, and a newline '
-      'emits without throwing and with the correctly-escaped fragment '
-      'literal', () {
-    const usage = "Costs \$5/mo\r\nDon't miss \$Widget.\nEnd.";
-    final dart = emitA2uiCatalogDart(
-      _threeWidgets(),
-      usageByWidget: {'Alpha': usage},
-    );
-    expect(
-      dart,
-      contains(
-        r"'Alpha: Costs \$5/mo\r\nDon\'t miss \$Widget.\nEnd.'",
-      ),
-    );
-  });
+    r'a usage containing "$", a CRLF, a single quote, and a newline '
+    'emits without throwing and with the correctly-escaped fragment '
+    'literal',
+    () {
+      const usage = "Costs \$5/mo\r\nDon't miss \$Widget.\nEnd.";
+      final dart = emitA2uiCatalogDart(
+        _threeWidgets(),
+        usageByWidget: {'Alpha': usage},
+      );
+      expect(
+        dart,
+        contains(
+          r"'Alpha: Costs \$5/mo\r\nDon\'t miss \$Widget.\nEnd.'",
+        ),
+      );
+    },
+  );
 
   test('a catalog with no metadata carries only its identity fragment', () {
     final registration = emitA2uiCatalog(_noMetadataWidget());
@@ -257,8 +252,8 @@ void main() {
     final a2uiCatalog = stamp['a2uiCatalog']! as Map<String, Object?>;
     expect(registration.nonIdentitySystemPromptFragments, isEmpty);
     expect(
-      a2uiCatalog['systemPromptFragments'],
-      registration.systemPromptFragments,
+      a2uiCatalog['instructions'],
+      registration.systemPromptFragments.join('\n'),
     );
     expect(registration.systemPromptFragments, hasLength(1));
   });

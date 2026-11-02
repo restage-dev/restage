@@ -15,7 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 ''';
 
-String _stateless(String name, String body, {String extraImports = ''}) => '''
+String _stateless(String name, String body, {String extraImports = ''}) =>
+    '''
 $_imports$extraImports
 @Paywall()
 class $name extends StatelessWidget {
@@ -259,7 +260,8 @@ final String _sourceNestedInnocuousWidgetKey = _stateless(
     return child;''',
 );
 
-const String _sourceEffectfulWidgetKey = '''
+const String _sourceEffectfulWidgetKey =
+    '''
 $_imports
 Key auditedKey(BuildContext context) {
   Navigator.push<void>(
@@ -281,7 +283,8 @@ class SourceEffectfulWidgetKey extends StatelessWidget {
 }
 ''';
 
-const String _sourceNestedEffectfulWidgetKey = '''
+const String _sourceNestedEffectfulWidgetKey =
+    '''
 $_imports
 Key auditedKey(BuildContext context) {
   Navigator.push<void>(
@@ -304,7 +307,8 @@ class SourceNestedEffectfulWidgetKey extends StatelessWidget {
 }
 ''';
 
-const String _valueKeyTypedWidgetKey = '''
+const String _valueKeyTypedWidgetKey =
+    '''
 $_imports
 class ValueKeyHost extends StatelessWidget {
   const ValueKeyHost({ValueKey<String>? key}) : super(key: key);
@@ -325,7 +329,8 @@ class ValueKeyTypedWidgetKey extends StatelessWidget {
 }
 ''';
 
-const String _boundedGenericWidgetKey = '''
+const String _boundedGenericWidgetKey =
+    '''
 $_imports
 class GenericKeyHost<T extends Key> extends StatelessWidget {
   const GenericKeyHost({T? key}) : super(key: key);
@@ -353,9 +358,9 @@ _CustomWidgetFixture _customWidgetFixture(
   String name,
   String body, {
   String helper = '',
-}) =>
-    (
-      widget: '''
+}) => (
+  widget:
+      '''
 import 'package:flutter/material.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -381,7 +386,8 @@ $body
   }
 }
 ''',
-      root: '''
+  root:
+      '''
 $_imports
 import '../widgets/$slug.dart';
 
@@ -393,7 +399,7 @@ class ${name}Surface extends StatelessWidget {
   Widget build(BuildContext context) => const $name();
 }
 ''',
-    );
+);
 
 final _CustomWidgetFixture _customUnreadInnocuous = _customWidgetFixture(
   'custom_unread_innocuous',
@@ -552,9 +558,10 @@ Future<TestReaderWriter> _seeded(Map<String, String> sources) async {
 String _text(TestBuilderResult result, String id) => result.readerWriter.testing
     .readString(AssetId(_package, 'assets/paywalls/$id.rfwtxt'));
 
-List<int> _bytes(TestBuilderResult result, String id) =>
-    result.readerWriter.testing
-        .readBytes(AssetId(_package, 'assets/paywalls/$id.rfw'));
+List<int> _bytes(TestBuilderResult result, String id) => result
+    .readerWriter
+    .testing
+    .readBytes(AssetId(_package, 'assets/paywalls/$id.rfw'));
 
 void _expectTwins(TestBuilderResult result, String prelude, String inlined) {
   expect(_text(result, prelude), _text(result, inlined));
@@ -676,27 +683,31 @@ void main() {
     expect(log, contains('route'));
   });
 
-  test('an innocuous source local used only as widget key emits nothing',
-      () async {
-    final log = await _refusalLog(
-      'source_innocuous_widget_key',
-      _sourceInnocuousWidgetKey,
-    );
-    expect(log, contains("local 'key'"));
-    expect(log, contains('read only as a widget key'));
-    expect(log, contains('discards key operands'));
-  });
+  test(
+    'an innocuous source local used only as widget key emits nothing',
+    () async {
+      final log = await _refusalLog(
+        'source_innocuous_widget_key',
+        _sourceInnocuousWidgetKey,
+      );
+      expect(log, contains("local 'key'"));
+      expect(log, contains('read only as a widget key'));
+      expect(log, contains('discards key operands'));
+    },
+  );
 
-  test('an effectful source local used only as widget key emits nothing',
-      () async {
-    final log = await _refusalLog(
-      'source_effectful_widget_key',
-      _sourceEffectfulWidgetKey,
-    );
-    expect(log, contains("local 'key'"));
-    expect(log, contains('read only as a widget key'));
-    expect(log, contains('discards key operands'));
-  });
+  test(
+    'an effectful source local used only as widget key emits nothing',
+    () async {
+      final log = await _refusalLog(
+        'source_effectful_widget_key',
+        _sourceEffectfulWidgetKey,
+      );
+      expect(log, contains("local 'key'"));
+      expect(log, contains('read only as a widget key'));
+      expect(log, contains('discards key operands'));
+    },
+  );
 
   test('a nested source widget-key local remains unread', () async {
     final log = await _refusalLog(
@@ -738,51 +749,59 @@ void main() {
     expect(log, contains('discards key operands'));
   });
 
-  test('a custom widget with an innocuous unread local emits nothing',
-      () async {
-    final log = await _refusalLog(
-      'custom_unread_innocuous',
-      _customUnreadInnocuous.root,
-      customWidgetSource: _customUnreadInnocuous.widget,
-    );
-    expect(log, contains("local 'label'"));
-    expect(log, contains('never read'));
-  });
+  test(
+    'a custom widget with an innocuous unread local emits nothing',
+    () async {
+      final log = await _refusalLog(
+        'custom_unread_innocuous',
+        _customUnreadInnocuous.root,
+        customWidgetSource: _customUnreadInnocuous.widget,
+      );
+      expect(log, contains("local 'label'"));
+      expect(log, contains('never read'));
+    },
+  );
 
-  test('a custom widget with an effectful unread local emits nothing',
-      () async {
-    final log = await _refusalLog(
-      'custom_unread_effectful',
-      _customUnreadEffectful.root,
-      customWidgetSource: _customUnreadEffectful.widget,
-    );
-    expect(log, contains("local 'pushed'"));
-    expect(log, contains('never read'));
-  });
+  test(
+    'a custom widget with an effectful unread local emits nothing',
+    () async {
+      final log = await _refusalLog(
+        'custom_unread_effectful',
+        _customUnreadEffectful.root,
+        customWidgetSource: _customUnreadEffectful.widget,
+      );
+      expect(log, contains("local 'pushed'"));
+      expect(log, contains('never read'));
+    },
+  );
 
-  test('an innocuous custom local used only as widget key emits nothing',
-      () async {
-    final log = await _refusalLog(
-      'custom_key_innocuous',
-      _customKeyInnocuous.root,
-      customWidgetSource: _customKeyInnocuous.widget,
-    );
-    expect(log, contains("local 'key'"));
-    expect(log, contains('read only as a widget key'));
-    expect(log, contains('discards key operands'));
-  });
+  test(
+    'an innocuous custom local used only as widget key emits nothing',
+    () async {
+      final log = await _refusalLog(
+        'custom_key_innocuous',
+        _customKeyInnocuous.root,
+        customWidgetSource: _customKeyInnocuous.widget,
+      );
+      expect(log, contains("local 'key'"));
+      expect(log, contains('read only as a widget key'));
+      expect(log, contains('discards key operands'));
+    },
+  );
 
-  test('an effectful custom local used only as widget key emits nothing',
-      () async {
-    final log = await _refusalLog(
-      'custom_key_effectful',
-      _customKeyEffectful.root,
-      customWidgetSource: _customKeyEffectful.widget,
-    );
-    expect(log, contains("local 'key'"));
-    expect(log, contains('read only as a widget key'));
-    expect(log, contains('discards key operands'));
-  });
+  test(
+    'an effectful custom local used only as widget key emits nothing',
+    () async {
+      final log = await _refusalLog(
+        'custom_key_effectful',
+        _customKeyEffectful.root,
+        customWidgetSource: _customKeyEffectful.widget,
+      );
+      expect(log, contains("local 'key'"));
+      expect(log, contains('read only as a widget key'));
+      expect(log, contains('discards key operands'));
+    },
+  );
 
   test('a nested custom widget-key local remains unread', () async {
     final log = await _refusalLog(
@@ -834,15 +853,17 @@ void main() {
     expect(log, contains('cyclic build() binding'));
   });
 
-  test('a custom widget rejects a transitive cycle through a widget key',
-      () async {
-    final log = await _refusalLog(
-      'custom_key_transitive_cycle',
-      _customKeyTransitiveCycle.root,
-      customWidgetSource: _customKeyTransitiveCycle.widget,
-    );
-    expect(log, contains('cyclic build() binding'));
-  });
+  test(
+    'a custom widget rejects a transitive cycle through a widget key',
+    () async {
+      final log = await _refusalLog(
+        'custom_key_transitive_cycle',
+        _customKeyTransitiveCycle.root,
+        customWidgetSource: _customKeyTransitiveCycle.widget,
+      );
+      expect(log, contains('cyclic build() binding'));
+    },
+  );
 
   test('a custom widget rejects grouped final declarations', () async {
     final log = await _refusalLog(

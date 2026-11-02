@@ -35,8 +35,9 @@ final Map<WidgetLibrary, AssetId> builtInCatalogAssetIds = Map.unmodifiable({
 /// Built-ins keep their priority; custom packages follow in name order.
 /// Packages without a generated catalog contribute nothing.
 Future<Catalog> loadMergedCatalog(BuildStep buildStep) async =>
-    await (await buildStep.fetchResource(_catalogResource))
-        .getOrLoad(buildStep);
+    await (await buildStep.fetchResource(
+      _catalogResource,
+    )).getOrLoad(buildStep);
 
 Future<Catalog> _loadMergedCatalog(
   BuildStep buildStep,
@@ -92,26 +93,30 @@ Future<Catalog> _loadMergedCatalog(
   // already emits this order per file; the merge preserves it.
   const builtIns = WidgetLibrary.builtInLibraries;
   widgets.sort((a, b) {
-    final byLib =
-        builtIns.indexOf(a.library).compareTo(builtIns.indexOf(b.library));
+    final byLib = builtIns
+        .indexOf(a.library)
+        .compareTo(builtIns.indexOf(b.library));
     if (byLib != 0) return byLib;
     return a.name.compareTo(b.name);
   });
   structuredTypes.sort((a, b) {
-    final byLib =
-        builtIns.indexOf(a.library).compareTo(builtIns.indexOf(b.library));
+    final byLib = builtIns
+        .indexOf(a.library)
+        .compareTo(builtIns.indexOf(b.library));
     if (byLib != 0) return byLib;
     return a.name.compareTo(b.name);
   });
   unions.sort((a, b) {
-    final byLib =
-        builtIns.indexOf(a.library).compareTo(builtIns.indexOf(b.library));
+    final byLib = builtIns
+        .indexOf(a.library)
+        .compareTo(builtIns.indexOf(b.library));
     if (byLib != 0) return byLib;
     return a.name.compareTo(b.name);
   });
   designTokens.sort((a, b) {
-    final byLib =
-        builtIns.indexOf(a.library).compareTo(builtIns.indexOf(b.library));
+    final byLib = builtIns
+        .indexOf(a.library)
+        .compareTo(builtIns.indexOf(b.library));
     if (byLib != 0) return byLib;
     return a.name.compareTo(b.name);
   });
@@ -240,7 +245,8 @@ Map<String, WireIdRef> builtInStructuredRefs(
   final refs = <String, WireIdRef>{};
   for (final structured in builtIn.structuredTypes) {
     if (!decodableNames.contains(structured.name) &&
-        nativeBindingRoute(structured.sourceType) == null) continue;
+        nativeBindingRoute(structured.sourceType) == null)
+      continue;
     refs.putIfAbsent(
       structured.sourceType,
       () => WireIdRef(
@@ -255,17 +261,19 @@ Map<String, WireIdRef> builtInStructuredRefs(
 /// Custom catalog owners in the declared dependency graph, cached per build.
 /// Every caller records the pubspec probes that determined this graph.
 Future<List<String>> customCatalogPackages(BuildStep buildStep) async =>
-    await (await buildStep.fetchResource(_catalogResource))
-        .packagesFor(buildStep);
+    await (await buildStep.fetchResource(
+      _catalogResource,
+    )).packagesFor(buildStep);
 
-final _catalogResource =
-    Resource<CatalogPerBuildCache>(CatalogPerBuildCache.new);
+final _catalogResource = Resource<CatalogPerBuildCache>(
+  CatalogPerBuildCache.new,
+);
 
 /// Shares dependency discovery and merged catalogs within one build pass.
 class CatalogPerBuildCache {
   /// Creates a cache, optionally substituting the catalog loader.
   CatalogPerBuildCache({Future<Catalog> Function(BuildStep)? load})
-      : _load = load;
+    : _load = load;
 
   final Future<Catalog> Function(BuildStep)? _load;
   final _dependencies = <String, Future<List<String>>>{};
@@ -275,8 +283,9 @@ class CatalogPerBuildCache {
 
   /// Discovers each package graph once and replays its input edges per caller.
   Future<List<String>> packagesFor(BuildStep buildStep) async {
-    final graph =
-        await (_graphs[buildStep.inputId.package] ??= _discover(buildStep));
+    final graph = await (_graphs[buildStep.inputId.package] ??= _discover(
+      buildStep,
+    ));
     for (final package in graph.inputs) {
       await buildStep.canRead(AssetId(package, 'pubspec.yaml'));
     }
@@ -306,13 +315,16 @@ class CatalogPerBuildCache {
     while (pending.isNotEmpty) {
       final package = pending.removeLast();
       if (!visited.add(package)) continue;
-      final dependencies = await (_dependencies[package] ??=
-          _readDependencies(buildStep, package));
+      final dependencies = await (_dependencies[package] ??= _readDependencies(
+        buildStep,
+        package,
+      ));
       pending.addAll(dependencies);
     }
     final inputs = visited.toList()..sort();
-    final builtIns =
-        builtInCatalogAssetIds.values.map((id) => id.package).toSet();
+    final builtIns = builtInCatalogAssetIds.values
+        .map((id) => id.package)
+        .toSet();
     return (
       inputs: List<String>.unmodifiable(inputs),
       packages: List<String>.unmodifiable(
@@ -352,6 +364,6 @@ class CatalogPerBuildCache {
 /// name is registered in two or more libraries (e.g. a custom library
 /// that shadows a built-in name).
 List<WidgetEntry> findWidgetsByName(Catalog catalog, String name) => [
-      for (final w in catalog.widgets)
-        if (w.name == name) w,
-    ];
+  for (final w in catalog.widgets)
+    if (w.name == name) w,
+];

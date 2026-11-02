@@ -15,10 +15,10 @@ const restageLibrary = 0;
 ''';
 
 void main() {
-  test(
-      'nullable named exact custom list preserves null and authored list '
+  test('nullable named exact custom list preserves null and authored list '
       'values and analyze clean', () async {
-    const source = '''
+    const source =
+        '''
       import 'package:flutter/widgets.dart';
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -85,10 +85,14 @@ void main() {
     };
     final dart = await _buildFactories(sources);
     final nullable = _factorySource(dart, 'NullableChildrenProbe');
-    final nullableDefault =
-        _factorySource(dart, 'NullableDefaultChildrenProbe');
-    final nonNullableDefault =
-        _factorySource(dart, 'NonNullableDefaultChildrenProbe');
+    final nullableDefault = _factorySource(
+      dart,
+      'NullableDefaultChildrenProbe',
+    );
+    final nonNullableDefault = _factorySource(
+      dart,
+      'NonNullableDefaultChildrenProbe',
+    );
     final nullableFlat = nullable.replaceAll(RegExp(r'\s+'), ' ');
 
     expect(
@@ -97,7 +101,8 @@ void main() {
         "regions: RestageDecoders.isWidgetList(source, const <Object>['regions']) ? "
         "RestageDecoders.widgetList(source, const <Object>['regions'], context: context, bindings: builderBindings) : null,",
       ),
-      reason: 'missing and explicit-null inputs must remain null, while both '
+      reason:
+          'missing and explicit-null inputs must remain null, while both '
           'empty and non-empty authored lists must retain childList lowering',
     );
     expect(
@@ -108,7 +113,8 @@ void main() {
           "const <Object>['regions'], context: context, bindings: builderBindings)",
         ),
       ),
-      reason: 'the direct childList read collapses missing/null to an empty '
+      reason:
+          'the direct childList read collapses missing/null to an empty '
           'list',
     );
     expect(
@@ -123,30 +129,34 @@ void main() {
       expect(
         flat.replaceAll(' ', ''),
         contains(
-            'RestageDecoders.isWidgetList(source,restagePresenceRegions.valuePath)'),
-        reason: 'authored empty and non-empty lists must stay on the list '
+          'RestageDecoders.isWidgetList(source,restagePresenceRegions.valuePath)',
+        ),
+        reason:
+            'authored empty and non-empty lists must stay on the list '
             'decoder path',
       );
     }
     expect(
       nullableDefault.replaceAll(RegExp(r'\s+'), ''),
       contains(':null,'),
-      reason: 'an explicit null must not select the non-null constructor '
+      reason:
+          'an explicit null must not select the non-null constructor '
           'default',
     );
     expect(
       nonNullableDefault,
       contains('NonNullableDefaultChildrenProbe.regions is required.'),
-      reason: 'the non-nullable default control must still reject a supplied '
+      reason:
+          'the non-nullable default control must still reject a supplied '
           'null instead of replacing it with an empty list',
     );
     await _expectGeneratedAnalyzesClean(sources, dart);
   });
 
-  test(
-      'optional positional exact custom list emits once with its real '
+  test('optional positional exact custom list emits once with its real '
       'binding and analyze clean', () async {
-    const source = '''
+    const source =
+        '''
       import 'package:flutter/widgets.dart';
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -217,7 +227,8 @@ void main() {
       expect(
         flat.replaceAll(' ', ''),
         contains(
-            'RestageDecoders.isWidgetList(source,restagePresenceRegions.valuePath)'),
+          'RestageDecoders.isWidgetList(source,restagePresenceRegions.valuePath)',
+        ),
         reason: 'a supplied value must retain list-shape validation',
       );
       expect(
@@ -246,10 +257,10 @@ void main() {
     await _expectGeneratedAnalyzesClean(sources, dart);
   });
 
-  test(
-      'optional positional gaps use exact defaults without shifting later '
+  test('optional positional gaps use exact defaults without shifting later '
       'values or blocking trailing omission', () async {
-    const source = '''
+    const source =
+        '''
       import 'package:flutter/widgets.dart';
       import 'package:apps_examples/defaults.dart';
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -324,7 +335,8 @@ void main() {
     expect(
       dart,
       contains("import 'package:apps_examples/defaults.dart' as"),
-      reason: 'the exact default used to fill a positional gap needs its '
+      reason:
+          'the exact default used to fill a positional gap needs its '
           'public nested identity import',
     );
     expect(gap, isNot(contains('#tones:')));
@@ -361,7 +373,8 @@ void main() {
     expect(
       forcedFlat,
       contains('restagePresenceTones.supplied ?'),
-      reason: 'an unconditionally emitted later slot must force the earlier '
+      reason:
+          'an unconditionally emitted later slot must force the earlier '
           'slot into the prefix',
     );
     expect(
@@ -375,10 +388,10 @@ void main() {
     await _expectGeneratedAnalyzesClean(sources, dart);
   });
 
-  test(
-      'trailing structured-list omission prunes an unused nested default '
+  test('trailing structured-list omission prunes an unused nested default '
       'identity import', () async {
-    const source = '''
+    const source =
+        '''
       import 'package:flutter/widgets.dart';
       import 'package:apps_examples/defaults.dart';
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -423,7 +436,8 @@ void main() {
     expect(
       dart,
       isNot(contains("import 'package:apps_examples/defaults.dart'")),
-      reason: 'Dart applies the trailing structured-list constructor default, '
+      reason:
+          'Dart applies the trailing structured-list constructor default, '
           'so its nested identity must not leave a stale import',
     );
     expect(
@@ -479,8 +493,9 @@ Future<void> _expectGeneratedAnalyzesClean(
     {...sources, generatedId: generated},
     (resolver) async {
       final library = await resolver.libraryFor(AssetId.parse(generatedId));
-      final resolved =
-          await library.session.getResolvedLibraryByElement(library);
+      final resolved = await library.session.getResolvedLibraryByElement(
+        library,
+      );
       if (resolved is! ResolvedLibraryResult) {
         throw StateError('Generated user_factories.g.dart did not resolve.');
       }
@@ -494,7 +509,8 @@ Future<void> _expectGeneratedAnalyzesClean(
       expect(
         diagnostics,
         isEmpty,
-        reason: 'generated factories must have no errors or warnings:\n'
+        reason:
+            'generated factories must have no errors or warnings:\n'
             '$generated',
       );
     },

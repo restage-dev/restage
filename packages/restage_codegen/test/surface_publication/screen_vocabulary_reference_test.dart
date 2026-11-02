@@ -43,34 +43,38 @@ void main() {
       expect(emitted, isNot(contains('buildCupertinoButton')));
     });
 
-    test('omits the argument when the screen names nothing installable',
-        () async {
-      final inspection = await _inspect(
-        _screenSource("import 'package:flutter/material.dart';"),
-      );
+    test(
+      'omits the argument when the screen names nothing installable',
+      () async {
+        final inspection = await _inspect(
+          _screenSource("import 'package:flutter/material.dart';"),
+        );
 
-      expect(inspection.issues, isEmpty);
-      expect(
-        _provenanceDeclaration(inspection.contract!.emitReferenceDart()),
-        isNot(contains('vocabulary:')),
-      );
-    });
+        expect(inspection.issues, isEmpty);
+        expect(
+          _provenanceDeclaration(inspection.contract!.emitReferenceDart()),
+          isNot(contains('vocabulary:')),
+        );
+      },
+    );
 
-    test('rebuilds an icon a source importing only widgets.dart names',
-        () async {
-      // The generated part is a part of a file that imports the SDK, which is
-      // the only identity the rebuilt icon names.
-      final inspection = await _inspect(
-        _screenSource("import 'package:flutter/widgets.dart';"),
-        vocabulary: SurfaceVocabularyReferences(icons: const [_check]),
-      );
+    test(
+      'rebuilds an icon a source importing only widgets.dart names',
+      () async {
+        // The generated part is a part of a file that imports the SDK, which is
+        // the only identity the rebuilt icon names.
+        final inspection = await _inspect(
+          _screenSource("import 'package:flutter/widgets.dart';"),
+          vocabulary: SurfaceVocabularyReferences(icons: const [_check]),
+        );
 
-      expect(inspection.issues, isEmpty);
-      expect(
-        _packed(inspection.contract!.emitReferenceDart()),
-        contains("0xe156:IconData(0xe156,fontFamily:'MaterialIcons'"),
-      );
-    });
+        expect(inspection.issues, isEmpty);
+        expect(
+          _packed(inspection.contract!.emitReferenceDart()),
+          contains("0xe156:IconData(0xe156,fontFamily:'MaterialIcons'"),
+        );
+      },
+    );
   });
 }
 
@@ -89,7 +93,8 @@ String _provenanceDeclaration(String source) => parseString(content: source)
     )
     .toSource();
 
-String _screenSource(String flutterImport) => '''
+String _screenSource(String flutterImport) =>
+    '''
 $flutterImport
 import 'package:restage/restage.dart';
 
@@ -121,9 +126,7 @@ Future<StandaloneScreenContractInspection> _inspect(
       final screenInput = (await inspectCanonicalScreenDeclarations(
         library,
         resolvedAssetId,
-      ))
-          .screens
-          .singleWhere((candidate) => candidate.declaration == screen);
+      )).screens.singleWhere((candidate) => candidate.declaration == screen);
       inspection = inspectStandaloneScreenContract(
         ResolvedStandaloneScreenContractInput(
           assetId: resolvedAssetId,
@@ -154,12 +157,12 @@ final class _ProbeBuilder implements Builder {
   _ProbeBuilder(this.onLibrary);
 
   final Future<void> Function(LibraryElement library, AssetId assetId)
-      onLibrary;
+  onLibrary;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.screen_vocabulary_probe'],
-      };
+    '.dart': ['.screen_vocabulary_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

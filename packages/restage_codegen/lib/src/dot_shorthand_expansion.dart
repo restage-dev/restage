@@ -64,11 +64,11 @@ final class _ShorthandCollector extends RecursiveAstVisitor<void> {
 }
 
 ExpressionImpl? _longForm(Expression node) => switch (node) {
-      DotShorthandConstructorInvocationImpl() => _constructorInvocation(node),
-      DotShorthandInvocationImpl() => _methodInvocation(node),
-      DotShorthandPropertyAccessImpl() => _propertyAccess(node),
-      _ => null,
-    };
+  DotShorthandConstructorInvocationImpl() => _constructorInvocation(node),
+  DotShorthandInvocationImpl() => _methodInvocation(node),
+  DotShorthandPropertyAccessImpl() => _propertyAccess(node),
+  _ => null,
+};
 
 InstanceCreationExpressionImpl? _constructorInvocation(
   DotShorthandConstructorInvocationImpl node,
@@ -83,14 +83,15 @@ InstanceCreationExpressionImpl? _constructorInvocation(
       : target.returnType;
   final period = node.period;
   final owner = target.enclosingElement;
-  final namedType = NamedTypeImpl(
-    importPrefix: null,
-    name: _ownerToken(owner, period),
-    typeArguments: null,
-    question: null,
-  )
-    ..element = owner
-    ..type = type;
+  final namedType =
+      NamedTypeImpl(
+          importPrefix: null,
+          name: _ownerToken(owner, period),
+          typeArguments: null,
+          question: null,
+        )
+        ..element = owner
+        ..type = type;
   final unnamed = target.name == null || target.name == 'new';
   final name = ConstructorNameImpl(
     type: namedType,
@@ -109,12 +110,12 @@ MethodInvocationImpl? _methodInvocation(DotShorthandInvocationImpl node) {
   final owner = node.memberName.element?.enclosingElement;
   if (owner == null) return null;
   return MethodInvocationImpl(
-    target: _ownerIdentifier(owner, node.period),
-    operator: node.period,
-    methodName: node.memberName,
-    typeArguments: node.typeArguments,
-    argumentList: node.argumentList,
-  )
+      target: _ownerIdentifier(owner, node.period),
+      operator: node.period,
+      methodName: node.memberName,
+      typeArguments: node.typeArguments,
+      argumentList: node.argumentList,
+    )
     ..staticInvokeType = node.staticInvokeType
     ..setPseudoExpressionStaticType(node.staticType);
 }
@@ -180,7 +181,9 @@ Element _aliasTarget(Element element) {
         referenced.enclosingElement is! InterfaceElement ||
         referenced.enclosingElement.isPrivate ||
         !_isSubtypeOwner(
-            referenced.enclosingElement, current.enclosingElement)) {
+          referenced.enclosingElement,
+          current.enclosingElement,
+        )) {
       break;
     }
     current = referenced;
@@ -215,11 +218,11 @@ SimpleIdentifierImpl _ownerIdentifier(Element owner, Token period) =>
 
 // Zero-length at the period, so the long form keeps the shorthand's span.
 StringToken _ownerToken(Element owner, Token period) => SyntheticStringToken(
-      TokenType.IDENTIFIER,
-      owner.name ?? '',
-      period.offset,
-      0,
-    );
+  TokenType.IDENTIFIER,
+  owner.name ?? '',
+  period.offset,
+  0,
+);
 
 /// Resolves [library] with its dot shorthands in long form.
 Future<SomeResolvedLibraryResult> resolveLibraryInLongForm(

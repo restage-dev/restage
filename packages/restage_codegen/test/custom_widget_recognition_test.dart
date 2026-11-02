@@ -20,8 +20,7 @@ const String _acmeWidgetSource = '''
 
 void main() {
   group('ExpressionTranslator — custom-widget recognition', () {
-    test(
-        'a composable widget needing a deferred mechanism emits '
+    test('a composable widget needing a deferred mechanism emits '
         'customWidgetInliningDeferred', () async {
       // An inlinable-now composable widget is inlined (see
       // custom_widget_inlining_test.dart). An inlineable widget that still
@@ -75,27 +74,28 @@ void main() {
       expect(result.issues.single.location, '$_key@9:7');
     });
 
-    test('an unclassifiable custom widget emits customWidgetUnclassified',
-        () async {
-      final translator = ExpressionTranslator(
-        catalog: kEmptyCatalog,
-        helpers: HelperRegistry(),
-        customWidgetClassifications: {
-          _key: const UnclassifiableWidget(
-            _key,
-            reason: 'build() body is not a single returned expression',
-          ),
-        },
-      );
-      final expr = await parseExpressionFromSourceForTest(_acmeWidgetSource);
-      final result = translator.translate(expr);
-
-      expect(result.issues, hasLength(1));
-      expect(result.issues.single.code, IssueCode.customWidgetUnclassified);
-    });
-
     test(
-        "an UnclassifiableWidget's diagnosticCode override flows through "
+      'an unclassifiable custom widget emits customWidgetUnclassified',
+      () async {
+        final translator = ExpressionTranslator(
+          catalog: kEmptyCatalog,
+          helpers: HelperRegistry(),
+          customWidgetClassifications: {
+            _key: const UnclassifiableWidget(
+              _key,
+              reason: 'build() body is not a single returned expression',
+            ),
+          },
+        );
+        final expr = await parseExpressionFromSourceForTest(_acmeWidgetSource);
+        final result = translator.translate(expr);
+
+        expect(result.issues, hasLength(1));
+        expect(result.issues.single.code, IssueCode.customWidgetUnclassified);
+      },
+    );
+
+    test("an UnclassifiableWidget's diagnosticCode override flows through "
         '(e.g. themeReadIntermediateVariable)', () async {
       final translator = ExpressionTranslator(
         catalog: kEmptyCatalog,
@@ -103,7 +103,8 @@ void main() {
         customWidgetClassifications: {
           _key: const UnclassifiableWidget(
             _key,
-            reason: 'build() reads Theme.of(...) into an intermediate '
+            reason:
+                'build() reads Theme.of(...) into an intermediate '
                 'variable; the transpiler cannot follow intermediate variables',
             diagnosticCode: IssueCode.themeReadIntermediateVariable,
           ),
@@ -120,26 +121,27 @@ void main() {
       expect(result.issues.single.message, contains('intermediate variable'));
     });
 
-    test('an unknown widget absent from the map still errors unknownWidget',
-        () async {
-      final translator = ExpressionTranslator(
-        catalog: kEmptyCatalog,
-        helpers: HelperRegistry(),
-      );
-      final expr = await parseExpressionFromSourceForTest(_acmeWidgetSource);
-      final result = translator.translate(expr);
+    test(
+      'an unknown widget absent from the map still errors unknownWidget',
+      () async {
+        final translator = ExpressionTranslator(
+          catalog: kEmptyCatalog,
+          helpers: HelperRegistry(),
+        );
+        final expr = await parseExpressionFromSourceForTest(_acmeWidgetSource);
+        final result = translator.translate(expr);
 
-      expect(result.issues, hasLength(1));
-      expect(result.issues.single.code, IssueCode.unknownWidget);
-      // The normalised wording points the author at @RestageWidget rather
-      // than claiming custom widgets are unsupported.
-      expect(result.issues.single.message, contains('@RestageWidget'));
-    });
+        expect(result.issues, hasLength(1));
+        expect(result.issues.single.code, IssueCode.unknownWidget);
+        // The normalised wording points the author at @RestageWidget rather
+        // than claiming custom widgets are unsupported.
+        expect(result.issues.single.message, contains('@RestageWidget'));
+      },
+    );
   });
 
   group('RestageCodegenBuilder — custom-widget recognition', () {
-    test(
-        'a paywall referencing a custom widget surfaces the classified '
+    test('a paywall referencing a custom widget surfaces the classified '
         'diagnostic, not unknownWidget', () async {
       const source = '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';

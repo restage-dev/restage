@@ -140,7 +140,9 @@ final class DartImportPlanner {
       final resolvedUri = reservation.libraryUri == null
           ? null
           : publicDartImportUri(reservation.libraryUri!);
-      resolvedReservations.putIfAbsent(reservation.symbol, () => []).add(
+      resolvedReservations
+          .putIfAbsent(reservation.symbol, () => [])
+          .add(
             _ResolvedBareReservation(
               libraryUri: resolvedUri,
               source: reservation.source,
@@ -155,8 +157,9 @@ final class DartImportPlanner {
         return byUri != 0 ? byUri : left.source.compareTo(right.source);
       });
     }
-    for (final entry in resolvedReservations.entries.toList()
-      ..sort((left, right) => left.key.compareTo(right.key))) {
+    for (final entry
+        in resolvedReservations.entries.toList()
+          ..sort((left, right) => left.key.compareTo(right.key))) {
       final bindings = <String, _ResolvedBareReservation>{};
       for (final reservation in entry.value) {
         final identity = reservation.libraryUri == null
@@ -170,7 +173,7 @@ final class DartImportPlanner {
           reservation.libraryUri == null
               ? reservation.source
               : '${reservation.source} '
-                  '(${reservation.libraryUri}#${entry.key})',
+                    '(${reservation.libraryUri}#${entry.key})',
       ];
       throw StateError(
         'Dart bare symbol `${entry.key}` has conflicting bare namespace '
@@ -197,8 +200,9 @@ final class DartImportPlanner {
       }
       final uri = publicDartImportUri(request.libraryUri);
       var alreadyProvided = false;
-      for (final reservation in resolvedReservations[request.symbol] ??
-          const <_ResolvedBareReservation>[]) {
+      for (final reservation
+          in resolvedReservations[request.symbol] ??
+              const <_ResolvedBareReservation>[]) {
         if (reservation.libraryUri == uri) {
           alreadyProvided = true;
           continue;
@@ -206,7 +210,7 @@ final class DartImportPlanner {
         final existingIdentity = reservation.libraryUri == null
             ? reservation.source
             : '${reservation.source} '
-                '(${reservation.libraryUri}#${request.symbol})';
+                  '(${reservation.libraryUri}#${request.symbol})';
         throw StateError(
           'Dart type $uri#${request.symbol} at ${request.sourcePath} cannot '
           'be imported bare: `${request.symbol}` is already bound by '
@@ -283,8 +287,9 @@ final class DartImportPlanner {
       }
     }
     for (final entry in uriByPrefix.entries) {
-      for (final reservation in resolvedReservations[entry.key] ??
-          const <_ResolvedBareReservation>[]) {
+      for (final reservation
+          in resolvedReservations[entry.key] ??
+              const <_ResolvedBareReservation>[]) {
         throw StateError(
           'Dart import ${entry.value} cannot use prefix ${entry.key}: that '
           'name is already bound by ${reservation.source}.',
@@ -355,10 +360,10 @@ final class DartImportPlanner {
   /// Unprefixed and `dart:core` identities are absent. Both analyzer defining
   /// URIs and their resolved public Flutter barrel URI map to the same prefix.
   Map<String, String> get prefixesBySourceUri => Map.unmodifiable({
-        for (final entry in _resolvedBySource.entries)
-          if (_prefixByResolvedUri[entry.value] case final prefix?)
-            entry.key: prefix,
-      });
+    for (final entry in _resolvedBySource.entries)
+      if (_prefixByResolvedUri[entry.value] case final prefix?)
+        entry.key: prefix,
+  });
 
   /// Qualifies public [symbol] from [libraryUri] according to this plan.
   String qualify(String libraryUri, String symbol) {
@@ -390,13 +395,13 @@ final class DartImportPlanner {
 
   /// Renders [type] with every generic argument qualified independently.
   String renderType(DartTypeIdentity type) => switch (type) {
-        DartNamedTypeIdentity() => _renderNamedType(
-            type,
-            _qualifyType,
-            renderType,
-          ),
-        DartRecordTypeIdentity() => _renderRecordType(type, renderType),
-      };
+    DartNamedTypeIdentity() => _renderNamedType(
+      type,
+      _qualifyType,
+      renderType,
+    ),
+    DartRecordTypeIdentity() => _renderRecordType(type, renderType),
+  };
 
   /// Qualifies a public top-level or owner-qualified static reference.
   String qualifyReference({
@@ -452,46 +457,43 @@ final class DartImportPlanner {
 Set<String> dartTypeIdentityLibraryUris(DartTypeIdentity type) =>
     switch (type) {
       DartNamedTypeIdentity(:final libraryUri, :final typeArguments) => {
-          libraryUri,
-          for (final argument in typeArguments)
-            ...dartTypeIdentityLibraryUris(argument),
-        },
+        libraryUri,
+        for (final argument in typeArguments)
+          ...dartTypeIdentityLibraryUris(argument),
+      },
       DartRecordTypeIdentity(:final positional, :final named) => {
-          for (final field in positional) ...dartTypeIdentityLibraryUris(field),
-          for (final field in _canonicalNamed(named, (field) => field.name))
-            ...dartTypeIdentityLibraryUris(field.type),
-        },
+        for (final field in positional) ...dartTypeIdentityLibraryUris(field),
+        for (final field in _canonicalNamed(named, (field) => field.name))
+          ...dartTypeIdentityLibraryUris(field.type),
+      },
     };
 
 /// Every library URI recursively referenced by [value].
 Set<String> dartConstValueLibraryUris(DartConstValue value) => switch (value) {
-      DartConstNull() || DartConstScalar() => const {},
-      DartConstReference(:final libraryUri) => {libraryUri},
-      DartConstInvocation(:final type, :final positional, :final named) => {
-          ...dartTypeIdentityLibraryUris(type),
-          for (final value in positional) ...dartConstValueLibraryUris(value),
-          for (final argument
-              in _canonicalNamed(named, (argument) => argument.name))
-            ...dartConstValueLibraryUris(argument.value),
-        },
-      DartConstList(:final values, :final type) ||
-      DartConstSet(:final values, :final type) =>
-        {
-          if (type != null) ...dartTypeIdentityLibraryUris(type),
-          for (final value in values) ...dartConstValueLibraryUris(value),
-        },
-      DartConstMap(:final entries, :final type) => {
-          if (type != null) ...dartTypeIdentityLibraryUris(type),
-          for (final entry in entries) ...dartConstValueLibraryUris(entry.key),
-          for (final entry in entries)
-            ...dartConstValueLibraryUris(entry.value),
-        },
-      DartConstRecord(:final positional, :final named) => {
-          for (final value in positional) ...dartConstValueLibraryUris(value),
-          for (final field in _canonicalNamed(named, (field) => field.name))
-            ...dartConstValueLibraryUris(field.value),
-        },
-    };
+  DartConstNull() || DartConstScalar() => const {},
+  DartConstReference(:final libraryUri) => {libraryUri},
+  DartConstInvocation(:final type, :final positional, :final named) => {
+    ...dartTypeIdentityLibraryUris(type),
+    for (final value in positional) ...dartConstValueLibraryUris(value),
+    for (final argument in _canonicalNamed(named, (argument) => argument.name))
+      ...dartConstValueLibraryUris(argument.value),
+  },
+  DartConstList(:final values, :final type) ||
+  DartConstSet(:final values, :final type) => {
+    if (type != null) ...dartTypeIdentityLibraryUris(type),
+    for (final value in values) ...dartConstValueLibraryUris(value),
+  },
+  DartConstMap(:final entries, :final type) => {
+    if (type != null) ...dartTypeIdentityLibraryUris(type),
+    for (final entry in entries) ...dartConstValueLibraryUris(entry.key),
+    for (final entry in entries) ...dartConstValueLibraryUris(entry.value),
+  },
+  DartConstRecord(:final positional, :final named) => {
+    for (final value in positional) ...dartConstValueLibraryUris(value),
+    for (final field in _canonicalNamed(named, (field) => field.name))
+      ...dartConstValueLibraryUris(field.value),
+  },
+};
 
 /// The design-system packages that publish copies of the framework's
 /// material / cupertino layers, mapped to the framework area each one copies.
@@ -628,19 +630,18 @@ String qualifyFlatDartType(
 String renderDartTypeFromPrefixes(
   DartTypeIdentity type,
   Map<String, String> prefixes,
-) =>
-    switch (type) {
-      DartNamedTypeIdentity() => _renderNamedType(
-          type,
-          (libraryUri, symbolName) =>
-              qualifyFlatDartType(symbolName, libraryUri, prefixes),
-          (argument) => renderDartTypeFromPrefixes(argument, prefixes),
-        ),
-      DartRecordTypeIdentity() => _renderRecordType(
-          type,
-          (field) => renderDartTypeFromPrefixes(field, prefixes),
-        ),
-    };
+) => switch (type) {
+  DartNamedTypeIdentity() => _renderNamedType(
+    type,
+    (libraryUri, symbolName) =>
+        qualifyFlatDartType(symbolName, libraryUri, prefixes),
+    (argument) => renderDartTypeFromPrefixes(argument, prefixes),
+  ),
+  DartRecordTypeIdentity() => _renderRecordType(
+    type,
+    (field) => renderDartTypeFromPrefixes(field, prefixes),
+  ),
+};
 
 /// Renders a reconstructed const as import-qualified Dart source.
 ///
@@ -651,60 +652,57 @@ String renderDartTypeFromPrefixes(
 String renderDartConstValueFromPrefixes(
   DartConstValue value,
   Map<String, String> prefixes,
-) =>
-    switch (value) {
-      DartConstNull() => 'null',
-      DartConstScalar(:final value) => _renderDartConstScalar(value),
-      DartConstReference(:final libraryUri, :final owner, :final member) =>
-        _renderDartConstReference(
-          libraryUri: libraryUri,
-          owner: owner,
-          member: member,
-          prefixes: prefixes,
-        ),
-      DartConstInvocation(
-        :final type,
-        :final constructorName,
-        :final positional,
-        :final named,
-      ) =>
-        _renderDartConstInvocation(
-          type: type,
-          constructorName: constructorName,
-          positional: positional,
-          named: named,
-          prefixes: prefixes,
-        ),
-      DartConstList(:final values, :final type) => _renderDartConstList(
-          values,
-          type: type,
-          prefixes: prefixes,
-        ),
-      DartConstSet(:final values, :final type) => _renderDartConstSet(
-          values,
-          type: type,
-          prefixes: prefixes,
-        ),
-      DartConstMap(:final entries, :final type) => _renderDartConstMap(
-          entries,
-          type: type,
-          prefixes: prefixes,
-        ),
-      DartConstRecord(:final positional, :final named) => positional.isEmpty &&
-              named.isEmpty
-          ? '()'
-          : '(${[
-              for (final item in positional)
-                renderDartConstValueFromPrefixes(item, prefixes),
-              for (final field in _canonicalNamed(named, (field) => field.name))
-                _renderDartConstNamedValue(
-                  field,
-                  prefixes,
-                  position: DartIdentifierPosition.recordField,
-                  role: 'record field',
-                ),
-            ].join(', ')},)',
-    };
+) => switch (value) {
+  DartConstNull() => 'null',
+  DartConstScalar(:final value) => _renderDartConstScalar(value),
+  DartConstReference(:final libraryUri, :final owner, :final member) =>
+    _renderDartConstReference(
+      libraryUri: libraryUri,
+      owner: owner,
+      member: member,
+      prefixes: prefixes,
+    ),
+  DartConstInvocation(
+    :final type,
+    :final constructorName,
+    :final positional,
+    :final named,
+  ) =>
+    _renderDartConstInvocation(
+      type: type,
+      constructorName: constructorName,
+      positional: positional,
+      named: named,
+      prefixes: prefixes,
+    ),
+  DartConstList(:final values, :final type) => _renderDartConstList(
+    values,
+    type: type,
+    prefixes: prefixes,
+  ),
+  DartConstSet(:final values, :final type) => _renderDartConstSet(
+    values,
+    type: type,
+    prefixes: prefixes,
+  ),
+  DartConstMap(:final entries, :final type) => _renderDartConstMap(
+    entries,
+    type: type,
+    prefixes: prefixes,
+  ),
+  DartConstRecord(:final positional, :final named) =>
+    positional.isEmpty && named.isEmpty
+        ? '()'
+        : '(${[
+            for (final item in positional) renderDartConstValueFromPrefixes(item, prefixes),
+            for (final field in _canonicalNamed(named, (field) => field.name)) _renderDartConstNamedValue(
+                field,
+                prefixes,
+                position: DartIdentifierPosition.recordField,
+                role: 'record field',
+              ),
+          ].join(', ')},)',
+};
 
 String _renderDartConstList(
   List<DartConstValue> values, {
@@ -783,8 +781,8 @@ String? _renderCollectionTypeArguments(
     );
   }
   return '<${type.typeArguments.map(
-        (argument) => renderDartTypeFromPrefixes(argument, prefixes),
-      ).join(', ')}>';
+    (argument) => renderDartTypeFromPrefixes(argument, prefixes),
+  ).join(', ')}>';
 }
 
 String _renderDartConstMapEntry(
@@ -883,13 +881,13 @@ String _renderDartConstInvocation({
 }
 
 String _renderDartConstScalar(Object value) => switch (value) {
-      bool() || int() => value.toString(),
-      double() when value.isFinite => value.toString(),
-      String() => dartStringLiteral(value),
-      _ => throw StateError(
-          'Cannot emit non-portable Dart const scalar ${value.runtimeType}.',
-        ),
-    };
+  bool() || int() => value.toString(),
+  double() when value.isFinite => value.toString(),
+  String() => dartStringLiteral(value),
+  _ => throw StateError(
+    'Cannot emit non-portable Dart const scalar ${value.runtimeType}.',
+  ),
+};
 
 String _validatedDartIdentifier(
   String value, {
@@ -964,8 +962,7 @@ String _renderRecordType(
 List<T> _canonicalNamed<T>(
   Iterable<T> values,
   String Function(T value) nameOf,
-) =>
-    values.toList()..sort((a, b) => nameOf(a).compareTo(nameOf(b)));
+) => values.toList()..sort((a, b) => nameOf(a).compareTo(nameOf(b)));
 
 String _renderNamedType(
   DartNamedTypeIdentity type,

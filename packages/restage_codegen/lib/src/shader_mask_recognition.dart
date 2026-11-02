@@ -11,11 +11,16 @@ import 'package:restage_codegen/src/theme_recognition.dart';
   final args = <String, Expression>{};
   for (final arg in creation.argumentList.arguments) {
     if (arg is! NamedArgument ||
-        !{'key', 'child', 'shaderCallback', 'blendMode', 'colorFilter'}
-            .contains(arg.name.lexeme)) {
+        !{
+          'key',
+          'child',
+          'shaderCallback',
+          'blendMode',
+          'colorFilter',
+        }.contains(arg.name.lexeme)) {
       return (
         arguments: null,
-        reason: 'the widget has an unsupported argument'
+        reason: 'the widget has an unsupported argument',
       );
     }
     args[arg.name.lexeme] = arg.argumentExpression;
@@ -67,15 +72,16 @@ import 'package:restage_codegen/src/theme_recognition.dart';
         callback.body.isGenerator) {
       return (
         arguments: null,
-        reason: 'shaderCallback must be a one-parameter closure or a '
+        reason:
+            'shaderCallback must be a one-parameter closure or a '
             'gradient.createShader tear-off',
       );
     }
     final body = callback.body;
     final Expression? result = switch (body) {
       ExpressionFunctionBody() => body.expression,
-      BlockFunctionBody() when body.block.statements.length == 1 => switch (
-            body.block.statements.single) {
+      BlockFunctionBody() when body.block.statements.length == 1 =>
+        switch (body.block.statements.single) {
           ReturnStatement(:final expression) => expression,
           _ => null,
         },
@@ -85,7 +91,7 @@ import 'package:restage_codegen/src/theme_recognition.dart';
     if (call is! MethodInvocation || call.methodName.name != 'createShader') {
       return (
         arguments: null,
-        reason: 'return a gradient.createShader(bounds) expression'
+        reason: 'return a gradient.createShader(bounds) expression',
       );
     }
     final bounds = call.argumentList.arguments;
@@ -97,7 +103,7 @@ import 'package:restage_codegen/src/theme_recognition.dart';
         (bounds.single as SimpleIdentifier).element != parameter) {
       return (
         arguments: null,
-        reason: 'createShader must receive the unchanged callback bounds'
+        reason: 'createShader must receive the unchanged callback bounds',
       );
     }
     gradientTarget = call.target;
@@ -108,8 +114,12 @@ import 'package:restage_codegen/src/theme_recognition.dart';
       gradient is PropertyAccess) {
     final type = gradient?.staticType;
     if (type is InterfaceType &&
-        {'Gradient', 'LinearGradient', 'RadialGradient', 'SweepGradient'}
-            .contains(type.element.name) &&
+        {
+          'Gradient',
+          'LinearGradient',
+          'RadialGradient',
+          'SweepGradient',
+        }.contains(type.element.name) &&
         libraryIsFlutter(type.element)) {
       return (
         arguments: {...arguments, 'gradient': gradient!},
@@ -118,14 +128,17 @@ import 'package:restage_codegen/src/theme_recognition.dart';
     }
   }
   if (gradient is! InstanceCreationExpression ||
-      !{'LinearGradient', 'RadialGradient', 'SweepGradient'}
-          .contains(gradient.constructorName.element?.enclosingElement.name) ||
+      !{
+        'LinearGradient',
+        'RadialGradient',
+        'SweepGradient',
+      }.contains(gradient.constructorName.element?.enclosingElement.name) ||
       !libraryIsFlutter(gradient.constructorName.element) ||
       !{null, '', 'new'}.contains(gradient.constructorName.element?.name)) {
     return (
       arguments: null,
       reason:
-          'only Flutter LinearGradient, RadialGradient and SweepGradient are supported'
+          'only Flutter LinearGradient, RadialGradient and SweepGradient are supported',
     );
   }
   arguments['gradient'] = gradient;
@@ -142,7 +155,7 @@ import 'package:restage_codegen/src/theme_recognition.dart';
         transform.argumentList.arguments.single is! Expression) {
       return (
         arguments: null,
-        reason: 'only GradientRotation transforms are supported'
+        reason: 'only GradientRotation transforms are supported',
       );
     }
     arguments['rotation'] =

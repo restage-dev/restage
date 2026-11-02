@@ -31,10 +31,11 @@ String widgetbookStoryPath(
   RestageOutputLocationPlan plan, {
   required String declarationSourcePath,
   required String className,
-}) =>
-    plan.forLibrary(declarationSourcePath).generatedDartPath(
-          '${_snakeCase(className)}.stories.dart',
-        );
+}) => plan
+    .forLibrary(declarationSourcePath)
+    .generatedDartPath(
+      '${_snakeCase(className)}.stories.dart',
+    );
 
 /// Creates the Widgetbook story builder against an explicit package lib root.
 ///
@@ -212,8 +213,9 @@ String _sourceDeclarationsLabel(List<WidgetbookWidgetSource> owners) {
     return '@RestageWidget declarations';
   }
   if (owners.every((owner) => owner.isNativeScreen)) {
-    final nativeSourceAnnotations =
-        owners.map((owner) => owner.nativeScreen!.sourceAnnotation).toSet();
+    final nativeSourceAnnotations = owners
+        .map((owner) => owner.nativeScreen!.sourceAnnotation)
+        .toSet();
     if (nativeSourceAnnotations.length == 1) {
       return '${nativeSourceAnnotations.single} declarations';
     }
@@ -228,13 +230,13 @@ String _libRelative(String packageRelativePath) =>
 
 /// The package-relative path of the library in a `<uri>#<class>` identity.
 String _declaringLibraryPath(String declarationIdentity) => AssetId.resolve(
-      Uri.parse(
-        declarationIdentity.substring(
-          0,
-          declarationIdentity.lastIndexOf('#'),
-        ),
-      ),
-    ).path;
+  Uri.parse(
+    declarationIdentity.substring(
+      0,
+      declarationIdentity.lastIndexOf('#'),
+    ),
+  ),
+).path;
 
 Map<String, List<String>> _discoverOutputs(
   Directory lib,
@@ -287,12 +289,13 @@ bool _canReserveOutput(Directory lib, String output) {
 /// so changing layouts can retire files generated under the previous layout.
 Iterable<String> _existingRestageStoryOutputs(Directory lib) sync* {
   if (!lib.existsSync()) return;
-  final stories = lib
-      .listSync(recursive: true, followLinks: false)
-      .whereType<File>()
-      .where((file) => file.path.endsWith('.stories.dart'))
-      .toList()
-    ..sort((left, right) => left.path.compareTo(right.path));
+  final stories =
+      lib
+          .listSync(recursive: true, followLinks: false)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.stories.dart'))
+          .toList()
+        ..sort((left, right) => left.path.compareTo(right.path));
   for (final story in stories) {
     final output = p.posix.normalize(
       p.relative(story.path, from: lib.path).replaceAll(r'\', '/'),
@@ -312,12 +315,13 @@ final class _AuthoredUnit {
 }
 
 List<_AuthoredUnit> _readAuthoredUnits(Directory lib) {
-  final files = lib
-      .listSync(recursive: true, followLinks: false)
-      .whereType<File>()
-      .where((file) => _isAuthoredDartFile(file.path))
-      .toList()
-    ..sort((left, right) => left.path.compareTo(right.path));
+  final files =
+      lib
+          .listSync(recursive: true, followLinks: false)
+          .whereType<File>()
+          .where((file) => _isAuthoredDartFile(file.path))
+          .toList()
+        ..sort((left, right) => left.path.compareTo(right.path));
   return [
     for (final file in files) _authoredUnit(lib, file),
   ];
@@ -367,18 +371,17 @@ bool _isAuthoredDartFile(String path) =>
 
 Iterable<String> _annotatedClassNames(
   CompilationUnit unit,
-) =>
-    unit.declarations
-        .whereType<ClassDeclaration>()
-        // Imported const aliases cannot be identified soundly without package
-        // resolution, which is unavailable while build_runner asks the factory
-        // for its fixed output set. Every annotated class is therefore a
-        // possible output unless that path is already custom-authored. The
-        // analyzer-backed package index remains the sole authority that owns
-        // and emits stories, so unrelated annotations and lookalikes remain
-        // inert.
-        .where((declaration) => declaration.metadata.isNotEmpty)
-        .map(_className);
+) => unit.declarations
+    .whereType<ClassDeclaration>()
+    // Imported const aliases cannot be identified soundly without package
+    // resolution, which is unavailable while build_runner asks the factory
+    // for its fixed output set. Every annotated class is therefore a
+    // possible output unless that path is already custom-authored. The
+    // analyzer-backed package index remains the sole authority that owns
+    // and emits stories, so unrelated annotations and lookalikes remain
+    // inert.
+    .where((declaration) => declaration.metadata.isNotEmpty)
+    .map(_className);
 
 String _className(ClassDeclaration declaration) {
   final name = declaration.namePart;

@@ -24,7 +24,8 @@ final class GoalScreen extends StatelessWidget {
 }
 ''';
 
-String _classFlow({String delivery = ''}) => '''
+String _classFlow({String delivery = ''}) =>
+    '''
 import 'package:restage/restage.dart';
 import '../screens/goal_screen.dart';
 part 'restage.generated/goal_flow.restage.g.dart';
@@ -49,53 +50,62 @@ final class GoalFlow extends RestageFlow {
 ''';
 
 void main() {
-  test('a typed onboarding flow that measures answers requires the floor',
-      () async {
-    final sources = <String, String>{
-      'apps_examples|lib/onboarding/screens/goal_screen.dart': _screen,
-      'apps_examples|lib/onboarding/flows/goal_flow.dart': _classFlow(),
-    };
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-    for (final builder in [
-      onboardingScreenBuilder(BuilderOptions.empty),
-      onboardingFlowBuilder(BuilderOptions.empty),
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-    ]) {
-      final result = await testBuilder(
-        builder,
-        sources,
+  test(
+    'a typed onboarding flow that measures answers requires the floor',
+    () async {
+      final sources = <String, String>{
+        'apps_examples|lib/onboarding/screens/goal_screen.dart': _screen,
+        'apps_examples|lib/onboarding/flows/goal_flow.dart': _classFlow(),
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
       );
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    }
+      for (final builder in [
+        onboardingScreenBuilder(BuilderOptions.empty),
+        onboardingFlowBuilder(BuilderOptions.empty),
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      ]) {
+        final result = await testBuilder(
+          builder,
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      }
 
-    final document = FlowDocumentCodec.decodeJson(
-      readerWriter.testing.readString(
-        AssetId('apps_examples', 'assets/onboarding/flows/goal_flow.flow.json'),
-      ),
-    );
-    expect(document.minClient, kSurfaceFeatureClientFloor);
-
-    final handoff = RestageSurfacePublicationBundle.fromJson(
-      jsonDecode(
+      final document = FlowDocumentCodec.decodeJson(
         readerWriter.testing.readString(
           AssetId(
-              'apps_examples', kRestageSurfacePublicationCompilerBundlePath),
+            'apps_examples',
+            'assets/onboarding/flows/goal_flow.flow.json',
+          ),
         ),
-      ),
-    );
-    expect(handoff.valid, isTrue, reason: handoff.errors.join('\n'));
-    final part = utf8.decode(
-      handoff.ownedOutputs.entries
-          .singleWhere(
-              (entry) => entry.key.endsWith('goal_flow.restage.g.dart'))
-          .value,
-    );
-    expect(part, contains('minClient: $kSurfaceFeatureClientFloor,'));
-  });
+      );
+      expect(document.minClient, kSurfaceFeatureClientFloor);
+
+      final handoff = RestageSurfacePublicationBundle.fromJson(
+        jsonDecode(
+          readerWriter.testing.readString(
+            AssetId(
+              'apps_examples',
+              kRestageSurfacePublicationCompilerBundlePath,
+            ),
+          ),
+        ),
+      );
+      expect(handoff.valid, isTrue, reason: handoff.errors.join('\n'));
+      final part = utf8.decode(
+        handoff.ownedOutputs.entries
+            .singleWhere(
+              (entry) => entry.key.endsWith('goal_flow.restage.g.dart'),
+            )
+            .value,
+      );
+      expect(part, contains('minClient: $kSurfaceFeatureClientFloor,'));
+    },
+  );
 
   test('a general flow that measures answers is refused by name', () async {
     final sources = <String, String>{
@@ -104,8 +114,9 @@ void main() {
         delivery: ', delivery: FlowDeliveryMode.general',
       ),
     };
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
     await testBuilder(
       onboardingScreenBuilder(BuilderOptions.empty),
       sources,

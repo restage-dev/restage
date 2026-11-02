@@ -51,7 +51,8 @@ void main() {
         expect(
           neutralPartPath(_plans[mode]!, _library),
           endsWith('/welcome$kNeutralGeneratedPartSuffix'),
-          reason: 'the filename is identical in every placement mode; only '
+          reason:
+              'the filename is identical in every placement mode; only '
               'the parent path changes',
         );
       });
@@ -61,30 +62,32 @@ void main() {
   group('declared build extensions', () {
     for (final mode in _plans.keys) {
       test('$mode resolves the same path the plan resolves', () {
-        final extensions =
-            RestageGeneratedDartBuilder(BuilderOptions(_configFor(mode)))
-                .buildExtensions;
+        final extensions = RestageGeneratedDartBuilder(
+          BuilderOptions(_configFor(mode)),
+        ).buildExtensions;
         expect(extensions, hasLength(1));
         final input = extensions.keys.single;
         final output = extensions.values.single.single;
         expect(
           _applyTemplate(input: input, output: output, source: _library),
           _expectedPartPath[mode],
-          reason: 'the declared template and the resolved placement must not '
+          reason:
+              'the declared template and the resolved placement must not '
               'drift; build_runner reads the template, emitters read the plan',
         );
       });
 
       test('$mode references each capture group exactly once per output', () {
-        final extensions =
-            RestageGeneratedDartBuilder(BuilderOptions(_configFor(mode)))
-                .buildExtensions;
+        final extensions = RestageGeneratedDartBuilder(
+          BuilderOptions(_configFor(mode)),
+        ).buildExtensions;
         final output = extensions.values.single.single;
         for (final group in const ['{{dir}}', '{{file}}', '{{source}}']) {
           expect(
             group.allMatches(output).length,
             lessThanOrEqualTo(1),
-            reason: 'package:build rejects an output template that references '
+            reason:
+                'package:build rejects an output template that references '
                 'one capture group more than once',
           );
         }
@@ -193,7 +196,8 @@ void main() {
     expect(
       owners,
       ['generated_dart'],
-      reason: 'two builders claiming one generated part is a build_runner '
+      reason:
+          'two builders claiming one generated part is a build_runner '
           'conflict, not a runtime race',
     );
   });
@@ -230,10 +234,16 @@ const launch = FlowDefinition(
 ''';
         final plan = _plans[mode]!;
         final sources = <String, String>{
-          'apps_examples|lib/features/announcement.dart':
-              _withPart(screen, plan, 'lib/features/announcement.dart'),
-          'apps_examples|lib/journeys/launch.dart':
-              _withPart(flow, plan, 'lib/journeys/launch.dart'),
+          'apps_examples|lib/features/announcement.dart': _withPart(
+            screen,
+            plan,
+            'lib/features/announcement.dart',
+          ),
+          'apps_examples|lib/journeys/launch.dart': _withPart(
+            flow,
+            plan,
+            'lib/journeys/launch.dart',
+          ),
         };
         final readerWriter = await readerWriterWithFilesystemSources(
           rootPackage: 'apps_examples',
@@ -273,7 +283,8 @@ const launch = FlowDefinition(
           startsWith(
             "part of '${_partOfUri(plan, 'lib/features/announcement.dart')}';",
           ),
-          reason: 'the `part of` URI is resolved relative to the part file, '
+          reason:
+              'the `part of` URI is resolved relative to the part file, '
               'so it changes with placement',
         );
         // The categorized screen's generated handle. Was `contains('Descriptor')`,
@@ -313,10 +324,10 @@ CompilationUnit parseUnit(String source) =>
     parseString(content: source, throwIfDiagnostics: false).unit;
 
 Map<String, dynamic> _configFor(String mode) => switch (mode) {
-      'adjacent' => const {'source_output_layout': 'adjacent'},
-      'centralized' => const {'dart_output_root': 'lib/generated/restage'},
-      _ => const <String, dynamic>{},
-    };
+  'adjacent' => const {'source_output_layout': 'adjacent'},
+  'centralized' => const {'dart_output_root': 'lib/generated/restage'},
+  _ => const <String, dynamic>{},
+};
 
 String _withPart(
   String source,

@@ -8,7 +8,8 @@ import 'helpers.dart';
 
 void main() {
   test('AppBar text styles lower to distinct structured values', () async {
-    const source = '''
+    const source =
+        '''
       import 'package:flutter/material.dart';
       $kStubAnnotationsAndBases
 
@@ -40,8 +41,10 @@ void main() {
       rootPackage: 'apps_examples',
       includeFlutter: true,
     );
-    final sourceId =
-        AssetId('apps_examples', 'lib/paywalls/styled_app_bar.dart');
+    final sourceId = AssetId(
+      'apps_examples',
+      'lib/paywalls/styled_app_bar.dart',
+    );
     readerWriter.testing.writeString(sourceId, source);
 
     final result = await testBuilder(
@@ -52,23 +55,27 @@ void main() {
       outputs: {
         'apps_examples|assets/paywalls/styled_app_bar.rfwtxt': decodedMatches(
           allOf(
-            contains('titleTextStyle: {color: 0xFF112233, fontSize: 24.0, '
-                'fontWeight: "w700", letterSpacing: 1.0}'),
-            contains('toolbarTextStyle: {color: 0xFF445566, fontSize: 14.0, '
-                'fontStyle: "italic", height: 1.5}'),
+            contains(
+              'titleTextStyle: {color: 0xFF112233, fontSize: 24.0, '
+              'fontWeight: "w700", letterSpacing: 1.0}',
+            ),
+            contains(
+              'toolbarTextStyle: {color: 0xFF445566, fontSize: 14.0, '
+              'fontStyle: "italic", height: 1.5}',
+            ),
           ),
         ),
         'apps_examples|assets/paywalls/styled_app_bar.rfw': isNotEmpty,
         'apps_examples|assets/paywalls/styled_app_bar.capability.json':
             decodedMatches(
-          predicate<String>(
-            (text) {
-              final sidecar = jsonDecode(text) as Map<String, dynamic>;
-              final manifest = sidecar['manifest'] as Map<String, dynamic>;
-              return manifest['builtInFloor'] == 12;
-            },
-          ),
-        ),
+              predicate<String>(
+                (text) {
+                  final sidecar = jsonDecode(text) as Map<String, dynamic>;
+                  final manifest = sidecar['manifest'] as Map<String, dynamic>;
+                  return manifest['builtInFloor'] == 12;
+                },
+              ),
+            ),
         'apps_examples|assets/paywalls/screens/paywall_styled_app_bar.rfw':
             isNotEmpty,
         'apps_examples|assets/paywalls/screens/paywall_styled_app_bar.capability.json':

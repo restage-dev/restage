@@ -116,16 +116,18 @@ void main() {
       expect(init!.toSource(), "'deep'");
     });
 
-    test('returns null for a not-passed field with a default (β only)',
-        () async {
-      final e = await _expr(
-        "class S { const S({this.h = 'def'}); final String h; } "
-        'const _s = S(); Object x() => _s.h;',
-      );
-      // β substitutes only a bound argument expression; a defaulted field is
-      // not bound in the constructor call, so β declines (α folds the scalar).
-      expect(resolveConstObjectFieldInitializer(e), isNull);
-    });
+    test(
+      'returns null for a not-passed field with a default (β only)',
+      () async {
+        final e = await _expr(
+          "class S { const S({this.h = 'def'}); final String h; } "
+          'const _s = S(); Object x() => _s.h;',
+        );
+        // β substitutes only a bound argument expression; a defaulted field is
+        // not bound in the constructor call, so β declines (α folds the scalar).
+        expect(resolveConstObjectFieldInitializer(e), isNull);
+      },
+    );
 
     test('returns null for an enum reference', () async {
       final e = await _expr('$_namedSkin Object x() => Align.center;');
@@ -162,11 +164,13 @@ void main() {
       expect(tryScalarFoldConstObjectField(e), isNull);
     });
 
-    test('returns null for an enum reference (not a const-object field)',
-        () async {
-      final e = await _expr('$_namedSkin Object x() => Align.center;');
-      expect(tryScalarFoldConstObjectField(e), isNull);
-    });
+    test(
+      'returns null for an enum reference (not a const-object field)',
+      () async {
+        final e = await _expr('$_namedSkin Object x() => Align.center;');
+        expect(tryScalarFoldConstObjectField(e), isNull);
+      },
+    );
   });
 
   group('tryFoldConstant stays scalar-only (unchanged contract)', () {
@@ -220,52 +224,54 @@ void main() {
       );
     });
 
-    test(
-        'const-object String field folds to its literal — closes the silent '
+    test('const-object String field folds to its literal — closes the silent '
         'wrong-render (was the bare field name)', () async {
-      final r = translator
-          .translate(await _expr('$_namedSkin Object x() => _skin.headline;'));
+      final r = translator.translate(
+        await _expr('$_namedSkin Object x() => _skin.headline;'),
+      );
       expect(r.dsl, '"Hello"');
       expect(r.issues, isEmpty);
     });
 
-    test('const-object Color field folds byte-identical to the inline Color',
-        () async {
-      const skinSource = '''
+    test(
+      'const-object Color field folds byte-identical to the inline Color',
+      () async {
+        const skinSource = '''
         import 'package:flutter/material.dart';
         class Skin { const Skin({required this.primary}); final Color primary; }
         const _skin = Skin(primary: Color(0xFF112233));
         Object x() => _skin.primary;
       ''';
-      final folded = translator.translate(
-        await parseExpressionFromSourceForTest(
-          skinSource,
-          rootPackage: 'apps_examples',
-        ),
-      );
-      final inline = translator.translate(
-        await parseExpressionFromSourceForTest(
-          "import 'package:flutter/material.dart'; "
-          'Object x() => const Color(0xFF112233);',
-          rootPackage: 'apps_examples',
-        ),
-      );
-      expect(folded.issues, isEmpty);
-      expect(folded.dsl, '0xFF112233');
-      // The fold re-runs the inline value recipe, so it is byte-identical to
-      // the inline literal by construction.
-      expect(folded.dsl, inline.dsl);
-    });
+        final folded = translator.translate(
+          await parseExpressionFromSourceForTest(
+            skinSource,
+            rootPackage: 'apps_examples',
+          ),
+        );
+        final inline = translator.translate(
+          await parseExpressionFromSourceForTest(
+            "import 'package:flutter/material.dart'; "
+            'Object x() => const Color(0xFF112233);',
+            rootPackage: 'apps_examples',
+          ),
+        );
+        expect(folded.issues, isEmpty);
+        expect(folded.dsl, '0xFF112233');
+        // The fold re-runs the inline value recipe, so it is byte-identical to
+        // the inline literal by construction.
+        expect(folded.dsl, inline.dsl);
+      },
+    );
 
     test(
-        'an unresolvable const-object field defers LOUD — never the field name',
-        () async {
-      // The structured field is bound in the initializer list (not a
-      // field-formal), so β cannot substitute its AST and α cannot scalar-fold
-      // a Color — the recognised-but-unfoldable case. It must defer loud, never
-      // fall through to the silent bare-name emit. (Cross-file structured const
-      // objects hit the same path via β being same-unit only.)
-      const source = '''
+      'an unresolvable const-object field defers LOUD — never the field name',
+      () async {
+        // The structured field is bound in the initializer list (not a
+        // field-formal), so β cannot substitute its AST and α cannot scalar-fold
+        // a Color — the recognised-but-unfoldable case. It must defer loud, never
+        // fall through to the silent bare-name emit. (Cross-file structured const
+        // objects hit the same path via β being same-unit only.)
+        const source = '''
         import 'package:flutter/material.dart';
         class Skin {
           const Skin({Color? primary})
@@ -275,31 +281,34 @@ void main() {
         const _skin = Skin();
         Object x() => _skin.primary;
       ''';
-      final r = translator.translate(
-        await parseExpressionFromSourceForTest(
-          source,
-          rootPackage: 'apps_examples',
-        ),
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.constObjectFieldUnresolved),
-      );
-      expect(r.dsl, isEmpty);
-      expect(r.dsl, isNot(contains('primary')));
-    });
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest(
+            source,
+            rootPackage: 'apps_examples',
+          ),
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.constObjectFieldUnresolved),
+        );
+        expect(r.dsl, isEmpty);
+        expect(r.dsl, isNot(contains('primary')));
+      },
+    );
 
-    test('an enum reference still lowers to its bare name (unchanged)',
-        () async {
-      final r = translator.translate(
-        await parseExpressionFromSourceForTest(
-          "import 'package:flutter/material.dart'; "
-          'Object x() => MainAxisAlignment.center;',
-          rootPackage: 'apps_examples',
-        ),
-      );
-      expect(r.dsl, '"center"');
-    });
+    test(
+      'an enum reference still lowers to its bare name (unchanged)',
+      () async {
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest(
+            "import 'package:flutter/material.dart'; "
+            'Object x() => MainAxisAlignment.center;',
+            rootPackage: 'apps_examples',
+          ),
+        );
+        expect(r.dsl, '"center"');
+      },
+    );
 
     test('a static-const scalar reference still folds (unchanged)', () async {
       final r = translator.translate(
@@ -313,8 +322,7 @@ void main() {
   });
 
   group('const-object field at a type-special slot (alignmentXY)', () {
-    test(
-        'folds at the alignmentXY slot — slot lowering applies to the folded '
+    test('folds at the alignmentXY slot — slot lowering applies to the folded '
         'value (classifier↔translator consistency at special slots)', () async {
       // The alignmentXY slot bypasses the generic _translate path (it calls
       // _structured.alignmentGeometry directly), so the const-object hook must
@@ -333,8 +341,10 @@ void main() {
         ),
         entry(name: 'SizedBox', properties: [prop('width', PropertyType.real)]),
       ]);
-      final translator =
-          ExpressionTranslator(catalog: catalog, helpers: HelperRegistry());
+      final translator = ExpressionTranslator(
+        catalog: catalog,
+        helpers: HelperRegistry(),
+      );
       final expr = await parseExpressionFromSourceForTest(
         '''
         import 'package:flutter/material.dart'
@@ -357,18 +367,20 @@ void main() {
 
   group('classifier consultation (classifier↔translator consistency)', () {
     Catalog skinCatalog(String file) => catalogWith([
-          entry(
-            name: 'Text',
-            properties: [prop('data', PropertyType.string, positional: true)],
-            flutterType: 'package:apps_examples/$file#Text',
-          ),
-        ]);
+      entry(
+        name: 'Text',
+        properties: [prop('data', PropertyType.string, positional: true)],
+        flutterType: 'package:apps_examples/$file#Text',
+      ),
+    ]);
 
-    test('a foldable const-object field marks constantFolding (transpilable)',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/skin_widget.dart': '''
+    test(
+      'a foldable const-object field marks constantFolding (transpilable)',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/skin_widget.dart':
+                '''
 $kClassifierStubs
 
 class Skin { const Skin({required this.label}); final String label; }
@@ -391,24 +403,25 @@ class AcmeSkinned extends StatelessWidget {
   Widget build(BuildContext context) => Text(_skin.label);
 }
 ''',
-        },
-        inputPath: 'lib/skin_widget.dart',
-        widgetName: 'AcmeSkinned',
-        catalog: skinCatalog('skin_widget.dart'),
-      );
-      expect(result, isA<ComposableWidget>());
-      expect(
-        (result as ComposableWidget).requiredMechanisms,
-        contains(InliningMechanism.constantFolding),
-      );
-    });
+          },
+          inputPath: 'lib/skin_widget.dart',
+          widgetName: 'AcmeSkinned',
+          catalog: skinCatalog('skin_widget.dart'),
+        );
+        expect(result, isA<ComposableWidget>());
+        expect(
+          (result as ComposableWidget).requiredMechanisms,
+          contains(InliningMechanism.constantFolding),
+        );
+      },
+    );
 
-    test(
-        'an unfoldable const-object field defers — same verdict as the '
+    test('an unfoldable const-object field defers — same verdict as the '
         'translator loud-defer (no divergence)', () async {
       final result = await classifyFixture(
         {
-          'lib/skin_widget2.dart': '''
+          'lib/skin_widget2.dart':
+              '''
 $kClassifierStubs
 
 class Inner { const Inner(this.v); final int v; }

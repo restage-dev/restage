@@ -29,10 +29,10 @@ enum RestageRosterSourceKind {
 extension RestageRosterSourceKindName on RestageRosterSourceKind {
   /// Stable JSON spelling used by the build-owned roster.
   String get wireName => switch (this) {
-        RestageRosterSourceKind.screen => 'screen',
-        RestageRosterSourceKind.paywall => 'paywall',
-        RestageRosterSourceKind.flow => 'flowGraph',
-      };
+    RestageRosterSourceKind.screen => 'screen',
+    RestageRosterSourceKind.paywall => 'paywall',
+    RestageRosterSourceKind.flow => 'flowGraph',
+  };
 }
 
 /// A source span retained by package ownership diagnostics.
@@ -46,11 +46,11 @@ final class RestageSourceSpan {
     required this.startColumn,
     required this.endLine,
     required this.endColumn,
-  })  : assert(path != ''),
-        assert(startLine > 0),
-        assert(startColumn > 0),
-        assert(endLine > 0),
-        assert(endColumn > 0);
+  }) : assert(path != ''),
+       assert(startLine > 0),
+       assert(startColumn > 0),
+       assert(endLine > 0),
+       assert(endColumn > 0);
 
   /// Package-relative source path containing the declaration.
   final String path;
@@ -71,10 +71,10 @@ final class RestageSourceSpan {
   String get location => '$path@$startLine:$startColumn';
 
   Map<String, Object> toJson() => {
-        'path': path,
-        'start': {'line': startLine, 'column': startColumn},
-        'end': {'line': endLine, 'column': endColumn},
-      };
+    'path': path,
+    'start': {'line': startLine, 'column': startColumn},
+    'end': {'line': endLine, 'column': endColumn},
+  };
 }
 
 /// One namespace-scoped identity claim owned by a declaration.
@@ -91,8 +91,8 @@ final class RestageIdentityClaim {
   const RestageIdentityClaim({
     required this.namespace,
     required this.key,
-  })  : assert(namespace != ''),
-        assert(key != '');
+  }) : assert(namespace != ''),
+       assert(key != '');
 
   /// Namespace whose collision domain owns [key].
   final String namespace;
@@ -104,9 +104,9 @@ final class RestageIdentityClaim {
   String get qualifiedKey => '$namespace:$key';
 
   Map<String, String> toJson() => {
-        'namespace': namespace,
-        'key': key,
-      };
+    'namespace': namespace,
+    'key': key,
+  };
 }
 
 /// The condition under which a claimed output path is written.
@@ -181,9 +181,9 @@ final class RestageOutputClaim {
     required this.builder,
     this.ownershipKey,
     this.writtenWhen = RestageOutputCondition.everyLowering,
-  })  : assert(path != ''),
-        assert(role != ''),
-        assert(builder != '');
+  }) : assert(path != ''),
+       assert(role != ''),
+       assert(builder != '');
 
   /// Package-relative generated output path.
   final String path;
@@ -208,12 +208,12 @@ final class RestageOutputClaim {
   final String? ownershipKey;
 
   Map<String, String> toJson() => {
-        'path': path,
-        'role': role,
-        'builder': builder,
-        'writtenWhen': writtenWhen.wireName,
-        if (ownershipKey != null) 'ownershipKey': ownershipKey!,
-      };
+    'path': path,
+    'role': role,
+    'builder': builder,
+    'writtenWhen': writtenWhen.wireName,
+    if (ownershipKey != null) 'ownershipKey': ownershipKey!,
+  };
 }
 
 /// A normalized source declaration supplied to the package roster.
@@ -263,8 +263,8 @@ final class RestageSourceDeclaration {
     this.delivery,
     this.isCanonical = false,
     this.legacyAnnotation,
-  })  : identityClaims = List.unmodifiable(identityClaims),
-        outputs = List.unmodifiable(outputs);
+  }) : identityClaims = List.unmodifiable(identityClaims),
+       outputs = List.unmodifiable(outputs);
 
   /// Source kind.
   final RestageRosterSourceKind kind;
@@ -322,8 +322,9 @@ final class RestageSourceDeclaration {
   /// The owning library's filename-derived ID.
   String get implicitId {
     final slash = libraryPath.lastIndexOf('/');
-    final filename =
-        slash == -1 ? libraryPath : libraryPath.substring(slash + 1);
+    final filename = slash == -1
+        ? libraryPath
+        : libraryPath.substring(slash + 1);
     return filename.endsWith('.dart')
         ? filename.substring(0, filename.length - '.dart'.length)
         : filename;
@@ -336,24 +337,24 @@ final class RestageSourceDeclaration {
   String get ownerKey => declarationIdentity;
 
   Map<String, Object> toJson() => {
-        'kind': kind.wireName,
-        'id': effectiveId,
-        'idMode': hasImplicitId ? 'implicit' : 'explicit',
-        'identity': declarationIdentity,
-        'identityClaims': [
-          for (final claim in identityClaims) claim.toJson(),
-        ],
-        'library': libraryIdentity,
-        'libraryPath': libraryPath,
-        'source': sourcePath,
-        if (surface != null) 'surface': surface!.wireName,
-        'version': version,
-        'minClient': minClient,
-        if (delivery != null) 'deliveryMode': delivery!.wireName,
-        'authoring': isCanonical ? 'canonical' : 'legacy',
-        'span': span.toJson(),
-        'outputs': [for (final output in outputs) output.toJson()],
-      };
+    'kind': kind.wireName,
+    'id': effectiveId,
+    'idMode': hasImplicitId ? 'implicit' : 'explicit',
+    'identity': declarationIdentity,
+    'identityClaims': [
+      for (final claim in identityClaims) claim.toJson(),
+    ],
+    'library': libraryIdentity,
+    'libraryPath': libraryPath,
+    'source': sourcePath,
+    if (surface != null) 'surface': surface!.wireName,
+    'version': version,
+    'minClient': minClient,
+    if (delivery != null) 'deliveryMode': delivery!.wireName,
+    'authoring': isCanonical ? 'canonical' : 'legacy',
+    'span': span.toJson(),
+    'outputs': [for (final output in outputs) output.toJson()],
+  };
 }
 
 /// The deterministic package source index plus output ownership ledger.
@@ -375,14 +376,14 @@ final class RestageSourceRoster {
     required List<RestageSourceDeclaration> declarations,
     required List<Issue> issues,
     List<RestageOwnedOutput> fixedOutputs = const [],
-  })  : declarations = List.unmodifiable(declarations),
-        issues = List.unmodifiable(issues),
-        outputs = List.unmodifiable(
-          <RestageOwnedOutput>[
-            ..._flattenOutputs(declarations),
-            ...fixedOutputs,
-          ]..sort(_compareOwnedOutputs),
-        );
+  }) : declarations = List.unmodifiable(declarations),
+       issues = List.unmodifiable(issues),
+       outputs = List.unmodifiable(
+         <RestageOwnedOutput>[
+           ..._flattenOutputs(declarations),
+           ...fixedOutputs,
+         ]..sort(_compareOwnedOutputs),
+       );
 
   /// Declarations in deterministic kind/ID/identity order.
   final List<RestageSourceDeclaration> declarations;
@@ -408,23 +409,21 @@ final class RestageSourceRoster {
 
   /// Encodes the package-wide source index.
   String encodeSourceIndex(String packageName) => _encodeJson({
-        'schemaVersion': 1,
-        'package': packageName,
-        'valid': isValid,
-        if (!isValid)
-          'issues': [for (final issue in issues) _issueToJson(issue)],
-        'sources': [for (final source in declarations) source.toJson()],
-      });
+    'schemaVersion': 1,
+    'package': packageName,
+    'valid': isValid,
+    if (!isValid) 'issues': [for (final issue in issues) _issueToJson(issue)],
+    'sources': [for (final source in declarations) source.toJson()],
+  });
 
   /// Encodes the package-wide output ownership ledger.
   String encodeOutputRoster(String packageName) => _encodeJson({
-        'schemaVersion': 1,
-        'package': packageName,
-        'valid': isValid,
-        if (!isValid)
-          'issues': [for (final issue in issues) _issueToJson(issue)],
-        'outputs': [for (final output in outputs) output.toJson()],
-      });
+    'schemaVersion': 1,
+    'package': packageName,
+    'valid': isValid,
+    if (!isValid) 'issues': [for (final issue in issues) _issueToJson(issue)],
+    'outputs': [for (final output in outputs) output.toJson()],
+  });
 }
 
 /// One flattened output claim with its source owner attached.
@@ -476,15 +475,15 @@ final class RestageOwnedOutput {
   final RestageSourceSpan span;
 
   Map<String, Object> toJson() => {
-        'path': path,
-        'role': role,
-        'builder': builder,
-        'writtenWhen': writtenWhen.wireName,
-        'owner': owner,
-        'declaration': declarationIdentity,
-        'identities': [for (final identity in identities) identity.toJson()],
-        'span': span.toJson(),
-      };
+    'path': path,
+    'role': role,
+    'builder': builder,
+    'writtenWhen': writtenWhen.wireName,
+    'owner': owner,
+    'declaration': declarationIdentity,
+    'identities': [for (final identity in identities) identity.toJson()],
+    'span': span.toJson(),
+  };
 }
 
 /// Why a previous generated output claim is no longer current.
@@ -522,9 +521,9 @@ final class RestageStaleOutputClaim {
   String get path => output.path;
 
   Map<String, Object> toJson() => {
-        ...output.toJson(),
-        'reason': reason.name,
-      };
+    ...output.toJson(),
+    'reason': reason.name,
+  };
 }
 
 /// Computes exact deterministic stale output families between rosters.
@@ -599,10 +598,12 @@ bool _sameOutputClaim(
       left.identities.length != right.identities.length) {
     return false;
   }
-  final leftIdentities =
-      left.identities.map((identity) => identity.qualifiedKey).toSet();
-  final rightIdentities =
-      right.identities.map((identity) => identity.qualifiedKey).toSet();
+  final leftIdentities = left.identities
+      .map((identity) => identity.qualifiedKey)
+      .toSet();
+  final rightIdentities = right.identities
+      .map((identity) => identity.qualifiedKey)
+      .toSet();
   return leftIdentities.length == rightIdentities.length &&
       leftIdentities.containsAll(rightIdentities);
 }
@@ -622,20 +623,23 @@ RestageSourceRoster assembleRestageSourceRoster(
   final issues = <Issue>[];
 
   final implicitByLibrary = <String, List<RestageSourceDeclaration>>{};
-  for (final declaration
-      in declarations.where((source) => source.hasImplicitId)) {
+  for (final declaration in declarations.where(
+    (source) => source.hasImplicitId,
+  )) {
     implicitByLibrary
         .putIfAbsent(declaration.libraryIdentity, () => [])
         .add(declaration);
   }
   for (final entry in implicitByLibrary.entries) {
     if (entry.value.length < 2) continue;
-    final locations =
-        entry.value.map((source) => source.span.location).join(', ');
+    final locations = entry.value
+        .map((source) => source.span.location)
+        .join(', ');
     issues.add(
       Issue(
         code: IssueCode.invalidScreenSourceCount,
-        message: 'Library ${entry.key} declares more than one implicit '
+        message:
+            'Library ${entry.key} declares more than one implicit '
             'Restage source ID. Implicit declarations: $locations. Add an '
             'explicit unique id to every declaration after the first.',
         location: entry.value.first.span.location,
@@ -649,7 +653,8 @@ RestageSourceRoster assembleRestageSourceRoster(
       issues.add(
         Issue(
           code: IssueCode.annotationEvaluationFailed,
-          message: 'A ${declaration.kind.wireName} source ID must not be '
+          message:
+              'A ${declaration.kind.wireName} source ID must not be '
               'empty.',
           location: declaration.span.location,
         ),
@@ -658,7 +663,8 @@ RestageSourceRoster assembleRestageSourceRoster(
       issues.add(
         Issue(
           code: IssueCode.annotationEvaluationFailed,
-          message: '`${declaration.effectiveId}` is not a usable '
+          message:
+              '`${declaration.effectiveId}` is not a usable '
               '${declaration.kind.wireName} source ID. '
               '$surfaceSlugRefusalMessage',
           location: declaration.span.location,
@@ -680,7 +686,8 @@ RestageSourceRoster assembleRestageSourceRoster(
     issues.add(
       Issue(
         code: IssueCode.duplicateId,
-        message: 'Restage identity namespace "${entry.key}" is declared by '
+        message:
+            'Restage identity namespace "${entry.key}" is declared by '
             '${explicit ? 'duplicate explicit IDs' : 'multiple declarations'}: '
             '$declarationsText.',
         location: entry.value.first.span.location,
@@ -707,7 +714,8 @@ RestageSourceRoster assembleRestageSourceRoster(
     issues.add(
       Issue(
         code: IssueCode.generatedSymbolCollision,
-        message: 'Generated output "${entry.key}" has multiple owners: '
+        message:
+            'Generated output "${entry.key}" has multiple owners: '
             '$owners.',
         location: entry.value.first.span.location,
       ),
@@ -723,8 +731,11 @@ List<RestageOwnedOutput> _flattenOutputs(
 ) {
   // A record key: the four fields compare structurally, so there is no
   // separator to pick and no value a field could hold that would collide.
-  final grouped = <({String path, String role, String builder, String owner}),
-      _OwnedOutputAccumulator>{};
+  final grouped =
+      <
+        ({String path, String role, String builder, String owner}),
+        _OwnedOutputAccumulator
+      >{};
   for (final declaration in declarations) {
     for (final output in declaration.outputs) {
       final owner = output.ownershipKey ?? declaration.ownerKey;
@@ -786,8 +797,8 @@ final class _OwnedOutputAccumulator {
     required this.writtenWhen,
     required Iterable<RestageIdentityClaim> identities,
   }) : _identities = {
-          for (final identity in identities) identity.qualifiedKey: identity,
-        };
+         for (final identity in identities) identity.qualifiedKey: identity,
+       };
 
   final String path;
   final String role;
@@ -804,10 +815,10 @@ final class _OwnedOutputAccumulator {
     }
   }
 
-  List<RestageIdentityClaim> get identities => (_identities.values.toList()
-    ..sort(
-      (left, right) => left.qualifiedKey.compareTo(right.qualifiedKey),
-    ));
+  List<RestageIdentityClaim> get identities =>
+      (_identities.values.toList()..sort(
+        (left, right) => left.qualifiedKey.compareTo(right.qualifiedKey),
+      ));
 }
 
 int _compareOwnedOutputs(RestageOwnedOutput left, RestageOwnedOutput right) {
@@ -826,8 +837,9 @@ int _compareDeclarations(
   if (byKind != 0) return byKind;
   final byId = left.effectiveId.compareTo(right.effectiveId);
   if (byId != 0) return byId;
-  final byIdentity =
-      left.declarationIdentity.compareTo(right.declarationIdentity);
+  final byIdentity = left.declarationIdentity.compareTo(
+    right.declarationIdentity,
+  );
   if (byIdentity != 0) return byIdentity;
   return left.span.location.compareTo(right.span.location);
 }
@@ -843,7 +855,7 @@ String _encodeJson(Map<String, Object> value) =>
     const JsonEncoder.withIndent('  ').convert(value);
 
 Map<String, String> _issueToJson(Issue issue) => {
-      'code': issue.code.name,
-      'message': issue.message,
-      'location': issue.location,
-    };
+  'code': issue.code.name,
+  'message': issue.message,
+  'location': issue.location,
+};

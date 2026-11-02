@@ -174,7 +174,8 @@ void main() {
     Issue issueWith({
       required IssueCode code,
       String? capabilityGapSubject,
-      String message = 'Unsupported method invocation: '
+      String message =
+          'Unsupported method invocation: '
           r'NumberFormat.currency(symbol: "$").format(price).',
     }) {
       return Issue(

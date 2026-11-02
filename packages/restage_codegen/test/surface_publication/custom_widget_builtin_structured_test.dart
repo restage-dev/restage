@@ -67,63 +67,67 @@ final class StyledNotice extends StatelessWidget {
 ''';
 
 void main() {
-  test('a custom widget with only String and TextStyle builds and publishes',
-      () async {
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: _package);
-    final result = await testBuilders(
-      [
-        restageSourceRosterBuilder(BuilderOptions.forRoot),
-        userCatalogJsonBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-        restageGeneratedDartBuilder(BuilderOptions.empty),
-        restageOutputsBuilder(BuilderOptions.empty),
-        userCatalogBuilder(BuilderOptions.forRoot),
-        userFactoryBuilder(BuilderOptions.forRoot),
-      ],
-      {
-        '$_package|lib/widgets/caption.dart': _caption,
-        '$_package|lib/features/styled_notice.dart': _screen,
-      },
-      rootPackage: _package,
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  test(
+    'a custom widget with only String and TextStyle builds and publishes',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: _package,
+      );
+      final result = await testBuilders(
+        [
+          restageSourceRosterBuilder(BuilderOptions.forRoot),
+          userCatalogJsonBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
+          restageOutputsBuilder(BuilderOptions.empty),
+          userCatalogBuilder(BuilderOptions.forRoot),
+          userFactoryBuilder(BuilderOptions.forRoot),
+        ],
+        {
+          '$_package|lib/widgets/caption.dart': _caption,
+          '$_package|lib/features/styled_notice.dart': _screen,
+        },
+        rootPackage: _package,
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
 
-    List<int> read(String path) =>
-        readerWriter.testing.readBytes(AssetId(_package, path));
-    const indexPath = '.restage/build/metadata/restage.outputs.json';
-    final outputIndex = RestageOutputIndex.decodeJson(
-      String.fromCharCodes(read(indexPath)),
-    );
-    final root = await Directory.systemTemp.createTemp('builtin_structured_');
-    addTearDown(() => root.delete(recursive: true));
-    File(p.join(root.path, 'pubspec.yaml'))
-        .writeAsStringSync('name: $_package\n');
-    for (final path in {
-      kRestageSurfacePublicationCompilerBundlePath,
-      kRestageMeasurementCompilerOutputPath,
-      indexPath,
-      '.restage/build/metadata/restage.publication.json',
-      '.restage/build/metadata/restage.measurement.index.json',
-      ...outputIndex.entries.map((entry) => entry.bundle),
-    }) {
-      final file = File(p.join(root.path, path));
-      file.parent.createSync(recursive: true);
-      file.writeAsBytesSync(read(path));
-    }
+      List<int> read(String path) =>
+          readerWriter.testing.readBytes(AssetId(_package, path));
+      const indexPath = '.restage/build/metadata/restage.outputs.json';
+      final outputIndex = RestageOutputIndex.decodeJson(
+        String.fromCharCodes(read(indexPath)),
+      );
+      final root = await Directory.systemTemp.createTemp('builtin_structured_');
+      addTearDown(() => root.delete(recursive: true));
+      File(
+        p.join(root.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: $_package\n');
+      for (final path in {
+        kRestageSurfacePublicationCompilerBundlePath,
+        kRestageMeasurementCompilerOutputPath,
+        indexPath,
+        '.restage/build/metadata/restage.publication.json',
+        '.restage/build/metadata/restage.measurement.index.json',
+        ...outputIndex.entries.map((entry) => entry.bundle),
+      }) {
+        final file = File(p.join(root.path, path));
+        file.parent.createSync(recursive: true);
+        file.writeAsBytesSync(read(path));
+      }
 
-    final loaded = await SurfacePublicationManifestLoader().load(
-      projectRoot: root,
-    );
-    final entry = loaded.manifest.publications.singleWhere(
-      (entry) => entry.publication.slug == 'styled_notice',
-    );
-    final assembled = await SurfacePublicationAssembler().assemble(
-      loaded: loaded,
-      entry: entry,
-    );
-    expect(assembled.payload.requiredLibraries, isNotEmpty);
-  });
+      final loaded = await SurfacePublicationManifestLoader().load(
+        projectRoot: root,
+      );
+      final entry = loaded.manifest.publications.singleWhere(
+        (entry) => entry.publication.slug == 'styled_notice',
+      );
+      final assembled = await SurfacePublicationAssembler().assemble(
+        loaded: loaded,
+        entry: entry,
+      );
+      expect(assembled.payload.requiredLibraries, isNotEmpty);
+    },
+  );
 }

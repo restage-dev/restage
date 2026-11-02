@@ -8,7 +8,7 @@ import 'package:restage_shared/restage_shared.dart';
 /// envelope of `restageCapability` (the required capability stamp:
 /// `builtInFloor`, `requiredLibraries`, `perItemSinceVersion`) and `a2ui` (the
 /// payload). The app caches the wrapper; the pre-render check reads
-/// `restageCapability` before handing `a2ui` to the genui render seam.
+/// `restageCapability` before handing `a2ui` to the a2ui_flutter render seam.
 ///
 /// `restageCapability` reuses the format-general [CapabilityManifest] for its
 /// two axes (built-in floor + required custom libraries) — `requiredCatalogVersion`
@@ -100,7 +100,7 @@ final class RestageA2uiSidecar {
   /// catalog's cumulative-render-support invariant).
   final Map<String, int> perItemSinceVersion;
 
-  /// The wrapped A2UI payload (opaque JSON — a genui A2UI message / surface).
+  /// The wrapped A2UI payload (opaque JSON — an a2ui_flutter A2UI message / surface).
   final Object? a2ui;
 
   /// Encodes the sidecar to its JSON envelope. `requiredLibraries` and

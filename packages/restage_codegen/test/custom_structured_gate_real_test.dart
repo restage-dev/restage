@@ -23,8 +23,7 @@ Future<CustomStructuredAdmission> _admit(Map<String, String> sources) async {
 
 void main() {
   group('reconstructor-soundness — real discovery', () {
-    test(
-        'a non-canonical data class (required ctor param name-matches no '
+    test('a non-canonical data class (required ctor param name-matches no '
         'field) is EXCLUDED-loud, naming the param', () async {
       final admission = await _admit({
         'lib/card.dart': '''
@@ -48,8 +47,7 @@ void main() {
       expect(admission.excluded.single.reason, contains('c'));
     });
 
-    test(
-        'a non-canonical data class (an OPTIONAL ctor param name-matches no '
+    test('a non-canonical data class (an OPTIONAL ctor param name-matches no '
         'field) is EXCLUDED-loud too — optionality does not make a renamed '
         'param sourceable', () async {
       // `label` is OPTIONAL (no `required`) and materialises `count`, not a
@@ -80,8 +78,7 @@ void main() {
       expect(admission.excluded.single.reason, contains('label'));
     });
 
-    test(
-        'a POSITIONAL optional param that RENAMES a field is EXCLUDED-loud too '
+    test('a POSITIONAL optional param that RENAMES a field is EXCLUDED-loud too '
         '— the positional twin of the named rename (the positional-hole check '
         'does not catch a rename)', () async {
       // `label` is an OPTIONAL POSITIONAL param that materialises `count`, not
@@ -113,8 +110,7 @@ void main() {
       expect(admission.excluded.single.reason, contains('count'));
     });
 
-    test(
-        'a REDIRECTING unnamed ctor is skipped: the guard inspects the same '
+    test('a REDIRECTING unnamed ctor is skipped: the guard inspects the same '
         'variant the reconstruction uses (the enumerator drops redirecting '
         'ctors), so an unsourceable redirect target is EXCLUDED', () async {
       final admission = await _admit({
@@ -140,11 +136,11 @@ void main() {
     });
 
     test(
-        'with NO unnamed ctor, each named ctor is checked on its own: a '
-        'sourceable one admits the type, an unsourceable one is left out',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/card.dart': '''
+      'with NO unnamed ctor, each named ctor is checked on its own: a '
+      'sourceable one admits the type, an unsourceable one is left out',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/card.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           class Badge {
             const Badge.zebra({required this.value});
@@ -159,22 +155,22 @@ void main() {
             @RestageProperty(description: 'b') final Badge badge;
           }
         ''',
-      });
-      final admission = computeAdmission(
-        widgets: result.widgets,
-        structuredTypes: result.structuredTypes,
-        slotTargets: result.slotTargets,
-        localUnrenderable: result.localUnrenderable,
-        widgetUnrenderable: result.widgetUnrenderable,
-      );
-      expect(admission.admitted.map((w) => w.name), ['BadgeCard']);
-      final plan = result.reconstructionPlans.values.single;
-      expect(plan.hasUnnamed, isFalse);
-      expect(plan.constructors.keys, ['zebra']);
-    });
+        });
+        final admission = computeAdmission(
+          widgets: result.widgets,
+          structuredTypes: result.structuredTypes,
+          slotTargets: result.slotTargets,
+          localUnrenderable: result.localUnrenderable,
+          widgetUnrenderable: result.widgetUnrenderable,
+        );
+        expect(admission.admitted.map((w) => w.name), ['BadgeCard']);
+        final plan = result.reconstructionPlans.values.single;
+        expect(plan.hasUnnamed, isFalse);
+        expect(plan.constructors.keys, ['zebra']);
+      },
+    );
 
-    test(
-        'an optional property whose type cannot render is left out, and '
+    test('an optional property whose type cannot render is left out, and '
         'the widget is admitted', () async {
       final result = await runWidgetVisitorOn({
         'lib/card.dart': '''
@@ -208,10 +204,11 @@ void main() {
       expect(admission.dropped.single.reason, contains("'Link'"));
     });
 
-    test('a required property whose type cannot render excludes the widget',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/card.dart': '''
+    test(
+      'a required property whose type cannot render excludes the widget',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/card.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           class Link {
             const Link({required this.label, required this.onTap});
@@ -226,21 +223,21 @@ void main() {
             @RestageProperty(description: 'l') final Link link;
           }
         ''',
-      });
-      final admission = computeAdmission(
-        widgets: result.widgets,
-        structuredTypes: result.structuredTypes,
-        slotTargets: result.slotTargets,
-        localUnrenderable: result.localUnrenderable,
-        widgetUnrenderable: result.widgetUnrenderable,
-      );
-      expect(admission.admitted, isEmpty);
-      expect(admission.excluded.single.property?.name, 'link');
-      expect(admission.dropped, isEmpty);
-    });
+        });
+        final admission = computeAdmission(
+          widgets: result.widgets,
+          structuredTypes: result.structuredTypes,
+          slotTargets: result.slotTargets,
+          localUnrenderable: result.localUnrenderable,
+          widgetUnrenderable: result.widgetUnrenderable,
+        );
+        expect(admission.admitted, isEmpty);
+        expect(admission.excluded.single.property?.name, 'link');
+        expect(admission.dropped, isEmpty);
+      },
+    );
 
-    test(
-        'a FACTORY named ctor is never a reconstruction target; the type '
+    test('a FACTORY named ctor is never a reconstruction target; the type '
         'is admitted through its generative ctor', () async {
       final result = await runWidgetVisitorOn({
         'lib/card.dart': r'''
@@ -265,8 +262,7 @@ void main() {
       ]);
     });
 
-    test(
-        'an unmapped positional param BEFORE a mapped (field) positional is '
+    test('an unmapped positional param BEFORE a mapped (field) positional is '
         'EXCLUDED-loud (the emitter omits the hole, shifting the field arg to '
         'the wrong slot)', () async {
       // `unused` is an optional positional that is NOT a field; `count` is an
@@ -294,8 +290,7 @@ void main() {
       expect(admission.excluded.single.reason, contains('positional'));
     });
 
-    test(
-        'a trailing unmapped positional (AFTER all field positionals) still '
+    test('a trailing unmapped positional (AFTER all field positionals) still '
         'ADMITS — no shift', () async {
       final admission = await _admit({
         'lib/card.dart': '''
@@ -317,11 +312,11 @@ void main() {
     });
 
     test(
-        'a SELF-REFERENTIAL (cyclic) type is EXCLUDED-loud (a cycle cannot be '
-        'reconstructed by finite inline emission — A2UI-only in RFW)',
-        () async {
-      final admission = await _admit({
-        'lib/card.dart': '''
+      'a SELF-REFERENTIAL (cyclic) type is EXCLUDED-loud (a cycle cannot be '
+      'reconstructed by finite inline emission — A2UI-only in RFW)',
+      () async {
+        final admission = await _admit({
+          'lib/card.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           class Node {
             const Node({required this.value, required this.next});
@@ -336,14 +331,14 @@ void main() {
             @RestageProperty(description: 'b') final Node node;
           }
         ''',
-      });
-      expect(admission.admitted, isEmpty);
-      expect(admission.excluded.single.widget.name, 'NodeCard');
-      expect(admission.excluded.single.reason, contains('cyclic'));
-    });
+        });
+        expect(admission.admitted, isEmpty);
+        expect(admission.excluded.single.widget.name, 'NodeCard');
+        expect(admission.excluded.single.reason, contains('cyclic'));
+      },
+    );
 
-    test(
-        'a DIAMOND (a type referenced by two fields, NOT cyclic) still ADMITS '
+    test('a DIAMOND (a type referenced by two fields, NOT cyclic) still ADMITS '
         '— the visiting set backtracks, so it is not a false cycle', () async {
       final admission = await _admit({
         'lib/card.dart': '''
@@ -367,10 +362,11 @@ void main() {
       expect(admission.excluded, isEmpty);
     });
 
-    test('a canonical nested closure still ADMITS (no over-exclusion)',
-        () async {
-      final admission = await _admit({
-        'lib/card.dart': '''
+    test(
+      'a canonical nested closure still ADMITS (no over-exclusion)',
+      () async {
+        final admission = await _admit({
+          'lib/card.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           class Inner { const Inner({required this.value}); final int value; }
           class Outer {
@@ -385,15 +381,15 @@ void main() {
             @RestageProperty(description: 'b') final Outer config;
           }
         ''',
-      });
-      expect(admission.admitted.map((w) => w.name), ['OuterCard']);
-      expect(admission.excluded, isEmpty);
-    });
+        });
+        expect(admission.admitted.map((w) => w.name), ['OuterCard']);
+        expect(admission.excluded, isEmpty);
+      },
+    );
   });
 
   group('nameability — real discovery (compilability, not faithfulness)', () {
-    test(
-        'a PRIVATE enum field type is EXCLUDED-loud (the generated factory '
+    test('a PRIVATE enum field type is EXCLUDED-loud (the generated factory '
         'library cannot name `_Tone`)', () async {
       final admission = await _admit({
         'lib/card.dart': '''
@@ -414,8 +410,7 @@ void main() {
       expect(admission.excluded.single.reason, contains('private'));
     });
 
-    test(
-        'a PUBLIC enum field type still ADMITS (nameable; the import closure '
+    test('a PUBLIC enum field type still ADMITS (nameable; the import closure '
         'brings its library — do NOT blanket-exclude enums)', () async {
       final admission = await _admit({
         'lib/tone.dart': 'enum Tone { soft, loud }',
@@ -436,10 +431,11 @@ void main() {
       expect(admission.excluded, isEmpty);
     });
 
-    test('a PRIVATE nested data-class type is EXCLUDED-loud (unnameable)',
-        () async {
-      final admission = await _admit({
-        'lib/card.dart': '''
+    test(
+      'a PRIVATE nested data-class type is EXCLUDED-loud (unnameable)',
+      () async {
+        final admission = await _admit({
+          'lib/card.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           class _Badge { const _Badge({required this.label}); final String label; }
           @RestageWidget(name: 'BadgeCard',
@@ -450,10 +446,11 @@ void main() {
             @RestageProperty(description: 'b') final _Badge badge;
           }
         ''',
-      });
-      expect(admission.admitted, isEmpty);
-      expect(admission.excluded.single.reason, contains('private'));
-    });
+        });
+        expect(admission.admitted, isEmpty);
+        expect(admission.excluded.single.reason, contains('private'));
+      },
+    );
 
     // H2 (reproducibility) — an OPTIONAL NON-NULLABLE field must supply its
     // ctor default on the absent branch (`<decode> ?? <default>`), reproduced
@@ -462,8 +459,7 @@ void main() {
     // generated library cannot name/qualify an arbitrary const expression)
     // cannot be faithfully emitted, so the type is EXCLUDED-loud rather than
     // silently omitted (value loss) or emitted as non-compiling code.
-    test(
-        'an OPTIONAL NON-NULLABLE field with a NON-reproducible default (a '
+    test('an OPTIONAL NON-NULLABLE field with a NON-reproducible default (a '
         'const constructor) is EXCLUDED-loud (never silent-omit, never '
         'uncompilable)', () async {
       final admission = await _admit({
@@ -495,8 +491,7 @@ void main() {
     // custom_structured_rfw_gate_test.dart, not this discovery-level helper.)
   });
 
-  group('duplicate-name collision — real discovery (source-inclusive keying)',
-      () {
+  group('duplicate-name collision — real discovery (source-inclusive keying)', () {
     const twoBadges = {
       'lib/a.dart': '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -522,8 +517,7 @@ void main() {
       ''',
     };
 
-    test(
-        'both widgets are ADMITTED (a name collision is not an inherent '
+    test('both widgets are ADMITTED (a name collision is not an inherent '
         'unrenderability — source-inclusive keying disambiguates)', () async {
       final admission = await _admit(twoBadges);
       expect(admission.admitted.map((w) => w.name).toSet(), {'CardA', 'CardB'});
@@ -531,40 +525,45 @@ void main() {
     });
 
     test(
-        'the two same-name Badges get DISTINCT structured wire ids, and a '
-        'rebuild replays cleanly (no WireIdReplayException, mints nothing)',
-        () async {
-      final r = await runWidgetVisitorOn(twoBadges);
-      final first = allocateUserCatalogFromWidgets(
-        package: 'apps_examples',
-        widgets: r.widgets,
-        structuredTypes: r.structuredTypes,
-        slotTargets: r.slotTargets,
-      );
-      final badgeIds = first.catalog.structuredTypes
-          .where((s) => s.name == 'Badge')
-          .map((s) => s.wireId.value)
-          .toSet();
-      expect(badgeIds, hasLength(2), reason: 'distinct ids for the two Badges');
+      'the two same-name Badges get DISTINCT structured wire ids, and a '
+      'rebuild replays cleanly (no WireIdReplayException, mints nothing)',
+      () async {
+        final r = await runWidgetVisitorOn(twoBadges);
+        final first = allocateUserCatalogFromWidgets(
+          package: 'apps_examples',
+          widgets: r.widgets,
+          structuredTypes: r.structuredTypes,
+          slotTargets: r.slotTargets,
+        );
+        final badgeIds = first.catalog.structuredTypes
+            .where((s) => s.name == 'Badge')
+            .map((s) => s.wireId.value)
+            .toSet();
+        expect(
+          badgeIds,
+          hasLength(2),
+          reason: 'distinct ids for the two Badges',
+        );
 
-      // Idempotent rebuild — the seed now has two 'Badge' entries; source-keyed
-      // replay must NOT throw and must mint nothing.
-      final replay = allocateUserCatalogFromWidgets(
-        package: 'apps_examples',
-        widgets: r.widgets,
-        structuredTypes: r.structuredTypes,
-        slotTargets: r.slotTargets,
-        existingEvents: first.newEvents,
-      );
-      expect(replay.newEvents, isEmpty);
-    });
+        // Idempotent rebuild — the seed now has two 'Badge' entries; source-keyed
+        // replay must NOT throw and must mint nothing.
+        final replay = allocateUserCatalogFromWidgets(
+          package: 'apps_examples',
+          widgets: r.widgets,
+          structuredTypes: r.structuredTypes,
+          slotTargets: r.slotTargets,
+          existingEvents: first.newEvents,
+        );
+        expect(replay.newEvents, isEmpty);
+      },
+    );
 
-    test(
-        'a SHARED data class imported by two widget files is discovered once '
+    test('a SHARED data class imported by two widget files is discovered once '
         'per file (same sourceType twice); allocation dedupes to a single '
         'structured id and replays idempotently (no crash)', () async {
       final r = await runWidgetVisitorOn({
-        'lib/model.dart': 'class Badge { const Badge({required this.label}); '
+        'lib/model.dart':
+            'class Badge { const Badge({required this.label}); '
             'final String label; }',
         'lib/a.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -610,13 +609,14 @@ void main() {
       expect(replay.newEvents, isEmpty);
     });
 
-    test(
-        'a type shared by THREE files (varying import order) dedupes to ONE '
+    test('a type shared by THREE files (varying import order) dedupes to ONE '
         'id, and the deduped entry is LOSSLESS (equals a single-file '
         'discovery)', () async {
-      const model = 'class Badge { const Badge({required this.label, '
+      const model =
+          'class Badge { const Badge({required this.label, '
           'required this.count}); final String label; final int count; }';
-      String card(String name) => '''
+      String card(String name) =>
+          '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
         import 'model.dart';
         @RestageWidget(name: '$name',
@@ -652,8 +652,9 @@ void main() {
         'lib/model.dart': model,
         'lib/one.dart': card('CardOne'),
       });
-      final singleBadge =
-          single.structuredTypes.firstWhere((s) => s.name == 'Badge');
+      final singleBadge = single.structuredTypes.firstWhere(
+        (s) => s.name == 'Badge',
+      );
       expect(
         badges.single.fields.map((f) => '${f.name}:${f.type.name}').toList(),
         singleBadge.fields.map((f) => '${f.name}:${f.type.name}').toList(),

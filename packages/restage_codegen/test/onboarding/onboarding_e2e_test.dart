@@ -14,12 +14,12 @@ import '../helpers.dart';
 
 /// The generated flow-reference declaration, matched across the line wrap
 /// Measurement introduces by lengthening the constructor.
-final _constFirstRunFlowRef =
-    RegExp(r'const firstRunFlowRef =\s*SurfaceFlowRef<\s*FirstRunResult\s*>');
+final _constFirstRunFlowRef = RegExp(
+  r'const firstRunFlowRef =\s*SurfaceFlowRef<\s*FirstRunResult\s*>',
+);
 
 void main() {
-  test('three-screen first_run fixture emits the frozen E2E contract',
-      () async {
+  test('three-screen first_run fixture emits the frozen E2E contract', () async {
     final sources = _firstRunSources();
     final readerWriter = await _readerWriterWith(sources);
 
@@ -73,8 +73,10 @@ void main() {
           ),
         );
       }
-      final rfwBlob =
-          _readBytes(result, 'assets/onboarding/screens/$screen.rfw');
+      final rfwBlob = _readBytes(
+        result,
+        'assets/onboarding/screens/$screen.rfw',
+      );
       expect(rfwBlob, isNotEmpty);
       expect(
         () => fmt.decodeLibraryBlob(Uint8List.fromList(rfwBlob)),
@@ -131,7 +133,8 @@ void main() {
         jsonDecode(_readSharedFirstRunGolden()) as Map<String, dynamic>;
     golden['minClient'] = kGroupedWidgetListClientFloor;
     ((golden['screenArtifacts'] as Map<String, dynamic>)['welcome']
-        as Map<String, dynamic>)['minClient'] = kGroupedWidgetListClientFloor;
+            as Map<String, dynamic>)['minClient'] =
+        kGroupedWidgetListClientFloor;
     expect(
       FlowDocumentCodec.encodeCanonicalJson(document),
       FlowDocumentCodec.encodeCanonicalJson(
@@ -154,9 +157,9 @@ void main() {
       // These built-in screens require no custom libraries.
       final sidecarPath =
           'assets/onboarding/screens/${entry.value.path.replaceFirst(
-        RegExp(r'\.rfw$'),
-        '.capability.json',
-      )}';
+            RegExp(r'\.rfw$'),
+            '.capability.json',
+          )}';
       final sidecar = CapabilitySidecar.fromJson(
         jsonDecode(_readString(result, sidecarPath)) as Map<String, dynamic>,
       );
@@ -310,8 +313,9 @@ void consumeGeneratedDescriptors() {
       final library = await resolver.libraryFor(
         AssetId('apps_examples', 'lib/generated_consumer.dart'),
       );
-      final resolved =
-          await library.session.getResolvedLibraryByElement(library);
+      final resolved = await library.session.getResolvedLibraryByElement(
+        library,
+      );
       if (resolved is! ResolvedLibraryResult) {
         throw StateError('Generated fixture did not resolve.');
       }
@@ -329,13 +333,18 @@ void consumeGeneratedDescriptors() {
 }
 
 Map<String, String> _firstRunSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _welcomeScreenSource(),
-      'apps_examples|lib/onboarding/screens/permissions.dart':
-          _screenSource('permissions', 'PermissionsScreen', 'next'),
-      'apps_examples|lib/onboarding/screens/ready.dart':
-          _screenSource('ready', 'ReadyScreen', 'start'),
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _welcomeScreenSource(),
+  'apps_examples|lib/onboarding/screens/permissions.dart': _screenSource(
+    'permissions',
+    'PermissionsScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/screens/ready.dart': _screenSource(
+    'ready',
+    'ReadyScreen',
+    'start',
+  ),
+  'apps_examples|lib/onboarding/flows/first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/permissions.dart';
@@ -406,7 +415,7 @@ final class NotificationResult {
   final bool granted;
 }
 ''',
-    };
+};
 
 String _welcomeScreenSource() => '''
 import 'package:flutter/material.dart';
@@ -444,7 +453,8 @@ final class WelcomeScreen extends StatelessWidget {
 }
 ''';
 
-String _screenSource(String id, String className, String eventName) => '''
+String _screenSource(String id, String className, String eventName) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 

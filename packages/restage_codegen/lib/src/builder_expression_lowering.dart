@@ -24,7 +24,7 @@ final class BuilderLoweringException implements Exception {
 
 /// Resolves a callback's same-unit body with its analyzed native parameters.
 ({FunctionBody body, List<FormalParameterElement> parameters})?
-    pureBuilderCallbackFor(Expression anchor, Element? element) {
+pureBuilderCallbackFor(Expression anchor, Element? element) {
   if (element is! ExecutableElement) return null;
   final finder = _PureHelperFinder(element);
   anchor.root.accept(finder);
@@ -38,21 +38,24 @@ HelperDef? pureBuilderHelperFor(Expression anchor, Element? element) {
   final callback = pureBuilderCallbackFor(anchor, element);
   if (callback == null ||
       callback.body.isAsynchronous ||
-      callback.body.isGenerator) return null;
+      callback.body.isGenerator)
+    return null;
   final extracted = extractInlinableBuildBody(callback.body);
   if (extracted == null) {
     final returns = _HelperReturn();
     callback.body.accept(returns);
     if (returns.expression == null) return null;
     return HelperDef(
-        params: callback.parameters,
-        body: returns.expression!,
-        functionBody: callback.body);
+      params: callback.parameters,
+      body: returns.expression!,
+      functionBody: callback.body,
+    );
   }
   return HelperDef(
-      params: callback.parameters,
-      body: extracted.expression,
-      localBindings: extracted.localBindings);
+    params: callback.parameters,
+    body: extracted.expression,
+    localBindings: extracted.localBindings,
+  );
 }
 
 final class _HelperReturn extends RecursiveAstVisitor<void> {
@@ -126,13 +129,13 @@ final class _PureHelperFinder extends RecursiveAstVisitor<void> {
 
 /// Shared typed lowering for callback and constructor value expressions.
 final class BuilderExpressionLowering {
-  BuilderExpressionLowering(
-      {required this.capture,
-      this.parent,
-      this.lexicalParent,
-      this.extension,
-      Map<String, ValueOperation> operations = const {}})
-      : operations = {...operations};
+  BuilderExpressionLowering({
+    required this.capture,
+    this.parent,
+    this.lexicalParent,
+    this.extension,
+    Map<String, ValueOperation> operations = const {},
+  }) : operations = {...operations};
   final String Function(Expression expression) capture;
   final BuilderExpressionLowering? parent;
   final BuilderExpressionLowering? lexicalParent;
@@ -184,11 +187,13 @@ final class BuilderExpressionLowering {
     return (lexicalParent ?? parent)?._bindingTypeFor(element);
   }
 
-  ValueOperationContext get lexicalContext =>
-      ValueOperationContext(operations: operations, locals: {
-        ...?(lexicalParent ?? parent)?.lexicalContext.locals,
-        ...?(lexicalParent ?? parent)?.locals
-      });
+  ValueOperationContext get lexicalContext => ValueOperationContext(
+    operations: operations,
+    locals: {
+      ...?(lexicalParent ?? parent)?.lexicalContext.locals,
+      ...?(lexicalParent ?? parent)?.locals,
+    },
+  );
 
   int declareLocal(VariableDeclaration variable, {required bool mutable}) {
     final element = variable.declaredFragment!.element;
@@ -198,12 +203,19 @@ final class BuilderExpressionLowering {
   }
 
   /// Retains an evaluated declaration or helper argument at its lexical point.
-  int bindValue(Element element, int value, AstNode source,
-      {bool mutable = false}) {
+  int bindValue(
+    Element element,
+    int value,
+    AstNode source, {
+    bool mutable = false,
+  }) {
     // Aggregates cross nested callback programs through the lexical frame;
     // reconstructing their initializer would repeat its reads and allocations.
-    final retainedAggregate =
-        const {'iterable', 'list', 'record'}.contains(nodes[value].type.kind);
+    final retainedAggregate = const {
+      'iterable',
+      'list',
+      'record',
+    }.contains(nodes[value].type.kind);
     if (!mutable && !retainedAggregate) return bindings[element] = value;
     var id = 'local${nodes.length}';
     while (locals.containsKey(id) ||
@@ -216,45 +228,57 @@ final class BuilderExpressionLowering {
     if (valueType.kind == 'native') {
       if (element is! VariableElement) {
         throw BuilderLoweringException(
-            source, 'A mutable native local requires a declared nominal type');
+          source,
+          'A mutable native local requires a declared nominal type',
+        );
       }
       final declared = element.type;
       final initializer = source is VariableDeclaration
           ? source.initializer?.staticType
           : source is Expression
-              ? source.staticType
-              : null;
+          ? source.staticType
+          : null;
       if (initializer == null || source.root is! CompilationUnit) {
         throw BuilderLoweringException(
-            source, 'A mutable native local requires a resolved initializer');
+          source,
+          'A mutable native local requires a resolved initializer',
+        );
       }
       final system =
           (source.root as CompilationUnit).declaredFragment!.element.typeSystem;
-      final base = declared is InterfaceType &&
+      final base =
+          declared is InterfaceType &&
           switch (valueType.nativeType) {
-            'flutter.Color' => declared.element.name == 'Color' &&
-                declared.element.library.identifier == 'dart:ui',
-            'flutter.Key' => declared.element.name == 'Key' &&
-                declared.element.library.identifier
-                    .startsWith('package:flutter/'),
+            'flutter.Color' =>
+              declared.element.name == 'Color' &&
+                  declared.element.library.identifier == 'dart:ui',
+            'flutter.Key' =>
+              declared.element.name == 'Key' &&
+                  declared.element.library.identifier.startsWith(
+                    'package:flutter/',
+                  ),
             _ => false,
           };
       if (!base &&
           system.promoteToNonNull(declared) !=
               system.promoteToNonNull(initializer)) {
-        throw BuilderLoweringException(source,
-            'A mutable native local requires its declared nominal type');
+        throw BuilderLoweringException(
+          source,
+          'A mutable native local requires its declared nominal type',
+        );
       }
-      type = ValueType.native(valueType.nativeType!,
-          nullable: declared.nullabilitySuffix == NullabilitySuffix.question);
+      type = ValueType.native(
+        valueType.nativeType!,
+        nullable: declared.nullabilitySuffix == NullabilitySuffix.question,
+      );
     } else {
       // Preserve immutable finite projections such as a native Key callback's
       // record instead of attempting to derive its opaque nominal Dart type.
       type = !mutable && retainedAggregate
           ? valueType
           : element is VariableElement
-              ? valueTypeFor(element.type, source)
-              : valueType;
+          ? valueTypeFor(element.type, source)
+          : valueType;
     }
     locals[id] = type;
     localSlots[element] = id;
@@ -263,9 +287,11 @@ final class BuilderExpressionLowering {
   }
 
   bool _hasParentSlot(String id) {
-    for (var scope = lexicalParent ?? parent;
-        scope != null;
-        scope = scope.lexicalParent ?? scope.parent) {
+    for (
+      var scope = lexicalParent ?? parent;
+      scope != null;
+      scope = scope.lexicalParent ?? scope.parent
+    ) {
       if (scope.locals.containsKey(id) || scope.outerLocals.containsKey(id))
         return true;
     }
@@ -276,28 +302,41 @@ final class BuilderExpressionLowering {
     if (type.kind == 'double' && nodes[value].type.kind == 'int') {
       value = add(ValueNode('toDouble', ValueType.real, inputs: [value]));
     }
-    return add(ValueNode('local.write', nodes[value].type,
-        inputs: [value], name: slot));
+    return add(
+      ValueNode('local.write', nodes[value].type, inputs: [value], name: slot),
+    );
   }
 
-  int _assignment(Expression destination, Expression? value, String operator,
-      {bool postfix = false}) {
+  int _assignment(
+    Expression destination,
+    Expression? value,
+    String operator, {
+    bool postfix = false,
+  }) {
     if (destination is! SimpleIdentifier) {
       throw BuilderLoweringException(
-          destination, 'Only declared local writes are supported');
+        destination,
+        'Only declared local writes are supported',
+      );
     }
     final local = localFor(destination.element);
     if (local == null)
       throw BuilderLoweringException(
-          destination, 'Write requires a mutable local');
+        destination,
+        'Write requires a mutable local',
+      );
     final (slot, type) = local;
     if (operator == '=') return _write(slot, type, lower(value!));
     var old = add(ValueNode('local.read', type, name: slot));
     if (operator == '??=') {
       final write = _write(slot, type, lower(value!));
-      return add(ValueNode(
-          '??', nodes[write].type.nullable ? type : type.nonNull,
-          inputs: [old, write]));
+      return add(
+        ValueNode(
+          '??',
+          nodes[write].type.nullable ? type : type.nonNull,
+          inputs: [old, write],
+        ),
+      );
     }
     if (type.nullable && _isNonNullable(destination)) {
       old = add(ValueNode('nonNull', type.nonNull, inputs: [old]));
@@ -305,12 +344,14 @@ final class BuilderExpressionLowering {
     final op = operator == '++'
         ? '+'
         : operator == '--'
-            ? '-'
-            : operator.substring(0, operator.length - 1);
+        ? '-'
+        : operator.substring(0, operator.length - 1);
     if (!const {'+', '-', '*', '/', '~/', '%'}.contains(op) ||
         !(type.numeric || (type.kind == 'String' && op == '+'))) {
       throw BuilderLoweringException(
-          destination, 'Unsupported local compound operator');
+        destination,
+        'Unsupported local compound operator',
+      );
     }
     final rhs = value == null
         ? add(const ValueNode('literal', ValueType.integer, value: 1))
@@ -320,9 +361,13 @@ final class BuilderExpressionLowering {
       '~/' => ValueType.integer,
       _ => type.nonNull,
     };
-    final updated = add(ValueNode(
-        type.kind == 'String' ? 'concat' : op, resultType,
-        inputs: [old, rhs]));
+    final updated = add(
+      ValueNode(
+        type.kind == 'String' ? 'concat' : op,
+        resultType,
+        inputs: [old, rhs],
+      ),
+    );
     final write = _write(slot, type, updated);
     return postfix
         ? add(ValueNode('let', nodes[old].type, inputs: [write, old]))
@@ -351,23 +396,25 @@ final class BuilderExpressionLowering {
   bool provesNativeBase(int node, String name) {
     final proofs = <int, bool>{};
     bool visit(int index) => proofs.putIfAbsent(index, () {
-          final value = nodes[index];
-          if (value.type.kind == 'Null' || _nativeBaseTypes[index] == name)
-            return true;
-          return switch (value.op) {
-            'local.write' => visit(value.inputs.single),
-            'local.read' => switch (immutableLocalInitializer(value.name!)) {
-                (final owner, final initializer) =>
-                  owner.provesNativeBase(initializer, name),
-                null => false,
-              },
-            'nonNull' => visit(value.inputs.single),
-            'let' => visit(value.inputs.last),
-            'conditional' => value.inputs.skip(1).every(visit),
-            '??' => value.inputs.every(visit),
-            _ => false,
-          };
-        });
+      final value = nodes[index];
+      if (value.type.kind == 'Null' || _nativeBaseTypes[index] == name)
+        return true;
+      return switch (value.op) {
+        'local.write' => visit(value.inputs.single),
+        'local.read' => switch (immutableLocalInitializer(value.name!)) {
+          (final owner, final initializer) => owner.provesNativeBase(
+            initializer,
+            name,
+          ),
+          null => false,
+        },
+        'nonNull' => visit(value.inputs.single),
+        'let' => visit(value.inputs.last),
+        'conditional' => value.inputs.skip(1).every(visit),
+        '??' => value.inputs.every(visit),
+        _ => false,
+      };
+    });
     return visit(node);
   }
 
@@ -375,42 +422,43 @@ final class BuilderExpressionLowering {
   String? materialColorToken(int node) {
     final tokensByNode = <int, String?>{};
     String? visit(int node) => tokensByNode.putIfAbsent(node, () {
-          final value = nodes[node];
-          if (value.op == 'literal' && value.value is Map)
-            return (value.value! as Map)['material'] as String?;
-          if (value.op == 'argbColor') return '';
-          if (value.op == 'record') {
-            final index = value.type.fields.keys.toList().indexOf('material');
-            if (index >= 0) {
-              final field = nodes[value.inputs[index]];
-              if (field.op == 'literal') return field.value as String?;
-            }
-          }
-          if (value.op == 'local.write') return visit(value.inputs.single);
-          if (value.op == 'local.read') {
-            final initializer = immutableLocalInitializer(value.name!);
-            return initializer == null
-                ? null
-                : initializer.$1.materialColorToken(initializer.$2);
-          }
-          if (value.op == 'let') return visit(value.inputs.last);
-          if (value.op == 'nonNull') return visit(value.inputs.single);
-          if (value.op == 'conditional' || value.op == '??') {
-            final tokens = [
-              for (final input
-                  in value.inputs.skip(value.op == 'conditional' ? 1 : 0))
-                visit(input)
-            ];
-            if (tokens.every((token) => token == tokens.first))
-              return tokens.first;
-          }
-          return null;
-        });
+      final value = nodes[node];
+      if (value.op == 'literal' && value.value is Map)
+        return (value.value! as Map)['material'] as String?;
+      if (value.op == 'argbColor') return '';
+      if (value.op == 'record') {
+        final index = value.type.fields.keys.toList().indexOf('material');
+        if (index >= 0) {
+          final field = nodes[value.inputs[index]];
+          if (field.op == 'literal') return field.value as String?;
+        }
+      }
+      if (value.op == 'local.write') return visit(value.inputs.single);
+      if (value.op == 'local.read') {
+        final initializer = immutableLocalInitializer(value.name!);
+        return initializer == null
+            ? null
+            : initializer.$1.materialColorToken(initializer.$2);
+      }
+      if (value.op == 'let') return visit(value.inputs.last);
+      if (value.op == 'nonNull') return visit(value.inputs.single);
+      if (value.op == 'conditional' || value.op == '??') {
+        final tokens = [
+          for (final input in value.inputs.skip(
+            value.op == 'conditional' ? 1 : 0,
+          ))
+            visit(input),
+        ];
+        if (tokens.every((token) => token == tokens.first)) return tokens.first;
+      }
+      return null;
+    });
     return visit(node);
   }
 
   ({Expression access, Expression receiver})? _firstNullAwareAccess(
-      Expression expression) {
+    Expression expression,
+  ) {
     if (expression is ParenthesizedExpression) return null;
     final receiver = switch (expression) {
       PropertyAccess(:final target) => target,
@@ -434,7 +482,10 @@ final class BuilderExpressionLowering {
   }
 
   int _lowerNullShortened(
-      Expression expression, Expression access, Expression receiver) {
+    Expression expression,
+    Expression access,
+    Expression receiver,
+  ) {
     _activeNullAwareAccesses.add(access);
     final previous = _shortenedReceivers[receiver];
     try {
@@ -454,15 +505,23 @@ final class BuilderExpressionLowering {
         if (!nodes[input].type.nullable) return lower(expression);
         present = add(ValueNode('!=', ValueType.boolean, inputs: [input, nil]));
         _shortenedReceivers[receiver] = add(
-            ValueNode('nonNull', nodes[input].type.nonNull, inputs: [input]));
+          ValueNode('nonNull', nodes[input].type.nonNull, inputs: [input]),
+        );
       }
       final result = lower(expression);
       final type = nodes[result].type;
-      return add(ValueNode(
+      return add(
+        ValueNode(
           'conditional',
-          ValueType(type.kind,
-              nullable: true, item: type.item, fields: type.fields),
-          inputs: [present, result, nil]));
+          ValueType(
+            type.kind,
+            nullable: true,
+            item: type.item,
+            fields: type.fields,
+          ),
+          inputs: [present, result, nil],
+        ),
+      );
     } finally {
       _activeNullAwareAccesses.remove(access);
       if (previous == null) {
@@ -479,53 +538,63 @@ final class BuilderExpressionLowering {
   }
 
   /// Installs fixed Dart while retaining mutable captures in this lexical frame.
-  int lowerInstalledNativeCall(Expression expression,
-      {required ValueType resultType,
-      InstalledNativeInput? Function(SimpleIdentifier)? borrow,
-      bool Function(Expression)? isBorrowedCallable,
-      Map<Expression, String?> constantStrings = const {},
-      LibraryElement? emissionLibrary,
-      required void Function(InstalledNativeCallPlan) install}) {
-    final plan = planInstalledNativeCall(expression,
-        resultType: resultType,
-        borrowFor: borrow,
-        isDeclaredCallable: (reference) =>
-            reference is SimpleIdentifier &&
-                _hasNativeCallableBinding(reference.element) ||
-            isBorrowedCallable?.call(reference) == true,
-        constantStrings: constantStrings,
-        emissionLibrary: emissionLibrary,
-        captureFor: (element) {
-          final local = localFor(element);
-          return local == null
-              ? null
-              : InstalledNativeCapture(local.$1, local.$2);
-        },
-        inputFor: (identifier) {
-          if (_bindingTypeFor(identifier.element) == null) {
-            throw BuilderLoweringException(identifier,
-                'Native inputs require an existing callback or helper frame');
-          }
-          final node = lower(identifier);
-          final type = nodes[node].type;
-          if (!const {
-            'int',
-            'double',
-            'num',
-            'bool',
-            'String',
-            'Null',
-            'native'
-          }.contains(type.kind)) {
-            throw BuilderLoweringException(identifier,
-                'Native operands require original native values, not data projections');
-          }
-          return InstalledNativeInput(node, type);
-        });
+  int lowerInstalledNativeCall(
+    Expression expression, {
+    required ValueType resultType,
+    InstalledNativeInput? Function(SimpleIdentifier)? borrow,
+    bool Function(Expression)? isBorrowedCallable,
+    Map<Expression, String?> constantStrings = const {},
+    LibraryElement? emissionLibrary,
+    required void Function(InstalledNativeCallPlan) install,
+  }) {
+    final plan = planInstalledNativeCall(
+      expression,
+      resultType: resultType,
+      borrowFor: borrow,
+      isDeclaredCallable: (reference) =>
+          reference is SimpleIdentifier &&
+              _hasNativeCallableBinding(reference.element) ||
+          isBorrowedCallable?.call(reference) == true,
+      constantStrings: constantStrings,
+      emissionLibrary: emissionLibrary,
+      captureFor: (element) {
+        final local = localFor(element);
+        return local == null
+            ? null
+            : InstalledNativeCapture(local.$1, local.$2);
+      },
+      inputFor: (identifier) {
+        if (_bindingTypeFor(identifier.element) == null) {
+          throw BuilderLoweringException(
+            identifier,
+            'Native inputs require an existing callback or helper frame',
+          );
+        }
+        final node = lower(identifier);
+        final type = nodes[node].type;
+        if (!const {
+          'int',
+          'double',
+          'num',
+          'bool',
+          'String',
+          'Null',
+          'native',
+        }.contains(type.kind)) {
+          throw BuilderLoweringException(
+            identifier,
+            'Native operands require original native values, not data projections',
+          );
+        }
+        return InstalledNativeInput(node, type);
+      },
+    );
     install(plan);
-    for (BuilderExpressionLowering? scope = this;
-        scope != null;
-        scope = scope.lexicalParent ?? scope.parent) {
+    for (
+      BuilderExpressionLowering? scope = this;
+      scope != null;
+      scope = scope.lexicalParent ?? scope.parent
+    ) {
       final previous = scope.operations['native.call'];
       scope.operations['native.call'] = NativeCallValueOperation({
         if (previous is NativeCallValueOperation) ...previous.declarations,
@@ -541,12 +610,13 @@ final class BuilderExpressionLowering {
   }
 
   ValueProgram program(int root) => ValueProgram(
-      nodes: List.unmodifiable(nodes),
-      root: root,
-      captures: Map.unmodifiable(captureTypes),
-      parameters: Map.unmodifiable(parameters),
-      locals: Map.unmodifiable(locals),
-      outerLocals: Map.unmodifiable(outerLocals));
+    nodes: List.unmodifiable(nodes),
+    root: root,
+    captures: Map.unmodifiable(captureTypes),
+    parameters: Map.unmodifiable(parameters),
+    locals: Map.unmodifiable(locals),
+    outerLocals: Map.unmodifiable(outerLocals),
+  );
   final Set<Expression> _activeHelpers = {};
 
   /// Stages source-ordered arguments and immutable locals before helper results.
@@ -556,20 +626,26 @@ final class BuilderExpressionLowering {
             ? lower(body)
             : closedValueCallback(this).body(helper.functionBody!);
         for (final node in eager.reversed) {
-          result =
-              add(ValueNode('let', nodes[result].type, inputs: [node, result]));
+          result = add(
+            ValueNode('let', nodes[result].type, inputs: [node, result]),
+          );
         }
         return result;
       });
 
   /// Binds a pure helper for one value or widget-result lowering operation.
   /// [inertNativeArgument] admits only borrowed reads that cannot throw or run code.
-  T withHelper<T>(HelperDef helper, MethodInvocation call,
-      T Function(Expression body, List<int> eager) visit,
-      {bool Function(Expression)? inertNativeArgument}) {
+  T withHelper<T>(
+    HelperDef helper,
+    MethodInvocation call,
+    T Function(Expression body, List<int> eager) visit, {
+    bool Function(Expression)? inertNativeArgument,
+  }) {
     if (!_activeHelpers.add(helper.body))
       throw BuilderLoweringException(
-          call, 'Recursive pure helper is unsupported');
+        call,
+        'Recursive pure helper is unsupported',
+      );
     final saved = Map.of(bindings);
     final savedLocals = Map.of(localInitializers);
     final savedSlots = Map.of(localSlots);
@@ -577,10 +653,14 @@ final class BuilderExpressionLowering {
     final savedAliases = Map.of(contextAliases);
     try {
       final arguments = bindHelperArguments(
-          helper.params, call.argumentList.arguments.toList());
+        helper.params,
+        call.argumentList.arguments.toList(),
+      );
       if (arguments == null)
         throw BuilderLoweringException(
-            call, 'Pure helper arguments must bind exactly');
+          call,
+          'Pure helper arguments must bind exactly',
+        );
       final eager = <int>[];
       for (final argument in call.argumentList.arguments) {
         final expression = argument.argumentExpression;
@@ -605,10 +685,19 @@ final class BuilderExpressionLowering {
           } else {
             for (final root in helper.roots) root.accept(writes);
           }
-          final aggregate = const {'iterable', 'list', 'record'}
-              .contains(nodes[node].type.kind);
-          eager.add(bindValue(entry.key, node, expression,
-              mutable: aggregate && writes.found));
+          final aggregate = const {
+            'iterable',
+            'list',
+            'record',
+          }.contains(nodes[node].type.kind);
+          eager.add(
+            bindValue(
+              entry.key,
+              node,
+              expression,
+              mutable: aggregate && writes.found,
+            ),
+          );
           bound = true;
         }
         if (!bound) eager.add(node);
@@ -646,9 +735,11 @@ final class BuilderExpressionLowering {
   }
 
   BuilderExpressionLowering? contextOwner(Element? element) {
-    for (var scope = this as BuilderExpressionLowering?;
-        scope != null;
-        scope = scope.parent) {
+    for (
+      var scope = this as BuilderExpressionLowering?;
+      scope != null;
+      scope = scope.parent
+    ) {
       final alias = scope.contextAliases[element];
       if (alias != null) return alias.$1;
       if (scope.nativeContexts.contains(element)) return scope;
@@ -682,13 +773,18 @@ final class BuilderExpressionLowering {
     }
     if (owners.isEmpty) {
       if (current == null ||
-          localName == 'context:device:defaultTargetPlatform') return localName;
-      throw BuilderLoweringException(expression,
-          'A context projection must use an admitted native callback context');
+          localName == 'context:device:defaultTargetPlatform')
+        return localName;
+      throw BuilderLoweringException(
+        expression,
+        'A context projection must use an admitted native callback context',
+      );
     }
     if (owners.length != 1)
       throw BuilderLoweringException(
-          expression, 'A context projection must name one lexical context');
+        expression,
+        'A context projection must name one lexical context',
+      );
     final owner = owners.single;
     if (current == null) return localName;
     var depth = 0;
@@ -704,21 +800,27 @@ final class BuilderExpressionLowering {
       if (depth > 64) break;
     }
     throw BuilderLoweringException(
-        expression, 'Native context is outside the lexical callback scope');
+      expression,
+      'Native context is outside the lexical callback scope',
+    );
   }
 
   bool referencesOuter(Expression expression) {
     final references = _BuilderReferences();
     expression.accept(references);
-    if (references.elements.any((element) =>
-        bindings.containsKey(element) ||
-        nativeContexts.contains(element) ||
-        contextAliases.containsKey(element))) return false;
+    if (references.elements.any(
+      (element) =>
+          bindings.containsKey(element) ||
+          nativeContexts.contains(element) ||
+          contextAliases.containsKey(element),
+    ))
+      return false;
     return references.elements.any((element) {
       for (var scope = parent; scope != null; scope = scope.parent) {
         if (scope.bindings.containsKey(element) ||
             scope.nativeContexts.contains(element) ||
-            scope.contextAliases.containsKey(element)) return true;
+            scope.contextAliases.containsKey(element))
+          return true;
       }
       return false;
     });
@@ -760,8 +862,11 @@ final class BuilderExpressionLowering {
       // Inherited projections alone do not require an opaque context value.
       if (nativeContexts.contains(e.element)) {
         return bindings[e.element] ??
-            parameter(e.element!, callbackParameterName(0),
-                builderContextNativeValueType);
+            parameter(
+              e.element!,
+              callbackParameterName(0),
+              builderContextNativeValueType,
+            );
       }
       final local = localFor(e.element);
       if (local != null) {
@@ -774,7 +879,9 @@ final class BuilderExpressionLowering {
     if (e is AssignmentExpression) {
       if (e.element != null && e.element!.library.identifier != 'dart:core') {
         throw BuilderLoweringException(
-            e, 'Custom assignment operator is unsupported');
+          e,
+          'Custom assignment operator is unsupported',
+        );
       }
       return _assignment(e.leftHandSide, e.rightHandSide, e.operator.lexeme);
     }
@@ -805,8 +912,13 @@ final class BuilderExpressionLowering {
     if (e is PostfixExpression && e.operator.lexeme == '!') {
       final operand = lower(e.operand);
       return nodes[operand].type.nullable
-          ? add(ValueNode('nonNull', nodes[operand].type.nonNull,
-              inputs: [operand]))
+          ? add(
+              ValueNode(
+                'nonNull',
+                nodes[operand].type.nonNull,
+                inputs: [operand],
+              ),
+            )
           : operand;
     }
     final extended = extension?.call(e, this);
@@ -815,7 +927,8 @@ final class BuilderExpressionLowering {
     if (collection != null) return collection;
     final device = deviceRead(e)?.path;
     final theme = themeReadSegments(e)?.join('.');
-    final globalPlatform = device == 'platform' &&
+    final globalPlatform =
+        device == 'platform' &&
         ((e is SimpleIdentifier &&
                 isFlutterTopLevelValue(e, 'defaultTargetPlatform')) ||
             (e is PrefixedIdentifier &&
@@ -823,10 +936,10 @@ final class BuilderExpressionLowering {
     final localContextName = globalPlatform
         ? 'context:device:defaultTargetPlatform'
         : device != null
-            ? 'context:device:$device'
-            : theme != null
-                ? 'context:theme:$theme'
-                : null;
+        ? 'context:device:$device'
+        : theme != null
+        ? 'context:theme:$theme'
+        : null;
     final contextType = localContextName == null
         ? null
         : builderContextValueType(localContextName);
@@ -857,16 +970,23 @@ final class BuilderExpressionLowering {
         if (presence != null && builderContextValueType(presence) != null) {
           final name = _contextParameterName(operand, presence);
           parameters[name] = ValueType.boolean;
-          final present =
-              add(ValueNode('parameter', ValueType.boolean, name: name));
-          final yes =
-              add(const ValueNode('literal', ValueType.boolean, value: true));
+          final present = add(
+            ValueNode('parameter', ValueType.boolean, name: name),
+          );
+          final yes = add(
+            const ValueNode('literal', ValueType.boolean, value: true),
+          );
           final no = add(const ValueNode('literal', ValueType.nullType));
-          final maybe = add(ValueNode(
-              'conditional', const ValueType('bool', nullable: true),
-              inputs: [present, yes, no]));
-          final check =
-              add(ValueNode('nonNull', ValueType.boolean, inputs: [maybe]));
+          final maybe = add(
+            ValueNode(
+              'conditional',
+              const ValueType('bool', nullable: true),
+              inputs: [present, yes, no],
+            ),
+          );
+          final check = add(
+            ValueNode('nonNull', ValueType.boolean, inputs: [maybe]),
+          );
           result = add(ValueNode('let', contextType, inputs: [check, result]));
         } else {
           final check = lower(assertion);
@@ -896,8 +1016,9 @@ final class BuilderExpressionLowering {
       }
       final scalar = exactStyleScalarConstant(constant);
       if (scalar != null) {
-        final node =
-            add(ValueNode('literal', ValueType.integer, value: scalar));
+        final node = add(
+          ValueNode('literal', ValueType.integer, value: scalar),
+        );
         final type = constant.type;
         return type is InterfaceType &&
                 type.element.name == 'FontWeight' &&
@@ -915,23 +1036,27 @@ final class BuilderExpressionLowering {
           e.argumentList.arguments.length == 1) {
         final node = lower(e.argumentList.arguments.single.argumentExpression);
         return _nativeBase(
-            add(ValueNode('argbColor', colorValueType, inputs: [node])),
-            'Color');
+          add(ValueNode('argbColor', colorValueType, inputs: [node])),
+          'Color',
+        );
       }
       if (owner == 'Color' &&
           (name == 'fromRGBO' || name == 'fromARGB') &&
           e.argumentList.arguments.length == 4) {
         final inputs = [
           for (final argument in e.argumentList.arguments)
-            lower(argument.argumentExpression)
+            lower(argument.argumentExpression),
         ];
-        final modulus =
-            add(const ValueNode('literal', ValueType.integer, value: 256));
-        final divisor =
-            add(const ValueNode('literal', ValueType.integer, value: 255));
+        final modulus = add(
+          const ValueNode('literal', ValueType.integer, value: 256),
+        );
+        final divisor = add(
+          const ValueNode('literal', ValueType.integer, value: 255),
+        );
         int channel(int input) {
-          final byte =
-              add(ValueNode('%', ValueType.integer, inputs: [input, modulus]));
+          final byte = add(
+            ValueNode('%', ValueType.integer, inputs: [input, modulus]),
+          );
           return add(ValueNode('/', ValueType.real, inputs: [byte, divisor]));
         }
 
@@ -941,12 +1066,13 @@ final class BuilderExpressionLowering {
           alpha,
           ...rgb.map(channel),
           add(const ValueNode('literal', ValueType.string, value: 'sRGB')),
-          add(const ValueNode('literal', ValueType.string, value: ''))
+          add(const ValueNode('literal', ValueType.string, value: '')),
         ];
         var result = add(ValueNode('record', colorValueType, inputs: fields));
         for (final input in inputs.reversed) {
-          result =
-              add(ValueNode('let', colorValueType, inputs: [input, result]));
+          result = add(
+            ValueNode('let', colorValueType, inputs: [input, result]),
+          );
         }
         return _nativeBase(result, 'Color');
       }
@@ -956,13 +1082,15 @@ final class BuilderExpressionLowering {
         for (final arg in e.argumentList.arguments) {
           if (arg is! NamedArgument)
             throw BuilderLoweringException(
-                e, 'Color.from requires named channels');
+              e,
+              'Color.from requires named channels',
+            );
           final field = const {
             'alpha': 'a',
             'red': 'r',
             'green': 'g',
             'blue': 'b',
-            'colorSpace': 'colorSpace'
+            'colorSpace': 'colorSpace',
           }[arg.name.lexeme];
           if (field == null)
             throw BuilderLoweringException(e, 'Unsupported Color channel');
@@ -971,20 +1099,31 @@ final class BuilderExpressionLowering {
           fields[field] = node;
         }
         fields.putIfAbsent(
-            'colorSpace',
-            () => add(
-                const ValueNode('literal', ValueType.string, value: 'sRGB')));
-        fields['material'] =
-            add(const ValueNode('literal', ValueType.string, value: ''));
+          'colorSpace',
+          () =>
+              add(const ValueNode('literal', ValueType.string, value: 'sRGB')),
+        );
+        fields['material'] = add(
+          const ValueNode('literal', ValueType.string, value: ''),
+        );
         if (!colorValueType.fields.keys.every(fields.containsKey))
           throw BuilderLoweringException(
-              e, 'Color.from requires every channel');
-        var result = add(ValueNode('record', colorValueType, inputs: [
-          for (final field in colorValueType.fields.keys) fields[field]!
-        ]));
+            e,
+            'Color.from requires every channel',
+          );
+        var result = add(
+          ValueNode(
+            'record',
+            colorValueType,
+            inputs: [
+              for (final field in colorValueType.fields.keys) fields[field]!,
+            ],
+          ),
+        );
         for (final node in eager.reversed)
-          result =
-              add(ValueNode('let', colorValueType, inputs: [node, result]));
+          result = add(
+            ValueNode('let', colorValueType, inputs: [node, result]),
+          );
         return _nativeBase(result, 'Color');
       }
       if (owner == 'FontWeight' &&
@@ -996,8 +1135,10 @@ final class BuilderExpressionLowering {
             argument.value! >= 1 &&
             argument.value! <= 1000)
           return _nativeBase(lower(argument), 'FontWeight');
-        throw BuilderLoweringException(e,
-            'A native weight constructor requires a constant integer in 1..1000');
+        throw BuilderLoweringException(
+          e,
+          'A native weight constructor requires a constant integer in 1..1000',
+        );
       }
     }
     if (e is ParenthesizedExpression) return lower(e.expression);
@@ -1027,9 +1168,16 @@ final class BuilderExpressionLowering {
     if (e is ListLiteral) {
       if (e.elements.any((item) => item is! Expression))
         throw BuilderLoweringException(
-            e, 'A value list literal must contain pure expressions');
-      final node = add(ValueNode('list', type(),
-          inputs: [for (final item in e.elements) lower(item as Expression)]));
+          e,
+          'A value list literal must contain pure expressions',
+        );
+      final node = add(
+        ValueNode(
+          'list',
+          type(),
+          inputs: [for (final item in e.elements) lower(item as Expression)],
+        ),
+      );
       if (e.isConst) {
         immutableListLiterals.add(node);
       } else {
@@ -1060,26 +1208,34 @@ final class BuilderExpressionLowering {
             type.element.name == 'Null';
         bool nativeWeight(DartType? type) =>
             type is InterfaceType &&
-            [type, ...type.allSupertypes].any((t) =>
-                t.element.name == 'FontWeight' &&
-                t.element.library.identifier == 'dart:ui');
+            [type, ...type.allSupertypes].any(
+              (t) =>
+                  t.element.name == 'FontWeight' &&
+                  t.element.library.identifier == 'dart:ui',
+            );
         if ((nativeWeight(left) || nativeWeight(right)) &&
             !isNull(left) &&
             !isNull(right))
-          throw BuilderLoweringException(e,
-              'FontWeight equality requires native runtime identity; compare its value explicitly');
+          throw BuilderLoweringException(
+            e,
+            'FontWeight equality requires native runtime identity; compare its value explicitly',
+          );
         if ((_nativeColorType(left) || _nativeColorType(right)) &&
             !isNull(left) &&
             !isNull(right)) {
-          throw BuilderLoweringException(e,
-              'Color equality requires native runtime identity and cannot use inert color records');
+          throw BuilderLoweringException(
+            e,
+            'Color equality requires native runtime identity and cannot use inert color records',
+          );
         }
         if ((leftEnum || rightEnum) &&
             !isNull(left) &&
             !isNull(right) &&
             !(leftEnum && rightEnum && left.element == right.element)) {
-          throw BuilderLoweringException(e,
-              'Enum equality requires matching declared enum identities or null');
+          throw BuilderLoweringException(
+            e,
+            'Enum equality requires matching declared enum identities or null',
+          );
         }
       }
       if (!const {
@@ -1097,41 +1253,65 @@ final class BuilderExpressionLowering {
         '>=',
         '&&',
         '||',
-        '??'
+        '??',
       }.contains(e.operator.lexeme))
         throw BuilderLoweringException(e, 'Unsupported pure operator');
       final operatorElement = e.element;
       if (operatorElement != null &&
           !operatorElement.library.identifier.startsWith('dart:'))
         throw BuilderLoweringException(
-            e, 'Custom operator execution is unsupported');
-      return add(ValueNode(
+          e,
+          'Custom operator execution is unsupported',
+        );
+      return add(
+        ValueNode(
           e.operator.lexeme == '+' && e.staticType?.isDartCoreString == true
               ? 'concat'
               : e.operator.lexeme,
           type(),
-          inputs: [lower(e.leftOperand), lower(e.rightOperand)]));
+          inputs: [lower(e.leftOperand), lower(e.rightOperand)],
+        ),
+      );
     }
     if (e is PrefixExpression && const {'!', '-'}.contains(e.operator.lexeme))
-      return add(ValueNode(e.operator.lexeme == '-' ? 'negate' : '!', type(),
-          inputs: [lower(e.operand)]));
+      return add(
+        ValueNode(
+          e.operator.lexeme == '-' ? 'negate' : '!',
+          type(),
+          inputs: [lower(e.operand)],
+        ),
+      );
     if (e is ConditionalExpression)
-      return add(ValueNode('conditional', type(), inputs: [
-        lower(e.condition),
-        lower(e.thenExpression),
-        lower(e.elseExpression)
-      ]));
+      return add(
+        ValueNode(
+          'conditional',
+          type(),
+          inputs: [
+            lower(e.condition),
+            lower(e.thenExpression),
+            lower(e.elseExpression),
+          ],
+        ),
+      );
     if (e is IndexExpression) {
       final input = lower(e.target!);
       if (nodes[input].type.kind != 'list')
         throw BuilderLoweringException(
-            e, 'Only inert list indexing is supported');
+          e,
+          'Only inert list indexing is supported',
+        );
       return _nullableAccess(
-          input,
-          e.isNullAware,
-          type(),
-          (target) => add(ValueNode('index', nodes[target].type.item!,
-              inputs: [target, lower(e.index)])));
+        input,
+        e.isNullAware,
+        type(),
+        (target) => add(
+          ValueNode(
+            'index',
+            nodes[target].type.item!,
+            inputs: [target, lower(e.index)],
+          ),
+        ),
+      );
     }
     Expression? target;
     String? field;
@@ -1163,25 +1343,40 @@ final class BuilderExpressionLowering {
           member?.library?.identifier == 'dart:core' &&
           nativeType is InterfaceType &&
           nativeType.element is EnumElement &&
-          nodes[input].type.kind == 'String') return input;
+          nodes[input].type.kind == 'String')
+        return input;
       return _nullableAccess(
-          input, e is PropertyAccess && e.isNullAware, type(), (input) {
-        final targetType = nodes[input].type;
-        if (field == 'length' &&
-            const {'list', 'String'}.contains(targetType.kind)) {
-          return add(ValueNode('length', ValueType.integer, inputs: [input]));
-        }
-        if (const {'isEven', 'isOdd', 'isFinite', 'isInfinite'}
-                .contains(field) &&
-            targetType.numeric) {
-          return add(ValueNode(field!, ValueType.boolean, inputs: [input]));
-        }
-        if (targetType.kind == 'record' && targetType.fields[field] != null) {
-          return add(ValueNode('field', targetType.fields[field]!,
-              inputs: [input], name: field));
-        }
-        throw BuilderLoweringException(e, 'Unknown or executable member');
-      });
+        input,
+        e is PropertyAccess && e.isNullAware,
+        type(),
+        (input) {
+          final targetType = nodes[input].type;
+          if (field == 'length' &&
+              const {'list', 'String'}.contains(targetType.kind)) {
+            return add(ValueNode('length', ValueType.integer, inputs: [input]));
+          }
+          if (const {
+                'isEven',
+                'isOdd',
+                'isFinite',
+                'isInfinite',
+              }.contains(field) &&
+              targetType.numeric) {
+            return add(ValueNode(field!, ValueType.boolean, inputs: [input]));
+          }
+          if (targetType.kind == 'record' && targetType.fields[field] != null) {
+            return add(
+              ValueNode(
+                'field',
+                targetType.fields[field]!,
+                inputs: [input],
+                name: field,
+              ),
+            );
+          }
+          throw BuilderLoweringException(e, 'Unknown or executable member');
+        },
+      );
     }
     if (e is MethodInvocation) {
       final target = e.target;
@@ -1194,47 +1389,91 @@ final class BuilderExpressionLowering {
         return _stringValue(target, nullAware: e.isNullAware);
       }
       if (target != null &&
-          const {'floor', 'ceil', 'round', 'toInt', 'toDouble', 'clamp'}
-              .contains(e.methodName.name) &&
+          const {
+            'floor',
+            'ceil',
+            'round',
+            'toInt',
+            'toDouble',
+            'clamp',
+          }.contains(e.methodName.name) &&
           e.methodName.element?.library?.identifier == 'dart:core') {
-        return add(ValueNode(e.methodName.name, type().nonNull, inputs: [
-          lower(target),
-          for (final arg in e.argumentList.arguments)
-            lower(arg.argumentExpression)
-        ]));
+        return add(
+          ValueNode(
+            e.methodName.name,
+            type().nonNull,
+            inputs: [
+              lower(target),
+              for (final arg in e.argumentList.arguments)
+                lower(arg.argumentExpression),
+            ],
+          ),
+        );
       }
       if (target != null &&
-          const {'constrainWidth', 'constrainHeight'}
-              .contains(e.methodName.name) &&
-          e.methodName.element?.library?.identifier
-                  .startsWith('package:flutter/') ==
+          const {
+            'constrainWidth',
+            'constrainHeight',
+          }.contains(e.methodName.name) &&
+          e.methodName.element?.library?.identifier.startsWith(
+                'package:flutter/',
+              ) ==
               true) {
         final input = lower(target);
-        final dimension =
-            e.methodName.name == 'constrainWidth' ? 'Width' : 'Height';
+        final dimension = e.methodName.name == 'constrainWidth'
+            ? 'Width'
+            : 'Height';
         var value = e.argumentList.arguments.isEmpty
-            ? add(ValueNode('field', ValueType.real,
-                inputs: [input], name: 'max$dimension'))
+            ? add(
+                ValueNode(
+                  'field',
+                  ValueType.real,
+                  inputs: [input],
+                  name: 'max$dimension',
+                ),
+              )
             : lower(e.argumentList.arguments.single.argumentExpression);
         if (nodes[value].type.kind != 'double')
           value = add(ValueNode('toDouble', ValueType.real, inputs: [value]));
-        return add(ValueNode('clamp', ValueType.real, inputs: [
-          value,
-          add(ValueNode('field', ValueType.real,
-              inputs: [input], name: 'min$dimension')),
-          add(ValueNode('field', ValueType.real,
-              inputs: [input], name: 'max$dimension'))
-        ]));
+        return add(
+          ValueNode(
+            'clamp',
+            ValueType.real,
+            inputs: [
+              value,
+              add(
+                ValueNode(
+                  'field',
+                  ValueType.real,
+                  inputs: [input],
+                  name: 'min$dimension',
+                ),
+              ),
+              add(
+                ValueNode(
+                  'field',
+                  ValueType.real,
+                  inputs: [input],
+                  name: 'max$dimension',
+                ),
+              ),
+            ],
+          ),
+        );
       }
       throw BuilderLoweringException(
-          e, 'Arbitrary call is unsupported in a pure callback');
+        e,
+        'Arbitrary call is unsupported in a pure callback',
+      );
     }
     if (e is SimpleIdentifier) {
       if (e.element is FormalParameterElement &&
           (e.element! as FormalParameterElement).type.getDisplayString() ==
               'BuildContext')
         throw BuilderLoweringException(
-            e, 'BuildContext cannot escape its native callback');
+          e,
+          'BuildContext cannot escape its native callback',
+        );
       return _capture(e, type());
     }
     throw BuilderLoweringException(e, 'Unsupported pure expression');
@@ -1245,64 +1484,93 @@ final class BuilderExpressionLowering {
     if (type is InterfaceType && type.element is EnumElement) {
       final method = type.lookUpMethod('toString', type.element.library);
       if (method == null || method.library.identifier != 'dart:core') {
-        throw BuilderLoweringException(expression,
-            'Enum string conversion with a custom toString implementation is unsupported');
+        throw BuilderLoweringException(
+          expression,
+          'Enum string conversion with a custom toString implementation is unsupported',
+        );
       }
       final input = lower(expression);
       final shape = nodes[input].type;
-      final prefix = add(ValueNode('literal', ValueType.string,
-          value: '${type.element.name}.'));
+      final prefix = add(
+        ValueNode('literal', ValueType.string, value: '${type.element.name}.'),
+      );
       final present = shape.nullable
           ? add(ValueNode('nonNull', shape.nonNull, inputs: [input]))
           : input;
-      final text =
-          add(ValueNode('concat', ValueType.string, inputs: [prefix, present]));
+      final text = add(
+        ValueNode('concat', ValueType.string, inputs: [prefix, present]),
+      );
       if (!shape.nullable) return text;
       final missing = add(const ValueNode('literal', ValueType.nullType));
-      final isNull =
-          add(ValueNode('==', ValueType.boolean, inputs: [input, missing]));
+      final isNull = add(
+        ValueNode('==', ValueType.boolean, inputs: [input, missing]),
+      );
       final nullText = nullAware
           ? missing
           : add(const ValueNode('literal', ValueType.string, value: 'null'));
-      return add(ValueNode(
-          'conditional', ValueType('String', nullable: nullAware),
-          inputs: [isNull, nullText, text]));
+      return add(
+        ValueNode(
+          'conditional',
+          ValueType('String', nullable: nullAware),
+          inputs: [isNull, nullText, text],
+        ),
+      );
     }
     if (type is! InterfaceType ||
         type.element.library.identifier != 'dart:core' ||
-        !const {'String', 'bool', 'int', 'double', 'num', 'Null'}
-            .contains(type.element.name)) {
-      throw BuilderLoweringException(expression,
-          'String conversion requires an inert core scalar or an enum with native string semantics');
+        !const {
+          'String',
+          'bool',
+          'int',
+          'double',
+          'num',
+          'Null',
+        }.contains(type.element.name)) {
+      throw BuilderLoweringException(
+        expression,
+        'String conversion requires an inert core scalar or an enum with native string semantics',
+      );
     }
     return add(
-        ValueNode('string', ValueType.string, inputs: [lower(expression)]));
+      ValueNode('string', ValueType.string, inputs: [lower(expression)]),
+    );
   }
 
   int _nullableAccess(
-      int input, bool nullAware, ValueType resultType, int Function(int) read) {
+    int input,
+    bool nullAware,
+    ValueType resultType,
+    int Function(int) read,
+  ) {
     final type = nodes[input].type;
     if (!nullAware || !type.nullable) return read(input);
-    final missing =
-        add(const ValueNode('literal', ValueType.nullType, value: null));
-    final isNull =
-        add(ValueNode('==', ValueType.boolean, inputs: [input, missing]));
+    final missing = add(
+      const ValueNode('literal', ValueType.nullType, value: null),
+    );
+    final isNull = add(
+      ValueNode('==', ValueType.boolean, inputs: [input, missing]),
+    );
     final present = add(ValueNode('nonNull', type.nonNull, inputs: [input]));
     final result = read(present);
-    return add(ValueNode('conditional', resultType,
-        inputs: [isNull, missing, result]));
+    return add(
+      ValueNode('conditional', resultType, inputs: [isNull, missing, result]),
+    );
   }
 
   int _capture(Expression expression, ValueType shape) {
     if (_nativeColorType(expression.staticType) && parent == null) {
-      throw BuilderLoweringException(expression,
-          'Native Color host captures require an explicit exact color contract; legacy ARGB host values cannot be used as native colors');
+      throw BuilderLoweringException(
+        expression,
+        'Native Color host captures require an explicit exact color contract; legacy ARGB host values cannot be used as native colors',
+      );
     }
     final name = 'c${captureTypes.length}';
     final dsl = capture(expression);
     if (dsl.isEmpty)
       throw BuilderLoweringException(
-          expression, 'Capture could not be lowered');
+        expression,
+        'Capture could not be lowered',
+      );
     captureTypes[name] = shape;
     captureDsl[name] = dsl;
     final result = add(ValueNode('capture', shape, name: name));
@@ -1313,8 +1581,11 @@ final class BuilderExpressionLowering {
 }
 
 /// Derives inert projections without invoking user getters.
-ValueType valueTypeFor(DartType? type, AstNode source,
-    [Set<Element> visiting = const {}]) {
+ValueType valueTypeFor(
+  DartType? type,
+  AstNode source, [
+  Set<Element> visiting = const {},
+]) {
   if (type == null)
     throw BuilderLoweringException(source, 'Unresolved expression type');
   final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
@@ -1322,27 +1593,47 @@ ValueType valueTypeFor(DartType? type, AstNode source,
     final element = type.element;
     final name = element.name;
     if (element.library.identifier == 'dart:core') {
-      if (const {'int', 'double', 'num', 'bool', 'String', 'Null'}
-          .contains(name))
+      if (const {
+        'int',
+        'double',
+        'num',
+        'bool',
+        'String',
+        'Null',
+      }.contains(name))
         return ValueType(name!, nullable: nullable || name == 'Null');
       if (name == 'DateTime')
-        return ValueType('record', nullable: nullable, fields: const {
-          'microsecondsSinceEpoch': ValueType.integer,
-          'isUtc': ValueType.boolean
-        });
+        return ValueType(
+          'record',
+          nullable: nullable,
+          fields: const {
+            'microsecondsSinceEpoch': ValueType.integer,
+            'isUtc': ValueType.boolean,
+          },
+        );
       if (name == 'Duration')
-        return ValueType('record',
-            nullable: nullable, fields: durationValueType.fields);
+        return ValueType(
+          'record',
+          nullable: nullable,
+          fields: durationValueType.fields,
+        );
       if (name == 'List' || name == 'Iterable')
-        return ValueType(name == 'List' ? 'list' : 'iterable',
-            nullable: nullable,
-            item: valueTypeFor(type.typeArguments.single, source, visiting));
+        return ValueType(
+          name == 'List' ? 'list' : 'iterable',
+          nullable: nullable,
+          item: valueTypeFor(type.typeArguments.single, source, visiting),
+        );
     }
-    if ([type, ...type.allSupertypes].any((type) =>
-        type.element.name == 'Color' &&
-        type.element.library.identifier == 'dart:ui'))
-      return ValueType('record',
-          nullable: nullable, fields: colorValueType.fields);
+    if ([type, ...type.allSupertypes].any(
+      (type) =>
+          type.element.name == 'Color' &&
+          type.element.library.identifier == 'dart:ui',
+    ))
+      return ValueType(
+        'record',
+        nullable: nullable,
+        fields: colorValueType.fields,
+      );
     if (element.library.identifier == 'dart:ui' &&
         const {'FontWeight', 'TextDecoration'}.contains(name))
       return ValueType('int', nullable: nullable);
@@ -1352,22 +1643,30 @@ ValueType valueTypeFor(DartType? type, AstNode source,
       return constraintsValueType;
     if (visiting.contains(element))
       throw BuilderLoweringException(
-          source, 'Recursive capture shape is unsupported');
+        source,
+        'Recursive capture shape is unsupported',
+      );
     final fields = <String, ValueType>{};
     for (final field in element.fields) {
       if (field.isStatic || field.name == null || field.name!.startsWith('_'))
         continue;
       if (!field.isFinal || !field.isOriginDeclaration)
         throw BuilderLoweringException(
-            source, 'Capture requires immutable stored fields');
-      fields[field.name!] =
-          valueTypeFor(field.type, source, {...visiting, element});
+          source,
+          'Capture requires immutable stored fields',
+        );
+      fields[field.name!] = valueTypeFor(field.type, source, {
+        ...visiting,
+        element,
+      });
     }
     if (fields.isNotEmpty)
       return ValueType('record', nullable: nullable, fields: fields);
   }
   throw BuilderLoweringException(
-      source, 'Unsupported inert value type ${type.getDisplayString()}');
+    source,
+    'Unsupported inert value type ${type.getDisplayString()}',
+  );
 }
 
 /// Closed native constraints projection shared by callback lowering.
@@ -1383,8 +1682,11 @@ final class _BuilderReferences extends RecursiveAstVisitor<void> {
 
 bool _nativeColorType(DartType? type) =>
     type is InterfaceType &&
-    [type, ...type.allSupertypes].any((t) =>
-        t.element.name == 'Color' && t.element.library.identifier == 'dart:ui');
+    [type, ...type.allSupertypes].any(
+      (t) =>
+          t.element.name == 'Color' &&
+          t.element.library.identifier == 'dart:ui',
+    );
 
 /// Native objects whose reconstructed identity is observable by custom widgets.
 String? projectedNativeClass(DartType? type) {

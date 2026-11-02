@@ -18,16 +18,21 @@ Widget x() => LayoutBuilder(builder: (context, constraints) {
 });
 ''';
 
-Future<(String, Catalog)> compileCollectionAuthoring(
-    {String authoredSource = collectionAuthoringSource}) async {
+Future<(String, Catalog)> compileCollectionAuthoring({
+  String authoredSource = collectionAuthoringSource,
+}) async {
   final uri = await Isolate.resolvePackageUri(
-      Uri.parse('package:restage_core/src/widget_catalog/catalog.json'));
+    Uri.parse('package:restage_core/src/widget_catalog/catalog.json'),
+  );
   final catalog = decodeCatalog(File.fromUri(uri!).readAsStringSync());
-  final source = await parseExpressionFromSourceForTest(authoredSource,
-      rootPackage: 'apps_examples');
-  final result =
-      ExpressionTranslator(catalog: catalog, helpers: HelperRegistry())
-          .translate(source);
+  final source = await parseExpressionFromSourceForTest(
+    authoredSource,
+    rootPackage: 'apps_examples',
+  );
+  final result = ExpressionTranslator(
+    catalog: catalog,
+    helpers: HelperRegistry(),
+  ).translate(source);
   if (result.issues.isNotEmpty)
     throw StateError(result.issues.map((issue) => issue.message).join('\n'));
   return ('import restage.core; widget Root = ${result.dsl};\n', catalog);

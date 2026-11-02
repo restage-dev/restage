@@ -13,10 +13,14 @@ import 'package:test/test.dart';
 
 import 'helpers.dart';
 
-final AssetId _sourceIndex =
-    AssetId('apps_examples', 'assets/restage/source-index.json');
-final AssetId _outputRoster =
-    AssetId('apps_examples', 'assets/restage/output-roster.json');
+final AssetId _sourceIndex = AssetId(
+  'apps_examples',
+  'assets/restage/source-index.json',
+);
+final AssetId _outputRoster = AssetId(
+  'apps_examples',
+  'assets/restage/output-roster.json',
+);
 
 const String _screen = '''
 import 'package:flutter/widgets.dart';

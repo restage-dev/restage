@@ -49,8 +49,9 @@ void main() {
   });
 
   test('the fixture names no Measurement option anywhere', () {
-    final buildYaml =
-        File(p.join(_fixtureRoot, 'build.yaml')).readAsStringSync();
+    final buildYaml = File(
+      p.join(_fixtureRoot, 'build.yaml'),
+    ).readAsStringSync();
     for (final option in const [
       kMeasurementMinimumClientOption,
       kMeasurementPrivacyPolicyRevisionOption,
@@ -59,7 +60,8 @@ void main() {
       expect(
         buildYaml,
         isNot(contains(option)),
-        reason: 'The fixture proves the unconfigured path; configuring it '
+        reason:
+            'The fixture proves the unconfigured path; configuring it '
             'would prove the override instead.',
       );
     }
@@ -85,8 +87,9 @@ Future<RestageMeasurementCompilerOutputV1> _compileFixture() async {
       restageOutputsBuilder(_builderOptions('restage_codegen:outputs')),
     ],
     {
-      '$_package|$_screenSourcePath':
-          File(p.join(_fixtureRoot, _screenSourcePath)).readAsStringSync(),
+      '$_package|$_screenSourcePath': File(
+        p.join(_fixtureRoot, _screenSourcePath),
+      ).readAsStringSync(),
     },
     rootPackage: _package,
     readerWriter: readerWriter,
@@ -119,8 +122,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -132,13 +136,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');

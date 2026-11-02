@@ -186,7 +186,8 @@ void main() {
   });
 }
 
-String _card({String? explicitLibrary, String? explicitName}) => '''
+String _card({String? explicitLibrary, String? explicitName}) =>
+    '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
   /// A custom card.
@@ -199,7 +200,8 @@ String _card({String? explicitLibrary, String? explicitName}) => '''
   }
 ''';
 
-String _barrel({required String namespace, required String export}) => '''
+String _barrel({required String namespace, required String export}) =>
+    '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   export '$export';
 
@@ -239,8 +241,8 @@ final class _OwnershipProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['ownership_probe.txt'],
-      };
+    r'$lib$': ['ownership_probe.txt'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

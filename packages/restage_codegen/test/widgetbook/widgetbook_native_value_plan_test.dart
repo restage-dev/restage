@@ -79,11 +79,11 @@ void main() {
     };
 
     Set<PropertyType> nativeFor(WidgetbookPropertyContext context) => {
-          for (final type in PropertyType.values)
-            if (widgetbookPropertyCapability(type, context: context) ==
-                WidgetbookPropertyCapability.native)
-              type,
-        };
+      for (final type in PropertyType.values)
+        if (widgetbookPropertyCapability(type, context: context) ==
+            WidgetbookPropertyCapability.native)
+          type,
+    };
 
     expect(
       nativeFor(WidgetbookPropertyContext.widgetProperty),
@@ -356,8 +356,8 @@ final class _NativePlanProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['native_plan.txt', 'rich_card.stories.dart'],
-      };
+    r'$lib$': ['native_plan.txt', 'rich_card.stories.dart'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -409,8 +409,8 @@ final class _CapabilityCorpusBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['widgetbook_capability.txt'],
-      };
+    r'$lib$': ['widgetbook_capability.txt'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -430,13 +430,13 @@ final class _CapabilityCorpusBuilder implements Builder {
     final output = StringBuffer()
       ..writeln(
         'roots=${widget.entry.properties.map(
-              (property) => '${property.name}:${property.type.name}',
-            ).join(',')}',
+          (property) => '${property.name}:${property.type.name}',
+        ).join(',')}',
       )
       ..writeln(
         'leaves=${structured.fields.map(
-              (field) => '${field.name}:${field.type.name}',
-            ).join(',')}',
+          (field) => '${field.name}:${field.type.name}',
+        ).join(',')}',
       )
       ..write(rendered);
     await buildStep.writeAsString(

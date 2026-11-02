@@ -39,15 +39,18 @@ void main() {
     );
     expect(compiled.log, isNot(contains('compiles unmeasured')));
     expect(
-      compiled.output.publications
-          .map((publication) => publication.selector.slug),
+      compiled.output.publications.map(
+        (publication) => publication.selector.slug,
+      ),
       <String>[_slug],
     );
 
-    const trigger = '$_source|child:$_column:$_column.children[0]|'
+    const trigger =
+        '$_source|child:$_column:$_column.children[0]|'
         'widget:$_filled';
     const sheet = '$trigger|sheet:onPressed:builder';
-    const close = '$sheet|child:$_padding:$_padding.child[0]|'
+    const close =
+        '$sheet|child:$_padding:$_padding.child[0]|'
         'child:$_column:$_column.children[1]|widget:$_text';
     final routed = {
       for (final node in compiled.output.ledgerNodes)
@@ -75,9 +78,8 @@ void main() {
     );
     final handlers = rfwEventHandlers(fmt.decodeLibraryBlob(blob.bytes));
     final taps = handlers.whereType<fmt.EventHandler>().where(
-          (handler) =>
-              handler.eventName == kMeasurementPublicationTapEventNameV1,
-        );
+      (handler) => handler.eventName == kMeasurementPublicationTapEventNameV1,
+    );
     expect(taps, hasLength(2));
     for (final tap in taps) {
       expect(
@@ -115,8 +117,9 @@ Future<_Compiled> _compileFixture() async {
       restageOutputsBuilder(_builderOptions('restage_codegen:outputs')),
     ],
     {
-      '$_package|$_sourcePath':
-          File(p.join(_fixtureRoot, _sourcePath)).readAsStringSync(),
+      '$_package|$_sourcePath': File(
+        p.join(_fixtureRoot, _sourcePath),
+      ).readAsStringSync(),
     },
     rootPackage: _package,
     readerWriter: readerWriter,
@@ -154,8 +157,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -167,13 +171,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');

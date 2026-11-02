@@ -80,9 +80,9 @@ final class TrackedPackageSurfaceCompilation {
     required Map<String, String> generatedParts,
     required List<Issue> issues,
     Map<String, Map<String, Object?>> capturePlans = const {},
-  })  : generatedParts = Map.unmodifiable(Map.of(generatedParts)),
-        issues = List.unmodifiable(issues),
-        capturePlans = Map.unmodifiable(capturePlans);
+  }) : generatedParts = Map.unmodifiable(Map.of(generatedParts)),
+       issues = List.unmodifiable(issues),
+       capturePlans = Map.unmodifiable(capturePlans);
 
   final RestageSurfacePublicationBundle publicationBundle;
   final RestageMeasurementCompilerOutputV1 measurementCompilerOutput;
@@ -130,10 +130,11 @@ final class _AppFactoryNoticeCensus {
   }
 
   void emit(Set<String> buildNoticeKeys) {
-    final keys = _canonicalIssues.keys
-        .where((key) => !_deprecatedKeys.contains(key))
-        .toList()
-      ..sort();
+    final keys =
+        _canonicalIssues.keys
+            .where((key) => !_deprecatedKeys.contains(key))
+            .toList()
+          ..sort();
     for (final key in keys) {
       logBuildNoticeOnce(log, buildNoticeKeys, _canonicalIssues[key]!);
     }
@@ -311,10 +312,10 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             localSeeds: screen.localSeeds,
             rfwCatalogOccurrenceSetsByOutputRole:
                 _rfwCatalogOccurrenceSetsForSourceOutputRoles(
-              source: source,
-              outputRoles: const {'screen-blob', 'binary'},
-              occurrenceSet: screen.rfwCatalogOccurrenceSet,
-            ),
+                  source: source,
+                  outputRoles: const {'screen-blob', 'binary'},
+                  occurrenceSet: screen.rfwCatalogOccurrenceSet,
+                ),
           ),
         );
         final surface = screen.input.surface;
@@ -358,8 +359,9 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       }
     }
 
-    for (final source in sourcesByLibrary[library.identifier] ??
-        const <RestageSourceDeclaration>[]) {
+    for (final source
+        in sourcesByLibrary[library.identifier] ??
+            const <RestageSourceDeclaration>[]) {
       if (source.kind != RestageRosterSourceKind.screen || source.isCanonical) {
         continue;
       }
@@ -387,7 +389,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         issues.add(
           Issue(
             code: IssueCode.analyzerResolutionFailed,
-            message: 'Legacy screen ${source.effectiveId} has no resolved '
+            message:
+                'Legacy screen ${source.effectiveId} has no resolved '
                 'RFW occurrence evidence.',
             location: source.declarationIdentity,
           ),
@@ -457,10 +460,10 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
           localSeeds: legacyCompilation.screens.single.localSeeds,
           rfwCatalogOccurrenceSetsByOutputRole:
               _rfwCatalogOccurrenceSetsForSourceOutputRoles(
-            source: source,
-            outputRoles: const {'screen-blob', 'binary'},
-            occurrenceSet: legacyOccurrenceSet,
-          ),
+                source: source,
+                outputRoles: const {'screen-blob', 'binary'},
+                occurrenceSet: legacyOccurrenceSet,
+              ),
         ),
       );
       final contract = inspectLegacyStandaloneScreenContract(
@@ -484,14 +487,17 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     );
     issues.addAll(paywalls.issues);
     // A paywall surface is drawn from its paywall class, never a screen.
-    for (final source in sourcesByLibrary[library.identifier] ??
-        const <RestageSourceDeclaration>[]) {
+    for (final source
+        in sourcesByLibrary[library.identifier] ??
+            const <RestageSourceDeclaration>[]) {
       if (source.kind != RestageRosterSourceKind.paywall) continue;
       if (_resolvedClassForSource(library, source) case final declaration?) {
         capturePlans[surfaceCapturePlanKey(
           Surface.paywall,
           source.effectiveId,
-        )] = captureWidgetPlan(declaration);
+        )] = captureWidgetPlan(
+          declaration,
+        );
       }
     }
     if (paywalls.sources.isNotEmpty) {
@@ -513,7 +519,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         issues.add(
           Issue(
             code: IssueCode.analyzerResolutionFailed,
-            message: 'Legacy paywall ${paywall.id} lost its resolved class '
+            message:
+                'Legacy paywall ${paywall.id} lost its resolved class '
                 'identity during package compilation.',
             location: '${assetId.path}#${paywall.className}',
           ),
@@ -545,7 +552,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         issues.add(
           Issue(
             code: IssueCode.missingScreenDescriptor,
-            message: 'Legacy paywall ${paywall.id} has an incomplete '
+            message:
+                'Legacy paywall ${paywall.id} has an incomplete '
                 'compiled artifact family: $error',
             location: '${assetId.path}#${paywall.className}',
           ),
@@ -573,7 +581,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       issues.add(
         Issue(
           code: IssueCode.analyzerResolutionFailed,
-          message: 'Rendered source ${artifact.declarationIdentity} is absent '
+          message:
+              'Rendered source ${artifact.declarationIdentity} is absent '
               'from the source roster during class-flow compilation.',
           location: artifact.declarationIdentity,
         ),
@@ -598,8 +607,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         vocabulary: artifact.vocabulary,
         canonicalPaywallId:
             source.kind == RestageRosterSourceKind.paywall && source.isCanonical
-                ? source.effectiveId
-                : null,
+            ? source.effectiveId
+            : null,
       ),
     );
   }
@@ -616,15 +625,17 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     );
   }
   for (final job in flowJobs) {
-    final classFlows =
-        job.flows.where((flow) => flow.graph == null).toList(growable: false);
+    final classFlows = job.flows
+        .where((flow) => flow.graph == null)
+        .toList(growable: false);
     for (final flow in classFlows.where((flow) => !flow.isCanonical)) {
       final source = sourcesByDeclarationIdentity[flow.declarationIdentity];
       if (source == null) {
         issues.add(
           Issue(
             code: IssueCode.analyzerResolutionFailed,
-            message: 'Legacy flow ${flow.declarationIdentity} is absent from '
+            message:
+                'Legacy flow ${flow.declarationIdentity} is absent from '
                 'the source roster during package compilation.',
             location: flow.declarationIdentity,
           ),
@@ -674,9 +685,9 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   }
   final frozenRfwCatalogOccurrenceSetsByArtifactPath =
       _rfwCatalogOccurrenceSetsByArtifactPath(
-    roster: roster,
-    renderedSources: rendered,
-  );
+        roster: roster,
+        renderedSources: rendered,
+      );
   final appWidgets = await _appWidgetMountFactories(buildStep, rendered);
   final provisionalResult = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
@@ -832,14 +843,14 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       _rfwCatalogOccurrenceSetsByDeclarationIdentity(rendered);
   final frozenScreenRfwCatalogOccurrenceSetsByDeclarationIdentity =
       _rfwCatalogOccurrenceSetsForOutputRoles(
-    frozenRfwCatalogOccurrenceSetsByDeclarationIdentity,
-    const {'screen-blob', 'binary'},
-  );
+        frozenRfwCatalogOccurrenceSetsByDeclarationIdentity,
+        const {'screen-blob', 'binary'},
+      );
   final frozenPaywallAdapterRfwCatalogOccurrenceSetsByDeclarationIdentity =
       _rfwCatalogOccurrenceSetsForOutputRoles(
-    frozenRfwCatalogOccurrenceSetsByDeclarationIdentity,
-    const {'flow-screen-blob', 'flow-screen-binary'},
-  );
+        frozenRfwCatalogOccurrenceSetsByDeclarationIdentity,
+        const {'flow-screen-blob', 'flow-screen-binary'},
+      );
 
   final finalRendered = <CompiledSurfaceArtifact>[];
   final finalAnalyticsIdControlCaptures = <AnalyticsIdControlCapture>[];
@@ -946,9 +957,10 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   };
   final carrierDraftDigestsByDeclarationIdentity =
       _measurementCarrierDraftDigestsByDeclarationIdentity(
-    roster: roster,
-    carrierDraftDigestsByPublicationKey: carrierDraftDigestsByPublicationKey,
-  );
+        roster: roster,
+        carrierDraftDigestsByPublicationKey:
+            carrierDraftDigestsByPublicationKey,
+      );
   final carrierPrecompiledFlows = <CompiledFlowArtifact>[];
   if (issues.isEmpty) {
     await _compileCanonicalClassFlowDocuments(
@@ -1053,7 +1065,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     issues.add(
       Issue(
         code: IssueCode.invalidAnalyticsId,
-        message: 'analyticsId captures changed between frozen and final RFW '
+        message:
+            'analyticsId captures changed between frozen and final RFW '
             'compilation.',
         location: buildStep.inputId.path,
       ),
@@ -1157,11 +1170,10 @@ Map<String, String> _measurementCarrierDraftDigestsByDeclarationIdentity({
 
 List<AnalyticsIdControlPublicationScope> _analyticsIdControlScopes(
   RestageMeasurementCompilerOutputV1 output,
-) =>
-    List<AnalyticsIdControlPublicationScope>.unmodifiable([
-      for (final publication in output.publications)
-        AnalyticsIdControlPublicationScope.fromCompilerPublication(publication),
-    ]);
+) => List<AnalyticsIdControlPublicationScope>.unmodifiable([
+  for (final publication in output.publications)
+    AnalyticsIdControlPublicationScope.fromCompilerPublication(publication),
+]);
 
 TrackedPackageSurfaceCompilation _validCompilation(
   PackageSurfaceCompilationBundle bundle,
@@ -1207,9 +1219,9 @@ final Resource<_TrackedCompilationCache> _trackedCompilationResource =
 final class _TrackedCompilationCache {
   final Map<String, Future<TrackedPackageSurfaceCompilation>> _byPackage = {};
   final Map<String, Future<MeasurementConfigurationResult>>
-      _measurementConfigurationByPackage = {};
+  _measurementConfigurationByPackage = {};
   final Map<String, ({String cacheKey, String builderKey})>
-      _measurementPolicyByPackage = {};
+  _measurementPolicyByPackage = {};
 
   Future<TrackedPackageSurfaceCompilation> get(
     BuildStep buildStep,
@@ -1230,14 +1242,14 @@ final class _TrackedCompilationCache {
       buildStep,
       measurementConfigurationCandidates,
     );
-    final measurementConfiguration =
-        await _measurementConfigurationByPackage.putIfAbsent(
-      package,
-      () => resolveMeasurementConfiguration(
-        buildStep,
-        candidates: measurementConfigurationCandidates,
-      ),
-    );
+    final measurementConfiguration = await _measurementConfigurationByPackage
+        .putIfAbsent(
+          package,
+          () => resolveMeasurementConfiguration(
+            buildStep,
+            candidates: measurementConfigurationCandidates,
+          ),
+        );
     if (!measurementConfiguration.isValid) {
       return _invalidCompilation(measurementConfiguration.issues);
     }
@@ -1250,7 +1262,8 @@ final class _TrackedCompilationCache {
       return _invalidCompilation([
         Issue(
           code: IssueCode.conflictingTargetConfig,
-          message: 'Measurement policy options conflict for package $package: '
+          message:
+              'Measurement policy options conflict for package $package: '
               '${registeredPolicy.builderKey} resolved '
               '[${registeredPolicy.cacheKey}] while '
               '$builderKey resolved [$policyKey]. Every Restage builder key '
@@ -1271,10 +1284,11 @@ final class _TrackedCompilationCache {
   }
 }
 
-typedef MeasurementCompilerLedgerWriter = Future<void> Function({
-  required String package,
-  required RestageMeasurementCompilerOutputV1 output,
-});
+typedef MeasurementCompilerLedgerWriter =
+    Future<void> Function({
+      required String package,
+      required RestageMeasurementCompilerOutputV1 output,
+    });
 
 /// The initial local values a legacy paywall's builder wrote beside its
 /// standalone blob, or none.
@@ -1303,8 +1317,8 @@ final class PackageSurfaceCompilerBuilder implements Builder {
     MeasurementCompilerLedgerWriter ledgerWriter =
         _persistMeasurementCompilerLedgerSource,
     PriorGeneratedOutputReader priorOutputReader = readPriorGeneratedOutputs,
-  })  : _ledgerWriter = ledgerWriter,
-        _priorOutputReader = priorOutputReader;
+  }) : _ledgerWriter = ledgerWriter,
+       _priorOutputReader = priorOutputReader;
 
   final BuilderOptions options;
   final MeasurementCompilerLedgerWriter _ledgerWriter;
@@ -1312,13 +1326,13 @@ final class PackageSurfaceCompilerBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$package$': [
-          kRestageSurfacePublicationCompilerBundlePath,
-          kRestageMeasurementCompilerOutputPath,
-          kRestageAnalyticsIdControlOutputPath,
-          kRestageSurfaceCapturePlanCompilerPath,
-        ],
-      };
+    r'$package$': [
+      kRestageSurfacePublicationCompilerBundlePath,
+      kRestageMeasurementCompilerOutputPath,
+      kRestageAnalyticsIdControlOutputPath,
+      kRestageSurfaceCapturePlanCompilerPath,
+    ],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -1423,8 +1437,7 @@ void _logCompilationSummary(TrackedPackageSurfaceCompilation compilation) {
     for (final source in compilation.generatedParts.values)
       for (final match in _generatedMountDeclaration.allMatches(source))
         match.group(1)!,
-  }.toList()
-    ..sort();
+  }.toList()..sort();
   final surfaceCount = publications.length;
   final mountSummary = mounts.isEmpty
       ? 'no generated mounts'
@@ -1462,7 +1475,8 @@ Future<RestageMeasurementCompilerOutputV1?> _readPriorMeasurementOutput(
     issues.add(
       Issue(
         code: IssueCode.malformedTranslatorOutput,
-        message: 'The build-owned Measurement compiler state is invalid: '
+        message:
+            'The build-owned Measurement compiler state is invalid: '
             '$error',
         location: kRestageMeasurementCompilerLedgerSourcePath,
       ),
@@ -1514,7 +1528,7 @@ void writeMeasurementCompilerLedgerSource({
 }
 
 Future<Map<String, MeasurementSourceDiscoveryResult>>
-    _discoverMeasurementSources(
+_discoverMeasurementSources(
   BuildStep buildStep, {
   required List<ResolvedScreenCompilationInput> screens,
   required List<_PaywallCompilationJob> paywallJobs,
@@ -1541,7 +1555,8 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
       issues.add(
         Issue(
           code: IssueCode.duplicateId,
-          message: 'Measurement source discovery repeated resolved '
+          message:
+              'Measurement source discovery repeated resolved '
               'declaration $declarationIdentity.',
           location: declarationIdentity,
         ),
@@ -1583,8 +1598,9 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
         for (final source in job.sources) (job: job, source: source),
     ];
     final classification = await classifyReferencedCustomWidgets(
-      rootExpressions:
-          sources.expand((entry) => entry.source.build.collectorRoots),
+      rootExpressions: sources.expand(
+        (entry) => entry.source.build.collectorRoots,
+      ),
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
@@ -1600,7 +1616,8 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
         issues.add(
           Issue(
             code: IssueCode.analyzerResolutionFailed,
-            message: 'Measurement discovery lost paywall class '
+            message:
+                'Measurement discovery lost paywall class '
                 '${entry.source.className}.',
             location: entry.job.assetId.path,
           ),
@@ -1629,7 +1646,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
 }
 
 Map<String, ResolvedRfwCatalogOccurrenceSet>
-    _rfwCatalogOccurrenceSetsByArtifactPath({
+_rfwCatalogOccurrenceSetsByArtifactPath({
   required RestageSourceRoster roster,
   required Iterable<CompiledSurfaceArtifact> renderedSources,
 }) {
@@ -1660,7 +1677,7 @@ Map<String, ResolvedRfwCatalogOccurrenceSet>
 }
 
 Map<String, Map<String, ResolvedRfwCatalogOccurrenceSet>>
-    _rfwCatalogOccurrenceSetsByDeclarationIdentity(
+_rfwCatalogOccurrenceSetsByDeclarationIdentity(
   Iterable<CompiledSurfaceArtifact> renderedSources,
 ) {
   final occurrenceSets =
@@ -1691,9 +1708,9 @@ Map<String, Map<String, ResolvedRfwCatalogOccurrenceSet>>
 }
 
 Map<String, ResolvedRfwCatalogOccurrenceSet>
-    _rfwCatalogOccurrenceSetsForOutputRoles(
+_rfwCatalogOccurrenceSetsForOutputRoles(
   Map<String, Map<String, ResolvedRfwCatalogOccurrenceSet>>
-      occurrenceSetsByDeclarationIdentity,
+  occurrenceSetsByDeclarationIdentity,
   Set<String> outputRoles,
 ) {
   final result = <String, ResolvedRfwCatalogOccurrenceSet>{};
@@ -1714,7 +1731,7 @@ Map<String, ResolvedRfwCatalogOccurrenceSet>
 }
 
 Map<String, ResolvedRfwCatalogOccurrenceSet>
-    _rfwCatalogOccurrenceSetsForSourceOutputRoles({
+_rfwCatalogOccurrenceSetsForSourceOutputRoles({
   required RestageSourceDeclaration source,
   required Set<String> outputRoles,
   required ResolvedRfwCatalogOccurrenceSet occurrenceSet,
@@ -1729,7 +1746,7 @@ Map<String, ResolvedRfwCatalogOccurrenceSet>
 }
 
 Map<String, ResolvedRfwCatalogOccurrenceSet>
-    _rfwCatalogOccurrenceSetsForPaywallOutputRoles({
+_rfwCatalogOccurrenceSetsForPaywallOutputRoles({
   required RestageSourceDeclaration source,
   required ResolvedRfwCatalogOccurrenceSet adapterOccurrenceSet,
   ResolvedRfwCatalogOccurrenceSet? standaloneOccurrenceSet,
@@ -1768,11 +1785,11 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
   required List<CompiledFlowArtifact> precompiledFlows,
   required RestageSourceRoster roster,
   required Map<String, MeasurementSourceDiscoveryResult>
-      discoveriesByDeclarationIdentity,
+  discoveriesByDeclarationIdentity,
   required Map<String, String> rejectionsByDeclarationIdentity,
   required List<MeasurementUnmeasuredPublication> unmeasured,
   required Map<String, ResolvedRfwCatalogOccurrenceSet>
-      rfwCatalogOccurrenceSetsByArtifactPath,
+  rfwCatalogOccurrenceSetsByArtifactPath,
   required List<Issue> issues,
 }) {
   final sourcesByOutputPath = <String, RestageSourceDeclaration>{};
@@ -1791,7 +1808,8 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
         issues.add(
           Issue(
             code: IssueCode.duplicateId,
-            message: 'Measurement cannot reconcile shared source output '
+            message:
+                'Measurement cannot reconcile shared source output '
                 '${output.path} to one analyzer declaration.',
             location: output.path,
           ),
@@ -1857,29 +1875,39 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
       continue;
     }
     final flow = flows
-        .where((flow) =>
-            flow.id == entry.publication.slug &&
-            flow.surface.wireName == entry.publication.surface.wireName)
+        .where(
+          (flow) =>
+              flow.id == entry.publication.slug &&
+              flow.surface.wireName == entry.publication.surface.wireName,
+        )
         .singleOrNull;
     result.add(
       MeasurementPublicationPlanningInput(
         entry: entry,
         // A class-authored flow's answers come from its compilation.
-        measurementAnswers: flow?.graph?.measurementAnswers ??
+        measurementAnswers:
+            flow?.graph?.measurementAnswers ??
             precompiledFlows
-                .where((compiled) =>
-                    flow != null &&
-                    compiled.declarationIdentity == flow.declarationIdentity)
+                .where(
+                  (compiled) =>
+                      flow != null &&
+                      compiled.declarationIdentity == flow.declarationIdentity,
+                )
                 .lastOrNull
                 ?.measurementAnswers ??
             const {},
         flowDocument: entry.publication.payloadKind == SurfacePayloadKind.flow
-            ? FlowDocumentCodec.decodeJson(utf8.decode(artifactBytes[entry
-                .artifacts
-                .singleWhere((artifact) =>
-                    artifact.role ==
-                    SurfacePublicationArtifactRole.flowDocument)
-                .path]!))
+            ? FlowDocumentCodec.decodeJson(
+                utf8.decode(
+                  artifactBytes[entry.artifacts
+                      .singleWhere(
+                        (artifact) =>
+                            artifact.role ==
+                            SurfacePublicationArtifactRole.flowDocument,
+                      )
+                      .path]!,
+                ),
+              )
             : null,
         sourceArtifacts: sourceArtifacts,
       ),
@@ -1913,7 +1941,8 @@ Map<String, MeasurementPaywallRouteEmissionOwnership> _paywallRouteOwnership(
         issues.add(
           Issue(
             code: IssueCode.missingScreenDescriptor,
-            message: 'Measurement paywall artifact ${artifact.artifactPath} '
+            message:
+                'Measurement paywall artifact ${artifact.artifactPath} '
                 'requires one exact roster output role; found '
                 '${claims.length}.',
             location: artifact.artifactPath,
@@ -1937,7 +1966,8 @@ Map<String, MeasurementPaywallRouteEmissionOwnership> _paywallRouteOwnership(
           issues.add(
             Issue(
               code: IssueCode.missingScreenDescriptor,
-              message: 'Measurement paywall artifact '
+              message:
+                  'Measurement paywall artifact '
                   '${artifact.artifactPath} resolved to unsupported roster '
                   'role ${claims.single.role}.',
               location: artifact.artifactPath,
@@ -1976,7 +2006,8 @@ void _validateFlowMeasurementClosures(
       issues.add(
         Issue(
           code: IssueCode.missingScreenDescriptor,
-          message: 'Measurement flow closure requires one resolved flow for '
+          message:
+              'Measurement flow closure requires one resolved flow for '
               '${selector.surface.wireName}/${selector.slug}; found '
               '${matches.length}.',
           location: selector.key,
@@ -1999,7 +2030,8 @@ void _validateFlowMeasurementClosures(
       issues.add(
         Issue(
           code: IssueCode.annotationEvaluationFailed,
-          message: 'Measurement flow closure rejected '
+          message:
+              'Measurement flow closure rejected '
               '${selector.surface.wireName}/${selector.slug}: '
               '${closure.rejectionReason}',
           location: matches.single.declarationIdentity,
@@ -2014,7 +2046,7 @@ Future<void> _appendResolvedScreens(
   required List<ResolvedScreenCompilationInput> inputs,
   required Map<String, MeasurementRouteEmissionPlan> routePlans,
   required Map<String, ResolvedRfwCatalogOccurrenceSet>
-      rfwCatalogOccurrenceSetsByDeclarationIdentity,
+  rfwCatalogOccurrenceSetsByDeclarationIdentity,
   required RestageOutputLocationPlan placement,
   required List<CompiledSurfaceArtifact> rendered,
   required List<ResolvedStandaloneScreenContract> contracts,
@@ -2024,7 +2056,7 @@ Future<void> _appendResolvedScreens(
   required List<Issue> issues,
   required Set<String> buildNoticeKeys,
   required void Function(Issue issue, bool isCanonical)
-      appFactoryNoticeCollector,
+  appFactoryNoticeCollector,
 }) async {
   final compilation = await compileResolvedScreens(
     buildStep,
@@ -2084,10 +2116,10 @@ Future<void> _appendResolvedScreens(
         localSeeds: screen.localSeeds,
         rfwCatalogOccurrenceSetsByOutputRole:
             _rfwCatalogOccurrenceSetsForSourceOutputRoles(
-          source: source,
-          outputRoles: const {'screen-blob', 'binary'},
-          occurrenceSet: screen.rfwCatalogOccurrenceSet,
-        ),
+              source: source,
+              outputRoles: const {'screen-blob', 'binary'},
+              occurrenceSet: screen.rfwCatalogOccurrenceSet,
+            ),
       ),
     );
     final surface = screen.input.surface;
@@ -2201,7 +2233,8 @@ Future<void> _compileLegacyClassFlowDocuments(
         issues.add(
           Issue(
             code: IssueCode.analyzerResolutionFailed,
-            message: 'Legacy flow ${flow.declarationIdentity} is absent from '
+            message:
+                'Legacy flow ${flow.declarationIdentity} is absent from '
                 'the source roster during Measurement recompilation.',
             location: flow.declarationIdentity,
           ),
@@ -2225,7 +2258,8 @@ Future<void> _compileLegacyClassFlowDocuments(
           issues.add(
             Issue(
               code: IssueCode.analyzerResolutionFailed,
-              message: 'Expected one Measurement-recompiled legacy flow for '
+              message:
+                  'Expected one Measurement-recompiled legacy flow for '
                   '${flow.declarationIdentity}; found '
                   '${compilation.flows.length}.',
               location: flow.declarationIdentity,
@@ -2274,7 +2308,8 @@ Future<void> _compileCanonicalClassFlowDocuments(
       issues.add(
         Issue(
           code: IssueCode.duplicateId,
-          message: 'Canonical flow identity ${flow.surface.wireName}/'
+          message:
+              'Canonical flow identity ${flow.surface.wireName}/'
               '${flow.id} resolves to more than one analyzer declaration.',
           location: flow.declarationIdentity,
         ),
@@ -2306,7 +2341,8 @@ Future<void> _compileCanonicalClassFlowDocuments(
         issues.add(
           Issue(
             code: IssueCode.duplicateId,
-            message: 'Class-shaped flow ${dependency.declarationIdentity} '
+            message:
+                'Class-shaped flow ${dependency.declarationIdentity} '
                 'was inspected more than once.',
             location: job.assetId.path,
           ),
@@ -2321,14 +2357,16 @@ Future<void> _compileCanonicalClassFlowDocuments(
   if (issues.isNotEmpty) return;
 
   for (final flow in canonicalByIdentity.values) {
-    final dependencies = flow.graph?.childFlows.keys ??
+    final dependencies =
+        flow.graph?.childFlows.keys ??
         dependenciesByDeclarationIdentity[flow.declarationIdentity]
             ?.childIdentities;
     if (dependencies == null) {
       issues.add(
         Issue(
           code: IssueCode.analyzerResolutionFailed,
-          message: 'Class-shaped flow ${flow.declarationIdentity} lost its '
+          message:
+              'Class-shaped flow ${flow.declarationIdentity} lost its '
               'resolved dependency set during aggregate compilation.',
           location: flow.declarationIdentity,
         ),
@@ -2340,7 +2378,8 @@ Future<void> _compileCanonicalClassFlowDocuments(
       issues.add(
         Issue(
           code: IssueCode.missingScreenDescriptor,
-          message: 'Flow ${flow.surface.wireName}/${flow.id} references '
+          message:
+              'Flow ${flow.surface.wireName}/${flow.id} references '
               'unavailable aggregate child flow '
               '${dependency.surface.wireName}/${dependency.id}.',
           location: flow.declarationIdentity,
@@ -2366,7 +2405,8 @@ Future<void> _compileCanonicalClassFlowDocuments(
         return bySurface != 0 ? bySurface : left.id.compareTo(right.id);
       });
     for (final flow in ordered) {
-      final dependencies = flow.graph?.childFlows.keys ??
+      final dependencies =
+          flow.graph?.childFlows.keys ??
           dependenciesByDeclarationIdentity[flow.declarationIdentity]!
               .childIdentities;
       if (!dependencies.every(documents.containsKey)) continue;
@@ -2377,7 +2417,8 @@ Future<void> _compileCanonicalClassFlowDocuments(
           issues.add(
             Issue(
               code: IssueCode.analyzerResolutionFailed,
-              message: 'Canonical flow ${flow.declarationIdentity} is '
+              message:
+                  'Canonical flow ${flow.declarationIdentity} is '
                   'absent from the source roster.',
               location: flow.declarationIdentity,
             ),
@@ -2407,7 +2448,8 @@ Future<void> _compileCanonicalClassFlowDocuments(
           issues.add(
             Issue(
               code: IssueCode.analyzerResolutionFailed,
-              message: 'Class-shaped flow ${flow.declarationIdentity} lost '
+              message:
+                  'Class-shaped flow ${flow.declarationIdentity} lost '
                   'its aggregate compilation job.',
               location: flow.declarationIdentity,
             ),
@@ -2432,7 +2474,8 @@ Future<void> _compileCanonicalClassFlowDocuments(
             issues.add(
               Issue(
                 code: IssueCode.analyzerResolutionFailed,
-                message: 'Expected exactly one aggregate class-flow '
+                message:
+                    'Expected exactly one aggregate class-flow '
                     'document for ${flow.declarationIdentity}; found '
                     '${compilation.flows.length}.',
                 location: flow.declarationIdentity,
@@ -2464,10 +2507,11 @@ Future<void> _compileCanonicalClassFlowDocuments(
     issues.add(
       Issue(
         code: IssueCode.unsupportedFlowRuntimeFeature,
-        message: 'Canonical subflow cycle prevents aggregate compilation of '
+        message:
+            'Canonical subflow cycle prevents aggregate compilation of '
             '${blocked.map(
-                  (identity) => '${identity.surface.wireName}/${identity.id}',
-                ).join(', ')}.',
+              (identity) => '${identity.surface.wireName}/${identity.id}',
+            ).join(', ')}.',
         location: blocked.first.key,
       ),
     );
@@ -2493,7 +2537,8 @@ Map<String, ScreenArtifact>? _screenArtifactsForNormalizedFlow(
       issues.add(
         Issue(
           code: IssueCode.missingScreenDescriptor,
-          message: 'Flow ${flow.id} screen ${reference.id} must resolve to '
+          message:
+              'Flow ${flow.id} screen ${reference.id} must resolve to '
               'one exact aggregate artifact for '
               '${reference.declarationIdentity}; found ${candidates.length}.',
           location: flow.declarationIdentity,
@@ -2507,7 +2552,8 @@ Map<String, ScreenArtifact>? _screenArtifactsForNormalizedFlow(
       issues.add(
         Issue(
           code: IssueCode.missingScreenDescriptor,
-          message: 'Flow ${flow.id} screen ${reference.id} is absent from '
+          message:
+              'Flow ${flow.id} screen ${reference.id} is absent from '
               'the aggregate source roster.',
           location: flow.declarationIdentity,
         ),
@@ -2516,10 +2562,10 @@ Map<String, ScreenArtifact>? _screenArtifactsForNormalizedFlow(
     }
     final sourceKindMatches = reference.isPaywall
         ? source.kind == RestageRosterSourceKind.paywall &&
-            screen.canonicalPaywallId == source.effectiveId
+              screen.canonicalPaywallId == source.effectiveId
         : source.kind == RestageRosterSourceKind.screen &&
-            source.effectiveId == reference.id &&
-            screen.canonicalPaywallId == null;
+              source.effectiveId == reference.id &&
+              screen.canonicalPaywallId == null;
     if (!source.isCanonical ||
         source.declarationIdentity != reference.declarationIdentity ||
         !sourceKindMatches ||
@@ -2531,7 +2577,8 @@ Map<String, ScreenArtifact>? _screenArtifactsForNormalizedFlow(
       issues.add(
         Issue(
           code: IssueCode.annotationEvaluationFailed,
-          message: 'Flow ${flow.id} screen ${reference.id} does not match '
+          message:
+              'Flow ${flow.id} screen ${reference.id} does not match '
               'its roster-owned authored identity, version, or minimum '
               'client facts.',
           location: flow.declarationIdentity,
@@ -2561,14 +2608,17 @@ Future<void> _compilePaywalls(
   required List<Issue> issues,
   required Set<String> buildNoticeKeys,
   required void Function(Issue issue, bool isCanonical)
-      appFactoryNoticeCollector,
+  appFactoryNoticeCollector,
   Map<String, MeasurementRouteEmissionPlan> measurementRoutePlans = const {},
   Map<String, MeasurementPaywallRouteEmissionOwnership>
-      measurementRouteOwnership = const {},
+      measurementRouteOwnership =
+      const {},
   Map<String, ResolvedRfwCatalogOccurrenceSet>
-      adapterRfwCatalogOccurrenceSetsByDeclarationIdentity = const {},
+      adapterRfwCatalogOccurrenceSetsByDeclarationIdentity =
+      const {},
   Map<String, ResolvedRfwCatalogOccurrenceSet>
-      standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity = const {},
+      standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity =
+      const {},
 }) async {
   String? canonicalPaywallIdFor(ClassElement declaration) {
     final identity =
@@ -2622,7 +2672,8 @@ Future<void> _compilePaywalls(
         issues.add(
           Issue(
             code: IssueCode.analyzerResolutionFailed,
-            message: 'Canonical paywall ${compiled.source.id} lost its '
+            message:
+                'Canonical paywall ${compiled.source.id} lost its '
                 'resolved class identity during package compilation.',
             location: '${job.assetId.path}#${compiled.source.className}',
           ),
@@ -2634,7 +2685,8 @@ Future<void> _compilePaywalls(
         issues.add(
           Issue(
             code: IssueCode.duplicateId,
-            message: 'Canonical paywall id ${compiled.source.id} resolves '
+            message:
+                'Canonical paywall id ${compiled.source.id} resolves '
                 'to more than one analyzer declaration.',
             location: job.assetId.path,
           ),
@@ -2690,7 +2742,8 @@ Future<void> _compilePaywalls(
       issues.add(
         Issue(
           code: IssueCode.missingScreenDescriptor,
-          message: 'Canonical paywall $id emitted a partial standalone '
+          message:
+              'Canonical paywall $id emitted a partial standalone '
               'artifact pair.',
           location: entry.value.assetId.path,
         ),
@@ -2705,8 +2758,8 @@ Future<void> _compilePaywalls(
     if (flowBytes != null) files['assets/paywalls/$id.flow.json'] = flowBytes;
     final declaration = entry.value.declaration;
     final declarationName = declaration.name ?? '<unnamed>';
-    final source = sourcesByDeclarationIdentity[
-        '${declaration.library.identifier}#$declarationName'];
+    final source =
+        sourcesByDeclarationIdentity['${declaration.library.identifier}#$declarationName'];
     if (source == null) {
       issues.add(
         Issue(
@@ -2746,8 +2799,10 @@ Future<void> _compilePaywalls(
           ),
           facts: facts,
           mountVocabulary: mountVocabulary,
-          nativeMountInput: source.outputs
-                  .any((output) => output.role == 'paywall-descriptor')
+          nativeMountInput:
+              source.outputs.any(
+                (output) => output.role == 'paywall-descriptor',
+              )
               ? ResolvedWidgetMountInput(
                   assetId: entry.value.assetId,
                   screen: entry.value.declaration,
@@ -2785,10 +2840,11 @@ Future<void> _compilePaywalls(
           navigationPlan: compiled.navigationPlan,
           rfwCatalogOccurrenceSetsByOutputRole:
               _rfwCatalogOccurrenceSetsForPaywallOutputRoles(
-            source: source,
-            adapterOccurrenceSet: compiled.adapterRfwCatalogOccurrenceSet,
-            standaloneOccurrenceSet: compiled.standaloneRfwCatalogOccurrenceSet,
-          ),
+                source: source,
+                adapterOccurrenceSet: compiled.adapterRfwCatalogOccurrenceSet,
+                standaloneOccurrenceSet:
+                    compiled.standaloneRfwCatalogOccurrenceSet,
+              ),
           localSeeds: compiled.adapterLocalSeeds,
           standaloneLocalSeeds: compiled.standaloneLocalSeeds,
         ),
@@ -2797,7 +2853,8 @@ Future<void> _compilePaywalls(
       issues.add(
         Issue(
           code: IssueCode.missingScreenDescriptor,
-          message: 'Canonical paywall $id has an incomplete compiled '
+          message:
+              'Canonical paywall $id has an incomplete compiled '
               'artifact family: $error',
           location: entry.value.assetId.path,
         ),
@@ -2828,15 +2885,19 @@ List<String> _paywallWidgetNames(
       issues.add(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
-          message: 'Compiled paywall artifact "${screen.blob.path}" could not '
+          message:
+              'Compiled paywall artifact "${screen.blob.path}" could not '
               'be read back to name the widgets it renders: $error',
           location: location,
         ),
       );
       continue;
     }
-    final derivation = deriveCapabilityManifest(library, catalog,
-        hoisted: hoistedByBlob[screen.blob.path] ?? const []);
+    final derivation = deriveCapabilityManifest(
+      library,
+      catalog,
+      hoisted: hoistedByBlob[screen.blob.path] ?? const [],
+    );
     if (derivation.issues.isNotEmpty) {
       issues.addAll(derivation.issues);
       continue;
@@ -2862,7 +2923,8 @@ Map<String, RestageSourceDeclaration> _sourcesByDeclarationIdentity(
     issues.add(
       Issue(
         code: IssueCode.duplicateId,
-        message: 'Source roster contains multiple declarations for resolved '
+        message:
+            'Source roster contains multiple declarations for resolved '
             'identity ${source.declarationIdentity}.',
         location: source.span.location,
       ),
@@ -2906,21 +2968,21 @@ List<int> _effectiveCapabilitySidecar({
 ClassElement? _resolvedClassForSource(
   LibraryElement library,
   RestageSourceDeclaration source,
-) =>
-    library.classes
-        .where(
-          (candidate) =>
-              '${library.identifier}#${candidate.name ?? '<unnamed>'}' ==
-              source.declarationIdentity,
-        )
-        .firstOrNull;
+) => library.classes
+    .where(
+      (candidate) =>
+          '${library.identifier}#${candidate.name ?? '<unnamed>'}' ==
+          source.declarationIdentity,
+    )
+    .firstOrNull;
 
 Issue _lostDeclarationIssue(RestageSourceDeclaration source) => Issue(
-      code: IssueCode.analyzerResolutionFailed,
-      message: 'Roster source ${source.effectiveId} lost its analyzer-resolved '
-          'declaration identity during package compilation.',
-      location: source.span.location,
-    );
+  code: IssueCode.analyzerResolutionFailed,
+  message:
+      'Roster source ${source.effectiveId} lost its analyzer-resolved '
+      'declaration identity during package compilation.',
+  location: source.span.location,
+);
 
 Future<List<int>?> _readClaimBytes(
   BuildStep buildStep,
@@ -2928,17 +2990,19 @@ Future<List<int>?> _readClaimBytes(
   required Set<String> roles,
   required List<Issue> issues,
 }) async {
-  final paths = source.outputs
-      .where((output) => roles.contains(output.role))
-      .map((output) => output.path)
-      .toSet()
-      .toList()
-    ..sort();
+  final paths =
+      source.outputs
+          .where((output) => roles.contains(output.role))
+          .map((output) => output.path)
+          .toSet()
+          .toList()
+        ..sort();
   if (paths.length != 1) {
     issues.add(
       Issue(
         code: IssueCode.missingScreenDescriptor,
-        message: 'Roster source ${source.effectiveId} requires exactly one '
+        message:
+            'Roster source ${source.effectiveId} requires exactly one '
             '${roles.toList()..sort()} output; found ${paths.length}.',
         location: source.span.location,
       ),
@@ -2950,7 +3014,8 @@ Future<List<int>?> _readClaimBytes(
     issues.add(
       Issue(
         code: IssueCode.missingScreenDescriptor,
-        message: 'Roster source ${source.effectiveId} is missing generated '
+        message:
+            'Roster source ${source.effectiveId} is missing generated '
             'output ${id.path}.',
         location: source.span.location,
       ),
@@ -2973,7 +3038,8 @@ CapabilitySidecar? _decodeCapabilitySidecar(
     issues.add(
       Issue(
         code: IssueCode.malformedTranslatorOutput,
-        message: 'Invalid capability sidecar for ${source.effectiveId}: '
+        message:
+            'Invalid capability sidecar for ${source.effectiveId}: '
             '$error',
         location: source.span.location,
       ),
@@ -3035,7 +3101,8 @@ SurfaceVocabularyReferences _deliveredPaywallVocabulary(
           code: failure is IconCodePointCollision
               ? IssueCode.collidingIconCodePoints
               : IssueCode.unreconstructableIconData,
-          message: 'Paywall $id reaches paywall $next, but '
+          message:
+              'Paywall $id reaches paywall $next, but '
               '${failure.reason}.$origin',
           location: location,
         ),
@@ -3119,8 +3186,9 @@ Surface? _legacySurfaceFor(String path) {
 Future<Set<(String, String)>?> _pushedSurfaces(BuildStep buildStep) async {
   final pushed = <(String, String)>{};
   var readable = 0;
-  await for (final asset
-      in buildStep.findAssets(Glob('$receiptsDirectory/**/push-r*.json'))) {
+  await for (final asset in buildStep.findAssets(
+    Glob('$receiptsDirectory/**/push-r*.json'),
+  )) {
     readable++;
     final segments = asset.pathSegments;
     final at = segments.lastIndexOf('surface');

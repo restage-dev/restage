@@ -49,9 +49,10 @@ class Target {}
     expect(firstAnnotation(target, 'Foo'), isNull);
   });
 
-  test('resolved SDK origin survives prefixes, const aliases, and typedefs',
-      () async {
-    const source = '''
+  test(
+    'resolved SDK origin survives prefixes, const aliases, and typedefs',
+    () async {
+      const source = '''
 import 'package:restage/restage.dart' as rs;
 
 const runtimeMount = rs.RestagePaywall(id: 'const_alias');
@@ -67,27 +68,28 @@ class ConstAlias {}
 class TypedefAlias {}
 ''';
 
-    await resolveWorkspaceSources(
-      const {'apps_examples|lib/fixture.dart': source},
-      (resolver) async {
-        final library = await resolver.libraryFor(
-          AssetId('apps_examples', 'lib/fixture.dart'),
-          allowSyntaxErrors: true,
-        );
-        for (final name in ['Prefixed', 'ConstAlias', 'TypedefAlias']) {
-          final annotation = library.classes
-              .singleWhere((element) => element.name == name)
-              .metadata
-              .annotations
-              .single;
-          expect(resolvedAnnotationClass(annotation)?.name, 'RestagePaywall');
-          expect(annotationHasOrigin(annotation, 'package:restage'), isTrue);
-        }
-      },
-      resolverFor: 'apps_examples|lib/fixture.dart',
-      rootPackage: 'apps_examples',
-    );
-  });
+      await resolveWorkspaceSources(
+        const {'apps_examples|lib/fixture.dart': source},
+        (resolver) async {
+          final library = await resolver.libraryFor(
+            AssetId('apps_examples', 'lib/fixture.dart'),
+            allowSyntaxErrors: true,
+          );
+          for (final name in ['Prefixed', 'ConstAlias', 'TypedefAlias']) {
+            final annotation = library.classes
+                .singleWhere((element) => element.name == name)
+                .metadata
+                .annotations
+                .single;
+            expect(resolvedAnnotationClass(annotation)?.name, 'RestagePaywall');
+            expect(annotationHasOrigin(annotation, 'package:restage'), isTrue);
+          }
+        },
+        resolverFor: 'apps_examples|lib/fixture.dart',
+        rootPackage: 'apps_examples',
+      );
+    },
+  );
 
   test('resolved local lookalike does not have SDK origin', () async {
     final target = await _resolveClass(

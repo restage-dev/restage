@@ -55,18 +55,18 @@ final class WidgetVisitorResult {
     Map<String, MapPlan> mapPlans = const {},
     Map<String, RecordPlan> recordPlans = const {},
     List<PropertyExclusion> exclusions = const [],
-  })  : widgets = List.unmodifiable(widgets),
-        issues = List.unmodifiable(issues),
-        structuredTypes = List.unmodifiable(structuredTypes),
-        unions = List.unmodifiable(unions),
-        slotTargets = Map.unmodifiable(slotTargets),
-        nullableStructuredSlots = Set.unmodifiable(nullableStructuredSlots),
-        localUnrenderable = Map.unmodifiable(localUnrenderable),
-        widgetUnrenderable = Map.unmodifiable(widgetUnrenderable),
-        reconstructionPlans = Map.unmodifiable(reconstructionPlans),
-        mapPlans = Map.unmodifiable(mapPlans),
-        recordPlans = Map.unmodifiable(recordPlans),
-        exclusions = List.unmodifiable(exclusions);
+  }) : widgets = List.unmodifiable(widgets),
+       issues = List.unmodifiable(issues),
+       structuredTypes = List.unmodifiable(structuredTypes),
+       unions = List.unmodifiable(unions),
+       slotTargets = Map.unmodifiable(slotTargets),
+       nullableStructuredSlots = Set.unmodifiable(nullableStructuredSlots),
+       localUnrenderable = Map.unmodifiable(localUnrenderable),
+       widgetUnrenderable = Map.unmodifiable(widgetUnrenderable),
+       reconstructionPlans = Map.unmodifiable(reconstructionPlans),
+       mapPlans = Map.unmodifiable(mapPlans),
+       recordPlans = Map.unmodifiable(recordPlans),
+       exclusions = List.unmodifiable(exclusions);
 
   /// Successfully extracted widget entries.
   final List<WidgetEntry> widgets;
@@ -132,14 +132,14 @@ final class ConstructorComponentProjection {
     required Map<String, String> componentUnrenderable,
     required Map<String, ReconstructionPlan> reconstructionPlans,
     required List<PropertyExclusion> exclusions,
-  })  : issues = List.unmodifiable(issues),
-        structuredTypes = List.unmodifiable(structuredTypes),
-        slotTargets = Map.unmodifiable(slotTargets),
-        nullableStructuredSlots = Set.unmodifiable(nullableStructuredSlots),
-        localUnrenderable = Map.unmodifiable(localUnrenderable),
-        componentUnrenderable = Map.unmodifiable(componentUnrenderable),
-        reconstructionPlans = Map.unmodifiable(reconstructionPlans),
-        exclusions = List.unmodifiable(exclusions);
+  }) : issues = List.unmodifiable(issues),
+       structuredTypes = List.unmodifiable(structuredTypes),
+       slotTargets = Map.unmodifiable(slotTargets),
+       nullableStructuredSlots = Set.unmodifiable(nullableStructuredSlots),
+       localUnrenderable = Map.unmodifiable(localUnrenderable),
+       componentUnrenderable = Map.unmodifiable(componentUnrenderable),
+       reconstructionPlans = Map.unmodifiable(reconstructionPlans),
+       exclusions = List.unmodifiable(exclusions);
 
   /// Target-local component entry consumed by the existing target planner.
   final WidgetEntry entry;
@@ -210,13 +210,12 @@ WidgetVisitorResult visitRestageWidgets(
   AssetId assetId, {
   WidgetVisitorTarget target = WidgetVisitorTarget.rfw,
   bool includeAnalyticsId = false,
-}) =>
-    _visitRestageWidgets(
-      library,
-      assetId,
-      target: target,
-      includeAnalyticsId: includeAnalyticsId,
-    );
+}) => _visitRestageWidgets(
+  library,
+  assetId,
+  target: target,
+  includeAnalyticsId: includeAnalyticsId,
+);
 
 /// Package-aware variant used by sibling builders after they have indexed all
 /// tracked authored libraries and exact `@RestageLibrary` export ownership.
@@ -227,15 +226,14 @@ WidgetVisitorResult visitRestageWidgetsInPackage(
   WidgetVisitorTarget target = WidgetVisitorTarget.rfw,
   bool includeAnalyticsId = false,
   Map<String, WireIdRef> nativeStructuredRefs = const {},
-}) =>
-    _visitRestageWidgets(
-      library,
-      assetId,
-      target: target,
-      includeAnalyticsId: includeAnalyticsId,
-      ownershipByWidget: packageFacts.ownershipByWidget,
-      nativeStructuredRefs: nativeStructuredRefs,
-    );
+}) => _visitRestageWidgets(
+  library,
+  assetId,
+  target: target,
+  includeAnalyticsId: includeAnalyticsId,
+  ownershipByWidget: packageFacts.ownershipByWidget,
+  nativeStructuredRefs: nativeStructuredRefs,
+);
 
 /// Projects [constructorFacts] through an ordinary target constructor-input
 /// vocabulary without requiring the source class to be a `@RestageWidget`.
@@ -309,7 +307,8 @@ ConstructorComponentProjection projectConstructorComponent({
     issues.add(
       Issue(
         code: IssueCode.unsupportedPropertyType,
-        message: 'Native ${target.name} component "$componentName" cannot '
+        message:
+            'Native ${target.name} component "$componentName" cannot '
             'be emitted: '
             '$reason',
         location: '${assetId.path}#${element.name ?? '<unnamed>'}',
@@ -379,8 +378,11 @@ WidgetVisitorResult _visitRestageWidgets(
     final facts = projectWidgetConstructorFacts(
       cls,
       assetId,
-      readWidgetConstructorFacts(cls, assetId,
-          includeFlutterKey: target == WidgetVisitorTarget.rfw),
+      readWidgetConstructorFacts(
+        cls,
+        assetId,
+        includeFlutterKey: target == WidgetVisitorTarget.rfw,
+      ),
       target: _emitTarget(target),
     );
     constructorFacts[cls] = facts;
@@ -459,12 +461,14 @@ WidgetVisitorResult _visitRestageWidgets(
   final duplicateKeys = byKey.entries.where((e) => e.value.length > 1);
   if (duplicateKeys.isNotEmpty) {
     for (final entry in duplicateKeys) {
-      final classes =
-          entry.value.map((w) => w.flutterType.split('#').last).join(', ');
+      final classes = entry.value
+          .map((w) => w.flutterType.split('#').last)
+          .join(', ');
       issues.add(
         Issue(
           code: IssueCode.duplicateWidgetName,
-          message: 'Multiple @RestageWidget classes share name in '
+          message:
+              'Multiple @RestageWidget classes share name in '
               '${entry.key}: $classes.',
           location: assetId.path,
         ),
@@ -502,10 +506,10 @@ WidgetVisitorResult _visitRestageWidgets(
 }
 
 EmitTarget _emitTarget(WidgetVisitorTarget target) => switch (target) {
-      WidgetVisitorTarget.rfw => EmitTarget.rfw,
-      WidgetVisitorTarget.widgetbook => EmitTarget.widgetbook,
-      WidgetVisitorTarget.a2ui => EmitTarget.a2ui,
-    };
+  WidgetVisitorTarget.rfw => EmitTarget.rfw,
+  WidgetVisitorTarget.widgetbook => EmitTarget.widgetbook,
+  WidgetVisitorTarget.a2ui => EmitTarget.a2ui,
+};
 
 WidgetEntry? _readWidgetAnnotation(
   ClassElement cls,
@@ -536,7 +540,8 @@ WidgetEntry? _readWidgetAnnotation(
   final category = metadata.category;
   final description = metadata.description;
   final flutterType = _flutterTypeOf(cls);
-  final hasAnalyticsIdCollision = includeAnalyticsId &&
+  final hasAnalyticsIdCollision =
+      includeAnalyticsId &&
       target == WidgetVisitorTarget.rfw &&
       constructorFacts.allInputs.any(
         (input) => input.name == kAnalyticsIdPropertyName,
@@ -545,7 +550,8 @@ WidgetEntry? _readWidgetAnnotation(
     issues.add(
       Issue(
         code: IssueCode.invalidSynthetic,
-        message: 'Reserved catalog property "$kAnalyticsIdPropertyName" '
+        message:
+            'Reserved catalog property "$kAnalyticsIdPropertyName" '
             'conflicts with a custom constructor property.',
         location: widgetLocation,
       ),
@@ -613,7 +619,8 @@ void _appendAnalyticsIdProperty(
     issues.add(
       Issue(
         code: IssueCode.invalidSynthetic,
-        message: 'Reserved catalog property "$kAnalyticsIdPropertyName" '
+        message:
+            'Reserved catalog property "$kAnalyticsIdPropertyName" '
             'conflicts with a custom constructor property.',
         location: location,
       ),
@@ -651,7 +658,8 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
     issues.add(
       Issue(
         code: IssueCode.missingAnnotationField,
-        message: '@RestageWidget on $className could not be const-evaluated. '
+        message:
+            '@RestageWidget on $className could not be const-evaluated. '
             'Check that every argument is a compile-time constant.',
         location: widgetLocation,
       ),
@@ -662,7 +670,8 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
     issues.add(
       Issue(
         code: IssueCode.invalidWidgetClass,
-        message: '@RestageWidget on $className: custom widget classes must '
+        message:
+            '@RestageWidget on $className: custom widget classes must '
             'be public and non-abstract so generated factories can construct '
             'them.',
         location: widgetLocation,
@@ -676,7 +685,8 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
     issues.add(
       Issue(
         code: IssueCode.missingAnnotationField,
-        message: '@RestageWidget on $className has an empty explicit `name`; '
+        message:
+            '@RestageWidget on $className has an empty explicit `name`; '
             'omit the override to use the Dart class name.',
         location: widgetLocation,
       ),
@@ -685,17 +695,20 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
   }
   final name = explicitName ?? className;
 
-  final explicitNamespace =
-      value.getField('library')?.getField('namespace')?.toStringValue();
+  final explicitNamespace = value
+      .getField('library')
+      ?.getField('namespace')
+      ?.toStringValue();
   final explicitLibrary = explicitNamespace == null
       ? null
       : WidgetLibrary.fromNamespace(explicitNamespace);
   final candidates = ownershipByWidget == null
       ? const <WidgetLibrary>[]
       : ownershipByWidget[restageWidgetElementIdentity(cls)] ??
-          const <WidgetLibrary>[];
-  final candidateList =
-      candidates.map((candidate) => '"${candidate.namespace}"').join(', ');
+            const <WidgetLibrary>[];
+  final candidateList = candidates
+      .map((candidate) => '"${candidate.namespace}"')
+      .join(', ');
   final WidgetLibrary library;
   if (explicitLibrary != null) {
     if (candidates.isNotEmpty &&
@@ -705,7 +718,8 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
       issues.add(
         Issue(
           code: IssueCode.missingAnnotationField,
-          message: '@RestageWidget on $className explicitly selects '
+          message:
+              '@RestageWidget on $className explicitly selects '
               '"${explicitLibrary.namespace}", but its exporting '
               '@RestageLibrary declaration(s) are $candidateList.',
           location: widgetLocation,
@@ -718,7 +732,8 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
     issues.add(
       Issue(
         code: IssueCode.missingAnnotationField,
-        message: '@RestageWidget on $className omits `library`, but this '
+        message:
+            '@RestageWidget on $className omits `library`, but this '
             'single-library visitor has no complete package ownership index.',
         location: widgetLocation,
       ),
@@ -728,7 +743,8 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
     issues.add(
       Issue(
         code: IssueCode.missingAnnotationField,
-        message: '@RestageWidget on $className has no owning @RestageLibrary '
+        message:
+            '@RestageWidget on $className has no owning @RestageLibrary '
             'export. Export the class from exactly one annotated barrel or '
             'provide an explicit `library` override.',
         location: widgetLocation,
@@ -739,7 +755,8 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
     issues.add(
       Issue(
         code: IssueCode.missingAnnotationField,
-        message: '@RestageWidget on $className has multiple owning '
+        message:
+            '@RestageWidget on $className has multiple owning '
             '@RestageLibrary exports: $candidateList. '
             'Provide an explicit `library` override selecting one.',
         location: widgetLocation,
@@ -755,8 +772,8 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
   final category = categoryName == null
       ? null
       : WidgetCategory.values
-          .where((candidate) => candidate.name == categoryName)
-          .firstOrNull;
+            .where((candidate) => candidate.name == categoryName)
+            .firstOrNull;
   if (rawCategory != null && !rawCategory.isNull && category == null) {
     issues.add(
       Issue(
@@ -777,7 +794,8 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
     issues.add(
       Issue(
         code: IssueCode.missingCatalogDescription,
-        message: '$className requires either RestageWidget.description or '
+        message:
+            '$className requires either RestageWidget.description or '
             'Dart documentation on the class.',
         location: widgetLocation,
       ),
@@ -858,8 +876,9 @@ PropertyEntry? _readPropertyInput(
       : input.dartdocDescription;
   final annotationRequired =
       value?.getField('required')?.toBoolValue() ?? false;
-  final defaultBrandToken =
-      value?.getField('defaultBrandToken')?.toStringValue();
+  final defaultBrandToken = value
+      ?.getField('defaultBrandToken')
+      ?.toStringValue();
   final defaultSource = _decodeDefaultSource(
     value?.getField('defaultSource'),
     issues,
@@ -903,7 +922,8 @@ PropertyEntry? _readPropertyInput(
     issues.add(
       Issue(
         code: IssueCode.conflictingValidationStrategy,
-        message: '@RestageProperty on $ownerName.$fieldName supplies both '
+        message:
+            '@RestageProperty on $ownerName.$fieldName supplies both '
             'typed constraints and validationRule. Use exactly one validation '
             'strategy.',
         location: propertyLocation,
@@ -916,7 +936,8 @@ PropertyEntry? _readPropertyInput(
     issues.add(
       Issue(
         code: IssueCode.missingCatalogDescription,
-        message: '$ownerName.$fieldName requires either '
+        message:
+            '$ownerName.$fieldName requires either '
             'RestageProperty.description or Dart documentation.',
         location: propertyLocation,
       ),
@@ -928,7 +949,8 @@ PropertyEntry? _readPropertyInput(
   // sealed union) is resolved by the structured pre-pass. Named records with
   // admitted scalar or enum labels are resolved at the RFW boundary below;
   // scalar / enum / widget / event types fall through to legacy type inference.
-  final structuredShape = _nativeStructuredShape(
+  final structuredShape =
+      _nativeStructuredShape(
         input.type,
         nativeStructuredRefs,
       ) ??
@@ -939,7 +961,8 @@ PropertyEntry? _readPropertyInput(
   // keep an independent data-shape boundary. Both ride the same gate, and they
   // are mutually exclusive: a type classified as a record is never offered to
   // the map classifier.
-  final customValueSlot = target == WidgetVisitorTarget.rfw &&
+  final customValueSlot =
+      target == WidgetVisitorTarget.rfw &&
       structuredShape == null &&
       !a2uiScalarList;
   final recordClassification = customValueSlot
@@ -947,13 +970,13 @@ PropertyEntry? _readPropertyInput(
       : const NotARecord();
   final mapClassification =
       customValueSlot && recordClassification is NotARecord
-          ? classifyMapType(
-              input.type,
-              structuredValuesAdmitted: true,
-              library: library,
-              policy: structured.policy,
-            )
-          : const NotAMap();
+      ? classifyMapType(
+          input.type,
+          structuredValuesAdmitted: true,
+          library: library,
+          policy: structured.policy,
+        )
+      : const NotAMap();
   final excludedReason = switch ((recordClassification, mapClassification)) {
     (RecordAdmitted(), _) when input.nullable && input.required =>
       'a required nullable record cannot preserve explicit null through RFW. '
@@ -1041,12 +1064,14 @@ PropertyEntry? _readPropertyInput(
   var resolvedSource = defaultSource;
   if (target != WidgetVisitorTarget.widgetbook) {
     final constructorDefault = input.constructorDefault;
-    if (constructorDefault
-        case UnsupportedWidgetConstructorDefault(:final source)) {
+    if (constructorDefault case UnsupportedWidgetConstructorDefault(
+      :final source,
+    )) {
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetConstructorInput,
-          message: '$ownerName.$fieldName has constructor default '
+          message:
+              '$ownerName.$fieldName has constructor default '
               '$source, which the ${target.name} target cannot reproduce. '
               'Make the Dart default public, importable, and reconstructable; '
               'change the constructor contract (for example, to a safe '
@@ -1065,8 +1090,7 @@ PropertyEntry? _readPropertyInput(
         EnumWidgetConstructorDefault(:final member) => LiteralDefault(member),
         StaticMemberWidgetConstructorDefault() ||
         StructuralWidgetConstructorDefault() ||
-        UnsupportedWidgetConstructorDefault() =>
-          null,
+        UnsupportedWidgetConstructorDefault() => null,
       };
     }
   }
@@ -1096,13 +1120,14 @@ PropertyEntry? _readPropertyInput(
   }
   final callback =
       target == WidgetVisitorTarget.rfw && type == PropertyType.event
-          ? _rfwCallbackSignature(input.type)
-          : const _CallbackSignatureResult.valid(null);
+      ? _rfwCallbackSignature(input.type)
+      : const _CallbackSignatureResult.valid(null);
   if (target == WidgetVisitorTarget.rfw && !callback.valid) {
     issues.add(
       Issue(
         code: IssueCode.invalidEventConfiguration,
-        message: '$ownerName.$fieldName has unsupported callback signature '
+        message:
+            '$ownerName.$fieldName has unsupported callback signature '
             '${input.type.getDisplayString()}. RFW custom events support a '
             'zero-argument void callback, one required positional dart:core '
             'scalar payload (nullable allowed), or one non-null List of those '
@@ -1137,9 +1162,7 @@ PropertyEntry? _readPropertyInput(
 final class _CallbackSignatureResult {
   const _CallbackSignatureResult.valid(this.signature) : valid = true;
 
-  const _CallbackSignatureResult.invalid()
-      : valid = false,
-        signature = null;
+  const _CallbackSignatureResult.invalid() : valid = false, signature = null;
 
   final bool valid;
   final String? signature;
@@ -1148,8 +1171,9 @@ final class _CallbackSignatureResult {
 _CallbackSignatureResult _rfwCallbackSignature(DartType type) {
   return switch (classifyResolvedCallbackShape(type)) {
     ZeroArgumentCallback() => const _CallbackSignatureResult.valid(null),
-    SingleValueCallback(:final valueType) =>
-      _rfwSingleValueCallbackSignature(valueType),
+    SingleValueCallback(:final valueType) => _rfwSingleValueCallbackSignature(
+      valueType,
+    ),
     UnsupportedCallback() => const _CallbackSignatureResult.invalid(),
   };
 }
@@ -1175,7 +1199,8 @@ _CallbackSignatureResult _rfwSingleValueCallbackSignature(DartType valueType) {
     issues.add(
       Issue(
         code: IssueCode.missingAnnotationField,
-        message: '@RestageProperty validationRule on $ownerName.$fieldName '
+        message:
+            '@RestageProperty validationRule on $ownerName.$fieldName '
             'has an expression or message that could not be read as a '
             'compile-time constant String. Use compile-time constant Strings '
             'for both fields.',
@@ -1209,7 +1234,8 @@ RestageConstraints? _decodeConstraints(
         issues.add(
           Issue(
             code: IssueCode.invalidConstraintValue,
-            message: '@RestageProperty constraints.allowedValues[$index] on '
+            message:
+                '@RestageProperty constraints.allowedValues[$index] on '
                 '$ownerName.$fieldName has non-JSON const type '
                 '$typeName. '
                 'Use null, a finite int/double, bool, or String.',
@@ -1250,7 +1276,8 @@ RestageConstraints? _decodeConstraints(
     issues.add(
       Issue(
         code: IssueCode.invalidConstraintValue,
-        message: '@RestageProperty constraints.${bound.name} on '
+        message:
+            '@RestageProperty constraints.${bound.name} on '
             '$ownerName.$fieldName must be a finite compile-time constant int '
             'or double.',
         location: location,
@@ -1323,7 +1350,8 @@ PropertyType? _inferPropertyType(
   // Automatic Widgetbook stories have no control for a direct scalar list.
   if (target == WidgetVisitorTarget.widgetbook && _isA2uiScalarList(t)) {
     return _undecodable(
-      reason: 'Unsupported property type ${t.getDisplayString()} '
+      reason:
+          'Unsupported property type ${t.getDisplayString()} '
           'on $ownerName.$fieldName. Scalar-list properties (a List of '
           'String, int, double, num, or bool) are supported on the RFW and '
           'A2UI targets but are not admitted by automatic Widgetbook stories; '
@@ -1356,7 +1384,8 @@ PropertyType? _inferPropertyType(
     issues.add(
       Issue(
         code: IssueCode.unsupportedPropertyType,
-        message: 'Unsupported property type ${t.getDisplayString()} '
+        message:
+            'Unsupported property type ${t.getDisplayString()} '
             'on $ownerName.$fieldName: this is '
             "`${lookalike.library}#${lookalike.name}`, not Flutter's "
             '`${lookalike.name}`. Framework value types are matched by '
@@ -1368,13 +1397,13 @@ PropertyType? _inferPropertyType(
     return null;
   }
   final scalarTypes = switch (target) {
-    WidgetVisitorTarget.a2ui ||
-    WidgetVisitorTarget.rfw =>
+    WidgetVisitorTarget.a2ui || WidgetVisitorTarget.rfw =>
       'any Dart enum, and List<scalar> (String, int, double, num, or bool)',
     WidgetVisitorTarget.widgetbook => 'and any Dart enum',
   };
   return _undecodable(
-    reason: 'Unsupported property type ${t.getDisplayString()} '
+    reason:
+        'Unsupported property type ${t.getDisplayString()} '
         'on $ownerName.$fieldName. Supported types: Widget, List<Widget>, '
         'Color, EdgeInsets(Geometry|Directional), '
         'Alignment(Geometry|Directional), FontWeight, bool, int, double, '
@@ -1429,7 +1458,8 @@ void _validateTargetPositionalExclusions({
     issues.add(
       Issue(
         code: IssueCode.invalidWidgetConstructorInput,
-        message: 'Constructor input $className.${input.name} cannot be '
+        message:
+            'Constructor input $className.${input.name} cannot be '
             '$exclusionKind while later '
             'positional input ${later.name} is included, because excluding an '
             'earlier positional would shift the arguments after it. Make '
@@ -1482,7 +1512,8 @@ PropertyType? _undecodable({
   issues.add(
     Issue(
       code: IssueCode.unsupportedPropertyType,
-      message: '$targetReason $widgetName.$fieldName cannot be left out of '
+      message:
+          '$targetReason $widgetName.$fieldName cannot be left out of '
           'generated construction, so it cannot be dropped. Give it a '
           'default so the generated code can omit it, or expose a '
           'catalog-facing wrapper that omits it.',
@@ -1529,7 +1560,8 @@ Object? _decodeDefaultValue(
   issues.add(
     Issue(
       code: IssueCode.invalidDefault,
-      message: 'Unsupported defaultValue type $typeName. '
+      message:
+          'Unsupported defaultValue type $typeName. '
           'Supported: String, bool, int, double, and lists of these.',
       location: location,
     ),
@@ -1546,8 +1578,11 @@ DefaultValueSource? _decodeDefaultSource(
   final typeName = v.type?.element?.name;
   switch (typeName) {
     case 'LiteralDefault':
-      final literal =
-          _decodeDefaultValue(v.getField('value'), issues, location);
+      final literal = _decodeDefaultValue(
+        v.getField('value'),
+        issues,
+        location,
+      );
       if (literal == null) return null;
       return LiteralDefault(literal);
     case 'TokenRefDefault':
@@ -1571,7 +1606,8 @@ DefaultValueSource? _decodeDefaultSource(
   issues.add(
     Issue(
       code: IssueCode.invalidDefault,
-      message: 'Unsupported defaultSource type '
+      message:
+          'Unsupported defaultSource type '
           '${v.type?.getDisplayString() ?? '<unknown>'}.',
       location: location,
     ),
@@ -1592,7 +1628,8 @@ WireIdRef? _decodeWireIdRef(
     issues.add(
       Issue(
         code: IssueCode.invalidDefault,
-        message: 'Malformed tokenRef defaultSource; expected a WireIdRef '
+        message:
+            'Malformed tokenRef defaultSource; expected a WireIdRef '
             'with library and wireId.',
         location: location,
       ),
@@ -1603,7 +1640,8 @@ WireIdRef? _decodeWireIdRef(
     issues.add(
       Issue(
         code: IssueCode.invalidDefault,
-        message: 'Malformed tokenRef defaultSource; expected '
+        message:
+            'Malformed tokenRef defaultSource; expected '
             '${expectedKind.prefix}* but got ${wireId.value}.',
         location: location,
       ),
@@ -1659,7 +1697,8 @@ ThemeBindingPath? _decodeThemeBindingPath(
     issues.add(
       Issue(
         code: IssueCode.invalidDefault,
-        message: 'Malformed themeBinding defaultSource; expected path or '
+        message:
+            'Malformed themeBinding defaultSource; expected path or '
             'resolverName.',
         location: location,
       ),

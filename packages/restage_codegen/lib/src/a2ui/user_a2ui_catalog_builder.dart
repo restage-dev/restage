@@ -9,7 +9,6 @@ import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_native_screen.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
-import 'package:restage_codegen/src/a2ui/a2ui_schema_semantics.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_seam_assembly.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
@@ -26,8 +25,8 @@ import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// Generated `buildRestageCatalogItems()` for genui's `Catalog`.
-/// The output plan places Dart and its companion JSON in their configured roots.
+/// Generated `buildRestageCatalogItems()` for A2UI `CatalogImplementation`. The
+/// output plan places Dart and its companion JSON in their configured roots.
 const _catalogDartFileName = 'restage_a2ui_catalog.g.dart';
 
 /// Placeholder pub version for a custom library's catalog envelope. The A2UI
@@ -46,7 +45,7 @@ RestageOutputLocationPlan _resolvePlan(BuilderOptions options) {
   return RestageOutputLocationPlan.fromBuilderOptions(options);
 }
 
-/// Builds an opt-in genui catalog from custom widgets and native screens.
+/// Builds an opt-in A2UI catalog from custom widgets and native screens.
 ///
 /// Emits `lib/generated/restage_a2ui_catalog.g.dart` and the capability stamp
 /// `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json`. Output-location
@@ -55,8 +54,8 @@ RestageOutputLocationPlan _resolvePlan(BuilderOptions options) {
 ///
 /// Each contributing custom library must declare
 /// `@RestageLibrary(capabilityVersion:)`. Built-in catalogs are separate.
-/// Packages with no custom widgets or native screens produce no output.
-/// Only the generated code imports genui; the consuming package supplies it.
+/// Packages with no custom widgets or native screens produce no output. Only
+/// the generated code imports a2ui_flutter; the consuming package supplies it.
 final class UserA2uiCatalogBuilder implements Builder {
   /// Creates the builder, resolving and validating output location options once.
   UserA2uiCatalogBuilder(BuilderOptions options) : plan = _resolvePlan(options);
@@ -73,8 +72,8 @@ final class UserA2uiCatalogBuilder implements Builder {
   /// which a lib-rooted extension cannot express.
   @override
   Map<String, List<String>> get buildExtensions => {
-        r'$package$': [_catalogDartPath, plan.a2uiCatalogPath],
-      };
+    r'$package$': [_catalogDartPath, plan.a2uiCatalogPath],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -313,7 +312,8 @@ final class UserA2uiCatalogBuilder implements Builder {
           issues.add(
             Issue(
               code: IssueCode.invalidWidgetClass,
-              message: "@RestageWidget '${entry.name}' declares the built-in "
+              message:
+                  "@RestageWidget '${entry.name}' declares the built-in "
                   'namespace "${entry.library.namespace}", which is reserved.',
               location: '${assetId.path}#${entry.name}',
             ),
@@ -321,15 +321,17 @@ final class UserA2uiCatalogBuilder implements Builder {
           continue;
         }
         final className = entry.flutterType.split('#').last;
-        final element =
-            library.classes.where((c) => c.name == className).firstOrNull;
+        final element = library.classes
+            .where((c) => c.name == className)
+            .firstOrNull;
         if (element == null) {
           // The projection came from this library's classes, so a missing class
           // is an internal inconsistency — fail loud, never silently drop.
           issues.add(
             Issue(
               code: IssueCode.analyzerResolutionFailed,
-              message: "could not resolve the class '$className' for "
+              message:
+                  "could not resolve the class '$className' for "
                   "@RestageWidget '${entry.name}'.",
               location: '${assetId.path}#${entry.name}',
             ),
@@ -378,8 +380,8 @@ final class UserA2uiCatalogBuilder implements Builder {
       for (final diagnostic in walk.diagnostics) {
         // Only ERROR-severity diagnostics fail the build; a walk WARNING (e.g.
         // `restageLibraryForeignWidget` — a re-exported `@RestageWidget` this
-        // per-file catalog walk never picks up anyway) is surfaced non-fatally,
-        // so a legitimate multi-package barrel is not over-rejected.
+        // per-file catalog walk never picks up anyway) is surfaced non-
+        // fatally, so a legitimate multi-package barrel is not over-rejected.
         if (diagnostic.severity == DiagnosticSeverity.error) {
           issues.add(
             Issue(
@@ -400,7 +402,8 @@ final class UserA2uiCatalogBuilder implements Builder {
           issues.add(
             Issue(
               code: IssueCode.duplicateId,
-              message: 'conflicting @RestageLibrary capabilityVersion for '
+              message:
+                  'conflicting @RestageLibrary capabilityVersion for '
                   '"${declaration.library.namespace}": '
                   '${capabilityVersions[declaration.library]} vs '
                   '${declaration.capabilityVersion}.',
@@ -414,7 +417,8 @@ final class UserA2uiCatalogBuilder implements Builder {
           issues.add(
             Issue(
               code: IssueCode.duplicateId,
-              message: 'conflicting @RestageLibrary compatibleSince for '
+              message:
+                  'conflicting @RestageLibrary compatibleSince for '
                   '"${declaration.library.namespace}": $since vs '
                   '${declaration.compatibleSince}.',
               location: assetId.path,
@@ -437,7 +441,8 @@ final class UserA2uiCatalogBuilder implements Builder {
       issues.add(
         Issue(
           code: IssueCode.duplicateWidgetName,
-          message: 'Multiple @RestageWidget classes share name in ${dup.key}: '
+          message:
+              'Multiple @RestageWidget classes share name in ${dup.key}: '
               '${dup.value.map((w) => w.entry.flutterType).join(', ')}.',
           location: 'lib/',
         ),
@@ -462,8 +467,9 @@ final class UserA2uiCatalogBuilder implements Builder {
     // Deterministic emit order — by (library namespace, name) — so the
     // generated catalog is byte-stable regardless of asset discovery order.
     widgets.sort((a, b) {
-      final byLib =
-          a.entry.library.namespace.compareTo(b.entry.library.namespace);
+      final byLib = a.entry.library.namespace.compareTo(
+        b.entry.library.namespace,
+      );
       return byLib != 0 ? byLib : a.entry.name.compareTo(b.entry.name);
     });
 
@@ -489,12 +495,11 @@ final class UserA2uiCatalogBuilder implements Builder {
   /// Metadata is deterministic (schema-version constant, epoch `generatedAt`,
   /// no `flutterVersion`) so the emit is byte-stable — the A2UI emitters read
   /// none of it, and the capability floor derives to the baseline with no
-  /// built-in widgets present.
-  /// Enforces the fail-loud contract over the classifier's coverage record —
-  /// the classify-level analogue of the walk / seam gates above. In this
-  /// custom-only catalog every component is an authored `@RestageWidget` or
-  /// a native screen source (there are no built-ins to legitimately scope out),
-  /// so:
+  /// built-in widgets present. Enforces the fail-loud contract over the
+  /// classifier's coverage record — the classify-level analogue of the walk /
+  /// seam gates above. In this custom-only catalog every component is an
+  /// authored `@RestageWidget` or a native screen source (there are no
+  /// built-ins to legitimately scope out), so:
   ///
   ///  * a DROPPED component is a silent loss of a declared source — fatal;
   ///  * an OMITTED field whose default-constructor parameter is REQUIRED would
@@ -532,12 +537,12 @@ final class UserA2uiCatalogBuilder implements Builder {
         "The $annotation '${drop.widgetName}'"
         "${field == null ? '' : " (property '$field')"} cannot be lowered "
         'into the A2UI catalog and would be silently dropped: '
-        '${_coverageReasonHint(drop.reason, field)}',
+        '${_coverageReasonHint(drop.reason)}',
       );
     }
 
     for (final omission in plan.coverage.omittedFields) {
-      final hint = _coverageReasonHint(omission.reason, omission.fieldName);
+      final hint = _coverageReasonHint(omission.reason);
       final annotation = sourceAnnotation(omission.widgetName);
       final formal = _constructorFormal(
         elementByComponent[omission.widgetName],
@@ -610,15 +615,14 @@ final class UserA2uiCatalogBuilder implements Builder {
   FormalParameterElement? _constructorFormal(
     ClassElement? element,
     String fieldName,
-  ) =>
-      element?.constructors
-          .where(
-            (c) => !c.isFactory && const {null, '', 'new'}.contains(c.name),
-          )
-          .firstOrNull
-          ?.formalParameters
-          .where((p) => p.name == fieldName)
-          .firstOrNull;
+  ) => element?.constructors
+      .where(
+        (c) => !c.isFactory && const {null, '', 'new'}.contains(c.name),
+      )
+      .firstOrNull
+      ?.formalParameters
+      .where((p) => p.name == fieldName)
+      .firstOrNull;
 
   Catalog _customOnlyCatalog(_CustomWalk walk) {
     final customLibraries = <WidgetLibrary>{
@@ -665,11 +669,8 @@ typedef _NativeScreenWalk = ({
   List<PropertyExclusion> exclusions,
 });
 
-/// A custom-actionable explanation for a classifier coverage [reason]: what
-/// the A2UI catalog cannot express about the widget/property, and what to
-/// change. [fieldName] disambiguates unsupported-type and envelope-key
-/// reasons.
-String _coverageReasonHint(A2uiDartCoverageReason reason, String? fieldName) {
+/// Explains a classifier coverage [reason] and how to address it.
+String _coverageReasonHint(A2uiDartCoverageReason reason) {
   switch (reason) {
     case A2uiDartCoverageReason.unsupportedInteractiveCallback:
       return 'the callback signature has no declarative lowering (supported: '
@@ -696,12 +697,6 @@ String _coverageReasonHint(A2uiDartCoverageReason reason, String? fieldName) {
           'matching-type bindable value property on the widget.';
     case A2uiDartCoverageReason.requiredUnsupportedPropertyType:
     case A2uiDartCoverageReason.optionalUnsupportedPropertyType:
-      if (fieldName != null &&
-          isReservedA2uiComponentEnvelopeField(fieldName)) {
-        return 'the property name is reserved by the flattened GenUI '
-            "component envelope ('id', 'component'); rename the property. "
-            'Nested rich-data members may keep either name.';
-      }
       return 'the property type is not supported by the A2UI catalog.';
     case A2uiDartCoverageReason.unsupportedChildrenSlot:
       return 'the child slot is not the canonical shape (a single-child '

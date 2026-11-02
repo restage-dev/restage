@@ -82,7 +82,8 @@ final class WelcomeStep extends StatelessWidget {
 }
 ''';
 
-String _flowSource(String imports) => '''
+String _flowSource(String imports) =>
+    '''
 import 'package:restage/restage.dart';
 
 $imports
@@ -116,7 +117,8 @@ const WidgetLibrary appWidgets = AppWidgets();
 const appWidgetCatalog = 0;
 ''';
 
-String _messageSource(String import, String badge) => '''
+String _messageSource(String import, String badge) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -143,8 +145,10 @@ void main() {
       final sources = {
         'lib/widgets/streak_badge.dart': _widgetSource,
         'lib/app_widgets.dart': _barrelSource,
-        'lib/messages/recap.dart':
-            _messageSource("import '../app_widgets.dart';", 'StreakBadge'),
+        'lib/messages/recap.dart': _messageSource(
+          "import '../app_widgets.dart';",
+          'StreakBadge',
+        ),
       };
       final build = await _build(sources);
       final part = build.parts[_recapPart]!;
@@ -174,35 +178,41 @@ void main() {
       expect(await _errors(sources, build.parts), isEmpty);
     });
 
-    test('a declared break carries compatibleSince into the registration',
-        () async {
-      final sources = {
-        'lib/widgets/streak_badge.dart': _widgetSource,
-        'lib/app_widgets.dart': _barrelSource.replaceFirst(
-          'capabilityVersion: 1)',
-          'capabilityVersion: 4, compatibleSince: 4)',
-        ),
-        'lib/messages/recap.dart':
-            _messageSource("import '../app_widgets.dart';", 'StreakBadge'),
-      };
-      final part = (await _build(sources)).parts[_recapPart]!;
-
-      expect(
-        _packed(part),
-        contains(
-          _packed(
-            'capabilityVersion:4,compatibleSince:4,generatedVersion:3,widgets:',
+    test(
+      'a declared break carries compatibleSince into the registration',
+      () async {
+        final sources = {
+          'lib/widgets/streak_badge.dart': _widgetSource,
+          'lib/app_widgets.dart': _barrelSource.replaceFirst(
+            'capabilityVersion: 1)',
+            'capabilityVersion: 4, compatibleSince: 4)',
           ),
-        ),
-      );
-    });
+          'lib/messages/recap.dart': _messageSource(
+            "import '../app_widgets.dart';",
+            'StreakBadge',
+          ),
+        };
+        final part = (await _build(sources)).parts[_recapPart]!;
+
+        expect(
+          _packed(part),
+          contains(
+            _packed(
+              'capabilityVersion:4,compatibleSince:4,generatedVersion:3,widgets:',
+            ),
+          ),
+        );
+      },
+    );
 
     test('compatibleSince 1 stays out of the registration', () async {
       final sources = {
         'lib/widgets/streak_badge.dart': _widgetSource,
         'lib/app_widgets.dart': _barrelSource,
-        'lib/messages/recap.dart':
-            _messageSource("import '../app_widgets.dart';", 'StreakBadge'),
+        'lib/messages/recap.dart': _messageSource(
+          "import '../app_widgets.dart';",
+          'StreakBadge',
+        ),
       };
       final part = (await _build(sources)).parts[_recapPart]!;
 
@@ -264,12 +274,13 @@ final class Offer extends StatelessWidget {
       expect(await _errors(sources, build.parts), isEmpty);
     });
 
-    test('a flow installs its steps through constants their parts declare',
-        () async {
-      final sources = {
-        'lib/widgets/streak_badge.dart': _widgetSource,
-        'lib/app_widgets.dart': _barrelSource,
-        'lib/onboarding/welcome_step.dart': '''
+    test(
+      'a flow installs its steps through constants their parts declare',
+      () async {
+        final sources = {
+          'lib/widgets/streak_badge.dart': _widgetSource,
+          'lib/app_widgets.dart': _barrelSource,
+          'lib/onboarding/welcome_step.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -295,7 +306,7 @@ final class WelcomeStep extends StatelessWidget {
       );
 }
 ''',
-        'lib/onboarding/first_run.dart': '''
+          'lib/onboarding/first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import 'welcome_step.dart';
@@ -308,52 +319,57 @@ const firstRun = FlowDefinition(
   transitions: [Transition.complete(WelcomeStep.next)],
 );
 ''',
-      };
-      final build = await _build(sources);
+        };
+        final build = await _build(sources);
 
-      const generated = 'lib/onboarding/restage.generated';
-      expect(
-        build.parts['$generated/welcome_step.restage.g.dart'],
-        contains(
-          'const welcomeStepAppWidgets = <RestageWidgetLibraryRegistration>[',
-        ),
-      );
-      expect(
-        build.parts['$generated/first_run.restage.g.dart'],
-        contains('libraries: [...welcomeStepAppWidgets]'),
-      );
-      expect(build.warnings, isEmpty);
-      expect(await _errors(sources, build.parts), isEmpty);
-    });
-
-    test('a surface installs every widget of the libraries it draws from',
-        () async {
-      final sources = {
-        'lib/widgets/streak_badge.dart': _widgetSource,
-        'lib/widgets/streak_chip.dart': _chipSource,
-        'lib/app_widgets.dart': _twoWidgetBarrelSource,
-        'lib/messages/recap.dart':
-            _messageSource("import '../app_widgets.dart';", 'StreakBadge'),
-      };
-      final build = await _build(sources);
-      final part = _packed(build.parts[_recapPart]!);
-
-      // A later published version may draw StreakChip: delivery admits it by
-      // library and capability version alone.
-      expect(
-        part,
-        contains(
-          _packed(
-            "RestageWidgetFactory(name:'StreakBadge',"
-            r'builder:_restage$app$widgets$$StreakBadge),'
-            "RestageWidgetFactory(name:'StreakChip',"
-            r'builder:_restage$app$widgets$$StreakChip)',
+        const generated = 'lib/onboarding/restage.generated';
+        expect(
+          build.parts['$generated/welcome_step.restage.g.dart'],
+          contains(
+            'const welcomeStepAppWidgets = <RestageWidgetLibraryRegistration>[',
           ),
-        ),
-      );
-      expect(build.warnings, isEmpty);
-      expect(await _errors(sources, build.parts), isEmpty);
-    });
+        );
+        expect(
+          build.parts['$generated/first_run.restage.g.dart'],
+          contains('libraries: [...welcomeStepAppWidgets]'),
+        );
+        expect(build.warnings, isEmpty);
+        expect(await _errors(sources, build.parts), isEmpty);
+      },
+    );
+
+    test(
+      'a surface installs every widget of the libraries it draws from',
+      () async {
+        final sources = {
+          'lib/widgets/streak_badge.dart': _widgetSource,
+          'lib/widgets/streak_chip.dart': _chipSource,
+          'lib/app_widgets.dart': _twoWidgetBarrelSource,
+          'lib/messages/recap.dart': _messageSource(
+            "import '../app_widgets.dart';",
+            'StreakBadge',
+          ),
+        };
+        final build = await _build(sources);
+        final part = _packed(build.parts[_recapPart]!);
+
+        // A later published version may draw StreakChip: delivery admits it by
+        // library and capability version alone.
+        expect(
+          part,
+          contains(
+            _packed(
+              "RestageWidgetFactory(name:'StreakBadge',"
+              r'builder:_restage$app$widgets$$StreakBadge),'
+              "RestageWidgetFactory(name:'StreakChip',"
+              r'builder:_restage$app$widgets$$StreakChip)',
+            ),
+          ),
+        );
+        expect(build.warnings, isEmpty);
+        expect(await _errors(sources, build.parts), isEmpty);
+      },
+    );
 
     test('a library widget the surface cannot name installs nothing', () async {
       final sources = {
@@ -376,33 +392,35 @@ const firstRun = FlowDefinition(
       expect(await _errors(sources, build.parts), isEmpty);
     });
 
-    test('a flow whose library names the widgets installs them itself',
-        () async {
-      final sources = {
-        'lib/widgets/streak_badge.dart': _widgetSource,
-        'lib/app_widgets.dart': _barrelSource,
-        'lib/onboarding/welcome_step.dart': _welcomeStepSource,
-        'lib/onboarding/first_run.dart': _flowSource(
-          "import 'package:flutter/material.dart';\n"
-          "import '../app_widgets.dart';\n"
-          "import 'welcome_step.dart' show WelcomeStep;",
-        ),
-      };
-      final build = await _build(sources);
-      final flow = _packed(build.parts[_flowPart]!);
+    test(
+      'a flow whose library names the widgets installs them itself',
+      () async {
+        final sources = {
+          'lib/widgets/streak_badge.dart': _widgetSource,
+          'lib/app_widgets.dart': _barrelSource,
+          'lib/onboarding/welcome_step.dart': _welcomeStepSource,
+          'lib/onboarding/first_run.dart': _flowSource(
+            "import 'package:flutter/material.dart';\n"
+            "import '../app_widgets.dart';\n"
+            "import 'welcome_step.dart' show WelcomeStep;",
+          ),
+        };
+        final build = await _build(sources);
+        final flow = _packed(build.parts[_flowPart]!);
 
-      expect(
-        flow,
-        contains(
-          _packed('libraries:[RestageWidgetLibraryRegistration.constant('),
-        ),
-        reason: build.warnings.join('\n'),
-      );
-      expect(flow, contains(r'Widget_restage$app$widgets$$StreakBadge('));
-      expect(flow, isNot(contains('welcomeStepAppWidgets')));
-      expect(build.warnings, isEmpty);
-      expect(await _errors(sources, build.parts), isEmpty);
-    });
+        expect(
+          flow,
+          contains(
+            _packed('libraries:[RestageWidgetLibraryRegistration.constant('),
+          ),
+          reason: build.warnings.join('\n'),
+        );
+        expect(flow, contains(r'Widget_restage$app$widgets$$StreakBadge('));
+        expect(flow, isNot(contains('welcomeStepAppWidgets')));
+        expect(build.warnings, isEmpty);
+        expect(await _errors(sources, build.parts), isEmpty);
+      },
+    );
 
     for (final (label, extra, import) in [
       (
@@ -419,34 +437,37 @@ const firstRun = FlowDefinition(
         "import 'steps.dart';",
       ),
     ]) {
-      test('a flow that cannot see a step constant through $label compiles',
-          () async {
-        final sources = {
-          'lib/widgets/streak_badge.dart': _widgetSource,
-          'lib/app_widgets.dart': _barrelSource,
-          'lib/onboarding/welcome_step.dart': _welcomeStepSource,
-          ...extra,
-          'lib/onboarding/first_run.dart': _flowSource(import),
-        };
-        final build = await _build(sources);
+      test(
+        'a flow that cannot see a step constant through $label compiles',
+        () async {
+          final sources = {
+            'lib/widgets/streak_badge.dart': _widgetSource,
+            'lib/app_widgets.dart': _barrelSource,
+            'lib/onboarding/welcome_step.dart': _welcomeStepSource,
+            ...extra,
+            'lib/onboarding/first_run.dart': _flowSource(import),
+          };
+          final build = await _build(sources);
 
-        expect(build.parts[_flowPart], isNot(contains('AppWidgets')));
-        expect(
-          build.warnings,
-          contains(contains('cannot see welcomeStepAppWidgets')),
-        );
-        expect(await _errors(sources, build.parts), isEmpty);
-      });
+          expect(build.parts[_flowPart], isNot(contains('AppWidgets')));
+          expect(
+            build.warnings,
+            contains(contains('cannot see welcomeStepAppWidgets')),
+          );
+          expect(await _errors(sources, build.parts), isEmpty);
+        },
+      );
     }
 
     test('factory names keep namespace and widget apart', () async {
-      final recap = _messageSource(
-        "import '../app_widgets.dart';\nimport '../card_widgets.dart';",
-        'StreakBadge',
-      ).replaceAll(
-        'StreakBadge(days: 3)',
-        'StreakBadge(days: 3), CardsStreakBadge(days: 2)',
-      );
+      final recap =
+          _messageSource(
+            "import '../app_widgets.dart';\nimport '../card_widgets.dart';",
+            'StreakBadge',
+          ).replaceAll(
+            'StreakBadge(days: 3)',
+            'StreakBadge(days: 3), CardsStreakBadge(days: 2)',
+          );
       final sources = {
         'lib/widgets/streak_badge.dart': _widgetSource,
         'lib/widgets/cards_streak_badge.dart': _widgetSource
@@ -471,28 +492,31 @@ const firstRun = FlowDefinition(
       expect(await _errors(sources, build.parts), isEmpty);
     });
 
-    test('a name its library shadows installs nothing, with a warning',
-        () async {
-      final sources = {
-        'lib/widgets/streak_badge.dart': _widgetSource,
-        'lib/app_widgets.dart': _barrelSource,
-        'lib/messages/recap.dart': '''
+    test(
+      'a name its library shadows installs nothing, with a warning',
+      () async {
+        final sources = {
+          'lib/widgets/streak_badge.dart': _widgetSource,
+          'lib/app_widgets.dart': _barrelSource,
+          'lib/messages/recap.dart':
+              '''
 ${_messageSource("import '../app_widgets.dart';", 'StreakBadge')}
 
 final class DataSource {}
 ''',
-      };
-      final build = await _build(sources);
-      final part = build.parts[_recapPart]!;
+        };
+        final build = await _build(sources);
+        final part = build.parts[_recapPart]!;
 
-      expect(part, isNot(contains('libraries:')));
-      expect(part, isNot(contains(r'_restage$app')));
-      expect(
-        build.warnings,
-        contains(contains('cannot name DataSource')),
-      );
-      expect(await _errors(sources, build.parts), isEmpty);
-    });
+        expect(part, isNot(contains('libraries:')));
+        expect(part, isNot(contains(r'_restage$app')));
+        expect(
+          build.warnings,
+          contains(contains('cannot name DataSource')),
+        );
+        expect(await _errors(sources, build.parts), isEmpty);
+      },
+    );
   });
 }
 
@@ -526,8 +550,9 @@ Future<_Build> _build(Map<String, String> sources) async {
     'lib/src/widget_catalog/catalog.json',
     'lib/src/widget_catalog/app_widget_factories.json',
   ]) {
-    assets['$_package|$path'] =
-        readerWriter.testing.readString(AssetId(_package, path));
+    assets['$_package|$path'] = readerWriter.testing.readString(
+      AssetId(_package, path),
+    );
   }
   final warnings = <String>[];
   final result = await testBuilders(
@@ -547,7 +572,8 @@ Future<_Build> _build(Map<String, String> sources) async {
   final parts = <String, String>{};
   for (final path in sources.keys) {
     final slash = path.lastIndexOf('/');
-    final part = '${path.substring(0, slash)}/restage.generated/'
+    final part =
+        '${path.substring(0, slash)}/restage.generated/'
         '${path.substring(slash + 1, path.length - 5)}.restage.g.dart';
     final id = AssetId(_package, part);
     if (readerWriter.testing.exists(id)) {
@@ -582,8 +608,9 @@ Future<List<String>> _errors(
         final library = await resolver.libraryFor(
           AssetId('restage_codegen', path),
         );
-        final resolved =
-            await library.session.getResolvedLibraryByElement(library);
+        final resolved = await library.session.getResolvedLibraryByElement(
+          library,
+        );
         if (resolved is! ResolvedLibraryResult) {
           errors.add('$path did not resolve');
           continue;

@@ -16,9 +16,9 @@ const String kBorderRadiusCornerSentinel = '__rfw_border_radius_corners(';
 /// Rewrites every per-corner sentinel in [dsl] as a corner map, the form a
 /// radius inside a structured value such as a shape takes.
 String borderRadiusCornersAsMap(String dsl) => dsl.replaceAllMapped(
-      RegExp('${RegExp.escape(kBorderRadiusCornerSentinel)}([^()]*)\\)'),
-      (match) => '{${match[1]}}',
-    );
+  RegExp('${RegExp.escape(kBorderRadiusCornerSentinel)}([^()]*)\\)'),
+  (match) => '{${match[1]}}',
+);
 
 /// Canonical corner order for the per-corner sentinel.
 const List<String> kBorderRadiusCornerOrder = [
@@ -41,21 +41,18 @@ final class FrameworkConstValue {
 
   /// Whether a slot of [type] decodes this value.
   bool fits(PropertyType type) => switch (kind) {
-        FrameworkConstKind.alignment =>
-          type == PropertyType.alignment || type == PropertyType.alignmentXY,
-        FrameworkConstKind.directionalAlignment =>
-          type == PropertyType.alignment,
-        FrameworkConstKind.edgeInsets => type == PropertyType.edgeInsets,
-        FrameworkConstKind.color => type == PropertyType.color,
-        FrameworkConstKind.duration => type == PropertyType.duration,
-        FrameworkConstKind.offset => type == PropertyType.offset,
-        FrameworkConstKind.systemUiOverlayStyle =>
-          type == PropertyType.structured,
-        // The catalog carries a radius as a number.
-        FrameworkConstKind.borderRadius ||
-        FrameworkConstKind.radius =>
-          type == PropertyType.real,
-      };
+    FrameworkConstKind.alignment =>
+      type == PropertyType.alignment || type == PropertyType.alignmentXY,
+    FrameworkConstKind.directionalAlignment => type == PropertyType.alignment,
+    FrameworkConstKind.edgeInsets => type == PropertyType.edgeInsets,
+    FrameworkConstKind.color => type == PropertyType.color,
+    FrameworkConstKind.duration => type == PropertyType.duration,
+    FrameworkConstKind.offset => type == PropertyType.offset,
+    FrameworkConstKind.systemUiOverlayStyle => type == PropertyType.structured,
+    // The catalog carries a radius as a number.
+    FrameworkConstKind.borderRadius ||
+    FrameworkConstKind.radius => type == PropertyType.real,
+  };
 }
 
 /// The wire shapes a framework constant encodes to.
@@ -89,16 +86,16 @@ enum FrameworkConstKind {
 
   /// The value described for a diagnostic.
   String get label => switch (this) {
-        alignment => 'an alignment',
-        directionalAlignment => 'a directional alignment',
-        edgeInsets => 'edge insets',
-        color => 'a color',
-        duration => 'a duration',
-        offset => 'an offset',
-        systemUiOverlayStyle => 'a system overlay style',
-        borderRadius => 'a border radius',
-        radius => 'a radius',
-      };
+    alignment => 'an alignment',
+    directionalAlignment => 'a directional alignment',
+    edgeInsets => 'edge insets',
+    color => 'a color',
+    duration => 'a duration',
+    offset => 'an offset',
+    systemUiOverlayStyle => 'a system overlay style',
+    borderRadius => 'a border radius',
+    radius => 'a radius',
+  };
 }
 
 /// The evaluated value of a static const member declared by a framework
@@ -123,21 +120,24 @@ DartObject? frameworkStaticConst(Expression expr) {
 DartObject? canonicalMaterialShade(Expression expression) {
   final (receiver, accessor) = switch (expression) {
     PropertyAccess(:final target, :final propertyName) => (
-        target,
-        propertyName.element
-      ),
+      target,
+      propertyName.element,
+    ),
     PrefixedIdentifier(:final prefix, :final identifier) => (
-        prefix,
-        identifier.element
-      ),
+      prefix,
+      identifier.element,
+    ),
     _ => (null, null),
   };
   if (receiver == null ||
       accessor is! GetterElement ||
       accessor.library.identifier !=
           'package:flutter/src/material/colors.dart' ||
-      !const {'MaterialColor', 'MaterialAccentColor'}
-          .contains(accessor.enclosingElement.name)) return null;
+      !const {
+        'MaterialColor',
+        'MaterialAccentColor',
+      }.contains(accessor.enclosingElement.name))
+    return null;
   final shade = const {
     'shade50': 50,
     'shade100': 100,
@@ -157,8 +157,9 @@ DartObject? canonicalMaterialShade(Expression expression) {
     PropertyAccess() => receiver.propertyName.element,
     _ => null,
   };
-  final variable =
-      element is PropertyAccessorElement ? element.variable : element;
+  final variable = element is PropertyAccessorElement
+      ? element.variable
+      : element;
   final value = variable is VariableElement && variable.isConst
       ? variable.computeConstantValue()
       : null;
@@ -176,19 +177,26 @@ DartObject? canonicalMaterialShade(Expression expression) {
 Map<String, Object?>? exactColorConstant(DartObject value) {
   final type = value.type;
   if (type is! InterfaceType ||
-      ![type, ...type.allSupertypes].any((t) =>
-          t.element.name == 'Color' &&
-          t.element.library.identifier == 'dart:ui')) return null;
+      ![type, ...type.allSupertypes].any(
+        (t) =>
+            t.element.name == 'Color' &&
+            t.element.library.identifier == 'dart:ui',
+      ))
+    return null;
   if ((!type.element.library.identifier.startsWith('package:flutter/') &&
           type.element.library.identifier != 'dart:ui') ||
-      _classNames(value).contains('CupertinoDynamicColor')) return null;
+      _classNames(value).contains('CupertinoDynamicColor'))
+    return null;
   String material = '';
   if (type.element.name != 'Color' ||
       type.element.library.identifier != 'dart:ui') {
     if (type.element.library.identifier !=
             'package:flutter/src/material/colors.dart' ||
-        !const {'MaterialColor', 'MaterialAccentColor'}
-            .contains(type.element.name)) return null;
+        !const {
+          'MaterialColor',
+          'MaterialAccentColor',
+        }.contains(type.element.name))
+      return null;
     final colors = type.element.library.getClass('Colors');
     for (final field in colors?.fields ?? <FieldElement>[]) {
       if (field.isStatic &&
@@ -217,19 +225,20 @@ Map<String, Object?>? exactColorConstant(DartObject value) {
 /// every channel round-trips exactly through the sRGB ARGB representation.
 String exactColorLiteral(Map<String, Object?> value) {
   final material = value['material'];
-  final argb =
-      material is String && material.isNotEmpty ? null : _exactArgb(value);
+  final argb = material is String && material.isNotEmpty
+      ? null
+      : _exactArgb(value);
   if (argb != null)
     return '0x${argb.toRadixString(16).padLeft(8, '0').toUpperCase()}';
   final fields = value.entries
       .where((entry) => entry.key != 'material' || entry.value != '')
       .map((entry) {
-    final component = entry.value;
-    final literal = component is String
-        ? '"$component"'
-        : rfwNumberLiteral(component! as num);
-    return '${entry.key}: $literal';
-  });
+        final component = entry.value;
+        final literal = component is String
+            ? '"$component"'
+            : rfwNumberLiteral(component! as num);
+        return '${entry.key}: $literal';
+      });
   return '{${fields.join(', ')}}';
 }
 
@@ -270,8 +279,10 @@ FrameworkConstValue? encodeFrameworkConst(DartObject value) {
         : ['left', 'top', 'right', 'bottom'];
     final values = {for (final key in keys) key: _double(value, key)};
     if (values.values.contains(null)) return null;
-    return FrameworkConstValue(FrameworkConstKind.edgeInsets,
-        '{${values.entries.map((e) => '${e.key}: ${e.value}').join(', ')}}');
+    return FrameworkConstValue(
+      FrameworkConstKind.edgeInsets,
+      '{${values.entries.map((e) => '${e.key}: ${e.value}').join(', ')}}',
+    );
   }
   if (classes.contains('AlignmentDirectional')) {
     final start = _double(value, 'start');
@@ -302,11 +313,13 @@ FrameworkConstValue? encodeFrameworkConst(DartObject value) {
   if (classes.contains('BorderRadiusDirectional')) {
     final corners = {
       for (final c in ['topStart', 'topEnd', 'bottomStart', 'bottomEnd'])
-        c: _circularField(value, c)
+        c: _circularField(value, c),
     };
     if (corners.values.contains(null)) return null;
-    return FrameworkConstValue(FrameworkConstKind.borderRadius,
-        '$kBorderRadiusCornerSentinel${corners.entries.map((e) => '${e.key}: ${e.value}').join(', ')})');
+    return FrameworkConstValue(
+      FrameworkConstKind.borderRadius,
+      '$kBorderRadiusCornerSentinel${corners.entries.map((e) => '${e.key}: ${e.value}').join(', ')})',
+    );
   }
   if (classes.contains('BorderRadius')) {
     final corners = {
@@ -339,7 +352,9 @@ FrameworkConstValue? encodeFrameworkConst(DartObject value) {
     final exact = exactColorConstant(value);
     if (exact == null) return null;
     return FrameworkConstValue(
-        FrameworkConstKind.color, exactColorLiteral(exact));
+      FrameworkConstKind.color,
+      exactColorLiteral(exact),
+    );
   }
   return null;
 }
@@ -413,11 +428,12 @@ String? encodeSystemUiOverlayStyleField(String name, DartObject value) {
   return switch (kSystemUiOverlayStyleFields[name]) {
     PropertyType.color => encodeFrameworkConst(value)?.dsl,
     PropertyType.boolean => value.toBoolValue()?.toString(),
-    PropertyType.enumValue => switch (
-          value.getField('_name')?.toStringValue()) {
-        final String name => '"$name"',
-        _ => null,
-      },
+    PropertyType.enumValue => switch (value
+        .getField('_name')
+        ?.toStringValue()) {
+      final String name => '"$name"',
+      _ => null,
+    },
     _ => null,
   };
 }

@@ -14,7 +14,8 @@ import 'helpers.dart';
 
 const String _package = 'apps_examples';
 
-String _paywall(String name, String body) => '''
+String _paywall(String name, String body) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -255,8 +256,9 @@ void main() {
       );
     });
 
-    String text(String id) => result.readerWriter.testing
-        .readString(AssetId(_package, 'assets/paywalls/$id.rfwtxt'));
+    String text(String id) => result.readerWriter.testing.readString(
+      AssetId(_package, 'assets/paywalls/$id.rfwtxt'),
+    );
 
     test('every brightness fixture compiles', () {
       expect(result.succeeded, isTrue, reason: result.errors.join('\n'));

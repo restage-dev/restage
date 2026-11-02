@@ -63,30 +63,32 @@ void main() {
       expect(slots.single.sourceEventIdentity.value, 'onActivate');
     });
 
-    test('accepts only exact ScreenSource, PaywallSource, and FlowSource roots',
-        () async {
-      const expectedKinds = <String, MeasurementSourceRootKind>{
-        'ScreenSource': MeasurementSourceRootKind.screenSource,
-        'PaywallSource': MeasurementSourceRootKind.paywallSource,
-        'FlowSource': MeasurementSourceRootKind.flowSource,
-      };
-
-      for (final entry in expectedKinds.entries) {
-        final resolved = await _resolveOpaqueOccurrences(
-          _opaqueWidgetSource(rootAnnotation: entry.key),
-        );
-        final slots = MeasurementResolvedOpaqueCustomWidgetEvent.discoverSlots(
-          sourceRoot: resolved.sourceRoot,
-          occurrence: resolved.occurrences.first,
-          catalog: _opaqueCatalog(),
-        );
-
-        expect(slots.single.sourceRootKind, entry.value, reason: entry.key);
-      }
-    });
-
     test(
-        'fails closed for undeclared, lookalike, ambiguous, mismatched, and '
+      'accepts only exact ScreenSource, PaywallSource, and FlowSource roots',
+      () async {
+        const expectedKinds = <String, MeasurementSourceRootKind>{
+          'ScreenSource': MeasurementSourceRootKind.screenSource,
+          'PaywallSource': MeasurementSourceRootKind.paywallSource,
+          'FlowSource': MeasurementSourceRootKind.flowSource,
+        };
+
+        for (final entry in expectedKinds.entries) {
+          final resolved = await _resolveOpaqueOccurrences(
+            _opaqueWidgetSource(rootAnnotation: entry.key),
+          );
+          final slots =
+              MeasurementResolvedOpaqueCustomWidgetEvent.discoverSlots(
+                sourceRoot: resolved.sourceRoot,
+                occurrence: resolved.occurrences.first,
+                catalog: _opaqueCatalog(),
+              );
+
+          expect(slots.single.sourceRootKind, entry.value, reason: entry.key);
+        }
+      },
+    );
+
+    test('fails closed for undeclared, lookalike, ambiguous, mismatched, and '
         'unsupported opaque slots', () async {
       Future<void> expectRejected(String source, Catalog catalog) async {
         final resolved = await _resolveOpaqueOccurrences(source);
@@ -129,87 +131,97 @@ void main() {
       );
     });
 
-    test('Flutter keys do not affect opaque provenance or compiler output',
-        () async {
-      final baseline = await _OpaqueCompilerFixture.build();
-      final keyed = await _OpaqueCompilerFixture.build(
-        source: _opaqueWidgetSource(
-          firstKey: 'UniqueKey()',
-          secondKey: "const ValueKey('opaque-second')",
-        ),
-      );
+    test(
+      'Flutter keys do not affect opaque provenance or compiler output',
+      () async {
+        final baseline = await _OpaqueCompilerFixture.build();
+        final keyed = await _OpaqueCompilerFixture.build(
+          source: _opaqueWidgetSource(
+            firstKey: 'UniqueKey()',
+            secondKey: "const ValueKey('opaque-second')",
+          ),
+        );
 
-      expect(
-        _provenanceKey(keyed.discoveredSlots.first),
-        _provenanceKey(baseline.discoveredSlots.first),
-      );
+        expect(
+          _provenanceKey(keyed.discoveredSlots.first),
+          _provenanceKey(baseline.discoveredSlots.first),
+        );
 
-      final baselineResult = MeasurementCompilerBoundary.produceBoundaryV1(
-        baseline.input,
-      );
-      final keyedResult = MeasurementCompilerBoundary.produceBoundaryV1(
-        keyed.input,
-      );
-      expect(
-        baselineResult.disposition,
-        MeasurementCompilerBoundaryDisposition.accepted,
-      );
-      expect(
-        keyedResult.disposition,
-        MeasurementCompilerBoundaryDisposition.accepted,
-      );
-      expect(keyedResult.documents, _documentsEqual(baselineResult.documents));
-    });
-
-    test('repeated opaque artifact identity produces distinct structural edges',
-        () async {
-      final fixture = await _OpaqueCompilerFixture.build();
-      final result = MeasurementCompilerBoundary.produceBoundaryV1(
-        fixture.input,
-      );
-
-      expect(
-        result.disposition,
-        MeasurementCompilerBoundaryDisposition.accepted,
-      );
-      final graph = result.exactArtifactGraph!;
-      expect(
-        graph.artifactIdentities
-            .where((identity) => identity.artifactId.value == 'artifact.opaque')
-            .toList(),
-        hasLength(1),
-      );
-      final opaqueEdges = graph.occurrenceEdges
-          .where((edge) => edge.artifactId.value == 'artifact.opaque')
-          .toList();
-      expect(opaqueEdges, hasLength(2));
-      expect(
-        opaqueEdges.map((edge) => edge.edgeToken.value).toSet(),
-        {'edge.opaque.first', 'edge.opaque.second'},
-      );
-
-      final points = result.completeMeasurementManifest!.points;
-      expect(points, hasLength(2));
-      expect(
-        points.map((point) => point.artifactOccurrenceEdgeToken.value).toSet(),
-        {'edge.opaque.first', 'edge.opaque.second'},
-      );
-      expect(
-        points.map((point) => point.sourceEventIdentity!.value).toSet(),
-        {'onActivate'},
-      );
-      expect(
-        points.map((point) => point.occurrenceId.hex).toSet(),
-        hasLength(2),
-      );
-      final opaqueManifest = result.localMeasurementManifests.singleWhere(
-        (manifest) => manifest.artifactId.value == 'artifact.opaque',
-      );
-      expect(opaqueManifest.points, hasLength(2));
-    });
+        final baselineResult = MeasurementCompilerBoundary.produceBoundaryV1(
+          baseline.input,
+        );
+        final keyedResult = MeasurementCompilerBoundary.produceBoundaryV1(
+          keyed.input,
+        );
+        expect(
+          baselineResult.disposition,
+          MeasurementCompilerBoundaryDisposition.accepted,
+        );
+        expect(
+          keyedResult.disposition,
+          MeasurementCompilerBoundaryDisposition.accepted,
+        );
+        expect(
+          keyedResult.documents,
+          _documentsEqual(baselineResult.documents),
+        );
+      },
+    );
 
     test(
-        'multiple opaque slots on one node produce distinct occurrences and '
+      'repeated opaque artifact identity produces distinct structural edges',
+      () async {
+        final fixture = await _OpaqueCompilerFixture.build();
+        final result = MeasurementCompilerBoundary.produceBoundaryV1(
+          fixture.input,
+        );
+
+        expect(
+          result.disposition,
+          MeasurementCompilerBoundaryDisposition.accepted,
+        );
+        final graph = result.exactArtifactGraph!;
+        expect(
+          graph.artifactIdentities
+              .where(
+                (identity) => identity.artifactId.value == 'artifact.opaque',
+              )
+              .toList(),
+          hasLength(1),
+        );
+        final opaqueEdges = graph.occurrenceEdges
+            .where((edge) => edge.artifactId.value == 'artifact.opaque')
+            .toList();
+        expect(opaqueEdges, hasLength(2));
+        expect(
+          opaqueEdges.map((edge) => edge.edgeToken.value).toSet(),
+          {'edge.opaque.first', 'edge.opaque.second'},
+        );
+
+        final points = result.completeMeasurementManifest!.points;
+        expect(points, hasLength(2));
+        expect(
+          points
+              .map((point) => point.artifactOccurrenceEdgeToken.value)
+              .toSet(),
+          {'edge.opaque.first', 'edge.opaque.second'},
+        );
+        expect(
+          points.map((point) => point.sourceEventIdentity!.value).toSet(),
+          {'onActivate'},
+        );
+        expect(
+          points.map((point) => point.occurrenceId.hex).toSet(),
+          hasLength(2),
+        );
+        final opaqueManifest = result.localMeasurementManifests.singleWhere(
+          (manifest) => manifest.artifactId.value == 'artifact.opaque',
+        );
+        expect(opaqueManifest.points, hasLength(2));
+      },
+    );
+
+    test('multiple opaque slots on one node produce distinct occurrences and '
         'generated references', () async {
       final fixture = await _OpaqueCompilerFixture.build(
         repeatedOpaqueArtifact: false,
@@ -268,18 +280,18 @@ String _provenanceKey(MeasurementResolvedOpaqueCustomWidgetEvent slot) {
 }
 
 Matcher _documentsEqual(Map<String, Uint8List> expected) => predicate(
-      (value) {
-        if (value is! Map<String, Uint8List>) return false;
-        if (value.length != expected.length ||
-            !value.keys.toSet().containsAll(expected.keys)) {
-          return false;
-        }
-        return value.entries.every(
-          (entry) => _sameBytes(expected[entry.key]!, entry.value),
-        );
-      },
-      'matches the baseline compiler documents',
+  (value) {
+    if (value is! Map<String, Uint8List>) return false;
+    if (value.length != expected.length ||
+        !value.keys.toSet().containsAll(expected.keys)) {
+      return false;
+    }
+    return value.entries.every(
+      (entry) => _sameBytes(expected[entry.key]!, entry.value),
     );
+  },
+  'matches the baseline compiler documents',
+);
 
 bool _sameBytes(List<int> expected, List<int> actual) =>
     expected.length == actual.length &&
@@ -295,35 +307,34 @@ Catalog _opaqueCatalog({
   WidgetEntry entry({
     required String widgetWireId,
     required int propertyStart,
-  }) =>
-      WidgetEntry(
-        wireId: WireId(widgetWireId),
-        name: 'OpaqueAction',
-        library: library,
-        category: WidgetCategory.action,
-        description: 'Opaque action fixture.',
-        flutterType: flutterType,
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          for (var index = 0; index < slots.length; index++)
-            PropertyEntry(
-              wireId: WireId(
-                'p${(propertyStart + index).toString().padLeft(4, '0')}',
-              ),
-              name: slots[index],
-              type: PropertyType.event,
-              description: 'Opaque event slot.',
-            ),
-          PropertyEntry(
-            wireId: WireId(
-              'p${(propertyStart + slots.length).toString().padLeft(4, '0')}',
-            ),
-            name: 'label',
-            type: PropertyType.string,
-            description: 'Opaque scalar property.',
+  }) => WidgetEntry(
+    wireId: WireId(widgetWireId),
+    name: 'OpaqueAction',
+    library: library,
+    category: WidgetCategory.action,
+    description: 'Opaque action fixture.',
+    flutterType: flutterType,
+    childrenSlot: ChildrenSlot.none,
+    properties: [
+      for (var index = 0; index < slots.length; index++)
+        PropertyEntry(
+          wireId: WireId(
+            'p${(propertyStart + index).toString().padLeft(4, '0')}',
           ),
-        ],
-      );
+          name: slots[index],
+          type: PropertyType.event,
+          description: 'Opaque event slot.',
+        ),
+      PropertyEntry(
+        wireId: WireId(
+          'p${(propertyStart + slots.length).toString().padLeft(4, '0')}',
+        ),
+        name: 'label',
+        type: PropertyType.string,
+        description: 'Opaque scalar property.',
+      ),
+    ],
+  );
 
   return Catalog(
     schemaVersion: 1,
@@ -394,12 +405,15 @@ String _opaqueWidgetSource({
   String? secondKey,
   bool includeDynamicCallback = false,
 }) {
-  final constructorDeclaration =
-      namedConstructor ? 'const OpaqueAction.named' : 'const OpaqueAction';
-  final constructorCall =
-      namedConstructor ? 'OpaqueAction.named' : 'OpaqueAction';
-  final restageImport =
-      localRootLookalike ? '' : "import 'package:restage/restage.dart';";
+  final constructorDeclaration = namedConstructor
+      ? 'const OpaqueAction.named'
+      : 'const OpaqueAction';
+  final constructorCall = namedConstructor
+      ? 'OpaqueAction.named'
+      : 'OpaqueAction';
+  final restageImport = localRootLookalike
+      ? ''
+      : "import 'package:restage/restage.dart';";
   final lookalikeDeclaration = localRootLookalike
       ? '''
 class PaywallSource {
@@ -420,8 +434,9 @@ class PaywallSource {
     ),
 '''
       : '';
-  final dynamicCallback =
-      includeDynamicCallback ? 'dynamic dynamicCallback = () {};' : '';
+  final dynamicCallback = includeDynamicCallback
+      ? 'dynamic dynamicCallback = () {};'
+      : '';
 
   return '''
 import 'package:flutter/material.dart';
@@ -512,10 +527,10 @@ final class _OpaqueCompilerFixture {
     if (repeatedOpaqueArtifact) {
       final secondSlots =
           MeasurementResolvedOpaqueCustomWidgetEvent.discoverSlots(
-        sourceRoot: resolved.sourceRoot,
-        occurrence: resolved.occurrences[1],
-        catalog: catalog,
-      );
+            sourceRoot: resolved.sourceRoot,
+            occurrence: resolved.occurrences[1],
+            catalog: catalog,
+          );
       selectedSlots.add(secondSlots.single);
       slotCodes.add(CodeIdentityId('code.opaque.second'));
     }

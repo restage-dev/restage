@@ -139,37 +139,44 @@ bool _roster(
 
 bool _source(Object? value) =>
     value is Map<String, Object?> &&
-    _shape(value, {
-      'kind',
-      'id',
-      'idMode',
-      'identity',
-      'identityClaims',
-      'library',
-      'libraryPath',
-      'source',
-      'version',
-      'minClient',
-      'authoring',
-      'span',
-      'outputs',
-    }, {
-      'surface',
-      'deliveryMode',
-    }) &&
+    _shape(
+      value,
+      {
+        'kind',
+        'id',
+        'idMode',
+        'identity',
+        'identityClaims',
+        'library',
+        'libraryPath',
+        'source',
+        'version',
+        'minClient',
+        'authoring',
+        'span',
+        'outputs',
+      },
+      {
+        'surface',
+        'deliveryMode',
+      },
+    ) &&
     _strings(value, ['id', 'identity', 'library', 'libraryPath', 'source']) &&
-    RestageRosterSourceKind.values
-        .any((kind) => kind.wireName == value['kind']) &&
+    RestageRosterSourceKind.values.any(
+      (kind) => kind.wireName == value['kind'],
+    ) &&
     {'implicit', 'explicit'}.contains(value['idMode']) &&
     {'canonical', 'legacy'}.contains(value['authoring']) &&
     _positive(value['version']) &&
     _positive(value['minClient']) &&
     (!value.containsKey('surface') ||
-        Surface.values
-            .any((surface) => surface.wireName == value['surface'])) &&
+        Surface.values.any(
+          (surface) => surface.wireName == value['surface'],
+        )) &&
     (!value.containsKey('deliveryMode') ||
-        FlowDeliveryMode.values
-            .any((mode) => mode.wireName == value['deliveryMode'])) &&
+        FlowDeliveryMode.values.any(
+          (mode) => mode.wireName == value['deliveryMode'],
+        )) &&
     _list(value['identityClaims'], _identity) &&
     _span(value['span']) &&
     _list(value['outputs'], _output);
@@ -201,8 +208,9 @@ bool _output(Object? value) =>
     ) &&
     _strings(value, ['path', 'role', 'builder']) &&
     (!value.containsKey('ownershipKey') || _strings(value, ['ownershipKey'])) &&
-    RestageOutputCondition.values
-        .any((condition) => condition.wireName == value['writtenWhen']);
+    RestageOutputCondition.values.any(
+      (condition) => condition.wireName == value['writtenWhen'],
+    );
 
 bool _ownedOutput(Object? value) =>
     value is Map<String, Object?> &&
@@ -217,8 +225,9 @@ bool _ownedOutput(Object? value) =>
       'span',
     }) &&
     _strings(value, ['path', 'role', 'builder', 'owner', 'declaration']) &&
-    RestageOutputCondition.values
-        .any((condition) => condition.wireName == value['writtenWhen']) &&
+    RestageOutputCondition.values.any(
+      (condition) => condition.wireName == value['writtenWhen'],
+    ) &&
     _list(value['identities'], _identity) &&
     _span(value['span']);
 

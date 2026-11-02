@@ -4,7 +4,8 @@ import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 
 /// Generates the Dart source that reconstructs a typed value from decoded
-/// (untrusted) genui JSON at render time, for a widget's rich data shapes.
+/// (untrusted) A2UI property data at render time, for a widget's rich data
+/// shapes.
 ///
 /// The contract is RUNTIME fail-SAFE — graceful degradation, never a thrown
 /// cast — distinct from the compile-time fail-closed-LOUD reflector, which has
@@ -235,7 +236,7 @@ class A2uiDataBuilder {
             ? '$mapped.toList()'
             : '$mapped.whereType<${_dartType(element)}>().toList()';
       case MapNode(:final valueType):
-        // The value coercion runs at the SAME depth as the map; a class-value
+        // The value coercion runs at the SAME depth as the map; a class- value
         // helper increments for its own fields. Non-null values drop
         // null-coercing entries; nullable values keep them.
         final valueExpr = valueExpression(valueType, 'v', depth: depth);
@@ -275,8 +276,7 @@ class A2uiDataBuilder {
   /// nullable record (the author allowed null) AND a non-null record. A
   /// non-null record that is entirely absent/malformed is the same case as a
   /// missing nested data class: it propagates null so the enclosing object /
-  /// widget fails safe (the ruling-#5 never-fabricate-a-required-value
-  /// contract), rather than fabricating a record from per-field fallbacks. Only
+  /// widget fails safe (a required value is never fabricated), rather than fabricating a record from per-field fallbacks. Only
   /// when [raw] IS a map do the per-field fallbacks apply — a record's internal
   /// fields cannot be null, so a present-but-missing internal field degrades to
   /// its fallback. (Every record field is a scalar or enum — reflector.)
@@ -461,7 +461,7 @@ class A2uiDataBuilder {
   /// Fail-safe at every step: depth-bounded, Map-guarded, each REQUIRED field
   /// null-guarded (a missing required value fails the whole object null — never
   /// a fabricated value), each OPTIONAL non-null field defaulted, each optional
-  /// nullable field passed through. `_raw`/`_depth` are underscore-prefixed so
+  /// nullable field passed through. `_raw`/`_depth` are underscore- prefixed so
   /// they can never collide with a (always-public) field local.
   String _classHelperDefinition(String defId) {
     final object = _classes[defId]!;
@@ -490,7 +490,7 @@ class A2uiDataBuilder {
           ..add('  if (${parameter.name} == null) return null;');
       } else {
         // Every other field routes through the shared nullability funnel: a
-        // nullable field passes through, a non-null field is made non-null.
+        // nullable field passes through, a non-null field is made non- null.
         final value = _fieldValueExpression(field, access, '_depth + 1');
         lines.add('  final ${parameter.name} = $value;');
       }

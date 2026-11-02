@@ -67,7 +67,7 @@ void main() {
     (
       'Chip',
       'package:flutter/material.dart',
-      "Chip(label: const Text('Plan'))"
+      "Chip(label: const Text('Plan'))",
     ),
   ]) {
     test('an app class named $name never binds the Flutter widget', () async {
@@ -78,7 +78,8 @@ void main() {
           id,
           construction,
           imports: "import '$library' hide $name;",
-          declarations: '''
+          declarations:
+              '''
             class $name extends StatelessWidget {
               const $name({this.opacity, this.label});
               final double? opacity;

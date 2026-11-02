@@ -331,8 +331,9 @@ final prefixed = augment.pi;
               'lib/contextual_identifier_fixture.dart',
             ),
           );
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
+          final resolved = await library.session.getResolvedLibraryByElement(
+            library,
+          );
           if (resolved is! ResolvedLibraryResult) {
             throw StateError('Contextual identifier fixture did not resolve.');
           }
@@ -418,8 +419,9 @@ final value = required.pi;
               'lib/builtin_prefix_fixture.dart',
             ),
           );
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
+          final resolved = await library.session.getResolvedLibraryByElement(
+            library,
+          );
           if (resolved is! ResolvedLibraryResult) {
             throw StateError('Built-in prefix fixture did not resolve.');
           }
@@ -728,123 +730,125 @@ final value = required.pi;
       );
     });
 
-    test('analyzer sees reordered named constants as canonical duplicates',
-        () async {
-      const modelUri =
-          'package:restage_codegen/import_fixture_named_model.dart';
-      const pairType = DartTypeIdentity(
-        libraryUri: modelUri,
-        symbolName: 'Pair',
-      );
-      const recordType = DartRecordTypeIdentity(
-        named: [
-          DartRecordTypeNamedField(
-            'a',
-            DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'int'),
-          ),
-          DartRecordTypeNamedField(
-            'b',
-            DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'int'),
-          ),
-        ],
-      );
-      const canonicalNamed = [
-        DartConstNamedValue('a', DartConstScalar(1)),
-        DartConstNamedValue('b', DartConstScalar(2)),
-      ];
-      const reorderedNamed = [
-        DartConstNamedValue('b', DartConstScalar(2)),
-        DartConstNamedValue('a', DartConstScalar(1)),
-      ];
-      const canonicalRecord = DartConstRecord(named: canonicalNamed);
-      const reorderedRecord = DartConstRecord(named: reorderedNamed);
-      const canonicalInvocation = DartConstInvocation(
-        type: pairType,
-        named: canonicalNamed,
-      );
-      const reorderedInvocation = DartConstInvocation(
-        type: pairType,
-        named: reorderedNamed,
-      );
-      const value = DartConstRecord(
-        positional: [
-          DartConstSet(
-            [canonicalRecord, reorderedRecord],
-            type: DartTypeIdentity(
-              libraryUri: 'dart:core',
-              symbolName: 'Set',
-              typeArguments: [recordType],
+    test(
+      'analyzer sees reordered named constants as canonical duplicates',
+      () async {
+        const modelUri =
+            'package:restage_codegen/import_fixture_named_model.dart';
+        const pairType = DartTypeIdentity(
+          libraryUri: modelUri,
+          symbolName: 'Pair',
+        );
+        const recordType = DartRecordTypeIdentity(
+          named: [
+            DartRecordTypeNamedField(
+              'a',
+              DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'int'),
             ),
-          ),
-          DartConstMap(
-            [
-              DartConstMapEntry(canonicalRecord, DartConstScalar(1)),
-              DartConstMapEntry(reorderedRecord, DartConstScalar(2)),
-            ],
-            type: DartTypeIdentity(
-              libraryUri: 'dart:core',
-              symbolName: 'Map',
-              typeArguments: [
-                recordType,
-                DartTypeIdentity(
-                  libraryUri: 'dart:core',
-                  symbolName: 'int',
-                ),
+            DartRecordTypeNamedField(
+              'b',
+              DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'int'),
+            ),
+          ],
+        );
+        const canonicalNamed = [
+          DartConstNamedValue('a', DartConstScalar(1)),
+          DartConstNamedValue('b', DartConstScalar(2)),
+        ];
+        const reorderedNamed = [
+          DartConstNamedValue('b', DartConstScalar(2)),
+          DartConstNamedValue('a', DartConstScalar(1)),
+        ];
+        const canonicalRecord = DartConstRecord(named: canonicalNamed);
+        const reorderedRecord = DartConstRecord(named: reorderedNamed);
+        const canonicalInvocation = DartConstInvocation(
+          type: pairType,
+          named: canonicalNamed,
+        );
+        const reorderedInvocation = DartConstInvocation(
+          type: pairType,
+          named: reorderedNamed,
+        );
+        const value = DartConstRecord(
+          positional: [
+            DartConstSet(
+              [canonicalRecord, reorderedRecord],
+              type: DartTypeIdentity(
+                libraryUri: 'dart:core',
+                symbolName: 'Set',
+                typeArguments: [recordType],
+              ),
+            ),
+            DartConstMap(
+              [
+                DartConstMapEntry(canonicalRecord, DartConstScalar(1)),
+                DartConstMapEntry(reorderedRecord, DartConstScalar(2)),
               ],
+              type: DartTypeIdentity(
+                libraryUri: 'dart:core',
+                symbolName: 'Map',
+                typeArguments: [
+                  recordType,
+                  DartTypeIdentity(
+                    libraryUri: 'dart:core',
+                    symbolName: 'int',
+                  ),
+                ],
+              ),
             ),
-          ),
-          DartConstSet(
-            [canonicalInvocation, reorderedInvocation],
-            type: DartTypeIdentity(
-              libraryUri: 'dart:core',
-              symbolName: 'Set',
-              typeArguments: [pairType],
+            DartConstSet(
+              [canonicalInvocation, reorderedInvocation],
+              type: DartTypeIdentity(
+                libraryUri: 'dart:core',
+                symbolName: 'Set',
+                typeArguments: [pairType],
+              ),
             ),
-          ),
-          DartConstMap(
-            [
-              DartConstMapEntry(canonicalInvocation, DartConstScalar(1)),
-              DartConstMapEntry(reorderedInvocation, DartConstScalar(2)),
-            ],
-            type: DartTypeIdentity(
-              libraryUri: 'dart:core',
-              symbolName: 'Map',
-              typeArguments: [
-                pairType,
-                DartTypeIdentity(
-                  libraryUri: 'dart:core',
-                  symbolName: 'int',
-                ),
+            DartConstMap(
+              [
+                DartConstMapEntry(canonicalInvocation, DartConstScalar(1)),
+                DartConstMapEntry(reorderedInvocation, DartConstScalar(2)),
               ],
+              type: DartTypeIdentity(
+                libraryUri: 'dart:core',
+                symbolName: 'Map',
+                typeArguments: [
+                  pairType,
+                  DartTypeIdentity(
+                    libraryUri: 'dart:core',
+                    symbolName: 'int',
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      );
-      final planner = DartImportPlanner(
-        libraryUris: dartConstValueLibraryUris(value),
-        prefixStem: 'i',
-      );
-      final rendered = renderDartConstValueFromPrefixes(
-        value,
-        planner.prefixesBySourceUri,
-      );
-      final generated = '''
+          ],
+        );
+        final planner = DartImportPlanner(
+          libraryUris: dartConstValueLibraryUris(value),
+          prefixStem: 'i',
+        );
+        final rendered = renderDartConstValueFromPrefixes(
+          value,
+          planner.prefixesBySourceUri,
+        );
+        final generated =
+            '''
 ${planner.importDirectives.join('\n')}
 
 final duplicates = $rendered;
 ''';
 
-      expect(
-        rendered,
-        contains('(a: 1, b: 2,), (a: 1, b: 2,)'),
-      );
-      expect(
-        rendered,
-        contains('const i0.Pair(a: 1, b: 2)'),
-      );
-      await resolveSources(
-        {
-          'restage_codegen|lib/import_fixture_named_model.dart': '''
+        expect(
+          rendered,
+          contains('(a: 1, b: 2,), (a: 1, b: 2,)'),
+        );
+        expect(
+          rendered,
+          contains('const i0.Pair(a: 1, b: 2)'),
+        );
+        await resolveSources(
+          {
+            'restage_codegen|lib/import_fixture_named_model.dart': '''
 class Pair {
   const Pair({required this.a, required this.b});
 
@@ -852,233 +856,243 @@ class Pair {
   final int b;
 }
 ''',
-          'restage_codegen|lib/import_fixture_named_duplicates.dart': generated,
-        },
-        (resolver) async {
-          final library = await resolver.libraryFor(
-            AssetId(
-              'restage_codegen',
-              'lib/import_fixture_named_duplicates.dart',
-            ),
-          );
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
-          if (resolved is! ResolvedLibraryResult) {
-            throw StateError('Named duplicate fixture did not resolve.');
-          }
-          final duplicateCodes = [
-            for (final unit in resolved.units)
-              for (final diagnostic in unit.diagnostics)
-                if (diagnostic.severity == Severity.error)
-                  diagnostic.diagnosticCode.lowerCaseName,
-          ];
-          expect(
-            duplicateCodes.where(
-              (code) => code == 'equal_elements_in_const_set',
-            ),
-            hasLength(2),
-            reason: generated,
-          );
-          expect(
-            duplicateCodes.where(
-              (code) => code == 'equal_keys_in_const_map',
-            ),
-            hasLength(2),
-            reason: generated,
-          );
-        },
-        resolverFor: 'restage_codegen|lib/import_fixture_named_duplicates.dart',
-        rootPackage: 'restage_codegen',
-        readAllSourcesFromFilesystem: true,
-      );
-    });
+            'restage_codegen|lib/import_fixture_named_duplicates.dart':
+                generated,
+          },
+          (resolver) async {
+            final library = await resolver.libraryFor(
+              AssetId(
+                'restage_codegen',
+                'lib/import_fixture_named_duplicates.dart',
+              ),
+            );
+            final resolved = await library.session.getResolvedLibraryByElement(
+              library,
+            );
+            if (resolved is! ResolvedLibraryResult) {
+              throw StateError('Named duplicate fixture did not resolve.');
+            }
+            final duplicateCodes = [
+              for (final unit in resolved.units)
+                for (final diagnostic in unit.diagnostics)
+                  if (diagnostic.severity == Severity.error)
+                    diagnostic.diagnosticCode.lowerCaseName,
+            ];
+            expect(
+              duplicateCodes.where(
+                (code) => code == 'equal_elements_in_const_set',
+              ),
+              hasLength(2),
+              reason: generated,
+            );
+            expect(
+              duplicateCodes.where(
+                (code) => code == 'equal_keys_in_const_map',
+              ),
+              hasLength(2),
+              reason: generated,
+            );
+          },
+          resolverFor:
+              'restage_codegen|lib/import_fixture_named_duplicates.dart',
+          rootPackage: 'restage_codegen',
+          readAllSourcesFromFilesystem: true,
+        );
+      },
+    );
 
-    test('analyzer rejects the const shapes blocked by schema validation',
-        () async {
-      const invalidSet = DartConstSet([
-        DartConstRecord(positional: [DartConstScalar(1.0)]),
-      ]);
-      const invalidMap = DartConstMap([
-        DartConstMapEntry(DartConstScalar(-0.0), DartConstScalar('value')),
-      ]);
-      const invalidArity = DartConstList(
-        <DartConstValue>[],
-        type: DartTypeIdentity(
-          libraryUri: 'dart:core',
-          symbolName: 'List',
-          typeArguments: [
-            DartTypeIdentity(
-              libraryUri: 'dart:core',
-              symbolName: 'int',
-              typeArguments: [
-                DartTypeIdentity(
-                  libraryUri: 'dart:core',
-                  symbolName: 'String',
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-      final generated = '''
+    test(
+      'analyzer rejects the const shapes blocked by schema validation',
+      () async {
+        const invalidSet = DartConstSet([
+          DartConstRecord(positional: [DartConstScalar(1.0)]),
+        ]);
+        const invalidMap = DartConstMap([
+          DartConstMapEntry(DartConstScalar(-0.0), DartConstScalar('value')),
+        ]);
+        const invalidArity = DartConstList(
+          <DartConstValue>[],
+          type: DartTypeIdentity(
+            libraryUri: 'dart:core',
+            symbolName: 'List',
+            typeArguments: [
+              DartTypeIdentity(
+                libraryUri: 'dart:core',
+                symbolName: 'int',
+                typeArguments: [
+                  DartTypeIdentity(
+                    libraryUri: 'dart:core',
+                    symbolName: 'String',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+        final generated =
+            '''
 final invalidSet = ${renderDartConstValueFromPrefixes(invalidSet, const {})};
 final invalidMap = ${renderDartConstValueFromPrefixes(invalidMap, const {})};
 final invalidArity = ${renderDartConstValueFromPrefixes(invalidArity, const {})};
 ''';
 
-      await resolveSources(
-        {'restage_codegen|lib/import_fixture_invalid_const.dart': generated},
-        (resolver) async {
-          final library = await resolver.libraryFor(
-            AssetId(
-              'restage_codegen',
-              'lib/import_fixture_invalid_const.dart',
-            ),
-          );
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
-          if (resolved is! ResolvedLibraryResult) {
-            throw StateError('Invalid const fixture did not resolve.');
-          }
-          final errorCodes = {
-            for (final unit in resolved.units)
-              for (final diagnostic in unit.diagnostics)
-                if (diagnostic.severity == Severity.error)
-                  diagnostic.diagnosticCode.lowerCaseName,
-          };
-          expect(
-            errorCodes,
-            containsAll(<String>{
-              'const_set_element_not_primitive_equality',
-              'const_map_key_not_primitive_equality',
-              'wrong_number_of_type_arguments',
-            }),
-            reason: generated,
-          );
-        },
-        resolverFor: 'restage_codegen|lib/import_fixture_invalid_const.dart',
-        rootPackage: 'restage_codegen',
-        readAllSourcesFromFilesystem: true,
-      );
-    });
+        await resolveSources(
+          {'restage_codegen|lib/import_fixture_invalid_const.dart': generated},
+          (resolver) async {
+            final library = await resolver.libraryFor(
+              AssetId(
+                'restage_codegen',
+                'lib/import_fixture_invalid_const.dart',
+              ),
+            );
+            final resolved = await library.session.getResolvedLibraryByElement(
+              library,
+            );
+            if (resolved is! ResolvedLibraryResult) {
+              throw StateError('Invalid const fixture did not resolve.');
+            }
+            final errorCodes = {
+              for (final unit in resolved.units)
+                for (final diagnostic in unit.diagnostics)
+                  if (diagnostic.severity == Severity.error)
+                    diagnostic.diagnosticCode.lowerCaseName,
+            };
+            expect(
+              errorCodes,
+              containsAll(<String>{
+                'const_set_element_not_primitive_equality',
+                'const_map_key_not_primitive_equality',
+                'wrong_number_of_type_arguments',
+              }),
+              reason: generated,
+            );
+          },
+          resolverFor: 'restage_codegen|lib/import_fixture_invalid_const.dart',
+          rootPackage: 'restage_codegen',
+          readAllSourcesFromFilesystem: true,
+        );
+      },
+    );
 
-    test('typed collections plan and render cross-library type arguments',
-        () async {
-      const modelUri =
-          'package:restage_codegen/import_fixture_collection_model.dart';
-      const sameType = DartTypeIdentity(
-        libraryUri: modelUri,
-        symbolName: 'Same',
-      );
-      const value = DartConstRecord(
-        positional: [
-          DartConstList(
-            [],
-            type: DartTypeIdentity(
-              libraryUri: 'dart:core',
-              symbolName: 'List',
-              typeArguments: [
-                DartRecordTypeIdentity(
-                  named: [
-                    DartRecordTypeNamedField(
-                      'item',
+    test(
+      'typed collections plan and render cross-library type arguments',
+      () async {
+        const modelUri =
+            'package:restage_codegen/import_fixture_collection_model.dart';
+        const sameType = DartTypeIdentity(
+          libraryUri: modelUri,
+          symbolName: 'Same',
+        );
+        const value = DartConstRecord(
+          positional: [
+            DartConstList(
+              [],
+              type: DartTypeIdentity(
+                libraryUri: 'dart:core',
+                symbolName: 'List',
+                typeArguments: [
+                  DartRecordTypeIdentity(
+                    named: [
+                      DartRecordTypeNamedField(
+                        'item',
+                        DartTypeIdentity(
+                          libraryUri: modelUri,
+                          symbolName: 'Same',
+                          nullable: true,
+                        ),
+                      ),
+                      DartRecordTypeNamedField(
+                        'values',
+                        DartTypeIdentity(
+                          libraryUri: 'dart:core',
+                          symbolName: 'List',
+                          typeArguments: [
+                            DartTypeIdentity(
+                              libraryUri: 'dart:core',
+                              symbolName: 'int',
+                              nullable: true,
+                            ),
+                          ],
+                          nullable: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            DartConstSet(
+              [],
+              type: DartTypeIdentity(
+                libraryUri: 'dart:core',
+                symbolName: 'Set',
+                typeArguments: [
+                  DartRecordTypeIdentity(
+                    positional: [
                       DartTypeIdentity(
                         libraryUri: modelUri,
                         symbolName: 'Same',
                         nullable: true,
                       ),
-                    ),
-                    DartRecordTypeNamedField(
-                      'values',
                       DartTypeIdentity(
                         libraryUri: 'dart:core',
-                        symbolName: 'List',
-                        typeArguments: [
-                          DartTypeIdentity(
-                            libraryUri: 'dart:core',
-                            symbolName: 'int',
-                            nullable: true,
-                          ),
-                        ],
-                        nullable: true,
+                        symbolName: 'String',
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                    nullable: true,
+                  ),
+                ],
+              ),
             ),
-          ),
-          DartConstSet(
-            [],
-            type: DartTypeIdentity(
-              libraryUri: 'dart:core',
-              symbolName: 'Set',
-              typeArguments: [
-                DartRecordTypeIdentity(
-                  positional: [
-                    DartTypeIdentity(
-                      libraryUri: modelUri,
-                      symbolName: 'Same',
-                      nullable: true,
-                    ),
-                    DartTypeIdentity(
-                      libraryUri: 'dart:core',
-                      symbolName: 'String',
-                    ),
-                  ],
-                  nullable: true,
-                ),
-              ],
-            ),
-          ),
-          DartConstMap(
-            [],
-            type: DartTypeIdentity(
-              libraryUri: 'dart:core',
-              symbolName: 'Map',
-              typeArguments: [
-                DartTypeIdentity(
-                  libraryUri: 'dart:core',
-                  symbolName: 'String',
-                ),
-                DartRecordTypeIdentity(
-                  positional: [sameType],
-                  named: [
-                    DartRecordTypeNamedField(
-                      'count',
-                      DartTypeIdentity(
-                        libraryUri: 'dart:core',
-                        symbolName: 'int',
+            DartConstMap(
+              [],
+              type: DartTypeIdentity(
+                libraryUri: 'dart:core',
+                symbolName: 'Map',
+                typeArguments: [
+                  DartTypeIdentity(
+                    libraryUri: 'dart:core',
+                    symbolName: 'String',
+                  ),
+                  DartRecordTypeIdentity(
+                    positional: [sameType],
+                    named: [
+                      DartRecordTypeNamedField(
+                        'count',
+                        DartTypeIdentity(
+                          libraryUri: 'dart:core',
+                          symbolName: 'int',
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      );
-      final planner = DartImportPlanner(
-        libraryUris: dartConstValueLibraryUris(value),
-        prefixStem: 'i',
-      );
-      final rendered = renderDartConstValueFromPrefixes(
-        value,
-        planner.prefixesBySourceUri,
-      );
+          ],
+        );
+        final planner = DartImportPlanner(
+          libraryUris: dartConstValueLibraryUris(value),
+          prefixStem: 'i',
+        );
+        final rendered = renderDartConstValueFromPrefixes(
+          value,
+          planner.prefixesBySourceUri,
+        );
 
-      expect(
-        rendered,
-        '(const <({i0.Same? item, List<int?>? values})>[], '
-        'const <(i0.Same?, String)?>{}, '
-        'const <String, (i0.Same, {int count})>{},)',
-      );
-      expect(
-        planner.importDirectives,
-        ["import '$modelUri' as i0;"],
-      );
+        expect(
+          rendered,
+          '(const <({i0.Same? item, List<int?>? values})>[], '
+          'const <(i0.Same?, String)?>{}, '
+          'const <String, (i0.Same, {int count})>{},)',
+        );
+        expect(
+          planner.importDirectives,
+          ["import '$modelUri' as i0;"],
+        );
 
-      final generated = '''
+        final generated =
+            '''
 ${planner.importDirectives.join('\n')}
 
 final (
@@ -1087,42 +1101,44 @@ final (
   Map<String, (i0.Same, {int count})>
 ) value = $rendered;
 ''';
-      await resolveSources(
-        {
-          'restage_codegen|lib/import_fixture_collection_model.dart': '''
+        await resolveSources(
+          {
+            'restage_codegen|lib/import_fixture_collection_model.dart': '''
 class Same {
   const Same();
 }
 ''',
-          'restage_codegen|lib/import_fixture_typed_collections.dart':
-              generated,
-        },
-        (resolver) async {
-          final library = await resolver.libraryFor(
-            AssetId(
-              'restage_codegen',
-              'lib/import_fixture_typed_collections.dart',
-            ),
-          );
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
-          if (resolved is! ResolvedLibraryResult) {
-            throw StateError('Typed collection fixture did not resolve.');
-          }
-          final errors = [
-            for (final unit in resolved.units)
-              for (final diagnostic in unit.diagnostics)
-                if (diagnostic.severity == Severity.error)
-                  diagnostic.problemMessage.messageText(includeUrl: false),
-          ];
-          expect(errors, isEmpty, reason: generated);
-        },
-        resolverFor:
-            'restage_codegen|lib/import_fixture_typed_collections.dart',
-        rootPackage: 'restage_codegen',
-        readAllSourcesFromFilesystem: true,
-      );
-    });
+            'restage_codegen|lib/import_fixture_typed_collections.dart':
+                generated,
+          },
+          (resolver) async {
+            final library = await resolver.libraryFor(
+              AssetId(
+                'restage_codegen',
+                'lib/import_fixture_typed_collections.dart',
+              ),
+            );
+            final resolved = await library.session.getResolvedLibraryByElement(
+              library,
+            );
+            if (resolved is! ResolvedLibraryResult) {
+              throw StateError('Typed collection fixture did not resolve.');
+            }
+            final errors = [
+              for (final unit in resolved.units)
+                for (final diagnostic in unit.diagnostics)
+                  if (diagnostic.severity == Severity.error)
+                    diagnostic.problemMessage.messageText(includeUrl: false),
+            ];
+            expect(errors, isEmpty, reason: generated);
+          },
+          resolverFor:
+              'restage_codegen|lib/import_fixture_typed_collections.dart',
+          rootPackage: 'restage_codegen',
+          readAllSourcesFromFilesystem: true,
+        );
+      },
+    );
 
     test('rendered nested constructor defaults analyze clean', () async {
       const firstUri = 'package:restage_codegen/import_fixture_first.dart';
@@ -1200,7 +1216,8 @@ class Same {
         value,
         planner.prefixesBySourceUri,
       );
-      final generated = '''
+      final generated =
+          '''
 ${planner.importDirectives.join('\n')}
 
 final i1.Box<i0.Same?> value = $rendered;
@@ -1248,8 +1265,9 @@ class Box<T> {
               'lib/import_fixture_generated.dart',
             ),
           );
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
+          final resolved = await library.session.getResolvedLibraryByElement(
+            library,
+          );
           if (resolved is! ResolvedLibraryResult) {
             throw StateError('Rendered const fixture did not resolve.');
           }
@@ -1267,53 +1285,55 @@ class Box<T> {
       );
     });
 
-    test('fails loud on private type, member, owner, and constructor names',
-        () {
-      final planner = DartImportPlanner(
-        libraryUris: const {'package:fixture/private.dart'},
-      );
+    test(
+      'fails loud on private type, member, owner, and constructor names',
+      () {
+        final planner = DartImportPlanner(
+          libraryUris: const {'package:fixture/private.dart'},
+        );
 
-      expect(
-        () => planner.renderType(
-          const DartTypeIdentity(
+        expect(
+          () => planner.renderType(
+            const DartTypeIdentity(
+              libraryUri: 'package:fixture/private.dart',
+              symbolName: '_Private',
+            ),
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              contains('private Dart identity'),
+            ),
+          ),
+        );
+        expect(
+          () => planner.qualifyReference(
             libraryUri: 'package:fixture/private.dart',
-            symbolName: '_Private',
+            owner: '_Owner',
+            member: 'value',
           ),
-        ),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            contains('private Dart identity'),
-          ),
-        ),
-      );
-      expect(
-        () => planner.qualifyReference(
-          libraryUri: 'package:fixture/private.dart',
-          owner: '_Owner',
-          member: 'value',
-        ),
-        throwsStateError,
-      );
-      expect(
-        () => planner.qualifyReference(
-          libraryUri: 'package:fixture/private.dart',
-          member: '_value',
-        ),
-        throwsStateError,
-      );
-      expect(
-        () => planner.qualifyConstructor(
-          const DartTypeIdentity(
+          throwsStateError,
+        );
+        expect(
+          () => planner.qualifyReference(
             libraryUri: 'package:fixture/private.dart',
-            symbolName: 'Public',
+            member: '_value',
           ),
-          constructorName: '_named',
-        ),
-        throwsStateError,
-      );
-    });
+          throwsStateError,
+        );
+        expect(
+          () => planner.qualifyConstructor(
+            const DartTypeIdentity(
+              libraryUri: 'package:fixture/private.dart',
+              symbolName: 'Public',
+            ),
+            constructorName: '_named',
+          ),
+          throwsStateError,
+        );
+      },
+    );
 
     test('accepts the language-defined unnamed constructor selector', () {
       final planner = DartImportPlanner(
@@ -1394,7 +1414,8 @@ class Box<T> {
           member: 'seed',
         );
         final constructor = planner.qualifyConstructor(boxType);
-        final generated = '''
+        final generated =
+            '''
 ${planner.importDirectives.join('\n')}
 
 final $first first = $seed;
@@ -1429,8 +1450,9 @@ class Box<T> {
                 'lib/import_fixture_generated.dart',
               ),
             );
-            final resolved =
-                await library.session.getResolvedLibraryByElement(library);
+            final resolved = await library.session.getResolvedLibraryByElement(
+              library,
+            );
             if (resolved is! ResolvedLibraryResult) {
               throw StateError(
                 'Generated import-planner fixture did not resolve.',
@@ -1483,7 +1505,8 @@ class Box<T> {
             ),
           ],
         );
-        final generated = '''
+        final generated =
+            '''
 ${planner.importDirectives.join('\n')}
 
 final model0.CardData prefixed = const model0.CardData('prefixed');
@@ -1515,8 +1538,9 @@ class CardData {
                 'lib/import_fixture_widgetbook_generated.dart',
               ),
             );
-            final resolved =
-                await library.session.getResolvedLibraryByElement(library);
+            final resolved = await library.session.getResolvedLibraryByElement(
+              library,
+            );
             if (resolved is! ResolvedLibraryResult) {
               throw StateError(
                 'Generated Widgetbook namespace fixture did not resolve.',
@@ -1562,7 +1586,8 @@ class CardData {
           owner: 'CupertinoColors',
           member: 'activeBlue',
         );
-        final generated = '''
+        final generated =
+            '''
 ${planner.importDirectives.join('\n')}
 
 const $colorType direct = $colorCtor(0xFF000000);
@@ -1576,8 +1601,9 @@ final Object cupertino = $cupertinoBlue;
             final library = await resolver.libraryFor(
               AssetId('apps_examples', 'lib/import_planner_flutter.dart'),
             );
-            final resolved =
-                await library.session.getResolvedLibraryByElement(library);
+            final resolved = await library.session.getResolvedLibraryByElement(
+              library,
+            );
             if (resolved is! ResolvedLibraryResult) {
               throw StateError(
                 'Generated Flutter import fixture did not resolve.',

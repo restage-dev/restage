@@ -9,7 +9,7 @@ import 'package:test/test.dart';
 const _forbiddenPackages = [
   'package:genui/',
   'package:genui_a2a/',
-  'package:json_schema_builder/',
+  'package:a2ui_flutter/',
 ];
 
 bool _isForbiddenImport(String line) {
@@ -30,7 +30,7 @@ void main() {
     );
     expect(
       _isForbiddenImport(
-        "export 'package:json_schema_builder/json_schema_builder.dart';",
+        "export 'package:a2ui_flutter/a2ui_flutter.dart';",
       ),
       isTrue,
     );
@@ -65,7 +65,8 @@ void main() {
     expect(
       offenders,
       isEmpty,
-      reason: 'the emit adapter must not import the genui SDK — it emits the '
+      reason:
+          'the emit adapter must not import the genui SDK — it emits the '
           'A2UI catalog as plain maps (zero-leakage invariant). Offenders: '
           '$offenders',
     );
@@ -81,7 +82,7 @@ void main() {
     expect(pubspec.existsSync(), isTrue, reason: 'pubspec.yaml must exist');
 
     final forbiddenDep = RegExp(
-      r'^\s*(genui|genui_a2a|json_schema_builder)\s*:',
+      r'^\s*(genui|genui_a2a|a2ui_flutter|flutter)\s*:',
       multiLine: true,
     );
     final declared = forbiddenDep
@@ -92,8 +93,9 @@ void main() {
     expect(
       declared,
       isEmpty,
-      reason: 'restage_codegen (the build-time toolchain) must declare no '
-          'genui/genui_a2a/json_schema_builder dependency. The emit adapter '
+      reason:
+          'restage_codegen (the build-time toolchain) must declare no '
+          'genui/genui_a2a/a2ui_flutter dependency. The emit adapter '
           'produces the A2UI catalog as plain maps; a declared dep would let '
           'an import resolve and leak the genui SDK into the toolchain. '
           'Found: $declared',

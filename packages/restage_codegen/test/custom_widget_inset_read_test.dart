@@ -110,8 +110,9 @@ void main() {
 
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
     expect(
-      result.readerWriter.testing
-          .readString(AssetId(_package, 'assets/paywalls/screen_inset.rfwtxt')),
+      result.readerWriter.testing.readString(
+        AssetId(_package, 'assets/paywalls/screen_inset.rfwtxt'),
+      ),
       contains('data.device.safeAreaTop'),
     );
   });

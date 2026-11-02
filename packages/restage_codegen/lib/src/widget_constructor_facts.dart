@@ -170,10 +170,10 @@ final class EnumWidgetConstructorDefault extends WidgetConstructorDefaultFact {
 
   @override
   DartConstValue get reconstructedValue => DartConstReference(
-        libraryUri: libraryUri,
-        owner: owner,
-        member: member,
-      );
+    libraryUri: libraryUri,
+    owner: owner,
+    member: member,
+  );
 }
 
 /// The formal defaults to a public importable top-level/static constant or
@@ -203,10 +203,10 @@ final class StaticMemberWidgetConstructorDefault
 
   @override
   DartConstValue get reconstructedValue => DartConstReference(
-        libraryUri: libraryUri,
-        owner: owner,
-        member: member,
-      );
+    libraryUri: libraryUri,
+    owner: owner,
+    member: member,
+  );
 }
 
 /// A recursively reconstructable constructor, collection, or record constant.
@@ -243,9 +243,9 @@ final class WidgetConstructorFacts {
     required List<WidgetConstructorInput> inputs,
     required List<WidgetConstructorInput> allInputs,
     required List<Issue> issues,
-  })  : inputs = List.unmodifiable(inputs),
-        allInputs = List.unmodifiable(allInputs),
-        issues = List.unmodifiable(issues);
+  }) : inputs = List.unmodifiable(inputs),
+       allInputs = List.unmodifiable(allInputs),
+       issues = List.unmodifiable(issues);
 
   /// Supported inputs, in constructor declaration order.
   final List<WidgetConstructorInput> inputs;
@@ -280,7 +280,8 @@ WidgetConstructorFacts projectWidgetConstructorFacts(
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetConstructorInput,
-          message: 'Constructor input $className.${input.name} is required '
+          message:
+              'Constructor input $className.${input.name} is required '
               'and cannot be excluded with @Ignore. Give the parameter a '
               'default, or expose a catalog-facing wrapper that omits it.',
           location: inputLocation,
@@ -290,7 +291,8 @@ WidgetConstructorFacts projectWidgetConstructorFacts(
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetConstructorInput,
-          message: 'Constructor input $className.${input.name} is guarded by '
+          message:
+              'Constructor input $className.${input.name} is guarded by '
               'a non-null assert and cannot be excluded with @Ignore. '
               'Assertions are removed from release builds, so omission '
               'would not preserve the constructor contract. Give the '
@@ -402,8 +404,7 @@ ResolvedWidgetConstructorFormal resolveWidgetConstructorFormal(
   ClassElement cls,
   ConstructorElement constructor,
   FormalParameterElement formal,
-) =>
-    _resolveWidgetConstructorFormal(cls, constructor, formal, null);
+) => _resolveWidgetConstructorFormal(cls, constructor, formal, null);
 
 /// Resolves every constructor formal with resolved redirect and super edges.
 Future<ResolvedWidgetConstructorFormals> resolveWidgetConstructorFormals(
@@ -431,7 +432,8 @@ Future<ResolvedWidgetConstructorFormals> resolveWidgetConstructorFormals(
           constructor,
           formal,
           declarations,
-          forwardsFlutterKeyOverride: keyFormal != null &&
+          forwardsFlutterKeyOverride:
+              keyFormal != null &&
               identical(formal.baseElement, keyFormal.baseElement),
         ),
     ],
@@ -451,7 +453,8 @@ ResolvedWidgetConstructorFormal _resolveWidgetConstructorFormal(
   final defaultDeclarations = List<FormalParameterElement>.unmodifiable(
     widgetConstructorFormalChain(formal),
   );
-  final forwardsFlutterKey = forwardsFlutterKeyOverride ??
+  final forwardsFlutterKey =
+      forwardsFlutterKeyOverride ??
       _formalForwardsFlutterKey(
         constructor,
         formal,
@@ -524,7 +527,8 @@ WidgetConstructorFacts readWidgetConstructorFacts(
     issues.add(
       Issue(
         code: IssueCode.invalidWidgetConstructorInput,
-        message: '$className has no unnamed generative constructor. Generated '
+        message:
+            '$className has no unnamed generative constructor. Generated '
             'custom catalog factories require one.',
         location: location,
       ),
@@ -542,14 +546,19 @@ WidgetConstructorFacts readWidgetConstructorFacts(
         ? formal.field?.name ?? inputName
         : inputName;
     final inputLocation = '$location.$sourceName';
-    final resolved = _resolveInput(cls, constructor, formal,
-        includeFlutterKey: includeFlutterKey);
+    final resolved = _resolveInput(
+      cls,
+      constructor,
+      formal,
+      includeFlutterKey: includeFlutterKey,
+    );
     if (resolved case _ExcludedInput()) continue;
     if (resolved case _InvalidInput(:final reason)) {
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetConstructorInput,
-          message: 'Constructor input $inputName on $className cannot become '
+          message:
+              'Constructor input $inputName on $className cannot become '
               'a catalog property: $reason.',
           location: inputLocation,
         ),
@@ -572,13 +581,13 @@ WidgetConstructorFacts readWidgetConstructorFacts(
             code: IssueCode.invalidWidgetConstructorInput,
             message: ignoreAnnotation.element == null
                 ? '@ignore on $className.$inputName could not be resolved, so '
-                    'the exclusion cannot be honoured. Treating it as absent '
-                    'would put the input back into the generated catalog with '
-                    'nothing to show for it. Check that the annotation is '
-                    'imported.'
+                      'the exclusion cannot be honoured. Treating it as absent '
+                      'would put the input back into the generated catalog with '
+                      'nothing to show for it. Check that the annotation is '
+                      'imported.'
                 : '@Ignore on $className.$inputName could not be '
-                    'const-evaluated. Use a const list or set containing only '
-                    'rfw_catalog_schema EmitTarget values.',
+                      'const-evaluated. Use a const list or set containing only '
+                      'rfw_catalog_schema EmitTarget values.',
             location: inputLocation,
           ),
         );
@@ -595,14 +604,17 @@ WidgetConstructorFacts readWidgetConstructorFacts(
         continue;
       }
     }
-    final propertyAnnotation =
-        _inputAnnotation(formal, valid, 'RestageProperty');
+    final propertyAnnotation = _inputAnnotation(
+      formal,
+      valid,
+      'RestageProperty',
+    );
     final dartdocDescription = valid.inherited
         ? normalizeDartdoc(formal.documentationComment) ??
-            normalizeDartdoc(valid.field.documentationComment) ??
-            normalizeDartdoc(valid.backingFormal.documentationComment)
+              normalizeDartdoc(valid.field.documentationComment) ??
+              normalizeDartdoc(valid.backingFormal.documentationComment)
         : normalizeDartdoc(valid.field.documentationComment) ??
-            normalizeDartdoc(formal.documentationComment);
+              normalizeDartdoc(formal.documentationComment);
     inputs.add(
       WidgetConstructorInput(
         formal: formal,
@@ -632,7 +644,8 @@ WidgetConstructorFacts readWidgetConstructorFacts(
     issues.add(
       Issue(
         code: IssueCode.invalidWidgetConstructorInput,
-        message: '@RestageProperty on $className.${field.name ?? '<unnamed>'} '
+        message:
+            '@RestageProperty on $className.${field.name ?? '<unnamed>'} '
             'does not correspond to an input of the unnamed generative '
             'constructor. RestageProperty is an overlay, not an admission '
             'marker.',
@@ -648,14 +661,14 @@ WidgetConstructorFacts readWidgetConstructorFacts(
   );
 }
 
-ConstructorElement? _unnamedGenerativeConstructor(ClassElement cls) =>
-    cls.constructors
-        .where(
-          (candidate) =>
-              !candidate.isFactory &&
-              const {null, '', 'new'}.contains(candidate.name),
-        )
-        .firstOrNull;
+ConstructorElement? _unnamedGenerativeConstructor(ClassElement cls) => cls
+    .constructors
+    .where(
+      (candidate) =>
+          !candidate.isFactory &&
+          const {null, '', 'new'}.contains(candidate.name),
+    )
+    .firstOrNull;
 
 final class _IgnoreSelection {
   const _IgnoreSelection({required this.targets});
@@ -680,7 +693,8 @@ _IgnoreSelection? _readIgnoreSelection(
     issues.add(
       Issue(
         code: IssueCode.invalidWidgetConstructorInput,
-        message: '@Ignore on $className.$inputName uses a custom const '
+        message:
+            '@Ignore on $className.$inputName uses a custom const '
             'Iterable that analyzer cannot enumerate. Use a const list or '
             'set of EmitTarget values.',
         location: location,
@@ -692,7 +706,8 @@ _IgnoreSelection? _readIgnoreSelection(
     issues.add(
       Issue(
         code: IssueCode.invalidWidgetConstructorInput,
-        message: '@Ignore targets on $className.$inputName must not be empty. '
+        message:
+            '@Ignore targets on $className.$inputName must not be empty. '
             'Omit targets to exclude every emit target.',
         location: location,
       ),
@@ -708,7 +723,8 @@ _IgnoreSelection? _readIgnoreSelection(
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetConstructorInput,
-          message: '@Ignore on $className.$inputName accepts only values from '
+          message:
+              '@Ignore on $className.$inputName accepts only values from '
               'rfw_catalog_schema EmitTarget.',
           location: location,
         ),
@@ -726,7 +742,8 @@ _IgnoreSelection? _readIgnoreSelection(
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetConstructorInput,
-          message: '@Ignore on $className.$inputName contains an unknown '
+          message:
+              '@Ignore on $className.$inputName contains an unknown '
               'rfw_catalog_schema EmitTarget value.',
           location: location,
         ),
@@ -751,12 +768,12 @@ bool _hasAssertedNonNullGuard(
   final declaration = _constructorDeclaration(constructor, null);
   if (name == null || declaration == null) return false;
   return declaration.initializers.whereType<AssertInitializer>().any(
-        (initializer) => _assertRequiresNonNull(
-          initializer.condition,
-          constructor,
-          formal,
-        ),
-      );
+    (initializer) => _assertRequiresNonNull(
+      initializer.condition,
+      constructor,
+      formal,
+    ),
+  );
 }
 
 bool _assertRequiresNonNull(
@@ -866,8 +883,10 @@ bool _isFormalReference(
 ) {
   final unwrapped = _unwrappedExpression(expression);
   return switch (unwrapped) {
-    final SimpleIdentifier identifier =>
-      _identifierRefersToFormal(identifier, formal),
+    final SimpleIdentifier identifier => _identifierRefersToFormal(
+      identifier,
+      formal,
+    ),
     PropertyAccess(
       target: ThisExpression(),
       :final propertyName,
@@ -1001,7 +1020,8 @@ DartConstValue? _reconstructConstant(DartObject value) {
     final owner = constructor.enclosingElement;
     final ownerName = owner.name;
     final type = _reconstructType(value.type);
-    final constructorIsPublic = constructorName == null ||
+    final constructorIsPublic =
+        constructorName == null ||
         constructorName.isEmpty ||
         !constructorName.startsWith('_');
     if (ownerName != null &&
@@ -1194,7 +1214,8 @@ StaticMemberWidgetConstructorDefault? _staticMemberDefault(
   final member = variable.name;
   final libraryUri = variable.library?.identifier;
   String? owner;
-  var importable = member != null &&
+  var importable =
+      member != null &&
       member.isNotEmpty &&
       !member.startsWith('_') &&
       libraryUri != null &&
@@ -1206,7 +1227,8 @@ StaticMemberWidgetConstructorDefault? _staticMemberDefault(
       final ExtensionElement element => element.name,
       _ => null,
     };
-    importable = importable &&
+    importable =
+        importable &&
         variable.isStatic &&
         owner != null &&
         owner.isNotEmpty &&
@@ -1228,7 +1250,8 @@ StaticMemberWidgetConstructorDefault? _functionTearoffDefault(
   final member = function.name;
   final libraryUri = function.library.identifier;
   String? owner;
-  var importable = member != null &&
+  var importable =
+      member != null &&
       member.isNotEmpty &&
       !member.startsWith('_') &&
       libraryUri.isNotEmpty;
@@ -1239,7 +1262,8 @@ StaticMemberWidgetConstructorDefault? _functionTearoffDefault(
       final ExtensionElement element => element.name,
       _ => null,
     };
-    importable = importable &&
+    importable =
+        importable &&
         function.isStatic &&
         owner != null &&
         owner.isNotEmpty &&
@@ -1306,10 +1330,12 @@ _InputResolution _resolveInput(
   if (resolved.forwardsFlutterKey) {
     if (!includeFlutterKey) return const _ExcludedInput();
     final widget = cls.allSupertypes
-        .where((type) =>
-            type.element.name == 'Widget' &&
-            type.element.library.identifier ==
-                'package:flutter/src/widgets/framework.dart')
+        .where(
+          (type) =>
+              type.element.name == 'Widget' &&
+              type.element.library.identifier ==
+                  'package:flutter/src/widgets/framework.dart',
+        )
         .firstOrNull;
     final key = widget?.element.fields
         .where((field) => field.name == 'key')
@@ -1317,16 +1343,20 @@ _InputResolution _resolveInput(
     if (key == null)
       return const _InvalidInput('the Flutter key field is unresolved');
     return _ResolvedInput(
-        field: key,
-        backingFormal: resolved.backingFormal,
-        type: resolved.type,
-        inherited: true);
+      field: key,
+      backingFormal: resolved.backingFormal,
+      type: resolved.type,
+      inherited: true,
+    );
   }
   final problem = resolved.bindingProblem;
   if (problem != null) return _InvalidInput(problem);
   final field = resolved.field!;
-  final obstruction =
-      _fieldObstruction(field, resolved.type, resolved.backingFormal);
+  final obstruction = _fieldObstruction(
+    field,
+    resolved.type,
+    resolved.backingFormal,
+  );
   if (obstruction != null) return _InvalidInput(obstruction);
   if (_containsUnresolvedTypeParameter(resolved.type)) {
     return _InvalidInput(
@@ -1352,7 +1382,8 @@ _InputResolution _resolveInput(
   if (formal.name == null || declaration == null) {
     return (
       field: null,
-      problem: 'the ordinary parameter binding could not be resolved from '
+      problem:
+          'the ordinary parameter binding could not be resolved from '
           'its constructor declaration',
     );
   }
@@ -1381,7 +1412,8 @@ _InputResolution _resolveInput(
   if (bindingInitializers.isEmpty && transformedInitializers.isNotEmpty) {
     return (
       field: field,
-      problem: 'the ordinary parameter is initializer-transformed before '
+      problem:
+          'the ordinary parameter is initializer-transformed before '
           'field assignment',
     );
   }
@@ -1393,7 +1425,8 @@ _InputResolution _resolveInput(
   if (bindingInitializers.length != 1 || otherBindingUses.isNotEmpty) {
     return (
       field: field,
-      problem: 'the ordinary parameter does not initialize exactly one '
+      problem:
+          'the ordinary parameter does not initialize exactly one '
           'field; initializer-transformed or otherwise non-bijective '
           'bindings are not admitted',
     );
@@ -1401,7 +1434,8 @@ _InputResolution _resolveInput(
   if (field == null) {
     return (
       field: null,
-      problem: 'the ordinary parameter initializer has no unique backing '
+      problem:
+          'the ordinary parameter initializer has no unique backing '
           'field',
     );
   }
@@ -1409,7 +1443,7 @@ _InputResolution _resolveInput(
 }
 
 Future<Map<ConstructorElement, ConstructorDeclaration>>
-    _resolvedConstructorDeclarations(
+_resolvedConstructorDeclarations(
   ConstructorElement constructor,
   Future<AstNode?> Function(Fragment fragment) astNodeFor,
 ) async {
@@ -1440,8 +1474,9 @@ Future<Map<ConstructorElement, ConstructorDeclaration>>
     final superConstructor = current.superConstructor;
     if (superConstructor != null) pending.add(superConstructor);
     for (final formal in current.formalParameters) {
-      if (formal
-          case SuperFormalParameterElement(:final superConstructorParameter?)) {
+      if (formal case SuperFormalParameterElement(
+        :final superConstructorParameter?,
+      )) {
         final enclosing = superConstructorParameter.enclosingElement;
         if (enclosing is ConstructorElement) pending.add(enclosing);
       }
@@ -1461,8 +1496,9 @@ ConstructorDeclaration? _constructorDeclaration(
   if (session == null) return null;
   final parsedLibrary = session.getParsedLibraryByElement(constructor.library);
   if (parsedLibrary is! ParsedLibraryResult) return null;
-  final node =
-      parsedLibrary.getFragmentDeclaration(constructor.firstFragment)?.node;
+  final node = parsedLibrary
+      .getFragmentDeclaration(constructor.firstFragment)
+      ?.node;
   return node is ConstructorDeclaration ? node : null;
 }
 
@@ -1485,7 +1521,8 @@ final class _FormalReferenceVisitor extends RecursiveAstVisitor<void> {
 
   @override
   void visitFunctionExpression(FunctionExpression node) {
-    final shadowsFormal = node.parameters?.parameters.any(
+    final shadowsFormal =
+        node.parameters?.parameters.any(
           (parameter) => parameter.name?.lexeme == formal.name,
         ) ??
         false;
@@ -1497,9 +1534,9 @@ final class _FormalReferenceVisitor extends RecursiveAstVisitor<void> {
     var shadowed = false;
     for (final statement in node.statements) {
       if (shadowed) continue;
-      if (statement
-          case FunctionDeclarationStatement(:final functionDeclaration)
-          when functionDeclaration.name.lexeme == formal.name) {
+      if (statement case FunctionDeclarationStatement(
+        :final functionDeclaration,
+      ) when functionDeclaration.name.lexeme == formal.name) {
         shadowed = true;
         continue;
       }
@@ -1648,7 +1685,7 @@ Map<FormalParameterElement, _FlutterKeyProvenance>? _redirectingFactoryOrigins(
 }
 
 Map<FormalParameterElement, _FlutterKeyProvenance>?
-    _redirectingGenerativeOrigins(
+_redirectingGenerativeOrigins(
   ConstructorElement source,
   ConstructorElement target,
   Map<FormalParameterElement, _FlutterKeyProvenance> sourceOrigins,
@@ -1708,7 +1745,7 @@ Map<FormalParameterElement, _FlutterKeyProvenance>? _superConstructorOrigins(
 }
 
 Map<FormalParameterElement, _FlutterKeyProvenance>?
-    _invocationFlutterKeyOrigins({
+_invocationFlutterKeyOrigins({
   required ConstructorElement source,
   required ConstructorElement target,
   required Iterable<Argument> arguments,
@@ -1720,8 +1757,9 @@ Map<FormalParameterElement, _FlutterKeyProvenance>?
       Map<FormalParameterElement, _FlutterKeyProvenance>.identity();
   if (includeSuperFormals) {
     for (final formal in source.formalParameters) {
-      if (formal
-          case SuperFormalParameterElement(:final superConstructorParameter?)) {
+      if (formal case SuperFormalParameterElement(
+        :final superConstructorParameter?,
+      )) {
         final owner = superConstructorParameter.enclosingElement;
         final origin = sourceOrigins[formal.baseElement];
         if (owner is! ConstructorElement ||
@@ -1849,13 +1887,12 @@ bool _formalForwardsFlutterKey(
   ConstructorElement constructor,
   FormalParameterElement formal,
   Map<ConstructorElement, ConstructorDeclaration>? constructorDeclarations,
-) =>
-    _formalTargetsFlutterKey(
-      constructor,
-      formal,
-      Set<FormalParameterElement>.identity(),
-      constructorDeclarations,
-    );
+) => _formalTargetsFlutterKey(
+  constructor,
+  formal,
+  Set<FormalParameterElement>.identity(),
+  constructorDeclarations,
+);
 
 bool _formalTargetsFlutterKey(
   ConstructorElement constructor,
@@ -1868,10 +1905,9 @@ bool _formalTargetsFlutterKey(
   if (formalDeclaration case FieldFormalParameterElement(:final field?)) {
     if (_isFlutterKeyPlumbing(field, formalDeclaration.type)) return true;
   }
-  if (formalDeclaration
-      case SuperFormalParameterElement(
-        :final superConstructorParameter?,
-      )) {
+  if (formalDeclaration case SuperFormalParameterElement(
+    :final superConstructorParameter?,
+  )) {
     final backing = _backingFieldFormal(formalDeclaration);
     if (backing?.field case final field?
         when _isFlutterKeyPlumbing(field, formalDeclaration.type)) {
@@ -1917,7 +1953,8 @@ bool _formalTargetsFlutterKey(
     for (final argument in redirectCall.argumentList.arguments) {
       final expression = argument.argumentExpression;
       if (!_isFormalReference(expression, formalDeclaration)) continue;
-      final target = argument.correspondingParameter ??
+      final target =
+          argument.correspondingParameter ??
           (constructorDeclarations == null
               ? _parsedArgumentFormal(
                   redirected,
@@ -1945,14 +1982,16 @@ bool _formalTargetsFlutterKey(
     constructorDeclarations,
   );
   if (constructorDeclaration == null) return false;
-  for (final superCall in constructorDeclaration.initializers
-      .whereType<SuperConstructorInvocation>()) {
+  for (final superCall
+      in constructorDeclaration.initializers
+          .whereType<SuperConstructorInvocation>()) {
     final targetConstructor = superCall.element ?? constructor.superConstructor;
     if (targetConstructor == null) continue;
     for (final argument in superCall.argumentList.arguments) {
       final expression = argument.argumentExpression;
       if (!_isFormalReference(expression, formalDeclaration)) continue;
-      final target = argument.correspondingParameter ??
+      final target =
+          argument.correspondingParameter ??
           (constructorDeclarations == null
               ? _parsedArgumentFormal(
                   targetConstructor,
@@ -2037,11 +2076,10 @@ FormalParameterElement? _parsedArgumentFormal(
 
 FieldFormalParameterElement? _backingFieldFormal(
   SuperFormalParameterElement formal,
-) =>
-    switch (_terminalSuperConstructorParameter(formal)) {
-      final FieldFormalParameterElement parameter => parameter,
-      _ => null,
-    };
+) => switch (_terminalSuperConstructorParameter(formal)) {
+  final FieldFormalParameterElement parameter => parameter,
+  _ => null,
+};
 
 FormalParameterElement? _terminalSuperConstructorParameter(
   SuperFormalParameterElement formal,
@@ -2059,7 +2097,8 @@ String? _fieldObstruction(
   FormalParameterElement backingFormal,
 ) {
   final name = field.name;
-  final privateNamed = backingFormal is FieldFormalParameterElement &&
+  final privateNamed =
+      backingFormal is FieldFormalParameterElement &&
       backingFormal.privateName == name;
   if (name == null || name.isEmpty || (name.startsWith('_') && !privateNamed)) {
     return 'the backing field is private or unnamed';

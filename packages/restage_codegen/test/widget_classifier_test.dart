@@ -13,22 +13,23 @@ import 'helpers.dart';
 /// declare — `flutterType` matches the `<library URI>#<Class>` the classifier
 /// computes for a composed widget, so they read as catalog composition.
 Catalog _stubCatalog({String file = 'card.dart'}) => catalogWith([
-      entry(
-        name: 'Container',
-        properties: [prop('child', PropertyType.widget)],
-        flutterType: 'package:apps_examples/$file#Container',
-      ),
-      entry(
-        name: 'Text',
-        properties: [prop('text', PropertyType.string, positional: true)],
-        flutterType: 'package:apps_examples/$file#Text',
-      ),
-    ]);
+  entry(
+    name: 'Container',
+    properties: [prop('child', PropertyType.widget)],
+    flutterType: 'package:apps_examples/$file#Container',
+  ),
+  entry(
+    name: 'Text',
+    properties: [prop('text', PropertyType.string, positional: true)],
+    flutterType: 'package:apps_examples/$file#Text',
+  ),
+]);
 
 void main() {
-  test('a run-time list template exposes its custom widget entry point',
-      () async {
-    final expression = await parseExpressionFromSourceForTest('''
+  test(
+    'a run-time list template exposes its custom widget entry point',
+    () async {
+      final expression = await parseExpressionFromSourceForTest('''
 $kClassifierStubs
 
 class Column extends StatelessWidget {
@@ -54,16 +55,18 @@ Object x(List<String> values) => Column(
     );
 ''');
 
-    expect(
-      customWidgetClassesIn(expression).map((element) => element.name),
-      orderedEquals(['RepeatedLabel']),
-    );
-  });
+      expect(
+        customWidgetClassesIn(expression).map((element) => element.name),
+        orderedEquals(['RepeatedLabel']),
+      );
+    },
+  );
 
   test('a custom definition keeps refusing a run-time list', () async {
     final result = await classifyFixtureResult(
       {
-        'lib/dynamic_labels.dart': '''
+        'lib/dynamic_labels.dart':
+            '''
 $kClassifierStubs
 
 class Column extends StatelessWidget {
@@ -120,12 +123,12 @@ class DynamicLabels extends StatelessWidget {
   });
 
   group('WidgetClassifier — pure composition', () {
-    test(
-        'a pure-composition StatelessWidget is ComposableWidget with no '
+    test('a pure-composition StatelessWidget is ComposableWidget with no '
         'mechanisms', () async {
       final result = await classifyFixture(
         {
-          'lib/card.dart': '''
+          'lib/card.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -165,11 +168,13 @@ class AcmeCard extends StatelessWidget {
       expect(composable.classKey, 'package:apps_examples/card.dart#AcmeCard');
     });
 
-    test('static collection leaves classify with their exact bindings',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/repeated_labels.dart': '''
+    test(
+      'static collection leaves classify with their exact bindings',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/repeated_labels.dart':
+                '''
 $kFlutterClassifierStubs
 
 class BoxColumn extends StatelessWidget {
@@ -211,42 +216,47 @@ class RepeatedLabels extends StatelessWidget {
       );
 }
 ''',
-        },
-        inputPath: 'lib/repeated_labels.dart',
-        widgetName: 'RepeatedLabels',
-        catalog: catalogWith([
-          entry(
-            name: 'BoxColumn',
-            properties: [prop('children', PropertyType.widgetList)],
-            flutterType: 'package:apps_examples/repeated_labels.dart#BoxColumn',
-          ),
-          entry(
-            name: 'LabelBox',
-            properties: [
-              prop('label', PropertyType.string),
-              prop('color', PropertyType.color),
-            ],
-            flutterType: 'package:apps_examples/repeated_labels.dart#LabelBox',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/repeated_labels.dart',
+          widgetName: 'RepeatedLabels',
+          catalog: catalogWith([
+            entry(
+              name: 'BoxColumn',
+              properties: [prop('children', PropertyType.widgetList)],
+              flutterType:
+                  'package:apps_examples/repeated_labels.dart#BoxColumn',
+            ),
+            entry(
+              name: 'LabelBox',
+              properties: [
+                prop('label', PropertyType.string),
+                prop('color', PropertyType.color),
+              ],
+              flutterType:
+                  'package:apps_examples/repeated_labels.dart#LabelBox',
+            ),
+          ]),
+        );
 
-      expect(
-        result,
-        isA<ComposableWidget>(),
-        reason: result is UnclassifiableWidget ? result.reason : '$result',
-      );
-      expect(
-        (result as ComposableWidget).requiredMechanisms,
-        {InliningMechanism.constantFolding},
-      );
-    });
+        expect(
+          result,
+          isA<ComposableWidget>(),
+          reason: result is UnclassifiableWidget ? result.reason : '$result',
+        );
+        expect(
+          (result as ComposableWidget).requiredMechanisms,
+          {InliningMechanism.constantFolding},
+        );
+      },
+    );
 
-    test('an ordinary helper result refuses one callback source in two slots',
-        () async {
-      final result = await classifyFixtureResult(
-        {
-          'lib/shared_action.dart': '''
+    test(
+      'an ordinary helper result refuses one callback source in two slots',
+      () async {
+        final result = await classifyFixtureResult(
+          {
+            'lib/shared_action.dart':
+                '''
 $kClassifierStubs
 
 class GestureDetector extends StatelessWidget {
@@ -281,46 +291,49 @@ class SharedAction extends StatelessWidget {
   Widget build(BuildContext context) => action(() {});
 }
 ''',
-        },
-        inputPath: 'lib/shared_action.dart',
-        widgetName: 'SharedAction',
-        catalog: catalogWith([
-          entry(
-            name: 'GestureDetector',
-            flutterType:
-                'package:apps_examples/shared_action.dart#GestureDetector',
-            properties: [
-              prop('onTap', PropertyType.event),
-              prop('onDoubleTap', PropertyType.event),
-              prop('child', PropertyType.widget),
-            ],
-          ),
-          entry(
-            name: 'Text',
-            flutterType: 'package:apps_examples/shared_action.dart#Text',
-            properties: [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-      );
-      const key = 'package:apps_examples/shared_action.dart#SharedAction';
-      final classification = result.classifications[key];
+          },
+          inputPath: 'lib/shared_action.dart',
+          widgetName: 'SharedAction',
+          catalog: catalogWith([
+            entry(
+              name: 'GestureDetector',
+              flutterType:
+                  'package:apps_examples/shared_action.dart#GestureDetector',
+              properties: [
+                prop('onTap', PropertyType.event),
+                prop('onDoubleTap', PropertyType.event),
+                prop('child', PropertyType.widget),
+              ],
+            ),
+            entry(
+              name: 'Text',
+              flutterType: 'package:apps_examples/shared_action.dart#Text',
+              properties: [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+        );
+        const key = 'package:apps_examples/shared_action.dart#SharedAction';
+        final classification = result.classifications[key];
 
-      expect(
-        classification,
-        isA<UnclassifiableWidget>().having(
-          (value) => value.reason,
-          'reason',
-          contains('static collection source is reused'),
-        ),
-      );
-      expect(result.blueprints, isNot(contains(key)));
-    });
+        expect(
+          classification,
+          isA<UnclassifiableWidget>().having(
+            (value) => value.reason,
+            'reason',
+            contains('static collection source is reused'),
+          ),
+        );
+        expect(result.blueprints, isNot(contains(key)));
+      },
+    );
 
-    test('a helper-bound const-object receiver classifies its widget field',
-        () async {
-      final result = await classifyFixtureResult(
-        {
-          'lib/bound_label.dart': '''
+    test(
+      'a helper-bound const-object receiver classifies its widget field',
+      () async {
+        final result = await classifyFixtureResult(
+          {
+            'lib/bound_label.dart':
+                '''
 $kFlutterClassifierStubs
 
 class BoxColumn extends StatelessWidget {
@@ -359,40 +372,42 @@ class BoundLabel extends StatelessWidget {
       BoxColumn(children: [...select(set)]);
 }
 ''',
-        },
-        inputPath: 'lib/bound_label.dart',
-        widgetName: 'BoundLabel',
-        catalog: catalogWith([
-          entry(
-            name: 'BoxColumn',
-            properties: [prop('children', PropertyType.widgetList)],
-            flutterType: 'package:apps_examples/bound_label.dart#BoxColumn',
-          ),
-          entry(
-            name: 'LabelBox',
-            properties: [prop('label', PropertyType.string)],
-            flutterType: 'package:apps_examples/bound_label.dart#LabelBox',
-          ),
-        ]),
-      );
-      const key = 'package:apps_examples/bound_label.dart#BoundLabel';
-      final classification = result.classifications[key];
+          },
+          inputPath: 'lib/bound_label.dart',
+          widgetName: 'BoundLabel',
+          catalog: catalogWith([
+            entry(
+              name: 'BoxColumn',
+              properties: [prop('children', PropertyType.widgetList)],
+              flutterType: 'package:apps_examples/bound_label.dart#BoxColumn',
+            ),
+            entry(
+              name: 'LabelBox',
+              properties: [prop('label', PropertyType.string)],
+              flutterType: 'package:apps_examples/bound_label.dart#LabelBox',
+            ),
+          ]),
+        );
+        const key = 'package:apps_examples/bound_label.dart#BoundLabel';
+        final classification = result.classifications[key];
 
-      expect(
-        classification,
-        isA<ComposableWidget>(),
-        reason: classification is UnclassifiableWidget
-            ? classification.reason
-            : '$classification',
-      );
-      expect(result.blueprints, contains(key));
-      expect(result.collectionRefusals, isEmpty);
-    });
+        expect(
+          classification,
+          isA<ComposableWidget>(),
+          reason: classification is UnclassifiableWidget
+              ? classification.reason
+              : '$classification',
+        );
+        expect(result.blueprints, contains(key));
+        expect(result.collectionRefusals, isEmpty);
+      },
+    );
 
     test('a mixed object receiver remains unclassifiable', () async {
       final result = await classifyFixtureResult(
         {
-          'lib/mixed_labels.dart': '''
+          'lib/mixed_labels.dart':
+              '''
 $kFlutterClassifierStubs
 
 class BoxColumn extends StatelessWidget {
@@ -459,11 +474,13 @@ class MixedLabels extends StatelessWidget {
   });
 
   group('WidgetClassifier — imperative', () {
-    test('a CustomPaint in build() is ImperativeWidget / customPainter',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/chart.dart': '''
+    test(
+      'a CustomPaint in build() is ImperativeWidget / customPainter',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/chart.dart':
+                '''
 $kClassifierStubs
 
 class CustomPainter { const CustomPainter(); }
@@ -490,25 +507,27 @@ class AcmeChart extends StatelessWidget {
       CustomPaint(painter: ChartPainter());
 }
 ''',
-        },
-        inputPath: 'lib/chart.dart',
-        widgetName: 'AcmeChart',
-      );
+          },
+          inputPath: 'lib/chart.dart',
+          widgetName: 'AcmeChart',
+        );
 
-      expect(result, isA<ImperativeWidget>());
-      final blocker = (result as ImperativeWidget).blockers.first;
-      expect(blocker.kind, BlockerKind.customPainter);
-      expect(blocker.detail, contains('CustomPaint'));
-      expect(
-        blocker.location,
-        startsWith('package:apps_examples/chart.dart#AcmeChart@'),
-      );
-    });
+        expect(result, isA<ImperativeWidget>());
+        final blocker = (result as ImperativeWidget).blockers.first;
+        expect(blocker.kind, BlockerKind.customPainter);
+        expect(blocker.detail, contains('CustomPaint'));
+        expect(
+          blocker.location,
+          startsWith('package:apps_examples/chart.dart#AcmeChart@'),
+        );
+      },
+    );
 
     test('a call into a Dart package is ImperativeWidget / dartCall', () async {
       final result = await classifyFixture(
         {
-          'lib/price.dart': '''
+          'lib/price.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -558,11 +577,13 @@ class PriceLabel extends StatelessWidget {
       expect(blocker.detail, isNot(contains('RestagePrice')));
     });
 
-    test('a real intl NumberFormat.format() is a composable native value',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/price.dart': '''
+    test(
+      'a real intl NumberFormat.format() is a composable native value',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/price.dart':
+                '''
 import 'package:intl/intl.dart';
 $kClassifierStubs
 
@@ -585,14 +606,15 @@ class PriceLabel extends StatelessWidget {
       Text(NumberFormat.currency(locale: 'en_US', symbol: 'USD').format(amount));
 }
 ''',
-        },
-        inputPath: 'lib/price.dart',
-        widgetName: 'PriceLabel',
-        catalog: _stubCatalog(file: 'price.dart'),
-      );
+          },
+          inputPath: 'lib/price.dart',
+          widgetName: 'PriceLabel',
+          catalog: _stubCatalog(file: 'price.dart'),
+        );
 
-      expect(result, isA<ComposableWidget>());
-    });
+        expect(result, isA<ComposableWidget>());
+      },
+    );
   });
 
   group('WidgetClassifier — mechanisms', () {
@@ -604,7 +626,8 @@ class PriceLabel extends StatelessWidget {
       // internal `Container` library path.
       final result = await classifyFixture(
         {
-          'lib/banner.dart': '''
+          'lib/banner.dart':
+              '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -646,11 +669,13 @@ class AcmeBanner extends StatelessWidget {
       );
     });
 
-    test('a ColorScheme.of(context) read marks the themeAsData mechanism',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/shortcut_banner.dart': '''
+    test(
+      'a ColorScheme.of(context) read marks the themeAsData mechanism',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/shortcut_banner.dart':
+                '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -673,24 +698,25 @@ class AcmeShortcutBanner extends StatelessWidget {
       Box(color: ColorScheme.of(context).primary);
 }
 ''',
-        },
-        inputPath: 'lib/shortcut_banner.dart',
-        widgetName: 'AcmeShortcutBanner',
-        catalog: catalogWith([
-          entry(
-            name: 'Box',
-            properties: const [],
-            flutterType: 'package:apps_examples/shortcut_banner.dart#Box',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/shortcut_banner.dart',
+          widgetName: 'AcmeShortcutBanner',
+          catalog: catalogWith([
+            entry(
+              name: 'Box',
+              properties: const [],
+              flutterType: 'package:apps_examples/shortcut_banner.dart#Box',
+            ),
+          ]),
+        );
 
-      expect(result, isA<ComposableWidget>());
-      expect(
-        (result as ComposableWidget).requiredMechanisms,
-        contains(InliningMechanism.themeAsData),
-      );
-    });
+        expect(result, isA<ComposableWidget>());
+        expect(
+          (result as ComposableWidget).requiredMechanisms,
+          contains(InliningMechanism.themeAsData),
+        );
+      },
+    );
 
     test('a structured value with literal args is plain composition', () async {
       final result = await classifyFixture(
@@ -717,8 +743,7 @@ class AcmeShortcutBanner extends StatelessWidget {
       );
     });
 
-    test(
-        'compute over a runtime field is ImperativeWidget / '
+    test('compute over a runtime field is ImperativeWidget / '
         'runtimeComputedValue', () async {
       final result = await classifyFixture(
         _mechanismsFixture,
@@ -738,7 +763,8 @@ class AcmeShortcutBanner extends StatelessWidget {
     test('a StatefulWidget with simple state marks declarativeState', () async {
       final result = await classifyFixture(
         {
-          'lib/toggle.dart': '''
+          'lib/toggle.dart':
+              '''
 $kClassifierStubs
 
 class GestureDetector extends StatelessWidget {
@@ -789,11 +815,13 @@ class _AcmeToggleState extends State<AcmeToggle> {
       );
     });
 
-    test('a non-primitive State field is ImperativeWidget / nonSimpleState',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/spinner.dart': '''
+    test(
+      'a non-primitive State field is ImperativeWidget / nonSimpleState',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/spinner.dart':
+                '''
 $kClassifierStubs
 
 class AnimationController { const AnimationController(); }
@@ -819,30 +847,33 @@ class _AcmeSpinnerState extends State<AcmeSpinner> {
   Widget build(BuildContext context) => Container();
 }
 ''',
-        },
-        inputPath: 'lib/spinner.dart',
-        widgetName: 'AcmeSpinner',
-        catalog: catalogWith([
-          entry(
-            name: 'Container',
-            properties: const [],
-            flutterType: 'package:apps_examples/spinner.dart#Container',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/spinner.dart',
+          widgetName: 'AcmeSpinner',
+          catalog: catalogWith([
+            entry(
+              name: 'Container',
+              properties: const [],
+              flutterType: 'package:apps_examples/spinner.dart#Container',
+            ),
+          ]),
+        );
 
-      expect(result, isA<ImperativeWidget>());
-      expect(
-        (result as ImperativeWidget).blockers.first.kind,
-        BlockerKind.nonSimpleState,
-      );
-    });
+        expect(result, isA<ImperativeWidget>());
+        expect(
+          (result as ImperativeWidget).blockers.first.kind,
+          BlockerKind.nonSimpleState,
+        );
+      },
+    );
 
-    test('a State lifecycle method is ImperativeWidget / asyncOrLifecycle',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/fader.dart': '''
+    test(
+      'a State lifecycle method is ImperativeWidget / asyncOrLifecycle',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/fader.dart':
+                '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -866,29 +897,28 @@ class _AcmeFaderState extends State<AcmeFader> {
   Widget build(BuildContext context) => Container();
 }
 ''',
-        },
-        inputPath: 'lib/fader.dart',
-        widgetName: 'AcmeFader',
-        catalog: catalogWith([
-          entry(
-            name: 'Container',
-            properties: const [],
-            flutterType: 'package:apps_examples/fader.dart#Container',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/fader.dart',
+          widgetName: 'AcmeFader',
+          catalog: catalogWith([
+            entry(
+              name: 'Container',
+              properties: const [],
+              flutterType: 'package:apps_examples/fader.dart#Container',
+            ),
+          ]),
+        );
 
-      expect(result, isA<ImperativeWidget>());
-      expect(
-        (result as ImperativeWidget).blockers.first.kind,
-        BlockerKind.asyncOrLifecycle,
-      );
-    });
+        expect(result, isA<ImperativeWidget>());
+        expect(
+          (result as ImperativeWidget).blockers.first.kind,
+          BlockerKind.asyncOrLifecycle,
+        );
+      },
+    );
 
-    test(
-        'a motion State (Flutter AnimationController + lifecycle) NAMES the '
-        'motion adopt-targets in BOTH its lifecycle and field deferrals',
-        () async {
+    test('a motion State (Flutter AnimationController + lifecycle) NAMES the '
+        'motion adopt-targets in BOTH its lifecycle and field deferrals', () async {
       // Real `package:flutter/` resolution: the State holds an
       // `AnimationController` field (the motion signal) and a `dispose()`
       // lifecycle method. classifyStateShape adds the lifecycle blocker BEFORE
@@ -945,8 +975,9 @@ class _AcmeSpringState extends State<AcmeSpring>
         expect(surfaced.detail, contains(widget));
       }
       // The non-primitive field blocker is tagged too (for a field-only State).
-      final field =
-          imp.blockers.firstWhere((b) => b.kind == BlockerKind.nonSimpleState);
+      final field = imp.blockers.firstWhere(
+        (b) => b.kind == BlockerKind.nonSimpleState,
+      );
       expect(field.detail, contains('RestageMotion'));
       // The aggregation subject stays the member name (the idiom histogram
       // keys on it) — unchanged by the detail enrichment.
@@ -954,14 +985,14 @@ class _AcmeSpringState extends State<AcmeSpring>
       expect(surfaced.idiomSubject, 'dispose');
     });
 
-    test(
-        'a custom look-alike AnimationController State does NOT name the '
+    test('a custom look-alike AnimationController State does NOT name the '
         'motion widgets (element gate)', () async {
       // A custom class merely named `AnimationController` is not Flutter
       // animation — the motion hint is withheld (the look-alike discipline).
       final result = await classifyFixture(
         {
-          'lib/fake.dart': '''
+          'lib/fake.dart':
+              '''
 $kClassifierStubs
 
 class AnimationController { const AnimationController(); }
@@ -995,8 +1026,7 @@ class _AcmeFakeState extends State<AcmeFake> {
       }
     });
 
-    test(
-        'a directly-constructed Flutter spring in build() NAMES RestageMotion '
+    test('a directly-constructed Flutter spring in build() NAMES RestageMotion '
         'in the unclassifiable reason', () async {
       // The spring look-alike path: a `SpringSimulation` / `SpringDescription`
       // construction reaching the classifier's `_construction` walk names the
@@ -1005,7 +1035,8 @@ class _AcmeFakeState extends State<AcmeFake> {
       // the recognizer is wired so the helper is live in production.)
       final result = await classifyFixture(
         {
-          'lib/springbuild.dart': '''
+          'lib/springbuild.dart':
+              '''
 import 'package:flutter/physics.dart';
 $kClassifierStubs
 
@@ -1034,12 +1065,12 @@ class AcmeSpringBuild extends StatelessWidget {
       );
     });
 
-    test(
-        'a custom look-alike spring construction does NOT name RestageMotion '
+    test('a custom look-alike spring construction does NOT name RestageMotion '
         '(element gate)', () async {
       final result = await classifyFixture(
         {
-          'lib/fakespring.dart': '''
+          'lib/fakespring.dart':
+              '''
 $kClassifierStubs
 
 class SpringDescription {
@@ -1070,14 +1101,14 @@ class AcmeFakeSpring extends StatelessWidget {
       );
     });
 
-    test(
-        'a lifecycle method in a NON-motion State stays generic (no motion '
+    test('a lifecycle method in a NON-motion State stays generic (no motion '
         'signal)', () async {
       // A lifecycle method with no animation-controller field is NOT motion
       // (it could be analytics / a stream / a focus node) — no motion hint.
       final result = await classifyFixture(
         {
-          'lib/plain.dart': '''
+          'lib/plain.dart':
+              '''
 $kClassifierStubs
 
 @RestageWidget(
@@ -1112,12 +1143,12 @@ class _AcmePlainState extends State<AcmePlain> {
       expect(surfaced.detail, isNot(contains('Restage')));
     });
 
-    test(
-        "a StatefulWidget's blueprint captures each State field as a "
+    test("a StatefulWidget's blueprint captures each State field as a "
         'CustomWidgetStateField with the folded initial value', () async {
       final classification = await classifyFixtureResult(
         {
-          'lib/multistate.dart': '''
+          'lib/multistate.dart':
+              '''
 $kClassifierStubs
 
 class GestureDetector extends StatelessWidget {
@@ -1189,12 +1220,13 @@ class _AcmeMultiState extends State<AcmeMulti> {
     });
 
     test(
-        'a StatefulWidget with a non-foldable State-field initialiser '
-        'captures a null initialValue so the translator can diagnose it',
-        () async {
-      final classification = await classifyFixtureResult(
-        {
-          'lib/nonfold.dart': '''
+      'a StatefulWidget with a non-foldable State-field initialiser '
+      'captures a null initialValue so the translator can diagnose it',
+      () async {
+        final classification = await classifyFixtureResult(
+          {
+            'lib/nonfold.dart':
+                '''
 $kClassifierStubs
 
 class GestureDetector extends StatelessWidget {
@@ -1223,35 +1255,36 @@ class _AcmeNonFoldState extends State<AcmeNonFold> {
   Widget build(BuildContext context) => GestureDetector(onTap: noop);
 }
 ''',
-        },
-        inputPath: 'lib/nonfold.dart',
-        widgetName: 'AcmeNonFold',
-        catalog: catalogWith([
-          entry(
-            name: 'GestureDetector',
-            properties: const [],
-            flutterType: 'package:apps_examples/nonfold.dart#GestureDetector',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/nonfold.dart',
+          widgetName: 'AcmeNonFold',
+          catalog: catalogWith([
+            entry(
+              name: 'GestureDetector',
+              properties: const [],
+              flutterType: 'package:apps_examples/nonfold.dart#GestureDetector',
+            ),
+          ]),
+        );
 
-      const key = 'package:apps_examples/nonfold.dart#AcmeNonFold';
-      final blueprint = classification.blueprints[key];
-      expect(blueprint, isNotNull);
-      final state = blueprint!.state;
-      expect(state, isNotNull);
-      expect(state!.single.name, 'count');
-      // The classifier records the field but cannot fold `_nonConst()`; the
-      // translator will surface this as a stateShapeUnsupported diagnostic.
-      expect(state.single.initialValue, isNull);
-    });
+        const key = 'package:apps_examples/nonfold.dart#AcmeNonFold';
+        final blueprint = classification.blueprints[key];
+        expect(blueprint, isNotNull);
+        final state = blueprint!.state;
+        expect(state, isNotNull);
+        expect(state!.single.name, 'count');
+        // The classifier records the field but cannot fold `_nonConst()`; the
+        // translator will surface this as a stateShapeUnsupported diagnostic.
+        expect(state.single.initialValue, isNull);
+      },
+    );
 
-    test(
-        'a StatelessWidget has a null state list on its blueprint — only '
+    test('a StatelessWidget has a null state list on its blueprint — only '
         'StatefulWidgets carry a state block', () async {
       final classification = await classifyFixtureResult(
         {
-          'lib/stateless.dart': '''
+          'lib/stateless.dart':
+              '''
 $kClassifierStubs
 
 class Box extends StatelessWidget {
@@ -1292,14 +1325,16 @@ class AcmeStateless extends StatelessWidget {
   });
 
   group('WidgetClassifier — recursion', () {
-    test('composing a custom widget rolls its mechanisms up transitively',
-        () async {
-      // Uses real `package:flutter/material.dart` `Theme`; a local `Box`
-      // widget plays the catalog-widget role (decoupled from Flutter's
-      // internal `Container` library path).
-      final result = await classifyFixture(
-        {
-          'lib/nested.dart': '''
+    test(
+      'composing a custom widget rolls its mechanisms up transitively',
+      () async {
+        // Uses real `package:flutter/material.dart` `Theme`; a local `Box`
+        // widget plays the catalog-widget role (decoupled from Flutter's
+        // internal `Container` library path).
+        final result = await classifyFixture(
+          {
+            'lib/nested.dart':
+                '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -1335,35 +1370,38 @@ class AcmeCard extends StatelessWidget {
   Widget build(BuildContext context) => Box(child: const AcmePill());
 }
 ''',
-        },
-        inputPath: 'lib/nested.dart',
-        widgetName: 'AcmeCard',
-        catalog: catalogWith([
-          entry(
-            name: 'Box',
-            properties: const [],
-            flutterType: 'package:apps_examples/nested.dart#Box',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/nested.dart',
+          widgetName: 'AcmeCard',
+          catalog: catalogWith([
+            entry(
+              name: 'Box',
+              properties: const [],
+              flutterType: 'package:apps_examples/nested.dart#Box',
+            ),
+          ]),
+        );
 
-      expect(result, isA<ComposableWidget>());
-      final composable = result as ComposableWidget;
-      expect(
-        composable.composedCustomWidgets,
-        contains('package:apps_examples/nested.dart#AcmePill'),
-      );
-      expect(
-        composable.requiredMechanisms,
-        contains(InliningMechanism.themeAsData),
-      );
-    });
+        expect(result, isA<ComposableWidget>());
+        final composable = result as ComposableWidget;
+        expect(
+          composable.composedCustomWidgets,
+          contains('package:apps_examples/nested.dart#AcmePill'),
+        );
+        expect(
+          composable.requiredMechanisms,
+          contains(InliningMechanism.themeAsData),
+        );
+      },
+    );
 
-    test('composing an imperative custom widget is itself imperative',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/outer.dart': '''
+    test(
+      'composing an imperative custom widget is itself imperative',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/outer.dart':
+                '''
 $kClassifierStubs
 
 class CustomPainter { const CustomPainter(); }
@@ -1399,22 +1437,24 @@ class AcmeCard extends StatelessWidget {
   Widget build(BuildContext context) => AcmeChart();
 }
 ''',
-        },
-        inputPath: 'lib/outer.dart',
-        widgetName: 'AcmeCard',
-      );
+          },
+          inputPath: 'lib/outer.dart',
+          widgetName: 'AcmeCard',
+        );
 
-      expect(result, isA<ImperativeWidget>());
-      expect(
-        (result as ImperativeWidget).blockers.first.kind,
-        BlockerKind.composesImperativeWidget,
-      );
-    });
+        expect(result, isA<ImperativeWidget>());
+        expect(
+          (result as ImperativeWidget).blockers.first.kind,
+          BlockerKind.composesImperativeWidget,
+        );
+      },
+    );
 
     test('a multi-statement build() body is UnclassifiableWidget', () async {
       final result = await classifyFixture(
         {
-          'lib/multi.dart': '''
+          'lib/multi.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -1450,15 +1490,15 @@ class AcmeMulti extends StatelessWidget {
       expect(result.diagnosticCode, IssueCode.customWidgetUnclassified);
     });
 
-    test(
-        'a build() body binding Theme.of(...) to a `final` local resolves '
+    test('a build() body binding Theme.of(...) to a `final` local resolves '
         'through to a ComposableWidget with themeAsData (rung 2)', () async {
       // Uses real `package:flutter/material.dart` `Theme`; a local `Box`
       // widget plays the catalog-widget role. The bound `cs` local resolves
       // through to the theme read at the `cs.primary` use site.
       final result = await classifyFixture(
         {
-          'lib/intermediate.dart': '''
+          'lib/intermediate.dart':
+              '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -1505,7 +1545,8 @@ class AcmeBanner extends StatelessWidget {
     test('a composition cycle is UnclassifiableWidget', () async {
       final result = await classifyFixture(
         {
-          'lib/loop.dart': '''
+          'lib/loop.dart':
+              '''
 $kClassifierStubs
 
 @RestageWidget(
@@ -1533,11 +1574,13 @@ class AcmeLoop extends StatelessWidget {
   });
 
   group('WidgetClassifier — soundness invariant', () {
-    test('compute over a widget field via `widget.` is runtimeComputedValue',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/scaler.dart': '''
+    test(
+      'compute over a widget field via `widget.` is runtimeComputedValue',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/scaler.dart':
+                '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -1562,30 +1605,33 @@ class _AcmeScalerState extends State<AcmeScaler> {
   Widget build(BuildContext context) => Container(width: widget.size * 2);
 }
 ''',
-        },
-        inputPath: 'lib/scaler.dart',
-        widgetName: 'AcmeScaler',
-        catalog: catalogWith([
-          entry(
-            name: 'Container',
-            properties: const [],
-            flutterType: 'package:apps_examples/scaler.dart#Container',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/scaler.dart',
+          widgetName: 'AcmeScaler',
+          catalog: catalogWith([
+            entry(
+              name: 'Container',
+              properties: const [],
+              flutterType: 'package:apps_examples/scaler.dart#Container',
+            ),
+          ]),
+        );
 
-      expect(result, isA<ImperativeWidget>());
-      expect(
-        (result as ImperativeWidget).blockers.first.kind,
-        BlockerKind.runtimeComputedValue,
-      );
-    });
+        expect(result, isA<ImperativeWidget>());
+        expect(
+          (result as ImperativeWidget).blockers.first.kind,
+          BlockerKind.runtimeComputedValue,
+        );
+      },
+    );
 
-    test('a named-constructor catalog widget is matched by its full key',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/named.dart': '''
+    test(
+      'a named-constructor catalog widget is matched by its full key',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/named.dart':
+                '''
 $kClassifierStubs
 
 class Banner extends StatelessWidget {
@@ -1604,29 +1650,31 @@ class AcmeNamed extends StatelessWidget {
   Widget build(BuildContext context) => const Banner.outlined();
 }
 ''',
-        },
-        inputPath: 'lib/named.dart',
-        widgetName: 'AcmeNamed',
-        catalog: catalogWith([
-          entry(
-            name: 'Banner',
-            properties: const [],
-            flutterType: 'package:apps_examples/named.dart#Banner.outlined',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/named.dart',
+          widgetName: 'AcmeNamed',
+          catalog: catalogWith([
+            entry(
+              name: 'Banner',
+              properties: const [],
+              flutterType: 'package:apps_examples/named.dart#Banner.outlined',
+            ),
+          ]),
+        );
 
-      expect(result, isA<ComposableWidget>());
-    });
+        expect(result, isA<ComposableWidget>());
+      },
+    );
 
     test(
-        'a method tear-off event handler in a stateless widget is '
-        'unclassifiable — only State methods can be lowered to set-state '
-        'handlers, so a stateless tear-off has no RFW representation',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/btn.dart': '''
+      'a method tear-off event handler in a stateless widget is '
+      'unclassifiable — only State methods can be lowered to set-state '
+      'handlers, so a stateless tear-off has no RFW representation',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/btn.dart':
+                '''
 $kClassifierStubs
 
 class GestureDetector extends StatelessWidget {
@@ -1650,30 +1698,33 @@ class AcmeButton extends StatelessWidget {
       GestureDetector(onTap: handleTap, child: child);
 }
 ''',
-        },
-        inputPath: 'lib/btn.dart',
-        widgetName: 'AcmeButton',
-        catalog: catalogWith([
-          entry(
-            name: 'GestureDetector',
-            properties: const [],
-            flutterType: 'package:apps_examples/btn.dart#GestureDetector',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/btn.dart',
+          widgetName: 'AcmeButton',
+          catalog: catalogWith([
+            entry(
+              name: 'GestureDetector',
+              properties: const [],
+              flutterType: 'package:apps_examples/btn.dart#GestureDetector',
+            ),
+          ]),
+        );
 
-      expect(result, isA<UnclassifiableWidget>());
-      expect(
-        (result as UnclassifiableWidget).reason,
-        contains('method tear-off'),
-      );
-    });
+        expect(result, isA<UnclassifiableWidget>());
+        expect(
+          (result as UnclassifiableWidget).reason,
+          contains('method tear-off'),
+        );
+      },
+    );
 
-    test('a non-constructor widget field is not an inlinable verdict',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/listed.dart': '''
+    test(
+      'a non-constructor widget field is not an inlinable verdict',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/listed.dart':
+                '''
 $kClassifierStubs
 
 String buildRuntimeLabel() => '';
@@ -1696,28 +1747,30 @@ class AcmeListed extends StatelessWidget {
   Widget build(BuildContext context) => Text(data);
 }
 ''',
-        },
-        inputPath: 'lib/listed.dart',
-        widgetName: 'AcmeListed',
-        catalog: catalogWith([
-          entry(
-            name: 'Text',
-            properties: const [],
-            flutterType: 'package:apps_examples/listed.dart#Text',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/listed.dart',
+          widgetName: 'AcmeListed',
+          catalog: catalogWith([
+            entry(
+              name: 'Text',
+              properties: const [],
+              flutterType: 'package:apps_examples/listed.dart#Text',
+            ),
+          ]),
+        );
 
-      // `data` is widget instance state, not a constructor argument, so the
-      // emitter cannot produce it and the widget must not classify as
-      // plain composition.
-      expect(result, isA<UnclassifiableWidget>());
-    });
+        // `data` is widget instance state, not a constructor argument, so the
+        // emitter cannot produce it and the widget must not classify as
+        // plain composition.
+        expect(result, isA<UnclassifiableWidget>());
+      },
+    );
 
     test('a registered event-helper call classifies as composition', () async {
       final result = await classifyFixture(
         {
-          'lib/event.dart': '''
+          'lib/event.dart':
+              '''
 import 'package:restage/restage.dart' show paywallEvent;
 
 $kClassifierStubs
@@ -1756,8 +1809,7 @@ class AcmeEvent extends StatelessWidget {
       expect(result, isA<ComposableWidget>());
     });
 
-    test(
-        'a custom paywallEvent look-alike (a non-SDK library) is NOT '
+    test('a custom paywallEvent look-alike (a non-SDK library) is NOT '
         'recognised as the build helper — the (name, libraryOrigin) gate '
         'holds', () async {
       // The build registers `paywallEvent` from the SDK library. A custom
@@ -1768,7 +1820,8 @@ class AcmeEvent extends StatelessWidget {
       // helpers in the scanner can never widen recognition to name-only.
       final result = await classifyFixture(
         {
-          'lib/lookalike.dart': '''
+          'lib/lookalike.dart':
+              '''
 $kClassifierStubs
 
 // The app's own paywallEvent — same name, different library.
@@ -1813,19 +1866,20 @@ class AcmeLookalike extends StatelessWidget {
               .having((b) => b.kind, 'kind', BlockerKind.dartCall)
               .having((b) => b.detail, 'detail', contains('paywallEvent')),
         ),
-        reason: 'the custom look-alike must defer as a dartCall naming '
+        reason:
+            'the custom look-alike must defer as a dartCall naming '
             'paywallEvent, never lower as an SDK event',
       );
     });
   });
 
   group('WidgetClassifier — named-intermediate inlining', () {
-    test(
-        'a parameterless own helper returning a widget resolves-through to '
+    test('a parameterless own helper returning a widget resolves-through to '
         'ComposableWidget', () async {
       final result = await classifyFixture(
         {
-          'lib/card.dart': '''
+          'lib/card.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -1861,12 +1915,12 @@ class AcmeCard extends StatelessWidget {
       expect(result, isA<ComposableWidget>());
     });
 
-    test(
-        'a same-library top-level helper function resolves-through to '
+    test('a same-library top-level helper function resolves-through to '
         'ComposableWidget', () async {
       final result = await classifyFixture(
         {
-          'lib/card.dart': '''
+          'lib/card.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -1903,12 +1957,12 @@ class AcmeCard extends StatelessWidget {
       expect(result, isA<ComposableWidget>());
     });
 
-    test(
-        'a same-library static helper method resolves-through to '
+    test('a same-library static helper method resolves-through to '
         'ComposableWidget', () async {
       final result = await classifyFixture(
         {
-          'lib/card.dart': '''
+          'lib/card.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -1950,7 +2004,8 @@ class AcmeCard extends StatelessWidget {
     test('a targeted virtual helper stays outside composition', () async {
       final result = await classifyFixtureResult(
         {
-          'lib/card.dart': '''
+          'lib/card.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -1999,12 +2054,12 @@ class AcmeCard extends StatelessWidget {
       expect(result.blueprints, isNot(contains(key)));
     });
 
-    test(
-        'a static helper in another library of the same package '
+    test('a static helper in another library of the same package '
         'resolves-through to ComposableWidget', () async {
       final result = await classifyFixture(
         {
-          'lib/deps.dart': '''
+          'lib/deps.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2048,11 +2103,13 @@ class AcmeCard extends StatelessWidget {
     });
 
     test(
-        'a parameterized own helper with a 1:1-bound argument resolves-through '
-        'to ComposableWidget', () async {
-      final result = await classifyFixture(
-        {
-          'lib/card.dart': '''
+      'a parameterized own helper with a 1:1-bound argument resolves-through '
+      'to ComposableWidget',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/card.dart':
+                '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2079,21 +2136,22 @@ class AcmeCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(child: _row("Pro"));
 }
 ''',
-        },
-        inputPath: 'lib/card.dart',
-        widgetName: 'AcmeCard',
-        catalog: _stubCatalog(),
-      );
+          },
+          inputPath: 'lib/card.dart',
+          widgetName: 'AcmeCard',
+          catalog: _stubCatalog(),
+        );
 
-      expect(result, isA<ComposableWidget>());
-    });
+        expect(result, isA<ComposableWidget>());
+      },
+    );
 
-    test(
-        'a helper call whose arguments do not bind 1:1 to the parameters is '
+    test('a helper call whose arguments do not bind 1:1 to the parameters is '
         'not inlined (diagnosed defer)', () async {
       final result = await classifyFixture(
         {
-          'lib/card.dart': '''
+          'lib/card.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2133,12 +2191,12 @@ class AcmeCard extends StatelessWidget {
       );
     });
 
-    test(
-        'a helper with a grouped prelude declaration defers naming the '
+    test('a helper with a grouped prelude declaration defers naming the '
         'declaration', () async {
       final result = await classifyFixture(
         {
-          'lib/card.dart': '''
+          'lib/card.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2180,11 +2238,13 @@ class AcmeCard extends StatelessWidget {
       expect(blocker.detail, contains('split'));
     });
 
-    test('a grouped prelude declaration in build() is refused by name',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/card.dart': '''
+    test(
+      'a grouped prelude declaration in build() is refused by name',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/card.dart':
+                '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2213,24 +2273,25 @@ class AcmeCard extends StatelessWidget {
   }
 }
 ''',
-        },
-        inputPath: 'lib/card.dart',
-        widgetName: 'AcmeCard',
-        catalog: _stubCatalog(),
-      );
+          },
+          inputPath: 'lib/card.dart',
+          widgetName: 'AcmeCard',
+          catalog: _stubCatalog(),
+        );
 
-      expect(result, isA<UnclassifiableWidget>());
-      final reason = (result as UnclassifiableWidget).reason;
-      expect(reason, contains("'first, second'"));
-      expect(reason, contains('split'));
-    });
+        expect(result, isA<UnclassifiableWidget>());
+        final reason = (result as UnclassifiableWidget).reason;
+        expect(reason, contains("'first, second'"));
+        expect(reason, contains('split'));
+      },
+    );
 
-    test(
-        'a widget-valued final local binding resolves-through to '
+    test('a widget-valued final local binding resolves-through to '
         'ComposableWidget', () async {
       final result = await classifyFixture(
         {
-          'lib/card.dart': '''
+          'lib/card.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2268,11 +2329,13 @@ class AcmeCard extends StatelessWidget {
       expect(result, isA<ComposableWidget>());
     });
 
-    test('a directly recursive helper is unclassifiable, never looped',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/card.dart': '''
+    test(
+      'a directly recursive helper is unclassifiable, never looped',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/card.dart':
+                '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2293,21 +2356,24 @@ class AcmeCard extends StatelessWidget {
   Widget build(BuildContext context) => _loop();
 }
 ''',
-        },
-        inputPath: 'lib/card.dart',
-        widgetName: 'AcmeCard',
-        catalog: _stubCatalog(),
-      );
+          },
+          inputPath: 'lib/card.dart',
+          widgetName: 'AcmeCard',
+          catalog: _stubCatalog(),
+        );
 
-      expect(result, isA<UnclassifiableWidget>());
-      expect((result as UnclassifiableWidget).reason, contains('recursive'));
-    });
+        expect(result, isA<UnclassifiableWidget>());
+        expect((result as UnclassifiableWidget).reason, contains('recursive'));
+      },
+    );
 
-    test('a mutually recursive helper pair is unclassifiable, never looped',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/card.dart': '''
+    test(
+      'a mutually recursive helper pair is unclassifiable, never looped',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/card.dart':
+                '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2329,21 +2395,24 @@ class AcmeCard extends StatelessWidget {
   Widget build(BuildContext context) => _a();
 }
 ''',
-        },
-        inputPath: 'lib/card.dart',
-        widgetName: 'AcmeCard',
-        catalog: _stubCatalog(),
-      );
+          },
+          inputPath: 'lib/card.dart',
+          widgetName: 'AcmeCard',
+          catalog: _stubCatalog(),
+        );
 
-      expect(result, isA<UnclassifiableWidget>());
-      expect((result as UnclassifiableWidget).reason, contains('recursive'));
-    });
+        expect(result, isA<UnclassifiableWidget>());
+        expect((result as UnclassifiableWidget).reason, contains('recursive'));
+      },
+    );
 
-    test('a reassignable (var) local binding in build() is not inlinable',
-        () async {
-      final result = await classifyFixture(
-        {
-          'lib/card.dart': '''
+    test(
+      'a reassignable (var) local binding in build() is not inlinable',
+      () async {
+        final result = await classifyFixture(
+          {
+            'lib/card.dart':
+                '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2372,23 +2441,24 @@ class AcmeCard extends StatelessWidget {
   }
 }
 ''',
-        },
-        inputPath: 'lib/card.dart',
-        widgetName: 'AcmeCard',
-        catalog: _stubCatalog(),
-      );
+          },
+          inputPath: 'lib/card.dart',
+          widgetName: 'AcmeCard',
+          catalog: _stubCatalog(),
+        );
 
-      expect(result, isA<UnclassifiableWidget>());
-    });
+        expect(result, isA<UnclassifiableWidget>());
+      },
+    );
   });
 
   group('WidgetClassifier — emission blueprints', () {
-    test(
-        'a ComposableWidget gets a blueprint with its build expression and '
+    test('a ComposableWidget gets a blueprint with its build expression and '
         'constructor arg names', () async {
       final result = await classifyFixtureResult(
         {
-          'lib/card.dart': '''
+          'lib/card.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2433,7 +2503,8 @@ class AcmeCard extends StatelessWidget {
     test('an ImperativeWidget gets no blueprint', () async {
       final result = await classifyFixtureResult(
         {
-          'lib/chart.dart': '''
+          'lib/chart.dart':
+              '''
 $kClassifierStubs
 
 class CustomPainter { const CustomPainter(); }
@@ -2473,7 +2544,8 @@ class AcmeChart extends StatelessWidget {
 
   group('WidgetClassifier — constant-folding boundary', () {
     const foldingFixture = {
-      'lib/folding.dart': '''
+      'lib/folding.dart':
+          '''
 $kClassifierStubs
 
 const int kA = 4;
@@ -2531,29 +2603,33 @@ class AcmeCompare extends StatelessWidget {
       );
     });
 
-    test('a const expression the folder cannot evaluate is Unclassifiable',
-        () async {
-      // `kA == kB` is a compile-time constant, but the shared folder does not
-      // evaluate `==` — the classifier must not tag it constantFolding (which
-      // would let it reach inlining), nor call it runtime-imperative.
-      final result = await classifyFixture(
-        foldingFixture,
-        inputPath: 'lib/folding.dart',
-        widgetName: 'AcmeCompare',
-        catalog: foldingCatalog,
-      );
-      expect(result, isA<UnclassifiableWidget>());
-    });
+    test(
+      'a const expression the folder cannot evaluate is Unclassifiable',
+      () async {
+        // `kA == kB` is a compile-time constant, but the shared folder does not
+        // evaluate `==` — the classifier must not tag it constantFolding (which
+        // would let it reach inlining), nor call it runtime-imperative.
+        final result = await classifyFixture(
+          foldingFixture,
+          inputPath: 'lib/folding.dart',
+          widgetName: 'AcmeCompare',
+          catalog: foldingCatalog,
+        );
+        expect(result, isA<UnclassifiableWidget>());
+      },
+    );
   });
 
   group('WidgetClassifier — inlining guards', () {
-    test('a widget declaring multiple constructors is Unclassifiable',
-        () async {
-      // Disambiguating which constructor a call site targets is deferred;
-      // until then a multi-constructor widget must not reach inlining.
-      final result = await classifyFixture(
-        {
-          'lib/multi.dart': '''
+    test(
+      'a widget declaring multiple constructors is Unclassifiable',
+      () async {
+        // Disambiguating which constructor a call site targets is deferred;
+        // until then a multi-constructor widget must not reach inlining.
+        final result = await classifyFixture(
+          {
+            'lib/multi.dart':
+                '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2573,26 +2649,28 @@ class AcmeMultiCtor extends StatelessWidget {
   Widget build(BuildContext context) => Container();
 }
 ''',
-        },
-        inputPath: 'lib/multi.dart',
-        widgetName: 'AcmeMultiCtor',
-        catalog: catalogWith([
-          entry(
-            name: 'Container',
-            properties: const [],
-            flutterType: 'package:apps_examples/multi.dart#Container',
-          ),
-        ]),
-      );
-      expect(result, isA<UnclassifiableWidget>());
-    });
+          },
+          inputPath: 'lib/multi.dart',
+          widgetName: 'AcmeMultiCtor',
+          catalog: catalogWith([
+            entry(
+              name: 'Container',
+              properties: const [],
+              flutterType: 'package:apps_examples/multi.dart#Container',
+            ),
+          ]),
+        );
+        expect(result, isA<UnclassifiableWidget>());
+      },
+    );
 
     test('a parameter with an unfoldable default is Unclassifiable', () async {
       // A structured-const default cannot be folded to a literal, so an
       // omitted argument could not reproduce the Dart default.
       final result = await classifyFixture(
         {
-          'lib/padded.dart': '''
+          'lib/padded.dart':
+              '''
 $kClassifierStubs
 
 class EdgeInsets {
@@ -2637,7 +2715,8 @@ class AcmePadded extends StatelessWidget {
       // argument could not reproduce it.
       final result = await classifyFixture(
         {
-          'lib/sized.dart': '''
+          'lib/sized.dart':
+              '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -2671,8 +2750,7 @@ class AcmeSized extends StatelessWidget {
       expect(result, isA<UnclassifiableWidget>());
     });
 
-    test(
-        'a helper reached only through a subtree the walk does not classify '
+    test('a helper reached only through a subtree the walk does not classify '
         'is not authorised for inlining', () async {
       // A registered helper's arguments are not classified, so a helper called
       // there has an unvetted body and must stay out of the blueprint.
@@ -2693,29 +2771,33 @@ class AcmeSized extends StatelessWidget {
       );
     });
 
-    test('a helper the walk does classify is still authorised for inlining',
-        () async {
-      final result = await _classifyUnreachedHelperFixture(
-        '''
+    test(
+      'a helper the walk does classify is still authorised for inlining',
+      () async {
+        final result = await _classifyUnreachedHelperFixture(
+          '''
   String _heading() => 'welcome';
 
   Widget build(BuildContext context) => Text(_heading());
 ''',
-      );
+        );
 
-      const key = 'package:apps_examples/heading.dart#AcmeHeading';
-      expect(result.classifications[key], isA<ComposableWidget>());
-      expect(
-        result.blueprints[key]?.inlined.helpers.keys.map((e) => e.name),
-        ['_heading'],
-      );
-    });
+        const key = 'package:apps_examples/heading.dart#AcmeHeading';
+        expect(result.classifications[key], isA<ComposableWidget>());
+        expect(
+          result.blueprints[key]?.inlined.helpers.keys.map((e) => e.name),
+          ['_heading'],
+        );
+      },
+    );
 
-    test('a helper a collection traversal follows and classifies is captured',
-        () async {
-      final result = await classifyFixtureResult(
-        {
-          'lib/tiles.dart': '''
+    test(
+      'a helper a collection traversal follows and classifies is captured',
+      () async {
+        final result = await classifyFixtureResult(
+          {
+            'lib/tiles.dart':
+                '''
 $kClassifierStubs
 
 class Text extends StatelessWidget {
@@ -2742,31 +2824,32 @@ class AcmeList extends StatelessWidget {
   Widget build(BuildContext context) => Column(children: [..._tiles()]);
 }
 ''',
-        },
-        inputPath: 'lib/tiles.dart',
-        widgetName: 'AcmeList',
-        catalog: catalogWith([
-          entry(
-            name: 'Text',
-            properties: [prop('text', PropertyType.string, positional: true)],
-            flutterType: 'package:apps_examples/tiles.dart#Text',
-          ),
-          entry(
-            name: 'Column',
-            properties: [prop('children', PropertyType.widgetList)],
-            flutterType: 'package:apps_examples/tiles.dart#Column',
-          ),
-        ]),
-      );
+          },
+          inputPath: 'lib/tiles.dart',
+          widgetName: 'AcmeList',
+          catalog: catalogWith([
+            entry(
+              name: 'Text',
+              properties: [prop('text', PropertyType.string, positional: true)],
+              flutterType: 'package:apps_examples/tiles.dart#Text',
+            ),
+            entry(
+              name: 'Column',
+              properties: [prop('children', PropertyType.widgetList)],
+              flutterType: 'package:apps_examples/tiles.dart#Column',
+            ),
+          ]),
+        );
 
-      const key = 'package:apps_examples/tiles.dart#AcmeList';
-      expect(result.classifications[key], isA<ComposableWidget>());
-      expect(
-        result.blueprints[key]?.inlined.helpers.keys.map((e) => e.name),
-        ['_tiles'],
-        reason: 'a traversal-classified helper must reach the blueprint',
-      );
-    });
+        const key = 'package:apps_examples/tiles.dart#AcmeList';
+        expect(result.classifications[key], isA<ComposableWidget>());
+        expect(
+          result.blueprints[key]?.inlined.helpers.keys.map((e) => e.name),
+          ['_tiles'],
+          reason: 'a traversal-classified helper must reach the blueprint',
+        );
+      },
+    );
   });
 }
 
@@ -2778,7 +2861,8 @@ Future<ClassificationResult> _classifyUnreachedHelperFixture(String members) =>
         'lib/copy.dart': '''
 String localisedText(String key) => key;
 ''',
-        'lib/heading.dart': '''
+        'lib/heading.dart':
+            '''
 import 'copy.dart';
 $kClassifierStubs
 
@@ -2829,7 +2913,8 @@ final Catalog _mechanismsCatalog = catalogWith([
 ]);
 
 final Map<String, String> _mechanismsFixture = {
-  'lib/mechanisms.dart': '''
+  'lib/mechanisms.dart':
+      '''
 $kClassifierStubs
 
 const double kGap = 16;

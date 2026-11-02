@@ -112,20 +112,19 @@ final class MeasurementCompilerEventInput {
     MeasurementPrivacyClass? privacyClass,
     SemanticValueClass? semanticValueClass,
     MeasurementCollectionClass? collectionClass,
-  }) =>
-      MeasurementCompilerEventInput(
-        nodeCodeIdentityId: nodeCodeIdentityId,
-        resolvedEvent: resolvedEvent,
-        lineageId: lineageId ?? this.lineageId,
-        generatedReferenceId: generatedReferenceId ?? this.generatedReferenceId,
-        dartSymbol: dartSymbol ?? this.dartSymbol,
-        displayMetadataRef: displayMetadataRef ?? this.displayMetadataRef,
-        normalizedInteractionKind:
-            normalizedInteractionKind ?? this.normalizedInteractionKind,
-        privacyClass: privacyClass ?? this.privacyClass,
-        semanticValueClass: semanticValueClass ?? this.semanticValueClass,
-        collectionClass: collectionClass ?? this.collectionClass,
-      );
+  }) => MeasurementCompilerEventInput(
+    nodeCodeIdentityId: nodeCodeIdentityId,
+    resolvedEvent: resolvedEvent,
+    lineageId: lineageId ?? this.lineageId,
+    generatedReferenceId: generatedReferenceId ?? this.generatedReferenceId,
+    dartSymbol: dartSymbol ?? this.dartSymbol,
+    displayMetadataRef: displayMetadataRef ?? this.displayMetadataRef,
+    normalizedInteractionKind:
+        normalizedInteractionKind ?? this.normalizedInteractionKind,
+    privacyClass: privacyClass ?? this.privacyClass,
+    semanticValueClass: semanticValueClass ?? this.semanticValueClass,
+    collectionClass: collectionClass ?? this.collectionClass,
+  );
 }
 
 /// One explicit presentation occurrence selected from an emitted RFW call.
@@ -190,14 +189,14 @@ final class PriorActiveLineageLedgerV1 {
 
   /// Canonical inspection representation, outside hash domains.
   Map<String, Object?> toJson() => {
-        'endpoints': [
-          for (final endpoint in _sortedEndpoints(endpoints)) endpoint.toJson(),
-        ],
-        'kind': 'priorActiveLineageLedger',
-        'schemaVersion': kMeasurementSchemaVersion,
-        'surfaceId': surfaceId.value,
-        'surfaceRevisionId': surfaceRevisionId.value,
-      };
+    'endpoints': [
+      for (final endpoint in _sortedEndpoints(endpoints)) endpoint.toJson(),
+    ],
+    'kind': 'priorActiveLineageLedger',
+    'schemaVersion': kMeasurementSchemaVersion,
+    'surfaceId': surfaceId.value,
+    'surfaceRevisionId': surfaceRevisionId.value,
+  };
 }
 
 /// A next-endpoint claim expressed against compiler code identity.
@@ -233,8 +232,8 @@ final class MeasurementLineageTransitionDraft {
     required this.authority,
     List<LineageEndpointV1> prior = const [],
     List<MeasurementCurrentEndpointClaim> next = const [],
-  })  : prior = List.unmodifiable(prior),
-        next = List.unmodifiable(next);
+  }) : prior = List.unmodifiable(prior),
+       next = List.unmodifiable(next);
 
   /// Stable transition identity.
   final LineageTransitionId transitionId;
@@ -273,11 +272,11 @@ final class MeasurementCompilerBoundaryInput {
     List<MeasurementCompilerPresentationInput> presentations = const [],
     required this.priorActiveLedger,
     required List<MeasurementLineageTransitionDraft> lineageTransitions,
-  })  : artifacts = List.unmodifiable(artifacts),
-        nodes = List.unmodifiable(nodes),
-        events = List.unmodifiable(events),
-        presentations = List.unmodifiable(presentations),
-        lineageTransitions = List.unmodifiable(lineageTransitions);
+  }) : artifacts = List.unmodifiable(artifacts),
+       nodes = List.unmodifiable(nodes),
+       events = List.unmodifiable(events),
+       presentations = List.unmodifiable(presentations),
+       lineageTransitions = List.unmodifiable(lineageTransitions);
 
   /// Exact target authority for the resulting documents.
   final TargetCoordinate target;
@@ -339,26 +338,25 @@ final class MeasurementCompilerBoundaryInput {
     List<MeasurementCompilerPresentationInput>? presentations,
     PriorActiveLineageLedgerV1? priorActiveLedger,
     List<MeasurementLineageTransitionDraft>? lineageTransitions,
-  }) =>
-      MeasurementCompilerBoundaryInput(
-        target: target,
-        surfaceId: surfaceId,
-        surfaceRevisionId: surfaceRevisionId,
-        revisionOrdinal: revisionOrdinal,
-        analyticsSurfaceKey: analyticsSurfaceKey,
-        deliverySurfaceType: deliverySurfaceType,
-        minimumMeasurementClient: minimumMeasurementClient,
-        completeManifestId: completeManifestId,
-        privacyPolicyRevisionId: privacyPolicyRevisionId,
-        collectionBudgetRevisionId: collectionBudgetRevisionId,
-        artifacts: artifacts ?? this.artifacts,
-        codeIdentityLedger: codeIdentityLedger ?? this.codeIdentityLedger,
-        nodes: nodes ?? this.nodes,
-        events: events ?? this.events,
-        presentations: presentations ?? this.presentations,
-        priorActiveLedger: priorActiveLedger ?? this.priorActiveLedger,
-        lineageTransitions: lineageTransitions ?? this.lineageTransitions,
-      );
+  }) => MeasurementCompilerBoundaryInput(
+    target: target,
+    surfaceId: surfaceId,
+    surfaceRevisionId: surfaceRevisionId,
+    revisionOrdinal: revisionOrdinal,
+    analyticsSurfaceKey: analyticsSurfaceKey,
+    deliverySurfaceType: deliverySurfaceType,
+    minimumMeasurementClient: minimumMeasurementClient,
+    completeManifestId: completeManifestId,
+    privacyPolicyRevisionId: privacyPolicyRevisionId,
+    collectionBudgetRevisionId: collectionBudgetRevisionId,
+    artifacts: artifacts ?? this.artifacts,
+    codeIdentityLedger: codeIdentityLedger ?? this.codeIdentityLedger,
+    nodes: nodes ?? this.nodes,
+    events: events ?? this.events,
+    presentations: presentations ?? this.presentations,
+    priorActiveLedger: priorActiveLedger ?? this.priorActiveLedger,
+    lineageTransitions: lineageTransitions ?? this.lineageTransitions,
+  );
 }
 
 /// Whether the production boundary accepted or rejected the complete closure.
@@ -380,24 +378,23 @@ final class MeasurementCompilerBoundaryResult {
     required this.publishedSurfaceRevision,
     required List<LineageTransitionV1> lineageTransitions,
     required Map<String, Uint8List> documents,
-  })  : disposition = MeasurementCompilerBoundaryDisposition.accepted,
-        rejectionReason = null,
-        localMeasurementManifests =
-            List.unmodifiable(localMeasurementManifests),
-        lineageTransitions = List.unmodifiable(lineageTransitions),
-        _documents = _immutableDocuments(documents);
+  }) : disposition = MeasurementCompilerBoundaryDisposition.accepted,
+       rejectionReason = null,
+       localMeasurementManifests = List.unmodifiable(localMeasurementManifests),
+       lineageTransitions = List.unmodifiable(lineageTransitions),
+       _documents = _immutableDocuments(documents);
 
   /// Creates a rejected result with no typed products or emitted bytes.
   MeasurementCompilerBoundaryResult.rejected({
     required String reason,
-  })  : disposition = MeasurementCompilerBoundaryDisposition.rejected,
-        rejectionReason = reason,
-        exactArtifactGraph = null,
-        localMeasurementManifests = const [],
-        completeMeasurementManifest = null,
-        publishedSurfaceRevision = null,
-        lineageTransitions = const [],
-        _documents = const {};
+  }) : disposition = MeasurementCompilerBoundaryDisposition.rejected,
+       rejectionReason = reason,
+       exactArtifactGraph = null,
+       localMeasurementManifests = const [],
+       completeMeasurementManifest = null,
+       publishedSurfaceRevision = null,
+       lineageTransitions = const [],
+       _documents = const {};
 
   /// Stable discriminator used by the schema contract adapter.
   static const String productionEntrypointName =
@@ -447,8 +444,8 @@ List<LineageEndpointV1> _sortedEndpoints(List<LineageEndpointV1> endpoints) {
     ..sort(
       (left, right) =>
           '${left.occurrenceId.hex}\u0000${left.lineageId.value}'.compareTo(
-        '${right.occurrenceId.hex}\u0000${right.lineageId.value}',
-      ),
+            '${right.occurrenceId.hex}\u0000${right.lineageId.value}',
+          ),
     );
   return sorted;
 }

@@ -39,12 +39,17 @@ const List<TranslatorRecipe> kGridValueRecipes = [
     typeName: 'SliverGridDelegateWithFixedCrossAxisCount',
     failureDsl: '{}',
     emit: EmitFragmentMap([
-      EmitMapEntry('_s',
-          EmitFragmentLiteral('"SliverGridDelegateWithFixedCrossAxisCount"')),
       EmitMapEntry(
-          'crossAxisCount',
-          EmitFragmentArg(ArgRef.named('crossAxisCount'),
-              propertyType: PropertyType.integer)),
+        '_s',
+        EmitFragmentLiteral('"SliverGridDelegateWithFixedCrossAxisCount"'),
+      ),
+      EmitMapEntry(
+        'crossAxisCount',
+        EmitFragmentArg(
+          ArgRef.named('crossAxisCount'),
+          propertyType: PropertyType.integer,
+        ),
+      ),
       ..._gridDimensions,
     ]),
   ),
@@ -52,10 +57,14 @@ const List<TranslatorRecipe> kGridValueRecipes = [
     typeName: 'SliverGridDelegateWithMaxCrossAxisExtent',
     failureDsl: '{}',
     emit: EmitFragmentMap([
-      EmitMapEntry('_s',
-          EmitFragmentLiteral('"SliverGridDelegateWithMaxCrossAxisExtent"')),
-      EmitMapEntry('maxCrossAxisExtent',
-          EmitFragmentArg(ArgRef.named('maxCrossAxisExtent'), asLength: true)),
+      EmitMapEntry(
+        '_s',
+        EmitFragmentLiteral('"SliverGridDelegateWithMaxCrossAxisExtent"'),
+      ),
+      EmitMapEntry(
+        'maxCrossAxisExtent',
+        EmitFragmentArg(ArgRef.named('maxCrossAxisExtent'), asLength: true),
+      ),
       ..._gridDimensions,
     ]),
   ),
@@ -72,7 +81,9 @@ const List<TranslatorRecipe> kGridValueRecipes = [
     failureDsl: '{}',
     emit: EmitFragmentMap([
       EmitMapEntry(
-          '_s', EmitFragmentLiteral('"RangeMaintainingScrollPhysics"')),
+        '_s',
+        EmitFragmentLiteral('"RangeMaintainingScrollPhysics"'),
+      ),
       _parent,
     ]),
   ),
@@ -83,10 +94,13 @@ const List<TranslatorRecipe> kGridValueRecipes = [
       EmitMapEntry('_s', EmitFragmentLiteral('"BouncingScrollPhysics"')),
       _parent,
       EmitMapEntry(
-          'decelerationRate',
-          EmitFragmentArg(ArgRef.named('decelerationRate'),
-              propertyType: PropertyType.enumValue),
-          omitWhenArgUnset: true),
+        'decelerationRate',
+        EmitFragmentArg(
+          ArgRef.named('decelerationRate'),
+          propertyType: PropertyType.enumValue,
+        ),
+        omitWhenArgUnset: true,
+      ),
     ]),
   ),
   TranslatorRecipe(
@@ -102,7 +116,9 @@ const List<TranslatorRecipe> kGridValueRecipes = [
     failureDsl: '{}',
     emit: EmitFragmentMap([
       EmitMapEntry(
-          '_s', EmitFragmentLiteral('"AlwaysScrollableScrollPhysics"')),
+        '_s',
+        EmitFragmentLiteral('"AlwaysScrollableScrollPhysics"'),
+      ),
       _parent,
     ]),
   ),
@@ -138,7 +154,9 @@ const List<TranslatorRecipe> kGridValueRecipes = [
     emit: EmitFragmentMap([
       EmitMapEntry('_s', EmitFragmentLiteral('"pixels"')),
       EmitMapEntry(
-          'value', EmitFragmentArg(ArgRef.positional(0), asLength: true)),
+        'value',
+        EmitFragmentArg(ArgRef.positional(0), asLength: true),
+      ),
     ]),
   ),
   TranslatorRecipe(
@@ -149,7 +167,9 @@ const List<TranslatorRecipe> kGridValueRecipes = [
     emit: EmitFragmentMap([
       EmitMapEntry('_s', EmitFragmentLiteral('"viewport"')),
       EmitMapEntry(
-          'value', EmitFragmentArg(ArgRef.positional(0), asLength: true)),
+        'value',
+        EmitFragmentArg(ArgRef.positional(0), asLength: true),
+      ),
     ]),
   ),
 ];
@@ -161,18 +181,26 @@ const _parent = EmitMapEntry(
 );
 
 const _gridDimensions = [
-  EmitMapEntry('mainAxisSpacing',
-      EmitFragmentArg(ArgRef.named('mainAxisSpacing'), asLength: true),
-      omitWhenArgUnset: true),
-  EmitMapEntry('crossAxisSpacing',
-      EmitFragmentArg(ArgRef.named('crossAxisSpacing'), asLength: true),
-      omitWhenArgUnset: true),
-  EmitMapEntry('childAspectRatio',
-      EmitFragmentArg(ArgRef.named('childAspectRatio'), asLength: true),
-      omitWhenArgUnset: true),
-  EmitMapEntry('mainAxisExtent',
-      EmitFragmentArg(ArgRef.named('mainAxisExtent'), asLength: true),
-      omitWhenArgUnset: true),
+  EmitMapEntry(
+    'mainAxisSpacing',
+    EmitFragmentArg(ArgRef.named('mainAxisSpacing'), asLength: true),
+    omitWhenArgUnset: true,
+  ),
+  EmitMapEntry(
+    'crossAxisSpacing',
+    EmitFragmentArg(ArgRef.named('crossAxisSpacing'), asLength: true),
+    omitWhenArgUnset: true,
+  ),
+  EmitMapEntry(
+    'childAspectRatio',
+    EmitFragmentArg(ArgRef.named('childAspectRatio'), asLength: true),
+    omitWhenArgUnset: true,
+  ),
+  EmitMapEntry(
+    'mainAxisExtent',
+    EmitFragmentArg(ArgRef.named('mainAxisExtent'), asLength: true),
+    omitWhenArgUnset: true,
+  ),
 ];
 
 const _cacheArity = RecipeValidation(

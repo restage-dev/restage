@@ -61,7 +61,7 @@ final class A2uiAvailableLibrary {
 ///
 /// The app supplies this, normally from the `restageCapability` stamp block of
 /// the catalog it registered (see [A2uiInstalledCapability.fromStampJson]). For
-/// the A2UI path the render truth is the registered genui catalog, not the
+/// the A2UI path the render truth is the registered a2ui_flutter catalog, not the
 /// app's native widget registry — so the available side comes from THAT
 /// catalog's stamp.
 ///

@@ -28,8 +28,9 @@ Future<void> registerRestageOutputLocationSignature(
   RestageOutputLocationPlan plan, {
   required String builderKey,
 }) async {
-  final registry =
-      await buildStep.fetchResource(_outputLocationRegistryResource);
+  final registry = await buildStep.fetchResource(
+    _outputLocationRegistryResource,
+  );
   registry.record(buildStep.inputId.package, plan, builderKey);
 }
 

@@ -16,7 +16,8 @@ Future<TestBuilderResult> _build(
   String body, {
   required List<String> logs,
 }) async {
-  final source = '''
+  final source =
+      '''
     $kStubAnnotationsAndBases
 
     @PaywallSource(id: 'syntax_probe')
@@ -44,8 +45,7 @@ Future<TestBuilderResult> _build(
 
 void main() {
   group('syntactic-error detection', () {
-    test(
-        'an incomplete hex literal fails the build instead of shipping a '
+    test('an incomplete hex literal fails the build instead of shipping a '
         'silently-recovered blob', () async {
       final logs = <String>[];
       // `0x` is an incomplete hex literal (a scanner error). Parser recovery
@@ -62,8 +62,7 @@ void main() {
       expect(log.toLowerCase(), contains('hex'));
     });
 
-    test(
-        'an unterminated string fails the build instead of shipping a '
+    test('an unterminated string fails the build instead of shipping a '
         'silently-recovered blob', () async {
       final logs = <String>[];
       final result = await _build("Text('hello)", logs: logs);
@@ -72,8 +71,7 @@ void main() {
       expect(logs.join('\n'), contains('[malformedSourceInput]'));
     });
 
-    test(
-        'a syntax error that prevents paywall discovery still fails the '
+    test('a syntax error that prevents paywall discovery still fails the '
         'build instead of silently skipping', () async {
       // A top-level syntactic error severe enough that no `@PaywallSource`
       // class is discovered would otherwise hit the no-sources early-return
@@ -81,7 +79,8 @@ void main() {
       // simply absent (a runtime load failure). The syntactic-error pass runs
       // before that early-return, so the malformed file is diagnosed.
       final logs = <String>[];
-      const source = '''
+      const source =
+          '''
         $kStubAnnotationsAndBases
 
         @PaywallSource(id: 'syntax_probe')

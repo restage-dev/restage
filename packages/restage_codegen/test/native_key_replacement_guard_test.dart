@@ -14,30 +14,42 @@ import 'native_key_integration_test.dart'
 void main() {
   final catalogs = [
     for (final package in ['restage_core', 'restage_material'])
-      decodeCatalog(File('../$package/lib/src/widget_catalog/catalog.json')
-          .readAsStringSync())
+      decodeCatalog(
+        File(
+          '../$package/lib/src/widget_catalog/catalog.json',
+        ).readAsStringSync(),
+      ),
   ];
   final catalog = Catalog(
-      schemaVersion: kSupportedSchemaVersion,
-      generatedAt: '1970-01-01T00:00:00Z',
-      libraries: {for (final c in catalogs) ...c.libraries},
-      widgets: [for (final c in catalogs) ...c.widgets],
-      structuredTypes: [for (final c in catalogs) ...c.structuredTypes],
-      unions: [for (final c in catalogs) ...c.unions]);
+    schemaVersion: kSupportedSchemaVersion,
+    generatedAt: '1970-01-01T00:00:00Z',
+    libraries: {for (final c in catalogs) ...c.libraries},
+    widgets: [for (final c in catalogs) ...c.widgets],
+    structuredTypes: [for (final c in catalogs) ...c.structuredTypes],
+    unions: [for (final c in catalogs) ...c.unions],
+  );
   for (final key in ['itemKey', "const ObjectKey('native')"]) {
     test('PageView substitution refuses original native key $key', () async {
       final result = await translateKey(
-          "PageView(key:$key,children:[const SizedBox()])", catalog);
-      expect(result.issues.map((issue) => issue.message),
-          contains(contains('original PageView owner')));
+        "PageView(key:$key,children:[const SizedBox()])",
+        catalog,
+      );
+      expect(
+        result.issues.map((issue) => issue.message),
+        contains(contains('original PageView owner')),
+      );
     });
   }
   test('PageView scalar ValueKey compatibility remains admitted', () async {
     final result = await translateKey(
-        "PageView(key:const ValueKey<String>('legacy'),children:[const SizedBox()])",
-        catalog);
-    expect(result.issues, isEmpty,
-        reason: result.issues.map((i) => i.message).join('\n'));
+      "PageView(key:const ValueKey<String>('legacy'),children:[const SizedBox()])",
+      catalog,
+    );
+    expect(
+      result.issues,
+      isEmpty,
+      reason: result.issues.map((i) => i.message).join('\n'),
+    );
     expect(result.dsl, startsWith('RestagePager('));
   });
   for (final site in ['group', 'container', 'option', 'label', 'dropdown']) {
@@ -49,16 +61,16 @@ void main() {
             ? "DropdownButton<String>(${named('dropdown')}onChanged:(_) {},items:[DropdownMenuItem<String>(value:'a',child:Text('A'))])"
             : "RadioGroup<String>(${named('group')}groupValue:'a',onChanged:(_) {},child:Column(${named('container')}children:[RadioListTile<String>(${named('option')}value:'a',title:Text('A',${named('label')}))]))";
         final probe = await resolveKeySource(
-            "import 'package:flutter/material.dart'; class P extends StatelessWidget {const P({required this.itemKey});final Key itemKey; Widget build(BuildContext context)=>$body;}");
+          "import 'package:flutter/material.dart'; class P extends StatelessWidget {const P({required this.itemKey});final Key itemKey; Widget build(BuildContext context)=>$body;}",
+        );
         final creation = probe.expression as InstanceCreationExpression;
         final outcome = site == 'dropdown'
             ? recogniseDropdown(creation)
             : recogniseRadioGroup(creation);
         expect(
-            outcome,
-            native
-                ? isA<SingleSelectDeferred>()
-                : isA<SingleSelectRecognised>());
+          outcome,
+          native ? isA<SingleSelectDeferred>() : isA<SingleSelectRecognised>(),
+        );
       });
     }
   }
@@ -66,32 +78,40 @@ void main() {
     test('inline custom owner boundary native=$native', () async {
       final key = native ? 'itemKey' : "const ValueKey<String>('legacy')";
       final probe = await resolveKeySource(
-          "import 'package:flutter/material.dart'; class Inline extends StatelessWidget {const Inline({super.key});Widget build(BuildContext context)=>const Text('inside');} class P extends StatelessWidget {const P({required this.itemKey});final Key itemKey;Widget build(BuildContext context)=>Inline(key:$key);}");
+        "import 'package:flutter/material.dart'; class Inline extends StatelessWidget {const Inline({super.key});Widget build(BuildContext context)=>const Text('inside');} class P extends StatelessWidget {const P({required this.itemKey});final Key itemKey;Widget build(BuildContext context)=>Inline(key:$key);}",
+      );
       final declaration = (probe.expression.root as CompilationUnit)
           .declarations
           .whereType<ClassDeclaration>()
           .singleWhere((c) => c.namePart.typeName.lexeme == 'Inline');
-      final body = extractInlinableBuildBody(declaration.body.members
-              .whereType<MethodDeclaration>()
-              .single
-              .body)!
-          .expression;
+      final body = extractInlinableBuildBody(
+        declaration.body.members.whereType<MethodDeclaration>().single.body,
+      )!.expression;
       final classKey = '${probe.classes['Inline']!.library.identifier}#Inline';
-      final result = translateKeyProbe(probe, keyCatalog('restage_core'),
-          classifications: {
-            classKey: ComposableWidget(classKey,
-                requiredMechanisms: const {}, composedCustomWidgets: const [])
-          },
-          blueprints: {
-            classKey: CustomWidgetBlueprint(
-                classKey: classKey,
-                rfwName: 'Inline',
-                buildExpression: body,
-                params: const [])
-          });
+      final result = translateKeyProbe(
+        probe,
+        keyCatalog('restage_core'),
+        classifications: {
+          classKey: ComposableWidget(
+            classKey,
+            requiredMechanisms: const {},
+            composedCustomWidgets: const [],
+          ),
+        },
+        blueprints: {
+          classKey: CustomWidgetBlueprint(
+            classKey: classKey,
+            rfwName: 'Inline',
+            buildExpression: body,
+            params: const [],
+          ),
+        },
+      );
       if (native) {
-        expect(result.issues.map((issue) => issue.message),
-            contains(contains('original custom widget owner')));
+        expect(
+          result.issues.map((issue) => issue.message),
+          contains(contains('original custom widget owner')),
+        );
       } else {
         expect(result.issues, isEmpty);
         expect(result.dsl, 'Inline()');

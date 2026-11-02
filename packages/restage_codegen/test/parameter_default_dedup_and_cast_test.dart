@@ -113,8 +113,7 @@ void main() {
       return (widget: widget, structured: structured);
     }
 
-    test(
-        'a non-theme literal property default skips the parameter default '
+    test('a non-theme literal property default skips the parameter default '
         '(single ??)', () {
       final f = fixture(
         name: 'inherit',
@@ -134,33 +133,35 @@ void main() {
       expect(source, isNot(contains('?? true')));
     });
 
-    test('a ThemeBindingDefault property default keeps the parameter default',
-        () {
-      final f = fixture(
-        name: 'color',
-        type: PropertyType.color,
-        propertyDefault: const ThemeBindingDefault(
-          ThemeBindingPath.path('colorScheme.primary'),
-        ),
-        parameterDefault: const StaticMemberParameterDefault(
-          staticType: DartTypeRef(
-            libraryUri: 'package:flutter/material.dart',
-            symbolName: 'Colors',
+    test(
+      'a ThemeBindingDefault property default keeps the parameter default',
+      () {
+        final f = fixture(
+          name: 'color',
+          type: PropertyType.color,
+          propertyDefault: const ThemeBindingDefault(
+            ThemeBindingPath.path('colorScheme.primary'),
           ),
-          memberName: 'transparent',
-        ),
-      );
-      final source = emitFactoryFunction(
-        f.widget,
-        nativeIndex: _index(f.widget, f.structured),
-      );
+          parameterDefault: const StaticMemberParameterDefault(
+            staticType: DartTypeRef(
+              libraryUri: 'package:flutter/material.dart',
+              symbolName: 'Colors',
+            ),
+            memberName: 'transparent',
+          ),
+        );
+        final source = emitFactoryFunction(
+          f.widget,
+          nativeIndex: _index(f.widget, f.structured),
+        );
 
-      expect(source, isNotNull);
-      // The theme binding resolves to a nullable value at render time, so the
-      // parameter default stays a reachable fallback.
-      expect(source, contains('resolveThemeBinding'));
-      expect(source, contains('?? Colors.transparent'));
-    });
+        expect(source, isNotNull);
+        // The theme binding resolves to a nullable value at render time, so the
+        // parameter default stays a reachable fallback.
+        expect(source, contains('resolveThemeBinding'));
+        expect(source, contains('?? Colors.transparent'));
+      },
+    );
   });
 
   group('D4 — OutlinedBorder cast nullability follows the parameter', () {
@@ -170,45 +171,45 @@ void main() {
     );
 
     WidgetEntry borderedWidget() => WidgetEntry(
-          wireId: WireId('w0001'),
-          name: 'Bordered',
-          library: WidgetLibrary.material,
-          category: WidgetCategory.decoration,
+      wireId: WireId('w0001'),
+      name: 'Bordered',
+      library: WidgetLibrary.material,
+      category: WidgetCategory.decoration,
+      description: '',
+      flutterType: 'package:flutter/material.dart#Bordered',
+      childrenSlot: ChildrenSlot.none,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0001'),
+          name: 'shape',
+          type: PropertyType.shapeBorder,
           description: '',
-          flutterType: 'package:flutter/material.dart#Bordered',
-          childrenSlot: ChildrenSlot.none,
-          properties: [
-            PropertyEntry(
-              wireId: WireId('p0001'),
-              name: 'shape',
-              type: PropertyType.shapeBorder,
-              description: '',
-              valueShape: const ScalarShape(
-                propertyType: PropertyType.shapeBorder,
-                dartTypeRef: outlinedBorderType,
-                wireCodec: CatalogWireCodec.rfwShapeBorder,
-              ),
+          valueShape: const ScalarShape(
+            propertyType: PropertyType.shapeBorder,
+            dartTypeRef: outlinedBorderType,
+            wireCodec: CatalogWireCodec.rfwShapeBorder,
+          ),
+        ),
+      ],
+      decomposes: [
+        DecompositionRecipe(
+          structuredRef: _ref('restage.material', 's0001'),
+          targetArg: 'decoration',
+          flatProperties: {WireId('p0501'): WireId('p0001')},
+          construction: FactoryInvocation(
+            variantRef: _ref('restage.material', 'v0001'),
+            receiver: const ResultStructuredTypeReceiver(),
+          ),
+          fieldMappings: [
+            DecompositionFieldMapping(
+              fieldRef: WireId('p0501'),
+              propertyRef: WireId('p0001'),
+              transform: const IdentityTransform(),
             ),
           ],
-          decomposes: [
-            DecompositionRecipe(
-              structuredRef: _ref('restage.material', 's0001'),
-              targetArg: 'decoration',
-              flatProperties: {WireId('p0501'): WireId('p0001')},
-              construction: FactoryInvocation(
-                variantRef: _ref('restage.material', 'v0001'),
-                receiver: const ResultStructuredTypeReceiver(),
-              ),
-              fieldMappings: [
-                DecompositionFieldMapping(
-                  fieldRef: WireId('p0501'),
-                  propertyRef: WireId('p0001'),
-                  transform: const IdentityTransform(),
-                ),
-              ],
-            ),
-          ],
-        );
+        ),
+      ],
+    );
 
     StructuredEntry borderStructured({required bool nonNullableParameter}) =>
         StructuredEntry(

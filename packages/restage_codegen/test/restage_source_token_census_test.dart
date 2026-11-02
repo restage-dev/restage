@@ -79,7 +79,8 @@ void main() {
       expect(
         directory.existsSync(),
         isTrue,
-        reason: 'this census reads its trees relative to the working '
+        reason:
+            'this census reads its trees relative to the working '
             'directory, so it must run from the package root (`dart test` '
             'from packages/restage_codegen), and the catalog compiler must be '
             'its sibling. Missing: ${directory.path}',
@@ -87,24 +88,28 @@ void main() {
     }
   });
 
-  test('every annotation name discovery accepts is readable by this census',
-      () {
-    expect(
-      census.names,
-      isNotEmpty,
-      reason: 'the census found no discovery call sites at all, which means '
-          'it stopped measuring the thing it is here to measure',
-    );
+  test(
+    'every annotation name discovery accepts is readable by this census',
+    () {
+      expect(
+        census.names,
+        isNotEmpty,
+        reason:
+            'the census found no discovery call sites at all, which means '
+            'it stopped measuring the thing it is here to measure',
+      );
 
-    expect(
-      census.unreadable,
-      isEmpty,
-      reason: 'these discovery call sites pass a name argument this census '
-          'cannot read, so the filter is no longer provably a superset of '
-          'what discovery accepts. Teach the census the shape, or name the '
-          'constant so it can be resolved: ${census.unreadable.join('; ')}',
-    );
-  });
+      expect(
+        census.unreadable,
+        isEmpty,
+        reason:
+            'these discovery call sites pass a name argument this census '
+            'cannot read, so the filter is no longer provably a superset of '
+            'what discovery accepts. Teach the census the shape, or name the '
+            'constant so it can be resolved: ${census.unreadable.join('; ')}',
+      );
+    },
+  );
 
   test('every annotation name discovery accepts is matched by the filter', () {
     final unmatched = [
@@ -117,45 +122,50 @@ void main() {
     expect(
       unmatched,
       isEmpty,
-      reason: 'these annotation names are accepted by discovery but are not '
+      reason:
+          'these annotation names are accepted by discovery but are not '
           'matched by restageWidgetSourceTokens or '
           'restageSurfaceSourceTokens, so a file declaring one would not be '
           'resolved: ${unmatched.join('; ')}',
     );
   });
 
-  test('every annotation identified by class name is matched by the filter',
-      () {
-    final identified = _annotationNamesIdentifiedByClassName();
+  test(
+    'every annotation identified by class name is matched by the filter',
+    () {
+      final identified = _annotationNamesIdentifiedByClassName();
 
-    expect(
-      identified,
-      isNotEmpty,
-      reason: 'this census found no annotation identified by class name at '
-          'all. That shape exists in this package, so finding none means the '
-          'reader stopped measuring rather than that the shape went away',
-    );
+      expect(
+        identified,
+        isNotEmpty,
+        reason:
+            'this census found no annotation identified by class name at '
+            'all. That shape exists in this package, so finding none means the '
+            'reader stopped measuring rather than that the shape went away',
+      );
 
-    final unmatched = [
-      for (final entry in identified.entries)
-        if (!_qualifierAnnotations.contains(entry.key) &&
-            !_nonAnnotationClassNameGuards.contains(entry.key) &&
-            !_matchedByFilter(entry.key))
-          '${entry.key} (${entry.value})',
-    ]..sort();
+      final unmatched = [
+        for (final entry in identified.entries)
+          if (!_qualifierAnnotations.contains(entry.key) &&
+              !_nonAnnotationClassNameGuards.contains(entry.key) &&
+              !_matchedByFilter(entry.key))
+            '${entry.key} (${entry.value})',
+      ]..sort();
 
-    expect(
-      unmatched,
-      isEmpty,
-      reason: 'these annotation names are identified by comparing a resolved '
-          'annotation class name to a literal, and are not matched by '
-          'restageWidgetSourceTokens or restageSurfaceSourceTokens. Either '
-          'the filter must select a file spelling one, or the name qualifies '
-          'a declaration that some other annotation already admitted and '
-          'belongs in _qualifierAnnotations with that argument written down: '
-          '${unmatched.join('; ')}',
-    );
-  });
+      expect(
+        unmatched,
+        isEmpty,
+        reason:
+            'these annotation names are identified by comparing a resolved '
+            'annotation class name to a literal, and are not matched by '
+            'restageWidgetSourceTokens or restageSurfaceSourceTokens. Either '
+            'the filter must select a file spelling one, or the name qualifies '
+            'a declaration that some other annotation already admitted and '
+            'belongs in _qualifierAnnotations with that argument written down: '
+            '${unmatched.join('; ')}',
+      );
+    },
+  );
 
   // The census is an argument about completeness, so the reader that makes it
   // gets the same treatment it gives discovery: every shape it cannot read has
@@ -328,9 +338,9 @@ final class _AnnotationClassNameVisitor extends RecursiveAstVisitor<void> {
   final List<({String receiver, List<String> literals})> _reads = [];
 
   List<String> get found => [
-        for (final read in _reads)
-          if (_isAnnotationClass(read.receiver)) ...read.literals,
-      ];
+    for (final read in _reads)
+      if (_isAnnotationClass(read.receiver)) ...read.literals,
+  ];
 
   bool _isAnnotationClass(String receiver) =>
       _classLocals.contains(receiver) ||
@@ -386,8 +396,9 @@ final class _AnnotationClassNameVisitor extends RecursiveAstVisitor<void> {
     if (receiver == null) return;
     final literals = <String>[];
     for (final pattern in patterns) {
-      if (pattern
-          case ConstantPattern(expression: SimpleStringLiteral(:final value))) {
+      if (pattern case ConstantPattern(
+        expression: SimpleStringLiteral(:final value),
+      )) {
         literals.add(value);
       }
     }
@@ -404,7 +415,7 @@ final class _AnnotationClassNameVisitor extends RecursiveAstVisitor<void> {
           target,
         PropertyAccess(
           target: final target?,
-          propertyName: SimpleIdentifier(name: 'name')
+          propertyName: SimpleIdentifier(name: 'name'),
         ) =>
           target.toSource(),
         _ => null,
@@ -504,8 +515,10 @@ Map<String, CompilationUnit> _censusUnits([List<Directory>? directories]) {
 
   return {
     for (final file in files)
-      p.relative(file.path):
-          parseUnresolvedDart(file.readAsStringSync(), path: file.path),
+      p.relative(file.path): parseUnresolvedDart(
+        file.readAsStringSync(),
+        path: file.path,
+      ),
   };
 }
 
@@ -722,7 +735,7 @@ List<String>? _iteratedConstantFor(
 
 /// The function or method declaration [node] sits in.
 ({String? name, FormalParameterList? parameters, AstNode? body})?
-    _enclosingCallable(AstNode node) {
+_enclosingCallable(AstNode node) {
   for (AstNode? current = node; current != null; current = current.parent) {
     if (current case final FunctionDeclaration declaration) {
       return (
@@ -801,11 +814,10 @@ final class _LocalBindingVisitor extends RecursiveAstVisitor<void> {
   void visitVariableDeclaration(VariableDeclaration node) {
     if (node.name.lexeme == name) {
       final initializer = node.initializer;
-      if (initializer
-          case PrefixedIdentifier(
-            prefix: SimpleIdentifier(name: final prefix),
-            identifier: SimpleIdentifier(name: final property),
-          ) when property == 'key' || property == 'value') {
+      if (initializer case PrefixedIdentifier(
+        prefix: SimpleIdentifier(name: final prefix),
+        identifier: SimpleIdentifier(name: final property),
+      ) when property == 'key' || property == 'value') {
         boundFrom.add(prefix);
       }
     }

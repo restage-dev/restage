@@ -33,7 +33,7 @@ enum DraggableSheetArgumentDisposition {
 /// Per-parameter disposition table for the `DraggableScrollableSheet`
 /// constructor. A test pins these keys to the current Flutter signature.
 const Map<String, DraggableSheetArgumentDisposition>
-    kDraggableSheetArgumentDispositions = {
+kDraggableSheetArgumentDispositions = {
   'key': DraggableSheetArgumentDisposition.drop,
   'initialChildSize': DraggableSheetArgumentDisposition.map,
   'minChildSize': DraggableSheetArgumentDisposition.map,
@@ -254,8 +254,8 @@ Expression? _singleReturnedExpression(FunctionBody body) {
 
 Expression _stripParens(Expression expression) =>
     expression is ParenthesizedExpression
-        ? _stripParens(expression.expression)
-        : expression;
+    ? _stripParens(expression.expression)
+    : expression;
 
 /// Resolved-element preferred, name fallback: whether [expression] references
 /// the scroll-controller formal.

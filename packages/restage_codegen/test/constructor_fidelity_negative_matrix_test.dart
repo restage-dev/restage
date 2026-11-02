@@ -16,11 +16,13 @@ const _annotation = '''
 
 void main() {
   group('constructor-fidelity rejected matrix', () {
-    test('required host plumbing fails and optional plumbing stays reported',
-        () async {
-      const sourcePath = 'lib/host_plumbing.dart';
-      const sources = {
-        sourcePath: '''
+    test(
+      'required host plumbing fails and optional plumbing stays reported',
+      () async {
+        const sourcePath = 'lib/host_plumbing.dart';
+        const sources = {
+          sourcePath:
+              '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -36,49 +38,55 @@ class Probe {
   final FocusNode? optionalNode;
 }
 ''',
-      };
-      final facts = await runWidgetConstructorFactsOn(sources);
-      expect(
-        facts.inputs.map((input) => input.name),
-        containsAll(<String>['requiredNode', 'optionalNode']),
-        reason: 'the source inputs must exist before target rejection',
-      );
-
-      for (final target in WidgetVisitorTarget.values) {
-        final result = await runWidgetVisitorOn(sources, target: target);
-        expect(result.widgets.single.name, 'Probe', reason: target.name);
-        // RFW leaves the widget out; the other targets fail the build.
-        if (target == WidgetVisitorTarget.rfw) {
-          final excluded = result.exclusions.singleWhere(
-            (candidate) => candidate.property == 'requiredNode',
-          );
-          expect(excluded.reason, contains('Target: rfw'));
-          expect(result.widgetUnrenderable.keys, contains(endsWith('#Probe')));
-        } else {
-          final failure = result.issues.singleWhere(
-            (issue) =>
-                issue.location == '$sourcePath#Probe.requiredNode' &&
-                issue.code == IssueCode.unsupportedPropertyType,
-          );
-          expect(failure.message, contains('Target: ${target.name}'));
-        }
-        final exclusion = result.exclusions.singleWhere(
-          (candidate) => candidate.property == 'optionalNode',
-        );
+        };
+        final facts = await runWidgetConstructorFactsOn(sources);
         expect(
-          exclusion.location,
-          'package:apps_examples/host_plumbing.dart#Probe.optionalNode',
+          facts.inputs.map((input) => input.name),
+          containsAll(<String>['requiredNode', 'optionalNode']),
+          reason: 'the source inputs must exist before target rejection',
         );
-        expect(exclusion.target, target.name);
-        expect(exclusion.reason, contains('Target: ${target.name}'));
-      }
-    });
 
-    test('private defaults fail at the input path for each wire target',
-        () async {
-      const sourcePath = 'lib/private_default.dart';
-      const sources = {
-        sourcePath: '''
+        for (final target in WidgetVisitorTarget.values) {
+          final result = await runWidgetVisitorOn(sources, target: target);
+          expect(result.widgets.single.name, 'Probe', reason: target.name);
+          // RFW leaves the widget out; the other targets fail the build.
+          if (target == WidgetVisitorTarget.rfw) {
+            final excluded = result.exclusions.singleWhere(
+              (candidate) => candidate.property == 'requiredNode',
+            );
+            expect(excluded.reason, contains('Target: rfw'));
+            expect(
+              result.widgetUnrenderable.keys,
+              contains(endsWith('#Probe')),
+            );
+          } else {
+            final failure = result.issues.singleWhere(
+              (issue) =>
+                  issue.location == '$sourcePath#Probe.requiredNode' &&
+                  issue.code == IssueCode.unsupportedPropertyType,
+            );
+            expect(failure.message, contains('Target: ${target.name}'));
+          }
+          final exclusion = result.exclusions.singleWhere(
+            (candidate) => candidate.property == 'optionalNode',
+          );
+          expect(
+            exclusion.location,
+            'package:apps_examples/host_plumbing.dart#Probe.optionalNode',
+          );
+          expect(exclusion.target, target.name);
+          expect(exclusion.reason, contains('Target: ${target.name}'));
+        }
+      },
+    );
+
+    test(
+      'private defaults fail at the input path for each wire target',
+      () async {
+        const sourcePath = 'lib/private_default.dart';
+        const sources = {
+          sourcePath:
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const _privateDefault = 7;
@@ -92,34 +100,37 @@ class Probe {
   final int count;
 }
 ''',
-      };
-      final facts = await runWidgetConstructorFactsOn(sources);
-      expect(facts.inputs.single.name, 'count');
-      expect(
-        facts.inputs.single.constructorDefault,
-        isA<UnsupportedWidgetConstructorDefault>(),
-      );
-
-      for (final target in const [
-        WidgetVisitorTarget.rfw,
-        WidgetVisitorTarget.a2ui,
-      ]) {
-        final result = await runWidgetVisitorOn(sources, target: target);
-        expect(result.widgets.single.name, 'Probe', reason: target.name);
-        final issue = result.issues.singleWhere(
-          (candidate) =>
-              candidate.location == '$sourcePath#Probe.count' &&
-              candidate.code == IssueCode.invalidWidgetConstructorInput,
+        };
+        final facts = await runWidgetConstructorFactsOn(sources);
+        expect(facts.inputs.single.name, 'count');
+        expect(
+          facts.inputs.single.constructorDefault,
+          isA<UnsupportedWidgetConstructorDefault>(),
         );
-        expect(issue.message, contains('${target.name} target'));
-      }
-    });
 
-    test('ambiguous and transformed ordinary bindings fail on every target',
-        () async {
-      const sourcePath = 'lib/ordinary_bindings.dart';
-      const sources = {
-        sourcePath: '''
+        for (final target in const [
+          WidgetVisitorTarget.rfw,
+          WidgetVisitorTarget.a2ui,
+        ]) {
+          final result = await runWidgetVisitorOn(sources, target: target);
+          expect(result.widgets.single.name, 'Probe', reason: target.name);
+          final issue = result.issues.singleWhere(
+            (candidate) =>
+                candidate.location == '$sourcePath#Probe.count' &&
+                candidate.code == IssueCode.invalidWidgetConstructorInput,
+          );
+          expect(issue.message, contains('${target.name} target'));
+        }
+      },
+    );
+
+    test(
+      'ambiguous and transformed ordinary bindings fail on every target',
+      () async {
+        const sourcePath = 'lib/ordinary_bindings.dart';
+        const sources = {
+          sourcePath:
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Ordinary-binding rejection probe.
@@ -140,30 +151,31 @@ class Probe {
   final String transformedValue;
 }
 ''',
-      };
-      final facts = await runWidgetConstructorFactsOn(sources);
-      expect(
-        facts.issues.map((issue) => issue.location),
-        containsAll(<String>[
-          '$sourcePath#Probe.ambiguous',
-          '$sourcePath#Probe.transformed',
-        ]),
-        reason: 'both constructor parameters must survive into fact errors',
-      );
-
-      for (final target in WidgetVisitorTarget.values) {
-        final result = await runWidgetVisitorOn(sources, target: target);
-        expect(result.widgets.single.name, 'Probe', reason: target.name);
-        final failures = result.issues.where(
-          (issue) => issue.code == IssueCode.invalidWidgetConstructorInput,
-        );
-        expect(failures, hasLength(2), reason: target.name);
+        };
+        final facts = await runWidgetConstructorFactsOn(sources);
         expect(
-          failures.map((issue) => issue.message),
-          everyElement(contains('For the ${target.name} target')),
+          facts.issues.map((issue) => issue.location),
+          containsAll(<String>[
+            '$sourcePath#Probe.ambiguous',
+            '$sourcePath#Probe.transformed',
+          ]),
+          reason: 'both constructor parameters must survive into fact errors',
         );
-      }
-    });
+
+        for (final target in WidgetVisitorTarget.values) {
+          final result = await runWidgetVisitorOn(sources, target: target);
+          expect(result.widgets.single.name, 'Probe', reason: target.name);
+          final failures = result.issues.where(
+            (issue) => issue.code == IssueCode.invalidWidgetConstructorInput,
+          );
+          expect(failures, hasLength(2), reason: target.name);
+          expect(
+            failures.map((issue) => issue.message),
+            everyElement(contains('For the ${target.name} target')),
+          );
+        }
+      },
+    );
 
     test('named-only and factory-only widgets fail on every target', () async {
       for (final fixture in <(String, String)>[
@@ -193,7 +205,8 @@ class FactoryOnlyProbeImpl implements FactoryOnlyProbe {
       ]) {
         final sourcePath = 'lib/${fixture.$1}.dart';
         final sources = {
-          sourcePath: '''
+          sourcePath:
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 @RestageWidget(
@@ -229,11 +242,13 @@ ${fixture.$2}
       }
     });
 
-    test('RFW rejects callback arity, payload, and return at source paths',
-        () async {
-      const sourcePath = 'lib/rfw_callbacks.dart';
-      const sources = {
-        sourcePath: '''
+    test(
+      'RFW rejects callback arity, payload, and return at source paths',
+      () async {
+        const sourcePath = 'lib/rfw_callbacks.dart';
+        const sources = {
+          sourcePath:
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// RFW callback rejection probe.
@@ -255,41 +270,43 @@ class Probe {
   final int Function() badReturn;
 }
 ''',
-      };
-      final facts = await runWidgetConstructorFactsOn(sources);
-      expect(
-        facts.inputs.map((input) => input.name),
-        containsAll(<String>['badArity', 'badPayload', 'badReturn']),
-      );
-      final result = await runWidgetVisitorOn(sources);
-      expect(
-        result.widgets.single.properties.map((property) => property.name),
-        containsAll(<String>['badArity', 'badPayload', 'badReturn']),
-        reason: 'callbacks must remain in the intermediate RFW catalog',
-      );
-      final failures = result.issues.where(
-        (issue) => issue.code == IssueCode.invalidEventConfiguration,
-      );
-      expect(failures, hasLength(3));
-      expect(
-        failures.map((issue) => issue.location),
-        containsAll(<String>[
-          '$sourcePath#Probe.badArity',
-          '$sourcePath#Probe.badPayload',
-          '$sourcePath#Probe.badReturn',
-        ]),
-      );
-      expect(
-        failures.map((issue) => issue.message),
-        everyElement(contains('RFW custom events')),
-      );
-    });
+        };
+        final facts = await runWidgetConstructorFactsOn(sources);
+        expect(
+          facts.inputs.map((input) => input.name),
+          containsAll(<String>['badArity', 'badPayload', 'badReturn']),
+        );
+        final result = await runWidgetVisitorOn(sources);
+        expect(
+          result.widgets.single.properties.map((property) => property.name),
+          containsAll(<String>['badArity', 'badPayload', 'badReturn']),
+          reason: 'callbacks must remain in the intermediate RFW catalog',
+        );
+        final failures = result.issues.where(
+          (issue) => issue.code == IssueCode.invalidEventConfiguration,
+        );
+        expect(failures, hasLength(3));
+        expect(
+          failures.map((issue) => issue.location),
+          containsAll(<String>[
+            '$sourcePath#Probe.badArity',
+            '$sourcePath#Probe.badPayload',
+            '$sourcePath#Probe.badReturn',
+          ]),
+        );
+        expect(
+          failures.map((issue) => issue.message),
+          everyElement(contains('RFW custom events')),
+        );
+      },
+    );
 
-    test('A2UI rejects dangling, duplicate, and conflicting pairings',
-        () async {
-      const sourcePath = 'lib/a2ui_pairings.dart';
-      const sources = {
-        sourcePath: '''
+    test(
+      'A2UI rejects dangling, duplicate, and conflicting pairings',
+      () async {
+        const sourcePath = 'lib/a2ui_pairings.dart';
+        const sources = {
+          sourcePath: '''
 import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
 
 @a2ui.Config.writeBackValues({
@@ -315,37 +332,44 @@ class Probe {
   final void Function(int) onCountChanged;
 }
 ''',
-      };
-      final facts = await runWidgetConstructorFactsOn(sources);
-      expect(
-        facts.inputs.map((input) => input.name),
-        containsAll(<String>['value', 'count', 'onChanged', 'onCountChanged']),
-        reason: 'all pairing endpoints must exist before A2UI validation',
-      );
-      final config = await runTargetConfigReadersOn(sources);
-      expect(
-        config.issues.map((issue) => issue.code),
-        containsAll(<IssueCode>[
-          IssueCode.invalidTargetConfigReference,
-          IssueCode.duplicateTargetConfig,
-          IssueCode.conflictingTargetConfig,
-        ]),
-      );
-      expect(
-        config.issues.map((issue) => issue.location),
-        everyElement(startsWith('$sourcePath#Probe')),
-      );
-      expect(
-        config.issues.map((issue) => issue.message).join('\n'),
-        contains('A2UI'),
-      );
-    });
+        };
+        final facts = await runWidgetConstructorFactsOn(sources);
+        expect(
+          facts.inputs.map((input) => input.name),
+          containsAll(<String>[
+            'value',
+            'count',
+            'onChanged',
+            'onCountChanged',
+          ]),
+          reason: 'all pairing endpoints must exist before A2UI validation',
+        );
+        final config = await runTargetConfigReadersOn(sources);
+        expect(
+          config.issues.map((issue) => issue.code),
+          containsAll(<IssueCode>[
+            IssueCode.invalidTargetConfigReference,
+            IssueCode.duplicateTargetConfig,
+            IssueCode.conflictingTargetConfig,
+          ]),
+        );
+        expect(
+          config.issues.map((issue) => issue.location),
+          everyElement(startsWith('$sourcePath#Probe')),
+        );
+        expect(
+          config.issues.map((issue) => issue.message).join('\n'),
+          contains('A2UI'),
+        );
+      },
+    );
 
-    test('a genuine unresolved A2UI annotation fails at its source path',
-        () async {
-      const sourcePath = 'lib/unresolved_a2ui_annotation.dart';
-      const sources = {
-        sourcePath: '''
+    test(
+      'a genuine unresolved A2UI annotation fails at its source path',
+      () async {
+        const sourcePath = 'lib/unresolved_a2ui_annotation.dart';
+        const sources = {
+          sourcePath: '''
 import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
 
 String runtimeUsage() => 'runtime';
@@ -353,21 +377,24 @@ String runtimeUsage() => 'runtime';
 @a2ui.Config(usage: runtimeUsage())
 class Probe {}
 ''',
-      };
-      final config = await runTargetConfigReadersOn(sources);
-      final issue = config.issues.singleWhere(
-        (candidate) => candidate.code == IssueCode.missingAnnotationField,
-      );
-      expect(issue.location, startsWith('$sourcePath#Probe@a2ui.Config'));
-      expect(issue.message, contains('a2ui.Config'));
-      expect(config.writeBackValues, isEmpty);
-    });
+        };
+        final config = await runTargetConfigReadersOn(sources);
+        final issue = config.issues.singleWhere(
+          (candidate) => candidate.code == IssueCode.missingAnnotationField,
+        );
+        expect(issue.location, startsWith('$sourcePath#Probe@a2ui.Config'));
+        expect(issue.message, contains('a2ui.Config'));
+        expect(config.writeBackValues, isEmpty);
+      },
+    );
 
-    test('target capability walls retain the widget before rejection',
-        () async {
-      const sourcePath = 'lib/capability_walls.dart';
-      const sources = {
-        sourcePath: '''
+    test(
+      'target capability walls retain the widget before rejection',
+      () async {
+        const sourcePath = 'lib/capability_walls.dart';
+        const sources = {
+          sourcePath:
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Capability-wall rejection probe.
@@ -382,52 +409,53 @@ class Probe {
   final DateTime timestamp;
 }
 ''',
-      };
-      final facts = await runWidgetConstructorFactsOn(sources);
-      expect(
-        facts.inputs.map((input) => input.name),
-        containsAll(<String>['items', 'timestamp']),
-      );
-
-      for (final target in WidgetVisitorTarget.values) {
-        final result = await runWidgetVisitorOn(sources, target: target);
-        expect(result.widgets.single.name, 'Probe', reason: target.name);
-        final failures = result.issues.where(
-          (issue) => issue.code == IssueCode.unsupportedPropertyType,
-        );
-        if (target == WidgetVisitorTarget.rfw) {
-          expect(
-            result.exclusions.map((exclusion) => exclusion.location),
-            contains(
-              'package:apps_examples/capability_walls.dart#Probe.timestamp',
-            ),
-          );
-        } else {
-          expect(
-            failures.map((issue) => issue.location),
-            contains('$sourcePath#Probe.timestamp'),
-            reason: target.name,
-          );
-        }
+        };
+        final facts = await runWidgetConstructorFactsOn(sources);
         expect(
-          failures.map((issue) => issue.message),
-          everyElement(contains('Target: ${target.name}')),
-          reason: target.name,
+          facts.inputs.map((input) => input.name),
+          containsAll(<String>['items', 'timestamp']),
         );
-        if (target != WidgetVisitorTarget.widgetbook) {
-          expect(
-            result.widgets.single.properties.map((property) => property.name),
-            contains('items'),
+
+        for (final target in WidgetVisitorTarget.values) {
+          final result = await runWidgetVisitorOn(sources, target: target);
+          expect(result.widgets.single.name, 'Probe', reason: target.name);
+          final failures = result.issues.where(
+            (issue) => issue.code == IssueCode.unsupportedPropertyType,
           );
-        } else {
+          if (target == WidgetVisitorTarget.rfw) {
+            expect(
+              result.exclusions.map((exclusion) => exclusion.location),
+              contains(
+                'package:apps_examples/capability_walls.dart#Probe.timestamp',
+              ),
+            );
+          } else {
+            expect(
+              failures.map((issue) => issue.location),
+              contains('$sourcePath#Probe.timestamp'),
+              reason: target.name,
+            );
+          }
           expect(
-            failures.map((issue) => issue.location),
-            contains('$sourcePath#Probe.items'),
+            failures.map((issue) => issue.message),
+            everyElement(contains('Target: ${target.name}')),
             reason: target.name,
           );
+          if (target != WidgetVisitorTarget.widgetbook) {
+            expect(
+              result.widgets.single.properties.map((property) => property.name),
+              contains('items'),
+            );
+          } else {
+            expect(
+              failures.map((issue) => issue.location),
+              contains('$sourcePath#Probe.items'),
+              reason: target.name,
+            );
+          }
         }
-      }
-    });
+      },
+    );
 
     test('Widgetbook import collisions name both target and source path', () {
       const sourcePath = 'lib/collision.dart#CollisionProbe.data';

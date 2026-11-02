@@ -55,17 +55,18 @@ final $provider = () => _${provider}Value;
 }
 
 String _contractLiteral(Object? value) => switch (value) {
-      null => 'null',
-      String() => dartStringLiteral(value),
-      bool() || num() => '$value',
-      // Typed literals keep empty collections decodable as JSON objects.
-      List<Object?>() => '<Object?>[${value.map(_contractLiteral).join(', ')}]',
-      Map<String, Object?>() => '<String, Object?>{${value.entries.map(
-            (entry) => '${dartStringLiteral(entry.key)}: '
-                '${_contractLiteral(entry.value)}',
-          ).join(', ')}}',
-      _ => throw ArgumentError.value(value, 'value'),
-    };
+  null => 'null',
+  String() => dartStringLiteral(value),
+  bool() || num() => '$value',
+  // Typed literals keep empty collections decodable as JSON objects.
+  List<Object?>() => '<Object?>[${value.map(_contractLiteral).join(', ')}]',
+  Map<String, Object?>() =>
+    '<String, Object?>{${value.entries.map(
+      (entry) => '${dartStringLiteral(entry.key)}: '
+          '${_contractLiteral(entry.value)}',
+    ).join(', ')}}',
+  _ => throw ArgumentError.value(value, 'value'),
+};
 
 /// Builds the inert host-data contract one screen declares.
 ///
@@ -76,32 +77,32 @@ String _contractLiteral(Object? value) => switch (value) {
 SurfaceScreenHostDataSchema hostDataContractOf(
   Iterable<RootContextParam> rootParams, {
   Iterable<HoistedValue> hoisted = const [],
-}) =>
-    SurfaceScreenHostDataSchema(<String, SurfaceScreenHostDataShape>{
-      for (final param in rootParams)
-        if (!param.forwardsFlutterKey && param.hostDataShape != null)
-          param.name: _withItemValues(
-            hostDataContractShapeOf(param.hostDataShape!),
-            [
-              for (final value in hoisted)
-                if (value.item == param.name) value,
-            ],
-          ),
-      for (final value in hoisted)
-        if (value.item == null) value.key: value.shape,
-      // Derivation passes no root params; per-item values still need their list.
-      for (final item in {
-        for (final value in hoisted)
-          if (value.item case final item?
-              when !rootParams.any((param) => param.name == item))
-            item,
-      })
-        item: SurfaceScreenHostDataListShapeV1(
-            SurfaceScreenHostDataObjectShapeV1({
+}) => SurfaceScreenHostDataSchema(<String, SurfaceScreenHostDataShape>{
+  for (final param in rootParams)
+    if (!param.forwardsFlutterKey && param.hostDataShape != null)
+      param.name: _withItemValues(
+        hostDataContractShapeOf(param.hostDataShape!),
+        [
           for (final value in hoisted)
-            if (value.item == item) value.key: value.shape,
-        })),
-    });
+            if (value.item == param.name) value,
+        ],
+      ),
+  for (final value in hoisted)
+    if (value.item == null) value.key: value.shape,
+  // Derivation passes no root params; per-item values still need their list.
+  for (final item in {
+    for (final value in hoisted)
+      if (value.item case final item?
+          when !rootParams.any((param) => param.name == item))
+        item,
+  })
+    item: SurfaceScreenHostDataListShapeV1(
+      SurfaceScreenHostDataObjectShapeV1({
+        for (final value in hoisted)
+          if (value.item == item) value.key: value.shape,
+      }),
+    ),
+});
 
 /// [shape] with [values] added to each item of the list it describes.
 SurfaceScreenHostDataShape _withItemValues(
@@ -135,28 +136,29 @@ SurfaceScreenHostDataShape hostDataContractShapeOf(HostDataShape shape) {
 SurfaceScreenHostDataShape _nonNullContractShapeOf(HostDataShape shape) =>
     switch (shape) {
       HostDataDateTimeShape() => SurfaceScreenHostDataObjectShapeV1({
-          'microsecondsSinceEpoch': const SurfaceScreenHostDataScalarShapeV1(
-            SurfaceScreenHostDataScalarKind.integer,
-          ),
-          'isUtc': const SurfaceScreenHostDataScalarShapeV1(
-            SurfaceScreenHostDataScalarKind.boolean,
-          ),
-        }),
-      HostDataScalarShape(:final kind) =>
-        SurfaceScreenHostDataScalarShapeV1(_scalarKindOf(kind)),
+        'microsecondsSinceEpoch': const SurfaceScreenHostDataScalarShapeV1(
+          SurfaceScreenHostDataScalarKind.integer,
+        ),
+        'isUtc': const SurfaceScreenHostDataScalarShapeV1(
+          SurfaceScreenHostDataScalarKind.boolean,
+        ),
+      }),
+      HostDataScalarShape(:final kind) => SurfaceScreenHostDataScalarShapeV1(
+        _scalarKindOf(kind),
+      ),
       HostDataListShape(:final elementShape) =>
         SurfaceScreenHostDataListShapeV1(
           hostDataContractShapeOf(elementShape),
         ),
       HostDataMapShape(:final valueShape) => SurfaceScreenHostDataMapShapeV1(
-          hostDataContractShapeOf(valueShape),
-        ),
+        hostDataContractShapeOf(valueShape),
+      ),
       HostDataObjectShape(:final fields) => SurfaceScreenHostDataObjectShapeV1(
-          <String, SurfaceScreenHostDataShape>{
-            for (final field in fields)
-              field.wireKey: hostDataContractShapeOf(field.shape),
-          },
-        ),
+        <String, SurfaceScreenHostDataShape>{
+          for (final field in fields)
+            field.wireKey: hostDataContractShapeOf(field.shape),
+        },
+      ),
     };
 
 SurfaceScreenHostDataScalarKind _scalarKindOf(HostDataScalarKind kind) =>

@@ -16,9 +16,9 @@ import 'helpers.dart';
 
 void main() {
   ExpressionTranslator t() => ExpressionTranslator(
-        catalog: kEmptyCatalog,
-        helpers: HelperRegistry()..registerAll(paywallHelpers),
-      );
+    catalog: kEmptyCatalog,
+    helpers: HelperRegistry()..registerAll(paywallHelpers),
+  );
   const annual = CustomWidgetStateField(
     name: 'annual',
     isNumeric: false,
@@ -64,20 +64,22 @@ void main() {
       );
     });
 
-    test('Border.all width — INT-STATE arm (composes with the N-arm switch)',
-        () async {
-      final r = await emit(
-        'Border.all(width: selectedTier == 0 ? 1 : 2)',
-        state: [tier],
-      );
-      expect(r.clean, isTrue);
-      expect(
-        r.dsl,
-        contains(
-          'width: switch state.selectedTier { 0: 1.0, default: 2.0 }',
-        ),
-      );
-    });
+    test(
+      'Border.all width — INT-STATE arm (composes with the N-arm switch)',
+      () async {
+        final r = await emit(
+          'Border.all(width: selectedTier == 0 ? 1 : 2)',
+          state: [tier],
+        );
+        expect(r.clean, isTrue);
+        expect(
+          r.dsl,
+          contains(
+            'width: switch state.selectedTier { 0: 1.0, default: 2.0 }',
+          ),
+        );
+      },
+    );
 
     test('Offset — both coordinates', () async {
       final r = await emit('Offset(annual ? 0 : 4, 8)');
@@ -128,21 +130,23 @@ void main() {
       'RadialGradient',
       'SweepGradient',
     ]) {
-      test('$gradient coerces conditional elements under loop bindings',
-          () async {
-        final r = await emit(
-          '$gradient(colors: [Color(0xFF000000), Color(0xFFFFFFFF)], '
-          'stops: [for (final stop in const [0, 1]) annual ? stop : 2])',
-        );
-        expect(r.clean, isTrue);
-        expect(
-          r.dsl,
-          contains(
-            'stops: [switch state.annual { true: 0.0, false: 2.0 }, '
-            'switch state.annual { true: 1.0, false: 2.0 }]',
-          ),
-        );
-      });
+      test(
+        '$gradient coerces conditional elements under loop bindings',
+        () async {
+          final r = await emit(
+            '$gradient(colors: [Color(0xFF000000), Color(0xFFFFFFFF)], '
+            'stops: [for (final stop in const [0, 1]) annual ? stop : 2])',
+          );
+          expect(r.clean, isTrue);
+          expect(
+            r.dsl,
+            contains(
+              'stops: [switch state.annual { true: 0.0, false: 2.0 }, '
+              'switch state.annual { true: 1.0, false: 2.0 }]',
+            ),
+          );
+        },
+      );
     }
 
     test('gradient stops list — a bare-int conditional element', () async {

@@ -1,7 +1,9 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:a2ui_core/a2ui_core.dart' as core;
 import 'package:crypto/crypto.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_protocol.dart';
 import 'package:restage_codegen/src/a2ui/rfc8785_canonical_json.dart';
@@ -24,18 +26,18 @@ String a2uiCatalogIdentityInstruction(String catalogId) =>
 /// when emitting that component).
 ///
 /// [dataSchema] is the complete projected component schema: its data fields,
-/// required set, nullability, and the required `component` discriminator.
+/// required set, nullability, and locally owned rich definitions.
 ///
 /// This is part of the **shape-isolation surface**: the in-memory model of the
-/// A2UI catalog the adapter projects to. It is plain data — it imports nothing
-/// from the genui SDK and serializes to maps directly.
+/// A2UI catalog the adapter projects to. The pure-Dart A2UI core owns catalog
+/// serialization; Flutter implementation code is emitted separately.
 @immutable
 final class A2uiComponent {
   /// Creates a component carrier.
   const A2uiComponent({required this.name, required this.dataSchema});
 
   /// The component name — the key under the catalog's `components` map and the
-  /// value of the schema's `component` discriminator.
+  /// value of the component envelope's `component` discriminator.
   final String name;
 
   /// The component's JSON-Schema object (already a JSON-encodable map).
@@ -58,12 +60,12 @@ final class A2uiLibraryCapability {
     required this.namespace,
     required this.version,
     this.compatibleSince = 1,
-  })  : assert(namespace.length > 0, 'namespace must not be empty'),
-        assert(version >= 1, 'version must be a positive capability version'),
-        assert(
-          compatibleSince >= 1 && compatibleSince <= version,
-          'compatibleSince must be between 1 and version',
-        );
+  }) : assert(namespace.length > 0, 'namespace must not be empty'),
+       assert(version >= 1, 'version must be a positive capability version'),
+       assert(
+         compatibleSince >= 1 && compatibleSince <= version,
+         'compatibleSince must be between 1 and version',
+       );
 
   /// The custom library's namespace, e.g. `acme.widgets`.
   final String namespace;
@@ -76,10 +78,10 @@ final class A2uiLibraryCapability {
 
   /// JSON wire form; `compatibleSince` is written only when above 1.
   Map<String, Object?> toJson() => {
-        'namespace': namespace,
-        'version': version,
-        if (compatibleSince > 1) 'compatibleSince': compatibleSince,
-      };
+    'namespace': namespace,
+    'version': version,
+    if (compatibleSince > 1) 'compatibleSince': compatibleSince,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -124,17 +126,17 @@ final class RestageCapabilityStamp {
     required this.catalogContentVersion,
     required List<A2uiLibraryCapability> availableLibraries,
     required Map<String, int> perItemSinceVersion,
-  })  : assert(
-          catalogContentVersion >= 1,
-          'catalogContentVersion must be a positive content-version floor',
-        ),
-        availableLibraries = List.unmodifiable(
-          List<A2uiLibraryCapability>.of(availableLibraries)
-            ..sort((a, b) => a.namespace.compareTo(b.namespace)),
-        ),
-        perItemSinceVersion = UnmodifiableMapView(
-          SplayTreeMap<String, int>.of(perItemSinceVersion),
-        );
+  }) : assert(
+         catalogContentVersion >= 1,
+         'catalogContentVersion must be a positive content-version floor',
+       ),
+       availableLibraries = List.unmodifiable(
+         List<A2uiLibraryCapability>.of(availableLibraries)
+           ..sort((a, b) => a.namespace.compareTo(b.namespace)),
+       ),
+       perItemSinceVersion = UnmodifiableMapView(
+         SplayTreeMap<String, int>.of(perItemSinceVersion),
+       );
 
   /// The built-in content version the catalog provides (the available
   /// counterpart to `CapabilityManifest.builtInFloor`).
@@ -151,12 +153,12 @@ final class RestageCapabilityStamp {
   /// empty list — mirroring the manifest's always-emit rule, so a consumer
   /// never distinguishes "absent" from "empty".
   Map<String, Object?> toJson() => {
-        'catalogContentVersion': catalogContentVersion,
-        'availableLibraries': [
-          for (final library in availableLibraries) library.toJson(),
-        ],
-        'perItemSinceVersion': Map<String, int>.of(perItemSinceVersion),
-      };
+    'catalogContentVersion': catalogContentVersion,
+    'availableLibraries': [
+      for (final library in availableLibraries) library.toJson(),
+    ],
+    'perItemSinceVersion': Map<String, int>.of(perItemSinceVersion),
+  };
 }
 
 /// An emitted A2UI catalog wrapped in its Restage capability stamp.
@@ -177,18 +179,19 @@ final class RestageStampedA2uiCatalog {
     required List<A2uiComponent> components,
     Map<String, Object?> functions = const {},
     List<String> systemPromptFragments = const [],
-  })  : components = List<A2uiComponent>.unmodifiable(
-          <A2uiComponent>[
-            for (final component in components)
-              A2uiComponent(
-                name: component.name,
-                dataSchema: _freezeJsonMap(component.dataSchema),
-              ),
-          ]..sort((a, b) => a.name.compareTo(b.name)),
-        ),
-        functions = _freezeJsonMap(functions),
-        nonIdentitySystemPromptFragments =
-            List.unmodifiable(systemPromptFragments) {
+  }) : components = List<A2uiComponent>.unmodifiable(
+         <A2uiComponent>[
+           for (final component in components)
+             A2uiComponent(
+               name: component.name,
+               dataSchema: _freezeJsonMap(component.dataSchema),
+             ),
+         ]..sort((a, b) => a.name.compareTo(b.name)),
+       ),
+       functions = _freezeJsonMap(functions),
+       nonIdentitySystemPromptFragments = List.unmodifiable(
+         systemPromptFragments,
+       ) {
     canonicalDigestPreimage = canonicalizeJsonRfc8785(
       _registrationContract(
         stamp: stamp,
@@ -198,8 +201,9 @@ final class RestageStampedA2uiCatalog {
         nonIdentitySystemPromptFragments: nonIdentitySystemPromptFragments,
       ),
     );
-    final sentinelCount =
-        kA2uiCatalogIdentitySentinel.allMatches(canonicalDigestPreimage).length;
+    final sentinelCount = kA2uiCatalogIdentitySentinel
+        .allMatches(canonicalDigestPreimage)
+        .length;
     if (sentinelCount != 1) {
       throw ArgumentError.value(
         sentinelCount,
@@ -236,7 +240,8 @@ final class RestageStampedA2uiCatalog {
   /// **This is a document identifier, NEVER a capability authority** —
   /// capability decisions read [stamp], not this string. The SHA-256 digest
   /// covers the complete predefined registration contract.
-  late final String documentId = 'restage:catalog/sha256/'
+  late final String documentId =
+      'restage:catalog/sha256/'
       '${sha256.convert(utf8.encode(canonicalDigestPreimage))}';
 
   /// The A2UI schema dialect shared by the producer document and generated
@@ -262,49 +267,75 @@ final class RestageStampedA2uiCatalog {
   ]);
 
   /// JSON wire form — `{ restageCapability, a2uiCatalog }`.
-  Map<String, Object?> toJson() {
-    final id = documentId;
-    return {
-      'restageCapability': stamp.toJson(),
-      'a2uiCatalog': {
-        r'$schema': kA2uiSchemaDialect,
-        r'$id': id,
-        'title': 'Restage A2UI Catalog',
-        'description':
-            'A2UI component catalog generated from Restage widget source.',
-        'catalogId': id,
-        'a2uiProtocolVersion': kA2uiProtocolVersion,
-        'components': {for (final c in components) c.name: c.dataSchema},
-        'functions': functions,
-        'systemPromptFragments': List<String>.of(systemPromptFragments),
-      },
-    };
-  }
+  Map<String, Object?> toJson() => {
+    'restageCapability': stamp.toJson(),
+    'a2uiCatalog': _catalogDocument(
+      components: components,
+      functions: functions,
+      id: documentId,
+      instructions: systemPromptFragments.join('\n'),
+    ),
+  };
 }
 
+Map<String, Object?> _catalogDocument({
+  required List<A2uiComponent> components,
+  required Map<String, Object?> functions,
+  required String id,
+  required String instructions,
+}) => core.Catalog<core.ComponentApi, core.FunctionApi>(
+  id: id,
+  schemaId: id,
+  protocolVersion: core.A2uiProtocolVersion.v1_0,
+  title: _catalogTitle,
+  description: _catalogDescription,
+  instructions: instructions,
+  components: [
+    for (final c in components)
+      core.ComponentApi(
+        name: c.name,
+        schema: Schema.fromMap(a2uiComponentPropertySchema(c.dataSchema)),
+      ),
+  ],
+  definitions: a2uiCatalogDefinitions({
+    for (final c in components) c.name: c.dataSchema,
+  }),
+  functions: [
+    for (final entry in functions.entries)
+      core.FunctionApi(
+        name: entry.key,
+        argumentSchema: Schema.fromMap(const {}),
+        definition: (entry.value! as Map).cast<String, Object?>(),
+      ),
+  ],
+).toJson();
+
+const _catalogTitle = 'Restage A2UI Catalog';
+const _catalogDescription =
+    'A2UI component catalog generated from Restage widget source.';
+
+// Restage's own projection, so an upstream serializer change cannot rotate the
+// catalog ID.
 Map<String, Object?> _registrationContract({
   required RestageCapabilityStamp stamp,
   required List<A2uiComponent> components,
   required Map<String, Object?> functions,
   required String identityCatalogId,
   required List<String> nonIdentitySystemPromptFragments,
-}) =>
-    {
-      'restageCapability': stamp.toJson(),
-      'a2uiCatalog': {
-        r'$schema': kA2uiSchemaDialect,
-        'a2uiProtocolVersion': kA2uiProtocolVersion,
-        'components': {
-          for (final component in components)
-            component.name: component.dataSchema,
-        },
-        'functions': functions,
-        'systemPromptFragments': [
-          a2uiCatalogIdentityInstruction(identityCatalogId),
-          ...nonIdentitySystemPromptFragments,
-        ],
-      },
-    };
+}) => {
+  'restageCapability': stamp.toJson(),
+  'a2uiCatalog': {
+    'protocolVersion': kA2uiProtocolVersion,
+    'title': _catalogTitle,
+    'description': _catalogDescription,
+    'instructions': [
+      a2uiCatalogIdentityInstruction(identityCatalogId),
+      ...nonIdentitySystemPromptFragments,
+    ].join('\n'),
+    'components': {for (final c in components) c.name: c.dataSchema},
+    'functions': functions,
+  },
+};
 
 Map<String, Object?> _freezeJsonMap(Map<Object?, Object?> value) {
   final frozen = <String, Object?>{};

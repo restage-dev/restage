@@ -29,16 +29,18 @@ final class UserCatalogBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['user_catalog.g.dart'],
-      };
+    r'$lib$': ['user_catalog.g.dart'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
     final collection = await collectRestageWidgetsForPackage(buildStep);
     if (collection == null) return;
 
-    final logContents =
-        await readRootEventLog(buildStep, buildStep.inputId.package);
+    final logContents = await readRootEventLog(
+      buildStep,
+      buildStep.inputId.package,
+    );
     final existingEvents = logContents == null
         ? <WireIdEvent>[]
         : parseWireIdEventsJsonl(
@@ -61,8 +63,10 @@ final class UserCatalogBuilder implements Builder {
       package: buildStep.inputId.package,
       write: true,
       buildStep: buildStep,
-      enumMembers:
-          await resolveEnumMembers(buildStep.resolver, allocation.catalog),
+      enumMembers: await resolveEnumMembers(
+        buildStep.resolver,
+        allocation.catalog,
+      ),
     );
 
     await buildStep.writeAsString(

@@ -1,7 +1,7 @@
 name: restage_a2ui
 description: >-
   Fail-closed pre-render capability checks and the Restage capability sidecar
-  for apps rendering cached A2UI (Google genui) surfaces.
+  for apps rendering cached A2UI (a2ui_flutter) surfaces.
 version: 0.2.0
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
@@ -13,7 +13,7 @@ topics:
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
-  flutter: ">=3.35.0"
+  flutter: ">=3.38.0"
 
 resolution: workspace
 
@@ -22,14 +22,14 @@ dependencies:
     sdk: flutter
   restage_shared:
     path: ../restage_shared
-  genui: ^0.10.1
-  # The A2UI message model (CreateSurfaceMessage/UpdateComponentsMessage etc.);
-  # genui 0.10.x relocated these types here and does not re-export them.
-  a2ui_core: ^0.1.0
-  json_schema_builder: ^0.1.3
+  a2ui_flutter: 0.0.1-wip003
+  # The A2UI 1.0 candidate protocol and validation model.
+  a2ui_core: ^0.4.0
 
 dev_dependencies:
   flutter_lints: ^6.0.0
+  # Test-only: generated test catalogs build their data schemas with it.
+  json_schema_builder: ^0.1.7
   flutter_test:
     sdk: flutter
   # Test-only: the interactive-proof fixture carries real A2UI target
@@ -37,5 +37,5 @@ dev_dependencies:
   # production target-config reader.
   rfw_catalog_schema:
     path: ../rfw_catalog_schema
-  # Test-only: the genui version-pin tripwire parses pubspec.lock (YAML).
+  # Test-only: the A2UI package version-pin tripwire parses pubspec.lock (YAML).
   yaml: ^3.1.3

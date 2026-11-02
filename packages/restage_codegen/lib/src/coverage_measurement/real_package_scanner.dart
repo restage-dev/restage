@@ -186,14 +186,17 @@ class ScanResult {
   /// The **classifier-recognised** bucketing — the upper bound on what could
   /// inline. Distinct from [emitConfirmedReport]; never conflate the two.
   /// Computed once from the immutable verdicts.
-  late final CoverageReport classifierReport =
-      CoverageReport.from(classifications);
+  late final CoverageReport classifierReport = CoverageReport.from(
+    classifications,
+  );
 
   /// The **emit-confirmed** bucketing — widgets the classifier recognised but
   /// whose strict emit failed are demoted out of the inlinable buckets. This
   /// is the honest "inlines today" metric. Computed once.
-  late final CoverageReport emitConfirmedReport =
-      CoverageReport.from(classifications, emitOutcomes: emitOutcomes);
+  late final CoverageReport emitConfirmedReport = CoverageReport.from(
+    classifications,
+    emitOutcomes: emitOutcomes,
+  );
 }
 
 /// The built-in libraries whose committed `catalog.json` files merge into the
@@ -273,11 +276,13 @@ Future<Catalog> loadMergedCatalogFromDisk({
   }
 
   widgets.sort((a, b) => byLibThenName(a.library, a.name, b.library, b.name));
-  structuredTypes
-      .sort((a, b) => byLibThenName(a.library, a.name, b.library, b.name));
+  structuredTypes.sort(
+    (a, b) => byLibThenName(a.library, a.name, b.library, b.name),
+  );
   unions.sort((a, b) => byLibThenName(a.library, a.name, b.library, b.name));
-  designTokens
-      .sort((a, b) => byLibThenName(a.library, a.name, b.library, b.name));
+  designTokens.sort(
+    (a, b) => byLibThenName(a.library, a.name, b.library, b.name),
+  );
 
   return Catalog(
     schemaVersion: kSupportedSchemaVersion,
@@ -353,13 +358,14 @@ Future<ScanResult> scanPackage({
       );
     }
 
-    final dartFiles = libDir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .map((f) => f.path)
-        .where((p) => p.endsWith('.dart'))
-        .toList()
-      ..sort();
+    final dartFiles =
+        libDir
+            .listSync(recursive: true)
+            .whereType<File>()
+            .map((f) => f.path)
+            .where((p) => p.endsWith('.dart'))
+            .toList()
+          ..sort();
 
     // Resolves a fragment to its AST node via the analyzer session, caching the
     // resolved library per element. This is the classifier's `astNodeFor`. The
@@ -440,8 +446,9 @@ Future<ScanResult> scanPackage({
       }
     }
 
-    final classifications =
-        Map<String, WidgetClassification>.unmodifiable(classifier.results);
+    final classifications = Map<String, WidgetClassification>.unmodifiable(
+      classifier.results,
+    );
     final emitOutcomes = computeEmitOutcomes(
       classifications,
       classifier.blueprints,

@@ -72,8 +72,10 @@ A2uiSeams assembleA2uiSeams(
       // not construct the widget faithfully), so fail LOUD rather than silently
       // lose its source shape.
       final formal = _requireFormal(ctor, name, property);
-      final formalType =
-          effectiveWidgetConstructorFormalType(widget.element, formal);
+      final formalType = effectiveWidgetConstructorFormalType(
+        widget.element,
+        formal,
+      );
       if (property.type == PropertyType.event) {
         final result = reflectType(formalType);
         // The value pairing is meaningful only for a lowered callback — read it
@@ -108,12 +110,14 @@ A2uiSeams assembleA2uiSeams(
             issues.add(
               Issue(
                 code: IssueCode.unsupportedPropertyType,
-                message: 'The structured property "${property.name}" on widget '
+                message:
+                    'The structured property "${property.name}" on widget '
                     '"$name" cannot be represented in A2UI: '
                     '${result.typeDescription} (${result.reason.name}). It '
                     'would be silently dropped from the catalog — fix or '
                     'remove the property.',
-                location: '${widget.element.library.identifier}'
+                location:
+                    '${widget.element.library.identifier}'
                     '#$name.${property.name}',
               ),
             );
@@ -121,10 +125,12 @@ A2uiSeams assembleA2uiSeams(
             issues.add(
               Issue(
                 code: IssueCode.unsupportedPropertyType,
-                message: 'The structured property "${property.name}" on widget '
+                message:
+                    'The structured property "${property.name}" on widget '
                     '"$name" resolves to a callback/event surface, not a data '
                     'shape — a catalog/constructor inconsistency.',
-                location: '${widget.element.library.identifier}'
+                location:
+                    '${widget.element.library.identifier}'
                     '#$name.${property.name}',
               ),
             );
@@ -146,8 +152,10 @@ A2uiSeams assembleA2uiSeams(
           'importable Dart enum: $result.',
         );
       } else if (property.type == PropertyType.widget) {
-        richShapes[(name, property.name)] =
-            ScalarNode(A2uiScalarType.string, nullable: nullable);
+        richShapes[(name, property.name)] = ScalarNode(
+          A2uiScalarType.string,
+          nullable: nullable,
+        );
       } else if (property.type == PropertyType.widgetList) {
         richShapes[(name, property.name)] = ListNode(
           element: const ScalarNode(A2uiScalarType.string),
@@ -174,10 +182,10 @@ A2uiSeams assembleA2uiSeams(
 /// The unnamed/default generative constructor — the same canonical choice the
 /// proof harnesses make. Returns `null` when absent so [_requireFormal] can
 /// fail loud for any constructor-bound property.
-ConstructorElement? _defaultConstructor(ClassElement element) =>
-    element.constructors
-        .where((c) => c.name == null || c.name!.isEmpty || c.name == 'new')
-        .firstOrNull;
+ConstructorElement? _defaultConstructor(ClassElement element) => element
+    .constructors
+    .where((c) => c.name == null || c.name!.isEmpty || c.name == 'new')
+    .firstOrNull;
 
 /// The default-constructor formal that binds [property], or a LOUD failure when
 /// it is absent — a catalog/constructor inconsistency (the catalog declares a
@@ -194,8 +202,9 @@ FormalParameterElement _requireFormal(
       'catalog/constructor inconsistency.',
     );
   }
-  final formal =
-      ctor.formalParameters.where((p) => p.name == property.name).firstOrNull;
+  final formal = ctor.formalParameters
+      .where((p) => p.name == property.name)
+      .firstOrNull;
   if (formal == null) {
     throw StateError(
       'A2UI seam assembly: the catalog ${property.type.name} property '

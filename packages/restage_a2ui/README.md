@@ -2,42 +2,52 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_a2ui.svg)](https://pub.dev/packages/restage_a2ui) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-Turn your own Flutter widgets into an [A2UI](https://github.com/google/genui)
+> **Unreleased A2UI 1.0 candidate integration.** These instructions describe the
+> repository/workspace packages, not the published `restage_a2ui 0.2.0` or
+> `restage_codegen 2.0.0` releases. Use the repository example while qualifying
+> the candidate. Upstream pins are `a2ui_flutter: 0.0.1-wip003` and
+> `a2ui_core: ^0.4.0`, with Dart >=3.11.0, Flutter >=3.38.0 and
+> `json_schema_builder` >=0.1.7. Recheck upstream and reconcile hosted package
+> constraints before release; protocol 1.0 is not declared stable here.
+
+Turn your own Flutter widgets into an [A2UI](https://a2ui.org)
 catalog that a generative-UI model can build screens from, and check each
 payload against that catalog before Google's
-[`genui`](https://pub.dev/packages/genui) SDK renders it.
+[`a2ui_flutter`](https://pub.dev/packages/a2ui_flutter) SDK renders it.
 
 Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 You annotate ordinary widgets. Restage's build-time toolchain
-(`restage_codegen`) generates the genui catalog from them. This package is the
+(`restage_codegen`) generates the a2ui_flutter catalog from them. This package is the
 app-side runtime for that catalog: the generated code imports it, and it adds a
 check that rejects a payload with a missing component or a too-old catalog,
-with a clear message, instead of letting genui throw mid-render.
+with a clear message, instead of letting a2ui_flutter throw mid-render.
 
 It does not fetch, host, or stream A2UI; your app or your model session does
-that. Generate the catalog before connecting it to GenUI. Neither local GenUI
+that. Generate the catalog before connecting it to A2UI. Neither local A2UI
 rendering nor Widgetbook previews need RFW bundling or `restage build push`; that
 command builds dashboard previews.
 
 ## Generate an A2UI catalog from your widgets
 
-Write a plain Flutter widget, annotate it, run `build_runner`, and get a genui
-catalog. You don't write `CatalogItem`s or JSON schemas by hand.
+Write a plain Flutter widget, annotate it, run `build_runner`, and get an a2ui_flutter
+catalog. You don't write `ComponentImplementation`s or JSON schemas by hand.
 
 **1. Add dependencies.** The codegen runs at build time and does not ship in
 your app.
 
 ```yaml
 dependencies:
-  genui: ^0.10.1                # the renderer
-  a2ui_core: ^0.1.0            # incoming A2UI messages
-  json_schema_builder: ^0.1.3   # used by the generated data schemas
-  restage_a2ui: ^0.2.0          # imported by the generated catalog; the pre-render check
+  a2ui_flutter: 0.0.1-wip003                # the renderer
+  a2ui_core: ^0.4.0           # incoming A2UI messages
+  json_schema_builder: ^0.1.7   # used by the generated data schemas
+  restage_a2ui:
+    path: ../restage_a2ui       # local repository package
   rfw_catalog_schema: ^2.0.0    # the widget and data-field annotations
 
 dev_dependencies:
-  restage_codegen: ^2.0.0       # the build-time catalog generator
+  restage_codegen:
+    path: ../restage_codegen    # local repository package
   build_runner: ^2.4.0
 ```
 
@@ -99,7 +109,7 @@ WidgetCategory.input)`. Use `name:` when the component name must differ from
 the class name.
 
 **4. Turn on the A2UI builder.** It is off by default because the generated
-catalog imports `genui`. If you only target A2UI, also turn off the three RFW
+catalog imports `a2ui_flutter`. If you only target A2UI, also turn off the three RFW
 builders; otherwise they produce files you won't use.
 
 ```yaml
@@ -129,79 +139,82 @@ dart run build_runner build
 **6. Two outputs appear:**
 
 - `lib/generated/restage_a2ui_catalog.g.dart`: `buildRestageCatalog()`, the
-  genui `Catalog` to render against, plus `restageA2uiCapability`, what that
+  a2ui_flutter `CatalogImplementation` to render against, plus `restageA2uiCapability`, what that
   catalog provides.
 - `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json`: the standard A2UI
   catalog document with each component's full data schema. Hand it to whatever
   produces payloads.
 
 A generated component keeps `id` and `component` on the outer A2UI object and puts
-every constructor input under one required `props` object:
+constructor inputs in top-level properties. For ordinary names:
 
 ```json
 {
-  "id": "rating-control",
+  "id": "rating_control",
   "component": "RatingPicker",
-  "props": {
-    "rating": 4
-  }
+  "props_rating": 4
 }
 ```
+
+Ordinary constructor names use `props_<DartName>` when that name is a valid
+upstream UAX31 identifier and the source name does not start with `encoded_`.
+Other names, including `$value`, and all source names starting with `encoded_`
+use `props_encoded_<hex>`. The hex concatenates the source name's UTF-16 code
+units as exactly four lowercase digits each; `$value` becomes
+`props_encoded_002400760061006c00750065`. Reserving `encoded_` prevents a normal
+source name from colliding with an encoded name. Producers must use the property
+keys in the generated catalog schema and instructions. Dart constructor arguments
+and nested rich-data keys keep their original names. Nested rich-data keys that start with `@` are written as `@@` on the wire; the runtime unescapes them.
 
 A `Widget` or `List<Widget>` input takes a component ID or a list of IDs, under
 whatever name the constructor gives it.
 
-**7. Connect GenUI.** Create a controller with the generated catalog, feed it
-A2UI messages, and mount the requested surface:
+**7. Connect A2UI.** Own a processor for the session and render its surface:
 
 ```dart
-import 'package:a2ui_core/a2ui_core.dart' show A2uiMessage;
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:flutter/widgets.dart';
-import 'package:genui/genui.dart' as genui;
-
 import 'generated/restage_a2ui_catalog.g.dart';
 
 class A2uiSession {
   final catalog = buildRestageCatalog();
-  late final controller = genui.SurfaceController(catalogs: [catalog]);
-
-  void receiveMessage(Map<String, Object?> message) {
-    controller.handleMessage(A2uiMessage.fromJson(message));
-  }
-
+  late final processor = MessageProcessor<ComponentImplementation>(
+    catalogs: [catalog],
+    defaultVersion: A2uiProtocolVersion.v1_0,
+    validationConfig: ValidationConfig.strict,
+    onAction: (action) { /* send the action through your app's transport */ },
+  );
+  void receiveMessage(Map<String, Object?> message) => processor.processMessages(message);
   Widget buildSurface(String surfaceId) =>
-      genui.Surface(surfaceContext: controller.contextFor(surfaceId));
-
-  void dispose() => controller.dispose();
+      A2uiSurface(surface: processor.model.getSurface(surfaceId)!);
+  void dispose() => processor.dispose();
 }
 ```
 
-Own one session in a widget or conversation, and call `dispose()` when that
-owner ends. The producer must use `restageA2uiCatalogId` in `createSurface`
-messages. GenUI 0.10.1 accepts `v0.9` message envelopes; the generated catalog's
-`0.9.1` schema metadata is a separate field. Your app supplies the model
-connection and handles the actions the surface sends out.
-
-`genui.PromptBuilder.chat(catalog: session.catalog)` includes the generated
-usage guidance. If you combine `buildRestageCatalogItems()` with other items,
-give the combined catalog its own id and give that catalog to the producer.
+Use `version: "v1.0"` messages and the exact `restageA2uiCatalogId` in
+`createSurface`. Create the surface before updates, or provide initial
+`components` inline on creation. Dispose the processor with its owner. Give the
+producer `catalog.toJson()` and its `instructions`; your app owns transport.
 
 **8. Check external or cached payloads before rendering.** Use the same catalog
-for the check and controller. The [complete A2UI guide](https://docs.restage.dev/tools/a2ui)
+for the check and processor. The [complete A2UI guide](https://docs.restage.dev/tools/a2ui)
 shows message envelopes, checking, and rendering together. The worked
 [`example/`](example/) also includes rendering and interaction tests.
 
 ## Quickstart
 
-Given an `A2uiSession session`, create one check and reuse it for incoming
-messages. A cached Restage sidecar must be checked before unwrapping:
+Given an `A2uiSession session`, create one check and reuse it for complete cached
+message bundles. A cached Restage sidecar must be checked before unwrapping:
 
 ```dart
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:restage_a2ui/restage_a2ui.dart';
 
 final check = RestageA2uiPreRenderCheck(
-  catalog: session.catalog,
+  catalogs: [session.catalog],
   installed: restageA2uiCapability.installedCapability,
+  validationConfig: ValidationConfig.strict, // the processor's config
 );
 
 void receiveChecked(Object? incoming) {
@@ -224,14 +237,20 @@ the message boundary, keeping a native fallback available.
 
 The check returns `A2uiRejected` for:
 
-- a component type the catalog doesn't have;
+- a message that is not a v1 envelope, or a version other than `v1.0`;
+- a component type, catalog or function the catalogs don't declare, or a
+  component that doesn't match its schema;
+- a bundle that leaves no surface, a surface with no components, a missing
+  root, a dangling child reference or a cycle;
 - a payload that needs a newer catalog version than your build provides;
 - a malformed Restage sidecar;
 - a stamped payload when you passed no `installed` capability.
 
-It checks which components exist and which versions they need. It does not
-validate every field inside a component, so a malformed component can still
-fail when genui parses it.
+It validates each component against its explicit catalog or the surface default.
+Pass a complete cached bundle, including surface creation, and the same
+`validationConfig` your `MessageProcessor` uses: the check applies it to each
+message as the processor does, so it rejects what the processor would reject.
+The finished bundle must also render. Preflight never executes functions.
 
 ## The capability sidecar
 
@@ -254,8 +273,8 @@ the required libraries with the installed catalog's versions and declared
 compatibility floors. The generated catalog JSON describes what the catalog
 provides. A payload's sidecar describes what that payload needs.
 
-For raw A2UI payloads, the check confirms component names exist but cannot verify
-library-version compatibility. A stamped payload is rejected if its requirements
+For raw A2UI payloads, the check validates the bundle against the catalog but
+cannot verify library-version compatibility. A stamped payload is rejected if its requirements
 cannot be verified.
 
 ## Guiding the model with `description` and `usage`
@@ -279,8 +298,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 class Callout extends StatelessWidget { /* ... */ }
 ```
 
-`buildRestageCatalog()` attaches these lines to the genui `Catalog`. If you
-only need the raw items, use `buildRestageCatalogItems()`.
+`buildRestageCatalog()` attaches these lines as the catalog `instructions`.
 
 ## Rich data
 
@@ -319,7 +337,7 @@ made-up value. Sealed-class unions are not supported yet. A required unsupported
 input stops generation; an optional input can be left out only when leaving it
 out gives the same result as its default.
 
-Values bound from data (`{path}`, `{call}`) are not checked against your
+Values bound from data (`{@path}`, `{@call}`) are not checked against your
 constraints, so your widget still validates them.
 
 The same widgets can also ship as RFW surfaces. There, structured objects,
@@ -335,8 +353,64 @@ configures them.
 
 ## Status
 
-Pre-1.0, tracking `genui ^0.10.1` (A2UI protocol v0.9). genui is alpha and its
-API is expected to change; this package keeps the integration in one place.
+> **Unreleased A2UI 1.0 candidate integration.** These instructions describe the
+> repository/workspace packages, not the published `restage_a2ui 0.2.0` or
+> `restage_codegen 2.0.0` releases. Use the repository example while qualifying
+> the candidate. Upstream pins are `a2ui_flutter: 0.0.1-wip003` and
+> `a2ui_core: ^0.4.0`, with Dart >=3.11.0, Flutter >=3.38.0 and
+> `json_schema_builder` >=0.1.7. Recheck upstream and reconcile hosted package
+> constraints before release; protocol 1.0 is not declared stable here.
+
+## Migrating an existing integration
+
+Regenerate the catalog and migrate producer/cached documents together. Generated
+inputs now use the generated top-level property names. Ordinary names retain
+`props_<DartName>`: `props` becomes `props_props`, and `id` becomes `props_id`.
+Names that fail upstream UAX31 validation or start with `encoded_` use the
+reserved UTF-16 hex encoding described above. Read the regenerated schema when
+migrating producers and cached inputs; keep nested business-data keys unchanged. Keep
+protocol `id`, `component`, and `catalogId` separate. Dynamic references use
+`{"@path":"/answer"}` and `{"@call":"functionName"}`. Do not rename ordinary
+business-data keys, `updateDataModel.path`, or child-template `path` fields.
+
+Run `dart fix --apply` after updating the repository packages. The shipped fix
+wraps `RestageA2uiPreRenderCheck(catalog: expression)` as
+`RestageA2uiPreRenderCheck(catalogs: [expression])`. It does not regenerate
+catalogs or migrate a handwritten GenUI host, transport, prompt, or cached
+payload. Replace those host APIs manually with `MessageProcessor` and
+`A2uiSurface`; give your producer the standard catalog JSON and its `instructions`.
+Restage does not start or operate an agent service.
+
+Code reading the removed public `.catalog` field must choose explicitly from
+`.catalogs` (for example, `.catalogs.single` when exactly one is registered).
+The Dart fix does not choose a catalog for a multi-catalog host.
+
+`buildRestageCatalog()` supplies component schemas, instructions, and rich
+catalog-level definitions. Manual `CatalogImplementation` composition must
+merge **both** `buildRestageCatalogItems()` and
+`buildRestageCatalogDefinitions()`, preserve the needed instructions, and assign
+a new application-owned catalog ID to a changed schema/component set.
+
+Component type names must satisfy upstream UAX31 identifiers and cannot be
+`Surface`. Use `@RestageWidget(name: ...)` to choose a valid widget identity.
+Native screens retain the exact `@Screen(id: ...)` / `@ScreenSource(id: ...)`
+identity as their component type name: update invalid IDs and their consumers
+explicitly. The generator never silently aliases them.
+
+Component instance `id` values must also be UAX31 identifiers. Migrate producers
+and cached payloads together, updating each renamed instance ID and all child
+and template references to it. For example, rename `callout-body` to
+`callout_body` in both the component declaration and every reference. The
+`Surface` reservation applies to component type names, not instance IDs.
+Instance IDs and their references require explicit migration; they are not
+automatically aliased.
+
+Controlled values keep explicit user paths unchanged. Literal/call local
+write-back storage is `/restage_<URI-encoded component ID>/<generated property name>`,
+with a `context_<URI-encoded data path>` segment before the property name inside
+a template, so each row keeps its own value; this is internal fallback storage, not the component's identity. Data-model
+bindings, local overrides, rebinding and disposal are qualified against the
+published renderer in interaction tests.
 
 ## License
 

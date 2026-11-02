@@ -231,7 +231,8 @@ final class OnboardingFlowBuilder implements Builder {
       _surfaceIssues([
         Issue(
           code: IssueCode.invalidScreenSourceCount,
-          message: 'A conventional legacy flow library must compile exactly '
+          message:
+              'A conventional legacy flow library must compile exactly '
               'one flow; found ${result.flows.length}.',
           location: assetId.path,
         ),
@@ -280,7 +281,8 @@ final class OnboardingFlowBuilder implements Builder {
       _surfaceIssues([
         Issue(
           code: IssueCode.missingScreenDescriptor,
-          message: 'Standalone canonical flow fallback could not find the '
+          message:
+              'Standalone canonical flow fallback could not find the '
               'aggregate artifact family for ${selected.id}.',
           location: buildStep.inputId.path,
         ),
@@ -304,11 +306,11 @@ final class CompiledClassFlow {
     required this.generatedPart,
     required Iterable<String> generatedTopLevelSymbols,
     Map<String, MeasurementDeclaredAnswerV1> measurementAnswers = const {},
-  })  : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
-        generatedTopLevelSymbols = Set.unmodifiable(
-          generatedTopLevelSymbols,
-        ),
-        measurementAnswers = Map.unmodifiable(measurementAnswers);
+  }) : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
+       generatedTopLevelSymbols = Set.unmodifiable(
+         generatedTopLevelSymbols,
+       ),
+       measurementAnswers = Map.unmodifiable(measurementAnswers);
 
   final ClassElement declaration;
   final String id;
@@ -330,8 +332,8 @@ final class CompiledClassFlowResult {
   CompiledClassFlowResult({
     required List<CompiledClassFlow> flows,
     required List<Issue> issues,
-  })  : flows = List.unmodifiable(flows),
-        issues = List.unmodifiable(issues);
+  }) : flows = List.unmodifiable(flows),
+       issues = List.unmodifiable(issues);
 
   final List<CompiledClassFlow> flows;
   final List<Issue> issues;
@@ -358,8 +360,8 @@ final class ResolvedClassFlowDependencyResult {
   ResolvedClassFlowDependencyResult({
     required Iterable<ResolvedClassFlowDependency> flows,
     required Iterable<Issue> issues,
-  })  : flows = List.unmodifiable(flows),
-        issues = List.unmodifiable(issues);
+  }) : flows = List.unmodifiable(flows),
+       issues = List.unmodifiable(issues);
 
   final List<ResolvedClassFlowDependency> flows;
   final List<Issue> issues;
@@ -444,7 +446,8 @@ Future<ResolvedClassFlowDependencyResult> inspectResolvedClassFlowDependencies({
         issues.add(
           Issue(
             code: IssueCode.buildMethodTooComplex,
-            message: 'Subflow child ${child.surface.wireName}/${child.id} '
+            message:
+                'Subflow child ${child.surface.wireName}/${child.id} '
                 'cannot be included in a ${parentSurface.wireName} flow.',
             location: assetId.path,
           ),
@@ -538,7 +541,8 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
         issues.add(
           Issue(
             code: IssueCode.generatedSymbolCollision,
-            message: 'Generated flow symbol $generated already exists in '
+            message:
+                'Generated flow symbol $generated already exists in '
                 '${assetId.path}.',
             location: '${assetId.path}#$generated',
           ),
@@ -549,7 +553,8 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
       issues.add(
         Issue(
           code: IssueCode.filenameMismatch,
-          message: "Onboarding flow id '${flow.id}' does not match the file "
+          message:
+              "Onboarding flow id '${flow.id}' does not match the file "
               "name '$stem.dart'.",
           location: '${assetId.path}#${flow.className}',
         ),
@@ -560,7 +565,8 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
         issues.add(
           Issue(
             code: IssueCode.buildMethodTooComplex,
-            message: 'invalid action id "${action.actionName}": action ids '
+            message:
+                'invalid action id "${action.actionName}": action ids '
                 'must be valid flow wire identifiers.',
             location: '${assetId.path}#${flow.className}.${action.fieldName}',
           ),
@@ -571,7 +577,8 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
         issues.add(
           Issue(
             code: IssueCode.buildMethodTooComplex,
-            message: 'duplicate action id "${action.actionName}" on '
+            message:
+                'duplicate action id "${action.actionName}" on '
                 '${action.fieldName}; already declared by $duplicateOf.',
             location: '${assetId.path}#${flow.className}.${action.fieldName}',
           ),
@@ -602,8 +609,8 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
     if (lowered == null || issues.isNotEmpty) continue;
     final flowVocabulary = screenResolver.vocabulary;
     final sourceCarrierDraftDigest =
-        generatedSourceCarrierDraftDigestsByDeclarationIdentity[
-            flow.declarationIdentity];
+        generatedSourceCarrierDraftDigestsByDeclarationIdentity[flow
+            .declarationIdentity];
     compiled.add(
       CompiledClassFlow(
         declaration: flow.element,
@@ -632,8 +639,9 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
             descendants: {
               for (final entry in childFlowDocuments.entries)
                 if (entry.key.surface == effectiveSurface)
-                  entry.key.id:
-                      FlowDocumentCodec.decodeJson(utf8.decode(entry.value)),
+                  entry.key.id: FlowDocumentCodec.decodeJson(
+                    utf8.decode(entry.value),
+                  ),
             },
           ),
           languageVersion: libraryLanguageVersion(flow.element.library),
@@ -667,7 +675,8 @@ List<_FlowSource> _findFlows(LibraryElement library, AssetId assetId) {
     }
     final isCanonical =
         resolvedAnnotationClass(annotation)?.name == 'FlowGraph';
-    final id = value.getField('id')?.toStringValue() ??
+    final id =
+        value.getField('id')?.toStringValue() ??
         (isCanonical ? p.basenameWithoutExtension(assetId.path) : null);
     if (id == null) {
       flows.add(_FlowSource.invalid(cls));
@@ -675,8 +684,10 @@ List<_FlowSource> _findFlows(LibraryElement library, AssetId assetId) {
     }
     Surface? declaredSurface;
     if (isCanonical) {
-      final surfaceName =
-          value.getField('surface')?.getField('wireName')?.toStringValue();
+      final surfaceName = value
+          .getField('surface')
+          ?.getField('wireName')
+          ?.toStringValue();
       declaredSurface = Surface.values
           .where((candidate) => candidate.wireName == surfaceName)
           .firstOrNull;
@@ -685,8 +696,10 @@ List<_FlowSource> _findFlows(LibraryElement library, AssetId assetId) {
         continue;
       }
     }
-    final deliveryName =
-        value.getField('delivery')?.getField('_name')?.toStringValue();
+    final deliveryName = value
+        .getField('delivery')
+        ?.getField('_name')
+        ?.toStringValue();
     FlowDeliveryMode? delivery;
     for (final mode in FlowDeliveryMode.values) {
       if (mode.name == deliveryName) {
@@ -787,7 +800,8 @@ Future<MethodDeclaration?> _resolvedBuildFlow(
     issues.add(
       Issue(
         code: IssueCode.annotationEvaluationFailed,
-        message: '@FlowSource on ${flow.className} could not be '
+        message:
+            '@FlowSource on ${flow.className} could not be '
             'const-evaluated.',
         location: '${assetId.path}#${flow.className}',
       ),
@@ -812,7 +826,8 @@ Future<MethodDeclaration?> _resolvedBuildFlow(
     issues.add(
       Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: 'Analyzer returned ${resolved.runtimeType}; expected '
+        message:
+            'Analyzer returned ${resolved.runtimeType}; expected '
             'ResolvedLibraryResult.',
         location: '${assetId.path}#${flow.className}.buildFlow',
       ),
@@ -872,7 +887,8 @@ Future<Map<String, _ScreenDescriptor>> _loadImportedScreenDescriptors(
       issues.add(
         Issue(
           code: IssueCode.missingScreenDescriptor,
-          message: 'Missing generated onboarding screen descriptor for '
+          message:
+              'Missing generated onboarding screen descriptor for '
               '$screenPath (${_classNameFromStem(stem)}Descriptor).',
           location: flowAssetId.path,
         ),
@@ -909,7 +925,8 @@ Future<_LoweredFlow?> _lowerFlow(
     issues.add(
       Issue(
         code: IssueCode.unsupportedFlowRuntimeFeature,
-        message: '${unsupported.names.join(', ')} is '
+        message:
+            '${unsupported.names.join(', ')} is '
             'not supported by the current flow runtime.',
         location: '${assetId.path}#${flow.className}.buildFlow',
       ),
@@ -1062,7 +1079,8 @@ Future<_LoweredFlow?> _lowerFlow(
       issues.add(
         Issue(
           code: IssueCode.buildMethodTooComplex,
-          message: 'unsupported states list entry: collection control and '
+          message:
+              'unsupported states list entry: collection control and '
               'spreads are not supported by the current flow runtime.',
           location: assetId.path,
         ),
@@ -1168,7 +1186,8 @@ Future<_LoweredFlow?> _lowerFlow(
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: 'Flows must declare one end state unless a reachable screen '
+        message:
+            'Flows must declare one end state unless a reachable screen '
             'has no outgoing transitions; found $endCount end states.',
         location: '${assetId.path}#${flow.className}.buildFlow',
       ),
@@ -1212,8 +1231,8 @@ Future<_LoweredFlow?> _lowerFlow(
   );
   final schemaVersion =
       flow.delivery == FlowDeliveryMode.typed && surveyQuestionOrder.isNotEmpty
-          ? 2
-          : 1;
+      ? 2
+      : 1;
   final document = FlowDocument(
     flow: flow.id,
     version: flow.version,
@@ -1272,7 +1291,8 @@ Future<ScreenArtifact> _artifactFor(
     issues.add(
       Issue(
         code: IssueCode.missingScreenDescriptor,
-        message: 'Resolved screen $declarationIdentity is missing its exact '
+        message:
+            'Resolved screen $declarationIdentity is missing its exact '
             'aggregate-owned artifact bytes.',
         location: flowAssetId.path,
       ),
@@ -1355,7 +1375,8 @@ Future<ScreenArtifact> _artifactFor(
       issues.add(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
-          message: 'Invalid screen capability sidecar '
+          message:
+              'Invalid screen capability sidecar '
               '${capabilityId.path}: $error',
           location: flowAssetId.path,
         ),
@@ -1399,7 +1420,8 @@ _ScreenNode? _parseScreenNode(
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: 'Flow states must be screen(ref), '
+        message:
+            'Flow states must be screen(ref), '
             'screen(ref).on(event)…goTo(target), or end(...) in the current '
             'flow runtime.',
         location: assetId.path,
@@ -1448,7 +1470,8 @@ _ScreenNode? _parseScreenNode(
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: 'Screen transitions must call .on(event)…goTo(target) or '
+        message:
+            'Screen transitions must call .on(event)…goTo(target) or '
             '.on(event).run(action).result(predicate)…goTo(target).',
         location: assetId.path,
       ),
@@ -1522,7 +1545,8 @@ _ScreenNode? _parseScreenNode(
       issues.add(
         Issue(
           code: IssueCode.buildMethodTooComplex,
-          message: "duplicate event '$event' on screen "
+          message:
+              "duplicate event '$event' on screen "
               "'${prior.screen.id}': a screen may author at most one "
               'transition per event.',
           location: assetId.path,
@@ -1585,7 +1609,8 @@ Map<String, FlowStateWrite>? _lowerTransitionStateWrites(
       issues.add(
         Issue(
           code: IssueCode.buildMethodTooComplex,
-          message: "$method('$key') targets flow-state key '$key', which is "
+          message:
+              "$method('$key') targets flow-state key '$key', which is "
               'not declared in flow(flowState: {...}).',
           location: assetId.path,
         ),
@@ -1598,7 +1623,8 @@ Map<String, FlowStateWrite>? _lowerTransitionStateWrites(
         issues.add(
           Issue(
             code: IssueCode.buildMethodTooComplex,
-            message: "capture('$key') requires a scalar "
+            message:
+                "capture('$key') requires a scalar "
                 'OnboardingEvent<String|bool|int>.',
             location: assetId.path,
           ),
@@ -1619,7 +1645,8 @@ Map<String, FlowStateWrite>? _lowerTransitionStateWrites(
         issues.add(
           Issue(
             code: IssueCode.buildMethodTooComplex,
-            message: "write('$key', ...) requires a String, bool, or int "
+            message:
+                "write('$key', ...) requires a String, bool, or int "
                 'literal value.',
             location: assetId.path,
           ),
@@ -1635,7 +1662,8 @@ Map<String, FlowStateWrite>? _lowerTransitionStateWrites(
       issues.add(
         Issue(
           code: IssueCode.buildMethodTooComplex,
-          message: "$method('$key') produces ${write.type.wireName} but "
+          message:
+              "$method('$key') produces ${write.type.wireName} but "
               "flowState declares '$key' as ${declaration.type.wireName}.",
           location: assetId.path,
         ),
@@ -1715,24 +1743,24 @@ Future<_GraphNode?> _parseGraphNode(
   if (expression is! MethodInvocation) return null;
   return switch (expression.methodName.name) {
     'decision' => _parseDecisionNode(
-        expression,
-        descriptors,
-        endLocals,
-        nodeLocals,
-        issues,
-        flowAssetId,
-      ),
+      expression,
+      descriptors,
+      endLocals,
+      nodeLocals,
+      issues,
+      flowAssetId,
+    ),
     'subFlow' => _parseSubFlowNode(
-        buildStep,
-        flowAssetId,
-        flow,
-        expression,
-        descriptors,
-        endLocals,
-        nodeLocals,
-        issues,
-        childFlowDocuments,
-      ),
+      buildStep,
+      flowAssetId,
+      flow,
+      expression,
+      descriptors,
+      endLocals,
+      nodeLocals,
+      issues,
+      childFlowDocuments,
+    ),
     _ => null,
   };
 }
@@ -2034,16 +2062,20 @@ _ParsedActionTransition? _parseActionTransition(
     issues,
     assetId,
   );
-  final contract = actionContracts[action.actionName] ??
+  final contract =
+      actionContracts[action.actionName] ??
       _actionContract(action, minClient, issues, assetId);
   if (predicate == null || contract == null) return null;
-  final schemaIssue =
-      actionResultPredicateSchemaIssue(predicate, contract.resultSchema);
+  final schemaIssue = actionResultPredicateSchemaIssue(
+    predicate,
+    contract.resultSchema,
+  );
   if (schemaIssue != null) {
     issues.add(
       Issue(
         code: IssueCode.unsupportedActionResultPredicate,
-        message: 'The host action result check cannot run on '
+        message:
+            'The host action result check cannot run on '
             '${action.outputType}: $schemaIssue',
         location: assetId.path,
       ),
@@ -2175,7 +2207,8 @@ final class _ScreenDescriptorResolver {
           code: failure is IconCodePointCollision
               ? IssueCode.collidingIconCodePoints
               : IssueCode.unreconstructableIconData,
-          message: 'Screen ${screen.declarationIdentity} joins this '
+          message:
+              'Screen ${screen.declarationIdentity} joins this '
               '${flowSurface.wireName} flow, but ${failure.reason}.$origin',
           location: assetId.path,
         ),
@@ -2208,7 +2241,8 @@ final class _ScreenDescriptorResolver {
         issues.add(
           Issue(
             code: IssueCode.missingScreenDescriptor,
-            message: 'Missing imported generated screen reference '
+            message:
+                'Missing imported generated screen reference '
                 '${reference.authoredSpelling}.',
             location: assetId.path,
           ),
@@ -2217,25 +2251,27 @@ final class _ScreenDescriptorResolver {
       return descriptor;
     }
 
-    final candidates = _resolvedScreens.where((screen) {
-      if (screen.canonicalPaywallId != null) return false;
-      if (screen.descriptorName != reference.name) return false;
-      final descriptorElement = reference.descriptorElement;
-      if (descriptorElement != null) {
-        return screen.declaration.library.identifier ==
-            descriptorElement.library.identifier;
-      }
-      return _isImportedScreen(screen, reference.importPrefix);
-    }).toList(growable: false);
+    final candidates = _resolvedScreens
+        .where((screen) {
+          if (screen.canonicalPaywallId != null) return false;
+          if (screen.descriptorName != reference.name) return false;
+          final descriptorElement = reference.descriptorElement;
+          if (descriptorElement != null) {
+            return screen.declaration.library.identifier ==
+                descriptorElement.library.identifier;
+          }
+          return _isImportedScreen(screen, reference.importPrefix);
+        })
+        .toList(growable: false);
     if (candidates.length != 1) {
-      final identities = candidates
-          .map((candidate) => candidate.declarationIdentity)
-          .toList()
-        ..sort();
+      final identities =
+          candidates.map((candidate) => candidate.declarationIdentity).toList()
+            ..sort();
       issues.add(
         Issue(
           code: IssueCode.analyzerResolutionFailed,
-          message: 'Generated screen reference ${reference.authoredSpelling} '
+          message:
+              'Generated screen reference ${reference.authoredSpelling} '
               'must resolve through one analyzer-authored library '
               'declaration; found ${candidates.length}'
               '${identities.isEmpty ? '' : ' (${identities.join(', ')})'}.',
@@ -2250,7 +2286,8 @@ final class _ScreenDescriptorResolver {
       issues.add(
         Issue(
           code: IssueCode.annotationEvaluationFailed,
-          message: 'Screen ${screen.declarationIdentity} is authored for '
+          message:
+              'Screen ${screen.declarationIdentity} is authored for '
               '${screen.surface!.wireName}, but this flow is '
               '${flowSurface.wireName}.',
           location: assetId.path,
@@ -2291,14 +2328,14 @@ final class _ScreenDescriptorResolver {
         .where((screen) => screen.canonicalPaywallId == authoredId)
         .toList(growable: false);
     if (candidates.length != 1) {
-      final identities = candidates
-          .map((candidate) => candidate.declarationIdentity)
-          .toList()
-        ..sort();
+      final identities =
+          candidates.map((candidate) => candidate.declarationIdentity).toList()
+            ..sort();
       issues.add(
         Issue(
           code: IssueCode.analyzerResolutionFailed,
-          message: 'paywallScreen($authoredId) must resolve to exactly one '
+          message:
+              'paywallScreen($authoredId) must resolve to exactly one '
               'roster-owned canonical paywall declaration; found '
               '${candidates.length}'
               '${identities.isEmpty ? '' : ' (${identities.join(', ')})'}.',
@@ -2459,8 +2496,10 @@ String? _eventId(
 ) {
   final eventField = _onboardingEventFieldFor(expression);
   if (eventField != null) {
-    final id =
-        eventField.computeConstantValue()?.getField('id')?.toStringValue();
+    final id = eventField
+        .computeConstantValue()
+        ?.getField('id')
+        ?.toStringValue();
     if (id != null) {
       if (kReservedCommerceEventNames.contains(id)) {
         issues.add(unsupportedCommerceEventIssue(id, assetId.path));
@@ -2472,7 +2511,8 @@ String? _eventId(
   issues.add(
     Issue(
       code: IssueCode.buildMethodTooComplex,
-      message: 'Expected a static OnboardingEvent field reference; got '
+      message:
+          'Expected a static OnboardingEvent field reference; got '
           '${expression?.toSource() ?? '<missing>'}.',
       location: assetId.path,
     ),
@@ -2519,14 +2559,17 @@ _FlowAction? _actionForRef(
   }
   if (element is PropertyAccessorElement) element = element.variable;
   final actionField = _staticConstFlowActionRefField(element);
-  final actionName =
-      actionField?.computeConstantValue()?.getField('id')?.toStringValue();
+  final actionName = actionField
+      ?.computeConstantValue()
+      ?.getField('id')
+      ?.toStringValue();
   final action = actionName == null ? null : actionsByName[actionName];
   if (action != null) return action;
   issues.add(
     Issue(
       code: IssueCode.buildMethodTooComplex,
-      message: 'Expected a static FlowActionRef field reference; got '
+      message:
+          'Expected a static FlowActionRef field reference; got '
           '${expression?.toSource() ?? '<missing>'}.',
       location: assetId.path,
     ),
@@ -2615,7 +2658,8 @@ FlowActionSchema? _schemaForActionArgumentType(
   issues.add(
     Issue(
       code: IssueCode.buildMethodTooComplex,
-      message: 'unsupported action argument type: ${type.getDisplayString()}. '
+      message:
+          'unsupported action argument type: ${type.getDisplayString()}. '
           'Generated action argument decoders support only '
           'FlowActionRef<void, R>.',
       location: assetId.path,
@@ -2633,7 +2677,8 @@ void _unsupportedActionSchemaEnumType(
   issues.add(
     Issue(
       code: IssueCode.unsupportedActionContract,
-      message: 'unsupported action schema enum type: $display. '
+      message:
+          'unsupported action schema enum type: $display. '
           'Dart enum action argument/result types are not supported yet; '
           'use String with explicit wire values.',
       location: assetId.path,
@@ -2687,7 +2732,8 @@ FlowActionSchema? _schemaForActionType(
         issues.add(
           Issue(
             code: IssueCode.unsupportedActionContract,
-            message: 'The host action type $display has a field '
+            message:
+                'The host action type $display has a field '
                 "'$fieldName' that is not final. Declare it final so the "
                 'flow can read and check it.',
             location: assetId.path,
@@ -2779,7 +2825,8 @@ Map<String, FlowStateDeclaration>? _flowStateDeclarations(
       issues.add(
         Issue(
           code: IssueCode.buildMethodTooComplex,
-          message: "unsupported host-seedable key '${entry.key}': a "
+          message:
+              "unsupported host-seedable key '${entry.key}': a "
               'host-seedable flowState key must be a non-reserved Dart '
               "identifier that is not an Object member name, 'toFlowState', or "
               "the generated seed class name '$seedClassName'.",
@@ -2829,10 +2876,12 @@ FlowStateDeclaration? _flowStateDeclaration(
     assetId,
   );
   if (type == null || classification == null) return null;
-  final defaultExpr = _namedConstructorArg(creation, 'defaultValue') ??
+  final defaultExpr =
+      _namedConstructorArg(creation, 'defaultValue') ??
       _namedConstructorArg(creation, 'default');
-  final defaultValue =
-      defaultExpr == null ? null : _jsonValue(defaultExpr, issues, assetId);
+  final defaultValue = defaultExpr == null
+      ? null
+      : _jsonValue(defaultExpr, issues, assetId);
   if (identical(defaultValue, _invalidJsonValue)) return null;
   final hostSeedableExpr = _namedConstructorArg(creation, 'hostSeedable');
   final hostSeedable = switch (hostSeedableExpr) {
@@ -2924,8 +2973,7 @@ Map<String, FlowOutboundPayloadDeclaration>? parseOutboundPayloadMap(
   Expression? expression,
   List<Issue> issues,
   AssetId assetId,
-) =>
-    _outboundPayloadMap(expression, issues, assetId);
+) => _outboundPayloadMap(expression, issues, assetId);
 
 Map<String, FlowOutboundPayloadDeclaration>? _outboundPayloadMap(
   Expression? expression,
@@ -3354,8 +3402,9 @@ StateFlowValueSource? _stateSugarSource(
   List<Issue> issues,
   AssetId assetId,
 ) {
-  final key =
-      _stringExpression(invocation.argumentList.arguments.positionalAt(0));
+  final key = _stringExpression(
+    invocation.argumentList.arguments.positionalAt(0),
+  );
   if (key == null) {
     _unsupportedGraphDeclaration(
       issues,
@@ -3636,7 +3685,8 @@ String? _libraryScopedReferenceSource(
   Expression expression,
   VariableElement element,
 ) {
-  final atLibraryScope = element is TopLevelVariableElement ||
+  final atLibraryScope =
+      element is TopLevelVariableElement ||
       (element is FieldElement && element.isStatic);
   return atLibraryScope ? expression.toSource() : null;
 }
@@ -3676,8 +3726,10 @@ _SubFlowRef? _flowRefForExpression(
   final id = value?.getField('id')?.toStringValue();
   final version = value?.getField('version')?.toIntValue();
   final minClient = value?.getField('minClient')?.toIntValue();
-  final surfaceName =
-      value?.getField('surface')?.getField('wireName')?.toStringValue();
+  final surfaceName = value
+      ?.getField('surface')
+      ?.getField('wireName')
+      ?.toStringValue();
   final resolvedSurface = Surface.values
       .where((candidate) => candidate.wireName == surfaceName)
       .firstOrNull;
@@ -3855,9 +3907,9 @@ Surface _flowSurfaceForAsset(AssetId assetId) =>
       'survey' => Surface.survey,
       'general' => Surface.general,
       final other => throw StateError(
-          'Expected a flow-surface source asset, got ${assetId.path} '
-          '(surface "$other").',
-        ),
+        'Expected a flow-surface source asset, got ${assetId.path} '
+        '(surface "$other").',
+      ),
     };
 
 void _unsupportedGraphDeclaration(
@@ -4194,7 +4246,8 @@ bool _validateResultKeys(
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: "unsupported result key '$key': result keys must be "
+        message:
+            "unsupported result key '$key': result keys must be "
             'non-reserved Dart identifiers.',
         location: assetId.path,
       ),
@@ -4254,7 +4307,8 @@ void _validateTypedTerminalResultShape({
       issues.add(
         Issue(
           code: IssueCode.buildMethodTooComplex,
-          message: "unsupported typed terminal output key '$outputKey': "
+          message:
+              "unsupported typed terminal output key '$outputKey': "
               'outbound.terminalResult field names must be non-reserved '
               'Dart identifiers.',
           location: '${assetId.path}#$flowClassName.buildFlow',
@@ -4269,7 +4323,8 @@ void _validateTypedTerminalResultShape({
           issues.add(
             Issue(
               code: IssueCode.buildMethodTooComplex,
-              message: "typed terminal output key '$outputKey' cannot use "
+              message:
+                  "typed terminal output key '$outputKey' cannot use "
                   'EventFlowOutboundRef.path: end(..., result:) only supports '
                   'scalar top-level result values.',
               location: '${assetId.path}#$flowClassName.buildFlow',
@@ -4296,7 +4351,8 @@ void _validateTypedTerminalResultShape({
           issues.add(
             Issue(
               code: IssueCode.buildMethodTooComplex,
-              message: "typed terminal output key '$outputKey' cannot use "
+              message:
+                  "typed terminal output key '$outputKey' cannot use "
                   'StateFlowOutboundRef.path: flow state declarations are '
                   'scalar.',
               location: '${assetId.path}#$flowClassName.buildFlow',
@@ -4337,7 +4393,8 @@ void _validateTypedTerminalResultShape({
           issues.add(
             Issue(
               code: IssueCode.buildMethodTooComplex,
-              message: "typed terminal output key '$outputKey' reads state "
+              message:
+                  "typed terminal output key '$outputKey' reads state "
                   "'$key', but that scalar is not assigned on every "
                   'completion path. Add a non-null declaration default or '
                   'write it before every reachable terminal.',
@@ -4366,7 +4423,8 @@ void _validateTerminalResultFallback({
   issues.add(
     Issue(
       code: IssueCode.buildMethodTooComplex,
-      message: "typed terminal output key '$outputKey' must read a "
+      message:
+          "typed terminal output key '$outputKey' must read a "
           '${expectedType.wireName} end result field "$sourceKey"; '
           'found ${actualType?.wireName ?? 'missing'}.',
       location: '${assetId.path}#$flowClassName.buildFlow',
@@ -4383,7 +4441,7 @@ bool _usesGraphRuntimeForStates(Iterable<FlowState> states) {
         for (final transition in on.values) {
           switch (transition) {
             case GotoFlowTransition(:final stateWrites) ||
-                  ActionFlowTransition(:final stateWrites):
+                ActionFlowTransition(:final stateWrites):
               if (stateWrites.isNotEmpty) return true;
           }
         }
@@ -4427,13 +4485,13 @@ bool _isStateAssignedOnEveryCompletionPath({
 }
 
 Iterable<({String target, Map<String, FlowStateWrite> stateWrites})>
-    _outgoingStateEdges(FlowState state) sync* {
+_outgoingStateEdges(FlowState state) sync* {
   switch (state) {
     case ScreenFlowState(:final on):
       for (final transition in on.values) {
         switch (transition) {
           case GotoFlowTransition(:final target, :final stateWrites) ||
-                ActionFlowTransition(:final target, :final stateWrites):
+              ActionFlowTransition(:final target, :final stateWrites):
             yield (target: target, stateWrites: stateWrites);
         }
       }
@@ -4448,10 +4506,10 @@ Iterable<({String target, Map<String, FlowStateWrite> stateWrites})>
       );
       return;
     case SubFlowState(
-        :final onComplete,
-        :final defaultBranch,
-        :final subFlowUnavailable,
-      ):
+      :final onComplete,
+      :final defaultBranch,
+      :final subFlowUnavailable,
+    ):
       for (final branch in onComplete) {
         yield (target: branch.target, stateWrites: branch.stateWrites);
       }
@@ -4511,7 +4569,8 @@ void _unsupportedActionSchemaString(
   issues.add(
     Issue(
       code: IssueCode.unsupportedActionContract,
-      message: 'unsupported action schema string: generated schema strings '
+      message:
+          'unsupported action schema string: generated schema strings '
           'must be ASCII and cannot contain dollar signs in this generator '
           'version; '
           'got "$value".',
@@ -4544,8 +4603,10 @@ String _emitFlowDescriptor(
           screens: nativeScreens,
           library: flow.element.library,
           refName: refName,
-          mountName:
-              generatedSurfaceName(flow.className, fallback: 'SurfaceFlow'),
+          mountName: generatedSurfaceName(
+            flow.className,
+            fallback: 'SurfaceFlow',
+          ),
           resultType: flow.delivery == FlowDeliveryMode.general
               ? 'Map<String, Object?>'
               : '${baseName}Result',
@@ -4553,28 +4614,29 @@ String _emitFlowDescriptor(
       : (argument: '', mount: '');
   final decoderName = '_decode${flow.className}Result';
   final actionsClass = _actionsClassName(flow.className);
-  final actionsInterface =
-      flow.actions.isEmpty ? '' : ' implements FlowActionRegistry';
+  final actionsInterface = flow.actions.isEmpty
+      ? ''
+      : ' implements FlowActionRegistry';
   final seedClass = _emitSeedClass(
     '${baseName}Seed',
     lowered.document.flowState,
   );
   String referenceConstructor(String resultType) =>
       measurementPublicationDraftDigest == null
-          ? 'SurfaceFlowRef<$resultType>'
-          : 'SurfaceFlowRef<$resultType>'
-              '.generatedWithMeasurementPublicationDraftDigest';
+      ? 'SurfaceFlowRef<$resultType>'
+      : 'SurfaceFlowRef<$resultType>'
+            '.generatedWithMeasurementPublicationDraftDigest';
   final carrierArgument = measurementPublicationDraftDigest == null
       ? ''
       : '  measurementPublicationDraftDigest: '
-          '${_dartStringLiteral(measurementPublicationDraftDigest)},\n';
+            '${_dartStringLiteral(measurementPublicationDraftDigest)},\n';
   // A canonical flow installs the constant the package compiler declares in
   // its part: everything its steps draw, app widgets included.
   final vocabularyArgument = flow.isCanonical
       ? '  vocabulary: ${flowStepVocabularyName(refName)},\n'
       : vocabulary.namesInstallable
-          ? '  vocabulary: ${emitSurfaceVocabulary(vocabulary)},\n'
-          : '';
+      ? '  vocabulary: ${emitSurfaceVocabulary(vocabulary)},\n'
+      : '';
   // The argument is emitted only when this flow enters a child flow.
   final subFlowsArgument = lowered.subFlowReferenceNames.isEmpty
       ? ''
@@ -4587,15 +4649,15 @@ String _emitFlowDescriptor(
         : 'const {${signalNames.map(_dartStringLiteral).join(', ')}}';
     final generalActionsBody = flow.actions.isEmpty
         ? '  const $actionsClass();\n\n'
-            '  @override\n'
-            '  Map<String, FlowActionBinding<dynamic, dynamic>> get '
-            'flowActionBindings => const {};\n'
+              '  @override\n'
+              '  Map<String, FlowActionBinding<dynamic, dynamic>> get '
+              'flowActionBindings => const {};\n'
         : '${_emitActionsConstructor(actionsClass, flow.actions)}'
-            '${_emitActionFields(
-            flow.actions,
-            flow.minClient,
-            lowered.actionContracts,
-          )}';
+              '${_emitActionFields(
+                flow.actions,
+                flow.minClient,
+                lowered.actionContracts,
+              )}';
     return '''
 part of '$stem.dart';
 
@@ -4723,10 +4785,10 @@ $mapEntries
 }
 
 String _seedDartType(FlowDataType type) => switch (type) {
-      FlowDataType.bool => 'bool',
-      FlowDataType.int => 'int',
-      FlowDataType.string => 'String',
-    };
+  FlowDataType.bool => 'bool',
+  FlowDataType.int => 'int',
+  FlowDataType.string => 'String',
+};
 
 /// Mirrors the exact result map the runtime gives to a typed decoder.
 ///
@@ -4738,7 +4800,8 @@ Map<String, FlowDataType> _typedTerminalResultShape(FlowDocument document) {
     final result = _soleTypedTerminalResult(document);
     return {
       for (final entry in result.entries)
-        entry.key: _resultLiteralFlowDataType(entry.value) ??
+        entry.key:
+            _resultLiteralFlowDataType(entry.value) ??
             (throw StateError(
               'Validated legacy terminal result has unsupported field '
               "'${entry.key}'.",
@@ -4782,8 +4845,9 @@ $className $decoderName(Map<String, Object?> result) {
 ''';
   }
 
-  final keyChecks =
-      result.keys.map((key) => "!result.containsKey('$key')").join(' || ');
+  final keyChecks = result.keys
+      .map((key) => "!result.containsKey('$key')")
+      .join(' || ');
   final valueReads = result.entries
       .map((entry) => _emitResultValueRead(entry.key, entry.value))
       .join('\n');
@@ -4843,13 +4907,15 @@ String _emitActionsConstructor(
   if (actions.isEmpty) return '  const $className();\n';
   final params = actions
       .map(
-        (action) => '    required FlowActionHandler<${action.inputType}, '
+        (action) =>
+            '    required FlowActionHandler<${action.inputType}, '
             '${action.outputType}> ${action.parameterName},',
       )
       .join('\n');
   final entries = actions
       .map(
-        (action) => "          '${action.actionName}': "
+        (action) =>
+            "          '${action.actionName}': "
             'FlowActionBinding<${action.inputType}, ${action.outputType}>('
             '\n            descriptor: ${action.descriptorFieldName},'
             '\n            actionName: '
@@ -4917,15 +4983,18 @@ String _emitActionValueEncoder(
     return '$expression.map(($item) => $encodedItem).toList(growable: false)';
   }
   if (type is InterfaceType && !_isDartCoreType(type)) {
-    final fields = type.element.fields
-        .where((field) => !field.isStatic && field.isOriginDeclaration)
-        .toList()
-      ..sort((a, b) => (a.name ?? '').compareTo(b.name ?? ''));
-    final entries = fields.map((field) {
-      final name = field.name ?? '';
-      return '${_dartStringLiteral(name)}: '
-          '${_emitActionValueEncoder(field.type, '$expression.$name', depth)}';
-    }).join(', ');
+    final fields =
+        type.element.fields
+            .where((field) => !field.isStatic && field.isOriginDeclaration)
+            .toList()
+          ..sort((a, b) => (a.name ?? '').compareTo(b.name ?? ''));
+    final entries = fields
+        .map((field) {
+          final name = field.name ?? '';
+          return '${_dartStringLiteral(name)}: '
+              '${_emitActionValueEncoder(field.type, '$expression.$name', depth)}';
+        })
+        .join(', ');
     return '{$entries}';
   }
   return expression;
@@ -4936,15 +5005,16 @@ String _emitActionFields(
   int minClient,
   Map<String, FlowActionContract> contracts,
 ) {
-  return actions.map(
-    (action) {
-      final contract = contracts[action.actionName];
-      if (contract == null) {
-        throw StateError(
-          'Missing generated action contract for ${action.actionName}.',
-        );
-      }
-      return '''
+  return actions
+      .map(
+        (action) {
+          final contract = contracts[action.actionName];
+          if (contract == null) {
+            throw StateError(
+              'Missing generated action contract for ${action.actionName}.',
+            );
+          }
+          return '''
   static final FlowActionDescriptor<${action.inputType}, ${action.outputType}> ${action.descriptorFieldName} =
       FlowActionDescriptor<${action.inputType}, ${action.outputType}>(
     actionName: '${contract.actionName}',
@@ -4955,8 +5025,9 @@ String _emitActionFields(
     idempotent: ${contract.idempotent},
   );
 ''';
-    },
-  ).join('\n');
+        },
+      )
+      .join('\n');
 }
 
 String _emitFlowActionSchema(
@@ -4968,21 +5039,23 @@ String _emitFlowActionSchema(
     case FlowObjectActionSchema(:final fields):
       if (fields.isEmpty) return '${prefix}FlowActionSchema.object({})';
       final names = fields.keys.toList()..sort();
-      final entries = names.map((name) {
-        final field = fields[name]!;
-        return (StringBuffer()
-              ..write(_dartStringLiteral(name))
-              ..write(': FlowActionSchemaField(')
-              ..write('required: ${field.required}, ')
-              ..write(
-                'schema: ${_emitFlowActionSchema(
-                  field.schema,
-                  inConstContext: true,
-                )},',
-              )
-              ..write(')'))
-            .toString();
-      }).join(', ');
+      final entries = names
+          .map((name) {
+            final field = fields[name]!;
+            return (StringBuffer()
+                  ..write(_dartStringLiteral(name))
+                  ..write(': FlowActionSchemaField(')
+                  ..write('required: ${field.required}, ')
+                  ..write(
+                    'schema: ${_emitFlowActionSchema(
+                      field.schema,
+                      inConstContext: true,
+                    )},',
+                  )
+                  ..write(')'))
+                .toString();
+          })
+          .join(', ');
       return '${prefix}FlowActionSchema.object({$entries})';
     case FlowBoolActionSchema():
       return '${prefix}FlowActionSchema.bool()';
@@ -5142,17 +5215,17 @@ final class _FlowSource {
   });
 
   _FlowSource.invalid(ClassElement element)
-      : this(
-          id: '',
-          version: 1,
-          minClient: kBaselineCatalogVersion,
-          delivery: FlowDeliveryMode.typed,
-          className: element.name ?? '<unnamed>',
-          element: element,
-          actions: const [],
-          invalidAnnotation: true,
-          isCanonical: false,
-        );
+    : this(
+        id: '',
+        version: 1,
+        minClient: kBaselineCatalogVersion,
+        delivery: FlowDeliveryMode.typed,
+        className: element.name ?? '<unnamed>',
+        element: element,
+        actions: const [],
+        invalidAnnotation: true,
+        isCanonical: false,
+      );
 
   final String id;
   final int version;
@@ -5207,19 +5280,18 @@ final class _FlowAction {
     required String fieldName,
     required String actionName,
     required String duplicateOf,
-  }) =>
-      _FlowAction(
-        fieldName: fieldName,
-        descriptorName: fieldName,
-        parameterName: fieldName,
-        actionName: actionName,
-        idempotent: false,
-        inputType: 'void',
-        outputType: 'void',
-        inputDartType: null,
-        outputDartType: null,
-        duplicateOf: duplicateOf,
-      );
+  }) => _FlowAction(
+    fieldName: fieldName,
+    descriptorName: fieldName,
+    parameterName: fieldName,
+    actionName: actionName,
+    idempotent: false,
+    inputType: 'void',
+    outputType: 'void',
+    inputDartType: null,
+    outputDartType: null,
+    duplicateOf: duplicateOf,
+  );
 
   final String fieldName;
   final String descriptorName;
@@ -5361,7 +5433,8 @@ final class _LoweredFlow {
   final List<String> subFlowReferenceNames;
 }
 
-const _zeroHash = 'sha256:00000000000000000000000000000000'
+const _zeroHash =
+    'sha256:00000000000000000000000000000000'
     '00000000000000000000000000000000';
 
 /// The argument at [index] when it is positional, else null.

@@ -74,7 +74,8 @@ final Catalog _catalog = catalogWith([
   ),
 ]);
 
-const String _stubs = '''
+const String _stubs =
+    '''
 $kClassifierStubs
 
 class FieldNotes extends StatelessWidget {
@@ -166,18 +167,20 @@ void main() {
   });
 
   group('the refusal is scoped to the parameter seam', () {
-    test('the same map AT its declaring slot still routes to the entry list',
-        () async {
-      // The control. Were the gate reading the value's type instead of the
-      // parameter binding, this would refuse too — and the refusal would have
-      // removed the feature it was written to protect.
-      final r = await _translate(
-        "Object x() => FieldNotes(glossary: <String, String>{'a': '1'});",
-      );
+    test(
+      'the same map AT its declaring slot still routes to the entry list',
+      () async {
+        // The control. Were the gate reading the value's type instead of the
+        // parameter binding, this would refuse too — and the refusal would have
+        // removed the feature it was written to protect.
+        final r = await _translate(
+          "Object x() => FieldNotes(glossary: <String, String>{'a': '1'});",
+        );
 
-      expect(r.issues, isEmpty);
-      expect(r.dsl, 'FieldNotes(glossary: [{key: "a", value: "1"}])');
-    });
+        expect(r.issues, isEmpty);
+        expect(r.dsl, 'FieldNotes(glossary: [{key: "a", value: "1"}])');
+      },
+    );
 
     test('a record at an inlined parameter is unaffected', () async {
       final r = await _translate(
@@ -194,8 +197,9 @@ void main() {
 /// classified the way a real build classifies them.
 Future<({String dsl, List<Issue> issues})> _translate(String body) async {
   const rootPackage = 'restage_codegen';
-  final readerWriter =
-      await readerWriterWithFilesystemSources(rootPackage: rootPackage);
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: rootPackage,
+  );
   const assetKey = '$rootPackage|lib/_e2e_probe.dart';
   final source = '$_stubs\n\n$body';
   readerWriter.testing.writeString(AssetId.parse(assetKey), source);
@@ -222,8 +226,8 @@ class _TranslateBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.translated'],
-      };
+    '.dart': ['.translated'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {
@@ -235,8 +239,9 @@ class _TranslateBuilder implements Builder {
       throw StateError('the translation probe library did not resolve');
     }
     final node = resolved.getFragmentDeclaration(fn.firstFragment)?.node;
-    final body =
-        node is FunctionDeclaration ? node.functionExpression.body : null;
+    final body = node is FunctionDeclaration
+        ? node.functionExpression.body
+        : null;
     if (body is! ExpressionFunctionBody) {
       throw StateError('the translation probe needs `Object x() => <root>;`');
     }

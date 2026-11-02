@@ -22,8 +22,7 @@ void main() {
       expect(json, isNot(contains('deliveryMode')));
     });
 
-    test(
-        'emits an untyped Map descriptor leg — SurfaceFlowRef<Map>, identity '
+    test('emits an untyped Map descriptor leg — SurfaceFlowRef<Map>, identity '
         'decode, and no generated result class', () async {
       final generated = await _buildFlowDart(_generalSources());
       expect(
@@ -44,14 +43,15 @@ void main() {
       expect(generated, isNot(contains('class GeneralFirstRunResult')));
     });
 
-    test('the generated identity decoder returns its input map unchanged',
-        () async {
-      final generated = await _buildFlowDart(_generalSources());
-      await _assertIdentityDecoderRuns(generated);
-    });
-
     test(
-        'the general registry installs both channels — FlowActionRegistry AND '
+      'the generated identity decoder returns its input map unchanged',
+      () async {
+        final generated = await _buildFlowDart(_generalSources());
+        await _assertIdentityDecoderRuns(generated);
+      },
+    );
+
+    test('the general registry installs both channels — FlowActionRegistry AND '
         'FlowSignalRegistry with the enumerated signal names', () async {
       final generated = await _buildFlowDart(_generalSources());
       expect(
@@ -70,15 +70,16 @@ void main() {
       );
     });
 
-    test('a typed flow registry gains no FlowSignalRegistry (unchanged)',
-        () async {
-      final generated = await _buildFlowDart(_typedSources());
-      expect(generated, isNot(contains('FlowSignalRegistry')));
-      expect(generated, isNot(contains('installedSignalNames')));
-    });
-
     test(
-        'the full proof — a general flow with an action + custom event + '
+      'a typed flow registry gains no FlowSignalRegistry (unchanged)',
+      () async {
+        final generated = await _buildFlowDart(_typedSources());
+        expect(generated, isNot(contains('FlowSignalRegistry')));
+        expect(generated, isNot(contains('installedSignalNames')));
+      },
+    );
+
+    test('the full proof — a general flow with an action + custom event + '
         'outbound codegens the stamped doc, untyped leg, and both-channel '
         'registry', () async {
       final json = await _buildFlowJson(_generalWithActionSources());
@@ -107,11 +108,17 @@ void main() {
 }
 
 Map<String, String> _generalWithActionSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/screens/ready.dart':
-          _screenSource('ready', 'ReadyScreen', 'start'),
-      'apps_examples|lib/onboarding/flows/general_proof.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/screens/ready.dart': _screenSource(
+    'ready',
+    'ReadyScreen',
+    'start',
+  ),
+  'apps_examples|lib/onboarding/flows/general_proof.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/ready.dart';
@@ -171,16 +178,22 @@ final class GeneralProofFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 // --- fixtures -------------------------------------------------------------
 
 Map<String, String> _generalSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/screens/ready.dart':
-          _screenSource('ready', 'ReadyScreen', 'start'),
-      'apps_examples|lib/onboarding/flows/general_first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/screens/ready.dart': _screenSource(
+    'ready',
+    'ReadyScreen',
+    'start',
+  ),
+  'apps_examples|lib/onboarding/flows/general_first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/ready.dart';
@@ -235,14 +248,20 @@ final class GeneralFirstRunFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 Map<String, String> _typedSources() => {
-      'apps_examples|lib/onboarding/screens/welcome.dart':
-          _screenSource('welcome', 'WelcomeScreen', 'next'),
-      'apps_examples|lib/onboarding/screens/ready.dart':
-          _screenSource('ready', 'ReadyScreen', 'start'),
-      'apps_examples|lib/onboarding/flows/typed_first_run.dart': '''
+  'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+    'welcome',
+    'WelcomeScreen',
+    'next',
+  ),
+  'apps_examples|lib/onboarding/screens/ready.dart': _screenSource(
+    'ready',
+    'ReadyScreen',
+    'start',
+  ),
+  'apps_examples|lib/onboarding/flows/typed_first_run.dart': '''
 import 'package:restage/restage.dart';
 
 import '../screens/ready.dart';
@@ -273,7 +292,7 @@ final class TypedFirstRunFlow extends RestageFlow {
   }
 }
 ''',
-    };
+};
 
 // --- harness --------------------------------------------------------------
 
@@ -328,7 +347,8 @@ Future<TestReaderWriter> _readerWriterWith(Map<String, String> sources) async {
   return readerWriter;
 }
 
-String _screenSource(String id, String className, String eventName) => '''
+String _screenSource(String id, String className, String eventName) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 

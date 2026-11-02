@@ -24,11 +24,11 @@ final class PaywallSourceFound {
     required this.build,
     this.isCanonical = false,
     this.hasExplicitId = true,
-  })  : assert(id.length > 0, 'PaywallSourceFound.id must not be empty'),
-        assert(
-          className.length > 0,
-          'PaywallSourceFound.className must not be empty',
-        );
+  }) : assert(id.length > 0, 'PaywallSourceFound.id must not be empty'),
+       assert(
+         className.length > 0,
+         'PaywallSourceFound.className must not be empty',
+       );
 
   /// Effective canonical paywall identity from `@Paywall(id:)` or the
   /// deprecated `@PaywallSource(id:)` spelling.
@@ -70,8 +70,8 @@ final class VisitorResult {
   VisitorResult({
     required List<PaywallSourceFound> sources,
     required List<Issue> issues,
-  })  : sources = List.unmodifiable(sources),
-        issues = List.unmodifiable(issues);
+  }) : sources = List.unmodifiable(sources),
+       issues = List.unmodifiable(issues);
 
   /// Successfully discovered paywall sources (unmodifiable).
   final List<PaywallSourceFound> sources;
@@ -109,9 +109,11 @@ Future<VisitorResult> visitPaywallSources(
       const {'Paywall'},
       _kSdkLibraryOrigin,
     );
-    final canonical = canonicalCandidate != null &&
+    final canonical =
+        canonicalCandidate != null &&
         annotationHasOrigin(canonicalCandidate, _kSdkLibraryOrigin);
-    final unresolvedCanonical = canonicalCandidate != null &&
+    final unresolvedCanonical =
+        canonicalCandidate != null &&
         resolvedAnnotationClass(canonicalCandidate) == null;
 
     // A resolved annotation from another package is intentionally ignored by
@@ -123,7 +125,8 @@ Future<VisitorResult> visitPaywallSources(
       issues.add(
         Issue(
           code: IssueCode.unresolvedIdentifier,
-          message: '@Paywall on $className could not be resolved to the '
+          message:
+              '@Paywall on $className could not be resolved to the '
               'package:restage SDK annotation.',
           location: '${assetId.path}#$className',
         ),
@@ -131,8 +134,9 @@ Future<VisitorResult> visitPaywallSources(
       continue;
     }
 
-    final annotation =
-        canonical ? canonicalCandidate : firstAnnotation(cls, 'PaywallSource');
+    final annotation = canonical
+        ? canonicalCandidate
+        : firstAnnotation(cls, 'PaywallSource');
     if (annotation == null) continue;
 
     final className = cls.name ?? '<unnamed>';
@@ -142,7 +146,8 @@ Future<VisitorResult> visitPaywallSources(
       issues.add(
         Issue(
           code: IssueCode.annotationEvaluationFailed,
-          message: '@${canonical ? 'Paywall' : 'PaywallSource'} on '
+          message:
+              '@${canonical ? 'Paywall' : 'PaywallSource'} on '
               '$className could not be const-evaluated.',
           location: location,
         ),
@@ -161,7 +166,7 @@ Future<VisitorResult> visitPaywallSources(
           code: IssueCode.annotationEvaluationFailed,
           message: canonical
               ? '@Paywall.id, when supplied, must be a non-empty String '
-                  'literal.'
+                    'literal.'
               : '@PaywallSource.id is required and must be a String literal.',
           location: location,
         ),
@@ -178,7 +183,8 @@ Future<VisitorResult> visitPaywallSources(
       issues.add(
         Issue(
           code: IssueCode.unsupportedBaseClass,
-          message: 'Paywall classes must extend StatelessWidget or a '
+          message:
+              'Paywall classes must extend StatelessWidget or a '
               'supported StatefulWidget. '
               'Found: extends $supertypeName. '
               'Refactor to a supported root widget subclass.',
@@ -215,7 +221,8 @@ Future<VisitorResult> visitPaywallSources(
     issues.add(
       Issue(
         code: IssueCode.duplicateId,
-        message: 'At most one @Paywall declaration in a Dart library may '
+        message:
+            'At most one @Paywall declaration in a Dart library may '
             'omit id; found ${implicitCanonicalClasses.join(', ')}. '
             'Give every additional declaration an explicit unique id.',
         location: assetId.path,
@@ -241,7 +248,8 @@ Future<VisitorResult> visitPaywallSources(
       issues.add(
         Issue(
           code: IssueCode.duplicateId,
-          message: 'Multiple Restage paywall declarations share id "$id": '
+          message:
+              'Multiple Restage paywall declarations share id "$id": '
               '$classes.',
           location: assetId.path,
         ),

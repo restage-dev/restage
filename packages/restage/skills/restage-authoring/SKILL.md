@@ -1,6 +1,6 @@
 ---
 name: restage-authoring
-description: Adopt existing Flutter widgets as Restage surfaces, configure the SDK, design for OTA updates, author screens and flows, generate GenUI catalogs or Widgetbook stories, connect host behavior, and fix compilation or rendering. Use for Dart source, build settings and SDK integration; deployed analytics and serving operations belong to restage-operations.
+description: Adopt existing Flutter widgets as Restage surfaces, configure the SDK, design for OTA updates, author screens and flows, generate A2UI catalogs or Widgetbook stories, connect host behavior, and fix compilation or rendering. Use for Dart source, build settings and SDK integration; deployed analytics and serving operations belong to restage-operations.
 ---
 
 # Restage authoring
@@ -127,7 +127,7 @@ or declaring several surfaces together.
 | Maximize OTA flexibility; distinguish inlining from native rendering | [Surface design](references/surface-design.md) |
 | Typed events, app-owned data and supported authoring patterns | [Surfaces and events](references/surfaces-and-events.md) |
 | Library registration, child slots and capabilities | [Custom widgets](references/custom-widgets.md) |
-| Build order and integration with Flutter GenUI or Widgetbook | [Optional emitters](references/emitters.md) |
+| Build order and integration with Flutter A2UI or Widgetbook | [Optional emitters](references/emitters.md) |
 | Branching, state, host actions, typed/general flows | [Flows](references/flows.md) |
 | Placement presentation, purchase adapters and runtime controls | [Host integration](references/host-integration.md) |
 | Setup, delivery, fallback, app size and optional bundled RFW | [Setup and delivery](references/setup-and-delivery.md) |

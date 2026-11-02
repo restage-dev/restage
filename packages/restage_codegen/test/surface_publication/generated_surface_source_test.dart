@@ -8,20 +8,21 @@ import 'package:yaml/yaml.dart';
 // compiler's catalog read builds other packages' catalogs lazily, and that must
 // not hide the generated source from the resolver.
 void main() {
-  test('compiles a surface whose source an earlier builder generates',
-      () async {
-    final packages = p.normalize(p.join(Directory.current.path, '..'));
-    final root = await Directory.systemTemp.createTemp('generated_surface_');
-    addTearDown(() => root.delete(recursive: true));
+  test(
+    'compiles a surface whose source an earlier builder generates',
+    () async {
+      final packages = p.normalize(p.join(Directory.current.path, '..'));
+      final root = await Directory.systemTemp.createTemp('generated_surface_');
+      addTearDown(() => root.delete(recursive: true));
 
-    _write(root, 'generator/pubspec.yaml', '''
+      _write(root, 'generator/pubspec.yaml', '''
 name: generator
 environment:
   sdk: ^3.9.0
 dependencies:
   build: any
 ''');
-    _write(root, 'generator/build.yaml', '''
+      _write(root, 'generator/build.yaml', '''
 builders:
   copy:
     import: 'package:generator/builder.dart'
@@ -31,7 +32,7 @@ builders:
     build_to: source
     runs_before: ['restage_codegen:restage_source_roster']
 ''');
-    _write(root, 'generator/lib/builder.dart', '''
+      _write(root, 'generator/lib/builder.dart', '''
 import 'package:build/build.dart';
 
 Builder copyBuilder(BuilderOptions options) => _Copy();
@@ -50,11 +51,11 @@ class _Copy implements Builder {
 }
 ''');
 
-    final overrides = _workspaceClosure(
-      p.normalize(p.join(packages, '..')),
-      const ['restage', 'restage_codegen'],
-    );
-    _write(root, 'app/pubspec.yaml', '''
+      final overrides = _workspaceClosure(
+        p.normalize(p.join(packages, '..')),
+        const ['restage', 'restage_codegen'],
+      );
+      _write(root, 'app/pubspec.yaml', '''
 name: app
 publish_to: none
 environment:
@@ -71,12 +72,9 @@ dev_dependencies:
   restage_codegen:
     path: ${p.join(packages, 'restage_codegen')}
 dependency_overrides:
-${[
-      for (final MapEntry(key: name, value: path) in overrides.entries)
-        '  $name:\n    path: $path'
-    ].join('\n')}
+${[for (final MapEntry(key: name, value: path) in overrides.entries) '  $name:\n    path: $path'].join('\n')}
 ''');
-    _write(root, 'app/lib/offer.surface', '''
+      _write(root, 'app/lib/offer.surface', '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -91,25 +89,27 @@ class OfferPaywall extends StatelessWidget {
 }
 ''');
 
-    final app = p.join(root.path, 'app');
-    final get = await Process.run(
-      'flutter',
-      ['pub', 'get', '--offline'],
-      workingDirectory: app,
-    );
-    expect(get.exitCode, 0, reason: '${get.stdout}\n${get.stderr}');
-    final build = await Process.run(
-      'dart',
-      ['run', 'build_runner', 'build'],
-      workingDirectory: app,
-    );
-    expect(build.exitCode, 0, reason: '${build.stdout}\n${build.stderr}');
-    expect(
-      File(p.join(app, 'lib/restage.generated/offer.restage.g.dart'))
-          .existsSync(),
-      isTrue,
-    );
-  });
+      final app = p.join(root.path, 'app');
+      final get = await Process.run(
+        'flutter',
+        ['pub', 'get', '--offline'],
+        workingDirectory: app,
+      );
+      expect(get.exitCode, 0, reason: '${get.stdout}\n${get.stderr}');
+      final build = await Process.run(
+        'dart',
+        ['run', 'build_runner', 'build'],
+        workingDirectory: app,
+      );
+      expect(build.exitCode, 0, reason: '${build.stdout}\n${build.stderr}');
+      expect(
+        File(
+          p.join(app, 'lib/restage.generated/offer.restage.g.dart'),
+        ).existsSync(),
+        isTrue,
+      );
+    },
+  );
 }
 
 void _write(Directory root, String path, String contents) =>

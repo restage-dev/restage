@@ -40,15 +40,13 @@ String lowerCamelIdentifier(String value, {required String fallback}) {
 String generatedHandleName(
   String declarationName, {
   required String fallback,
-}) =>
-    '${lowerCamelIdentifier(declarationName, fallback: fallback)}Ref';
+}) => '${lowerCamelIdentifier(declarationName, fallback: fallback)}Ref';
 
 /// The generated widget that mounts the screen named [declarationName].
 String generatedSurfaceName(
   String declarationName, {
   required String fallback,
-}) =>
-    '${pascalIdentifier(declarationName, fallback: fallback)}Surface';
+}) => '${pascalIdentifier(declarationName, fallback: fallback)}Surface';
 
 /// The constant holding everything the steps of the flow whose handle is
 /// [refName] draw, which the flow reference installs.

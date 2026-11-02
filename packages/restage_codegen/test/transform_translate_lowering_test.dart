@@ -70,10 +70,10 @@ class IdentitySurface extends StatelessWidget {
       'TransformTranslate(offset: const Offset(1, 2))',
     ),
   }.entries) {
-    test(
-        'resolved dependency ${scenario.key} TransformTranslate '
+    test('resolved dependency ${scenario.key} TransformTranslate '
         'cannot bind native entry', () async {
-      final source = '''
+      final source =
+          '''
 import 'package:flutter/widgets.dart';
 import 'package:restage_core/foreign_identity_probe.dart';
 
@@ -145,28 +145,30 @@ class IdentitySurface extends StatelessWidget {
     },
   );
 
-  test('native translation compiles resolved Flutter source at capability 13',
-      () async {
-    final expressions = {
-      'literal': '''
+  test(
+    'native translation compiles resolved Flutter source at capability 13',
+    () async {
+      final expressions = {
+        'literal': '''
       Transform.translate(
         offset: const Offset(-12.5, 8),
         transformHitTests: false,
         filterQuality: FilterQuality.low,
         child: const SizedBox(width: 30, height: 20),
       )''',
-      'integer': 'Transform.translate(offset: const Offset(12, -8))',
-      'zero': 'Transform.translate(offset: Offset.zero)',
-      'live': 'Transform.translate(offset: Offset(dx, dy))',
-      'aliased': '''
+        'integer': 'Transform.translate(offset: const Offset(12, -8))',
+        'zero': 'Transform.translate(offset: Offset.zero)',
+        'live': 'Transform.translate(offset: Offset(dx, dy))',
+        'aliased': '''
       flutter.Transform.translate(
         offset: flutter.Offset(dx, dy),
         child: const flutter.SizedBox(width: 30, height: 20),
       )''',
-    };
-    final sources = {
-      for (final scenario in expressions.entries)
-        'apps_examples|lib/paywalls/translate_${scenario.key}.dart': '''
+      };
+      final sources = {
+        for (final scenario in expressions.entries)
+          'apps_examples|lib/paywalls/translate_${scenario.key}.dart':
+              '''
           import 'package:flutter/widgets.dart';
           import 'package:flutter/widgets.dart' as flutter;
 
@@ -184,77 +186,86 @@ class IdentitySurface extends StatelessWidget {
             Widget build(BuildContext context) => ${scenario.value};
           }
         ''',
-    };
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-      includeFlutter: true,
-    );
-    for (final source in sources.entries) {
-      readerWriter.testing.writeString(AssetId.parse(source.key), source.value);
-    }
-    final result = await testBuilder(
-      restageCodegenBuilder(BuilderOptions.empty),
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    for (final id in expressions.keys) {
-      final library = fmt.parseLibraryFile(
-        readerWriter.testing.readString(
-          AssetId('apps_examples', 'assets/paywalls/translate_$id.rfwtxt'),
-        ),
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: true,
       );
-      final transform = library.widgets.single.root as fmt.ConstructorCall;
-      expect(transform.name, 'TransformTranslate', reason: id);
-      final offset = transform.arguments['offset']! as Map<Object?, Object?>;
-      if (id == 'live' || id == 'aliased') {
-        for (final axis in {'x': 'dx', 'y': 'dy'}.entries) {
+      for (final source in sources.entries) {
+        readerWriter.testing.writeString(
+          AssetId.parse(source.key),
+          source.value,
+        );
+      }
+      final result = await testBuilder(
+        restageCodegenBuilder(BuilderOptions.empty),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      for (final id in expressions.keys) {
+        final library = fmt.parseLibraryFile(
+          readerWriter.testing.readString(
+            AssetId('apps_examples', 'assets/paywalls/translate_$id.rfwtxt'),
+          ),
+        );
+        final transform = library.widgets.single.root as fmt.ConstructorCall;
+        expect(transform.name, 'TransformTranslate', reason: id);
+        final offset = transform.arguments['offset']! as Map<Object?, Object?>;
+        if (id == 'live' || id == 'aliased') {
+          for (final axis in {'x': 'dx', 'y': 'dy'}.entries) {
+            expect(
+              offset[axis.key],
+              isA<fmt.DataReference>().having(
+                (reference) => reference.parts,
+                'parts',
+                ['context', axis.value],
+              ),
+            );
+          }
+        } else {
           expect(
-            offset[axis.key],
-            isA<fmt.DataReference>().having(
-              (reference) => reference.parts,
-              'parts',
-              ['context', axis.value],
-            ),
+            offset,
+            switch (id) {
+              'literal' => {'x': -12.5, 'y': 8.0},
+              'integer' => {'x': 12.0, 'y': -8.0},
+              _ => {'x': 0.0, 'y': 0.0},
+            },
           );
         }
-      } else {
-        expect(
-          offset,
-          switch (id) {
-            'literal' => {'x': -12.5, 'y': 8.0},
-            'integer' => {'x': 12.0, 'y': -8.0},
-            _ => {'x': 0.0, 'y': 0.0},
-          },
-        );
+        if (id == 'literal') {
+          expect(transform.arguments['transformHitTests'], false);
+          expect(transform.arguments['filterQuality'], 'low');
+          final child = transform.arguments['child']! as fmt.ConstructorCall;
+          expect(child.name, 'SizedBox');
+          expect(child.arguments, {'width': 30.0, 'height': 20.0});
+        }
+        for (final path in ['translate_$id', 'screens/paywall_translate_$id']) {
+          expect(
+            readerWriter.testing.readBytes(
+              AssetId('apps_examples', 'assets/paywalls/$path.rfw'),
+            ),
+            isNotEmpty,
+          );
+          final sidecar =
+              jsonDecode(
+                    readerWriter.testing.readString(
+                      AssetId(
+                        'apps_examples',
+                        'assets/paywalls/$path.capability.json',
+                      ),
+                    ),
+                  )
+                  as Map<String, dynamic>;
+          expect(
+            (sidecar['manifest'] as Map<String, dynamic>)['builtInFloor'],
+            13,
+            reason: path,
+          );
+        }
       }
-      if (id == 'literal') {
-        expect(transform.arguments['transformHitTests'], false);
-        expect(transform.arguments['filterQuality'], 'low');
-        final child = transform.arguments['child']! as fmt.ConstructorCall;
-        expect(child.name, 'SizedBox');
-        expect(child.arguments, {'width': 30.0, 'height': 20.0});
-      }
-      for (final path in ['translate_$id', 'screens/paywall_translate_$id']) {
-        expect(
-          readerWriter.testing.readBytes(
-            AssetId('apps_examples', 'assets/paywalls/$path.rfw'),
-          ),
-          isNotEmpty,
-        );
-        final sidecar = jsonDecode(
-          readerWriter.testing.readString(
-            AssetId('apps_examples', 'assets/paywalls/$path.capability.json'),
-          ),
-        ) as Map<String, dynamic>;
-        expect(
-          (sidecar['manifest'] as Map<String, dynamic>)['builtInFloor'],
-          13,
-          reason: path,
-        );
-      }
-    }
-  });
+    },
+  );
 }

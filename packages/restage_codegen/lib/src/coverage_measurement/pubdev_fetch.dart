@@ -65,11 +65,12 @@ int compareVersionStrings(String a, String b) {
 
 /// Runs a child process, returning its result. Injectable so the fetch
 /// orchestration can be unit-tested without spawning real processes.
-typedef ProcessRunner = Future<ProcessResult> Function(
-  String executable,
-  List<String> args, {
-  String? workingDirectory,
-});
+typedef ProcessRunner =
+    Future<ProcessResult> Function(
+      String executable,
+      List<String> args, {
+      String? workingDirectory,
+    });
 
 /// A published package fetched to a writable temp directory and pub-got there,
 /// ready for the coverage scanner. Call [dispose] to delete the temp copy.
@@ -126,7 +127,8 @@ Future<FetchedPackage> fetchPubPackageToTemp({
   ProcessRunner? runProcess,
 }) async {
   final run = runProcess ?? _defaultRun;
-  final cacheRoot = pubCacheRoot ??
+  final cacheRoot =
+      pubCacheRoot ??
       Platform.environment['PUB_CACHE'] ??
       p.join(_homeDir(), '.pub-cache');
 
@@ -190,8 +192,7 @@ Future<ProcessResult> _defaultRun(
   String executable,
   List<String> args, {
   String? workingDirectory,
-}) =>
-    Process.run(executable, args, workingDirectory: workingDirectory);
+}) => Process.run(executable, args, workingDirectory: workingDirectory);
 
 String _homeDir() =>
     Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';

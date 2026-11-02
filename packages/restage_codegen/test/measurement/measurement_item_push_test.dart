@@ -85,8 +85,9 @@ void main() {
       '$_package|lib/surfaces/host_plans.dart': _hostPlans,
       '$_package|lib/surfaces/static_plans.dart': _staticPlans,
     };
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: _package);
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: _package,
+    );
     final result = await testBuilders(
       [
         restageSourceRosterBuilder(BuilderOptions.forRoot),
@@ -112,8 +113,9 @@ void main() {
     );
     final root = await Directory.systemTemp.createTemp('item_push_');
     addTearDown(() => root.delete(recursive: true));
-    File(p.join(root.path, 'pubspec.yaml'))
-        .writeAsStringSync('name: $_package\n');
+    File(
+      p.join(root.path, 'pubspec.yaml'),
+    ).writeAsStringSync('name: $_package\n');
     for (final path in {
       kRestageSurfacePublicationCompilerBundlePath,
       kRestageMeasurementCompilerOutputPath,

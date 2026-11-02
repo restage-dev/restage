@@ -226,21 +226,34 @@ Any `Widget` or `List<Widget>` constructor input can take child widgets. `hero`,
 needs. None of them has to be called `child` or `children`.
 
 Generated A2UI payloads all use the same layout. A2UI's own `id` and `component` keys
-stay at the top level, and every constructor input goes inside the required `props`
-object:
+stay at the top level. Constructor inputs use top-level properties:
+
+Ordinary constructor names use `props_<DartName>` when that name is a valid
+upstream UAX31 identifier and the source name does not start with `encoded_`.
+Other names, including `$value`, and all source names starting with `encoded_`
+use `props_encoded_<hex>`. The hex concatenates the source name's UTF-16 code
+units as exactly four lowercase digits each; `$value` becomes
+`props_encoded_002400760061006c00750065`. Reserving `encoded_` prevents a normal
+source name from colliding with an encoded name. Producers must use the property
+keys in the generated catalog schema and instructions. Dart constructor arguments
+and nested rich-data keys keep their original names.
 
 ```json
 {
   "id": "showcase",
   "component": "CatalogShowcase",
-  "props": {
-    "title": "Catalog proof",
-    "enabled": true,
-    "status": "ready",
-    "hero": "hero-component-id",
-    "details": ["detail-a-id", "detail-b-id"],
-    "footer": "footer-component-id",
-    "data": {"note": "Generated once", "count": 2}
+  "props_title": "Catalog proof",
+  "props_enabled": true,
+  "props_status": "ready",
+  "props_hero": "hero_component_id",
+  "props_details": [
+    "detail_a_id",
+    "detail_b_id"
+  ],
+  "props_footer": "footer_component_id",
+  "props_data": {
+    "note": "Generated once",
+    "count": 2
   }
 }
 ```
@@ -313,10 +326,10 @@ story host or run an extra step.
 
 ## 6. Run the consumers
 
-The order is Flutter source → Restage generation → the consuming app. For GenUI,
-register `buildRestageCatalog()` with a `SurfaceController`, feed it A2UI messages,
-and mount a GenUI `Surface`. The [A2UI guide](/tools/a2ui#connect-genui-and-check-incoming-payloads)
-shows the controller and its lifecycle.
+The order is Flutter source → Restage generation → the consuming app. For A2UI,
+register `buildRestageCatalog()` with a `MessageProcessor`, feed it A2UI messages,
+and mount an `A2uiSurface`. The [A2UI guide](/tools/a2ui#connect-a2ui-and-check-cached-bundles)
+shows the processor and its lifecycle.
 
 For Widgetbook, a workbench entry point under the source package's `lib/` can use:
 

@@ -7,63 +7,70 @@ import 'package:test/test.dart';
 import '../helpers.dart';
 
 void main() {
-  test('renders one native story declaration per planned Cartesian tuple',
-      () async {
-    await _runProbe(
-      const {'apps_examples|lib/state_card.dart': _configuredStateWidget},
-      outputMatcher: allOf(
-        predicate<String>(
-          (source) =>
-              RegExp(r'^final \$', multiLine: true).allMatches(source).length ==
-              4,
-          'contains exactly four top-level Widgetbook story declarations',
-        ),
-        contains(r'final $RestageCatalog = _Story('),
-        contains(r'final $ModeReady = _Story('),
-        contains(r'final $EnabledTrue = _Story('),
-        contains(r'final $EnabledTrueModeReady = _Story('),
-        matches(
-          RegExp(
-            r'final \$ModeReady = _Story\([\s\S]*?'
-            r'enabled: _RestageBoolArg\(\s*false,[\s\S]*?'
-            r'mode: _RestageEnumArg<_RestageChoice1>\(\s*'
-            r'_RestageChoice1\.value1,',
+  test(
+    'renders one native story declaration per planned Cartesian tuple',
+    () async {
+      await _runProbe(
+        const {'apps_examples|lib/state_card.dart': _configuredStateWidget},
+        outputMatcher: allOf(
+          predicate<String>(
+            (source) =>
+                RegExp(
+                  r'^final \$',
+                  multiLine: true,
+                ).allMatches(source).length ==
+                4,
+            'contains exactly four top-level Widgetbook story declarations',
+          ),
+          contains(r'final $RestageCatalog = _Story('),
+          contains(r'final $ModeReady = _Story('),
+          contains(r'final $EnabledTrue = _Story('),
+          contains(r'final $EnabledTrueModeReady = _Story('),
+          matches(
+            RegExp(
+              r'final \$ModeReady = _Story\([\s\S]*?'
+              r'enabled: _RestageBoolArg\(\s*false,[\s\S]*?'
+              r'mode: _RestageEnumArg<_RestageChoice1>\(\s*'
+              r'_RestageChoice1\.value1,',
+            ),
+          ),
+          matches(
+            RegExp(
+              r'final \$EnabledTrueModeReady = _Story\([\s\S]*?'
+              r'enabled: _RestageBoolArg\(\s*true,[\s\S]*?'
+              r'mode: _RestageEnumArg<_RestageChoice1>\(\s*'
+              r'_RestageChoice1\.value1,',
+            ),
           ),
         ),
-        matches(
-          RegExp(
-            r'final \$EnabledTrueModeReady = _Story\([\s\S]*?'
-            r'enabled: _RestageBoolArg\(\s*true,[\s\S]*?'
-            r'mode: _RestageEnumArg<_RestageChoice1>\(\s*'
-            r'_RestageChoice1\.value1,',
-          ),
-        ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('rejects a final RestageCatalog declaration collision before rendering',
-      () async {
-    await _runProbe(
-      const {
-        'apps_examples|lib/declaration_collision_card.dart':
-            _restageCatalogDeclarationCollisionWidget,
-      },
-      captureErrors: true,
-      outputMatcher: allOf(
-        contains(r"story declaration '$RestageCatalog' collides"),
-        contains(
-          'restage=package:apps_examples/declaration_collision_card.dart'
-          '#Mode:base@0',
+  test(
+    'rejects a final RestageCatalog declaration collision before rendering',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/declaration_collision_card.dart':
+              _restageCatalogDeclarationCollisionWidget,
+        },
+        captureErrors: true,
+        outputMatcher: allOf(
+          contains(r"story declaration '$RestageCatalog' collides"),
+          contains(
+            'restage=package:apps_examples/declaration_collision_card.dart'
+            '#Mode:base@0',
+          ),
+          contains(
+            'restage=package:apps_examples/declaration_collision_card.dart'
+            '#Mode:catalog@1',
+          ),
+          isNot(contains('conflicting bare namespace bindings')),
         ),
-        contains(
-          'restage=package:apps_examples/declaration_collision_card.dart'
-          '#Mode:catalog@1',
-        ),
-        isNot(contains('conflicting bare namespace bindings')),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   test('property enum aliases render through their canonical member', () async {
     await _runProbe(
@@ -87,26 +94,28 @@ void main() {
     (name: 'public', expression: 'defaultMode'),
     (name: 'chained', expression: 'chainedDefaultMode'),
   ]) {
-    test('${alias.name} const enum defaults render one canonical choice domain',
-        () async {
-      await _runProbe(
-        {
-          'apps_examples|lib/alias_default_card.dart':
-              _enumAliasConstructorDefaultWidget(alias.expression),
-        },
-        outputMatcher: allOf(<Matcher>[
-          contains('enum _RestageChoice0 { value0, value1, value2 }'),
-          contains('this.mode = _RestageChoice0.value1'),
-          contains(r'final $RestageCatalog = _Story('),
-          contains('_RestageChoice0.value0 => restage_source.Mode.idle'),
-          contains('_RestageChoice0.value1 => restage_source.Mode.ready'),
-          contains('_RestageChoice0.value2 => restage_source.Mode.done'),
-          contains("Default: the widget constructor's Dart default."),
-          isNot(contains('_RestageChoice0.value3')),
-          isNot(contains('restage_source.${alias.expression}')),
-        ]),
-      );
-    });
+    test(
+      '${alias.name} const enum defaults render one canonical choice domain',
+      () async {
+        await _runProbe(
+          {
+            'apps_examples|lib/alias_default_card.dart':
+                _enumAliasConstructorDefaultWidget(alias.expression),
+          },
+          outputMatcher: allOf(<Matcher>[
+            contains('enum _RestageChoice0 { value0, value1, value2 }'),
+            contains('this.mode = _RestageChoice0.value1'),
+            contains(r'final $RestageCatalog = _Story('),
+            contains('_RestageChoice0.value0 => restage_source.Mode.idle'),
+            contains('_RestageChoice0.value1 => restage_source.Mode.ready'),
+            contains('_RestageChoice0.value2 => restage_source.Mode.done'),
+            contains("Default: the widget constructor's Dart default."),
+            isNot(contains('_RestageChoice0.value3')),
+            isNot(contains('restage_source.${alias.expression}')),
+          ]),
+        );
+      },
+    );
   }
 
   for (final alias in <({String name, String expression})>[
@@ -114,16 +123,15 @@ void main() {
     (name: 'chained', expression: 'chainedDefaultMode'),
   ]) {
     for (final configured in <bool>[false, true]) {
-      test(
-          '${alias.name} const null enum default renders one null choice '
+      test('${alias.name} const null enum default renders one null choice '
           '${configured ? 'with' : 'without'} config', () async {
         await _runProbe(
           {
             'apps_examples|lib/nullable_alias_card.dart':
                 _nullableEnumStaticNullAliasWidget(
-              alias.expression,
-              configured: configured,
-            ),
+                  alias.expression,
+                  configured: configured,
+                ),
           },
           outputMatcher: allOf(<Matcher>[
             contains(
@@ -169,255 +177,272 @@ void main() {
     (name: 'public', expression: 'defaultEnabled'),
     (name: 'chained', expression: 'chainedDefaultEnabled'),
   ]) {
-    test('${alias.name} constrained bool alias renders one typed choice',
-        () async {
-      await _runProbe(
-        {
-          'apps_examples|lib/constrained_bool_card.dart':
-              _constrainedBoolStaticAliasWidget(alias.expression),
-        },
-        outputMatcher: allOf(<Matcher>[
-          contains('enum _RestageChoice0 { value0, value1 }'),
-          contains('this.enabled = _RestageChoice0.value1'),
-          contains('_RestageChoice0.value0 => false'),
-          contains('_RestageChoice0.value1 => true'),
-          contains('_RestageChoice0.value1 => "true"'),
-          contains("Default: the widget constructor's Dart default."),
-          isNot(contains('_RestageChoice0.value2')),
-          isNot(contains('restage_source.${alias.expression}')),
-        ]),
-      );
-    });
+    test(
+      '${alias.name} constrained bool alias renders one typed choice',
+      () async {
+        await _runProbe(
+          {
+            'apps_examples|lib/constrained_bool_card.dart':
+                _constrainedBoolStaticAliasWidget(alias.expression),
+          },
+          outputMatcher: allOf(<Matcher>[
+            contains('enum _RestageChoice0 { value0, value1 }'),
+            contains('this.enabled = _RestageChoice0.value1'),
+            contains('_RestageChoice0.value0 => false'),
+            contains('_RestageChoice0.value1 => true'),
+            contains('_RestageChoice0.value1 => "true"'),
+            contains("Default: the widget constructor's Dart default."),
+            isNot(contains('_RestageChoice0.value2')),
+            isNot(contains('restage_source.${alias.expression}')),
+          ]),
+        );
+      },
+    );
   }
 
-  for (final scalar in <({
-    String name,
-    String type,
-    String expression,
-    String declarations,
-    String allowedValues,
-    String runtimeValue,
-  })>[
-    (
-      name: 'public int',
-      type: 'int',
-      expression: 'defaultValue',
-      declarations: '''
+  for (final scalar
+      in <
+        ({
+          String name,
+          String type,
+          String expression,
+          String declarations,
+          String allowedValues,
+          String runtimeValue,
+        })
+      >[
+        (
+          name: 'public int',
+          type: 'int',
+          expression: 'defaultValue',
+          declarations: '''
 const defaultValue = 2;
 const chainedDefaultValue = defaultValue;
 ''',
-      allowedValues: '1, 2',
-      runtimeValue: '2',
-    ),
-    (
-      name: 'chained real',
-      type: 'double',
-      expression: 'chainedDefaultValue',
-      declarations: '''
+          allowedValues: '1, 2',
+          runtimeValue: '2',
+        ),
+        (
+          name: 'chained real',
+          type: 'double',
+          expression: 'chainedDefaultValue',
+          declarations: '''
 const defaultValue = 2.5;
 const chainedDefaultValue = defaultValue;
 ''',
-      allowedValues: '1.5, 2.5',
-      runtimeValue: '2.5',
-    ),
-    (
-      name: 'public string',
-      type: 'String',
-      expression: 'defaultValue',
-      declarations: '''
+          allowedValues: '1.5, 2.5',
+          runtimeValue: '2.5',
+        ),
+        (
+          name: 'public string',
+          type: 'String',
+          expression: 'defaultValue',
+          declarations: '''
 const defaultValue = 'second';
 const chainedDefaultValue = defaultValue;
 ''',
-      allowedValues: "'first', 'second'",
-      runtimeValue: '"second"',
-    ),
-  ]) {
-    test('${scalar.name} constrained alias renders the canonical direct value',
-        () async {
+          allowedValues: "'first', 'second'",
+          runtimeValue: '"second"',
+        ),
+      ]) {
+    test(
+      '${scalar.name} constrained alias renders the canonical direct value',
+      () async {
+        await _runProbe(
+          {
+            'apps_examples|lib/constrained_scalar_card.dart':
+                _constrainedScalarStaticAliasWidget(
+                  type: scalar.type,
+                  defaultExpression: scalar.expression,
+                  declarations: scalar.declarations,
+                  allowedValues: scalar.allowedValues,
+                ),
+          },
+          outputMatcher: allOf(<Matcher>[
+            contains('enum _RestageChoice0 { value0, value1 }'),
+            contains('this.value = _RestageChoice0.value1'),
+            contains(
+              '_RestageChoice0.value1 => ${scalar.runtimeValue}',
+            ),
+            contains("Default: the widget constructor's Dart default."),
+            isNot(contains('_RestageChoice0.value2')),
+            isNot(contains('restage_source.${scalar.expression}')),
+          ]),
+        );
+      },
+    );
+  }
+
+  test(
+    'finite framework defaults render their true non-first choices',
+    () async {
       await _runProbe(
-        {
-          'apps_examples|lib/constrained_scalar_card.dart':
-              _constrainedScalarStaticAliasWidget(
-            type: scalar.type,
-            defaultExpression: scalar.expression,
-            declarations: scalar.declarations,
-            allowedValues: scalar.allowedValues,
-          ),
+        const {
+          'apps_examples|lib/finite_framework_card.dart':
+              _finiteFrameworkConstructorDefaultsWidget,
         },
         outputMatcher: allOf(<Matcher>[
-          contains('enum _RestageChoice0 { value0, value1 }'),
-          contains('this.value = _RestageChoice0.value1'),
+          contains('this.color = _RestageChoice0.value1'),
+          contains('this.duration = _RestageChoice1.value1'),
+          contains('this.weight = _RestageChoice2.value1'),
           contains(
-            '_RestageChoice0.value1 => ${scalar.runtimeValue}',
+            '_RestageChoice0.value1 => '
+            'const restage_native_0.Color(0xFF336699)',
+          ),
+          contains(
+            '_RestageChoice1.value1 => const Duration(milliseconds: 250)',
+          ),
+          contains(
+            '_RestageChoice2.value1 => restage_native_0.FontWeight.w700',
           ),
           contains("Default: the widget constructor's Dart default."),
           isNot(contains('_RestageChoice0.value2')),
-          isNot(contains('restage_source.${scalar.expression}')),
+          isNot(contains('_RestageChoice1.value2')),
+          isNot(contains('_RestageChoice2.value2')),
+          isNot(contains('restage_source.defaultDuration')),
+          isNot(contains('restage_source.chainedDefaultWeight')),
         ]),
       );
-    });
-  }
+    },
+  );
 
-  test('finite framework defaults render their true non-first choices',
-      () async {
-    await _runProbe(
-      const {
-        'apps_examples|lib/finite_framework_card.dart':
-            _finiteFrameworkConstructorDefaultsWidget,
-      },
-      outputMatcher: allOf(<Matcher>[
-        contains('this.color = _RestageChoice0.value1'),
-        contains('this.duration = _RestageChoice1.value1'),
-        contains('this.weight = _RestageChoice2.value1'),
-        contains(
-          '_RestageChoice0.value1 => '
-          'const restage_native_0.Color(0xFF336699)',
-        ),
-        contains(
-          '_RestageChoice1.value1 => const Duration(milliseconds: 250)',
-        ),
-        contains(
-          '_RestageChoice2.value1 => restage_native_0.FontWeight.w700',
-        ),
-        contains("Default: the widget constructor's Dart default."),
-        isNot(contains('_RestageChoice0.value2')),
-        isNot(contains('_RestageChoice1.value2')),
-        isNot(contains('_RestageChoice2.value2')),
-        isNot(contains('restage_source.defaultDuration')),
-        isNot(contains('restage_source.chainedDefaultWeight')),
-      ]),
-    );
-  });
-
-  final constrainedConstructorRenderCases = <({
-    String family,
-    List<({String name, String expression, String emitted})> forms,
-  })>[
-    (
-      family: 'duration',
-      forms: [
+  final constrainedConstructorRenderCases =
+      <
+        ({
+          String family,
+          List<({String name, String expression, String emitted})> forms,
+        })
+      >[
         (
-          name: 'inline',
-          expression: 'const Duration(milliseconds: 150)',
-          emitted: 'this.duration = const Duration.new(milliseconds: 150)',
+          family: 'duration',
+          forms: [
+            (
+              name: 'inline',
+              expression: 'const Duration(milliseconds: 150)',
+              emitted: 'this.duration = const Duration.new(milliseconds: 150)',
+            ),
+            (
+              name: 'public',
+              expression: 'defaultDuration',
+              emitted: 'this.duration = restage_source.defaultDuration',
+            ),
+            (
+              name: 'chained',
+              expression: 'chainedDuration',
+              emitted: 'this.duration = restage_source.chainedDuration',
+            ),
+          ],
         ),
         (
-          name: 'public',
-          expression: 'defaultDuration',
-          emitted: 'this.duration = restage_source.defaultDuration',
+          family: 'font weight',
+          forms: [
+            (
+              name: 'inline',
+              expression: 'FontWeight.w700',
+              emitted: ': restage_native_0.FontWeight.w700,',
+            ),
+            (
+              name: 'public',
+              expression: 'defaultWeight',
+              emitted: ': restage_source.defaultWeight,',
+            ),
+            (
+              name: 'chained',
+              expression: 'chainedWeight',
+              emitted: ': restage_source.chainedWeight,',
+            ),
+          ],
         ),
         (
-          name: 'chained',
-          expression: 'chainedDuration',
-          emitted: 'this.duration = restage_source.chainedDuration',
-        ),
-      ],
-    ),
-    (
-      family: 'font weight',
-      forms: [
-        (
-          name: 'inline',
-          expression: 'FontWeight.w700',
-          emitted: ': restage_native_0.FontWeight.w700,',
-        ),
-        (
-          name: 'public',
-          expression: 'defaultWeight',
-          emitted: ': restage_source.defaultWeight,',
-        ),
-        (
-          name: 'chained',
-          expression: 'chainedWeight',
-          emitted: ': restage_source.chainedWeight,',
-        ),
-      ],
-    ),
-    (
-      family: 'color',
-      forms: [
-        (
-          name: 'inline',
-          expression: 'const Color(0xFF336699)',
-          emitted: 'this.color = const restage_native_0.Color.new(4281558681)',
+          family: 'color',
+          forms: [
+            (
+              name: 'inline',
+              expression: 'const Color(0xFF336699)',
+              emitted:
+                  'this.color = const restage_native_0.Color.new(4281558681)',
+            ),
+            (
+              name: 'public',
+              expression: 'defaultColor',
+              emitted: 'this.color = restage_source.defaultColor',
+            ),
+            (
+              name: 'chained',
+              expression: 'chainedColor',
+              emitted: 'this.color = restage_source.chainedColor',
+            ),
+          ],
         ),
         (
-          name: 'public',
-          expression: 'defaultColor',
-          emitted: 'this.color = restage_source.defaultColor',
+          family: 'widget-list length',
+          forms: [
+            (
+              name: 'inline',
+              expression:
+                  'const <Widget>[SizedBox.shrink(), SizedBox.shrink()]',
+              emitted: ': const <restage_native_0.Widget>[',
+            ),
+            (
+              name: 'public',
+              expression: 'defaultChildren',
+              emitted: ': restage_source.defaultChildren,',
+            ),
+            (
+              name: 'chained',
+              expression: 'chainedChildren',
+              emitted: ': restage_source.chainedChildren,',
+            ),
+          ],
         ),
         (
-          name: 'chained',
-          expression: 'chainedColor',
-          emitted: 'this.color = restage_source.chainedColor',
+          family: 'app-defined structured-list length',
+          forms: [
+            (
+              name: 'inline',
+              expression:
+                  "const <FixtureItem>[FixtureItem('one'), FixtureItem('two')]",
+              emitted:
+                  'const <restage_source.FixtureItem>[\n'
+                  "            const restage_source.FixtureItem.new('one'),\n"
+                  "            const restage_source.FixtureItem.new('two'),\n"
+                  '          ],',
+            ),
+            (
+              name: 'public',
+              expression: 'defaultItems',
+              emitted: ': restage_source.defaultItems,',
+            ),
+            (
+              name: 'chained',
+              expression: 'chainedItems',
+              emitted: ': restage_source.chainedItems,',
+            ),
+          ],
         ),
-      ],
-    ),
-    (
-      family: 'widget-list length',
-      forms: [
-        (
-          name: 'inline',
-          expression: 'const <Widget>[SizedBox.shrink(), SizedBox.shrink()]',
-          emitted: ': const <restage_native_0.Widget>[',
-        ),
-        (
-          name: 'public',
-          expression: 'defaultChildren',
-          emitted: ': restage_source.defaultChildren,',
-        ),
-        (
-          name: 'chained',
-          expression: 'chainedChildren',
-          emitted: ': restage_source.chainedChildren,',
-        ),
-      ],
-    ),
-    (
-      family: 'app-defined structured-list length',
-      forms: [
-        (
-          name: 'inline',
-          expression:
-              "const <FixtureItem>[FixtureItem('one'), FixtureItem('two')]",
-          emitted: 'const <restage_source.FixtureItem>[\n'
-              "            const restage_source.FixtureItem.new('one'),\n"
-              "            const restage_source.FixtureItem.new('two'),\n"
-              '          ],',
-        ),
-        (
-          name: 'public',
-          expression: 'defaultItems',
-          emitted: ': restage_source.defaultItems,',
-        ),
-        (
-          name: 'chained',
-          expression: 'chainedItems',
-          emitted: ': restage_source.chainedItems,',
-        ),
-      ],
-    ),
-  ];
+      ];
 
   for (final family in constrainedConstructorRenderCases) {
     for (final form in family.forms) {
-      test('${form.name} ${family.family} retains exact emitted identity',
-          () async {
-        await _runProbe(
-          {
-            'apps_examples|lib/constrained_constructor_default.dart':
-                widgetbookConstrainedConstructorDefaultFixture(
-              family: family.family,
-              defaultExpression: form.expression,
-              matching: true,
+      test(
+        '${form.name} ${family.family} retains exact emitted identity',
+        () async {
+          await _runProbe(
+            {
+              'apps_examples|lib/constrained_constructor_default.dart':
+                  widgetbookConstrainedConstructorDefaultFixture(
+                    family: family.family,
+                    defaultExpression: form.expression,
+                    matching: true,
+                  ),
+            },
+            outputMatcher: allOf(
+              contains(form.emitted),
+              contains("Default: the widget constructor's Dart default."),
             ),
-          },
-          outputMatcher: allOf(
-            contains(form.emitted),
-            contains("Default: the widget constructor's Dart default."),
-          ),
-        );
-      });
+          );
+        },
+      );
     }
   }
 
@@ -426,24 +451,26 @@ const chainedDefaultValue = defaultValue;
     (name: 'public', expression: 'defaultRatio'),
     (name: 'chained', expression: 'chainedDefaultRatio'),
   ]) {
-    test('${defaultValue.name} mixed real default renders structurally',
-        () async {
-      await _runProbe(
-        {
-          'apps_examples|lib/mixed_real_card.dart':
-              _mixedRealConstructorDefaultWidget(defaultValue.expression),
-        },
-        outputMatcher: allOf(<Matcher>[
-          contains('enum _RestageChoice0 { value0, value1 }'),
-          contains('this.ratio = _RestageChoice0.value1'),
-          contains('_RestageChoice0.value0 => 1'),
-          contains('_RestageChoice0.value1 => 2'),
-          contains("Default: the widget constructor's Dart default."),
-          isNot(contains('_RestageChoice0.value2')),
-          isNot(contains('restage_source.${defaultValue.expression}')),
-        ]),
-      );
-    });
+    test(
+      '${defaultValue.name} mixed real default renders structurally',
+      () async {
+        await _runProbe(
+          {
+            'apps_examples|lib/mixed_real_card.dart':
+                _mixedRealConstructorDefaultWidget(defaultValue.expression),
+          },
+          outputMatcher: allOf(<Matcher>[
+            contains('enum _RestageChoice0 { value0, value1 }'),
+            contains('this.ratio = _RestageChoice0.value1'),
+            contains('_RestageChoice0.value0 => 1'),
+            contains('_RestageChoice0.value1 => 2'),
+            contains("Default: the widget constructor's Dart default."),
+            isNot(contains('_RestageChoice0.value2')),
+            isNot(contains('restage_source.${defaultValue.expression}')),
+          ]),
+        );
+      },
+    );
   }
 
   for (final defaultValue in <({String name, String expression})>[
@@ -451,124 +478,138 @@ const chainedDefaultValue = defaultValue;
     (name: 'public', expression: 'defaultNegativeZero'),
     (name: 'chained', expression: 'chainedNegativeZero'),
   ]) {
-    test('${defaultValue.name} negative-zero default renders losslessly',
-        () async {
-      await _runProbe(
-        {
-          'apps_examples|lib/signed_zero_card.dart':
-              _signedZeroConstructorDefaultWidget(defaultValue.expression),
-        },
-        outputMatcher: allOf(<Matcher>[
-          contains('enum _RestageChoice0 { value0, value1 }'),
-          contains('this.ratio = _RestageChoice0.value0'),
-          contains('_RestageChoice0.value0 => -0.0'),
-          contains('_RestageChoice0.value1 => 2'),
-          contains("Default: the widget constructor's Dart default."),
-          isNot(contains('_RestageChoice0.value2')),
-          isNot(contains('restage_source.${defaultValue.expression}')),
-        ]),
-      );
-    });
+    test(
+      '${defaultValue.name} negative-zero default renders losslessly',
+      () async {
+        await _runProbe(
+          {
+            'apps_examples|lib/signed_zero_card.dart':
+                _signedZeroConstructorDefaultWidget(defaultValue.expression),
+          },
+          outputMatcher: allOf(<Matcher>[
+            contains('enum _RestageChoice0 { value0, value1 }'),
+            contains('this.ratio = _RestageChoice0.value0'),
+            contains('_RestageChoice0.value0 => -0.0'),
+            contains('_RestageChoice0.value1 => 2'),
+            contains("Default: the widget constructor's Dart default."),
+            isNot(contains('_RestageChoice0.value2')),
+            isNot(contains('restage_source.${defaultValue.expression}')),
+          ]),
+        );
+      },
+    );
   }
 
-  test('negative-zero default outside the signed finite domain fails loudly',
-      () async {
-    await _runProbe(
-      const {
-        'apps_examples|lib/signed_zero_wrong_domain_card.dart':
-            _signedZeroWrongDomainWidget,
-      },
-      captureErrors: true,
-      outputMatcher: allOf(
-        contains('/constructorDefaults/ratio'),
-        contains('allowed-value'),
-      ),
-    );
-  });
-
-  test('catalog literal negative zero renders only its authored domain',
-      () async {
-    await _runProbe(
-      {
-        'apps_examples|lib/catalog_literal_finite_card.dart':
-            _catalogLiteralFiniteWidget(
-          type: 'double',
-          defaultValue: '-0.0',
-          allowedValues: '-0.0, 2.0',
+  test(
+    'negative-zero default outside the signed finite domain fails loudly',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/signed_zero_wrong_domain_card.dart':
+              _signedZeroWrongDomainWidget,
+        },
+        captureErrors: true,
+        outputMatcher: allOf(
+          contains('/constructorDefaults/ratio'),
+          contains('allowed-value'),
         ),
-      },
-      outputMatcher: allOf(<Matcher>[
-        contains('enum _RestageChoice0 { value0, value1 }'),
-        contains('this.value = _RestageChoice0.value0'),
-        contains('_RestageChoice0.value0 => -0.0'),
-        contains('_RestageChoice0.value1 => 2.0'),
-        contains('Default: -0.0.'),
-        isNot(contains('_RestageChoice0.value2')),
-      ]),
-    );
-  });
+      );
+    },
+  );
 
-  test('catalog literal negative zero outside the domain fails before render',
-      () async {
-    await _runProbe(
-      {
-        'apps_examples|lib/catalog_literal_finite_card.dart':
-            _catalogLiteralFiniteWidget(
-          type: 'double',
-          defaultValue: '-0.0',
-          allowedValues: '0.0, 2.0',
-        ),
-      },
-      captureErrors: true,
-      outputMatcher: allOf(
-        contains('/defaults/value'),
-        contains('finite allowed-value'),
-      ),
-    );
-  });
-
-  for (final representative in <({
-    String name,
-    String type,
-    String defaultValue,
-    String allowedValues,
-    String mapping,
-  })>[
-    (
-      name: 'framework color',
-      type: 'Color',
-      defaultValue: "'#FF336699'",
-      allowedValues: "'#FF000000', '#FF336699'",
-      mapping: '_RestageChoice0.value1 => '
-          'const restage_native_0.Color(0xFF336699)',
-    ),
-    (
-      name: 'enum',
-      type: 'Mode',
-      defaultValue: "'ready'",
-      allowedValues: "'idle', 'ready'",
-      mapping: '_RestageChoice0.value1 => restage_source.Mode.ready',
-    ),
-  ]) {
-    test('catalog literal ${representative.name} renders its domain choice',
-        () async {
+  test(
+    'catalog literal negative zero renders only its authored domain',
+    () async {
       await _runProbe(
         {
           'apps_examples|lib/catalog_literal_finite_card.dart':
               _catalogLiteralFiniteWidget(
-            type: representative.type,
-            defaultValue: representative.defaultValue,
-            allowedValues: representative.allowedValues,
-          ),
+                type: 'double',
+                defaultValue: '-0.0',
+                allowedValues: '-0.0, 2.0',
+              ),
         },
         outputMatcher: allOf(<Matcher>[
           contains('enum _RestageChoice0 { value0, value1 }'),
-          contains('this.value = _RestageChoice0.value1'),
-          contains(representative.mapping),
+          contains('this.value = _RestageChoice0.value0'),
+          contains('_RestageChoice0.value0 => -0.0'),
+          contains('_RestageChoice0.value1 => 2.0'),
+          contains('Default: -0.0.'),
           isNot(contains('_RestageChoice0.value2')),
         ]),
       );
-    });
+    },
+  );
+
+  test(
+    'catalog literal negative zero outside the domain fails before render',
+    () async {
+      await _runProbe(
+        {
+          'apps_examples|lib/catalog_literal_finite_card.dart':
+              _catalogLiteralFiniteWidget(
+                type: 'double',
+                defaultValue: '-0.0',
+                allowedValues: '0.0, 2.0',
+              ),
+        },
+        captureErrors: true,
+        outputMatcher: allOf(
+          contains('/defaults/value'),
+          contains('finite allowed-value'),
+        ),
+      );
+    },
+  );
+
+  for (final representative
+      in <
+        ({
+          String name,
+          String type,
+          String defaultValue,
+          String allowedValues,
+          String mapping,
+        })
+      >[
+        (
+          name: 'framework color',
+          type: 'Color',
+          defaultValue: "'#FF336699'",
+          allowedValues: "'#FF000000', '#FF336699'",
+          mapping:
+              '_RestageChoice0.value1 => '
+              'const restage_native_0.Color(0xFF336699)',
+        ),
+        (
+          name: 'enum',
+          type: 'Mode',
+          defaultValue: "'ready'",
+          allowedValues: "'idle', 'ready'",
+          mapping: '_RestageChoice0.value1 => restage_source.Mode.ready',
+        ),
+      ]) {
+    test(
+      'catalog literal ${representative.name} renders its domain choice',
+      () async {
+        await _runProbe(
+          {
+            'apps_examples|lib/catalog_literal_finite_card.dart':
+                _catalogLiteralFiniteWidget(
+                  type: representative.type,
+                  defaultValue: representative.defaultValue,
+                  allowedValues: representative.allowedValues,
+                ),
+          },
+          outputMatcher: allOf(<Matcher>[
+            contains('enum _RestageChoice0 { value0, value1 }'),
+            contains('this.value = _RestageChoice0.value1'),
+            contains(representative.mapping),
+            isNot(contains('_RestageChoice0.value2')),
+          ]),
+        );
+      },
+    );
   }
 
   for (final empty in <({String name, String type, String defaultValue})>[
@@ -580,10 +621,10 @@ const chainedDefaultValue = defaultValue;
         {
           'apps_examples|lib/catalog_literal_finite_card.dart':
               _catalogLiteralFiniteWidget(
-            type: empty.type,
-            defaultValue: empty.defaultValue,
-            allowedValues: '',
-          ),
+                type: empty.type,
+                defaultValue: empty.defaultValue,
+                allowedValues: '',
+              ),
         },
         captureErrors: true,
         outputMatcher: allOf(
@@ -599,24 +640,26 @@ const chainedDefaultValue = defaultValue;
     (name: 'positive zero representation', allowedValues: '0, 0.0'),
     (name: 'mixed numeric', allowedValues: '1, 1.0'),
   ]) {
-    test('renderer rejects ${duplicate.name} duplicate allowedValues',
-        () async {
-      await _runProbe(
-        {
-          'apps_examples|lib/catalog_literal_finite_card.dart':
-              _catalogLiteralFiniteWidget(
-            type: 'double',
-            defaultValue: '2.0',
-            allowedValues: duplicate.allowedValues,
+    test(
+      'renderer rejects ${duplicate.name} duplicate allowedValues',
+      () async {
+        await _runProbe(
+          {
+            'apps_examples|lib/catalog_literal_finite_card.dart':
+                _catalogLiteralFiniteWidget(
+                  type: 'double',
+                  defaultValue: '2.0',
+                  allowedValues: duplicate.allowedValues,
+                ),
+          },
+          captureErrors: true,
+          outputMatcher: allOf(
+            contains('CatalogLiteralFiniteCard.value'),
+            contains('duplicate allowedValues[1]'),
           ),
-        },
-        captureErrors: true,
-        outputMatcher: allOf(
-          contains('CatalogLiteralFiniteCard.value'),
-          contains('duplicate allowedValues[1]'),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 
   test('unconfigured private enum default renders by exact ordinal', () async {
@@ -698,82 +741,93 @@ const chainedDefaultValue = defaultValue;
     );
   });
 
-  test('nullable enum variants map null through the local choice adapter',
-      () async {
-    await _runProbe(
-      const {'apps_examples|lib/nullable_mode_card.dart': _nullableEnumWidget},
-      outputMatcher: allOf(
-        contains('enum _RestageChoice0 { value0, value1, value2 }'),
-        contains('this.mode = _RestageChoice0.value2'),
-        contains(r'final $RestageCatalog = _Story('),
-        contains(r'final $ModeIdle = _Story('),
-        contains(r'final $ModeReady = _Story('),
-        matches(
-          RegExp(
-            r'final \$RestageCatalog = _Story\([\s\S]*?'
-            r'_RestageChoice0\.value2,',
+  test(
+    'nullable enum variants map null through the local choice adapter',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/nullable_mode_card.dart': _nullableEnumWidget,
+        },
+        outputMatcher: allOf(
+          contains('enum _RestageChoice0 { value0, value1, value2 }'),
+          contains('this.mode = _RestageChoice0.value2'),
+          contains(r'final $RestageCatalog = _Story('),
+          contains(r'final $ModeIdle = _Story('),
+          contains(r'final $ModeReady = _Story('),
+          matches(
+            RegExp(
+              r'final \$RestageCatalog = _Story\([\s\S]*?'
+              r'_RestageChoice0\.value2,',
+            ),
           ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('unconfigured nullable enum null default renders its default story',
-      () async {
-    await _runProbe(
-      const {
-        'apps_examples|lib/unconfigured_nullable_mode_card.dart':
-            _unconfiguredNullableEnumWidget,
-      },
-      outputMatcher: allOf(
-        predicate<String>(
-          (source) =>
-              RegExp(r'^final \$', multiLine: true).allMatches(source).length ==
-              1,
-          'contains only the mandatory default story declaration',
-        ),
-        contains('enum _RestageChoice0 { value0, value1, value2 }'),
-        contains('this.mode = _RestageChoice0.value2'),
-        contains(r'final $RestageCatalog = _Story('),
-        matches(
-          RegExp(
-            r'final \$RestageCatalog = _Story\([\s\S]*?'
-            r'mode: _RestageEnumArg<_RestageChoice0>\(\s*'
-            r'_RestageChoice0\.value2,',
+  test(
+    'unconfigured nullable enum null default renders its default story',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/unconfigured_nullable_mode_card.dart':
+              _unconfiguredNullableEnumWidget,
+        },
+        outputMatcher: allOf(
+          predicate<String>(
+            (source) =>
+                RegExp(
+                  r'^final \$',
+                  multiLine: true,
+                ).allMatches(source).length ==
+                1,
+            'contains only the mandatory default story declaration',
           ),
+          contains('enum _RestageChoice0 { value0, value1, value2 }'),
+          contains('this.mode = _RestageChoice0.value2'),
+          contains(r'final $RestageCatalog = _Story('),
+          matches(
+            RegExp(
+              r'final \$RestageCatalog = _Story\([\s\S]*?'
+              r'mode: _RestageEnumArg<_RestageChoice0>\(\s*'
+              r'_RestageChoice0\.value2,',
+            ),
+          ),
+          contains('_RestageChoice0.value2 => null'),
         ),
-        contains('_RestageChoice0.value2 => null'),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('explicit nullable null variants render bool and enum runtime values',
-      () async {
-    await _runProbe(
-      const {
-        'apps_examples|lib/nullable_state_card.dart':
-            _explicitNullableNullWidget,
-      },
-      outputMatcher: allOf(
-        contains(r'final $EnabledNull = _Story('),
-        contains(r'final $ModeNull = _Story('),
-        matches(
-          RegExp(
-            r'final \$EnabledNull = _Story\([\s\S]*?'
-            r'enabled: _RestageNullableBoolArg\(\s*null,',
+  test(
+    'explicit nullable null variants render bool and enum runtime values',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/nullable_state_card.dart':
+              _explicitNullableNullWidget,
+        },
+        outputMatcher: allOf(
+          contains(r'final $EnabledNull = _Story('),
+          contains(r'final $ModeNull = _Story('),
+          matches(
+            RegExp(
+              r'final \$EnabledNull = _Story\([\s\S]*?'
+              r'enabled: _RestageNullableBoolArg\(\s*null,',
+            ),
           ),
-        ),
-        matches(
-          RegExp(
-            r'final \$ModeNull = _Story\([\s\S]*?'
-            r'mode: _RestageEnumArg<_RestageChoice1>\(\s*'
-            r'_RestageChoice1\.value2,',
+          matches(
+            RegExp(
+              r'final \$ModeNull = _Story\([\s\S]*?'
+              r'mode: _RestageEnumArg<_RestageChoice1>\(\s*'
+              r'_RestageChoice1\.value2,',
+            ),
           ),
+          contains('_RestageChoice1.value2 => null'),
         ),
-        contains('_RestageChoice1.value2 => null'),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   test('generated story declarations reserve their bare symbols', () async {
     await _runProbe(
@@ -809,25 +863,26 @@ const chainedDefaultValue = defaultValue;
         ''',
       ),
     ]) {
-      test('${variant.name} default receives an automatic native preview',
-          () async {
-        final source = _runtimeDefaultWidget(variant.annotation);
-        await _runProbe(
-          {'apps_examples|lib/fixture_card.dart': source},
-          outputMatcher: allOf(
-            contains('.Color(0xFF000000)'),
-            contains("import 'dart:ui' show Color;"),
-            variant.name == 'token'
-                ? contains('resolved from a design token at runtime')
-                : contains('resolved from the Flutter theme at runtime'),
-          ),
-        );
-      });
+      test(
+        '${variant.name} default receives an automatic native preview',
+        () async {
+          final source = _runtimeDefaultWidget(variant.annotation);
+          await _runProbe(
+            {'apps_examples|lib/fixture_card.dart': source},
+            outputMatcher: allOf(
+              contains('.Color(0xFF000000)'),
+              contains("import 'dart:ui' show Color;"),
+              variant.name == 'token'
+                  ? contains('resolved from a design token at runtime')
+                  : contains('resolved from the Flutter theme at runtime'),
+            ),
+          );
+        },
+      );
     }
   });
 
-  test(
-      'lookalike framework types are rejected by resolved identity during '
+  test('lookalike framework types are rejected by resolved identity during '
       'classification', () async {
     await _runProbe(
       const {'apps_examples|lib/lookalike.dart': _lookalikeColorWidget},
@@ -841,37 +896,43 @@ const chainedDefaultValue = defaultValue;
     );
   });
 
-  test('an app-defined type named Widget is not accepted as Flutter Widget',
-      () async {
-    await _runProbe(
-      const {'apps_examples|lib/lookalike_widget.dart': _lookalikeWidgetWidget},
-      captureErrors: true,
-      logMatcher: allOf(
-        contains("not Flutter's `Widget`"),
-        contains('matched by defining library'),
-        contains('package:apps_examples/lookalike_widget.dart'),
-        isNot(contains('Supported types:')),
-      ),
-    );
-  });
-
-  test('records Widgetbook auto-exclusions in the generated story artifact',
-      () async {
-    await _runProbe(
-      const {
-        'apps_examples|lib/host_state_card.dart': _hostStateWidget,
-      },
-      outputMatcher: allOf(
-        contains(
-          'const List<Map<String, String>> restageExclusions = [',
+  test(
+    'an app-defined type named Widget is not accepted as Flutter Widget',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/lookalike_widget.dart': _lookalikeWidgetWidget,
+        },
+        captureErrors: true,
+        logMatcher: allOf(
+          contains("not Flutter's `Widget`"),
+          contains('matched by defining library'),
+          contains('package:apps_examples/lookalike_widget.dart'),
+          isNot(contains('Supported types:')),
         ),
-        contains("'widget': 'HostStateCard'"),
-        contains("'property': 'hostState'"),
-        contains("'target': 'widgetbook'"),
-        contains('Object?'),
-      ),
-    );
-  });
+      );
+    },
+  );
+
+  test(
+    'records Widgetbook auto-exclusions in the generated story artifact',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/host_state_card.dart': _hostStateWidget,
+        },
+        outputMatcher: allOf(
+          contains(
+            'const List<Map<String, String>> restageExclusions = [',
+          ),
+          contains("'widget': 'HostStateCard'"),
+          contains("'property': 'hostState'"),
+          contains("'target': 'widgetbook'"),
+          contains('Object?'),
+        ),
+      );
+    },
+  );
 
   test('routes Widgetbook exclusions by source identity', () async {
     await _runProbe(
@@ -888,26 +949,30 @@ const chainedDefaultValue = defaultValue;
     );
   });
 
-  test('malformed framework literal defaults fail with a default path',
-      () async {
-    await _runProbe(
-      const {'apps_examples|lib/bad_default.dart': _badColorDefaultWidget},
-      captureErrors: true,
-      outputMatcher: allOf(
-        contains('/defaults/color'),
-        contains('valid color value'),
-      ),
-    );
-  });
+  test(
+    'malformed framework literal defaults fail with a default path',
+    () async {
+      await _runProbe(
+        const {'apps_examples|lib/bad_default.dart': _badColorDefaultWidget},
+        captureErrors: true,
+        outputMatcher: allOf(
+          contains('/defaults/color'),
+          contains('valid color value'),
+        ),
+      );
+    },
+  );
 
-  test('constructor enum defaults are checked against allowed values',
-      () async {
-    await _runProbe(
-      const {'apps_examples|lib/enum_default.dart': _enumDefaultWidget},
-      captureErrors: true,
-      outputMatcher: contains('/constructorDefaults/tone'),
-    );
-  });
+  test(
+    'constructor enum defaults are checked against allowed values',
+    () async {
+      await _runProbe(
+        const {'apps_examples|lib/enum_default.dart': _enumDefaultWidget},
+        captureErrors: true,
+        outputMatcher: contains('/constructorDefaults/tone'),
+      );
+    },
+  );
 
   test('explicit null defaults are checked against allowed values', () async {
     await _runProbe(
@@ -922,21 +987,23 @@ const chainedDefaultValue = defaultValue;
     );
   });
 
-  test('structural constructor defaults preserve the ordinary Dart story value',
-      () async {
-    await _runProbe(
-      const {
-        'apps_examples|lib/nonportable_default.dart':
-            _nonportableConstructorDefaultWidget,
-      },
-      outputMatcher: allOf(
-        contains(
-          'this.color = const restage_native_0.Color.new(4281558681)',
+  test(
+    'structural constructor defaults preserve the ordinary Dart story value',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/nonportable_default.dart':
+              _nonportableConstructorDefaultWidget,
+        },
+        outputMatcher: allOf(
+          contains(
+            'this.color = const restage_native_0.Color.new(4281558681)',
+          ),
+          contains('restage_source.ColorDefaultCard(color: args.color)'),
         ),
-        contains('restage_source.ColorDefaultCard(color: args.color)'),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   test('constraints without a deterministic valid seed fail loudly', () async {
     await _runProbe(
@@ -958,23 +1025,25 @@ const chainedDefaultValue = defaultValue;
     );
   });
 
-  test('Dart grouping and alternation remain valid Widgetbook patterns',
-      () async {
-    await _runProbe(
-      {
-        'apps_examples|lib/grouped_pattern.dart':
-            widgetbookPatternValidationFixture(
-          legacy: false,
-          nullable: false,
-          malformed: false,
+  test(
+    'Dart grouping and alternation remain valid Widgetbook patterns',
+    () async {
+      await _runProbe(
+        {
+          'apps_examples|lib/grouped_pattern.dart':
+              widgetbookPatternValidationFixture(
+                legacy: false,
+                nullable: false,
+                malformed: false,
+              ),
+        },
+        outputMatcher: allOf(
+          contains(r'Pattern: ^(ready|set)\$.'),
+          contains('"ready"'),
         ),
-      },
-      outputMatcher: allOf(
-        contains(r'Pattern: ^(ready|set)\$.'),
-        contains('"ready"'),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   test('collection synthesis satisfies the minimum item count', () async {
     await _runProbe(
@@ -1016,39 +1085,44 @@ const chainedDefaultValue = defaultValue;
 
   for (final nullable in <bool>[false, true]) {
     final seed = nullable ? 'nullable null' : 'non-null';
-    final className =
-        nullable ? 'MalformedLegacyNullableCard' : 'MalformedLegacyNonNullCard';
-    test('malformed legacy grammar rejects a $seed seed with property context',
-        () async {
-      await _runProbe(
-        {
-          'apps_examples|lib/malformed_legacy.dart':
-              _malformedLegacySyntaxWidget(nullable: nullable),
-        },
-        captureErrors: true,
-        outputMatcher: allOf(
-          contains('Widgetbook validation rule at $className.value'),
-          contains('range(0)'),
-          contains('Supported legacy forms are'),
-          contains('range(<finite JSON number>, <finite JSON number>)'),
-          contains('oneOf(<JSON scalar>, ...)'),
-          contains('matches(<JSON string>)'),
-          isNot(contains('A2uiLegacyConstraintParseException')),
-        ),
-      );
-    });
+    final className = nullable
+        ? 'MalformedLegacyNullableCard'
+        : 'MalformedLegacyNonNullCard';
+    test(
+      'malformed legacy grammar rejects a $seed seed with property context',
+      () async {
+        await _runProbe(
+          {
+            'apps_examples|lib/malformed_legacy.dart':
+                _malformedLegacySyntaxWidget(nullable: nullable),
+          },
+          captureErrors: true,
+          outputMatcher: allOf(
+            contains('Widgetbook validation rule at $className.value'),
+            contains('range(0)'),
+            contains('Supported legacy forms are'),
+            contains('range(<finite JSON number>, <finite JSON number>)'),
+            contains('oneOf(<JSON scalar>, ...)'),
+            contains('matches(<JSON string>)'),
+            isNot(contains('A2uiLegacyConstraintParseException')),
+          ),
+        );
+      },
+    );
   }
 
-  test('legacy validation rules drive controls and sidebar descriptions',
-      () async {
-    await _runProbe(
-      const {'apps_examples|lib/legacy_valid.dart': _legacyValidWidget},
-      outputMatcher: allOf(
-        contains('Inclusive range: 1–5.'),
-        contains('SliderIntArgStyle(min: 1, max: 5, divisions: 4)'),
-      ),
-    );
-  });
+  test(
+    'legacy validation rules drive controls and sidebar descriptions',
+    () async {
+      await _runProbe(
+        const {'apps_examples|lib/legacy_valid.dart': _legacyValidWidget},
+        outputMatcher: allOf(
+          contains('Inclusive range: 1–5.'),
+          contains('SliderIntArgStyle(min: 1, max: 5, divisions: 4)'),
+        ),
+      );
+    },
+  );
 
   test('portable constructor defaults retain sidebar provenance', () async {
     await _runProbe(
@@ -1063,94 +1137,104 @@ const chainedDefaultValue = defaultValue;
     );
   });
 
-  test('constructor default provenance wins over catalog default metadata',
-      () async {
-    await _runProbe(
-      const {
-        'apps_examples|lib/constructor_default_precedence.dart':
-            _constructorDefaultPrecedenceWidget,
-      },
-      outputMatcher: allOf(
-        contains(
-          'Literal conflict. '
-          "Default: the widget constructor's Dart default.",
+  test(
+    'constructor default provenance wins over catalog default metadata',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/constructor_default_precedence.dart':
+              _constructorDefaultPrecedenceWidget,
+        },
+        outputMatcher: allOf(
+          contains(
+            'Literal conflict. '
+            "Default: the widget constructor's Dart default.",
+          ),
+          contains(
+            'Token conflict. '
+            "Default: the widget constructor's Dart default.",
+          ),
+          contains('opacity: _RestageDoubleArg('),
+          contains('      0.5,'),
+          matches(RegExp(r'label: _RestageStringArg\(\s*"constructor",')),
+          isNot(contains('Default: 0.8.')),
+          isNot(contains('Default: resolved from a design token at runtime.')),
         ),
-        contains(
-          'Token conflict. '
-          "Default: the widget constructor's Dart default.",
+      );
+    },
+  );
+
+  test(
+    'one-sided bounds remain descriptive without inventing a slider',
+    () async {
+      await _runProbe(
+        const {'apps_examples|lib/bounded.dart': _boundedWidget},
+        outputMatcher: allOf(<Matcher>[
+          contains('Inclusive range: 0.1–unbounded.'),
+          contains('_RestageDoubleArg('),
+          isNot(contains('Slider')),
+        ]),
+      );
+    },
+  );
+
+  test(
+    'substituted super-formal inputs render as native story arguments',
+    () async {
+      await _runProbe(
+        const {'apps_examples|lib/super_card.dart': _superFormalWidget},
+        outputMatcher: allOf(
+          contains('SuperCard('),
+          contains('label:'),
+          contains('_RestageStringArg'),
+          isNot(contains('key:')),
         ),
-        contains('opacity: _RestageDoubleArg('),
-        contains('      0.5,'),
-        matches(RegExp(r'label: _RestageStringArg\(\s*"constructor",')),
-        isNot(contains('Default: 0.8.')),
-        isNot(contains('Default: resolved from a design token at runtime.')),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('one-sided bounds remain descriptive without inventing a slider',
-      () async {
-    await _runProbe(
-      const {'apps_examples|lib/bounded.dart': _boundedWidget},
-      outputMatcher: allOf(<Matcher>[
-        contains('Inclusive range: 0.1–unbounded.'),
-        contains('_RestageDoubleArg('),
-        isNot(contains('Slider')),
-      ]),
-    );
-  });
-
-  test('substituted super-formal inputs render as native story arguments',
-      () async {
-    await _runProbe(
-      const {'apps_examples|lib/super_card.dart': _superFormalWidget},
-      outputMatcher: allOf(
-        contains('SuperCard('),
-        contains('label:'),
-        contains('_RestageStringArg'),
-        isNot(contains('key:')),
-      ),
-    );
-  });
-
-  test('exact inherited backing-field config renders a native variant',
-      () async {
-    await _runProbe(
-      const {
-        'apps_examples|lib/inherited_state_card.dart':
-            _inheritedConfiguredBoolWidget,
-      },
-      widgetName: 'InheritedStateCard',
-      outputMatcher: allOf(
-        contains(r'final $RestageCatalog = _Story('),
-        contains(r'final $EnabledTrue = _Story('),
-        matches(
-          RegExp(
-            r'final \$EnabledTrue = _Story\([\s\S]*?'
-            r'enabled: _RestageBoolArg\(\s*true,',
+  test(
+    'exact inherited backing-field config renders a native variant',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/inherited_state_card.dart':
+              _inheritedConfiguredBoolWidget,
+        },
+        widgetName: 'InheritedStateCard',
+        outputMatcher: allOf(
+          contains(r'final $RestageCatalog = _Story('),
+          contains(r'final $EnabledTrue = _Story('),
+          matches(
+            RegExp(
+              r'final \$EnabledTrue = _Story\([\s\S]*?'
+              r'enabled: _RestageBoolArg\(\s*true,',
+            ),
           ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('rejects a Widgetbook Meta collision at the widget property path',
-      () async {
-    await _runProbe(
-      const {
-        'restage_widgetbook_example|lib/models.dart': _metaModel,
-        'restage_widgetbook_example|lib/fixture_card.dart': _metaCard,
-      },
-      rootPackage: 'restage_widgetbook_example',
-      includeWidgetbookNamespace: true,
-      captureErrors: true,
-      outputMatcher: allOf(
-        contains('lib/fixture_card.dart#FixtureCard.data'),
-        contains('package:restage_widgetbook_example/models.dart#Meta'),
-        contains('package:widgetbook/widgetbook.dart export'),
-      ),
-    );
-  });
+  test(
+    'rejects a Widgetbook Meta collision at the widget property path',
+    () async {
+      await _runProbe(
+        const {
+          'restage_widgetbook_example|lib/models.dart': _metaModel,
+          'restage_widgetbook_example|lib/fixture_card.dart': _metaCard,
+        },
+        rootPackage: 'restage_widgetbook_example',
+        includeWidgetbookNamespace: true,
+        captureErrors: true,
+        outputMatcher: allOf(
+          contains('lib/fixture_card.dart#FixtureCard.data'),
+          contains('package:restage_widgetbook_example/models.dart#Meta'),
+          contains('package:widgetbook/widgetbook.dart export'),
+        ),
+      );
+    },
+  );
 
   test('rejects a model that collides with the source widget class', () async {
     await _runProbe(
@@ -1167,95 +1251,105 @@ const chainedDefaultValue = defaultValue;
     );
   });
 
-  test('rejects an app-defined model that collides with implicit dart:core',
-      () async {
-    await _runProbe(
-      const {
-        'apps_examples|lib/models.dart': _stringModel,
-        'apps_examples|lib/fixture_card.dart': _stringModelCard,
-      },
-      captureErrors: true,
-      outputMatcher: allOf(
-        contains('lib/fixture_card.dart#FixtureCard.data'),
-        contains('package:apps_examples/models.dart#String'),
-        contains('implicit dart:core namespace'),
-      ),
-    );
-  });
-
-  test('checks recursively required additional types for bare collisions',
-      () async {
-    await _runProbe(
-      const {
-        'restage_widgetbook_example|lib/models.dart': _metaModel,
-        'restage_widgetbook_example|lib/fixture_card.dart': _metaListCard,
-      },
-      rootPackage: 'restage_widgetbook_example',
-      includeWidgetbookNamespace: true,
-      captureErrors: true,
-      outputMatcher: allOf(
-        contains('lib/fixture_card.dart#FixtureCard.items'),
-        contains('package:restage_widgetbook_example/models.dart#Meta'),
-        contains('package:widgetbook/widgetbook.dart export'),
-      ),
-    );
-  });
-
-  test('keeps a non-colliding source widget and app-defined model valid',
-      () async {
-    const sourceImport =
-        "import 'package:apps_examples/fixture_card.dart' show FixtureCard;";
-    await _runProbe(
-      const {
-        'apps_examples|lib/models.dart': _cardDataModel,
-        'apps_examples|lib/fixture_card.dart': _cardDataCard,
-      },
-      outputMatcher: allOf(
-        contains(
-          "import 'package:apps_examples/models.dart' as restage_native_0;",
+  test(
+    'rejects an app-defined model that collides with implicit dart:core',
+    () async {
+      await _runProbe(
+        const {
+          'apps_examples|lib/models.dart': _stringModel,
+          'apps_examples|lib/fixture_card.dart': _stringModelCard,
+        },
+        captureErrors: true,
+        outputMatcher: allOf(
+          contains('lib/fixture_card.dart#FixtureCard.data'),
+          contains('package:apps_examples/models.dart#String'),
+          contains('implicit dart:core namespace'),
         ),
-        contains(
-          "import 'package:apps_examples/models.dart' show CardData;",
-        ),
-        contains('restage_native_0.CardData'),
-        contains(sourceImport),
-        predicate<String>(
-          (source) => source.split(sourceImport).length == 2,
-          'contains the source show import exactly once',
-        ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  test('rejects a source widget named for an actual Widgetbook export',
-      () async {
-    await _runProbe(
-      const {
-        'restage_widgetbook_example|lib/config.dart': _configWidget,
-      },
-      rootPackage: 'restage_widgetbook_example',
-      includeWidgetbookNamespace: true,
-      captureErrors: true,
-      outputMatcher: allOf(
-        contains('lib/config.dart#Config'),
-        contains('package:widgetbook/widgetbook.dart export'),
-        contains('conflicting bare namespace bindings'),
-      ),
-    );
-  });
+  test(
+    'checks recursively required additional types for bare collisions',
+    () async {
+      await _runProbe(
+        const {
+          'restage_widgetbook_example|lib/models.dart': _metaModel,
+          'restage_widgetbook_example|lib/fixture_card.dart': _metaListCard,
+        },
+        rootPackage: 'restage_widgetbook_example',
+        includeWidgetbookNamespace: true,
+        captureErrors: true,
+        outputMatcher: allOf(
+          contains('lib/fixture_card.dart#FixtureCard.items'),
+          contains('package:restage_widgetbook_example/models.dart#Meta'),
+          contains('package:widgetbook/widgetbook.dart export'),
+        ),
+      );
+    },
+  );
 
-  test('rejects a source widget named for an implicit dart:core type',
-      () async {
-    await _runProbe(
-      const {'apps_examples|lib/date_time.dart': _dateTimeWidget},
-      captureErrors: true,
-      outputMatcher: allOf(
-        contains('lib/date_time.dart#DateTime'),
-        contains('implicit dart:core namespace'),
-        contains('conflicting bare namespace bindings'),
-      ),
-    );
-  });
+  test(
+    'keeps a non-colliding source widget and app-defined model valid',
+    () async {
+      const sourceImport =
+          "import 'package:apps_examples/fixture_card.dart' show FixtureCard;";
+      await _runProbe(
+        const {
+          'apps_examples|lib/models.dart': _cardDataModel,
+          'apps_examples|lib/fixture_card.dart': _cardDataCard,
+        },
+        outputMatcher: allOf(
+          contains(
+            "import 'package:apps_examples/models.dart' as restage_native_0;",
+          ),
+          contains(
+            "import 'package:apps_examples/models.dart' show CardData;",
+          ),
+          contains('restage_native_0.CardData'),
+          contains(sourceImport),
+          predicate<String>(
+            (source) => source.split(sourceImport).length == 2,
+            'contains the source show import exactly once',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'rejects a source widget named for an actual Widgetbook export',
+    () async {
+      await _runProbe(
+        const {
+          'restage_widgetbook_example|lib/config.dart': _configWidget,
+        },
+        rootPackage: 'restage_widgetbook_example',
+        includeWidgetbookNamespace: true,
+        captureErrors: true,
+        outputMatcher: allOf(
+          contains('lib/config.dart#Config'),
+          contains('package:widgetbook/widgetbook.dart export'),
+          contains('conflicting bare namespace bindings'),
+        ),
+      );
+    },
+  );
+
+  test(
+    'rejects a source widget named for an implicit dart:core type',
+    () async {
+      await _runProbe(
+        const {'apps_examples|lib/date_time.dart': _dateTimeWidget},
+        captureErrors: true,
+        outputMatcher: allOf(
+          contains('lib/date_time.dart#DateTime'),
+          contains('implicit dart:core namespace'),
+          contains('conflicting bare namespace bindings'),
+        ),
+      );
+    },
+  );
 }
 
 Future<void> _runProbe(
@@ -1399,7 +1493,8 @@ class AliasStateCard extends StatelessWidget {
 }
 ''';
 
-String _enumAliasConstructorDefaultWidget(String defaultExpression) => '''
+String _enumAliasConstructorDefaultWidget(String defaultExpression) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:rfw_catalog_schema/widgetbook.dart' as wb;
@@ -1484,7 +1579,8 @@ class DeclarationCollisionCard extends StatelessWidget {
 }
 ''';
 
-String _constrainedBoolStaticAliasWidget(String defaultExpression) => '''
+String _constrainedBoolStaticAliasWidget(String defaultExpression) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -1620,7 +1716,8 @@ class FiniteFrameworkCard extends StatelessWidget {
 }
 ''';
 
-String _mixedRealConstructorDefaultWidget(String defaultExpression) => '''
+String _mixedRealConstructorDefaultWidget(String defaultExpression) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -1699,7 +1796,8 @@ class NullableModeCard extends StatelessWidget {
 }
 ''';
 
-String _signedZeroConstructorDefaultWidget(String defaultExpression) => '''
+String _signedZeroConstructorDefaultWidget(String defaultExpression) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -1757,8 +1855,9 @@ String _privateEnumRouteWidget({required String route}) {
     'explicit' => '@wb.Config.values([SecretMode._hidden])',
     _ => throw ArgumentError.value(route, 'route'),
   };
-  final defaultValue =
-      route == 'implicit' ? 'SecretMode._hidden' : 'SecretMode.visible';
+  final defaultValue = route == 'implicit'
+      ? 'SecretMode._hidden'
+      : 'SecretMode.visible';
   return '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -2094,8 +2193,8 @@ final class _StoryPlanProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['fixture.stories.dart'],
-      };
+    r'$lib$': ['fixture.stories.dart'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -2128,7 +2227,8 @@ final class _StoryPlanProbeBuilder implements Builder {
   }
 }
 
-String _runtimeDefaultWidget(String defaultSource) => '''
+String _runtimeDefaultWidget(String defaultSource) =>
+    '''
   import 'package:flutter/material.dart';
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -2510,8 +2610,9 @@ const _legacyValidWidget = '''
 ''';
 
 String _malformedLegacySyntaxWidget({required bool nullable}) {
-  final className =
-      nullable ? 'MalformedLegacyNullableCard' : 'MalformedLegacyNonNullCard';
+  final className = nullable
+      ? 'MalformedLegacyNullableCard'
+      : 'MalformedLegacyNonNullCard';
   final type = nullable ? 'int?' : 'int';
   final defaultValue = nullable ? 'null' : '1';
   return '''

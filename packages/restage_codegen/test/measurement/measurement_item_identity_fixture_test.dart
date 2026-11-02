@@ -40,11 +40,15 @@ void main() {
   });
 
   test('every fixture surface compiles measured', () {
-    expect(compiled.output.valid, isTrue,
-        reason: compiled.output.errors.join('\n'));
     expect(
-      compiled.output.publications
-          .map((publication) => publication.selector.slug),
+      compiled.output.valid,
+      isTrue,
+      reason: compiled.output.errors.join('\n'),
+    );
+    expect(
+      compiled.output.publications.map(
+        (publication) => publication.selector.slug,
+      ),
       unorderedEquals(<String>[
         'host_rows',
         'filtered_rows',
@@ -70,27 +74,29 @@ void main() {
     expect((item! as fmt.LoopReference).parts, <Object>['__restage_index']);
   });
 
-  test('a filtered loop preserves its source item and compiled runtime fixture',
-      () {
-    expect(compiled.itemRouteCount('filtered_rows'), 1);
-    final taps = compiled.measuredHandlers('lib/surfaces/filtered_rows.dart');
-    expect(taps, hasLength(1));
-    final item =
-        taps.single.eventArguments[kMeasurementPublicationItemArgumentKeyV1]!
-            as fmt.LoopReference;
-    expect(item.loop, 1);
-    expect(item.parts, <Object>['__restage_index']);
+  test(
+    'a filtered loop preserves its source item and compiled runtime fixture',
+    () {
+      expect(compiled.itemRouteCount('filtered_rows'), 1);
+      final taps = compiled.measuredHandlers('lib/surfaces/filtered_rows.dart');
+      expect(taps, hasLength(1));
+      final item =
+          taps.single.eventArguments[kMeasurementPublicationItemArgumentKeyV1]!
+              as fmt.LoopReference;
+      expect(item.loop, 1);
+      expect(item.parts, <Object>['__restage_index']);
 
-    final blob = compiled.blob('lib/surfaces/filtered_rows.dart');
-    final fixture = File(
-      '../restage/test/fixtures/collection_if/filtered_rows.rfw',
-    );
-    if (Platform.environment['REGEN_COLLECTION_IF_FIXTURE'] == '1') {
-      fixture.parent.createSync(recursive: true);
-      fixture.writeAsBytesSync(blob);
-    }
-    expect(blob, orderedEquals(fixture.readAsBytesSync()));
-  });
+      final blob = compiled.blob('lib/surfaces/filtered_rows.dart');
+      final fixture = File(
+        '../restage/test/fixtures/collection_if/filtered_rows.rfw',
+      );
+      if (Platform.environment['REGEN_COLLECTION_IF_FIXTURE'] == '1') {
+        fixture.parent.createSync(recursive: true);
+        fixture.writeAsBytesSync(blob);
+      }
+      expect(blob, orderedEquals(fixture.readAsBytesSync()));
+    },
+  );
 
   test('a run-time loop over scalars keeps one shared count', () {
     expect(compiled.itemRouteCount('host_tags'), 0);
@@ -105,8 +111,9 @@ void main() {
 
   test('composed loop conditions emit each measured callback once', () {
     expect(compiled.itemRouteCount('conditional_tags'), 0);
-    final taps =
-        compiled.measuredHandlers('lib/surfaces/conditional_tags.dart');
+    final taps = compiled.measuredHandlers(
+      'lib/surfaces/conditional_tags.dart',
+    );
     expect(taps, hasLength(2));
     final routes = taps.map(
       (tap) => tap.eventArguments[kMeasurementPublicationRouteArgumentKeyV1],
@@ -118,8 +125,10 @@ void main() {
     expect(compiled.itemRouteCount('static_plans'), 2);
     final items = compiled
         .measuredHandlers('lib/surfaces/static_plans.dart')
-        .map((handler) =>
-            handler.eventArguments[kMeasurementPublicationItemArgumentKeyV1])
+        .map(
+          (handler) =>
+              handler.eventArguments[kMeasurementPublicationItemArgumentKeyV1],
+        )
         .toList();
     expect(
       items,
@@ -131,12 +140,16 @@ void main() {
     expect(compiled.itemRouteCount('toggle_plans'), 1);
     final taps = compiled
         .measuredHandlers('lib/paywalls/toggle_plans.dart')
-        .where((handler) =>
-            handler.eventName == kMeasurementPublicationTapEventNameV1)
+        .where(
+          (handler) =>
+              handler.eventName == kMeasurementPublicationTapEventNameV1,
+        )
         .toList();
     expect(
-      taps.map((handler) =>
-          handler.eventArguments[kMeasurementPublicationItemArgumentKeyV1]),
+      taps.map(
+        (handler) =>
+            handler.eventArguments[kMeasurementPublicationItemArgumentKeyV1],
+      ),
       unorderedEquals(<Object?>['1', '2']),
     );
   });
@@ -154,8 +167,10 @@ void main() {
         .toList();
     expect(
       handlers
-          .where((handler) =>
-              handler.eventName == 'typed' || handler.eventName == 'sent')
+          .where(
+            (handler) =>
+                handler.eventName == 'typed' || handler.eventName == 'sent',
+          )
           .map((handler) => handler.eventArguments.keys),
       everyElement(
         everyElement(
@@ -164,8 +179,10 @@ void main() {
       ),
     );
     expect(
-      handlers.where((handler) =>
-          handler.eventName == 'typed' || handler.eventName == 'sent'),
+      handlers.where(
+        (handler) =>
+            handler.eventName == 'typed' || handler.eventName == 'sent',
+      ),
       hasLength(4),
     );
   });
@@ -208,8 +225,10 @@ void main() {
       );
       expect(
         compiled.log,
-        contains('nested loops of different kinds cannot tell their items '
-            'apart'),
+        contains(
+          'nested loops of different kinds cannot tell their items '
+          'apart',
+        ),
       );
     });
   }
@@ -227,13 +246,13 @@ final class _Compiled {
       .map((node) => node.structuralOccurrenceKey);
 
   Set<String> routedKeys(String source) => {
-        for (final node in output.ledgerNodes)
-          if (node.structuralOccurrenceKey.startsWith('$source|'))
-            for (final event in node.events)
-              if (event.active)
-                '${node.structuralOccurrenceKey}\u0000'
-                    '${event.sourceEventIdentity.value}',
-      };
+    for (final node in output.ledgerNodes)
+      if (node.structuralOccurrenceKey.startsWith('$source|'))
+        for (final event in node.events)
+          if (event.active)
+            '${node.structuralOccurrenceKey}\u0000'
+                '${event.sourceEventIdentity.value}',
+  };
 
   int itemRouteCount(String slug) => output.publications
       .singleWhere((publication) => publication.selector.slug == slug)
@@ -242,12 +261,16 @@ final class _Compiled {
       .where((route) => route.orderedCaptureV1?.interactionItemsV1 ?? false)
       .length;
 
-  List<fmt.EventHandler> measuredHandlers(String sourcePath) => eventHandlers(
-        sourcePath,
-      )
+  List<fmt.EventHandler> measuredHandlers(String sourcePath) =>
+      eventHandlers(
+            sourcePath,
+          )
           .whereType<fmt.EventHandler>()
-          .where((handler) => handler.eventArguments
-              .containsKey(kMeasurementPublicationRouteArgumentKeyV1))
+          .where(
+            (handler) => handler.eventArguments.containsKey(
+              kMeasurementPublicationRouteArgumentKeyV1,
+            ),
+          )
           .toList();
 
   List<fmt.AnyEventHandler> eventHandlers(String sourcePath) {
@@ -331,8 +354,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -344,13 +368,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');

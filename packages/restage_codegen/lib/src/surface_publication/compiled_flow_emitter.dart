@@ -44,13 +44,15 @@ CompiledFlowEmission emitCompiledFlow({
     final constructors = <String>[];
     for (final id in doc.screenArtifacts.keys) {
       final declaration = screens[id];
-      final name =
-          declaration == null ? null : namespace.elementName(declaration);
+      final name = declaration == null
+          ? null
+          : namespace.elementName(declaration);
       final constructor = declaration?.unnamedConstructor;
       if (name != null &&
           constructor != null &&
-          !constructor.formalParameters
-              .any((parameter) => parameter.isRequired) &&
+          !constructor.formalParameters.any(
+            (parameter) => parameter.isRequired,
+          ) &&
           !(declaration!.isAbstract && !constructor.isFactory)) {
         constructors.add('${dartStringLiteral(id)}: $name.new,');
       } else {
@@ -118,7 +120,8 @@ ${sdk}CompiledFlow(
     vocabulary: '$refName.vocabulary',
     sdkHost: '${sdk}RestageFlowGraph',
   );
-  String constructor({required bool atPlacement}) => '''
+  String constructor({required bool atPlacement}) =>
+      '''
   /// ${atPlacement ? 'Overrides the implicit placement with an explicit name.' : 'Mounts this flow at its implicit placement by default.'}
   ///
   /// ${atPlacement ? 'Use [$mountName] for the default placement; no name is needed.' : 'Use this constructor for ordinary mounts; no placement name is needed.'}
@@ -143,7 +146,8 @@ ${sdk}CompiledFlow(
 ''';
   return (
     argument: '  compiled: $compiled,\n',
-    mount: '''
+    mount:
+        '''
 $definition
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class $mountName extends ${sdk}RestageFlowGraph<$resultType> {

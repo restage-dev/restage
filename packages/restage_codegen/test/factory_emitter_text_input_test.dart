@@ -72,15 +72,15 @@ const _maxLines = PropertyEntry(
 );
 
 WidgetEntry _textField(List<PropertyEntry> properties) => WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: 'TextField',
-      library: WidgetLibrary.material,
-      category: WidgetCategory.input,
-      description: '',
-      flutterType: 'package:flutter/material.dart#TextField',
-      childrenSlot: ChildrenSlot.none,
-      properties: properties,
-    );
+  wireId: WireId.unallocatedWidget,
+  name: 'TextField',
+  library: WidgetLibrary.material,
+  category: WidgetCategory.input,
+  description: '',
+  flutterType: 'package:flutter/material.dart#TextField',
+  childrenSlot: ChildrenSlot.none,
+  properties: properties,
+);
 
 void main() {
   group('text input synthetics', () {
@@ -101,8 +101,10 @@ void main() {
       expect(source, isNot(contains('    hintText:')));
       expect(
         source,
-        contains("maxLines: RestageValueBinding.read<int>(source, "
-            "const <Object>['maxLines'], context)"),
+        contains(
+          "maxLines: RestageValueBinding.read<int>(source, "
+          "const <Object>['maxLines'], context)",
+        ),
       );
     });
 

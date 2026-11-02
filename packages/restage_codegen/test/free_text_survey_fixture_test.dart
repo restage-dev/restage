@@ -35,18 +35,24 @@ void main() {
     for (final stem in ['exit_note', 'exit_note_flow']) {
       final part = compiled.readerWriter.testing.readString(
         AssetId(
-            _package, 'lib/surfaces/restage.generated/$stem.restage.g.dart'),
+          _package,
+          'lib/surfaces/restage.generated/$stem.restage.g.dart',
+        ),
       );
       expect(part, contains('// ignore_for_file: type=lint'), reason: stem);
     }
   });
 
   test('the survey compiles measured', () {
-    expect(compiled.output.valid, isTrue,
-        reason: compiled.output.errors.join('\n'));
     expect(
-      compiled.output.publications
-          .map((publication) => publication.selector.slug),
+      compiled.output.valid,
+      isTrue,
+      reason: compiled.output.errors.join('\n'),
+    );
+    expect(
+      compiled.output.publications.map(
+        (publication) => publication.selector.slug,
+      ),
       containsAll(<String>['exit_note', 'exit_note_survey']),
     );
   });
@@ -94,17 +100,22 @@ void main() {
         ),
       ),
     );
-    final document = jsonDecode(
-      utf8.decode(
-        bundle.entries
-            .singleWhere((entry) => entry.logicalPath.endsWith('.flow.json'))
-            .bytes,
-      ),
-    ) as Map<String, Object?>;
+    final document =
+        jsonDecode(
+              utf8.decode(
+                bundle.entries
+                    .singleWhere(
+                      (entry) => entry.logicalPath.endsWith('.flow.json'),
+                    )
+                    .bytes,
+              ),
+            )
+            as Map<String, Object?>;
     final outbound = document['outbound']! as Map<String, Object?>;
     final terminal = outbound['terminalResult']! as Map<String, Object?>;
-    expect(
-        (terminal['fields']! as Map<String, Object?>).keys, <String>['note']);
+    expect((terminal['fields']! as Map<String, Object?>).keys, <String>[
+      'note',
+    ]);
     expect(outbound['surveyAnswers'] ?? const <String, Object?>{}, isEmpty);
     expect(jsonEncode(document['states']), contains('"note"'));
   });
@@ -156,13 +167,13 @@ final class _Compiled {
       .map((node) => node.structuralOccurrenceKey);
 
   Set<String> routedKeys(String source) => {
-        for (final node in output.ledgerNodes)
-          if (node.structuralOccurrenceKey.startsWith('$source|'))
-            for (final event in node.events)
-              if (event.active)
-                '${node.structuralOccurrenceKey}\u0000'
-                    '${event.sourceEventIdentity.value}',
-      };
+    for (final node in output.ledgerNodes)
+      if (node.structuralOccurrenceKey.startsWith('$source|'))
+        for (final event in node.events)
+          if (event.active)
+            '${node.structuralOccurrenceKey}\u0000'
+                '${event.sourceEventIdentity.value}',
+  };
 
   int itemRouteCount(String slug) => output.publications
       .singleWhere((publication) => publication.selector.slug == slug)
@@ -171,12 +182,16 @@ final class _Compiled {
       .where((route) => route.orderedCaptureV1?.interactionItemsV1 ?? false)
       .length;
 
-  List<fmt.EventHandler> measuredHandlers(String sourcePath) => eventHandlers(
-        sourcePath,
-      )
+  List<fmt.EventHandler> measuredHandlers(String sourcePath) =>
+      eventHandlers(
+            sourcePath,
+          )
           .whereType<fmt.EventHandler>()
-          .where((handler) => handler.eventArguments
-              .containsKey(kMeasurementPublicationRouteArgumentKeyV1))
+          .where(
+            (handler) => handler.eventArguments.containsKey(
+              kMeasurementPublicationRouteArgumentKeyV1,
+            ),
+          )
           .toList();
 
   List<fmt.RemoteWidgetLibrary> libraries(String sourcePath) {
@@ -271,8 +286,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -284,13 +300,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');

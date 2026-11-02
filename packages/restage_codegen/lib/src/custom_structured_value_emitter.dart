@@ -34,30 +34,32 @@ final class CustomStructuredValueEmitter {
   /// Creates an emitter wired to the host primitives it delegates back to.
   CustomStructuredValueEmitter({
     required StructuredEntry? Function(InstanceCreationExpression)
-        structuredValueFor,
+    structuredValueFor,
     required String Function(
       EmitFragment fragment,
       List<Argument> args,
       List<Issue> issues,
       String loc,
-    ) dispatch,
+    )
+    dispatch,
     required String Function(AstNode) locationOf,
-  })  : _structuredValueFor = structuredValueFor,
-        _dispatch = dispatch,
-        _locationOf = locationOf;
+  }) : _structuredValueFor = structuredValueFor,
+       _dispatch = dispatch,
+       _locationOf = locationOf;
 
   /// Resolves the construction to the catalog [StructuredEntry] it authors, or
   /// `null` when it is not a discovered custom structured value. A
   /// lightweight source-type lookup (NOT a native-validated index) so it is
   /// safe on any merged catalog the translator may hold.
   final StructuredEntry? Function(InstanceCreationExpression)
-      _structuredValueFor;
+  _structuredValueFor;
   final String Function(
     EmitFragment fragment,
     List<Argument> args,
     List<Issue> issues,
     String loc,
-  ) _dispatch;
+  )
+  _dispatch;
   final String Function(AstNode) _locationOf;
 
   /// Returns the RFW DSL map for [expr] when it constructs a discovered
@@ -88,12 +90,14 @@ final class CustomStructuredValueEmitter {
         : constructorPlan(ctor, fields);
     final args = plan?.args;
     if (ctor == null || (plan != null && args == null)) {
-      final label =
-          named == null ? structured.name : '${structured.name}.$named';
+      final label = named == null
+          ? structured.name
+          : '${structured.name}.$named';
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: '$label cannot be encoded: '
+          message:
+              '$label cannot be encoded: '
               '${plan?.reason ?? 'the constructor did not resolve'}.',
           location: loc,
         ),
@@ -130,7 +134,8 @@ final class CustomStructuredValueEmitter {
           issues.add(
             Issue(
               code: IssueCode.unrecognizedMethodCall,
-              message: "${structured.name} field '${field.name}' cannot be "
+              message:
+                  "${structured.name} field '${field.name}' cannot be "
                   'encoded: this constructor does not supply it by that name. '
                   'A custom data-class value must be authored with a '
                   'constructor whose parameters match its fields.',

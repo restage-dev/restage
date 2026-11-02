@@ -22,8 +22,8 @@ final class RestageSurfaceListBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['restage_surfaces.g.dart'],
-      };
+    r'$lib$': ['restage_surfaces.g.dart'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -37,14 +37,12 @@ final class RestageSurfaceListBuilder implements Builder {
       for (final entry in manifest.publications)
         if (entry.publication.surface == Surface.paywall)
           entry.publication.slug,
-    }.toList()
-      ..sort();
+    }.toList()..sort();
 
     final libraryPaths = <String>{
       for (final entry in manifest.publications) ...entry.sources,
       ...bundle.artifactLibraryPaths.values,
-    }.where((path) => path.startsWith('lib/')).toList()
-      ..sort();
+    }.where((path) => path.startsWith('lib/')).toList()..sort();
 
     final refs = <SurfaceListReference>[];
     for (final path in libraryPaths) {
@@ -125,16 +123,16 @@ final class SurfaceListReference {
 /// Generated default-definition providers declared by this library's part.
 List<String> generatedPlacementDefinitionProviderNames(
   LibraryElement library,
-) =>
-    [
-      for (final variable in library.topLevelVariables)
-        if (variable.name case final name?
-            when !name.startsWith('_') &&
-                variable.firstFragment.libraryFragment.source.uri.path
-                    .endsWith(_kGeneratedPartSuffix) &&
-                _isPlacementDefinitionProvider(variable.type))
-          name,
-    ]..sort();
+) => [
+  for (final variable in library.topLevelVariables)
+    if (variable.name case final name?
+        when !name.startsWith('_') &&
+            variable.firstFragment.libraryFragment.source.uri.path.endsWith(
+              _kGeneratedPartSuffix,
+            ) &&
+            _isPlacementDefinitionProvider(variable.type))
+      name,
+]..sort();
 
 bool _isPlacementDefinitionProvider(DartType type) {
   if (type is! FunctionType) return false;
@@ -152,8 +150,9 @@ List<String> generatedSurfaceRefNames(LibraryElement library) {
     for (final variable in library.topLevelVariables)
       if (variable.name case final name?
           when !name.startsWith('_') &&
-              variable.firstFragment.libraryFragment.source.uri.path
-                  .endsWith(_kGeneratedPartSuffix) &&
+              variable.firstFragment.libraryFragment.source.uri.path.endsWith(
+                _kGeneratedPartSuffix,
+              ) &&
               _isSurfaceRef(variable.type))
         name,
   ]..sort();
@@ -205,7 +204,8 @@ String emitRestageSurfaceList({
   for (final id in paywallIds) {
     buffer.writeln('    const restage.PaywallRef(${dartStringLiteral(id)}),');
   }
-  final sorted = [...refs]..sort((left, right) {
+  final sorted = [...refs]
+    ..sort((left, right) {
       final library = left.libraryPath.compareTo(right.libraryPath);
       return library != 0 ? library : left.name.compareTo(right.name);
     });

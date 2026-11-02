@@ -3,6 +3,28 @@
 ## Unreleased
 
 - **Breaking:** `A2uiDartCoverageReason` gains `unsupportedScalarCallback`; exhaustive switches must handle it.
+- **Breaking:** `A2uiDartWidgetPlan.usesPropsNamespace` is removed; A2UI 1.0 components carry their properties at the top level.
+- **Breaking, unreleased A2UI 1.0 candidate migration:** generate
+  `ComponentImplementation` / `CatalogImplementation` for
+  `a2ui_flutter 0.0.1-wip003` and `a2ui_core ^0.4.0` (Dart >=3.11.0,
+  Flutter >=3.38.0, json_schema_builder >=0.1.7). Regenerate catalogs and
+  migrate cached/producer inputs to generated top-level properties and dynamic
+  `@path`/`@call`. Ordinary names retain `props_<DartName>`; names invalid under
+  upstream UAX31 and the reserved `encoded_` source prefix use
+  `props_encoded_<hex>` (four lowercase digits per UTF-16 code unit). Use the
+  generated schema keys; Dart arguments and nested business-data keys stay exact,
+  except that keys starting with `@` are written as `@@` on the wire.
+- Require Dart >=3.11.0 for every `restage_codegen` user (its analyzer
+  dependency already did) and depend on `a2ui_core ^0.4.0`, whether or not the
+  A2UI builder is enabled. An app that also depends on `genui` 0.10.x, which
+  needs `a2ui_core ^0.1.0`, cannot resolve this version.
+- Generated catalog IDs hash Restage's own catalog projection, so they no longer
+  change with the upstream serializer. Every catalog ID changes once.
+- Use standard catalog `instructions` and catalog-level rich definitions.
+  Manual composition must merge `buildRestageCatalogDefinitions()` with items
+  and use a new ID. Invalid component type identifiers and reserved `Surface`
+  fail generation with annotation guidance; native screen IDs remain exact.
+
 - Compile native Directionality/textDirection, physical and directional geometry,
   keyboard/accessibility reads, and exact scoped TextScaler values.
 - Compile supported LayoutBuilder/OrientationBuilder callbacks and native

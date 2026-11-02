@@ -10,7 +10,8 @@ import 'helpers.dart';
 
 const String _package = 'apps_examples';
 
-String _paywall(String name, String body) => '''
+String _paywall(String name, String body) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -103,18 +104,20 @@ void main() {
     });
   });
 
-  test('a value that is not a String is refused with what is allowed',
-      () async {
-    final result = await _build({
-      'number': r'''
+  test(
+    'a value that is not a String is refused with what is allowed',
+    () async {
+      final result = await _build({
+        'number': r'''
     return Text('${42} days');''',
-    });
-    expect(
-      result.errors.join('\n'),
-      allOf(
-        contains(IssueCode.unsupportedInterpolation.name),
-        contains('must be a non-null String'),
-      ),
-    );
-  });
+      });
+      expect(
+        result.errors.join('\n'),
+        allOf(
+          contains(IssueCode.unsupportedInterpolation.name),
+          contains('must be a non-null String'),
+        ),
+      );
+    },
+  );
 }

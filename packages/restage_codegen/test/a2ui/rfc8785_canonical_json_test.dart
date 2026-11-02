@@ -95,17 +95,19 @@ void main() {
       );
     });
 
-    test('rejects lone UTF-16 surrogates instead of emitting invalid Unicode',
-        () {
-      expect(
-        () => canonicalizeJsonRfc8785(String.fromCharCode(0xd800)),
-        throwsFormatException,
-      );
-      expect(
-        () => canonicalizeJsonRfc8785(String.fromCharCode(0xdead)),
-        throwsFormatException,
-      );
-    });
+    test(
+      'rejects lone UTF-16 surrogates instead of emitting invalid Unicode',
+      () {
+        expect(
+          () => canonicalizeJsonRfc8785(String.fromCharCode(0xd800)),
+          throwsFormatException,
+        );
+        expect(
+          () => canonicalizeJsonRfc8785(String.fromCharCode(0xdead)),
+          throwsFormatException,
+        );
+      },
+    );
 
     test('matches the RFC 8785 section 3.2.3 UTF-16 property order', () {
       final value = <String, Object?>{

@@ -19,9 +19,10 @@ const nativeFlowFixtureSourcePath =
 
 /// Exact authored native mount input, keyed by its fixture source path.
 Map<String, String> nativeFlowFixtureSourceInputs() => {
-      nativeFlowFixtureSourcePath:
-          File(nativeFlowFixtureSourcePath).readAsStringSync(),
-    };
+  nativeFlowFixtureSourcePath: File(
+    nativeFlowFixtureSourcePath,
+  ).readAsStringSync(),
+};
 
 /// Native source, production output, and its exact retained formatting.
 final class NativeFlowFixtureCandidate {
@@ -43,8 +44,9 @@ final class NativeFlowFixtureCandidate {
 /// Compiles the original authored native flow through its package owner.
 Future<NativeFlowFixtureCandidate> compileNativeFlowFixture() async {
   final source = nativeFlowFixtureSourceInputs()[nativeFlowFixtureSourcePath]!;
-  final rw =
-      await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+  final rw = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
   final result = await testBuilder(
     const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
     {'apps_examples|lib/native_flow.dart': source},

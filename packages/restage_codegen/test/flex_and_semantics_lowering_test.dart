@@ -14,7 +14,8 @@ import 'helpers.dart';
 
 const String _package = 'apps_examples';
 
-String _paywall(String name, String body) => '''
+String _paywall(String name, String body) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -79,10 +80,12 @@ void main() {
 
     setUpAll(() async {
       result = await _build({
-        'row_baseline': 'const Row(crossAxisAlignment: '
+        'row_baseline':
+            'const Row(crossAxisAlignment: '
             'CrossAxisAlignment.baseline, textBaseline: '
             "TextBaseline.alphabetic, children: [Text('a'), Text('b')])",
-        'semantics_header': "const Semantics(header: true, label: 'Plans', "
+        'semantics_header':
+            "const Semantics(header: true, label: 'Plans', "
             "child: Text('Plans'))",
       });
     });
@@ -113,14 +116,17 @@ void main() {
 
   test('baseline alignment without textBaseline is refused', () async {
     final result = await _build({
-      'no_baseline': 'const Column(crossAxisAlignment: '
+      'no_baseline':
+          'const Column(crossAxisAlignment: '
           "CrossAxisAlignment.baseline, children: [Text('a')])",
     });
     expect(
       result.errors.join('\n'),
       allOf(
-        contains('[${IssueCode.missingRequiredSlot.name}] '
-            'lib/paywalls/no_baseline.dart:'),
+        contains(
+          '[${IssueCode.missingRequiredSlot.name}] '
+          'lib/paywalls/no_baseline.dart:',
+        ),
         contains('sets no textBaseline'),
       ),
     );
@@ -132,8 +138,10 @@ void main() {
         rootPackage: 'restage_codegen',
         includeFlutter: true,
       );
-      readerWriter.testing
-          .writeString(AssetId(_package, 'lib/widgets.dart'), _customWidget);
+      readerWriter.testing.writeString(
+        AssetId(_package, 'lib/widgets.dart'),
+        _customWidget,
+      );
       return testBuilder(
         builder,
         {'$_package|lib/widgets.dart': _customWidget},
@@ -144,8 +152,9 @@ void main() {
     }
 
     test('the catalog carries it as an enum', () async {
-      final result =
-          await run(const UserCatalogJsonBuilder(BuilderOptions.empty));
+      final result = await run(
+        const UserCatalogJsonBuilder(BuilderOptions.empty),
+      );
       expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
       final catalog = decodeCatalog(
         result.readerWriter.testing.readString(
@@ -162,8 +171,9 @@ void main() {
     test('the factory decodes it by name', () async {
       final result = await run(const UserFactoryBuilder(BuilderOptions.empty));
       expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      final dart = result.readerWriter.testing
-          .readString(AssetId(_package, 'lib/user_factories.g.dart'));
+      final dart = result.readerWriter.testing.readString(
+        AssetId(_package, 'lib/user_factories.g.dart'),
+      );
       expect(dart, matches(RegExp(r'enumByName<(\w+\.)?TextBaseline>')));
     });
   });

@@ -50,17 +50,19 @@ part of '../welcome.dart';
     });
 
     final logs = await build({
-      'fixture|$kRestageSurfacePublicationCompilerBundlePath':
-          failed.encodeCanonicalJson(),
+      'fixture|$kRestageSurfacePublicationCompilerBundlePath': failed
+          .encodeCanonicalJson(),
     });
 
     expect(messages(logs), isNot(contains('restage.generated/')));
   });
 
-  test('a package with no surfaces never treats a generated part as a source',
-      () async {
-    final logs = await build(const {});
+  test(
+    'a package with no surfaces never treats a generated part as a source',
+    () async {
+      final logs = await build(const {});
 
-    expect(messages(logs), isNot(contains('restage.generated/')));
-  });
+      expect(messages(logs), isNot(contains('restage.generated/')));
+    },
+  );
 }

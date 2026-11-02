@@ -82,8 +82,7 @@ void main() {
     return captured!;
   }
 
-  test(
-      'the catalog builder is byte-deterministic across repeated runs from '
+  test('the catalog builder is byte-deterministic across repeated runs from '
       'the same seed', () async {
     final first = await runBuilder(
       const UserCatalogBuilder(BuilderOptions.empty),
@@ -100,54 +99,57 @@ void main() {
     expect(first, contains('capabilityVersion: 2'));
   });
 
-  test('the factory builder is byte-deterministic across repeated runs',
-      () async {
-    final first = await runBuilder(
-      const UserFactoryBuilder(BuilderOptions.empty),
-      'lib/user_factories.g.dart',
-    );
-    final second = await runBuilder(
-      const UserFactoryBuilder(BuilderOptions.empty),
-      'lib/user_factories.g.dart',
-    );
-    expect(first, equals(second));
-    expect(first, contains('Badge('));
-  });
+  test(
+    'the factory builder is byte-deterministic across repeated runs',
+    () async {
+      final first = await runBuilder(
+        const UserFactoryBuilder(BuilderOptions.empty),
+        'lib/user_factories.g.dart',
+      );
+      final second = await runBuilder(
+        const UserFactoryBuilder(BuilderOptions.empty),
+        'lib/user_factories.g.dart',
+      );
+      expect(first, equals(second));
+      expect(first, contains('Badge('));
+    },
+  );
 
   test(
-      r'the two $lib$ builders produce ORDER-INDEPENDENT output (catalog '
-      'first == factory first) and agree on the shared structured graph',
-      () async {
-    // Both builders read the SAME source + committed seed; neither mutates the
-    // other's input, so running order cannot change either output.
-    final catalog = await runBuilder(
-      const UserCatalogBuilder(BuilderOptions.empty),
-      'lib/user_catalog.g.dart',
-    );
-    final factory = await runBuilder(
-      const UserFactoryBuilder(BuilderOptions.empty),
-      'lib/user_factories.g.dart',
-    );
+    r'the two $lib$ builders produce ORDER-INDEPENDENT output (catalog '
+    'first == factory first) and agree on the shared structured graph',
+    () async {
+      // Both builders read the SAME source + committed seed; neither mutates the
+      // other's input, so running order cannot change either output.
+      final catalog = await runBuilder(
+        const UserCatalogBuilder(BuilderOptions.empty),
+        'lib/user_catalog.g.dart',
+      );
+      final factory = await runBuilder(
+        const UserFactoryBuilder(BuilderOptions.empty),
+        'lib/user_factories.g.dart',
+      );
 
-    // Cross-builder AGREEMENT (the shared-seed invariant): the catalog
-    // allocates the custom structured types the factory reconstructs — the
-    // SAME source-inclusive identities from the one shared walk. Both name the
-    // custom structured types `Badge` and `Inner`.
-    for (final type in ['Badge', 'Inner']) {
-      expect(
-        catalog,
-        contains("name: '$type'"),
-        reason: 'the catalog must allocate the $type structured type',
-      );
-      expect(
-        factory,
-        contains('$type('),
-        reason: 'the factory must reconstruct the $type structured type',
-      );
-    }
-    // The stamped capability floor is carried on both surfaces (identical
-    // sidecar): the catalog LibraryInfo and the factory registration.
-    expect(catalog, contains('capabilityVersion: 2'));
-    expect(factory, contains('capabilityVersion: 2'));
-  });
+      // Cross-builder AGREEMENT (the shared-seed invariant): the catalog
+      // allocates the custom structured types the factory reconstructs — the
+      // SAME source-inclusive identities from the one shared walk. Both name the
+      // custom structured types `Badge` and `Inner`.
+      for (final type in ['Badge', 'Inner']) {
+        expect(
+          catalog,
+          contains("name: '$type'"),
+          reason: 'the catalog must allocate the $type structured type',
+        );
+        expect(
+          factory,
+          contains('$type('),
+          reason: 'the factory must reconstruct the $type structured type',
+        );
+      }
+      // The stamped capability floor is carried on both surfaces (identical
+      // sidecar): the catalog LibraryInfo and the factory registration.
+      expect(catalog, contains('capabilityVersion: 2'));
+      expect(factory, contains('capabilityVersion: 2'));
+    },
+  );
 }

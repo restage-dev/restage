@@ -4,14 +4,9 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
-/// A contained interim guard: a small set of built-in widgets cannot be emitted
-/// to a compilable A2UI catalog today — the built-in catalog marks their
-/// required Flutter constructor argument (a required callback, or a decomposed
-/// style/decoration) as not providable, so the merged built-in catalog would
-/// not compile. They are scoped OUT of the A2UI emit (a documented gap) so the
-/// shipped merged builder produces a compilable catalog; the proper fix (the 11
-/// emit correctly) is tracked separately. A same-named CUSTOM widget is not
-/// affected — the guard is gated on a built-in library.
+/// Built-in widgets whose required constructor argument the built-in catalog
+/// cannot provide are left out of the A2UI emit, so the merged built-in catalog
+/// compiles. A same-named custom widget is not affected.
 void main() {
   group('A2UI emit — unconstructable built-in scope-out', () {
     test('a known-unconstructable built-in (FilterChip) is scoped out', () {

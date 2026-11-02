@@ -76,8 +76,8 @@ final class ResolvedScreenInspectionResult {
   ResolvedScreenInspectionResult({
     required List<ResolvedScreenCompilationInput> screens,
     required List<Issue> issues,
-  })  : screens = List.unmodifiable(screens),
-        issues = List.unmodifiable(issues);
+  }) : screens = List.unmodifiable(screens),
+       issues = List.unmodifiable(issues);
 
   final List<ResolvedScreenCompilationInput> screens;
   final List<Issue> issues;
@@ -96,11 +96,11 @@ final class CompiledResolvedScreen {
     this.vocabulary = SurfaceVocabularyReferences.empty,
     Map<String, Object> localSeeds = const {},
     Iterable<HoistedValue> hoisted = const [],
-  })  : blob = Uint8List.fromList(blob),
-        hoisted = List.unmodifiable(hoisted),
-        capabilitySidecar = Uint8List.fromList(capabilitySidecar),
-        analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations),
-        localSeeds = Map.unmodifiable(localSeeds);
+  }) : blob = Uint8List.fromList(blob),
+       hoisted = List.unmodifiable(hoisted),
+       capabilitySidecar = Uint8List.fromList(capabilitySidecar),
+       analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations),
+       localSeeds = Map.unmodifiable(localSeeds);
 
   final ResolvedScreenCompilationInput input;
   final String text;
@@ -130,8 +130,8 @@ final class ResolvedScreenCompilationResult {
   ResolvedScreenCompilationResult({
     required List<CompiledResolvedScreen> screens,
     required List<Issue> issues,
-  })  : screens = List.unmodifiable(screens),
-        issues = List.unmodifiable(issues);
+  }) : screens = List.unmodifiable(screens),
+       issues = List.unmodifiable(issues);
 
   final List<CompiledResolvedScreen> screens;
   final List<Issue> issues;
@@ -173,8 +173,9 @@ Future<ResolvedScreenInspectionResult> inspectCanonicalScreenDeclarations(
       continue;
     }
     final idValue = value.getField('id');
-    final explicitId =
-        idValue == null || idValue.isNull ? null : idValue.toStringValue();
+    final explicitId = idValue == null || idValue.isNull
+        ? null
+        : idValue.toStringValue();
     if (explicitId != null &&
         (explicitId.isEmpty || explicitId.contains('\u0000'))) {
       issues.add(
@@ -228,7 +229,8 @@ Future<ResolvedScreenInspectionResult> inspectCanonicalScreenDeclarations(
     issues.add(
       Issue(
         code: IssueCode.invalidScreenSourceCount,
-        message: 'At most one @Screen declaration per library may omit id; '
+        message:
+            'At most one @Screen declaration per library may omit id; '
             'found ${implicit.length}.',
         location: assetId.path,
       ),
@@ -281,35 +283,35 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
   );
   ExpressionTranslator translatorFor(
     MeasurementRouteEmissionPlan? measurementRoutePlan,
-  ) =>
-      ExpressionTranslator(
-        catalog: catalog,
-        helpers: helpers,
-        customWidgetClassifications: classification.classifications,
-        customWidgetBlueprints: classification.blueprints,
-        measurementRouteEmissionPlan: measurementRoutePlan,
-      );
+  ) => ExpressionTranslator(
+    catalog: catalog,
+    helpers: helpers,
+    customWidgetClassifications: classification.classifications,
+    customWidgetBlueprints: classification.blueprints,
+    measurementRouteEmissionPlan: measurementRoutePlan,
+  );
   final compiled = <CompiledResolvedScreen>[];
   for (final source in ordered) {
     final resolved = await resolveLibraryInLongForm(source.declaration.library);
     final lineInfo =
         resolved is ResolvedLibraryResult && resolved.units.isNotEmpty
-            ? resolved.units.first.lineInfo
-            : null;
-    final translation = translatorFor(
-      measurementRoutePlans[source.declarationIdentity],
-    ).translate(
-      source.build.rootExpression,
-      sourcePath: source.assetId.path,
-      lineInfo: lineInfo,
-      rootState: source.build.state,
-      rootParams: source.build.rootParams,
-      rootEventHandlers: source.build.eventHandlers,
-      rootInlined: source.build.inlined,
-      buildContextParameter: source.build.buildContextParameter,
-      hoistInMount: source.surface != null,
-      rootBuildArguments: source.build.buildArguments,
-    );
+        ? resolved.units.first.lineInfo
+        : null;
+    final translation =
+        translatorFor(
+          measurementRoutePlans[source.declarationIdentity],
+        ).translate(
+          source.build.rootExpression,
+          sourcePath: source.assetId.path,
+          lineInfo: lineInfo,
+          rootState: source.build.state,
+          rootParams: source.build.rootParams,
+          rootEventHandlers: source.build.eventHandlers,
+          rootInlined: source.build.inlined,
+          buildContextParameter: source.build.buildContextParameter,
+          hoistInMount: source.surface != null,
+          rootBuildArguments: source.build.buildArguments,
+        );
     if (_collectTranslationIssues(
       issues,
       translation.issues,
@@ -340,15 +342,18 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
         issues.add(
           Issue(
             code: IssueCode.missingScreenDescriptor,
-            message: 'Final Measurement screen emission requires its frozen '
+            message:
+                'Final Measurement screen emission requires its frozen '
                 'RFW occurrence evidence.',
-            location: '${source.assetId.path}#'
+            location:
+                '${source.assetId.path}#'
                 '${source.declaration.name ?? '<unnamed>'}',
           ),
         );
         continue;
       }
-      final resolvedOccurrenceSet = frozenOccurrenceSet ??
+      final resolvedOccurrenceSet =
+          frozenOccurrenceSet ??
           ResolvedRfwCatalogOccurrenceSet.resolve(
             operations: translation.valueOperations,
             parsedLibrary: parsedLibrary,
@@ -362,16 +367,19 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
               renderEntryNames: const [onboardingScreenRootWidgetName],
             ),
           );
-      final occurrenceRebinding =
-          frozenOccurrenceSet?.rebindFinalLibrary(parsedLibrary);
+      final occurrenceRebinding = frozenOccurrenceSet?.rebindFinalLibrary(
+        parsedLibrary,
+      );
       final lowering = lowerAnalyticsIds(
         text: text,
         library: parsedLibrary,
         sourceIdentifier: source.id,
-        location: '${source.assetId.path}#'
+        location:
+            '${source.assetId.path}#'
             '${source.declaration.name ?? '<unnamed>'}',
-        occurrenceSet:
-            frozenOccurrenceSet == null ? resolvedOccurrenceSet : null,
+        occurrenceSet: frozenOccurrenceSet == null
+            ? resolvedOccurrenceSet
+            : null,
         occurrenceRebinding: occurrenceRebinding,
       );
       issues.addAll(lowering.issues);
@@ -387,8 +395,11 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       );
       issues.addAll(validationIssues);
       if (validationIssues.isNotEmpty) continue;
-      final derivation = deriveCapabilityManifest(library, catalog,
-          hoisted: translation.hoisted);
+      final derivation = deriveCapabilityManifest(
+        library,
+        catalog,
+        hoisted: translation.hoisted,
+      );
       issues.addAll(derivation.issues);
       if (derivation.issues.isNotEmpty || derivation.manifest == null) continue;
       final blob = fmt.encodeLibraryBlob(canonicalizeLibrary(library));
@@ -407,11 +418,12 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
           blob: blob,
           capabilitySidecar: sidecar,
           capabilities: derivation.manifest!,
-          vocabulary: referencesOfCatalogEntries(
-            derivation.referencedWidgets,
-          ).union(
-            SurfaceVocabularyReferences(icons: translation.iconReferences),
-          ),
+          vocabulary:
+              referencesOfCatalogEntries(
+                derivation.referencedWidgets,
+              ).union(
+                SurfaceVocabularyReferences(icons: translation.iconReferences),
+              ),
           rfwCatalogOccurrenceSet: resolvedOccurrenceSet,
           analyticsIdDeclarations: lowering.declarations,
           localSeeds: translation.localSeeds,
@@ -422,14 +434,16 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       issues.add(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
-          message: 'Translator emitted invalid screen RFW for '
+          message:
+              'Translator emitted invalid screen RFW for '
               '"${source.id}": $error '
               '${dslParseFailureDetail(
-            text,
-            error,
-            translation.emissionSources,
-          )}',
-          location: '${source.assetId.path}#'
+                text,
+                error,
+                translation.emissionSources,
+              )}',
+          location:
+              '${source.assetId.path}#'
               '${source.declaration.name ?? '<unnamed>'}',
         ),
       );
@@ -551,7 +565,8 @@ final class OnboardingScreenBuilder implements Builder {
         issues.add(
           Issue(
             code: IssueCode.generatedSymbolCollision,
-            message: 'Generated descriptor symbol $descriptorName already '
+            message:
+                'Generated descriptor symbol $descriptorName already '
                 'exists in ${assetId.path}.',
             location: '${assetId.path}#$descriptorName',
           ),
@@ -562,8 +577,9 @@ final class OnboardingScreenBuilder implements Builder {
 
     final helpers = HelperRegistry()..registerAll(onboardingHelpers);
     final classification = await classifyReferencedCustomWidgets(
-      rootExpressions:
-          result.sources.expand((source) => source.build.collectorRoots),
+      rootExpressions: result.sources.expand(
+        (source) => source.build.collectorRoots,
+      ),
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
@@ -652,8 +668,11 @@ final class OnboardingScreenBuilder implements Builder {
         // a paywall does. A surface that references a custom library missing a
         // capability version (or an ambiguous shadowed name) fails the build
         // (fail-when-referenced), the same posture as an unknown-widget error.
-        final derivation = deriveCapabilityManifest(rfwLibrary, catalog,
-            hoisted: translation.hoisted);
+        final derivation = deriveCapabilityManifest(
+          rfwLibrary,
+          catalog,
+          hoisted: translation.hoisted,
+        );
         if (derivation.issues.isNotEmpty) {
           issues.addAll(derivation.issues);
           continue;
@@ -683,13 +702,14 @@ final class OnboardingScreenBuilder implements Builder {
         issues.add(
           Issue(
             code: IssueCode.malformedTranslatorOutput,
-            message: 'Translator emitted invalid onboarding RFW for '
+            message:
+                'Translator emitted invalid onboarding RFW for '
                 '"${src.id}": $e '
                 '${dslParseFailureDetail(
-              text,
-              e,
-              translation.emissionSources,
-            )}',
+                  text,
+                  e,
+                  translation.emissionSources,
+                )}',
             location: '${assetId.path}#${src.className}',
           ),
         );
@@ -707,8 +727,9 @@ final class OnboardingScreenBuilder implements Builder {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
       plan: RestageOutputLocationPlan.fromBuilderOptions(options),
-      measurementPolicy:
-          MeasurementCompilerPolicyInput.fromBuilderOptions(options),
+      measurementPolicy: MeasurementCompilerPolicyInput.fromBuilderOptions(
+        options,
+      ),
       builderKey: 'restage_codegen:${surface.wireName}_screen_codegen',
     );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);
@@ -743,7 +764,8 @@ final class OnboardingScreenBuilder implements Builder {
       _surfaceIssues([
         Issue(
           code: IssueCode.missingScreenDescriptor,
-          message: 'Standalone canonical screen fallback could not find the '
+          message:
+              'Standalone canonical screen fallback could not find the '
               'aggregate artifact family for ${selected.id}.',
           location: buildStep.inputId.path,
         ),

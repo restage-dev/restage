@@ -19,13 +19,14 @@ final class MeasurementPublicationSourceArtifact {
     required this.discovery,
     this.presentationAnchorStructuralOccurrenceKey = '',
     Iterable<MeasurementRfwPresentationLocalDeclarationAnchor>
-        presentationLocalDeclarationAnchors = const [],
+        presentationLocalDeclarationAnchors =
+        const [],
     Iterable<MeasurementRfwPresentationOccurrence> presentationOccurrences =
         const [],
-  })  : presentationLocalDeclarationAnchors = List.unmodifiable(
-          presentationLocalDeclarationAnchors,
-        ),
-        presentationOccurrences = List.unmodifiable(presentationOccurrences);
+  }) : presentationLocalDeclarationAnchors = List.unmodifiable(
+         presentationLocalDeclarationAnchors,
+       ),
+       presentationOccurrences = List.unmodifiable(presentationOccurrences);
 
   final String artifactPath;
   final MeasurementSourceDiscoveryResult discovery;
@@ -35,15 +36,15 @@ final class MeasurementPublicationSourceArtifact {
 
   /// Reachable ordinary local declaration anchors for RFW body occurrences.
   final List<MeasurementRfwPresentationLocalDeclarationAnchor>
-      presentationLocalDeclarationAnchors;
+  presentationLocalDeclarationAnchors;
 
   /// Label-free provisional RFW occurrences for this exact source artifact.
   final List<MeasurementRfwPresentationOccurrence> presentationOccurrences;
 
   /// Ledger descriptors selected from [presentationOccurrences].
   List<MeasurementRfwPresentationDescriptor> get presentationDescriptors => [
-        for (final occurrence in presentationOccurrences) occurrence.descriptor,
-      ];
+    for (final occurrence in presentationOccurrences) occurrence.descriptor,
+  ];
 }
 
 /// Analyzer and surface publication closure for one target-neutral publication
@@ -54,23 +55,22 @@ final class MeasurementPublicationPlanningInput {
     this.flowDocument,
     this.measurementAnswers = const {},
     required Iterable<MeasurementPublicationSourceArtifact> sourceArtifacts,
-  })  : entry = _withoutPayloadSections(entry),
-        sourceArtifacts = List.unmodifiable(sourceArtifacts);
+  }) : entry = _withoutPayloadSections(entry),
+       sourceArtifacts = List.unmodifiable(sourceArtifacts);
 
   /// [entry] without its payload section artifacts, which measure nothing.
   static SurfacePublicationManifestEntry _withoutPayloadSections(
     SurfacePublicationManifestEntry entry,
-  ) =>
-      entry.artifacts.any((artifact) => artifact.role.isPayloadSection)
-          ? SurfacePublicationManifestEntry(
-              artifacts: [
-                for (final artifact in entry.artifacts)
-                  if (!artifact.role.isPayloadSection) artifact,
-              ],
-              publication: entry.publication,
-              sources: entry.sources,
-            )
-          : entry;
+  ) => entry.artifacts.any((artifact) => artifact.role.isPayloadSection)
+      ? SurfacePublicationManifestEntry(
+          artifacts: [
+            for (final artifact in entry.artifacts)
+              if (!artifact.role.isPayloadSection) artifact,
+          ],
+          publication: entry.publication,
+          sources: entry.sources,
+        )
+      : entry;
 
   final SurfacePublicationManifestEntry entry;
   final FlowDocument? flowDocument;
@@ -89,19 +89,20 @@ final class MeasurementPublicationPlanningResult {
     required Iterable<MeasurementCompilerLedgerNode> ledgerNodes,
     required Iterable<MeasurementCompilerLedgerProposal> proposals,
     required Iterable<MeasurementCompilerLedgerIntroduction>
-        pendingIntroductions,
+    pendingIntroductions,
     required Map<String, MeasurementPublicationRoutePlanV1> routePlansByKey,
     required Map<String, MeasurementRfwPresentationPublicationPlan>
-        presentationPlansByKey,
+    presentationPlansByKey,
     required Map<String, CodeIdentityId> codeIdentityByStructuralOccurrenceKey,
-  })  : errors = List.unmodifiable(errors),
-        ledgerNodes = List.unmodifiable(ledgerNodes),
-        proposals = List.unmodifiable(proposals),
-        pendingIntroductions = List.unmodifiable(pendingIntroductions),
-        routePlansByKey = Map.unmodifiable(routePlansByKey),
-        presentationPlansByKey = Map.unmodifiable(presentationPlansByKey),
-        codeIdentityByStructuralOccurrenceKey =
-            Map.unmodifiable(codeIdentityByStructuralOccurrenceKey);
+  }) : errors = List.unmodifiable(errors),
+       ledgerNodes = List.unmodifiable(ledgerNodes),
+       proposals = List.unmodifiable(proposals),
+       pendingIntroductions = List.unmodifiable(pendingIntroductions),
+       routePlansByKey = Map.unmodifiable(routePlansByKey),
+       presentationPlansByKey = Map.unmodifiable(presentationPlansByKey),
+       codeIdentityByStructuralOccurrenceKey = Map.unmodifiable(
+         codeIdentityByStructuralOccurrenceKey,
+       );
 
   final List<String> errors;
   final int nextIdentitySequence;
@@ -113,7 +114,7 @@ final class MeasurementPublicationPlanningResult {
   final List<MeasurementCompilerLedgerIntroduction> pendingIntroductions;
   final Map<String, MeasurementPublicationRoutePlanV1> routePlansByKey;
   final Map<String, MeasurementRfwPresentationPublicationPlan>
-      presentationPlansByKey;
+  presentationPlansByKey;
   final Map<String, CodeIdentityId> codeIdentityByStructuralOccurrenceKey;
 
   bool get isValid => errors.isEmpty;
@@ -162,10 +163,10 @@ abstract final class MeasurementPublicationPlanner {
           plans[publication.selector.key] = plan;
           presentationPlans[publication.selector.key] =
               _presentationPublicationPlan(
-            publication,
-            routePlan: plan,
-            reconciliation: reconciliation,
-          );
+                publication,
+                routePlan: plan,
+                reconciliation: reconciliation,
+              );
         } on Object catch (error) {
           errors.add(
             'Could not construct Measurement route plan for '
@@ -196,7 +197,8 @@ Map<String, _CurrentNodeDescriptor> _sourceDescriptors(
   required void Function(
     String locator,
     MeasurementPublicationSelectorV1 selector,
-  ) onDescriptor,
+  )
+  onDescriptor,
 }) {
   final descriptors = _NotifyingDescriptors(onDescriptor);
   final discoveries = <String, MeasurementSourceDiscoveryResult>{};
@@ -206,17 +208,22 @@ Map<String, _CurrentNodeDescriptor> _sourceDescriptors(
     final rootEdge = artifacts
         .singleWhere((a) => a.parentOccurrenceEdgeToken == null)
         .occurrenceEdgeToken;
-    for (final artifact
-        in artifacts.where((a) => a.parentOccurrenceEdgeToken != null)) {
+    for (final artifact in artifacts.where(
+      (a) => a.parentOccurrenceEdgeToken != null,
+    )) {
       final locator = _artifactHostLocator(
-          publication.selector, artifact.occurrenceEdgeToken);
+        publication.selector,
+        artifact.occurrenceEdgeToken,
+      );
       descriptors[locator] = _CurrentNodeDescriptor(
         structuralOccurrenceKey: locator,
         parentStructuralOccurrenceKey:
             artifact.parentOccurrenceEdgeToken == rootEdge
-                ? _publicationHostLocator(publication.selector)
-                : _artifactHostLocator(
-                    publication.selector, artifact.parentOccurrenceEdgeToken!),
+            ? _publicationHostLocator(publication.selector)
+            : _artifactHostLocator(
+                publication.selector,
+                artifact.parentOccurrenceEdgeToken!,
+              ),
         reconciliationFingerprint:
             'compiler.artifact-host.${artifact.artifactKind.value}',
         events: const [],
@@ -225,34 +232,37 @@ Map<String, _CurrentNodeDescriptor> _sourceDescriptors(
     for (final answer in publication.measurementAnswers.values) {
       final locator = _answerLocator(publication, answer.questionId);
       descriptors[locator] = _CurrentNodeDescriptor(
-          structuralOccurrenceKey: locator,
-          parentStructuralOccurrenceKey: null,
-          reconciliationFingerprint: 'compiler.declared-answer',
-          events: [
-            _CurrentEventDescriptor(
-                resolvedEventLocator: 'compiler.answer',
-                sourceEventIdentity:
-                    SourceEventIdentity('restageDeclaredAnswer'))
-          ]);
+        structuralOccurrenceKey: locator,
+        parentStructuralOccurrenceKey: null,
+        reconciliationFingerprint: 'compiler.declared-answer',
+        events: [
+          _CurrentEventDescriptor(
+            resolvedEventLocator: 'compiler.answer',
+            sourceEventIdentity: SourceEventIdentity('restageDeclaredAnswer'),
+          ),
+        ],
+      );
     }
     for (final lifecycle in _lifecycleNodes(publication)) {
       descriptors.putIfAbsent(
-          lifecycle.locator,
-          () => _CurrentNodeDescriptor(
-                structuralOccurrenceKey: lifecycle.locator,
-                parentStructuralOccurrenceKey: null,
-                reconciliationFingerprint: lifecycle.screenId == null
-                    ? 'compiler.publication-host.${publication.entry.publication.payloadKind == SurfacePayloadKind.flow ? 'flow' : 'screen'}'
-                    : 'compiler.publication-step',
-                events: [
-                  for (final channel in lifecycle.channels)
-                    _CurrentEventDescriptor(
-                        resolvedEventLocator:
-                            'compiler.lifecycle.${channel.name}',
-                        sourceEventIdentity: SourceEventIdentity(
-                            'restageLifecycle_${channel.name}'))
-                ],
-              ));
+        lifecycle.locator,
+        () => _CurrentNodeDescriptor(
+          structuralOccurrenceKey: lifecycle.locator,
+          parentStructuralOccurrenceKey: null,
+          reconciliationFingerprint: lifecycle.screenId == null
+              ? 'compiler.publication-host.${publication.entry.publication.payloadKind == SurfacePayloadKind.flow ? 'flow' : 'screen'}'
+              : 'compiler.publication-step',
+          events: [
+            for (final channel in lifecycle.channels)
+              _CurrentEventDescriptor(
+                resolvedEventLocator: 'compiler.lifecycle.${channel.name}',
+                sourceEventIdentity: SourceEventIdentity(
+                  'restageLifecycle_${channel.name}',
+                ),
+              ),
+          ],
+        ),
+      );
     }
     for (final sourceArtifact in publication.sourceArtifacts) {
       final discovery = sourceArtifact.discovery;
@@ -312,16 +322,16 @@ Map<String, _CurrentNodeDescriptor> _sourceDescriptors(
       for (final descriptor in sourceArtifact.presentationDescriptors) {
         descriptors[descriptor.structuralOccurrenceKey] =
             _CurrentNodeDescriptor(
-          structuralOccurrenceKey: descriptor.structuralOccurrenceKey,
-          parentStructuralOccurrenceKey:
-              descriptor.parentStructuralOccurrenceKey ?? anchor,
-          reconciliationFingerprint: _opaqueId(
-            prefix: 'fingerprint.v1.',
-            domain: 'restage-measurement-rfw-presentation-v1',
-            value: descriptor.reconciliationEvidence,
-          ),
-          events: const [],
-        );
+              structuralOccurrenceKey: descriptor.structuralOccurrenceKey,
+              parentStructuralOccurrenceKey:
+                  descriptor.parentStructuralOccurrenceKey ?? anchor,
+              reconciliationFingerprint: _opaqueId(
+                prefix: 'fingerprint.v1.',
+                domain: 'restage-measurement-rfw-presentation-v1',
+                value: descriptor.reconciliationEvidence,
+              ),
+              events: const [],
+            );
       }
     }
   }
@@ -334,10 +344,11 @@ Map<String, _CurrentNodeDescriptor> _sourceDescriptors(
     }
     for (final node in discovery.nodes) {
       final events = eventsByNode[node.structuralOccurrenceKey] ?? const [];
-      final eventLocators = events
-          .map((event) => event.resolvedEvent.resolvedSemanticIdentity)
-          .toList()
-        ..sort();
+      final eventLocators =
+          events
+              .map((event) => event.resolvedEvent.resolvedSemanticIdentity)
+              .toList()
+            ..sort();
       descriptors[node.structuralOccurrenceKey] = _CurrentNodeDescriptor(
         structuralOccurrenceKey: node.structuralOccurrenceKey,
         parentStructuralOccurrenceKey: node.parentStructuralOccurrenceKey,
@@ -432,8 +443,8 @@ Map<String, MeasurementCompilerLedgerNode> _mutualBestMatches({
     if (current.isEmpty || retired.isEmpty) continue;
     final segments = <String, List<String>>{
       for (final descriptor in current)
-        descriptor.structuralOccurrenceKey:
-            descriptor.structuralOccurrenceKey.split('|'),
+        descriptor.structuralOccurrenceKey: descriptor.structuralOccurrenceKey
+            .split('|'),
       for (final node in retired)
         node.structuralOccurrenceKey: node.structuralOccurrenceKey.split('|'),
     };
@@ -606,21 +617,23 @@ _LedgerReconciliation _reconcile({
     final priorEvents = {
       for (final event in prior.events) event.resolvedEventLocator: event,
     };
-    final currentEventLocators =
-        current.events.map((event) => event.resolvedEventLocator).toSet();
-    final events = <MeasurementCompilerLedgerEvent>[
-      for (final event in prior.events)
-        if (!currentEventLocators.contains(event.resolvedEventLocator))
-          event.copyWith(active: false),
-      for (final event in current.events)
-        if (priorEvents[event.resolvedEventLocator] case final existing?)
-          existing.copyWith(active: true)
-        else
-          newEvent(event),
-    ]..sort(
-        (left, right) =>
-            left.resolvedEventLocator.compareTo(right.resolvedEventLocator),
-      );
+    final currentEventLocators = current.events
+        .map((event) => event.resolvedEventLocator)
+        .toSet();
+    final events =
+        <MeasurementCompilerLedgerEvent>[
+          for (final event in prior.events)
+            if (!currentEventLocators.contains(event.resolvedEventLocator))
+              event.copyWith(active: false),
+          for (final event in current.events)
+            if (priorEvents[event.resolvedEventLocator] case final existing?)
+              existing.copyWith(active: true)
+            else
+              newEvent(event),
+        ]..sort(
+          (left, right) =>
+              left.resolvedEventLocator.compareTo(right.resolvedEventLocator),
+        );
     return prior.copyWith(
       structuralOccurrenceKey: current.structuralOccurrenceKey,
       parentStructuralOccurrenceKey: current.parentStructuralOccurrenceKey,
@@ -668,24 +681,26 @@ _LedgerReconciliation _reconcile({
       continue;
     }
     final scope = _reconciliationScope(descriptor.structuralOccurrenceKey);
-    final candidates = (removedByScope[scope] ?? const [])
-        .where(
-          (node) =>
-              node.reconciliationFingerprint ==
-                  descriptor.reconciliationFingerprint &&
-              !consumedPriorCodes.contains(node.codeIdentityId.value) &&
-              !silentlyMatchedCodes.contains(node.codeIdentityId.value),
-        )
-        .toList()
-      ..sort(
-        (left, right) => left.structuralOccurrenceKey.compareTo(
-          right.structuralOccurrenceKey,
-        ),
-      );
+    final candidates =
+        (removedByScope[scope] ?? const [])
+            .where(
+              (node) =>
+                  node.reconciliationFingerprint ==
+                      descriptor.reconciliationFingerprint &&
+                  !consumedPriorCodes.contains(node.codeIdentityId.value) &&
+                  !silentlyMatchedCodes.contains(node.codeIdentityId.value),
+            )
+            .toList()
+          ..sort(
+            (left, right) => left.structuralOccurrenceKey.compareTo(
+              right.structuralOccurrenceKey,
+            ),
+          );
     if (candidates.isNotEmpty) {
       final relocation =
           relocationsByTarget[descriptor.structuralOccurrenceKey];
-      final selected = candidates
+      final selected =
+          candidates
               .where(
                 (candidate) =>
                     relocation?.fromStructuralOccurrenceKey ==
@@ -700,8 +715,9 @@ _LedgerReconciliation _reconcile({
         proposals.add(
           MeasurementCompilerLedgerProposal(
             toStructuralOccurrenceKey: descriptor.structuralOccurrenceKey,
-            candidatePriorStructuralOccurrenceKeys: candidates
-                .map((candidate) => candidate.structuralOccurrenceKey),
+            candidatePriorStructuralOccurrenceKeys: candidates.map(
+              (candidate) => candidate.structuralOccurrenceKey,
+            ),
           ),
         );
         errors.add(
@@ -787,40 +803,60 @@ MeasurementPublicationRoutePlanV1 _routePlan(
   final rootEdge = routeArtifacts
       .singleWhere((a) => a.parentOccurrenceEdgeToken == null)
       .occurrenceEdgeToken;
-  CodeIdentityId artifactHost(ArtifactOccurrenceEdgeToken edge) => edge ==
-          rootEdge
+  CodeIdentityId artifactHost(ArtifactOccurrenceEdgeToken edge) =>
+      edge == rootEdge
       ? host!.codeIdentityId
       : ledgerByLocator[_artifactHostLocator(selector, edge)]!.codeIdentityId;
   // One canonical bridge per actual artifact occurrence, including inert
   // capability sidecars. Multiple instrumented roots share this local anchor.
-  for (final artifact
-      in routeArtifacts.where((a) => a.parentOccurrenceEdgeToken != null)) {
-    final ledger = ledgerByLocator[
-        _artifactHostLocator(selector, artifact.occurrenceEdgeToken)]!;
-    bindings.add(CodeIdentityBindingV1(
+  for (final artifact in routeArtifacts.where(
+    (a) => a.parentOccurrenceEdgeToken != null,
+  )) {
+    final ledger =
+        ledgerByLocator[_artifactHostLocator(
+          selector,
+          artifact.occurrenceEdgeToken,
+        )]!;
+    bindings.add(
+      CodeIdentityBindingV1(
         codeIdentityId: ledger.codeIdentityId,
-        canonicalNodeTokenId: ledger.canonicalNodeTokenId));
-    nodes.add(MeasurementPublicationDraftNodeV1(
+        canonicalNodeTokenId: ledger.canonicalNodeTokenId,
+      ),
+    );
+    nodes.add(
+      MeasurementPublicationDraftNodeV1(
         codeIdentityId: ledger.codeIdentityId,
         artifactOccurrenceEdgeToken: artifact.occurrenceEdgeToken,
-        parentCodeIdentityId:
-            artifactHost(artifact.parentOccurrenceEdgeToken!)));
+        parentCodeIdentityId: artifactHost(artifact.parentOccurrenceEdgeToken!),
+      ),
+    );
   }
   for (final answer in input.measurementAnswers.values) {
     final ledger = ledgerByLocator[_answerLocator(input, answer.questionId)]!;
-    final artifact = input.entry.artifacts.singleWhere((artifact) =>
-        artifact.role == SurfacePublicationArtifactRole.flowDocument);
+    final artifact = input.entry.artifacts.singleWhere(
+      (artifact) =>
+          artifact.role == SurfacePublicationArtifactRole.flowDocument,
+    );
     final edge = edgeByArtifactPath[artifact.path]!;
-    final event = ledger.events.singleWhere((event) =>
-        event.active && event.resolvedEventLocator == 'compiler.answer');
-    bindings.add(CodeIdentityBindingV1(
+    final event = ledger.events.singleWhere(
+      (event) =>
+          event.active && event.resolvedEventLocator == 'compiler.answer',
+    );
+    bindings.add(
+      CodeIdentityBindingV1(
         codeIdentityId: ledger.codeIdentityId,
-        canonicalNodeTokenId: ledger.canonicalNodeTokenId));
-    nodes.add(MeasurementPublicationDraftNodeV1(
+        canonicalNodeTokenId: ledger.canonicalNodeTokenId,
+      ),
+    );
+    nodes.add(
+      MeasurementPublicationDraftNodeV1(
         codeIdentityId: ledger.codeIdentityId,
         artifactOccurrenceEdgeToken: edge,
-        parentCodeIdentityId: host?.codeIdentityId));
-    events.add(MeasurementPublicationDraftEventV1(
+        parentCodeIdentityId: host?.codeIdentityId,
+      ),
+    );
+    events.add(
+      MeasurementPublicationDraftEventV1(
         nodeCodeIdentityId: ledger.codeIdentityId,
         sourceEventIdentity: event.sourceEventIdentity,
         lineageId: event.lineageId,
@@ -830,40 +866,56 @@ MeasurementPublicationRoutePlanV1 _routePlan(
         normalizedInteractionKind: NormalizedInteractionKind.submit,
         privacyClass: MeasurementPrivacyClass.nonSensitive,
         semanticValueClass: SemanticValueClass.explicitReviewedValue,
-        collectionClass: MeasurementCollectionClass.tier2Coalesced));
-    routeSeeds.add(MeasurementPublicationDraftRouteSeedV1(
+        collectionClass: MeasurementCollectionClass.tier2Coalesced,
+      ),
+    );
+    routeSeeds.add(
+      MeasurementPublicationDraftRouteSeedV1(
         generatedReferenceId: event.generatedReferenceId,
         artifactOccurrenceEdgeToken: edge,
         orderedCaptureV1: MeasurementOrderedCaptureDeclarationV1(
-            channels: [
-              MeasurementOccurrenceChannelV1.presentation,
-              MeasurementOccurrenceChannelV1.interaction
-            ],
-            declaredAnswerV1: answer,
-            breakdownPointV1: MeasurementBreakdownPointV1(
-              kindV1: MeasurementBreakdownPointKindV1.question,
-              reference: answer.questionId,
-              label: answer.questionId,
-            ))));
+          channels: [
+            MeasurementOccurrenceChannelV1.presentation,
+            MeasurementOccurrenceChannelV1.interaction,
+          ],
+          declaredAnswerV1: answer,
+          breakdownPointV1: MeasurementBreakdownPointV1(
+            kindV1: MeasurementBreakdownPointKindV1.question,
+            reference: answer.questionId,
+            label: answer.questionId,
+          ),
+        ),
+      ),
+    );
   }
   for (final lifecycle in _lifecycleNodes(input)) {
     final ledger = ledgerByLocator[lifecycle.locator];
     if (ledger == null)
       throw StateError('Lifecycle source has no compiler ledger identity');
     final edge = edgeByArtifactPath[lifecycle.artifact.path]!;
-    bindings.add(CodeIdentityBindingV1(
+    bindings.add(
+      CodeIdentityBindingV1(
         codeIdentityId: ledger.codeIdentityId,
-        canonicalNodeTokenId: ledger.canonicalNodeTokenId));
-    nodes.add(MeasurementPublicationDraftNodeV1(
+        canonicalNodeTokenId: ledger.canonicalNodeTokenId,
+      ),
+    );
+    nodes.add(
+      MeasurementPublicationDraftNodeV1(
         codeIdentityId: ledger.codeIdentityId,
         artifactOccurrenceEdgeToken: edge,
-        parentCodeIdentityId:
-            lifecycle.screenId == null ? null : artifactHost(edge)));
+        parentCodeIdentityId: lifecycle.screenId == null
+            ? null
+            : artifactHost(edge),
+      ),
+    );
     for (final channel in lifecycle.channels) {
-      final event = ledger.events.singleWhere((event) =>
-          event.active &&
-          event.resolvedEventLocator == 'compiler.lifecycle.${channel.name}');
-      events.add(MeasurementPublicationDraftEventV1(
+      final event = ledger.events.singleWhere(
+        (event) =>
+            event.active &&
+            event.resolvedEventLocator == 'compiler.lifecycle.${channel.name}',
+      );
+      events.add(
+        MeasurementPublicationDraftEventV1(
           nodeCodeIdentityId: ledger.codeIdentityId,
           sourceEventIdentity: event.sourceEventIdentity,
           lineageId: event.lineageId,
@@ -872,30 +924,36 @@ MeasurementPublicationRoutePlanV1 _routePlan(
           displayMetadataRef: event.displayMetadataRef,
           normalizedInteractionKind:
               channel == MeasurementOccurrenceChannelV1.dismiss ||
-                      channel == MeasurementOccurrenceChannelV1.skip
-                  ? NormalizedInteractionKind.dismiss
-                  : channel == MeasurementOccurrenceChannelV1.completion
-                      ? NormalizedInteractionKind.submit
-                      : NormalizedInteractionKind.activate,
+                  channel == MeasurementOccurrenceChannelV1.skip
+              ? NormalizedInteractionKind.dismiss
+              : channel == MeasurementOccurrenceChannelV1.completion
+              ? NormalizedInteractionKind.submit
+              : NormalizedInteractionKind.activate,
           privacyClass: MeasurementPrivacyClass.nonSensitive,
           semanticValueClass: SemanticValueClass.activityOnly,
-          collectionClass: MeasurementCollectionClass.tier2Coalesced));
-      routeSeeds.add(MeasurementPublicationDraftRouteSeedV1(
+          collectionClass: MeasurementCollectionClass.tier2Coalesced,
+        ),
+      );
+      routeSeeds.add(
+        MeasurementPublicationDraftRouteSeedV1(
           generatedReferenceId: event.generatedReferenceId,
           artifactOccurrenceEdgeToken: edge,
           orderedCaptureV1: MeasurementOrderedCaptureDeclarationV1(
-              channels: [
-                MeasurementOccurrenceChannelV1.presentation,
-                if (channel != MeasurementOccurrenceChannelV1.presentation)
-                  channel
-              ],
-              lifecycleChannel: channel,
+            channels: [
+              MeasurementOccurrenceChannelV1.presentation,
+              if (channel != MeasurementOccurrenceChannelV1.presentation)
+                channel,
+            ],
+            lifecycleChannel: channel,
+            screenId: lifecycle.screenId,
+            breakdownPointV1: _lifecycleBreakdownPoint(
               screenId: lifecycle.screenId,
-              breakdownPointV1: _lifecycleBreakdownPoint(
-                screenId: lifecycle.screenId,
-                authoredOrder: lifecycle.authoredOrder,
-                channel: channel,
-              ))));
+              authoredOrder: lifecycle.authoredOrder,
+              channel: channel,
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -942,8 +1000,10 @@ MeasurementPublicationRoutePlanV1 _routePlan(
           event.resolvedEventLocator: event,
       };
       for (final discoveredEvent in discoveredEvents) {
-        final event = ledgerEvents[
-            discoveredEvent.resolvedEvent.resolvedSemanticIdentity];
+        final event =
+            ledgerEvents[discoveredEvent
+                .resolvedEvent
+                .resolvedSemanticIdentity];
         if (event == null) {
           throw StateError('A discovered event has no active ledger binding.');
         }
@@ -954,13 +1014,13 @@ MeasurementPublicationRoutePlanV1 _routePlan(
           // iterations apart.
           prohibited:
               (emission.repeatedStatically && emission.tapItem == null) ||
-                  // A local value write is never measured.
-                  recogniseLocalValueWrite(discoveredEvent.sourceExpression) !=
-                      null ||
-                  _isTextInputValueSlot(
-                    discoveredNode.resolvedWidgetIdentity,
-                    event.sourceEventIdentity,
-                  ),
+              // A local value write is never measured.
+              recogniseLocalValueWrite(discoveredEvent.sourceExpression) !=
+                  null ||
+              _isTextInputValueSlot(
+                discoveredNode.resolvedWidgetIdentity,
+                event.sourceEventIdentity,
+              ),
         );
         events.add(
           MeasurementPublicationDraftEventV1(
@@ -985,7 +1045,7 @@ MeasurementPublicationRoutePlanV1 _routePlan(
               orderedCaptureV1: MeasurementOrderedCaptureDeclarationV1(
                 channels: const [
                   MeasurementOccurrenceChannelV1.presentation,
-                  MeasurementOccurrenceChannelV1.interaction
+                  MeasurementOccurrenceChannelV1.interaction,
                 ],
                 interactionItemsV1: emission.tapItem != null,
                 completesSurfaceV1: _completesSurface(
@@ -1032,7 +1092,7 @@ MeasurementPublicationRoutePlanV1 _routePlan(
     final anchorParent = sourceRoots.length != 1
         ? artifactHost(edge)
         : ledgerByLocator[sourceRoots.single.structuralOccurrenceKey]
-            ?.codeIdentityId;
+              ?.codeIdentityId;
     bindings.add(
       CodeIdentityBindingV1(
         codeIdentityId: anchor.codeIdentityId,
@@ -1073,12 +1133,13 @@ MeasurementPublicationRoutePlanV1 _routePlan(
       final ledger = ledgerByLocator[descriptor.structuralOccurrenceKey];
       if (ledger == null) {
         throw StateError(
-            'An RFW presentation descriptor has no ledger binding.');
+          'An RFW presentation descriptor has no ledger binding.',
+        );
       }
       final parent = descriptor.parentStructuralOccurrenceKey == null
           ? anchor.codeIdentityId
           : ledgerByLocator[descriptor.parentStructuralOccurrenceKey]
-              ?.codeIdentityId;
+                ?.codeIdentityId;
       if (parent == null) {
         throw StateError(
           'An RFW presentation descriptor parent has no ledger binding.',
@@ -1188,7 +1249,9 @@ MeasurementRfwPresentationPublicationPlan _presentationPublicationPlan(
             (candidate) =>
                 candidate.artifactId ==
                 measurementArtifactIdForPublicationArtifactV1(
-                    selector, artifact),
+                  selector,
+                  artifact,
+                ),
           )
           .occurrenceEdgeToken,
   };
@@ -1299,8 +1362,10 @@ List<MeasurementPublicationRouteArtifactV1> _routeArtifacts(
   return [
     for (final artifact in entry.artifacts)
       MeasurementPublicationRouteArtifactV1(
-        artifactId:
-            measurementArtifactIdForPublicationArtifactV1(selector, artifact),
+        artifactId: measurementArtifactIdForPublicationArtifactV1(
+          selector,
+          artifact,
+        ),
         artifactKind: _artifactKind(artifact.role),
         occurrenceEdgeToken: edgeById[_artifactSlot(artifact)]!,
         localManifestId: MeasurementManifestId(
@@ -1318,8 +1383,8 @@ List<MeasurementPublicationRouteArtifactV1> _routeArtifacts(
         parentOccurrenceEdgeToken: artifact == root
             ? null
             : artifact.role == SurfacePublicationArtifactRole.capabilitySidecar
-                ? edgeById['screenBlob:${artifact.id}']
-                : edgeById[_artifactSlot(root)],
+            ? edgeById['screenBlob:${artifact.id}']
+            : edgeById[_artifactSlot(root)],
       ),
   ];
 }
@@ -1329,32 +1394,30 @@ List<MeasurementPublicationRouteArtifactV1> _routeArtifacts(
 ArtifactId measurementArtifactIdForPublicationArtifactV1(
   MeasurementPublicationSelectorV1 selector,
   SurfacePublicationArtifact artifact,
-) =>
-    ArtifactId(
-      '$kMintedArtifactIdPrefix${artifactDefinitionDigestV1(
-        surface: selector.surface.wireName,
-        slug: selector.slug,
-        sourceKind: selector.sourceKind.wireName,
-        contractVersion: selector.contractVersion,
-        artifactRole: artifact.role.wireName,
-        artifactId: artifact.id,
-      )}',
-    );
+) => ArtifactId(
+  '$kMintedArtifactIdPrefix${artifactDefinitionDigestV1(
+    surface: selector.surface.wireName,
+    slug: selector.slug,
+    sourceKind: selector.sourceKind.wireName,
+    contractVersion: selector.contractVersion,
+    artifactRole: artifact.role.wireName,
+    artifactId: artifact.id,
+  )}',
+);
 
 ArtifactOccurrenceEdgeToken _artifactEdge(
   MeasurementPublicationSelectorV1 selector,
   SurfacePublicationArtifact artifact,
-) =>
-    ArtifactOccurrenceEdgeToken(
-      _opaqueId(
-        prefix: 'edge.v1.',
-        domain: 'restage-measurement-artifact-occurrence-edge-v1',
-        value: {
-          'artifactSlot': _artifactSlot(artifact),
-          'publication': selector.toJson(),
-        },
-      ),
-    );
+) => ArtifactOccurrenceEdgeToken(
+  _opaqueId(
+    prefix: 'edge.v1.',
+    domain: 'restage-measurement-artifact-occurrence-edge-v1',
+    value: {
+      'artifactSlot': _artifactSlot(artifact),
+      'publication': selector.toJson(),
+    },
+  ),
+);
 
 String _artifactSlot(SurfacePublicationArtifact artifact) =>
     '${artifact.role.wireName}:${artifact.id ?? ''}';
@@ -1373,25 +1436,30 @@ ArtifactKindId _artifactKind(SurfacePublicationArtifactRole role) =>
     );
 
 List<
-    ({
-      String locator,
-      String? screenId,
-      int? authoredOrder,
-      SurfacePublicationArtifact artifact,
-      List<MeasurementOccurrenceChannelV1> channels
-    })> _lifecycleNodes(MeasurementPublicationPlanningInput input) {
+  ({
+    String locator,
+    String? screenId,
+    int? authoredOrder,
+    SurfacePublicationArtifact artifact,
+    List<MeasurementOccurrenceChannelV1> channels,
+  })
+>
+_lifecycleNodes(MeasurementPublicationPlanningInput input) {
   final flow = input.entry.publication.payloadKind == SurfacePayloadKind.flow;
   final reachability = input.flowDocument == null
       ? null
       : FlowScreenLifecycleReachability.analyze(input.flowDocument!);
-  final root = input.entry.artifacts.singleWhere((artifact) =>
-      artifact.role ==
-      (flow
-          ? SurfacePublicationArtifactRole.flowDocument
-          : SurfacePublicationArtifactRole.screenBlob));
+  final root = input.entry.artifacts.singleWhere(
+    (artifact) =>
+        artifact.role ==
+        (flow
+            ? SurfacePublicationArtifactRole.flowDocument
+            : SurfacePublicationArtifactRole.screenBlob),
+  );
   final screenStates = [
-    for (final state in input.flowDocument?.states.entries ??
-        const <MapEntry<String, FlowState>>[])
+    for (final state
+        in input.flowDocument?.states.entries ??
+            const <MapEntry<String, FlowState>>[])
       if (state.value is ScreenFlowState) state,
   ];
   return [
@@ -1403,8 +1471,8 @@ List<
       channels: [
         MeasurementOccurrenceChannelV1.presentation,
         if (flow) MeasurementOccurrenceChannelV1.completion,
-        MeasurementOccurrenceChannelV1.dismiss
-      ]
+        MeasurementOccurrenceChannelV1.dismiss,
+      ],
     ),
     if (flow)
       for (final (index, state) in screenStates.indexed)
@@ -1413,9 +1481,11 @@ List<
               'compiler-publication-step:${input.selector.key}:${state.key}',
           screenId: state.key,
           authoredOrder: index,
-          artifact: input.entry.artifacts.singleWhere((artifact) =>
-              artifact.role == SurfacePublicationArtifactRole.screenBlob &&
-              artifact.id == (state.value as ScreenFlowState).screen),
+          artifact: input.entry.artifacts.singleWhere(
+            (artifact) =>
+                artifact.role == SurfacePublicationArtifactRole.screenBlob &&
+                artifact.id == (state.value as ScreenFlowState).screen,
+          ),
           channels: [
             for (final channel in reachability!.channelsFor(state.key))
               switch (channel) {
@@ -1426,7 +1496,7 @@ List<
                 FlowScreenLifecycleChannel.completion =>
                   MeasurementOccurrenceChannelV1.completion,
               },
-          ]
+          ],
         ),
   ];
 }
@@ -1460,15 +1530,20 @@ String _reconciliationReviewMessage(
   List<MeasurementCompilerLedgerNode> candidates,
 ) {
   final listed = candidates
-      .map((candidate) => '${candidate.structuralOccurrenceKey} '
-          '(${candidate.codeIdentityId.value})')
+      .map(
+        (candidate) =>
+            '${candidate.structuralOccurrenceKey} '
+            '(${candidate.codeIdentityId.value})',
+      )
       .join(', ');
   final relocations = candidates
-      .map((candidate) =>
-          '{"codeIdentityId": "${candidate.codeIdentityId.value}", '
-          '"fromStructuralOccurrenceKey": '
-          '"${candidate.structuralOccurrenceKey}", '
-          '"toStructuralOccurrenceKey": "$target"}')
+      .map(
+        (candidate) =>
+            '{"codeIdentityId": "${candidate.codeIdentityId.value}", '
+            '"fromStructuralOccurrenceKey": '
+            '"${candidate.structuralOccurrenceKey}", '
+            '"toStructuralOccurrenceKey": "$target"}',
+      )
       .join(' or ');
   return "This build can't tell which earlier widget the one at $target "
       'replaces (candidates: $listed). In '
@@ -1478,9 +1553,10 @@ String _reconciliationReviewMessage(
       'count it as new. Then rebuild.';
 }
 
-String _artifactHostLocator(MeasurementPublicationSelectorV1 selector,
-        ArtifactOccurrenceEdgeToken edge) =>
-    'compiler-artifact-host:${selector.key}:${edge.value}';
+String _artifactHostLocator(
+  MeasurementPublicationSelectorV1 selector,
+  ArtifactOccurrenceEdgeToken edge,
+) => 'compiler-artifact-host:${selector.key}:${edge.value}';
 
 String _publicationHostLocator(MeasurementPublicationSelectorV1 selector) =>
     'compiler-publication-host:${selector.key}';
@@ -1502,8 +1578,7 @@ _AutomaticTreatment _automaticTreatment(
   final normalized = switch (event.value) {
     'onDismissed' ||
     'onClose' ||
-    'onCancel' =>
-      NormalizedInteractionKind.dismiss,
+    'onCancel' => NormalizedInteractionKind.dismiss,
     'onSelected' || 'onSelectionChanged' => NormalizedInteractionKind.select,
     'onSubmitted' || 'onSubmit' => NormalizedInteractionKind.submit,
     'onChanged' => NormalizedInteractionKind.change,
@@ -1531,8 +1606,9 @@ _PresentationIdentity _presentationIdentity(
     }),
   ).hex;
   return _PresentationIdentity(
-    referenceId:
-        GeneratedPresentationReferenceId('reference.presented.$suffix'),
+    referenceId: GeneratedPresentationReferenceId(
+      'reference.presented.$suffix',
+    ),
     lineageId: PointLineageId('lineage.presented.$suffix'),
     displayMetadataRef: DisplayMetadataRef('display.presented.$suffix'),
   );
@@ -1554,8 +1630,7 @@ String _opaqueId({
   required String prefix,
   required String domain,
   required Object? value,
-}) =>
-    '$prefix${measurementDomainDigest(domain, value)}';
+}) => '$prefix${measurementDomainDigest(domain, value)}';
 
 /// Descriptors by locator, reporting each locator a publication touches.
 final class _NotifyingDescriptors
@@ -1652,8 +1727,9 @@ final class _AutomaticTreatment {
 }
 
 String _answerLocator(
-        MeasurementPublicationPlanningInput input, String questionId) =>
-    'compiler.publication-answer:${input.selector.key}:$questionId';
+  MeasurementPublicationPlanningInput input,
+  String questionId,
+) => 'compiler.publication-answer:${input.selector.key}:$questionId';
 
 /// Whether a tap firing [names] completes its surface. One tap carries one
 /// route, so its branches must agree.

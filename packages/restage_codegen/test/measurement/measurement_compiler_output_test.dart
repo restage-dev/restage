@@ -6,9 +6,9 @@ import 'package:test/test.dart';
 void main() {
   test('default collection stamps the v3 executable policy revision', () {
     expect(
-      MeasurementCompilerPolicyInput.fromBuilderOptions(BuilderOptions.empty)
-          .collectionBudgetRevisionId
-          .value,
+      MeasurementCompilerPolicyInput.fromBuilderOptions(
+        BuilderOptions.empty,
+      ).collectionBudgetRevisionId.value,
       'restage.collection-budget.v3',
     );
     expect(
@@ -54,55 +54,57 @@ void main() {
     );
   });
 
-  test('compiler state is strict, canonical, and rejects invalid authority',
-      () {
-    final output = RestageMeasurementCompilerOutputV1(
-      valid: true,
-      errors: const [],
-      policy: null,
-      nextIdentitySequence: 4,
-      ledgerNodes: [
-        _node('2'),
-        _node('1'),
-      ],
-      acceptedRelocations: const [],
-      acceptedIntroductions: const [],
-      proposals: const [],
-      publications: const [],
-    );
-
-    expect(
-      output.ledgerNodes.map((node) => node.codeIdentityId.value),
-      ['code.auto.1', 'code.auto.2'],
-    );
-    expect(
-      RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-        output.canonicalBytes,
-      ).canonicalBytes,
-      orderedEquals(output.canonicalBytes),
-    );
-    final json = decodeCanonicalObject(output.canonicalBytes);
-    expect(
-      () => RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-        CanonicalJsonCodec.encode({...json, 'unknown': true}),
-      ),
-      throwsFormatException,
-    );
-    expect(
-      () => RestageMeasurementCompilerOutputV1(
-        valid: false,
+  test(
+    'compiler state is strict, canonical, and rejects invalid authority',
+    () {
+      final output = RestageMeasurementCompilerOutputV1(
+        valid: true,
         errors: const [],
         policy: null,
-        nextIdentitySequence: 1,
-        ledgerNodes: const [],
+        nextIdentitySequence: 4,
+        ledgerNodes: [
+          _node('2'),
+          _node('1'),
+        ],
         acceptedRelocations: const [],
         acceptedIntroductions: const [],
         proposals: const [],
         publications: const [],
-      ),
-      throwsArgumentError,
-    );
-  });
+      );
+
+      expect(
+        output.ledgerNodes.map((node) => node.codeIdentityId.value),
+        ['code.auto.1', 'code.auto.2'],
+      );
+      expect(
+        RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+          output.canonicalBytes,
+        ).canonicalBytes,
+        orderedEquals(output.canonicalBytes),
+      );
+      final json = decodeCanonicalObject(output.canonicalBytes);
+      expect(
+        () => RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+          CanonicalJsonCodec.encode({...json, 'unknown': true}),
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => RestageMeasurementCompilerOutputV1(
+          valid: false,
+          errors: const [],
+          policy: null,
+          nextIdentitySequence: 1,
+          ledgerNodes: const [],
+          acceptedRelocations: const [],
+          acceptedIntroductions: const [],
+          proposals: const [],
+          publications: const [],
+        ),
+        throwsArgumentError,
+      );
+    },
+  );
 }
 
 MeasurementCompilerLedgerNode _node(String suffix) =>

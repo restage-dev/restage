@@ -50,7 +50,8 @@ void main() {
                 constructorNullable || !required
                     ? isNot(contains(fallback))
                     : contains(fallback),
-                reason: 'an optional callback without a recorded default is '
+                reason:
+                    'an optional callback without a recorded default is '
                     'necessarily nullable in Dart; legacy built-in catalog '
                     'entries must preserve that omission even before they '
                     'carry constructorNullable.',
@@ -133,7 +134,8 @@ void main() {
         expect(
           source,
           contains(r'if (restagePresenceOn$Retry.supplied) #on$Retry:'),
-          reason: 'omission must leave the named argument out so Dart applies '
+          reason:
+              'omission must leave the named argument out so Dart applies '
               'the public constructor default',
         );
         expect(
@@ -238,7 +240,8 @@ void main() {
             ),
             contains('s0.defaultRetry'),
           ),
-          reason: '$widgetPath#CallbackNullabilityProbe.onDefault targets a '
+          reason:
+              '$widgetPath#CallbackNullabilityProbe.onDefault targets a '
               'required catalog input with a public function default.',
         );
         expect(
@@ -254,7 +257,8 @@ void main() {
               r"'CallbackNullabilityProbe.on\$Retry is required.'",
             ),
           ),
-          reason: 'ordinary, event, and constructor-presence paths must escape '
+          reason:
+              'ordinary, event, and constructor-presence paths must escape '
               r'Dart-only $ names without changing their identity',
         );
         expect(
@@ -263,7 +267,8 @@ void main() {
             'onRetry: '
             "source.voidHandler(const <Object>['onRetry']) ?? () {}",
           ),
-          reason: '$widgetPath#CallbackNullabilityProbe.onRetry targets a '
+          reason:
+              '$widgetPath#CallbackNullabilityProbe.onRetry targets a '
               'required non-nullable VoidCallback.',
         );
         expect(
@@ -272,7 +277,8 @@ void main() {
             contains('onValue: RestageDecoders.valueChanged<int>('),
             isNot(contains('?? (int _) {}')),
           ),
-          reason: '$widgetPath#CallbackNullabilityProbe.onValue targets a '
+          reason:
+              '$widgetPath#CallbackNullabilityProbe.onValue targets a '
               'required nullable ValueChanged<int>?.',
         );
 
@@ -285,8 +291,9 @@ void main() {
             final library = await resolver.libraryFor(
               AssetId.parse(generatedPath),
             );
-            final resolved =
-                await library.session.getResolvedLibraryByElement(library);
+            final resolved = await library.session.getResolvedLibraryByElement(
+              library,
+            );
             if (resolved is! ResolvedLibraryResult) {
               throw StateError('$generatedPath did not resolve.');
             }
@@ -299,7 +306,8 @@ void main() {
             expect(
               errors,
               isEmpty,
-              reason: '$generatedPath must analyze both callback targets '
+              reason:
+                  '$generatedPath must analyze both callback targets '
                   'without changing required-nullable absence into a no-op.',
             );
           },

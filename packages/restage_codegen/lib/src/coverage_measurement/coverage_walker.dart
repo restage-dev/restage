@@ -12,8 +12,9 @@ CoverageBucket bucketFor(WidgetClassification classification) =>
     switch (classification) {
       ImperativeWidget() => CoverageBucket.structural,
       UnclassifiableWidget() => CoverageBucket.deferred,
-      ComposableWidget(:final requiredMechanisms) =>
-        _composableBucket(requiredMechanisms),
+      ComposableWidget(:final requiredMechanisms) => _composableBucket(
+        requiredMechanisms,
+      ),
     };
 
 /// Buckets a [classification] with the translator's strict-emit [outcome]

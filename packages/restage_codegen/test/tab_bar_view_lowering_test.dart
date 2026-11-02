@@ -103,10 +103,10 @@ dynamic TabBarView = ForeignReceiver();
       'TabBarView.render(children: const <Widget>[])',
     ),
   }.entries) {
-    test(
-        'resolved dependency ${scenario.key} TabBarView '
+    test('resolved dependency ${scenario.key} TabBarView '
         'cannot bind native entry', () async {
-      final source = '''
+      final source =
+          '''
 import 'package:flutter/widgets.dart';
 import 'package:restage_core/foreign_identity_probe.dart';
 
@@ -173,8 +173,7 @@ class IdentitySurface extends StatelessWidget {
     expect(result.dsl, startsWith('TabBarView('));
   });
 
-  test('canonical catalog emits the native factory and gesture import',
-      () async {
+  test('canonical catalog emits the native factory and gesture import', () async {
     final catalog = File(
       '../restage_material/lib/src/widget_catalog/catalog.json',
     ).readAsStringSync();
@@ -245,8 +244,10 @@ class IdentitySurface extends StatelessWidget {
         includeFlutter: true,
       );
       for (final source in sources.entries) {
-        readerWriter.testing
-            .writeString(AssetId.parse(source.key), source.value);
+        readerWriter.testing.writeString(
+          AssetId.parse(source.key),
+          source.value,
+        );
       }
       result = await testBuilder(
         restageCodegenBuilder(BuilderOptions.empty),
@@ -264,8 +265,9 @@ class IdentitySurface extends StatelessWidget {
         final text = result.readerWriter.testing.readString(
           AssetId('apps_examples', 'assets/paywalls/$id.rfwtxt'),
         );
-        final root = fmt.parseLibraryFile(text).widgets.single.root
-            as fmt.ConstructorCall;
+        final root =
+            fmt.parseLibraryFile(text).widgets.single.root
+                as fmt.ConstructorCall;
         expect(root.name, 'DefaultTabController');
         expect(root.arguments['length'], 2);
         expect(root.arguments['initialIndex'], 1);
@@ -314,11 +316,16 @@ class IdentitySurface extends StatelessWidget {
           );
         }
         for (final path in [id, 'screens/paywall_$id']) {
-          final sidecar = jsonDecode(
-            result.readerWriter.testing.readString(
-              AssetId('apps_examples', 'assets/paywalls/$path.capability.json'),
-            ),
-          ) as Map<String, dynamic>;
+          final sidecar =
+              jsonDecode(
+                    result.readerWriter.testing.readString(
+                      AssetId(
+                        'apps_examples',
+                        'assets/paywalls/$path.capability.json',
+                      ),
+                    ),
+                  )
+                  as Map<String, dynamic>;
           expect((sidecar['manifest'] as Map)['builtInFloor'], 15);
           expect(
             result.readerWriter.testing.readBytes(
@@ -332,42 +339,44 @@ class IdentitySurface extends StatelessWidget {
   });
 
   for (final property in ['controller', 'physics']) {
-    test('explicit $property expressions diagnose missing native support',
-        () async {
-      final source = _source('tab_$property', '$property: $property,');
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: true,
-      );
-      final id = AssetId('apps_examples', 'lib/paywalls/tab_$property.dart');
-      readerWriter.testing.writeString(id, source);
-      final messages = <String>[];
-      final result = await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {id.toString(): source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: (record) => messages.add(record.message),
-        outputs: const {},
-      );
-      expect(result.succeeded, isFalse);
-      expect(
-        messages.join('\n'),
-        property == 'controller'
-            ? allOf(
-                contains('[unrecognizedMethodCall]'),
-                contains(
-                  'A native TabController requires an exact constructor-supplied binding.',
+    test(
+      'explicit $property expressions diagnose missing native support',
+      () async {
+        final source = _source('tab_$property', '$property: $property,');
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: true,
+        );
+        final id = AssetId('apps_examples', 'lib/paywalls/tab_$property.dart');
+        readerWriter.testing.writeString(id, source);
+        final messages = <String>[];
+        final result = await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {id.toString(): source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          onLog: (record) => messages.add(record.message),
+          outputs: const {},
+        );
+        expect(result.succeeded, isFalse);
+        expect(
+          messages.join('\n'),
+          property == 'controller'
+              ? allOf(
+                  contains('[unrecognizedMethodCall]'),
+                  contains(
+                    'A native TabController requires an exact constructor-supplied binding.',
+                  ),
+                )
+              : allOf(
+                  contains('[unknownProperty]'),
+                  contains(
+                    "Property '$property' is not declared on 'TabBarView'",
+                  ),
                 ),
-              )
-            : allOf(
-                contains('[unknownProperty]'),
-                contains(
-                  "Property '$property' is not declared on 'TabBarView'",
-                ),
-              ),
-      );
-    });
+        );
+      },
+    );
   }
 }
 

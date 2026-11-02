@@ -5,7 +5,8 @@ import 'package:test/test.dart';
 
 void main() {
   // Short and tall style lay out this declaration differently.
-  const source = 'final value = SomeType<Argument>.generatedWithAVeryLongName( '
+  const source =
+      'final value = SomeType<Argument>.generatedWithAVeryLongName( '
       'provenance: provenanceValue, eventContract: eventContractValue);';
 
   for (final version in [Version(3, 5, 0), Version(3, 10, 0)]) {

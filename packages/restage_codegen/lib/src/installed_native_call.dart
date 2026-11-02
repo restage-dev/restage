@@ -17,17 +17,16 @@ import 'owning_library_namespace.dart';
 
 /// Validation uses the same installed declarations emitted into the mount.
 Map<String, ValueOperation> installedNativeCallOperations(
-        Iterable<HoistedValue> hoisted) =>
-    {
-      ...kCollectionValueOperations,
-      ...kGridValueOperations,
-      ...kIntlValueOperations,
-      'native.call': NativeCallValueOperation({
-        for (final value in hoisted)
-          if (value.nativeContract?.call != null)
-            value.key: value.nativeContract!,
-      }),
-    };
+  Iterable<HoistedValue> hoisted,
+) => {
+  ...kCollectionValueOperations,
+  ...kGridValueOperations,
+  ...kIntlValueOperations,
+  'native.call': NativeCallValueOperation({
+    for (final value in hoisted)
+      if (value.nativeContract?.call != null) value.key: value.nativeContract!,
+  }),
+};
 
 /// An existing lexical cell retained by an installed closure.
 final class InstalledNativeCapture {
@@ -46,30 +45,36 @@ final class InstalledNativeInput {
 /// Compiled Dart and its closed evaluator declaration.
 final class InstalledNativeCallPlan {
   InstalledNativeCallPlan._(
-      this.source,
-      this.resultDartType,
-      this.resultType,
-      this.inputs,
-      this.captures,
-      this._inputTypes,
-      this._captureTypes,
-      this._prefix,
-      this.emissionLibraryIdentity,
-      List<String> symbols) {
+    this.source,
+    this.resultDartType,
+    this.resultType,
+    this.inputs,
+    this.captures,
+    this._inputTypes,
+    this._captureTypes,
+    this._prefix,
+    this.emissionLibraryIdentity,
+    List<String> symbols,
+  ) {
     final identity = crypto.sha256
-        .convert(utf8.encode(jsonEncode({
-          'source': source,
-          'result': resultDartType,
-          'inputs': _inputTypes,
-          'captures': _captureTypes,
-          'symbols': symbols,
-          'signature': {
-            'inputs': inputs.map((input) => input.type.toJson()).toList(),
-            'captures': captures
-                .map((name, capture) => MapEntry(name, capture.type.toJson())),
-            'result': resultType.toJson(),
-          },
-        })))
+        .convert(
+          utf8.encode(
+            jsonEncode({
+              'source': source,
+              'result': resultDartType,
+              'inputs': _inputTypes,
+              'captures': _captureTypes,
+              'symbols': symbols,
+              'signature': {
+                'inputs': inputs.map((input) => input.type.toJson()).toList(),
+                'captures': captures.map(
+                  (name, capture) => MapEntry(name, capture.type.toJson()),
+                ),
+                'result': resultType.toJson(),
+              },
+            }),
+          ),
+        )
         .toString();
     contract = NativeBindingContract(
       type: 'installed.call',
@@ -95,20 +100,24 @@ final class InstalledNativeCallPlan {
   late final NativeBindingContract contract;
   late final String key;
 
-  ValueNode get node => ValueNode('native.call', resultType,
-          inputs: inputs.map((input) => input.node).toList(),
-          value: {
-            'binding': key,
-            'contract': contract.toJson(),
-            'captures':
-                captures.map((name, capture) => MapEntry(name, capture.slot)),
-          });
+  ValueNode get node => ValueNode(
+    'native.call',
+    resultType,
+    inputs: inputs.map((input) => input.node).toList(),
+    value: {
+      'binding': key,
+      'contract': contract.toJson(),
+      'captures': captures.map((name, capture) => MapEntry(name, capture.slot)),
+    },
+  );
 
   /// Creates only the adapter; its body executes at the expression node.
   String adapterSource({required String core, required String shared}) {
     final declaration = nativeContractSource(contract, shared);
-    final buffer = StringBuffer('${core}NativeCallAdapter($declaration, '
-        '(${_prefix}Inputs, ${_prefix}Cells) {');
+    final buffer = StringBuffer(
+      '${core}NativeCallAdapter($declaration, '
+      '(${_prefix}Inputs, ${_prefix}Cells) {',
+    );
     if (inputs.isNotEmpty || source.contains('${_prefix}As<')) {
       buffer.write('T ${_prefix}As<T>(Object? value) => value as T;');
     }
@@ -121,20 +130,25 @@ final class InstalledNativeCallPlan {
           ? '(${_prefix}Inputs[$i] == null ? null : $read)'
           : read;
       buffer.write(
-          'final ${_inputTypes[i]} ${_prefix}Input$i = ${_prefix}As<${_inputTypes[i]}>($nullableRead);');
+        'final ${_inputTypes[i]} ${_prefix}Input$i = ${_prefix}As<${_inputTypes[i]}>($nullableRead);',
+      );
     }
     for (final capture in captures.keys) {
-      buffer.write('final $capture = ${_prefix}Cells[${_dartJson(capture)}]!'
-          '.cast<${_captureTypes[capture]}>();');
+      buffer.write(
+        'final $capture = ${_prefix}Cells[${_dartJson(capture)}]!'
+        '.cast<${_captureTypes[capture]}>();',
+      );
     }
     buffer.write('final $resultDartType ${_prefix}Result = $source;');
     if (resultType.kind == 'native') {
       if (resultType.nullable)
         buffer.write('if (${_prefix}Result == null) return null;');
-      buffer.write('return ${core}NativeBinding<$resultDartType>('
-          'contract: ${shared}NativeBindingContract('
-          'type: ${_dartJson(resultType.nativeType)}, nullable: ${resultType.nullable}), '
-          'value: ${_prefix}Result);');
+      buffer.write(
+        'return ${core}NativeBinding<$resultDartType>('
+        'contract: ${shared}NativeBindingContract('
+        'type: ${_dartJson(resultType.nativeType)}, nullable: ${resultType.nullable}), '
+        'value: ${_prefix}Result);',
+      );
     } else {
       buffer.write('return ${_prefix}Result;');
     }
@@ -142,19 +156,19 @@ final class InstalledNativeCallPlan {
   }
 
   HoistedValue get binding => HoistedValue(
-      key: key,
-      label: source,
-      kind: HoistValueKind.nativeBinding,
-      shape: SurfaceScreenHostDataNativeBindingShapeV1(contract),
-      template: '',
-      nativeContract: contract,
-      nativeCall: this);
+    key: key,
+    label: source,
+    kind: HoistValueKind.nativeBinding,
+    shape: SurfaceScreenHostDataNativeBindingShapeV1(contract),
+    template: '',
+    nativeContract: contract,
+    nativeCall: this,
+  );
 }
 
 /// Serializes declarations into ordinary generated Dart using visible prefixes.
-String nativeContractSource(NativeBindingContract contract, String prefix) => contract
-            .call ==
-        null
+String nativeContractSource(NativeBindingContract contract, String prefix) =>
+    contract.call == null
     ? '${prefix}NativeBindingContract(type: ${dartStringLiteral(contract.type)}, nullable: ${contract.nullable})'
     : '${prefix}NativeBindingContract.fromJson(${_dartJson(contract.toJson())})';
 
@@ -162,7 +176,8 @@ String nativeContractSource(NativeBindingContract contract, String prefix) => co
 String? installedNativeConstructorType(Expression expression) {
   if (expression is! InstanceCreationExpression) return null;
   return _installedNativeConstructorType(
-      expression.constructorName.element?.enclosingElement);
+    expression.constructorName.element?.enclosingElement,
+  );
 }
 
 /// The installed constructor family of a resolved canonical constant.
@@ -178,7 +193,7 @@ String? _installedNativeConstructorType(InterfaceElement? owner) {
   return switch ((owner.library.identifier, owner.name)) {
     (
       'package:flutter/src/material/colors.dart',
-      'MaterialColor' || 'MaterialAccentColor'
+      'MaterialColor' || 'MaterialAccentColor',
     ) =>
       'flutter.Color',
     ('package:flutter/src/widgets/framework.dart', 'ObjectKey') =>
@@ -192,8 +207,10 @@ bool isInstalledNativeConstant(Expression expression) =>
     installedNativeConstantValue(expression) != null;
 
 /// Proves that eager input borrowing cannot change selection observables.
-bool isInertNativeSelection(Expression expression,
-    {required bool Function(Expression) isBorrowedRead}) {
+bool isInertNativeSelection(
+  Expression expression, {
+  required bool Function(Expression) isBorrowedRead,
+}) {
   bool inert(Expression value) {
     if (value is ParenthesizedExpression) return inert(value.expression);
     if (value is FunctionExpression) return false;
@@ -211,10 +228,8 @@ bool isInertNativeSelection(Expression expression,
       return switch (value.operator.lexeme) {
         '??' => inert(value.leftOperand) && inert(value.rightOperand),
         '&&' ||
-        '||' =>
-          boolean(value.leftOperand) && boolean(value.rightOperand),
-        '==' ||
-        '!=' =>
+        '||' => boolean(value.leftOperand) && boolean(value.rightOperand),
+        '==' || '!=' =>
           value.leftOperand is NullLiteral && inert(value.rightOperand) ||
               value.rightOperand is NullLiteral && inert(value.leftOperand),
         _ => false,
@@ -243,41 +258,49 @@ bool isInertNativeSelection(Expression expression,
 }
 
 /// Retains the compiled canonical value of a constant expression.
-HoistedValue installedNativeConstant(Expression expression,
-    {required String type, LibraryElement? emissionLibrary}) {
+HoistedValue installedNativeConstant(
+  Expression expression, {
+  required String type,
+  LibraryElement? emissionLibrary,
+}) {
   final constant = installedNativeConstantValue(expression);
   if (constant == null) {
     throw BuilderLoweringException(
-        expression, 'Native constant requires const source');
+      expression,
+      'Native constant requires const source',
+    );
   }
-  final nullable = constant.isNull ||
+  final nullable =
+      constant.isNull ||
       expression.staticType?.nullabilitySuffix == NullabilitySuffix.question;
   final plan = planInstalledNativeCall(
-      installedNativeConstantExpression(expression),
-      resultType: ValueType.native(type, nullable: nullable),
-      emissionLibrary: emissionLibrary,
-      captureFor: (_) => null,
-      inputFor: (_) => null);
+    installedNativeConstantExpression(expression),
+    resultType: ValueType.native(type, nullable: nullable),
+    emissionLibrary: emissionLibrary,
+    captureFor: (_) => null,
+    inputFor: (_) => null,
+  );
   final source = plan.source;
   final contract = NativeBindingContract(type: type, nullable: nullable);
   final identity = crypto.sha256.convert(utf8.encode('constant:${plan.key}'));
   return HoistedValue(
-      key: '_h${identity.toString().substring(0, 10)}',
-      label: source,
-      kind: HoistValueKind.nativeBinding,
-      shape: SurfaceScreenHostDataNativeBindingShapeV1(contract),
-      template: source,
-      nativeContract: contract,
-      nativeConstant: plan);
+    key: '_h${identity.toString().substring(0, 10)}',
+    label: source,
+    kind: HoistValueKind.nativeBinding,
+    shape: SurfaceScreenHostDataNativeBindingShapeV1(contract),
+    template: source,
+    nativeContract: contract,
+    nativeConstant: plan,
+  );
 }
 
 String _dartJson(Object? value) => switch (value) {
-      Map() =>
-        '<String, Object?>{${value.entries.map((entry) => '${_dartJson(entry.key)}: ${_dartJson(entry.value)}').join(', ')}}',
-      List() => '<Object?>[${value.map(_dartJson).join(', ')}]',
-      String() => jsonEncode(value).replaceAll(r'$', r'\$'),
-      _ => '$value',
-    };
+  Map() =>
+    '<String, Object?>{${value.entries.map((entry) => '${_dartJson(entry.key)}: ${_dartJson(entry.value)}').join(', ')}}',
+  List() => '<Object?>[${value.map(_dartJson).join(', ')}]',
+  String() => jsonEncode(value).replaceAll(r'$', r'\$'),
+  _ => '$value',
+};
 
 /// Plans one explicitly admitted native expression in its owning library.
 InstalledNativeCallPlan planInstalledNativeCall(
@@ -290,14 +313,18 @@ InstalledNativeCallPlan planInstalledNativeCall(
   Map<Expression, String?> constantStrings = const {},
   LibraryElement? emissionLibrary,
 }) {
-  final invocations = qualifyInstalledNativeCallables(expression,
-      isDeclaredCallable: isDeclaredCallable ?? (_) => false);
+  final invocations = qualifyInstalledNativeCallables(
+    expression,
+    isDeclaredCallable: isDeclaredCallable ?? (_) => false,
+  );
   final fixedStrings = validateInstalledIntlInvocations(invocations);
   for (final entry in constantStrings.entries) {
     if (fixedStrings.containsKey(entry.key) &&
         fixedStrings[entry.key] != entry.value) {
-      throw BuilderLoweringException(entry.key,
-          'Native constant replacement conflicts with fixed lookup metadata');
+      throw BuilderLoweringException(
+        entry.key,
+        'Native constant replacement conflicts with fixed lookup metadata',
+      );
     }
     fixedStrings[entry.key] = entry.value;
   }
@@ -308,55 +335,81 @@ InstalledNativeCallPlan planInstalledNativeCall(
       contents == null ||
       expression.end > contents.length) {
     throw BuilderLoweringException(
-        expression, 'Native call requires resolved source');
+      expression,
+      'Native call requires resolved source',
+    );
   }
   final namespace = OwningLibraryNamespace(emissionLibrary ?? fragment.element);
   final result = expression.staticType;
   final resultCode = result == null ? null : namespace.typeCode(result);
   if (resultCode == null) {
     throw BuilderLoweringException(
-        expression, 'Native result type is not visible');
+      expression,
+      'Native result type is not visible',
+    );
   }
   var prefix = '_restage';
   final original = contents.substring(expression.offset, expression.end);
   final visible = _NativeSpellings(namespace);
   expression.accept(visible);
   while (original.contains(prefix) ||
-      [...visible.spellings, resultCode]
-          .any((spelling) => spelling.contains(prefix))) {
+      [
+        ...visible.spellings,
+        resultCode,
+      ].any((spelling) => spelling.contains(prefix))) {
     prefix = '${prefix}_';
   }
-  final visitor = _NativeCallWriter(expression, namespace, captureFor, inputFor,
-      borrowFor, prefix, fixedStrings);
+  final visitor = _NativeCallWriter(
+    expression,
+    namespace,
+    captureFor,
+    inputFor,
+    borrowFor,
+    prefix,
+    fixedStrings,
+  );
   expression.accept(visitor);
   var source = contents.substring(expression.offset, expression.end);
   for (final edit in visitor.edits..sort((a, b) => b.$1.compareTo(a.$1))) {
     source = source.replaceRange(
-        edit.$1 - expression.offset, edit.$2 - expression.offset, edit.$3);
+      edit.$1 - expression.offset,
+      edit.$2 - expression.offset,
+      edit.$3,
+    );
   }
   if (expression is InstanceCreationExpression && expression.isConst) {
     if (visitor.inputs.isNotEmpty || visitor.captures.isNotEmpty) {
-      throw BuilderLoweringException(expression,
-          'Native constants require their compiled constant declaration');
+      throw BuilderLoweringException(
+        expression,
+        'Native constants require their compiled constant declaration',
+      );
     }
     if (expression.keyword?.lexeme != 'const') source = 'const $source';
   }
   return InstalledNativeCallPlan._(
-      source,
-      resultCode,
-      resultType,
-      visitor.inputs,
-      visitor.captures,
-      visitor.inputTypes,
-      visitor.captureTypes,
-      prefix,
-      namespace.library.identifier,
-      nativeExpressionProvenance(expression));
+    source,
+    resultCode,
+    resultType,
+    visitor.inputs,
+    visitor.captures,
+    visitor.inputTypes,
+    visitor.captureTypes,
+    prefix,
+    namespace.library.identifier,
+    nativeExpressionProvenance(expression),
+  );
 }
 
 final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
-  _NativeCallWriter(this.root, this.namespace, this.captureFor, this.inputFor,
-      this.borrowFor, this.prefix, this.constantStrings) {
+  _NativeCallWriter(
+    this.root,
+    this.namespace,
+    this.captureFor,
+    this.inputFor,
+    this.borrowFor,
+    this.prefix,
+    this.constantStrings,
+  ) {
     final locals = _LocalNames();
     root.accept(locals);
     localNames.addAll(locals.names);
@@ -365,16 +418,20 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
           entry.key.end > root.end ||
           !identical(entry.key.root, root.root)) {
         refuse(
-            entry.key, 'Native constant replacement is outside its expression');
+          entry.key,
+          'Native constant replacement is outside its expression',
+        );
       }
       final value = installedNativeConstantValue(entry.key);
       if (value == null ||
           (value.isNull
               ? entry.value != null
               : value.toStringValue() == null ||
-                  value.toStringValue() != entry.value)) {
-        refuse(entry.key,
-            'Native constant replacement does not match resolved source');
+                    value.toStringValue() != entry.value)) {
+        refuse(
+          entry.key,
+          'Native constant replacement does not match resolved source',
+        );
       }
     }
   }
@@ -411,8 +468,10 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
         ? namespace.staticMemberName(element)
         : namespace.elementName(element);
     if (spelling == null || localNames.contains(spelling.split('.').first)) {
-      refuse(root,
-          'Native declaration is unavailable or shadowed in the emission library');
+      refuse(
+        root,
+        'Native declaration is unavailable or shadowed in the emission library',
+      );
     }
     return spelling;
   }
@@ -442,8 +501,10 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
       };
       if (element?.enclosingElement is ExtensionElement ||
           node is ExtensionOverride) {
-        refuse(node,
-            'Native extension dispatch requires its original library scope');
+        refuse(
+          node,
+          'Native extension dispatch requires its original library scope',
+        );
       }
     }
     if (node is DotShorthandInvocation ||
@@ -492,11 +553,15 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
     if (spelling == null ||
         spelling != node.toSource() &&
             localNames.contains(
-                spelling.split(RegExp(r'[< ?(]')).first.split('.').first) ||
+              spelling.split(RegExp(r'[< ?(]')).first.split('.').first,
+            ) ||
         namespace.prefixNames.any(
-            (name) => localNames.contains(name) && spelling.contains('$name.')))
-      refuse(node,
-          'Native type is unavailable or shadowed in the emission library');
+          (name) => localNames.contains(name) && spelling.contains('$name.'),
+        ))
+      refuse(
+        node,
+        'Native type is unavailable or shadowed in the emission library',
+      );
     edit(node, spelling);
   }
 
@@ -553,8 +618,11 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
     super.visitPropertyAccess(node);
   }
 
-  void _borrowMember(SimpleIdentifier identifier, AstNode range,
-      PropertyAccessorElement element) {
+  void _borrowMember(
+    SimpleIdentifier identifier,
+    AstNode range,
+    PropertyAccessorElement element,
+  ) {
     final existing = names[element];
     if (existing != null && !identifier.inSetterContext()) {
       edit(range, existing);
@@ -563,8 +631,10 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
     final input = borrowFor?.call(identifier);
     final code = namespace.typeCode(element.returnType);
     if (input == null || code == null || identifier.inSetterContext()) {
-      refuse(identifier,
-          'Native calls require a proven borrowed constructor input');
+      refuse(
+        identifier,
+        'Native calls require a proven borrowed constructor input',
+      );
     }
     final name = names.putIfAbsent(element, () {
       final name = '${prefix}Input${inputs.length}';
@@ -586,11 +656,14 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
         element.library != namespace.library &&
         (element.enclosingElement is LibraryElement ||
             element.enclosingElement is InstanceElement)) {
-      refuse(node,
-          'Native private declaration is unavailable in the emission library');
+      refuse(
+        node,
+        'Native private declaration is unavailable in the emission library',
+      );
     }
     final parent = node.parent;
-    final selector = parent is ConstructorName && parent.name == node ||
+    final selector =
+        parent is ConstructorName && parent.name == node ||
         parent is PropertyAccess && parent.propertyName == node ||
         parent is PrefixedIdentifier && parent.identifier == node ||
         parent is MethodInvocation &&
@@ -607,12 +680,15 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
       return;
     }
     final declaration = element.firstFragment.nameOffset;
-    final declaredInside = declaration != null &&
+    final declaredInside =
+        declaration != null &&
         declaration >= root.offset &&
         declaration < root.end;
     if (element is LocalFunctionElement && !declaredInside) {
       refuse(
-          node, 'A local function requires an explicit native lexical value');
+        node,
+        'A local function requires an explicit native lexical value',
+      );
     }
     if (element is PropertyAccessorElement &&
         !element.isStatic &&
@@ -631,9 +707,11 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
       return;
     }
     if (declaredInside) return;
-    for (var ancestor = node.parent;
-        ancestor != null && ancestor != root;
-        ancestor = ancestor.parent) {
+    for (
+      var ancestor = node.parent;
+      ancestor != null && ancestor != root;
+      ancestor = ancestor.parent
+    ) {
       if (ancestor is FormalParameterDefaultClause ||
           ancestor is VariableDeclarationList && ancestor.isConst ||
           ancestor is InstanceCreationExpression && ancestor.isConst ||
@@ -648,14 +726,25 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
     if (name == null) {
       final cell = captureFor(element);
       if (cell != null) {
-        if (!const {'int', 'double', 'num', 'bool', 'String', 'Null', 'native'}
-            .contains(cell.type.kind)) {
-          refuse(node,
-              'Native captures require original values, not data projections');
+        if (!const {
+          'int',
+          'double',
+          'num',
+          'bool',
+          'String',
+          'Null',
+          'native',
+        }.contains(cell.type.kind)) {
+          refuse(
+            node,
+            'Native captures require original values, not data projections',
+          );
         }
         if (cell.type.kind != 'native' && !_nativeScalar(type)) {
           refuse(
-              node, 'Native captures cannot use a projected scalar identity');
+            node,
+            'Native captures cannot use a projected scalar identity',
+          );
         }
         name = '${prefix}Capture${captures.length}';
         captures[name] = cell;
@@ -694,20 +783,31 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
 bool _nativeScalar(DartType type) =>
     type is InterfaceType &&
     type.element.library.identifier == 'dart:core' &&
-    const {'int', 'double', 'num', 'bool', 'String', 'Null'}
-        .contains(type.element.name);
+    const {
+      'int',
+      'double',
+      'num',
+      'bool',
+      'String',
+      'Null',
+    }.contains(type.element.name);
 
 /// Stable nominal spelling; generated Dart uses the owning namespace separately.
 String installedNativeTypeId(DartType type) => switch (type) {
-      InterfaceType() => '${type.element.library.identifier}#${type.element.name}'
-          '${type.typeArguments.isEmpty ? '' : '<${type.typeArguments.map(installedNativeTypeId).join(',')}>'}'
-          '${type.nullabilitySuffix.name == 'question' ? '?' : ''}',
-      FunctionType() =>
-        '(${type.formalParameters.map((p) => '${p.isRequiredNamed ? 'required ' : p.isOptionalPositional ? 'optional ' : ''}${p.isNamed ? '${p.name}:' : ''}${installedNativeTypeId(p.type)}').join(',')})->${installedNativeTypeId(type.returnType)}'
-            '${type.nullabilitySuffix.name == 'question' ? '?' : ''}',
-      VoidType() => 'void',
-      _ => throw ArgumentError('Unsupported nominal native type $type'),
-    };
+  InterfaceType() =>
+    '${type.element.library.identifier}#${type.element.name}'
+        '${type.typeArguments.isEmpty ? '' : '<${type.typeArguments.map(installedNativeTypeId).join(',')}>'}'
+        '${type.nullabilitySuffix.name == 'question' ? '?' : ''}',
+  FunctionType() =>
+    '(${type.formalParameters.map((p) => '${p.isRequiredNamed
+            ? 'required '
+            : p.isOptionalPositional
+            ? 'optional '
+            : ''}${p.isNamed ? '${p.name}:' : ''}${installedNativeTypeId(p.type)}').join(',')})->${installedNativeTypeId(type.returnType)}'
+        '${type.nullabilitySuffix.name == 'question' ? '?' : ''}',
+  VoidType() => 'void',
+  _ => throw ArgumentError('Unsupported nominal native type $type'),
+};
 
 final class _LocalNames extends GeneralizingAstVisitor<void> {
   final names = <String>{};

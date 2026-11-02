@@ -49,13 +49,14 @@ class Order {
       expect(catalog, contains('acme.product'));
     });
 
-    test('discovers a widget annotated with an alias declared elsewhere',
-        () async {
-      // The lookup seam resolves a `const` alias, so a filter that did not
-      // follow one would drop this declaration in silence: the annotated file
-      // spells nothing to scan for.
-      final catalog = await _catalogJson({
-        'lib/annotations.dart': '''
+    test(
+      'discovers a widget annotated with an alias declared elsewhere',
+      () async {
+        // The lookup seam resolves a `const` alias, so a filter that did not
+        // follow one would drop this declaration in silence: the annotated file
+        // spells nothing to scan for.
+        final catalog = await _catalogJson({
+          'lib/annotations.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const card = RestageWidget(
@@ -63,7 +64,7 @@ const card = RestageWidget(
   description: 'A custom card.',
 );
 ''',
-        'lib/widgets/card.dart': '''
+          'lib/widgets/card.dart': '''
 import '../annotations.dart';
 
 @card
@@ -71,24 +72,26 @@ class AliasCard {
   const AliasCard();
 }
 ''',
-      });
+        });
 
-      expect(catalog, contains('AliasCard'));
-    });
+        expect(catalog, contains('AliasCard'));
+      },
+    );
 
-    test('discovers a widget declared inside a part of an unannotated library',
-        () async {
-      final catalog = await _catalogJson({
-        // The owning library spells no Restage identifier of its own. Its
-        // declaration lives entirely in the part.
-        'lib/widgets/host.dart': '''
+    test(
+      'discovers a widget declared inside a part of an unannotated library',
+      () async {
+        final catalog = await _catalogJson({
+          // The owning library spells no Restage identifier of its own. Its
+          // declaration lives entirely in the part.
+          'lib/widgets/host.dart': '''
 library acme_host;
 
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 part 'card_part.dart';
 ''',
-        'lib/widgets/card_part.dart': '''
+          'lib/widgets/card_part.dart': '''
 part of 'host.dart';
 
 /// A custom card declared in a part.
@@ -100,10 +103,11 @@ class PartCard {
   const PartCard();
 }
 ''',
-      });
+        });
 
-      expect(catalog, contains('PartCard'));
-    });
+        expect(catalog, contains('PartCard'));
+      },
+    );
   });
 }
 

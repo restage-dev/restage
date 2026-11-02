@@ -1,8 +1,8 @@
 # Enable the opt-in A2UI catalog builder. It is `auto_apply: none`, so a
-# consumer turns it on explicitly here — the generated catalog imports the genui
+# consumer turns it on explicitly here — the generated catalog imports the a2ui_flutter
 # runtime, which only A2UI consumers depend on.
 #
-# This example targets A2UI (genui) only, not RFW delivery, so the RFW
+# This example targets A2UI (a2ui_flutter) only, not RFW delivery, so the RFW
 # custom-catalog + factory builders are turned off — they would emit unused
 # `.g.dart` files (and a RatingPicker "not mechanically generatable for RFW"
 # warning that does not apply to the A2UI path).

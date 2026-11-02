@@ -163,16 +163,13 @@ final class WidgetbookStoryEditablePropertyPlan
 
   @override
   WidgetbookStoryControl get control => switch (editableControl) {
-        WidgetbookStoryEditableControl.string => WidgetbookStoryControl.string,
-        WidgetbookStoryEditableControl.boolean =>
-          WidgetbookStoryControl.boolean,
-        WidgetbookStoryEditableControl.integer =>
-          WidgetbookStoryControl.integer,
-        WidgetbookStoryEditableControl.real => WidgetbookStoryControl.real,
-        WidgetbookStoryEditableControl.color => WidgetbookStoryControl.color,
-        WidgetbookStoryEditableControl.duration =>
-          WidgetbookStoryControl.duration,
-      };
+    WidgetbookStoryEditableControl.string => WidgetbookStoryControl.string,
+    WidgetbookStoryEditableControl.boolean => WidgetbookStoryControl.boolean,
+    WidgetbookStoryEditableControl.integer => WidgetbookStoryControl.integer,
+    WidgetbookStoryEditableControl.real => WidgetbookStoryControl.real,
+    WidgetbookStoryEditableControl.color => WidgetbookStoryControl.color,
+    WidgetbookStoryEditableControl.duration => WidgetbookStoryControl.duration,
+  };
 
   /// Concrete initial story value.
   final WidgetbookNativeValuePlan seed;
@@ -194,15 +191,15 @@ final class WidgetbookStoryChoicePropertyPlan
     required this.seedProvenance,
     required this.choices,
     required this.choiceLabels,
-  })  : assert(choices.isNotEmpty, 'a choice property needs a choice'),
-        assert(
-          choices.length == choiceLabels.length,
-          'every Widgetbook choice needs one human-facing label',
-        ),
-        assert(
-          _choiceValueIndex(choices, seed) >= 0,
-          'a choice property seed must belong to its choice domain',
-        );
+  }) : assert(choices.isNotEmpty, 'a choice property needs a choice'),
+       assert(
+         choices.length == choiceLabels.length,
+         'every Widgetbook choice needs one human-facing label',
+       ),
+       assert(
+         _choiceValueIndex(choices, seed) >= 0,
+         'a choice property seed must belong to its choice domain',
+       );
 
   @override
   WidgetbookStoryControl get control => WidgetbookStoryControl.choice;
@@ -269,11 +266,11 @@ final class WidgetbookStoryEventPropertyPlan
     required super.positional,
     required this.callback,
   }) : super(
-          dartType: const WidgetbookDartTypePlan(
-            libraryUri: 'dart:core',
-            symbol: 'bool',
-          ),
-        );
+         dartType: const WidgetbookDartTypePlan(
+           libraryUri: 'dart:core',
+           symbol: 'bool',
+         ),
+       );
 
   @override
   WidgetbookStoryControl get control => WidgetbookStoryControl.event;
@@ -288,11 +285,11 @@ final class WidgetbookStoryLimitPolicy {
   const WidgetbookStoryLimitPolicy({
     required this.defaultLimit,
     required this.absoluteLimit,
-  })  : assert(defaultLimit > 0, 'the default story limit must be positive'),
-        assert(
-          absoluteLimit >= defaultLimit,
-          'the absolute story limit must cover the default limit',
-        );
+  }) : assert(defaultLimit > 0, 'the default story limit must be positive'),
+       assert(
+         absoluteLimit >= defaultLimit,
+         'the absolute story limit must cover the default limit',
+       );
 
   /// Limit used when a widget does not declare `maxStories`.
   final int defaultLimit;
@@ -389,7 +386,7 @@ final class WidgetbookStoryPlan {
     for (final property in properties) {
       switch (property) {
         case WidgetbookStoryEditablePropertyPlan(:final seed) ||
-              WidgetbookStoryNativePropertyPlan(:final seed):
+            WidgetbookStoryNativePropertyPlan(:final seed):
           yield seed;
         case WidgetbookStoryChoicePropertyPlan(:final seed, :final choices):
           yield seed;
@@ -640,7 +637,8 @@ List<WidgetbookStoryAxisPlan> _planStoryAxes(
                 property,
                 input,
                 value,
-                path: config.storyValuesLocation ??
+                path:
+                    config.storyValuesLocation ??
                     '${widget.sourceAsset.path}#${widget.className}.$name',
               ),
           ];
@@ -688,16 +686,14 @@ String _propertyConfigLocation(WidgetbookPropertyTargetConfigFacts config) =>
 
 WidgetbookNativeValuePlan _propertySeed(
   WidgetbookStoryPropertyPlan property,
-) =>
-    switch (property) {
-      WidgetbookStoryEditablePropertyPlan(:final seed) ||
-      WidgetbookStoryChoicePropertyPlan(:final seed) ||
-      WidgetbookStoryNativePropertyPlan(:final seed) =>
-        seed,
-      WidgetbookStoryEventPropertyPlan() => throw StateError(
-          "callback property '${property.property.name}' has no data seed",
-        ),
-    };
+) => switch (property) {
+  WidgetbookStoryEditablePropertyPlan(:final seed) ||
+  WidgetbookStoryChoicePropertyPlan(:final seed) ||
+  WidgetbookStoryNativePropertyPlan(:final seed) => seed,
+  WidgetbookStoryEventPropertyPlan() => throw StateError(
+    "callback property '${property.property.name}' has no data seed",
+  ),
+};
 
 WidgetbookStoryAxisValuePlan _axisValueFromNative(
   WidgetbookStoryPropertyPlan property,
@@ -706,10 +702,10 @@ WidgetbookStoryAxisValuePlan _axisValueFromNative(
 }) {
   return switch (value) {
     WidgetbookNullValuePlan() => WidgetbookStoryAxisValuePlan(
-        value: value,
-        identity: '${_typeIdentity(value.type)}:null',
-        nameFragment: 'Null',
-      ),
+      value: value,
+      identity: '${_typeIdentity(value.type)}:null',
+      nameFragment: 'Null',
+    ),
     WidgetbookScalarValuePlan(value: final bool scalar) =>
       WidgetbookStoryAxisValuePlan(
         value: value,
@@ -723,9 +719,9 @@ WidgetbookStoryAxisValuePlan _axisValueFromNative(
         nameFragment: _nameFragment(member, path: path),
       ),
     _ => throw StateError(
-        'Widgetbook story axis at $path has a default outside the exact '
-        'bool/enum/null accepted set for `${property.dartType.symbol}`.',
-      ),
+      'Widgetbook story axis at $path has a default outside the exact '
+      'bool/enum/null accepted set for `${property.dartType.symbol}`.',
+    ),
   };
 }
 
@@ -753,7 +749,8 @@ List<WidgetbookStoryAxisValuePlan> _allAxisValues(
   WidgetbookStoryPropertyPlan property,
   WidgetConstructorInput input,
 ) {
-  final path = '${input.field.library.identifier}#'
+  final path =
+      '${input.field.library.identifier}#'
       '${input.field.enclosingElement.name}.${input.name}';
   final type = input.type;
   final element = type is InterfaceType ? type.element : null;
@@ -831,8 +828,9 @@ WidgetbookStoryAxisValuePlan _axisValueFromDartObject(
   }
 
   final expectedType = input.type;
-  final expectedElement =
-      expectedType is InterfaceType ? expectedType.element : null;
+  final expectedElement = expectedType is InterfaceType
+      ? expectedType.element
+      : null;
   final boolValue = value.toBoolValue();
   if (expectedElement?.library.identifier == 'dart:core' &&
       expectedElement?.name == 'bool' &&
@@ -860,7 +858,8 @@ WidgetbookStoryAxisValuePlan _axisValueFromDartObject(
         member: identity.member,
         ordinal: identity.ordinal,
       ),
-      identity: '${identity.definingLibrary}#${identity.enumName}:'
+      identity:
+          '${identity.definingLibrary}#${identity.enumName}:'
           '${identity.member}@${identity.ordinal}',
       nameFragment: _nameFragment(identity.member, path: path),
     );
@@ -913,15 +912,16 @@ List<WidgetbookStoryVariantPlan> _planStoryVariants({
   }
   final expansion = widget.targetConfig.expansion ?? StoryExpansion.independent;
   final count = switch (expansion) {
-    StoryExpansion.independent => 1 +
-        axes.fold<int>(
-          0,
-          (total, axis) => total + math.max(0, axis.values.length - 1),
-        ),
+    StoryExpansion.independent =>
+      1 +
+          axes.fold<int>(
+            0,
+            (total, axis) => total + math.max(0, axis.values.length - 1),
+          ),
     StoryExpansion.cartesian => axes.fold<int>(
-        1,
-        (total, axis) => total * axis.values.length,
-      ),
+      1,
+      (total, axis) => total * axis.values.length,
+    ),
   };
   final effectiveLimit = configuredLimit ?? storyLimits.defaultLimit;
   if (count > effectiveLimit) {
@@ -972,7 +972,8 @@ List<WidgetbookStoryVariantPlan> _planStoryVariants({
     final name = _storyName(axes, tuple);
     final signature = axes
         .map(
-          (axis) => '${axis.property.property.name}='
+          (axis) =>
+              '${axis.property.property.name}='
               '${tuple[axis.property.property.name]!.identity}',
         )
         .join(', ');
@@ -1010,15 +1011,16 @@ String _storyLimitContext({
   required WidgetbookStoryLimitPolicy storyLimits,
 }) {
   final effectiveLimit = configuredLimit ?? storyLimits.defaultLimit;
-  final limitSource =
-      configuredLimit == null ? 'package default' : 'configured maxStories';
+  final limitSource = configuredLimit == null
+      ? 'package default'
+      : 'configured maxStories';
   final cardinalities = axes.isEmpty
       ? 'none'
       : axes
-          .map(
-            (axis) => '${axis.property.property.name}=${axis.values.length}',
-          )
-          .join(', ');
+            .map(
+              (axis) => '${axis.property.property.name}=${axis.values.length}',
+            )
+            .join(', ');
   return 'Effective limit: $effectiveLimit ($limitSource); package default: '
       '${storyLimits.defaultLimit}; absolute ceiling: '
       '${storyLimits.absoluteLimit}; axes/cardinalities: $cardinalities.';
@@ -1106,8 +1108,9 @@ _SeedSelection _selectSeed({
         provenance: WidgetbookSeedProvenance.constructorDefault,
       );
     }
-    if (constructorDefault
-        case UnsupportedWidgetConstructorDefault(:final source)) {
+    if (constructorDefault case UnsupportedWidgetConstructorDefault(
+      :final source,
+    )) {
       throw StateError(
         'Widgetbook seed at /constructorDefaults/${property.name} cannot '
         'reproduce constructor default $source. Make the Dart default public, '
@@ -1169,10 +1172,10 @@ _SeedSelection _selectSeed({
     EnumWidgetConstructorDefault() ||
     StaticMemberWidgetConstructorDefault() ||
     StructuralWidgetConstructorDefault() ||
-    UnsupportedWidgetConstructorDefault() =>
-      true,
+    UnsupportedWidgetConstructorDefault() => true,
   };
-  final runtimeClaimsNonNull = literal is TokenRefDefault ||
+  final runtimeClaimsNonNull =
+      literal is TokenRefDefault ||
       literal is ThemeBindingDefault ||
       property.defaultBrandToken != null ||
       literal is FlutterCtorDefault ||
@@ -1267,26 +1270,23 @@ WidgetbookNativeValuePlan _canonicalFiniteChoiceSeed({
 String _finiteSeedPath(
   WidgetbookSeedProvenance provenance,
   PropertyEntry property,
-) =>
-    switch (provenance) {
-      WidgetbookSeedProvenance.catalogLiteral => '/defaults/${property.name}',
-      WidgetbookSeedProvenance.constructorDefault =>
-        '/constructorDefaults/${property.name}',
-      WidgetbookSeedProvenance.finiteChoice =>
-        widgetbookConstraintsFor(property).allowedValues == null
-            ? '/generated/${property.name}'
-            : '/constraints/${property.name}/enum/0',
-      WidgetbookSeedProvenance.scalarPreview => '/preview/${property.name}',
-      WidgetbookSeedProvenance.nullableFallback => '/defaults/${property.name}',
-      WidgetbookSeedProvenance.synthesizedPreview =>
-        '/generated/${property.name}',
-    };
+) => switch (provenance) {
+  WidgetbookSeedProvenance.catalogLiteral => '/defaults/${property.name}',
+  WidgetbookSeedProvenance.constructorDefault =>
+    '/constructorDefaults/${property.name}',
+  WidgetbookSeedProvenance.finiteChoice =>
+    widgetbookConstraintsFor(property).allowedValues == null
+        ? '/generated/${property.name}'
+        : '/constraints/${property.name}/enum/0',
+  WidgetbookSeedProvenance.scalarPreview => '/preview/${property.name}',
+  WidgetbookSeedProvenance.nullableFallback => '/defaults/${property.name}',
+  WidgetbookSeedProvenance.synthesizedPreview => '/generated/${property.name}',
+};
 
 int _choiceValueIndex(
   List<WidgetbookNativeValuePlan> choices,
   WidgetbookNativeValuePlan value,
-) =>
-    choices.indexWhere((choice) => _sameChoiceValue(choice, value));
+) => choices.indexWhere((choice) => _sameChoiceValue(choice, value));
 
 bool _sameChoiceValue(
   WidgetbookNativeValuePlan left,
@@ -1353,7 +1353,8 @@ bool _sameScalarChoiceValue(
   Object left,
   Object right,
 ) {
-  final signedReal = type.libraryUri == 'dart:core' &&
+  final signedReal =
+      type.libraryUri == 'dart:core' &&
       (type.symbol == 'double' || type.symbol == 'num');
   if (signedReal && left is num && right is num && left == 0 && right == 0) {
     return left.isNegative == right.isNegative;
@@ -1364,18 +1365,15 @@ bool _sameScalarChoiceValue(
 Object _frameworkChoiceIdentity(
   WidgetbookFrameworkLiteralKind kind,
   Object value,
-) =>
-    switch (kind) {
-      WidgetbookFrameworkLiteralKind.color => _colorChoiceIdentity(value),
-      WidgetbookFrameworkLiteralKind.fontWeight =>
-        _fontWeightChoiceIdentity(value),
-      WidgetbookFrameworkLiteralKind.duration => value,
-      WidgetbookFrameworkLiteralKind.edgeInsets ||
-      WidgetbookFrameworkLiteralKind.alignment ||
-      WidgetbookFrameworkLiteralKind.offset ||
-      WidgetbookFrameworkLiteralKind.curve =>
-        value,
-    };
+) => switch (kind) {
+  WidgetbookFrameworkLiteralKind.color => _colorChoiceIdentity(value),
+  WidgetbookFrameworkLiteralKind.fontWeight => _fontWeightChoiceIdentity(value),
+  WidgetbookFrameworkLiteralKind.duration => value,
+  WidgetbookFrameworkLiteralKind.edgeInsets ||
+  WidgetbookFrameworkLiteralKind.alignment ||
+  WidgetbookFrameworkLiteralKind.offset ||
+  WidgetbookFrameworkLiteralKind.curve => value,
+};
 
 int _colorChoiceIdentity(Object value) {
   if (value is int) return value;
@@ -1383,8 +1381,8 @@ int _colorChoiceIdentity(Object value) {
   final digits = text.startsWith('#')
       ? text.substring(1)
       : text.toLowerCase().startsWith('0x')
-          ? text.substring(2)
-          : text;
+      ? text.substring(2)
+      : text;
   return int.parse(digits.length == 6 ? 'FF$digits' : digits, radix: 16);
 }
 
@@ -1419,17 +1417,16 @@ bool _sameChoiceType(
 }
 
 String _choiceSeedLabel(WidgetbookNativeValuePlan seed) => switch (seed) {
-      WidgetbookNullValuePlan() => 'null',
-      WidgetbookScalarValuePlan(:final value) => '$value',
-      WidgetbookEnumValuePlan(:final member) => member,
-      WidgetbookStaticMemberValuePlan(:final member) => member,
-      WidgetbookFrameworkValuePlan(:final value) => '$value',
-      WidgetbookDartConstValuePlan() ||
-      WidgetbookListValuePlan() ||
-      WidgetbookPlaceholderWidgetValuePlan() ||
-      WidgetbookConstructorValuePlan() =>
-        'default',
-    };
+  WidgetbookNullValuePlan() => 'null',
+  WidgetbookScalarValuePlan(:final value) => '$value',
+  WidgetbookEnumValuePlan(:final member) => member,
+  WidgetbookStaticMemberValuePlan(:final member) => member,
+  WidgetbookFrameworkValuePlan(:final value) => '$value',
+  WidgetbookDartConstValuePlan() ||
+  WidgetbookListValuePlan() ||
+  WidgetbookPlaceholderWidgetValuePlan() ||
+  WidgetbookConstructorValuePlan() => 'default',
+};
 
 _ChoicePlans _choicePlans({
   required PropertyEntry property,
@@ -1490,7 +1487,8 @@ _ChoicePlans _choicePlans({
       'constraints',
     );
   }
-  final includeNullChoice = input.nullable &&
+  final includeNullChoice =
+      input.nullable &&
       widget.targetConfig.properties.containsKey(property.name);
   return (
     values: [
@@ -1539,13 +1537,15 @@ void _validateSynthesizedConstraints(PropertyEntry property) {
   final constraints = widgetbookConstraintsFor(property);
   if (constraints.isEmpty) return;
 
-  final isCollection = property.type == PropertyType.widgetList ||
+  final isCollection =
+      property.type == PropertyType.widgetList ||
       property.type == PropertyType.stringList ||
       property.type == PropertyType.booleanList ||
       property.type == PropertyType.integerList ||
       property.type == PropertyType.realList ||
       isCustomStructuredListShape(property.valueShape);
-  final collectionOnly = isCollection &&
+  final collectionOnly =
+      isCollection &&
       constraints.minimum == null &&
       constraints.exclusiveMinimum == null &&
       constraints.maximum == null &&
@@ -1596,8 +1596,7 @@ WidgetbookNativeValuePlan? _portableConstructorDefault(
   }
   plan ??= switch (constructorDefault) {
     NoWidgetConstructorDefault() ||
-    UnsupportedWidgetConstructorDefault() =>
-      null,
+    UnsupportedWidgetConstructorDefault() => null,
     StructuralWidgetConstructorDefault(:final value) =>
       WidgetbookDartConstValuePlan(type: type, value: value),
     NullWidgetConstructorDefault() =>
@@ -1666,7 +1665,8 @@ void _validateConstructorDefaultConstraints(
   required bool hasFiniteChoices,
 }) {
   final constraints = widgetbookConstraintsFor(property);
-  final hasValueConstraint = constraints.minimum != null ||
+  final hasValueConstraint =
+      constraints.minimum != null ||
       constraints.exclusiveMinimum != null ||
       constraints.maximum != null ||
       constraints.exclusiveMaximum != null ||
@@ -1748,38 +1748,39 @@ _ConstraintValidationTransport? _constructorConstraintValidationTransport(
       element?.library.identifier == 'dart:core' && element?.name == symbol;
   return switch (transport) {
     WidgetbookFiniteChoiceTransport.boolean => () {
-        final decoded = isDartCore('bool') ? value.toBoolValue() : null;
-        return (available: decoded != null, value: decoded);
-      }(),
+      final decoded = isDartCore('bool') ? value.toBoolValue() : null;
+      return (available: decoded != null, value: decoded);
+    }(),
     WidgetbookFiniteChoiceTransport.integer => () {
-        final decoded = isDartCore('int') ? value.toIntValue() : null;
-        return (available: decoded != null, value: decoded);
-      }(),
+      final decoded = isDartCore('int') ? value.toIntValue() : null;
+      return (available: decoded != null, value: decoded);
+    }(),
     WidgetbookFiniteChoiceTransport.real => () {
-        if (!isDartCore('double') && !isDartCore('num')) {
-          return (available: false, value: null);
-        }
-        final decoded = value.toDoubleValue() ?? value.toIntValue()?.toDouble();
-        return (
-          available: decoded != null && decoded.isFinite,
-          value: decoded,
-        );
-      }(),
+      if (!isDartCore('double') && !isDartCore('num')) {
+        return (available: false, value: null);
+      }
+      final decoded = value.toDoubleValue() ?? value.toIntValue()?.toDouble();
+      return (
+        available: decoded != null && decoded.isFinite,
+        value: decoded,
+      );
+    }(),
     WidgetbookFiniteChoiceTransport.string => () {
-        final decoded = isDartCore('String') ? value.toStringValue() : null;
-        return (available: decoded != null, value: decoded);
-      }(),
+      final decoded = isDartCore('String') ? value.toStringValue() : null;
+      return (available: decoded != null, value: decoded);
+    }(),
     WidgetbookFiniteChoiceTransport.enumMember => () {
-        final canonical = element is EnumElement
-            ? canonicalAnalyzerEnumConstant(value, element)
-            : null;
-        return (
-          available: canonical != null,
-          value: canonical?.identity.member,
-        );
-      }(),
-    WidgetbookFiniteChoiceTransport.color =>
-      _finiteColorConstructorValue(value),
+      final canonical = element is EnumElement
+          ? canonicalAnalyzerEnumConstant(value, element)
+          : null;
+      return (
+        available: canonical != null,
+        value: canonical?.identity.member,
+      );
+    }(),
+    WidgetbookFiniteChoiceTransport.color => _finiteColorConstructorValue(
+      value,
+    ),
     WidgetbookFiniteChoiceTransport.durationMilliseconds =>
       _finiteDurationConstructorValue(value),
     WidgetbookFiniteChoiceTransport.fontWeight =>
@@ -1820,7 +1821,8 @@ _ConstraintValidationTransport? _constructorConstraintValidationTransport(
     }
     return (
       available: true,
-      value: ((channels[0]! & 0xFF) << 24) |
+      value:
+          ((channels[0]! & 0xFF) << 24) |
           ((channels[1]! & 0xFF) << 16) |
           ((channels[2]! & 0xFF) << 8) |
           (channels[3]! & 0xFF),
@@ -1911,10 +1913,10 @@ WidgetbookStoryCallbackPlan _callbackPlan(
     ZeroArgumentCallback() => 0,
     SingleValueCallback() => 1,
     UnsupportedCallback(:final reason) => throw StateError(
-        "Widgetbook event '${widget.entry.name}.${property.name}' has an "
-        'unsupported callback signature ($reason). This is a Restage compiler '
-        'capability gap.',
-      ),
+      "Widgetbook event '${widget.entry.name}.${property.name}' has an "
+      'unsupported callback signature ($reason). This is a Restage compiler '
+      'capability gap.',
+    ),
   };
   final constructorDefault = switch (input.constructorDefault) {
     NoWidgetConstructorDefault() || NullWidgetConstructorDefault() => null,
@@ -1931,15 +1933,14 @@ WidgetbookStoryCallbackPlan _callbackPlan(
     LiteralWidgetConstructorDefault() ||
     EnumWidgetConstructorDefault() ||
     StructuralWidgetConstructorDefault() ||
-    UnsupportedWidgetConstructorDefault() =>
-      throw StateError(
-        'Widgetbook seed at /constructorDefaults/${property.name} cannot '
-        'reproduce constructor default '
-        '${input.formal.defaultValueCode ?? '<unrepresentable>'}. Make the '
-        'Dart default public, importable, and reconstructable; change the '
-        'constructor contract; use a catalog-facing wrapper; or ignore the '
-        'optional input where omission is semantically legal.',
-      ),
+    UnsupportedWidgetConstructorDefault() => throw StateError(
+      'Widgetbook seed at /constructorDefaults/${property.name} cannot '
+      'reproduce constructor default '
+      '${input.formal.defaultValueCode ?? '<unrepresentable>'}. Make the '
+      'Dart default public, importable, and reconstructable; change the '
+      'constructor contract; use a catalog-facing wrapper; or ignore the '
+      'optional input where omission is semantically legal.',
+    ),
   };
   return WidgetbookStoryCallbackPlan(
     nullable: input.nullable,
@@ -1961,8 +1962,7 @@ WidgetbookStoryEditableControl? _editableControlFor(PropertyEntry property) {
     PropertyType.alignment ||
     PropertyType.offset ||
     PropertyType.fontWeight ||
-    PropertyType.curve =>
-      null,
+    PropertyType.curve => null,
     PropertyType.widget ||
     PropertyType.widgetList ||
     PropertyType.enumValue ||
@@ -1990,10 +1990,9 @@ WidgetbookStoryEditableControl? _editableControlFor(PropertyEntry property) {
     PropertyType.inlineSpan ||
     PropertyType.decorationImage ||
     PropertyType.selectionOptionList ||
-    PropertyType.unknown =>
-      throw StateError(
-        "property '${property.name}' has no Widgetbook control",
-      ),
+    PropertyType.unknown => throw StateError(
+      "property '${property.name}' has no Widgetbook control",
+    ),
   };
 }
 
@@ -2020,39 +2019,39 @@ Object? _scalarPreview(DartType type, PropertyEntry property) {
     case PropertyType.real || PropertyType.length:
       return _numericPreview(property, integral: false);
     case PropertyType.widget ||
-          PropertyType.widgetList ||
-          PropertyType.color ||
-          PropertyType.edgeInsets ||
-          PropertyType.alignment ||
-          PropertyType.alignmentXY ||
-          PropertyType.offset ||
-          PropertyType.fontWeight ||
-          PropertyType.duration ||
-          PropertyType.curve ||
-          PropertyType.stringList ||
-          PropertyType.booleanList ||
-          PropertyType.integerList ||
-          PropertyType.realList ||
-          PropertyType.widgetBuilder ||
-          PropertyType.scalarCallback ||
-          PropertyType.event ||
-          PropertyType.dataReference ||
-          PropertyType.enumValue ||
-          PropertyType.gradient ||
-          PropertyType.border ||
-          PropertyType.boxShadowList ||
-          PropertyType.locale ||
-          PropertyType.paint ||
-          PropertyType.shadowList ||
-          PropertyType.fontFeatureList ||
-          PropertyType.fontVariationList ||
-          PropertyType.textDecoration ||
-          PropertyType.shapeBorder ||
-          PropertyType.structured ||
-          PropertyType.inlineSpan ||
-          PropertyType.decorationImage ||
-          PropertyType.selectionOptionList ||
-          PropertyType.unknown:
+        PropertyType.widgetList ||
+        PropertyType.color ||
+        PropertyType.edgeInsets ||
+        PropertyType.alignment ||
+        PropertyType.alignmentXY ||
+        PropertyType.offset ||
+        PropertyType.fontWeight ||
+        PropertyType.duration ||
+        PropertyType.curve ||
+        PropertyType.stringList ||
+        PropertyType.booleanList ||
+        PropertyType.integerList ||
+        PropertyType.realList ||
+        PropertyType.widgetBuilder ||
+        PropertyType.scalarCallback ||
+        PropertyType.event ||
+        PropertyType.dataReference ||
+        PropertyType.enumValue ||
+        PropertyType.gradient ||
+        PropertyType.border ||
+        PropertyType.boxShadowList ||
+        PropertyType.locale ||
+        PropertyType.paint ||
+        PropertyType.shadowList ||
+        PropertyType.fontFeatureList ||
+        PropertyType.fontVariationList ||
+        PropertyType.textDecoration ||
+        PropertyType.shapeBorder ||
+        PropertyType.structured ||
+        PropertyType.inlineSpan ||
+        PropertyType.decorationImage ||
+        PropertyType.selectionOptionList ||
+        PropertyType.unknown:
       return null;
   }
 }
@@ -2156,7 +2155,8 @@ void validateWidgetbookConstraintApplicability(
         : issue.pathSuffix;
     late final String detail;
     if (issue.message.startsWith('duplicate value ')) {
-      detail = 'duplicate $relativePath '
+      detail =
+          'duplicate $relativePath '
           '${issue.message.substring('duplicate '.length)}';
     } else if (relativePath.isEmpty) {
       detail = issue.message;
@@ -2177,11 +2177,13 @@ void validateWidgetbookConstraintApplicability(
     }
   }
 
-  final hasNumeric = constraints.minimum != null ||
+  final hasNumeric =
+      constraints.minimum != null ||
       constraints.exclusiveMinimum != null ||
       constraints.maximum != null ||
       constraints.exclusiveMaximum != null;
-  final numericProperty = property.type == PropertyType.integer ||
+  final numericProperty =
+      property.type == PropertyType.integer ||
       property.type == PropertyType.real ||
       property.type == PropertyType.duration ||
       property.type == PropertyType.fontWeight;
@@ -2192,10 +2194,12 @@ void validateWidgetbookConstraintApplicability(
     );
   }
 
-  final hasString = constraints.pattern != null ||
+  final hasString =
+      constraints.pattern != null ||
       constraints.minLength != null ||
       constraints.maxLength != null;
-  final stringProperty = property.type == PropertyType.string ||
+  final stringProperty =
+      property.type == PropertyType.string ||
       property.type == PropertyType.color ||
       property.type == PropertyType.enumValue;
   if (hasString && !stringProperty) {
@@ -2206,7 +2210,8 @@ void validateWidgetbookConstraintApplicability(
   }
 
   final hasItems = constraints.minItems != null || constraints.maxItems != null;
-  final collectionProperty = property.type == PropertyType.widgetList ||
+  final collectionProperty =
+      property.type == PropertyType.widgetList ||
       property.type == PropertyType.stringList ||
       property.type == PropertyType.booleanList ||
       property.type == PropertyType.integerList ||
@@ -2235,12 +2240,10 @@ void validateWidgetbookConstraintApplicability(
       PropertyType.integer => value is int,
       PropertyType.real ||
       PropertyType.duration ||
-      PropertyType.fontWeight =>
-        value is num && value.isFinite,
+      PropertyType.fontWeight => value is num && value.isFinite,
       PropertyType.string ||
       PropertyType.color ||
-      PropertyType.enumValue =>
-        value is String,
+      PropertyType.enumValue => value is String,
       _ => false,
     };
     if (!compatible) {

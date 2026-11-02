@@ -63,18 +63,16 @@ final class AnalyticsIdPresentationReservation {
   /// identity input.
   factory AnalyticsIdPresentationReservation.fromJoin(
     MeasurementPresentationOccurrenceJoin join,
-  ) =>
-      AnalyticsIdPresentationReservation(
-        generatedPresentationReferenceId: join.presentationReferenceId,
-        nodeCodeIdentityId: join.nodeCodeIdentityId,
-        canonicalNodeTokenId: join.canonicalNodeTokenId,
-        artifactOccurrenceEdgeToken: join.artifactOccurrenceEdgeToken,
-        presentationLineageId: join.draftPresentationLineageId,
-        displayMetadataRef: join.presentationDisplayMetadataRef,
-        presentationRouteCarrier: join.presentationRouteCarrier,
-        presentationRouteFingerprint:
-            join.presentationRouteFingerprint.fingerprint,
-      );
+  ) => AnalyticsIdPresentationReservation(
+    generatedPresentationReferenceId: join.presentationReferenceId,
+    nodeCodeIdentityId: join.nodeCodeIdentityId,
+    canonicalNodeTokenId: join.canonicalNodeTokenId,
+    artifactOccurrenceEdgeToken: join.artifactOccurrenceEdgeToken,
+    presentationLineageId: join.draftPresentationLineageId,
+    displayMetadataRef: join.presentationDisplayMetadataRef,
+    presentationRouteCarrier: join.presentationRouteCarrier,
+    presentationRouteFingerprint: join.presentationRouteFingerprint.fingerprint,
+  );
 
   /// Reserved presentation reference selected before artifact encoding.
   final GeneratedPresentationReferenceId generatedPresentationReferenceId;
@@ -105,27 +103,26 @@ final class AnalyticsIdPresentationReservation {
 
   /// Compiler reconciliation key used for deterministic order.
   String get sortKey => [
-        generatedPresentationReferenceId.value,
-        nodeCodeIdentityId.value,
-        canonicalNodeTokenId.value,
-        artifactOccurrenceEdgeToken.value,
-        presentationLineageId.value,
-        displayMetadataRef.value,
-        presentationRouteFingerprint.hex,
-        presentationRouteCarrier,
-      ].join('\u0000');
+    generatedPresentationReferenceId.value,
+    nodeCodeIdentityId.value,
+    canonicalNodeTokenId.value,
+    artifactOccurrenceEdgeToken.value,
+    presentationLineageId.value,
+    displayMetadataRef.value,
+    presentationRouteFingerprint.hex,
+    presentationRouteCarrier,
+  ].join('\u0000');
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
-        'canonicalNodeTokenId': canonicalNodeTokenId.value,
-        'displayMetadataRef': displayMetadataRef.value,
-        'generatedPresentationReferenceId':
-            generatedPresentationReferenceId.value,
-        'nodeCodeIdentityId': nodeCodeIdentityId.value,
-        'presentationLineageId': presentationLineageId.value,
-        'presentationRouteCarrier': presentationRouteCarrier,
-        'presentationRouteFingerprint': presentationRouteFingerprint.hex,
-      };
+    'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
+    'canonicalNodeTokenId': canonicalNodeTokenId.value,
+    'displayMetadataRef': displayMetadataRef.value,
+    'generatedPresentationReferenceId': generatedPresentationReferenceId.value,
+    'nodeCodeIdentityId': nodeCodeIdentityId.value,
+    'presentationLineageId': presentationLineageId.value,
+    'presentationRouteCarrier': presentationRouteCarrier,
+    'presentationRouteFingerprint': presentationRouteFingerprint.hex,
+  };
 
   factory AnalyticsIdPresentationReservation.fromJson(Object? value) {
     final json = _object(value, 'presentationReservation');
@@ -212,9 +209,9 @@ final class AnalyticsIdControlEntry {
   final AnalyticsIdPresentationReservation presentationReservation;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'analyticsId': analyticsId,
-        'presentationReservation': presentationReservation.toJson(),
-      };
+    'analyticsId': analyticsId,
+    'presentationReservation': presentationReservation.toJson(),
+  };
 
   factory AnalyticsIdControlEntry.fromJson(Object? value) {
     final json = _object(value, 'analyticsIdControlEntry');
@@ -258,13 +255,12 @@ final class AnalyticsIdControlPublicationScope {
   /// Builds the exact scope from one completed compiler publication.
   factory AnalyticsIdControlPublicationScope.fromCompilerPublication(
     MeasurementCompilerPublication publication,
-  ) =>
-      AnalyticsIdControlPublicationScope(
-        selector: publication.selector,
-        measurementSurfaceId: publication.draft.surfaceId,
-        routePlanClosureDigest: publication.routePlan.routeDraftClosureDigest,
-        finalTargetNeutralDraftDigest: publication.draft.canonicalDigest,
-      );
+  ) => AnalyticsIdControlPublicationScope(
+    selector: publication.selector,
+    measurementSurfaceId: publication.draft.surfaceId,
+    routePlanClosureDigest: publication.routePlan.routeDraftClosureDigest,
+    finalTargetNeutralDraftDigest: publication.draft.canonicalDigest,
+  );
 
   /// Target-neutral publication selector.
   final MeasurementPublicationSelectorV1 selector;
@@ -282,11 +278,11 @@ final class AnalyticsIdControlPublicationScope {
   String get key => selector.key;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'finalTargetNeutralDraftDigest': finalTargetNeutralDraftDigest.hex,
-        'measurementSurfaceId': measurementSurfaceId.value,
-        'routePlanClosureDigest': routePlanClosureDigest.hex,
-        'selector': selector.toJson(),
-      };
+    'finalTargetNeutralDraftDigest': finalTargetNeutralDraftDigest.hex,
+    'measurementSurfaceId': measurementSurfaceId.value,
+    'routePlanClosureDigest': routePlanClosureDigest.hex,
+    'selector': selector.toJson(),
+  };
 
   factory AnalyticsIdControlPublicationScope.fromJson(Object? value) {
     final json = _object(value, 'analyticsIdControlPublicationScope');
@@ -351,9 +347,9 @@ final class AnalyticsIdControlPublication {
   final List<AnalyticsIdControlEntry> entries;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        ...scope.toJson(),
-        'entries': <Object?>[for (final entry in entries) entry.toJson()],
-      };
+    ...scope.toJson(),
+    'entries': <Object?>[for (final entry in entries) entry.toJson()],
+  };
 
   factory AnalyticsIdControlPublication.fromJson(Object? value) {
     final json = _object(value, 'analyticsIdControlPublication');
@@ -375,8 +371,11 @@ final class AnalyticsIdControlPublication {
         'routePlanClosureDigest': json['routePlanClosureDigest'],
         'selector': json['selector'],
       }),
-      entries: _list(json, 'entries', 'analyticsIdControlPublication')
-          .map(AnalyticsIdControlEntry.fromJson),
+      entries: _list(
+        json,
+        'entries',
+        'analyticsIdControlPublication',
+      ).map(AnalyticsIdControlEntry.fromJson),
     );
   }
 }
@@ -401,13 +400,13 @@ final class AnalyticsIdControlOutputV1 {
   final List<AnalyticsIdControlPublication> publications;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'kind': 'restageAnalyticsIdControl',
-        'package': packageName,
-        'publications': <Object?>[
-          for (final publication in publications) publication.toJson(),
-        ],
-        'schemaVersion': 1,
-      };
+    'kind': 'restageAnalyticsIdControl',
+    'package': packageName,
+    'publications': <Object?>[
+      for (final publication in publications) publication.toJson(),
+    ],
+    'schemaVersion': 1,
+  };
 
   /// Deterministic JSON for a noncanonical current-value output.
   String encodeJson() => const JsonEncoder.withIndent('  ').convert(toJson());
@@ -430,8 +429,11 @@ final class AnalyticsIdControlOutputV1 {
     }
     return AnalyticsIdControlOutputV1(
       packageName: _string(json, 'package', 'analyticsIdControl'),
-      publications: _list(json, 'publications', 'analyticsIdControl')
-          .map(AnalyticsIdControlPublication.fromJson),
+      publications: _list(
+        json,
+        'publications',
+        'analyticsIdControl',
+      ).map(AnalyticsIdControlPublication.fromJson),
     );
   }
 }
@@ -518,14 +520,13 @@ final class AnalyticsIdControlBuildResult {
 AnalyticsIdControlOutputV1 buildEmptyAnalyticsIdControlOutput({
   required String packageName,
   required Iterable<AnalyticsIdControlPublicationScope> scopes,
-}) =>
-    AnalyticsIdControlOutputV1(
-      packageName: packageName,
-      publications: [
-        for (final scope in scopes)
-          AnalyticsIdControlPublication(scope: scope, entries: const []),
-      ],
-    );
+}) => AnalyticsIdControlOutputV1(
+  packageName: packageName,
+  publications: [
+    for (final scope in scopes)
+      AnalyticsIdControlPublication(scope: scope, entries: const []),
+  ],
+);
 
 /// Joins label captures to compiler-owned target-neutral reservations.
 ///
@@ -536,7 +537,7 @@ AnalyticsIdControlBuildResult buildAnalyticsIdControlOutput({
   required Iterable<AnalyticsIdControlPublicationScope> scopes,
   required Iterable<AnalyticsIdControlCapture> captures,
   required Iterable<MeasurementRfwPresentationArtifactMaterialization>
-      presentationMaterializations,
+  presentationMaterializations,
   required String location,
 }) {
   final scopeList = List<AnalyticsIdControlPublicationScope>.unmodifiable(
@@ -559,7 +560,8 @@ AnalyticsIdControlBuildResult buildAnalyticsIdControlOutput({
         issues.add(
           Issue(
             code: IssueCode.invalidAnalyticsId,
-            message: 'A presentation materialization does not match exactly '
+            message:
+                'A presentation materialization does not match exactly '
                 'one completed publication scope.',
             location: '$location/$sourceDeclarationIdentity',
           ),
@@ -571,8 +573,9 @@ AnalyticsIdControlBuildResult buildAnalyticsIdControlOutput({
           sourceDeclarationIdentity: sourceDeclarationIdentity,
           presentationHandle: join.handle,
           scope: matchingScopes.single,
-          presentationReservation:
-              AnalyticsIdPresentationReservation.fromJoin(join),
+          presentationReservation: AnalyticsIdPresentationReservation.fromJoin(
+            join,
+          ),
         ),
       );
     }
@@ -596,15 +599,14 @@ AnalyticsIdControlBuildResult buildAnalyticsIdControlOutputFromReservations({
   required Iterable<AnalyticsIdControlCapture> captures,
   required Iterable<AnalyticsIdResolvedControlReservation> reservations,
   required String location,
-}) =>
-    _buildAnalyticsIdControlOutput(
-      packageName: packageName,
-      scopes: scopes,
-      captures: captures,
-      reservations: reservations,
-      location: location,
-      initialIssues: const [],
-    );
+}) => _buildAnalyticsIdControlOutput(
+  packageName: packageName,
+  scopes: scopes,
+  captures: captures,
+  reservations: reservations,
+  location: location,
+  initialIssues: const [],
+);
 
 AnalyticsIdControlBuildResult _buildAnalyticsIdControlOutput({
   required String packageName,
@@ -622,20 +624,26 @@ AnalyticsIdControlBuildResult _buildAnalyticsIdControlOutput({
   };
   final entryByReservation = <String, AnalyticsIdControlEntry>{};
   final issues = <Issue>[...initialIssues];
-  final reservationsByCaptureKey = <(String, RfwCatalogOccurrenceHandle),
-      List<AnalyticsIdResolvedControlReservation>>{};
+  final reservationsByCaptureKey =
+      <
+        (String, RfwCatalogOccurrenceHandle),
+        List<AnalyticsIdResolvedControlReservation>
+      >{};
   for (final reservation in reservations) {
-    reservationsByCaptureKey.putIfAbsent(
-      (
-        reservation.sourceDeclarationIdentity,
-        reservation.presentationHandle,
-      ),
-      () => <AnalyticsIdResolvedControlReservation>[],
-    ).add(reservation);
+    reservationsByCaptureKey
+        .putIfAbsent(
+          (
+            reservation.sourceDeclarationIdentity,
+            reservation.presentationHandle,
+          ),
+          () => <AnalyticsIdResolvedControlReservation>[],
+        )
+        .add(reservation);
   }
 
   for (final sourceCapture in captures) {
-    final matchingReservations = reservationsByCaptureKey[(
+    final matchingReservations =
+        reservationsByCaptureKey[(
           sourceCapture.sourceDeclarationIdentity,
           sourceCapture.capture.presentationHandle,
         )] ??
@@ -644,7 +652,8 @@ AnalyticsIdControlBuildResult _buildAnalyticsIdControlOutput({
       issues.add(
         Issue(
           code: IssueCode.invalidAnalyticsId,
-          message: 'analyticsId did not resolve to exactly one target-neutral '
+          message:
+              'analyticsId did not resolve to exactly one target-neutral '
               'presentation materialization.',
           location: '$location/${sourceCapture.sourceDeclarationIdentity}',
         ),
@@ -657,7 +666,8 @@ AnalyticsIdControlBuildResult _buildAnalyticsIdControlOutput({
       issues.add(
         Issue(
           code: IssueCode.invalidAnalyticsId,
-          message: 'analyticsId reservation is absent from the completed '
+          message:
+              'analyticsId reservation is absent from the completed '
               'Measurement publication output.',
           location: '$location/${sourceCapture.sourceDeclarationIdentity}',
         ),
@@ -671,7 +681,8 @@ AnalyticsIdControlBuildResult _buildAnalyticsIdControlOutput({
       issues.add(
         Issue(
           code: IssueCode.invalidAnalyticsId,
-          message: 'analyticsId reservation does not match its presentation '
+          message:
+              'analyticsId reservation does not match its presentation '
               'route closure.',
           location: '$location/${sourceCapture.sourceDeclarationIdentity}',
         ),
@@ -682,7 +693,8 @@ AnalyticsIdControlBuildResult _buildAnalyticsIdControlOutput({
       analyticsId: sourceCapture.capture.analyticsId,
       presentationReservation: resolved.presentationReservation,
     );
-    final reservationKey = '${declaredScope.key}\u0000'
+    final reservationKey =
+        '${declaredScope.key}\u0000'
         '${entry.presentationReservation.replacementKey}';
     final previous = entryByReservation[reservationKey];
     if (previous != null) {
@@ -693,7 +705,8 @@ AnalyticsIdControlBuildResult _buildAnalyticsIdControlOutput({
         issues.add(
           Issue(
             code: IssueCode.invalidAnalyticsId,
-            message: 'Conflicting compiler reservations share one generated '
+            message:
+                'Conflicting compiler reservations share one generated '
                 'presentation reference.',
             location: '$location/${sourceCapture.sourceDeclarationIdentity}',
           ),
@@ -702,7 +715,8 @@ AnalyticsIdControlBuildResult _buildAnalyticsIdControlOutput({
         issues.add(
           Issue(
             code: IssueCode.invalidAnalyticsId,
-            message: 'Conflicting analyticsId declarations share one exact '
+            message:
+                'Conflicting analyticsId declarations share one exact '
                 'presentation reservation.',
             location: '$location/${sourceCapture.sourceDeclarationIdentity}',
           ),
@@ -758,11 +772,11 @@ bool _matchesPresentationRoute(
 ) {
   final expectedCarrier =
       MeasurementPublicationRouteCarrierV1.derivePresentation(
-    routeDraftClosureDigest: scope.routePlanClosureDigest,
-    artifactOccurrenceEdgeToken: reservation.artifactOccurrenceEdgeToken,
-    generatedPresentationReferenceId:
-        reservation.generatedPresentationReferenceId,
-  ).value;
+        routeDraftClosureDigest: scope.routePlanClosureDigest,
+        artifactOccurrenceEdgeToken: reservation.artifactOccurrenceEdgeToken,
+        generatedPresentationReferenceId:
+            reservation.generatedPresentationReferenceId,
+      ).value;
   if (reservation.presentationRouteCarrier != expectedCarrier) return false;
   return reservation.presentationRouteFingerprint ==
       OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(

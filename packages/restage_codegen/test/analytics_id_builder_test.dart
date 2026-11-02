@@ -47,74 +47,79 @@ widget Paywall = AcmeBadge(label: "Welcome", analyticsId: "checkout.primary");
     expect(logs.join('\n'), contains('[invalidAnalyticsId]'));
   });
 
-  test('raw RFW rejects a nonliteral occurrence label before output writes',
-      () async {
-    const source = '''
+  test(
+    'raw RFW rejects a nonliteral occurrence label before output writes',
+    () async {
+      const source = '''
 import acme.widgets;
 widget Paywall = AcmeBadge(label: "Welcome", analyticsId: args.label);
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-      includeFlutter: false,
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/paywalls/checkout.rfwtxt'),
-      source,
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
-      encodeCatalog(_catalog()),
-    );
-    final logs = <String>[];
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: false,
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/paywalls/checkout.rfwtxt'),
+        source,
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
+        encodeCatalog(_catalog()),
+      );
+      final logs = <String>[];
 
-    final result = await testBuilder(
-      restageCodegenBuilder(BuilderOptions.empty),
-      const {'apps_examples|lib/paywalls/checkout.rfwtxt': source},
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      outputs: const {},
-      onLog: (record) => logs.add(record.message),
-    );
+      final result = await testBuilder(
+        restageCodegenBuilder(BuilderOptions.empty),
+        const {'apps_examples|lib/paywalls/checkout.rfwtxt': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: const {},
+        onLog: (record) => logs.add(record.message),
+      );
 
-    expect(result.succeeded, isFalse);
-    expect(logs.join('\n'), contains('[invalidAnalyticsId]'));
-  });
+      expect(result.succeeded, isFalse);
+      expect(logs.join('\n'), contains('[invalidAnalyticsId]'));
+    },
+  );
 
-  test('raw RFW rejects an unknown labeled call before output writes',
-      () async {
-    const source = '''
+  test(
+    'raw RFW rejects an unknown labeled call before output writes',
+    () async {
+      const source = '''
 widget Paywall = Unknown(analyticsId: "checkout.primary");
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-      includeFlutter: false,
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/paywalls/checkout.rfwtxt'),
-      source,
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
-      encodeCatalog(_catalog()),
-    );
-    final logs = <String>[];
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: false,
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/paywalls/checkout.rfwtxt'),
+        source,
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
+        encodeCatalog(_catalog()),
+      );
+      final logs = <String>[];
 
-    final result = await testBuilder(
-      restageCodegenBuilder(BuilderOptions.empty),
-      const {'apps_examples|lib/paywalls/checkout.rfwtxt': source},
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      outputs: const {},
-      onLog: (record) => logs.add(record.message),
-    );
+      final result = await testBuilder(
+        restageCodegenBuilder(BuilderOptions.empty),
+        const {'apps_examples|lib/paywalls/checkout.rfwtxt': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: const {},
+        onLog: (record) => logs.add(record.message),
+      );
 
-    expect(result.succeeded, isFalse);
-    expect(logs.join('\n'), contains('[invalidAnalyticsId]'));
-  });
+      expect(result.succeeded, isFalse);
+      expect(logs.join('\n'), contains('[invalidAnalyticsId]'));
+    },
+  );
 
-  test('custom catalog rejects a constructor field named analyticsId',
-      () async {
-    const source = '''
+  test(
+    'custom catalog rejects a constructor field named analyticsId',
+    () async {
+      const source = '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 @RestageLibrary(library: WidgetLibrary.custom('acme.widgets'))
@@ -131,31 +136,32 @@ class AcmeBadge {
   final String? analyticsId;
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-      includeFlutter: false,
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/widgets/acme_badge.dart'),
-      source,
-    );
-    final logs = <String>[];
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: false,
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/widgets/acme_badge.dart'),
+        source,
+      );
+      final logs = <String>[];
 
-    final result = await testBuilder(
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      const {'apps_examples|lib/widgets/acme_badge.dart': source},
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      onLog: (record) => logs.add(record.message),
-    );
+      final result = await testBuilder(
+        userCatalogJsonBuilder(BuilderOptions.empty),
+        const {'apps_examples|lib/widgets/acme_badge.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: (record) => logs.add(record.message),
+      );
 
-    expect(result.succeeded, isFalse);
-    expect(logs.join('\n'), contains('[invalidSynthetic]'));
-  });
+      expect(result.succeeded, isFalse);
+      expect(logs.join('\n'), contains('[invalidSynthetic]'));
+    },
+  );
 }
 
 Future<({List<int> blob, String capabilitySidecar})>
-    _compileRawPaywall() async {
+_compileRawPaywall() async {
   const source = '''
 import acme.widgets;
 widget Paywall = AcmeBadge(label: "Welcome");

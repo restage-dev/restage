@@ -34,11 +34,12 @@ void main() {
       expect(w.childrenSlot, ChildrenSlot.none);
     });
 
-    test('adds the reserved analyticsId descriptor for an RFW catalog',
-        () async {
-      final result = await runWidgetVisitorOn(
-        {
-          'lib/foo.dart': '''
+    test(
+      'adds the reserved analyticsId descriptor for an RFW catalog',
+      () async {
+        final result = await runWidgetVisitorOn(
+          {
+            'lib/foo.dart': '''
             import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
             @RestageWidget(
@@ -53,18 +54,19 @@ void main() {
               final String? title;
             }
           ''',
-        },
-        includeAnalyticsId: true,
-      );
+          },
+          includeAnalyticsId: true,
+        );
 
-      expect(result.issues, isEmpty);
-      final property = result.widgets.single.properties.singleWhere(
-        (entry) => entry.name == kAnalyticsIdPropertyName,
-      );
-      expect(property.type, PropertyType.string);
-      expect(property.synthetic, kAnalyticsIdSyntheticStrategy);
-      expect(property.required, isFalse);
-    });
+        expect(result.issues, isEmpty);
+        final property = result.widgets.single.properties.singleWhere(
+          (entry) => entry.name == kAnalyticsIdPropertyName,
+        );
+        expect(property.type, PropertyType.string);
+        expect(property.synthetic, kAnalyticsIdSyntheticStrategy);
+        expect(property.required, isFalse);
+      },
+    );
 
     test('rejects a custom constructor collision with analyticsId', () async {
       final result = await runWidgetVisitorOn(
@@ -92,8 +94,9 @@ void main() {
         IssueCode.invalidSynthetic,
       ]);
       expect(
-        result.widgets.single.properties
-            .where((entry) => entry.name == kAnalyticsIdPropertyName),
+        result.widgets.single.properties.where(
+          (entry) => entry.name == kAnalyticsIdPropertyName,
+        ),
         hasLength(1),
       );
       expect(
@@ -131,11 +134,12 @@ void main() {
       expect(result.issues.single.code, IssueCode.missingAnnotationField);
     });
 
-    test('captures @RestageProperty fields with description and required',
-        () async {
-      final result = await runWidgetVisitorOn(
-        {
-          'lib/btn.dart': '''
+    test(
+      'captures @RestageProperty fields with description and required',
+      () async {
+        final result = await runWidgetVisitorOn(
+          {
+            'lib/btn.dart': '''
             import 'package:flutter/widgets.dart';
             import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -156,27 +160,29 @@ void main() {
               final void Function()? onArbitraryCustomAction;
             }
           ''',
-        },
-      );
+          },
+        );
 
-      expect(result.issues, isEmpty);
-      final w = result.widgets.single;
-      expect(w.childrenSlot, ChildrenSlot.none);
-      expect(w.properties, hasLength(2));
-      final child = w.properties.firstWhere((p) => p.name == 'child');
-      expect(child.required, isTrue);
-      expect(child.type, PropertyType.widget);
-      final tap = w.properties.firstWhere(
-        (p) => p.name == 'onArbitraryCustomAction',
-      );
-      expect(tap.required, isFalse);
-      expect(tap.type, PropertyType.event);
-    });
+        expect(result.issues, isEmpty);
+        final w = result.widgets.single;
+        expect(w.childrenSlot, ChildrenSlot.none);
+        expect(w.properties, hasLength(2));
+        final child = w.properties.firstWhere((p) => p.name == 'child');
+        expect(child.required, isTrue);
+        expect(child.type, PropertyType.widget);
+        final tap = w.properties.firstWhere(
+          (p) => p.name == 'onArbitraryCustomAction',
+        );
+        expect(tap.required, isFalse);
+        expect(tap.type, PropertyType.event);
+      },
+    );
 
-    test('RFW admits callbacks structurally and rejects unsupported shapes',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/callbacks.dart': '''
+    test(
+      'RFW admits callbacks structurally and rejects unsupported shapes',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/callbacks.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
           class Payload {}
@@ -226,53 +232,55 @@ void main() {
             final void Function(Payload)? onPayload;
           }
         ''',
-      });
+        });
 
-      final properties = {
-        for (final property in result.widgets.single.properties)
-          property.name: property,
-      };
-      expect(
-        properties['onArbitraryCustomAction']!.callbackSignature,
-        isNull,
-      );
-      expect(
-        properties['onValue']!.callbackSignature,
-        'ValueChanged<String>',
-      );
-      expect(
-        properties['onNullableValue']!.callbackSignature,
-        'ValueChanged<String?>',
-      );
-      expect(
-        properties['onValues']!.callbackSignature,
-        'ValueChanged<List<String>>',
-      );
-      expect(
-        properties['onValuesWithNullableElements']!.callbackSignature,
-        'ValueChanged<List<String?>>',
-      );
-      final invalid = result.issues
-          .where((issue) => issue.code == IssueCode.invalidEventConfiguration)
-          .toList();
-      expect(invalid, hasLength(6));
-      expect(
-        invalid.map((issue) => issue.location),
-        containsAll([
-          'lib/callbacks.dart#Callbacks.onNestedValues',
-          'lib/callbacks.dart#Callbacks.onOuterNullableValues',
-          'lib/callbacks.dart#Callbacks.onOptional',
-          'lib/callbacks.dart#Callbacks.onTwoValues',
-          'lib/callbacks.dart#Callbacks.onReturningValue',
-          'lib/callbacks.dart#Callbacks.onPayload',
-        ]),
-      );
-    });
+        final properties = {
+          for (final property in result.widgets.single.properties)
+            property.name: property,
+        };
+        expect(
+          properties['onArbitraryCustomAction']!.callbackSignature,
+          isNull,
+        );
+        expect(
+          properties['onValue']!.callbackSignature,
+          'ValueChanged<String>',
+        );
+        expect(
+          properties['onNullableValue']!.callbackSignature,
+          'ValueChanged<String?>',
+        );
+        expect(
+          properties['onValues']!.callbackSignature,
+          'ValueChanged<List<String>>',
+        );
+        expect(
+          properties['onValuesWithNullableElements']!.callbackSignature,
+          'ValueChanged<List<String?>>',
+        );
+        final invalid = result.issues
+            .where((issue) => issue.code == IssueCode.invalidEventConfiguration)
+            .toList();
+        expect(invalid, hasLength(6));
+        expect(
+          invalid.map((issue) => issue.location),
+          containsAll([
+            'lib/callbacks.dart#Callbacks.onNestedValues',
+            'lib/callbacks.dart#Callbacks.onOuterNullableValues',
+            'lib/callbacks.dart#Callbacks.onOptional',
+            'lib/callbacks.dart#Callbacks.onTwoValues',
+            'lib/callbacks.dart#Callbacks.onReturningValue',
+            'lib/callbacks.dart#Callbacks.onPayload',
+          ]),
+        );
+      },
+    );
 
-    test('leaves out only the widget whose required input has no decoder',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/foo.dart': '''
+    test(
+      'leaves out only the widget whose required input has no decoder',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/foo.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
           class Mystery {}
@@ -289,22 +297,24 @@ void main() {
             final Mystery weird;
           }
         ''',
-      });
+        });
 
-      // The widget cannot be built without the input, so it is left out of
-      // the catalog; the rest of the library still builds.
-      expect(result.issues, isEmpty);
-      expect(
-        result.widgetUnrenderable.values.single,
-        contains('Mystery'),
-      );
-      expect(result.exclusions.single.property, 'weird');
-    });
+        // The widget cannot be built without the input, so it is left out of
+        // the catalog; the rest of the library still builds.
+        expect(result.issues, isEmpty);
+        expect(
+          result.widgetUnrenderable.values.single,
+          contains('Mystery'),
+        );
+        expect(result.exclusions.single.property, 'weird');
+      },
+    );
 
-    test('records why a widget with an excluded map input is left out',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/foo.dart': '''
+    test(
+      'records why a widget with an excluded map input is left out',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/foo.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
           @RestageWidget(
@@ -319,17 +329,17 @@ void main() {
             final Map<Object, String> labels;
           }
         ''',
-      });
+        });
 
-      expect(result.widgetUnrenderable.values.single, contains('Map slot'));
-      final excluded = result.exclusions.single;
-      expect(excluded.widget, 'Foo');
-      expect(excluded.property, 'labels');
-      expect(excluded.reason, contains('Map slot on Foo.labels'));
-    });
+        expect(result.widgetUnrenderable.values.single, contains('Map slot'));
+        final excluded = result.exclusions.single;
+        expect(excluded.widget, 'Foo');
+        expect(excluded.property, 'labels');
+        expect(excluded.reason, contains('Map slot on Foo.labels'));
+      },
+    );
 
-    test(
-        'records an exclusion instead of failing for an OPTIONAL input '
+    test('records an exclusion instead of failing for an OPTIONAL input '
         'whose type has no decoder', () async {
       final result = await runWidgetVisitorOn({
         'lib/foo.dart': '''
@@ -437,11 +447,12 @@ void main() {
       );
     });
 
-    test('named A2UI target derives the complete constructor-required matrix',
-        () async {
-      final result = await runWidgetVisitorOn(
-        {
-          'lib/requiredness.dart': '''
+    test(
+      'named A2UI target derives the complete constructor-required matrix',
+      () async {
+        final result = await runWidgetVisitorOn(
+          {
+            'lib/requiredness.dart': '''
             import 'package:flutter/widgets.dart';
             import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -493,40 +504,40 @@ void main() {
               final void Function() onTap;
             }
           ''',
-        },
-        target: WidgetVisitorTarget.a2ui,
-      );
+          },
+          target: WidgetVisitorTarget.a2ui,
+        );
 
-      expect(result.issues, isEmpty);
-      final properties = {
-        for (final property in result.widgets.single.properties)
-          property.name: property,
-      };
-      for (final name in [
-        'title',
-        'tone',
-        'counts',
-        'details',
-        'child',
-        'children',
-        'maybeTitle',
-      ]) {
-        expect(properties[name]!.required, isTrue, reason: name);
-      }
-      expect(properties['optionalLabel']!.required, isFalse);
-      expect(properties['defaultedCount']!.required, isFalse);
-      expect(properties['onTap']!.required, isTrue);
-      expect(properties['onTap']!.type, PropertyType.event);
-      expect(properties['tone']!.enumType, 'Tone');
-      expect(properties['tone']!.valueShape, isA<EnumShape>());
-      expect(properties['counts']!.type, PropertyType.structured);
-      expect(properties['details']!.type, PropertyType.structured);
-      expect(properties['child']!.type, PropertyType.widget);
-      expect(properties['children']!.type, PropertyType.widgetList);
-    });
+        expect(result.issues, isEmpty);
+        final properties = {
+          for (final property in result.widgets.single.properties)
+            property.name: property,
+        };
+        for (final name in [
+          'title',
+          'tone',
+          'counts',
+          'details',
+          'child',
+          'children',
+          'maybeTitle',
+        ]) {
+          expect(properties[name]!.required, isTrue, reason: name);
+        }
+        expect(properties['optionalLabel']!.required, isFalse);
+        expect(properties['defaultedCount']!.required, isFalse);
+        expect(properties['onTap']!.required, isTrue);
+        expect(properties['onTap']!.type, PropertyType.event);
+        expect(properties['tone']!.enumType, 'Tone');
+        expect(properties['tone']!.valueShape, isA<EnumShape>());
+        expect(properties['counts']!.type, PropertyType.structured);
+        expect(properties['details']!.type, PropertyType.structured);
+        expect(properties['child']!.type, PropertyType.widget);
+        expect(properties['children']!.type, PropertyType.widgetList);
+      },
+    );
 
-    test('the named RFW target is byte-neutral with the legacy default',
-        () async {
+    test('the named RFW target is byte-neutral with the legacy default', () async {
       const sources = <String, String>{
         'lib/rfw_requiredness.dart': '''
           import 'package:flutter/widgets.dart';
@@ -574,24 +585,24 @@ void main() {
       );
       List<(String, PropertyType, bool, bool)> snapshot(
         WidgetVisitorResult result,
-      ) =>
-          [
-            for (final property in result.widgets.single.properties)
-              (
-                property.name,
-                property.type,
-                property.required,
-                property.positional,
-              ),
-          ];
+      ) => [
+        for (final property in result.widgets.single.properties)
+          (
+            property.name,
+            property.type,
+            property.required,
+            property.positional,
+          ),
+      ];
 
       expect(
         named.issues.map((issue) => issue.code),
         legacy.issues.map((issue) => issue.code),
       );
       expect(snapshot(named), snapshot(legacy));
-      final namedTone = named.widgets.single.properties
-          .singleWhere((property) => property.name == 'tone');
+      final namedTone = named.widgets.single.properties.singleWhere(
+        (property) => property.name == 'tone',
+      );
       // The RFW target now carries the custom enum's identity — it
       // was previously dropped here, which made the RFW custom catalog reject
       // the enum slot. The RFW-vs-legacy-default byte-neutrality asserted above
@@ -611,11 +622,12 @@ void main() {
       );
     });
 
-    test('A2UI mode still rejects a list whose element is not a scalar',
-        () async {
-      final result = await runWidgetVisitorOn(
-        {
-          'lib/unsupported_list.dart': '''
+    test(
+      'A2UI mode still rejects a list whose element is not a scalar',
+      () async {
+        final result = await runWidgetVisitorOn(
+          {
+            'lib/unsupported_list.dart': '''
             import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
             @RestageWidget(
@@ -631,33 +643,35 @@ void main() {
               final List<DateTime> timestamps;
             }
           ''',
-        },
-        target: WidgetVisitorTarget.a2ui,
-      );
+          },
+          target: WidgetVisitorTarget.a2ui,
+        );
 
-      expect(result.widgets.single.properties, isEmpty);
-      expect(
-        result.issues,
-        contains(
-          isA<Issue>()
-              .having(
-                (issue) => issue.code,
-                'code',
-                IssueCode.unsupportedPropertyType,
-              )
-              .having(
-                (issue) => issue.message,
-                'message',
-                allOf(contains('List<DateTime>'), contains('List<scalar>')),
-              ),
-        ),
-      );
-    });
+        expect(result.widgets.single.properties, isEmpty);
+        expect(
+          result.issues,
+          contains(
+            isA<Issue>()
+                .having(
+                  (issue) => issue.code,
+                  'code',
+                  IssueCode.unsupportedPropertyType,
+                )
+                .having(
+                  (issue) => issue.message,
+                  'message',
+                  allOf(contains('List<DateTime>'), contains('List<scalar>')),
+                ),
+          ),
+        );
+      },
+    );
 
-    test('synthesizes flutterType from the class library URI + class name',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/foo.dart': '''
+    test(
+      'synthesizes flutterType from the class library URI + class name',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/foo.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
           @RestageWidget(
@@ -668,12 +682,12 @@ void main() {
           )
           class Foo { const Foo(); }
         ''',
-      });
-      expect(result.widgets.single.flutterType, endsWith('foo.dart#Foo'));
-    });
+        });
+        expect(result.widgets.single.flutterType, endsWith('foo.dart#Foo'));
+      },
+    );
 
-    test(
-        'emits duplicateWidgetName when two @RestageWidget classes share a '
+    test('emits duplicateWidgetName when two @RestageWidget classes share a '
         'name in the same library', () async {
       final result = await runWidgetVisitorOn({
         'lib/foo.dart': '''
@@ -697,8 +711,9 @@ void main() {
         ''',
       });
 
-      final issue = result.issues
-          .firstWhere((i) => i.code == IssueCode.duplicateWidgetName);
+      final issue = result.issues.firstWhere(
+        (i) => i.code == IssueCode.duplicateWidgetName,
+      );
       expect(issue.message, contains('A'));
       expect(issue.message, contains('B'));
       expect(issue.message, contains('acme.design_system'));
@@ -762,16 +777,18 @@ void main() {
         ''',
       });
       expect(result.widgets, isEmpty);
-      final issue = result.issues
-          .firstWhere((i) => i.code == IssueCode.missingAnnotationField);
+      final issue = result.issues.firstWhere(
+        (i) => i.code == IssueCode.missingAnnotationField,
+      );
       expect(issue.message, contains('Foo'));
       expect(issue.message.toLowerCase(), contains('compile-time constant'));
     });
 
-    test('decodes literal defaultSource and defaultBrandToken on properties',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/btn.dart': '''
+    test(
+      'decodes literal defaultSource and defaultBrandToken on properties',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/btn.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
           @RestageWidget(
@@ -796,15 +813,16 @@ void main() {
             final int padding;
           }
         ''',
-      });
-      expect(result.issues, isEmpty);
-      final byName = {
-        for (final p in result.widgets.single.properties) p.name: p,
-      };
-      expect(byName['label']!.defaultValue, 'Buy');
-      expect(byName['color']!.defaultBrandToken, 'primary');
-      expect(byName['padding']!.defaultValue, 12);
-    });
+        });
+        expect(result.issues, isEmpty);
+        final byName = {
+          for (final p in result.widgets.single.properties) p.name: p,
+        };
+        expect(byName['label']!.defaultValue, 'Buy');
+        expect(byName['color']!.defaultBrandToken, 'primary');
+        expect(byName['padding']!.defaultValue, 12);
+      },
+    );
 
     test('decodes @RestageProperty defaultSource', () async {
       final result = await runWidgetVisitorOn({
@@ -855,11 +873,12 @@ void main() {
       );
     });
 
-    test('decodes typed constraints and legacy validation without loss',
-        () async {
-      final result = await runWidgetVisitorOn(
-        {
-          'lib/constrained.dart': '''
+    test(
+      'decodes typed constraints and legacy validation without loss',
+      () async {
+        final result = await runWidgetVisitorOn(
+          {
+            'lib/constrained.dart': '''
             import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
             @RestageWidget(
@@ -923,59 +942,60 @@ void main() {
               final String legacy;
             }
           ''',
-        },
-        target: WidgetVisitorTarget.a2ui,
-      );
+          },
+          target: WidgetVisitorTarget.a2ui,
+        );
 
-      expect(result.issues, isEmpty);
-      final properties = {
-        for (final property in result.widgets.single.properties)
-          property.name: property,
-      };
-      expect(
-        properties['count']!.constraints,
-        const RestageConstraints(
-          minimum: 1,
-          exclusiveMaximum: 11,
-          allowedValues: [1, 2, null],
-        ),
-      );
-      expect(properties['count']!.constraints.minimum, isA<int>());
-      expect(properties['count']!.constraints.exclusiveMaximum, isA<int>());
-      expect(
-        () => properties['count']!.constraints.allowedValues!.add(3),
-        throwsUnsupportedError,
-      );
-      expect(
-        properties['ratio']!.constraints,
-        const RestageConstraints(exclusiveMinimum: 0.5, maximum: 9.5),
-      );
-      expect(
-        properties['ratio']!.constraints.exclusiveMinimum,
-        isA<double>(),
-      );
-      expect(properties['ratio']!.constraints.maximum, isA<double>());
-      expect(
-        properties['label']!.constraints,
-        const RestageConstraints(
-          allowedValues: ['short', 'long', null],
-          pattern: '^[a-z]+',
-          minLength: 2,
-          maxLength: 8,
-        ),
-      );
-      expect(
-        properties['options']!.constraints,
-        const RestageConstraints(minItems: 1, maxItems: 4),
-      );
-      expect(
-        properties['legacy']!.validationRule,
-        const ValidationExpr(
-          expression: 'legacy(value) == true',
-          message: 'Keep this message exactly.',
-        ),
-      );
-    });
+        expect(result.issues, isEmpty);
+        final properties = {
+          for (final property in result.widgets.single.properties)
+            property.name: property,
+        };
+        expect(
+          properties['count']!.constraints,
+          const RestageConstraints(
+            minimum: 1,
+            exclusiveMaximum: 11,
+            allowedValues: [1, 2, null],
+          ),
+        );
+        expect(properties['count']!.constraints.minimum, isA<int>());
+        expect(properties['count']!.constraints.exclusiveMaximum, isA<int>());
+        expect(
+          () => properties['count']!.constraints.allowedValues!.add(3),
+          throwsUnsupportedError,
+        );
+        expect(
+          properties['ratio']!.constraints,
+          const RestageConstraints(exclusiveMinimum: 0.5, maximum: 9.5),
+        );
+        expect(
+          properties['ratio']!.constraints.exclusiveMinimum,
+          isA<double>(),
+        );
+        expect(properties['ratio']!.constraints.maximum, isA<double>());
+        expect(
+          properties['label']!.constraints,
+          const RestageConstraints(
+            allowedValues: ['short', 'long', null],
+            pattern: '^[a-z]+',
+            minLength: 2,
+            maxLength: 8,
+          ),
+        );
+        expect(
+          properties['options']!.constraints,
+          const RestageConstraints(minItems: 1, maxItems: 4),
+        );
+        expect(
+          properties['legacy']!.validationRule,
+          const ValidationExpr(
+            expression: 'legacy(value) == true',
+            message: 'Keep this message exactly.',
+          ),
+        );
+      },
+    );
 
     test('rejects typed constraints combined with legacy validation', () async {
       final result = await runWidgetVisitorOn({
@@ -1079,10 +1099,11 @@ void main() {
       expect(invalid[1].message, contains('double'));
     });
 
-    test('rejects non-finite numeric constraint bounds with bound context',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/non_finite_bounds.dart': '''
+    test(
+      'rejects non-finite numeric constraint bounds with bound context',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/non_finite_bounds.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
           @RestageWidget(
@@ -1128,34 +1149,34 @@ void main() {
             final double exclusiveMaximum;
           }
         ''',
-      });
+        });
 
-      expect(result.widgets.single.properties, isEmpty);
-      final invalid = result.issues
-          .where((issue) => issue.code == IssueCode.invalidConstraintValue)
-          .toList();
-      expect(invalid, hasLength(4));
-      for (final bound in const [
-        'minimum',
-        'exclusiveMinimum',
-        'maximum',
-        'exclusiveMaximum',
-      ]) {
-        expect(
-          invalid.map((issue) => issue.message),
-          contains(
-            allOf(
-              contains('constraints.$bound'),
-              contains('NonFiniteBounds.$bound'),
-              contains('finite compile-time constant int or double'),
+        expect(result.widgets.single.properties, isEmpty);
+        final invalid = result.issues
+            .where((issue) => issue.code == IssueCode.invalidConstraintValue)
+            .toList();
+        expect(invalid, hasLength(4));
+        for (final bound in const [
+          'minimum',
+          'exclusiveMinimum',
+          'maximum',
+          'exclusiveMaximum',
+        ]) {
+          expect(
+            invalid.map((issue) => issue.message),
+            contains(
+              allOf(
+                contains('constraints.$bound'),
+                contains('NonFiniteBounds.$bound'),
+                contains('finite compile-time constant int or double'),
+              ),
             ),
-          ),
-        );
-      }
-    });
+          );
+        }
+      },
+    );
 
-    test(
-        'typed singleton WidgetLibrary.core resolves to its built-in '
+    test('typed singleton WidgetLibrary.core resolves to its built-in '
         'namespace', () async {
       final result = await runWidgetVisitorOn({
         'lib/foo.dart': '''
@@ -1174,8 +1195,7 @@ void main() {
       expect(result.widgets.single.library.namespace, 'restage.core');
     });
 
-    test(
-        'a positional constructor parameter marks the property positional '
+    test('a positional constructor parameter marks the property positional '
         '(so the emitted constructor call is positional, not named)', () async {
       final result = await runWidgetVisitorOn({
         'lib/badge_card.dart': '''
@@ -1198,16 +1218,18 @@ void main() {
       expect(
         result.widgets.single.properties.single.positional,
         isTrue,
-        reason: 'a positional ctor param must mark the property positional so '
+        reason:
+            'a positional ctor param must mark the property positional so '
             'the generated constructor call is BadgeCard(label), not '
             'BadgeCard(label: ...) — the latter does not compile',
       );
     });
 
-    test('a named constructor parameter leaves the property non-positional',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/badge_card.dart': '''
+    test(
+      'a named constructor parameter leaves the property non-positional',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/badge_card.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
           @RestageWidget(
@@ -1222,13 +1244,13 @@ void main() {
             final String label;
           }
         ''',
-      });
-      expect(result.issues, isEmpty);
-      expect(result.widgets.single.properties.single.positional, isFalse);
-    });
+        });
+        expect(result.issues, isEmpty);
+        expect(result.widgets.single.properties.single.positional, isFalse);
+      },
+    );
 
-    test(
-        'an unresolvable @RestageWidget is reported, not silently treated '
+    test('an unresolvable @RestageWidget is reported, not silently treated '
         'as not-a-widget', () async {
       // No import, so the annotation does not resolve. Skipping it would make
       // the class quietly absent from the catalog with nothing to look at.
@@ -1259,13 +1281,14 @@ void main() {
       );
     });
 
-    test('an unresolvable @ignore is reported, not treated as absent',
-        () async {
-      // Treating it as absent would INCLUDE an input the author excluded,
-      // which is the more dangerous direction: the exclusion silently stops
-      // applying and nothing says so.
-      final result = await runWidgetVisitorOn({
-        'lib/foo.dart': '''
+    test(
+      'an unresolvable @ignore is reported, not treated as absent',
+      () async {
+        // Treating it as absent would INCLUDE an input the author excluded,
+        // which is the more dangerous direction: the exclusion silently stops
+        // applying and nothing says so.
+        final result = await runWidgetVisitorOn({
+          'lib/foo.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
               hide ignore;
 
@@ -1281,18 +1304,21 @@ void main() {
             final int retries;
           }
         ''',
-      });
+        });
 
-      expect(
-        result.issues.map((i) => i.code),
-        contains(IssueCode.invalidWidgetConstructorInput),
-      );
-      final message = result.issues
-          .firstWhere((i) => i.code == IssueCode.invalidWidgetConstructorInput)
-          .message;
-      expect(message, contains('retries'));
-      expect(message.toLowerCase(), contains('resolve'));
-    });
+        expect(
+          result.issues.map((i) => i.code),
+          contains(IssueCode.invalidWidgetConstructorInput),
+        );
+        final message = result.issues
+            .firstWhere(
+              (i) => i.code == IssueCode.invalidWidgetConstructorInput,
+            )
+            .message;
+        expect(message, contains('retries'));
+        expect(message.toLowerCase(), contains('resolve'));
+      },
+    );
 
     test('a resolved @ignore excludes exactly its own input', () async {
       // Regression guard for the ordinary case: the exclusion applies, and it
@@ -1324,12 +1350,13 @@ void main() {
       );
     });
 
-    test('a foreign @ignore that merely shares the name is not honoured',
-        () async {
-      // Identity is the defining library, not the spelling. Another package's
-      // `@ignore` must not silently remove an input from our catalog.
-      final result = await runWidgetVisitorOn({
-        'lib/foo.dart': '''
+    test(
+      'a foreign @ignore that merely shares the name is not honoured',
+      () async {
+        // Identity is the defining library, not the spelling. Another package's
+        // `@ignore` must not silently remove an input from our catalog.
+        final result = await runWidgetVisitorOn({
+          'lib/foo.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
               hide ignore;
 
@@ -1353,14 +1380,15 @@ void main() {
             final int retries;
           }
         ''',
-      });
+        });
 
-      expect(result.issues, isEmpty);
-      expect(result.widgets, hasLength(1));
-      expect(
-        result.widgets.single.properties.map((p) => p.name),
-        equals(['label', 'retries']),
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(result.widgets, hasLength(1));
+        expect(
+          result.widgets.single.properties.map((p) => p.name),
+          equals(['label', 'retries']),
+        );
+      },
+    );
   });
 }

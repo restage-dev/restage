@@ -16,25 +16,25 @@ import 'helpers.dart';
 
 void main() {
   ExpressionTranslator translator() => ExpressionTranslator(
-        catalog: catalogWith([
-          entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
-          entry(
-            name: 'SizedBox',
-            properties: [
-              prop('width', PropertyType.length),
-              prop('child', PropertyType.widget),
-            ],
-          ),
-          entry(
-            name: 'GestureDetector',
-            properties: [
-              prop('onTap', PropertyType.event),
-              prop('child', PropertyType.widget),
-            ],
-          ),
-        ]),
-        helpers: HelperRegistry()..registerAll(paywallHelpers),
-      );
+    catalog: catalogWith([
+      entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
+      entry(
+        name: 'SizedBox',
+        properties: [
+          prop('width', PropertyType.length),
+          prop('child', PropertyType.widget),
+        ],
+      ),
+      entry(
+        name: 'GestureDetector',
+        properties: [
+          prop('onTap', PropertyType.event),
+          prop('child', PropertyType.widget),
+        ],
+      ),
+    ]),
+    helpers: HelperRegistry()..registerAll(paywallHelpers),
+  );
 
   const annual = CustomWidgetStateField(
     name: 'annual',
@@ -47,17 +47,20 @@ void main() {
     initialValue: true,
   );
 
-  test('a parenthesized ternary lowers like the unparenthesized form',
-      () async {
-    final expr =
-        await parseExpressionForTest("Text(text: (annual ? 'A' : 'B'))");
-    final result = translator().translate(expr, rootState: [annual]);
-    expect(result.issues, isEmpty);
-    expect(
-      result.dsl,
-      contains('text: switch state.annual { true: "A", false: "B" }'),
-    );
-  });
+  test(
+    'a parenthesized ternary lowers like the unparenthesized form',
+    () async {
+      final expr = await parseExpressionForTest(
+        "Text(text: (annual ? 'A' : 'B'))",
+      );
+      final result = translator().translate(expr, rootState: [annual]);
+      expect(result.issues, isEmpty);
+      expect(
+        result.dsl,
+        contains('text: switch state.annual { true: "A", false: "B" }'),
+      );
+    },
+  );
 
   test('a parenthesized conditional purchase helper is rejected', () async {
     final expr = await parseExpressionForTest(
@@ -76,11 +79,11 @@ void main() {
     );
   });
 
-  test(
-      'ASYMMETRY GUARD: a parenthesized conditional at a numeric slot keeps '
+  test('ASYMMETRY GUARD: a parenthesized conditional at a numeric slot keeps '
       'the per-branch double coercion (not bare ints)', () async {
-    final expr =
-        await parseExpressionForTest('SizedBox(width: (annual ? 0 : 8))');
+    final expr = await parseExpressionForTest(
+      'SizedBox(width: (annual ? 0 : 8))',
+    );
     final result = translator().translate(expr, rootState: [annual]);
     expect(result.issues, isEmpty);
     expect(

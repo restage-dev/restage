@@ -18,19 +18,21 @@ const _fixtureDartPaths = <String>[
 ];
 
 void main() {
-  test('a widget with an undecodable required input leaves out only itself',
-      () async {
-    final compiled = await _compileFixture();
-    expect(compiled.succeeded, isTrue, reason: compiled.log);
-    expect(
-      compiled.log,
-      allOf(
-        contains('AppClock is excluded from the RFW catalog/factory'),
-        contains('AppClock.moment'),
-        isNot(contains("This package's widget catalog did not build")),
-      ),
-    );
-  });
+  test(
+    'a widget with an undecodable required input leaves out only itself',
+    () async {
+      final compiled = await _compileFixture();
+      expect(compiled.succeeded, isTrue, reason: compiled.log);
+      expect(
+        compiled.log,
+        allOf(
+          contains('AppClock is excluded from the RFW catalog/factory'),
+          contains('AppClock.moment'),
+          isNot(contains("This package's widget catalog did not build")),
+        ),
+      );
+    },
+  );
 }
 
 Future<({bool succeeded, String log})> _compileFixture() async {
@@ -87,8 +89,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -100,13 +103,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');

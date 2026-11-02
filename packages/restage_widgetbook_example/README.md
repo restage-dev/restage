@@ -90,8 +90,8 @@ flutter build web --no-tree-shake-icons
 The flag is needed because the workbench includes the RFW runtime, which
 builds icons from runtime values.
 
-For GenUI, use the generated `buildRestageCatalog()` with a `SurfaceController`
-and render a `Surface` from its context. The [A2UI guide](https://docs.restage.dev/tools/a2ui)
+For A2UI, use the generated `buildRestageCatalog()` with a `MessageProcessor`
+and render an `A2uiSurface` from `processor.model.getSurface(id)`. The [A2UI guide](https://docs.restage.dev/tools/a2ui)
 shows message handling and controller disposal. A2UI and Widgetbook build the
 native widgets; separate tests check delivered RFW rendering.
 
@@ -121,3 +121,7 @@ This example uses `widgetbook` 4.0.0-beta.14 and its bundled generator.
 ## License
 
 BSD-3-Clause. See [LICENSE](LICENSE).
+
+The A2UI v1 integration is unreleased. Use repository/workspace Restage packages
+with `a2ui_flutter 0.0.1-wip003` and `a2ui_core ^0.4.0`. Hosted
+`restage_a2ui 0.2.0` and `restage_codegen 2.0.0` do not contain this migration.

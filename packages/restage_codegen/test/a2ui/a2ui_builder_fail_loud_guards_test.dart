@@ -40,11 +40,9 @@ Future<(bool succeeded, String logs)> _runBuilder(
 }
 
 void main() {
-  group(
-      'UserA2uiCatalogBuilder — fail-loud guards survive custom-only '
+  group('UserA2uiCatalogBuilder — fail-loud guards survive custom-only '
       'assembly', () {
-    test(
-        'a duplicate (library, name) across files fails loud — the flat A2UI '
+    test('a duplicate (library, name) across files fails loud — the flat A2UI '
         'catalog cannot carry two components of the same name', () async {
       const fileA = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -78,15 +76,16 @@ void main() {
         }
       ''';
 
-      final (succeeded, logs) =
-          await _runBuilder({'lib/a.dart': fileA, 'lib/b.dart': fileB});
+      final (succeeded, logs) = await _runBuilder({
+        'lib/a.dart': fileA,
+        'lib/b.dart': fileB,
+      });
 
       expect(succeeded, isFalse);
       expect(logs, contains('share name in acme.widgets#Dup'));
     });
 
-    test(
-        'a custom library contributing a widget but declaring NO capability '
+    test('a custom library contributing a widget but declaring NO capability '
         'version fails loud (the custom-library capability axis cannot be '
         'stamped)', () async {
       // A widget in `acme.orphan` with NO `@RestageLibrary('acme.orphan')`
@@ -113,14 +112,14 @@ void main() {
     });
 
     test(
-        'a constructor parameter whose type the A2UI catalog cannot represent '
-        'fails loud (constructor/catalog mismatch), never a silent drop',
-        () async {
-      // `Object` is not an A2UI-representable property type. The constructor
-      // declares it as required, so the catalog cannot carry the widget — the
-      // build must fail loud naming the widget + property, not emit a widget
-      // missing the parameter.
-      const source = '''
+      'a constructor parameter whose type the A2UI catalog cannot represent '
+      'fails loud (constructor/catalog mismatch), never a silent drop',
+      () async {
+        // `Object` is not an A2UI-representable property type. The constructor
+        // declares it as required, so the catalog cannot carry the widget — the
+        // build must fail loud naming the widget + property, not emit a widget
+        // missing the parameter.
+        const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
         @RestageLibrary(
           library: WidgetLibrary.custom('acme.widgets'),
@@ -140,13 +139,15 @@ void main() {
         }
       ''';
 
-      final (succeeded, logs) =
-          await _runBuilder({'lib/mismatch.dart': source});
+        final (succeeded, logs) = await _runBuilder({
+          'lib/mismatch.dart': source,
+        });
 
-      expect(succeeded, isFalse);
-      expect(logs, contains('Unsupported property type'));
-      expect(logs, contains('Mismatch'));
-      expect(logs, contains('thing'));
-    });
+        expect(succeeded, isFalse);
+        expect(logs, contains('Unsupported property type'));
+        expect(logs, contains('Mismatch'));
+        expect(logs, contains('thing'));
+      },
+    );
   });
 }

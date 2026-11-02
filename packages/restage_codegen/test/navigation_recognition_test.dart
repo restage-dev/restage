@@ -101,10 +101,11 @@ void main() {
       expect(_constructedTypeName(navigation.pushedScreen), 'DetailsScreen');
     });
 
-    test('extracts @PaywallSource id from pushed screen construction',
-        () async {
-      final outcome = recogniseNavigationTrigger(
-        await _parseNavigationSlot('''
+    test(
+      'extracts @PaywallSource id from pushed screen construction',
+      () async {
+        final outcome = recogniseNavigationTrigger(
+          await _parseNavigationSlot('''
 () => Navigator.push<void>(
   context,
   MaterialPageRoute<void>(
@@ -112,18 +113,20 @@ void main() {
   ),
 )
 '''),
-      );
+        );
 
-      expect(outcome, isA<NavigationRecognised>());
-      final navigation = (outcome as NavigationRecognised).navigation;
-      expect(pushedPaywallSourceId(navigation.pushedScreen), 'details');
-    });
+        expect(outcome, isA<NavigationRecognised>());
+        final navigation = (outcome as NavigationRecognised).navigation;
+        expect(pushedPaywallSourceId(navigation.pushedScreen), 'details');
+      },
+    );
 
-    test('resolves an omitted canonical @Paywall id through package authority',
-        () async {
-      final outcome = recogniseNavigationTrigger(
-        await _parseNavigationSlot(
-          '''
+    test(
+      'resolves an omitted canonical @Paywall id through package authority',
+      () async {
+        final outcome = recogniseNavigationTrigger(
+          await _parseNavigationSlot(
+            '''
 () => Navigator.push<void>(
   context,
   MaterialPageRoute<void>(
@@ -131,24 +134,26 @@ void main() {
   ),
 )
 ''',
-          annotation: '@Paywall()',
-        ),
-        canonicalPaywallIdFor: (declaration) =>
-            declaration.name == 'DetailsScreen' ? 'details' : null,
-      );
+            annotation: '@Paywall()',
+          ),
+          canonicalPaywallIdFor: (declaration) =>
+              declaration.name == 'DetailsScreen' ? 'details' : null,
+        );
 
-      expect(outcome, isA<NavigationRecognised>());
-      expect(
-        (outcome as NavigationRecognised).navigation.paywallSourceId,
-        'details',
-      );
-    });
+        expect(outcome, isA<NavigationRecognised>());
+        expect(
+          (outcome as NavigationRecognised).navigation.paywallSourceId,
+          'details',
+        );
+      },
+    );
 
-    test('keeps an explicit canonical ID authoritative after a file move',
-        () async {
-      final outcome = recogniseNavigationTrigger(
-        await _parseNavigationSlot(
-          '''
+    test(
+      'keeps an explicit canonical ID authoritative after a file move',
+      () async {
+        final outcome = recogniseNavigationTrigger(
+          await _parseNavigationSlot(
+            '''
 () => Navigator.push<void>(
   context,
   MaterialPageRoute<void>(
@@ -156,23 +161,25 @@ void main() {
   ),
 )
 ''',
-          annotation: "@Paywall(id: 'published_offer')",
-        ),
-        canonicalPaywallIdFor: (declaration) =>
-            declaration.name == 'DetailsScreen' ? 'published_offer' : null,
-      );
+            annotation: "@Paywall(id: 'published_offer')",
+          ),
+          canonicalPaywallIdFor: (declaration) =>
+              declaration.name == 'DetailsScreen' ? 'published_offer' : null,
+        );
 
-      expect(outcome, isA<NavigationRecognised>());
-      expect(
-        (outcome as NavigationRecognised).navigation.paywallSourceId,
-        'published_offer',
-      );
-    });
+        expect(outcome, isA<NavigationRecognised>());
+        expect(
+          (outcome as NavigationRecognised).navigation.paywallSourceId,
+          'published_offer',
+        );
+      },
+    );
 
-    test('gives canonical and legacy pushed paywalls the same identity',
-        () async {
-      final legacy = recogniseNavigationTrigger(
-        await _parseNavigationSlot('''
+    test(
+      'gives canonical and legacy pushed paywalls the same identity',
+      () async {
+        final legacy = recogniseNavigationTrigger(
+          await _parseNavigationSlot('''
 () => Navigator.push<void>(
   context,
   MaterialPageRoute<void>(
@@ -180,10 +187,10 @@ void main() {
   ),
 )
 '''),
-      );
-      final canonical = recogniseNavigationTrigger(
-        await _parseNavigationSlot(
-          '''
+        );
+        final canonical = recogniseNavigationTrigger(
+          await _parseNavigationSlot(
+            '''
 () => Navigator.push<void>(
   context,
   MaterialPageRoute<void>(
@@ -191,19 +198,20 @@ void main() {
   ),
 )
 ''',
-          annotation: '@Paywall()',
-        ),
-        canonicalPaywallIdFor: (declaration) =>
-            declaration.name == 'DetailsScreen' ? 'details' : null,
-      );
+            annotation: '@Paywall()',
+          ),
+          canonicalPaywallIdFor: (declaration) =>
+              declaration.name == 'DetailsScreen' ? 'details' : null,
+        );
 
-      expect(legacy, isA<NavigationRecognised>());
-      expect(canonical, isA<NavigationRecognised>());
-      expect(
-        (canonical as NavigationRecognised).navigation.paywallSourceId,
-        (legacy as NavigationRecognised).navigation.paywallSourceId,
-      );
-    });
+        expect(legacy, isA<NavigationRecognised>());
+        expect(canonical, isA<NavigationRecognised>());
+        expect(
+          (canonical as NavigationRecognised).navigation.paywallSourceId,
+          (legacy as NavigationRecognised).navigation.paywallSourceId,
+        );
+      },
+    );
 
     test('rejects a resolved local @Paywall lookalike', () async {
       final outcome = recogniseNavigationTrigger(
@@ -236,14 +244,16 @@ class Paywall {
   });
 
   group('Navigator pop-back recognition', () {
-    test('recognises sync zero-arg callback to Navigator.pop(context)',
-        () async {
-      final outcome = recogniseNavigatorPopBack(
-        await _parseNavigationSlot('() => Navigator.pop(context)'),
-      );
+    test(
+      'recognises sync zero-arg callback to Navigator.pop(context)',
+      () async {
+        final outcome = recogniseNavigatorPopBack(
+          await _parseNavigationSlot('() => Navigator.pop(context)'),
+        );
 
-      expect(outcome, isA<NavigatorPopBackRecognised>());
-    });
+        expect(outcome, isA<NavigatorPopBackRecognised>());
+      },
+    );
 
     test('does not recognise pop through a root navigator context', () async {
       final outcome = recogniseNavigatorPopBack(

@@ -25,33 +25,39 @@ const _dateMethods = {
 
 /// Recognition is broad; the lowerer validates each resolved native call shape.
 bool isTemporalValueExpression(Expression expression) => switch (expression) {
-      InstanceCreationExpression() =>
-        _member(expression.constructorName.element, 'DateTime') ||
-            _member(expression.constructorName.element, 'Duration'),
-      MethodInvocation() =>
-        _member(expression.methodName.element, 'DateTime') &&
-            ({'parse', 'toUtc', 'toLocal', ..._dateMethods})
-                .contains(expression.methodName.name),
-      PropertyAccess() =>
-        _member(expression.propertyName.element, 'DateTime') &&
-                dateTimeGetters.containsKey(expression.propertyName.name) ||
-            _member(expression.propertyName.element, 'Duration') &&
-                durationGetters.contains(expression.propertyName.name),
-      PrefixedIdentifier() =>
-        _member(expression.identifier.element, 'DateTime') &&
-                dateTimeGetters.containsKey(expression.identifier.name) ||
-            _member(expression.identifier.element, 'Duration') &&
-                durationGetters.contains(expression.identifier.name),
-      BinaryExpression() =>
-        const {'==', '!='}.contains(expression.operator.lexeme) &&
-            _date(expression.leftOperand.staticType) &&
-            _date(expression.rightOperand.staticType),
-      _ => false,
-    };
+  InstanceCreationExpression() =>
+    _member(expression.constructorName.element, 'DateTime') ||
+        _member(expression.constructorName.element, 'Duration'),
+  MethodInvocation() =>
+    _member(expression.methodName.element, 'DateTime') &&
+        ({
+          'parse',
+          'toUtc',
+          'toLocal',
+          ..._dateMethods,
+        }).contains(expression.methodName.name),
+  PropertyAccess() =>
+    _member(expression.propertyName.element, 'DateTime') &&
+            dateTimeGetters.containsKey(expression.propertyName.name) ||
+        _member(expression.propertyName.element, 'Duration') &&
+            durationGetters.contains(expression.propertyName.name),
+  PrefixedIdentifier() =>
+    _member(expression.identifier.element, 'DateTime') &&
+            dateTimeGetters.containsKey(expression.identifier.name) ||
+        _member(expression.identifier.element, 'Duration') &&
+            durationGetters.contains(expression.identifier.name),
+  BinaryExpression() =>
+    const {'==', '!='}.contains(expression.operator.lexeme) &&
+        _date(expression.leftOperand.staticType) &&
+        _date(expression.rightOperand.staticType),
+  _ => false,
+};
 
 /// Lowers only fixed dart:core temporal members into the common ValueProgram.
 int? lowerTemporalValue(
-    Expression expression, BuilderExpressionLowering lowerer) {
+  Expression expression,
+  BuilderExpressionLowering lowerer,
+) {
   final e = expression;
   int add(String op, ValueType type, List<int> inputs, [Object? value]) =>
       lowerer.add(ValueNode(op, type, inputs: inputs, value: value));
@@ -86,11 +92,13 @@ int? lowerTemporalValue(
   };
   if (target != null && getter != null) {
     if (_member(member, 'DateTime') && dateTimeGetters.containsKey(getter))
-      return add('temporal.datetime.get', dateTimeGetters[getter]!,
-          [lowerer.lower(target)], getter);
+      return add('temporal.datetime.get', dateTimeGetters[getter]!, [
+        lowerer.lower(target),
+      ], getter);
     if (_member(member, 'Duration') && durationGetters.contains(getter))
-      return add('temporal.duration.get', ValueType.integer,
-          [lowerer.lower(target)], getter);
+      return add('temporal.duration.get', ValueType.integer, [
+        lowerer.lower(target),
+      ], getter);
   }
   if (e is MethodInvocation &&
       _member(e.methodName.element, 'DateTime') &&
@@ -107,15 +115,17 @@ int? lowerTemporalValue(
     };
     return add('temporal.datetime.$name', type, [
       lowerer.lower(e.target!),
-      lowerer.lower(args.single.argumentExpression)
+      lowerer.lower(args.single.argumentExpression),
     ]);
   }
   if (e is BinaryExpression &&
       const {'==', '!='}.contains(e.operator.lexeme) &&
       _date(e.leftOperand.staticType) &&
       _date(e.rightOperand.staticType)) {
-    final same = add('temporal.datetime.equals', ValueType.boolean,
-        [lowerer.lower(e.leftOperand), lowerer.lower(e.rightOperand)]);
+    final same = add('temporal.datetime.equals', ValueType.boolean, [
+      lowerer.lower(e.leftOperand),
+      lowerer.lower(e.rightOperand),
+    ]);
     return e.operator.lexeme == '=='
         ? same
         : add('!', ValueType.boolean, [same]);

@@ -42,11 +42,10 @@ class InlinableBuildBody {
   /// [finalLocals] keyed by declared element — so a local shadowing a
   /// parameter or field still resolves to the local.
   Map<Element, Expression> get localBindings => {
-        for (final variable in finalLocals)
-          if (variable.declaredFragment?.element case final element?)
-            if (variable.initializer case final initializer?)
-              element: initializer,
-      };
+    for (final variable in finalLocals)
+      if (variable.declaredFragment?.element case final element?)
+        if (variable.initializer case final initializer?) element: initializer,
+  };
 }
 
 /// Extracts one returned expression after initialized simple `final` or
@@ -89,11 +88,13 @@ String? preludeDeclarationProblem(FunctionBody body) =>
     if (keyword != 'const' && keyword != 'final') return refused;
     final variables = stmt.variables.variables;
     if (variables.length != 1) {
-      final names =
-          variables.map((variable) => variable.name.lexeme).join(', ');
+      final names = variables
+          .map((variable) => variable.name.lexeme)
+          .join(', ');
       return (
         body: null,
-        declarationProblem: "the grouped declaration '$names'; split it into "
+        declarationProblem:
+            "the grouped declaration '$names'; split it into "
             'one declaration per variable',
       );
     }
@@ -119,8 +120,9 @@ String? preludeDeclarationProblem(FunctionBody body) =>
 bool _isWildcard(VariableDeclaration variable) =>
     variable.name.lexeme == '_' &&
     switch (variable.root) {
-      CompilationUnit(:final featureSet) =>
-        featureSet.isEnabled(Feature.wildcard_variables),
+      CompilationUnit(:final featureSet) => featureSet.isEnabled(
+        Feature.wildcard_variables,
+      ),
       _ => false,
     };
 
@@ -172,8 +174,10 @@ String? inlinableBuildBodyProblem(
   }
 
   final borrowedKeyAliases = bindings.keys
-      .where((element) =>
-          _isBorrowedKeyInput(bindings[element]!, bindings, {element}))
+      .where(
+        (element) =>
+            _isBorrowedKeyInput(bindings[element]!, bindings, {element}),
+      )
       .toSet();
   final valueReachable = _reachableBindings(
     _referencedBindings(
@@ -182,8 +186,12 @@ String? inlinableBuildBodyProblem(
       discardWidgetKeys: true,
       borrowedKeyAliases: borrowedKeyAliases,
     ),
-    _bindingDependencies(bindings, bindingElements,
-        discardWidgetKeys: true, borrowedKeyAliases: borrowedKeyAliases),
+    _bindingDependencies(
+      bindings,
+      bindingElements,
+      discardWidgetKeys: true,
+      borrowedKeyAliases: borrowedKeyAliases,
+    ),
   );
   final sourceReachable = _reachableBindings(
     _referencedBindings(body.expression, bindingElements),
@@ -194,10 +202,10 @@ String? inlinableBuildBodyProblem(
     final name = element.name ?? '<unnamed>';
     return sourceReachable.contains(element)
         ? "the local '$name' is read only as a widget key, and compiled output "
-            'discards key operands; inline the key expression or remove the '
-            'local together with its key: argument'
+              'discards key operands; inline the key expression or remove the '
+              'local together with its key: argument'
         : "the local '$name' is declared in $scope but never read; remove it "
-            'or use it';
+              'or use it';
   }
   return null;
 }
@@ -221,16 +229,15 @@ Map<Element, Set<Element>> _bindingDependencies(
   Set<Element> bindingElements, {
   bool discardWidgetKeys = false,
   Set<Element> borrowedKeyAliases = const {},
-}) =>
-    {
-      for (final entry in bindings.entries)
-        entry.key: _referencedBindings(
-          entry.value,
-          bindingElements,
-          discardWidgetKeys: discardWidgetKeys,
-          borrowedKeyAliases: borrowedKeyAliases,
-        ),
-    };
+}) => {
+  for (final entry in bindings.entries)
+    entry.key: _referencedBindings(
+      entry.value,
+      bindingElements,
+      discardWidgetKeys: discardWidgetKeys,
+      borrowedKeyAliases: borrowedKeyAliases,
+    ),
+};
 
 /// Whether [argument] is a Flutter widget's runtime-only `key:` argument.
 bool isDiscardedWidgetKeyArgument(NamedArgument argument) {
@@ -260,14 +267,21 @@ bool isLegacyScalarWidgetKey(Expression expression) {
   if (element?.name != 'ValueKey' ||
       element?.library.identifier !=
           'package:flutter/src/foundation/key.dart' ||
-      expression.argumentList.arguments.length != 1) return false;
+      expression.argumentList.arguments.length != 1)
+    return false;
   final value = expression.argumentList.arguments.single.argumentExpression;
   final type = value.staticType;
   return value is NullLiteral ||
       type is InterfaceType &&
           type.element.library.identifier == 'dart:core' &&
-          const {'String', 'int', 'double', 'num', 'bool', 'Null'}
-              .contains(type.element.name);
+          const {
+            'String',
+            'int',
+            'double',
+            'num',
+            'bool',
+            'Null',
+          }.contains(type.element.name);
 }
 
 Set<Element> _referencedBindings(
@@ -303,7 +317,8 @@ final class _ReferencedBindingCollector extends RecursiveAstVisitor<void> {
       var value = node.argumentExpression;
       while (value is ParenthesizedExpression) value = value.expression;
       if (value is! SimpleIdentifier ||
-          !borrowedKeyAliases.contains(value.element)) return;
+          !borrowedKeyAliases.contains(value.element))
+        return;
     }
     super.visitNamedArgument(node);
   }
@@ -316,8 +331,11 @@ final class _ReferencedBindingCollector extends RecursiveAstVisitor<void> {
   }
 }
 
-bool _isBorrowedKeyInput(Expression expression,
-    Map<Element, Expression> bindings, Set<Element> seen) {
+bool _isBorrowedKeyInput(
+  Expression expression,
+  Map<Element, Expression> bindings,
+  Set<Element> seen,
+) {
   if (expression is ParenthesizedExpression) {
     return _isBorrowedKeyInput(expression.expression, bindings, seen);
   }
@@ -334,10 +352,13 @@ bool _isBorrowedKeyInput(Expression expression,
   if (field is! FieldElement || !_isFlutterKeyType(field.type)) return false;
   final owner = field.enclosingElement;
   return owner is ClassElement &&
-      owner.constructors.any((constructor) => constructor.formalParameters.any(
+      owner.constructors.any(
+        (constructor) => constructor.formalParameters.any(
           (parameter) =>
               parameter is FieldFormalParameterElement &&
-              parameter.field == field));
+              parameter.field == field,
+        ),
+      );
 }
 
 bool _isFlutterKeyType(DartType type) {

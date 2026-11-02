@@ -27,70 +27,78 @@ void main() {
       );
     });
 
-    test('Theme.of(c).colorScheme.primary → data.theme.colorScheme.primary',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Theme.of(context).colorScheme.primary',
-      );
-      final result = translator.translate(expr);
+    test(
+      'Theme.of(c).colorScheme.primary → data.theme.colorScheme.primary',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Theme.of(context).colorScheme.primary',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'data.theme.colorScheme.primary');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'data.theme.colorScheme.primary');
+      },
+    );
 
-    test('a non-theme PropertyAccess falls through to the existing diagnostic',
-        () async {
-      // A PropertyAccess whose root is not Theme.of(...) is not a theme read
-      // and must not be intercepted. The existing not-recognised diagnostic
-      // (`unrecognizedMethodCall`) fires unchanged. `someFn().length` is a
-      // PropertyAccess(MethodInvocation, 'length') — the simplest non-theme
-      // shape; `x.length` would parse as a PrefixedIdentifier and miss the
-      // PropertyAccess dispatch entirely.
-      final expr = await parseExpressionForTest('someFn().length');
-      final result = translator.translate(expr);
+    test(
+      'a non-theme PropertyAccess falls through to the existing diagnostic',
+      () async {
+        // A PropertyAccess whose root is not Theme.of(...) is not a theme read
+        // and must not be intercepted. The existing not-recognised diagnostic
+        // (`unrecognizedMethodCall`) fires unchanged. `someFn().length` is a
+        // PropertyAccess(MethodInvocation, 'length') — the simplest non-theme
+        // shape; `x.length` would parse as a PrefixedIdentifier and miss the
+        // PropertyAccess dispatch entirely.
+        final expr = await parseExpressionForTest('someFn().length');
+        final result = translator.translate(expr);
 
-      expect(result.dsl, '');
-      expect(result.issues, isNotEmpty);
-      expect(
-        result.issues.any((i) => i.code == IssueCode.unrecognizedMethodCall),
-        isTrue,
-      );
-      expect(
-        result.issues.any((i) => i.message.contains('data.theme')),
-        isFalse,
-      );
-    });
+        expect(result.dsl, '');
+        expect(result.issues, isNotEmpty);
+        expect(
+          result.issues.any((i) => i.code == IssueCode.unrecognizedMethodCall),
+          isTrue,
+        );
+        expect(
+          result.issues.any((i) => i.message.contains('data.theme')),
+          isFalse,
+        );
+      },
+    );
 
-    test('a Theme.of(...) chain with a non-identifier context falls through',
-        () async {
-      // The argument to Theme.of(...) must be a bare identifier — the
-      // shape an author writes for the BuildContext. Anything else is not
-      // a recognised theme read.
-      final expr = await parseExpressionForTest(
-        'Theme.of(buildContextOf(x)).colorScheme.primary',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a Theme.of(...) chain with a non-identifier context falls through',
+      () async {
+        // The argument to Theme.of(...) must be a bare identifier — the
+        // shape an author writes for the BuildContext. Anything else is not
+        // a recognised theme read.
+        final expr = await parseExpressionForTest(
+          'Theme.of(buildContextOf(x)).colorScheme.primary',
+        );
+        final result = translator.translate(expr);
 
-      // Falls through to the existing diagnostic (no theme-read emission).
-      expect(result.dsl, '');
-      expect(
-        result.issues.any((i) => i.message.contains('data.theme')),
-        isFalse,
-      );
-    });
+        // Falls through to the existing diagnostic (no theme-read emission).
+        expect(result.dsl, '');
+        expect(
+          result.issues.any((i) => i.message.contains('data.theme')),
+          isFalse,
+        );
+      },
+    );
 
-    test('a chain rooted at a method other than Theme.of falls through',
-        () async {
-      // `Foo.bar(c).baz` is structurally similar but is not a theme read.
-      final expr = await parseExpressionForTest('Foo.bar(c).colorScheme');
-      final result = translator.translate(expr);
+    test(
+      'a chain rooted at a method other than Theme.of falls through',
+      () async {
+        // `Foo.bar(c).baz` is structurally similar but is not a theme read.
+        final expr = await parseExpressionForTest('Foo.bar(c).colorScheme');
+        final result = translator.translate(expr);
 
-      expect(result.dsl, '');
-      expect(
-        result.issues.any((i) => i.message.contains('data.theme')),
-        isFalse,
-      );
-    });
+        expect(result.dsl, '');
+        expect(
+          result.issues.any((i) => i.message.contains('data.theme')),
+          isFalse,
+        );
+      },
+    );
   });
 
   group('ExpressionTranslator — theme reads (resolved fixture guard)', () {
@@ -124,16 +132,18 @@ void main() {
       );
     });
 
-    test('an in-contract path (colorScheme.primary) emits the data ref',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Theme.of(context).colorScheme.primary',
-      );
-      final result = translator.translate(expr);
+    test(
+      'an in-contract path (colorScheme.primary) emits the data ref',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Theme.of(context).colorScheme.primary',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'data.theme.colorScheme.primary');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'data.theme.colorScheme.primary');
+      },
+    );
 
     test('an in-contract path (iconTheme.size) emits the data ref', () async {
       final expr = await parseExpressionForTest(
@@ -145,16 +155,18 @@ void main() {
       expect(result.dsl, 'data.theme.iconTheme.size');
     });
 
-    test('an in-contract path (defaultTextStyle.fontWeight) emits the data ref',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Theme.of(context).defaultTextStyle.fontWeight',
-      );
-      final result = translator.translate(expr);
+    test(
+      'an in-contract path (defaultTextStyle.fontWeight) emits the data ref',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Theme.of(context).defaultTextStyle.fontWeight',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'data.theme.defaultTextStyle.fontWeight');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'data.theme.defaultTextStyle.fontWeight');
+      },
+    );
 
     test('an in-contract text-theme field emits the data ref', () async {
       final expr = await parseExpressionForTest(
@@ -166,30 +178,33 @@ void main() {
       expect(result.dsl, 'data.theme.textTheme.titleLarge.fontSize');
     });
 
-    test('a null-aware text-theme field read emits the same data ref',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Theme.of(context).textTheme.labelSmall?.letterSpacing',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a null-aware text-theme field read emits the same data ref',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Theme.of(context).textTheme.labelSmall?.letterSpacing',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'data.theme.textTheme.labelSmall.letterSpacing');
-    });
-
-    test('a null-asserted text-theme field read emits the same data ref',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Theme.of(context).textTheme.bodyLarge!.height',
-      );
-      final result = translator.translate(expr);
-
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'data.theme.textTheme.bodyLarge.height');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'data.theme.textTheme.labelSmall.letterSpacing');
+      },
+    );
 
     test(
-        'a whole-style read with no style slot to decompose into is refused '
+      'a null-asserted text-theme field read emits the same data ref',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Theme.of(context).textTheme.bodyLarge!.height',
+        );
+        final result = translator.translate(expr);
+
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'data.theme.textTheme.bodyLarge.height');
+      },
+    );
+
+    test('a whole-style read with no style slot to decompose into is refused '
         'and names the per-field reads', () async {
       final expr = await parseExpressionForTest(
         'Theme.of(context).textTheme.bodyLarge',
@@ -202,11 +217,13 @@ void main() {
       expect(result.issues.single.message, contains('whole TextStyle'));
       expect(
         result.issues.single.message,
-        contains('textTheme.bodyLarge.{color, backgroundColor, fontFamily, '
-            'fontFamilyFallback, fontSize, fontWeight, fontStyle, '
-            'letterSpacing, wordSpacing, height, leadingDistribution, '
-            'textBaseline, overflow, decoration, decorationColor, '
-            'decorationStyle, decorationThickness}'),
+        contains(
+          'textTheme.bodyLarge.{color, backgroundColor, fontFamily, '
+          'fontFamilyFallback, fontSize, fontWeight, fontStyle, '
+          'letterSpacing, wordSpacing, height, leadingDistribution, '
+          'textBaseline, overflow, decoration, decorationColor, '
+          'decorationStyle, decorationThickness}',
+        ),
       );
     });
 
@@ -227,8 +244,7 @@ void main() {
       expect(result.issues.single.message, isNot(contains('whole TextStyle')));
     });
 
-    test(
-        'an out-of-contract path (colorScheme alone, no sub-key) emits the '
+    test('an out-of-contract path (colorScheme alone, no sub-key) emits the '
         'themeReadOutOfContract diagnostic', () async {
       // The contract publishes leaves only; a chain that bottoms out at a
       // namespace name (colorScheme without a role) cannot resolve.
@@ -242,18 +258,20 @@ void main() {
       expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
     });
 
-    test('a deprecated colorScheme role (background) is out of contract',
-        () async {
-      // The contract excludes the deprecated roles (background, onBackground,
-      // surfaceVariant) so a paywall transpiled today cannot bake them in.
-      final expr = await parseExpressionForTest(
-        'Theme.of(context).colorScheme.background',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a deprecated colorScheme role (background) is out of contract',
+      () async {
+        // The contract excludes the deprecated roles (background, onBackground,
+        // surfaceVariant) so a paywall transpiled today cannot bake them in.
+        final expr = await parseExpressionForTest(
+          'Theme.of(context).colorScheme.background',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.dsl, '');
-      expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
-    });
+        expect(result.dsl, '');
+        expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
+      },
+    );
   });
 
   group('ExpressionTranslator — theme reads (extended shapes)', () {
@@ -266,8 +284,7 @@ void main() {
       );
     });
 
-    test(
-        'a prefixed import (material.Theme.of(c).colorScheme.primary) is '
+    test('a prefixed import (material.Theme.of(c).colorScheme.primary) is '
         'recognised', () async {
       // A common Flutter idiom — `import 'package:flutter/material.dart' as
       // material;` then `material.Theme.of(context)`. The recognizer must
@@ -293,8 +310,7 @@ void main() {
       expect(result.dsl, 'data.theme.colorScheme.primary');
     });
 
-    test(
-        'DefaultTextStyle.of(c).style.fontSize emits '
+    test('DefaultTextStyle.of(c).style.fontSize emits '
         'data.theme.defaultTextStyle.fontSize (M3)', () async {
       // The natural author syntax for an ambient text-style read is
       // DefaultTextStyle.of(c).style.<x>; the codegen normalizes the
@@ -309,41 +325,46 @@ void main() {
       expect(result.dsl, 'data.theme.defaultTextStyle.fontSize');
     });
 
-    test('DefaultTextStyle.of(c).style.color emits the contract path',
-        () async {
-      final expr = await parseExpressionForTest(
-        'DefaultTextStyle.of(context).style.color',
-      );
-      final result = translator.translate(expr);
+    test(
+      'DefaultTextStyle.of(c).style.color emits the contract path',
+      () async {
+        final expr = await parseExpressionForTest(
+          'DefaultTextStyle.of(context).style.color',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'data.theme.defaultTextStyle.color');
-    });
-
-    test('DefaultTextStyle.of(c).style.fontFamily emits the contract path',
-        () async {
-      final expr = await parseExpressionForTest(
-        'DefaultTextStyle.of(context).style.fontFamily',
-      );
-      final result = translator.translate(expr);
-
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'data.theme.defaultTextStyle.fontFamily');
-    });
-
-    test('DefaultTextStyle.of(c).style.debugLabel is out of contract',
-        () async {
-      final expr = await parseExpressionForTest(
-        'DefaultTextStyle.of(context).style.debugLabel',
-      );
-      final result = translator.translate(expr);
-
-      expect(result.dsl, '');
-      expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'data.theme.defaultTextStyle.color');
+      },
+    );
 
     test(
-        'a DefaultTextStyle chain without the `.style.` infix falls through '
+      'DefaultTextStyle.of(c).style.fontFamily emits the contract path',
+      () async {
+        final expr = await parseExpressionForTest(
+          'DefaultTextStyle.of(context).style.fontFamily',
+        );
+        final result = translator.translate(expr);
+
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'data.theme.defaultTextStyle.fontFamily');
+      },
+    );
+
+    test(
+      'DefaultTextStyle.of(c).style.debugLabel is out of contract',
+      () async {
+        final expr = await parseExpressionForTest(
+          'DefaultTextStyle.of(context).style.debugLabel',
+        );
+        final result = translator.translate(expr);
+
+        expect(result.dsl, '');
+        expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
+      },
+    );
+
+    test('a DefaultTextStyle chain without the `.style.` infix falls through '
         '(e.g. DefaultTextStyle.of(c).maxLines)', () async {
       // The contract is anchored at `.style.<x>`; a top-level access on the
       // returned DefaultTextStyle object (e.g. `.maxLines`) is not part of
@@ -373,39 +394,45 @@ void main() {
       );
     });
 
-    test('ColorScheme.of(c).primary emits the colorScheme contract path',
-        () async {
-      final expr = await parseExpressionForTest(
-        'ColorScheme.of(context).primary',
-      );
-      final result = translator.translate(expr);
+    test(
+      'ColorScheme.of(c).primary emits the colorScheme contract path',
+      () async {
+        final expr = await parseExpressionForTest(
+          'ColorScheme.of(context).primary',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'data.theme.colorScheme.primary');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'data.theme.colorScheme.primary');
+      },
+    );
 
-    test('TextTheme.of(c).titleLarge.fontSize emits the textTheme path',
-        () async {
-      final expr = await parseExpressionForTest(
-        'TextTheme.of(context).titleLarge.fontSize',
-      );
-      final result = translator.translate(expr);
+    test(
+      'TextTheme.of(c).titleLarge.fontSize emits the textTheme path',
+      () async {
+        final expr = await parseExpressionForTest(
+          'TextTheme.of(context).titleLarge.fontSize',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'data.theme.textTheme.titleLarge.fontSize');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'data.theme.textTheme.titleLarge.fontSize');
+      },
+    );
 
-    test('a TextTheme.of whole-style read with no style slot is refused',
-        () async {
-      final expr = await parseExpressionForTest(
-        'TextTheme.of(context).titleLarge',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a TextTheme.of whole-style read with no style slot is refused',
+      () async {
+        final expr = await parseExpressionForTest(
+          'TextTheme.of(context).titleLarge',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.dsl, '');
-      expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
-      expect(result.issues.single.message, contains('whole TextStyle'));
-    });
+        expect(result.dsl, '');
+        expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
+        expect(result.issues.single.message, contains('whole TextStyle'));
+      },
+    );
 
     test('an out-of-contract shortcut read is refused', () async {
       final expr = await parseExpressionForTest(
@@ -486,8 +513,7 @@ void main() {
         rootPackage: 'apps_examples',
       );
 
-      final helper = (expr.root as CompilationUnit)
-          .declarations
+      final helper = (expr.root as CompilationUnit).declarations
           .whereType<FunctionDeclaration>()
           .singleWhere((declaration) => declaration.name.lexeme == 'value');
       final body = extractInlinableBuildBody(helper.functionExpression.body)!;
@@ -537,77 +563,87 @@ void main() {
       );
     });
 
-    test('compatible Theme read in a color slot lowers to `data.theme`',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Icon(color: Theme.of(context).colorScheme.primary)',
-      );
-      final result = translator.translate(expr);
+    test(
+      'compatible Theme read in a color slot lowers to `data.theme`',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Icon(color: Theme.of(context).colorScheme.primary)',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'Icon(color: data.theme.colorScheme.primary)');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'Icon(color: data.theme.colorScheme.primary)');
+      },
+    );
 
-    test('a length slot gets a property type mismatch for a color path',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Icon(size: Theme.of(context).colorScheme.primary)',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a length slot gets a property type mismatch for a color path',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Icon(size: Theme.of(context).colorScheme.primary)',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
-      expect(
-        result.issues.single.message,
-        contains("Theme value 'data.theme.colorScheme.primary'"),
-      );
-      expect(result.issues.single.message, contains('length'));
-    });
+        expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
+        expect(
+          result.issues.single.message,
+          contains("Theme value 'data.theme.colorScheme.primary'"),
+        );
+        expect(result.issues.single.message, contains('length'));
+      },
+    );
 
-    test('a positional length slot gets the same mismatch for a color path',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Gap(Theme.of(context).colorScheme.primary)',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a positional length slot gets the same mismatch for a color path',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Gap(Theme.of(context).colorScheme.primary)',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
-      expect(
-        result.issues.single.message,
-        contains("Theme value 'data.theme.colorScheme.primary'"),
-      );
-    });
+        expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
+        expect(
+          result.issues.single.message,
+          contains("Theme value 'data.theme.colorScheme.primary'"),
+        );
+      },
+    );
 
-    test('a mismatched theme read inside a conditional branch is caught',
-        () async {
-      // Each branch of a ternary feeds the same slot, so a theme read in
-      // either branch is validated against the slot's type.
-      final expr = await parseExpressionForTest(
-        'Icon(size: true ? Theme.of(context).colorScheme.primary : 4.0)',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a mismatched theme read inside a conditional branch is caught',
+      () async {
+        // Each branch of a ternary feeds the same slot, so a theme read in
+        // either branch is validated against the slot's type.
+        final expr = await parseExpressionForTest(
+          'Icon(size: true ? Theme.of(context).colorScheme.primary : 4.0)',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
-      expect(
-        result.issues.single.message,
-        contains("Theme value 'data.theme.colorScheme.primary'"),
-      );
-    });
+        expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
+        expect(
+          result.issues.single.message,
+          contains("Theme value 'data.theme.colorScheme.primary'"),
+        );
+      },
+    );
 
-    test('compatible theme reads in both conditional branches pass clean',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Icon(color: true ? Theme.of(context).colorScheme.primary : '
-        'Theme.of(context).colorScheme.secondary)',
-      );
-      final result = translator.translate(expr);
+    test(
+      'compatible theme reads in both conditional branches pass clean',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Icon(color: true ? Theme.of(context).colorScheme.primary : '
+          'Theme.of(context).colorScheme.secondary)',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(
-        result.dsl,
-        'Icon(color: switch true { true: data.theme.colorScheme.primary, '
-        'false: data.theme.colorScheme.secondary })',
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          'Icon(color: switch true { true: data.theme.colorScheme.primary, '
+          'false: data.theme.colorScheme.secondary })',
+        );
+      },
+    );
 
     test('a text-theme letterSpacing read binds to a length slot', () async {
       // `letterSpacing` and `height` publish the same double-scalar kind as
@@ -624,21 +660,23 @@ void main() {
       );
     });
 
-    test('a text-theme fallback-family read binds to a string-list slot',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Icon(fontFamilyFallback: '
-        'Theme.of(context).textTheme.titleLarge!.fontFamilyFallback)',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a text-theme fallback-family read binds to a string-list slot',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Icon(fontFamilyFallback: '
+          'Theme.of(context).textTheme.titleLarge!.fontFamilyFallback)',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(
-        result.dsl,
-        'Icon(fontFamilyFallback: '
-        'data.theme.textTheme.titleLarge.fontFamilyFallback)',
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          'Icon(fontFamilyFallback: '
+          'data.theme.textTheme.titleLarge.fontFamilyFallback)',
+        );
+      },
+    );
 
     test('a text-theme decoration read binds to a decoration slot', () async {
       final expr = await parseExpressionForTest(
@@ -666,8 +704,7 @@ void main() {
       );
     });
 
-    test('an enum token is refused by a slot naming a different enum',
-        () async {
+    test('an enum token is refused by a slot naming a different enum', () async {
       final expr = await parseExpressionForTest(
         'Icon(textBaseline: Theme.of(context).textTheme.titleLarge!.overflow)',
       );
@@ -693,34 +730,36 @@ void main() {
       );
     });
 
-    test('a font-size-compatible path stays compatible with a length slot',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Icon(size: DefaultTextStyle.of(context).style.fontSize)',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a font-size-compatible path stays compatible with a length slot',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Icon(size: DefaultTextStyle.of(context).style.fontSize)',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'Icon(size: data.theme.defaultTextStyle.fontSize)');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'Icon(size: data.theme.defaultTextStyle.fontSize)');
+      },
+    );
 
     test(
-        'a font-weight-compatible path stays compatible with a fontWeight slot',
-        () async {
-      final expr = await parseExpressionForTest(
-        'Icon(fontWeight: DefaultTextStyle.of(context).style.fontWeight)',
-      );
-      final result = translator.translate(expr);
+      'a font-weight-compatible path stays compatible with a fontWeight slot',
+      () async {
+        final expr = await parseExpressionForTest(
+          'Icon(fontWeight: DefaultTextStyle.of(context).style.fontWeight)',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(
-        result.dsl,
-        'Icon(fontWeight: data.theme.defaultTextStyle.fontWeight)',
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          'Icon(fontWeight: data.theme.defaultTextStyle.fontWeight)',
+        );
+      },
+    );
 
-    test(
-        'out-of-contract theme path at a value site emits only '
+    test('out-of-contract theme path at a value site emits only '
         'themeReadOutOfContract', () async {
       final expr = await parseExpressionForTest(
         'Icon(color: Theme.of(context).textTheme.bodyLarge)',
@@ -750,50 +789,54 @@ void main() {
           Chip2(tint: Theme.of(context).colorScheme.primary);
     ''';
 
-    test('a resolved theme read against a divergent slot type is caught',
-        () async {
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Chip2',
-            properties: [prop('tint', PropertyType.length)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-      );
-      final expr = await parseExpressionFromSourceForTest(
-        fixtureSource,
-        rootPackage: 'apps_examples',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a resolved theme read against a divergent slot type is caught',
+      () async {
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Chip2',
+              properties: [prop('tint', PropertyType.length)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+        );
+        final expr = await parseExpressionFromSourceForTest(
+          fixtureSource,
+          rootPackage: 'apps_examples',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
-      expect(
-        result.issues.single.message,
-        contains("Theme value 'data.theme.colorScheme.primary'"),
-      );
-    });
+        expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
+        expect(
+          result.issues.single.message,
+          contains("Theme value 'data.theme.colorScheme.primary'"),
+        );
+      },
+    );
 
-    test('a resolved theme read against a matching slot type passes clean',
-        () async {
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Chip2',
-            properties: [prop('tint', PropertyType.color)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-      );
-      final expr = await parseExpressionFromSourceForTest(
-        fixtureSource,
-        rootPackage: 'apps_examples',
-      );
-      final result = translator.translate(expr);
+    test(
+      'a resolved theme read against a matching slot type passes clean',
+      () async {
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Chip2',
+              properties: [prop('tint', PropertyType.color)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+        );
+        final expr = await parseExpressionFromSourceForTest(
+          fixtureSource,
+          rootPackage: 'apps_examples',
+        );
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'Chip2(tint: data.theme.colorScheme.primary)');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'Chip2(tint: data.theme.colorScheme.primary)');
+      },
+    );
   });
 
   group('theme contract path kinds', () {
@@ -801,12 +844,28 @@ void main() {
       expect(kThemeContractPathKinds.keys.toSet(), kThemeContractPaths);
     });
 
-    test('every assignable contract path kind is accepted by a property type',
-        () {
-      for (final pathKind in kThemeContractPathKinds.entries) {
-        // `brightness` is branched on, never assigned to a slot, so no
-        // property type accepts it.
-        if (pathKind.value == ThemeContractValueKind.brightness) {
+    test(
+      'every assignable contract path kind is accepted by a property type',
+      () {
+        for (final pathKind in kThemeContractPathKinds.entries) {
+          // `brightness` is branched on, never assigned to a slot, so no
+          // property type accepts it.
+          if (pathKind.value == ThemeContractValueKind.brightness) {
+            expect(
+              PropertyType.values.any(
+                (type) => propertyTypeAcceptsThemeKind(
+                  type,
+                  pathKind.value,
+                  property: _probeSlotFor(pathKind.value),
+                ),
+              ),
+              isFalse,
+              reason:
+                  'A slot type accepts ${pathKind.key}; the brightness '
+                  'token has no assignable slot.',
+            );
+            continue;
+          }
           expect(
             PropertyType.values.any(
               (type) => propertyTypeAcceptsThemeKind(
@@ -815,27 +874,15 @@ void main() {
                 property: _probeSlotFor(pathKind.value),
               ),
             ),
-            isFalse,
-            reason: 'A slot type accepts ${pathKind.key}; the brightness '
-                'token has no assignable slot.',
+            isTrue,
+            reason:
+                'No property type accepts ${pathKind.key} '
+                '(${pathKind.value}); the kind table and '
+                'propertyTypeAcceptsThemeKind have drifted apart.',
           );
-          continue;
         }
-        expect(
-          PropertyType.values.any(
-            (type) => propertyTypeAcceptsThemeKind(
-              type,
-              pathKind.value,
-              property: _probeSlotFor(pathKind.value),
-            ),
-          ),
-          isTrue,
-          reason: 'No property type accepts ${pathKind.key} '
-              '(${pathKind.value}); the kind table and '
-              'propertyTypeAcceptsThemeKind have drifted apart.',
-        );
-      }
-    });
+      },
+    );
   });
 
   group('an enum token binds only to a slot naming its own enum', () {
@@ -852,8 +899,9 @@ void main() {
       });
 
       test('${pair.key.name} is refused by a slot naming another enum', () {
-        final other = _enumKindSymbols.values
-            .firstWhere((symbol) => symbol != pair.value);
+        final other = _enumKindSymbols.values.firstWhere(
+          (symbol) => symbol != pair.value,
+        );
         expect(
           propertyTypeAcceptsThemeKind(
             PropertyType.enumValue,
@@ -882,8 +930,7 @@ void main() {
     // future contract path scoped to a subtree/context would introduce a new
     // leading namespace and trip this, forcing a revisit of the completion
     // design before it ships.
-    test(
-        'every contract path is a flat global theme namespace '
+    test('every contract path is a flat global theme namespace '
         '(no subtree/context dimension)', () {
       const globalThemeRoots = {
         'colorScheme',
@@ -897,7 +944,8 @@ void main() {
         expect(
           globalThemeRoots.contains(root),
           isTrue,
-          reason: "Contract path '$path' introduces a non-global theme root "
+          reason:
+              "Contract path '$path' introduces a non-global theme root "
               "'$root'. If this is a subtree- or context-scoped theme read, "
               'the build-time call-site completion (which hoists theme '
               'defaults assuming a blob-global namespace) must be revisited '
@@ -907,24 +955,25 @@ void main() {
     });
 
     test(
-        'a theme read lowers to the same blob-global reference regardless of '
-        'slot position (the hoist-identity the completion relies on)',
-        () async {
-      final translator = ExpressionTranslator(
-        catalog: kEmptyCatalog,
-        helpers: HelperRegistry(),
-      );
-      // The same read, translated twice in unrelated positions, yields the
-      // identical position-independent `data.theme.*` reference.
-      final a = await parseExpressionForTest(
-        'Theme.of(context).colorScheme.primary',
-      );
-      final b = await parseExpressionForTest(
-        'Theme.of(ctx).colorScheme.primary',
-      );
-      expect(translator.translate(a).dsl, 'data.theme.colorScheme.primary');
-      expect(translator.translate(b).dsl, 'data.theme.colorScheme.primary');
-    });
+      'a theme read lowers to the same blob-global reference regardless of '
+      'slot position (the hoist-identity the completion relies on)',
+      () async {
+        final translator = ExpressionTranslator(
+          catalog: kEmptyCatalog,
+          helpers: HelperRegistry(),
+        );
+        // The same read, translated twice in unrelated positions, yields the
+        // identical position-independent `data.theme.*` reference.
+        final a = await parseExpressionForTest(
+          'Theme.of(context).colorScheme.primary',
+        );
+        final b = await parseExpressionForTest(
+          'Theme.of(ctx).colorScheme.primary',
+        );
+        expect(translator.translate(a).dsl, 'data.theme.colorScheme.primary');
+        expect(translator.translate(b).dsl, 'data.theme.colorScheme.primary');
+      },
+    );
   });
 }
 
@@ -953,15 +1002,15 @@ class _MethodInvocationFinder extends RecursiveAstVisitor<void> {
 
 /// A catalog slot shaped as the named enum.
 PropertyEntry _enumSlot(String symbol) => PropertyEntry(
-      wireId: WireId('p0001'),
-      name: 'slot',
-      type: PropertyType.enumValue,
-      description: '',
-      valueShape: EnumShape(
-        propertyType: PropertyType.enumValue,
-        enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: symbol),
-      ),
-    );
+  wireId: WireId('p0001'),
+  name: 'slot',
+  type: PropertyType.enumValue,
+  description: '',
+  valueShape: EnumShape(
+    propertyType: PropertyType.enumValue,
+    enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: symbol),
+  ),
+);
 
 /// An `enumValue` slot named [name] whose shape declares [symbol].
 PropertyEntry _enumSlotNamed(WireId wireId, String name, String symbol) =>

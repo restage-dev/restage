@@ -17,7 +17,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'helpers.dart';
 
 Future<({TestBuilderResult result, List<String> logs, String output})>
-    runIndexProbe(
+runIndexProbe(
   Map<String, String> dartSources, {
   NativeScreenSourceConsumer consumer = NativeScreenSourceConsumer.widgetbook,
   bool validateA2uiNamespace = false,
@@ -101,16 +101,16 @@ String _withGeneratedPartDirective(String path, String source) {
 }
 
 String nativeScreenPackageGraph(Set<String> dependencies) => jsonEncode({
-      'roots': ['apps_examples'],
-      'packages': [
-        {
-          'name': 'apps_examples',
-          'version': '0.0.0',
-          'dependencies': dependencies.toList()..sort(),
-          'devDependencies': <String>[],
-        },
-      ],
-    });
+  'roots': ['apps_examples'],
+  'packages': [
+    {
+      'name': 'apps_examples',
+      'version': '0.0.0',
+      'dependencies': dependencies.toList()..sort(),
+      'devDependencies': <String>[],
+    },
+  ],
+});
 
 final class _NativeScreenIndexProbeBuilder implements Builder {
   const _NativeScreenIndexProbeBuilder({
@@ -123,8 +123,8 @@ final class _NativeScreenIndexProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['native_screen_source_index.txt'],
-      };
+    r'$lib$': ['native_screen_source_index.txt'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -136,13 +136,16 @@ final class _NativeScreenIndexProbeBuilder implements Builder {
     final output = StringBuffer();
     for (final screen in index.screens) {
       final widgetbookAllValues = screen
-          .widgetbookTargetConfig.properties.entries
+          .widgetbookTargetConfig
+          .properties
+          .entries
           .where((entry) => entry.value.allValues)
           .map((entry) => entry.key)
           .join(',');
       final events = screen.events
           .map(
-            (event) => '${event.fieldName}:${event.id}:'
+            (event) =>
+                '${event.fieldName}:${event.id}:'
                 '${event.payloadType.getDisplayString()}',
           )
           .join(',');
@@ -165,11 +168,9 @@ final class _NativeScreenIndexProbeBuilder implements Builder {
         )
         ..writeln(
           'defaults=${screen.constructorFacts.inputs.map((input) {
-                final value = input.constructorDefault.reconstructedValue;
-                return value == null
-                    ? null
-                    : '${input.name}:${_displayDefault(value)}';
-              }).whereType<String>().join(',')}',
+            final value = input.constructorDefault.reconstructedValue;
+            return value == null ? null : '${input.name}:${_displayDefault(value)}';
+          }).whereType<String>().join(',')}',
         )
         ..writeln('a2uiUsage=${screen.a2uiTargetConfig.usage}')
         ..writeln(
@@ -191,9 +192,9 @@ final class _NativeScreenIndexProbeBuilder implements Builder {
 }
 
 String _displayDefault(DartConstValue value) => switch (value) {
-      DartConstNull() => 'null',
-      DartConstScalar(:final value) => '$value',
-      DartConstReference(:final owner, :final member) =>
-        owner == null ? member : '$owner.$member',
-      _ => value.runtimeType.toString(),
-    };
+  DartConstNull() => 'null',
+  DartConstScalar(:final value) => '$value',
+  DartConstReference(:final owner, :final member) =>
+    owner == null ? member : '$owner.$member',
+  _ => value.runtimeType.toString(),
+};

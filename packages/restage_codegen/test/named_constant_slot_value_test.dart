@@ -26,8 +26,9 @@ Catalog _builtInCatalog() {
   ]) {
     final catalog = requireNativeCatalog(
       decodeCatalog(
-        File('../$package/lib/src/widget_catalog/catalog.json')
-            .readAsStringSync(),
+        File(
+          '../$package/lib/src/widget_catalog/catalog.json',
+        ).readAsStringSync(),
       ),
     );
     widgets.addAll(catalog.widgets);
@@ -58,8 +59,12 @@ final class _Slot {
 
 const _d = 'duration: Duration(milliseconds: 1)';
 
-const _alignment =
-    _Slot(PropertyType.alignment, 'Align(alignment: @)', 'Align', 'alignment');
+const _alignment = _Slot(
+  PropertyType.alignment,
+  'Align(alignment: @)',
+  'Align',
+  'alignment',
+);
 const _alignmentXY = _Slot(
   PropertyType.alignmentXY,
   'AnimatedScale(scale: 1.0, $_d, alignment: @)',
@@ -94,13 +99,13 @@ const _directionalNames = [
   final x = name.endsWith('Left') || name.endsWith('Start')
       ? -1.0
       : name.endsWith('Right') || name.endsWith('End')
-          ? 1.0
-          : 0.0;
+      ? 1.0
+      : 0.0;
   final y = name.startsWith('top')
       ? -1.0
       : name.startsWith('bottom')
-          ? 1.0
-          : 0.0;
+      ? 1.0
+      : 0.0;
   return (x, y);
 }
 
@@ -111,197 +116,201 @@ Map<String, Object> _alignmentValue(String name, {bool directional = false}) {
 
 /// (slot, constant source, expected wire value or null for type-only check).
 List<(_Slot, String, Object?)> _cases() => [
-      for (final n in _alignNames) ...[
-        (_alignment, 'Alignment.$n', _alignmentValue(n)),
-        (_alignment, 'FractionalOffset.$n', _alignmentValue(n)),
-        (_alignment, 'AlignmentGeometry.$n', _alignmentValue(n)),
-        (_alignmentXY, 'Alignment.$n', _alignmentValue(n)),
-        (_alignmentXY, 'FractionalOffset.$n', _alignmentValue(n)),
-      ],
-      for (final n in _directionalNames)
-        (
-          _alignment,
-          'AlignmentDirectional.$n',
-          _alignmentValue(n, directional: true),
-        ),
-      for (final n in ['topStart', 'topEnd', 'centerStart', 'centerEnd'])
-        (
-          _alignment,
-          'AlignmentGeometry.$n',
-          _alignmentValue(n, directional: true),
-        ),
-      for (final (prefix, n) in [
-        ('EdgeInsets', 'zero'),
-        ('EdgeInsetsDirectional', 'zero'),
-      ])
-        (
-          const _Slot(
-            PropertyType.edgeInsets,
-            'Padding(padding: @)',
-            'Padding',
-            'padding',
-          ),
-          '$prefix.$n',
-          null,
-        ),
-      (
-        const _Slot(
-          PropertyType.edgeInsets,
-          'Container(margin: @)',
-          'Container',
-          'margin',
-        ),
-        'EdgeInsets.zero',
-        null,
+  for (final n in _alignNames) ...[
+    (_alignment, 'Alignment.$n', _alignmentValue(n)),
+    (_alignment, 'FractionalOffset.$n', _alignmentValue(n)),
+    (_alignment, 'AlignmentGeometry.$n', _alignmentValue(n)),
+    (_alignmentXY, 'Alignment.$n', _alignmentValue(n)),
+    (_alignmentXY, 'FractionalOffset.$n', _alignmentValue(n)),
+  ],
+  for (final n in _directionalNames)
+    (
+      _alignment,
+      'AlignmentDirectional.$n',
+      _alignmentValue(n, directional: true),
+    ),
+  for (final n in ['topStart', 'topEnd', 'centerStart', 'centerEnd'])
+    (
+      _alignment,
+      'AlignmentGeometry.$n',
+      _alignmentValue(n, directional: true),
+    ),
+  for (final (prefix, n) in [
+    ('EdgeInsets', 'zero'),
+    ('EdgeInsetsDirectional', 'zero'),
+  ])
+    (
+      const _Slot(
+        PropertyType.edgeInsets,
+        'Padding(padding: @)',
+        'Padding',
+        'padding',
       ),
-      (
-        const _Slot(
-          PropertyType.offset,
-          'AnimatedSlide(offset: @, $_d)',
-          'AnimatedSlide',
-          'offset',
-        ),
-        'Offset.zero',
-        {'x': 0.0, 'y': 0.0},
+      '$prefix.$n',
+      null,
+    ),
+  (
+    const _Slot(
+      PropertyType.edgeInsets,
+      'Container(margin: @)',
+      'Container',
+      'margin',
+    ),
+    'EdgeInsets.zero',
+    null,
+  ),
+  (
+    const _Slot(
+      PropertyType.offset,
+      'AnimatedSlide(offset: @, $_d)',
+      'AnimatedSlide',
+      'offset',
+    ),
+    'Offset.zero',
+    {'x': 0.0, 'y': 0.0},
+  ),
+  for (final (c, argb, material) in [
+    ('Colors.red', 0xFFF44336, 'red'),
+    ('Colors.transparent', 0x00000000, null),
+    ('Colors.white', 0xFFFFFFFF, null),
+    ('Colors.black', 0xFF000000, null),
+    ('Colors.redAccent', 0xFFFF5252, 'redAccent'),
+    ('Colors.white70', 0xB3FFFFFF, null),
+    ('Colors.black54', 0x8A000000, null),
+    ('Colors.amber', 0xFFFFC107, 'amber'),
+    ('Colors.blueGrey', 0xFF607D8B, 'blueGrey'),
+    ('CupertinoColors.white', 0xFFFFFFFF, null),
+    ('CupertinoColors.black', 0xFF000000, null),
+    ('CupertinoColors.transparent', 0x00000000, null),
+  ])
+    (
+      const _Slot(
+        PropertyType.color,
+        'Container(color: @)',
+        'Container',
+        'color',
       ),
-      for (final (c, argb, material) in [
-        ('Colors.red', 0xFFF44336, 'red'),
-        ('Colors.transparent', 0x00000000, null),
-        ('Colors.white', 0xFFFFFFFF, null),
-        ('Colors.black', 0xFF000000, null),
-        ('Colors.redAccent', 0xFFFF5252, 'redAccent'),
-        ('Colors.white70', 0xB3FFFFFF, null),
-        ('Colors.black54', 0x8A000000, null),
-        ('Colors.amber', 0xFFFFC107, 'amber'),
-        ('Colors.blueGrey', 0xFF607D8B, 'blueGrey'),
-        ('CupertinoColors.white', 0xFFFFFFFF, null),
-        ('CupertinoColors.black', 0xFF000000, null),
-        ('CupertinoColors.transparent', 0x00000000, null),
-      ])
-        (
-          const _Slot(
-            PropertyType.color,
-            'Container(color: @)',
-            'Container',
-            'color',
-          ),
-          c,
-          material == null
-              ? argb
-              : {
-                  'colorSpace': 'sRGB',
-                  'material': material,
-                  'a': ((argb >> 24) & 255) / 255,
-                  'r': ((argb >> 16) & 255) / 255,
-                  'g': ((argb >> 8) & 255) / 255,
-                  'b': (argb & 255) / 255,
-                },
-        ),
-      for (final c in kSupportedCurveNames)
-        (
-          const _Slot(
-            PropertyType.curve,
-            'AnimatedOpacity(opacity: 1.0, $_d, curve: @)',
-            'AnimatedOpacity',
-            'curve',
-          ),
-          'Curves.$c',
-          c,
-        ),
-      (
-        const _Slot(
-          PropertyType.duration,
-          'AnimatedOpacity(opacity: 1.0, duration: @)',
-          'AnimatedOpacity',
-          'duration',
-        ),
-        'Duration.zero',
-        0,
-      ),
-      for (final (slot, constant) in [
-        for (final c in ['BorderRadius.zero', 'BorderRadiusDirectional.zero'])
-          for (final slot in _borderRadiusSlots)
-            (
-              c == 'BorderRadiusDirectional.zero'
-                  ? _Slot(slot.type, slot.template, slot.widget,
-                      'borderRadiusTopStart')
-                  : slot,
-              c
-            ),
-        (
-          const _Slot(
-            PropertyType.real,
-            'Container(decoration: BoxDecoration(borderRadius: '
-                'BorderRadius.all(@)))',
-            'Container',
-            'borderRadius',
-          ),
-          'Radius.zero',
-        ),
-        (
-          const _Slot(
-            PropertyType.real,
-            'ClipRRect(borderRadius: BorderRadius.only(topLeft: @))',
-            'ClipRRect',
-            'borderRadiusTopLeft',
-          ),
-          'Radius.zero',
-        ),
-      ])
-        (slot, constant, 0.0),
-      for (final (shape, radius, expected) in [
-        ('RoundedRectangleBorder', 'BorderRadius.zero', 0.0),
-        (
-          'RoundedRectangleBorder',
-          'BorderRadius.only(topLeft: Radius.circular(8))',
-          {'topLeft': 8.0},
-        ),
-        (
-          'ContinuousRectangleBorder',
-          'BorderRadius.vertical(top: Radius.circular(4))',
-          {'topLeft': 4.0, 'topRight': 4.0},
-        ),
-        (
-          'BeveledRectangleBorder',
-          'BorderRadius.horizontal(right: Radius.zero)',
-          {'topRight': 0.0, 'bottomRight': 0.0},
-        ),
-      ])
-        (
-          const _Slot(
-            PropertyType.shapeBorder,
-            'Card(shape: @)',
-            'Card',
-            'shape',
-          ),
-          '$shape(borderRadius: $radius)',
-          {
-            'type': switch (shape) {
-              'RoundedRectangleBorder' => 'rounded',
-              'ContinuousRectangleBorder' => 'continuous',
-              _ => 'beveled',
+      c,
+      material == null
+          ? argb
+          : {
+              'colorSpace': 'sRGB',
+              'material': material,
+              'a': ((argb >> 24) & 255) / 255,
+              'r': ((argb >> 16) & 255) / 255,
+              'g': ((argb >> 8) & 255) / 255,
+              'b': (argb & 255) / 255,
             },
-            'borderRadius': expected,
-          },
-        ),
-      for (final (enumName, members, slot) in _enumSlots)
-        for (final m in members) (slot, '$enumName.$m', m),
-      for (final w in [100, 200, 300, 400, 500, 600, 700, 800, 900])
-        (_fontWeight, 'FontWeight.w$w', 'w$w'),
-      (_fontWeight, 'FontWeight.normal', 'w400'),
-      (_fontWeight, 'FontWeight.bold', 'w700'),
-      for (final m in ['none', 'underline', 'overline', 'lineThrough'])
+    ),
+  for (final c in kSupportedCurveNames)
+    (
+      const _Slot(
+        PropertyType.curve,
+        'AnimatedOpacity(opacity: 1.0, $_d, curve: @)',
+        'AnimatedOpacity',
+        'curve',
+      ),
+      'Curves.$c',
+      c,
+    ),
+  (
+    const _Slot(
+      PropertyType.duration,
+      'AnimatedOpacity(opacity: 1.0, duration: @)',
+      'AnimatedOpacity',
+      'duration',
+    ),
+    'Duration.zero',
+    0,
+  ),
+  for (final (slot, constant) in [
+    for (final c in ['BorderRadius.zero', 'BorderRadiusDirectional.zero'])
+      for (final slot in _borderRadiusSlots)
         (
-          const _Slot(
-            PropertyType.textDecoration,
-            "Text('a', style: TextStyle(decoration: @))",
-            'Text',
-            'decoration',
-          ),
-          'TextDecoration.$m',
-          m,
+          c == 'BorderRadiusDirectional.zero'
+              ? _Slot(
+                  slot.type,
+                  slot.template,
+                  slot.widget,
+                  'borderRadiusTopStart',
+                )
+              : slot,
+          c,
         ),
-    ];
+    (
+      const _Slot(
+        PropertyType.real,
+        'Container(decoration: BoxDecoration(borderRadius: '
+            'BorderRadius.all(@)))',
+        'Container',
+        'borderRadius',
+      ),
+      'Radius.zero',
+    ),
+    (
+      const _Slot(
+        PropertyType.real,
+        'ClipRRect(borderRadius: BorderRadius.only(topLeft: @))',
+        'ClipRRect',
+        'borderRadiusTopLeft',
+      ),
+      'Radius.zero',
+    ),
+  ])
+    (slot, constant, 0.0),
+  for (final (shape, radius, expected) in [
+    ('RoundedRectangleBorder', 'BorderRadius.zero', 0.0),
+    (
+      'RoundedRectangleBorder',
+      'BorderRadius.only(topLeft: Radius.circular(8))',
+      {'topLeft': 8.0},
+    ),
+    (
+      'ContinuousRectangleBorder',
+      'BorderRadius.vertical(top: Radius.circular(4))',
+      {'topLeft': 4.0, 'topRight': 4.0},
+    ),
+    (
+      'BeveledRectangleBorder',
+      'BorderRadius.horizontal(right: Radius.zero)',
+      {'topRight': 0.0, 'bottomRight': 0.0},
+    ),
+  ])
+    (
+      const _Slot(
+        PropertyType.shapeBorder,
+        'Card(shape: @)',
+        'Card',
+        'shape',
+      ),
+      '$shape(borderRadius: $radius)',
+      {
+        'type': switch (shape) {
+          'RoundedRectangleBorder' => 'rounded',
+          'ContinuousRectangleBorder' => 'continuous',
+          _ => 'beveled',
+        },
+        'borderRadius': expected,
+      },
+    ),
+  for (final (enumName, members, slot) in _enumSlots)
+    for (final m in members) (slot, '$enumName.$m', m),
+  for (final w in [100, 200, 300, 400, 500, 600, 700, 800, 900])
+    (_fontWeight, 'FontWeight.w$w', 'w$w'),
+  (_fontWeight, 'FontWeight.normal', 'w400'),
+  (_fontWeight, 'FontWeight.bold', 'w700'),
+  for (final m in ['none', 'underline', 'overline', 'lineThrough'])
+    (
+      const _Slot(
+        PropertyType.textDecoration,
+        "Text('a', style: TextStyle(decoration: @))",
+        'Text',
+        'decoration',
+      ),
+      'TextDecoration.$m',
+      m,
+    ),
+];
 
 const _borderRadiusSlots = [
   _Slot(
@@ -405,34 +414,40 @@ const _enumSlots = [
 ];
 
 bool _typeAccepts(PropertyType type, Object? value) => switch (type) {
-      PropertyType.alignment => value is Map &&
-          value['y'] is double &&
-          (value['x'] is double) != (value['start'] is double),
-      PropertyType.alignmentXY ||
-      PropertyType.offset =>
-        value is Map && value['x'] is double && value['y'] is double,
-      PropertyType.edgeInsets => value is Map &&
-          value.length == 4 &&
-          value.values.every((v) => v is double),
-      PropertyType.color => value is int ||
-          value is Map &&
-              value.length == 6 &&
-              const {'red', 'redAccent', 'amber', 'blueGrey'}
-                  .contains(value['material']) &&
-              value['colorSpace'] == 'sRGB' &&
-              const ['a', 'r', 'g', 'b']
-                  .every((channel) => value[channel] is double),
-      PropertyType.duration => value is int,
-      PropertyType.real => value is double,
-      PropertyType.shapeBorder => value is Map && value['type'] is String,
-      PropertyType.curve =>
-        value is String && kSupportedCurveNames.contains(value),
-      PropertyType.enumValue ||
-      PropertyType.fontWeight ||
-      PropertyType.textDecoration =>
-        value is String,
-      _ => false,
-    };
+  PropertyType.alignment =>
+    value is Map &&
+        value['y'] is double &&
+        (value['x'] is double) != (value['start'] is double),
+  PropertyType.alignmentXY || PropertyType.offset =>
+    value is Map && value['x'] is double && value['y'] is double,
+  PropertyType.edgeInsets =>
+    value is Map && value.length == 4 && value.values.every((v) => v is double),
+  PropertyType.color =>
+    value is int ||
+        value is Map &&
+            value.length == 6 &&
+            const {
+              'red',
+              'redAccent',
+              'amber',
+              'blueGrey',
+            }.contains(value['material']) &&
+            value['colorSpace'] == 'sRGB' &&
+            const [
+              'a',
+              'r',
+              'g',
+              'b',
+            ].every((channel) => value[channel] is double),
+  PropertyType.duration => value is int,
+  PropertyType.real => value is double,
+  PropertyType.shapeBorder => value is Map && value['type'] is String,
+  PropertyType.curve => value is String && kSupportedCurveNames.contains(value),
+  PropertyType.enumValue ||
+  PropertyType.fontWeight ||
+  PropertyType.textDecoration => value is String,
+  _ => false,
+};
 
 Iterable<ConstructorCall> _calls(Object? node) sync* {
   if (node is ConstructorCall) {
@@ -452,16 +467,17 @@ Iterable<ConstructorCall> _calls(Object? node) sync* {
 }
 
 Object? _plain(Object? value) => switch (value) {
-      final Map<Object?, Object?> map =>
-        map.map((k, v) => MapEntry(k, _plain(v))),
-      final List<Object?> list => list.map(_plain).toList(),
-      _ => value,
-    };
+  final Map<Object?, Object?> map => map.map((k, v) => MapEntry(k, _plain(v))),
+  final List<Object?> list => list.map(_plain).toList(),
+  _ => value,
+};
 
 void main() {
   final catalog = _builtInCatalog();
-  final translator =
-      ExpressionTranslator(catalog: catalog, helpers: HelperRegistry());
+  final translator = ExpressionTranslator(
+    catalog: catalog,
+    helpers: HelperRegistry(),
+  );
 
   test('named constants emit the value their catalog slot decodes', () async {
     final cases = _cases();
@@ -469,7 +485,8 @@ void main() {
       for (final (slot, constant, _) in cases)
         slot.template.replaceFirst('@', constant),
     ];
-    final source = '''
+    final source =
+        '''
       import 'package:flutter/cupertino.dart';
       import 'package:flutter/material.dart';
       Object x() => Stack(children: [
@@ -505,7 +522,8 @@ void main() {
         orElse: () => throw StateError('No ${slot.widget} for $constant'),
       );
       final value = _plain(call.arguments[slot.property]);
-      final ok = _typeAccepts(slot.type, value) &&
+      final ok =
+          _typeAccepts(slot.type, value) &&
           (expected == null || equals(expected).matches(value, {}));
       if (!ok) {
         failures.add(
@@ -519,18 +537,20 @@ void main() {
     expect(issues.map((issue) => issue.message), isEmpty);
   });
 
-  test('a context-dependent colour constant is refused, not flattened',
-      () async {
-    final result = translator.translate(
-      await parseExpressionFromSourceForTest(
-        '''
+  test(
+    'a context-dependent colour constant is refused, not flattened',
+    () async {
+      final result = translator.translate(
+        await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/cupertino.dart';
         Object x() => Container(color: CupertinoColors.systemBlue);
         ''',
-        rootPackage: 'apps_examples',
-      ),
-    );
-    expect(result.issues, isNotEmpty);
-    expect(result.dsl, isNot(contains('0x')));
-  });
+          rootPackage: 'apps_examples',
+        ),
+      );
+      expect(result.issues, isNotEmpty);
+      expect(result.dsl, isNot(contains('0x')));
+    },
+  );
 }

@@ -8,7 +8,7 @@ analyzer:
   # emitter unconditionally emits its full helper set, so a catalog that uses
   # only some helpers leaves the rest unused, and its internal locals follow the
   # emitter's `_restageA2ui*` naming. The render test compiles + drives it
-  # against the real genui SDK (the compile + behaviour floor), so excluding it
+  # against the real a2ui_flutter SDK (the compile + behaviour floor), so excluding it
   # from lint loses no coverage.
   exclude:
     - lib/generated/restage_a2ui_catalog.g.dart

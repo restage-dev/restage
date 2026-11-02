@@ -9,8 +9,7 @@ import 'helpers.dart';
 void main() {
   untrackedStateTests();
   for (final legacy in [false, true]) {
-    test(
-        'dependency ${legacy ? 'legacy' : 'current'} state must be visible '
+    test('dependency ${legacy ? 'legacy' : 'current'} state must be visible '
         'to the build', () async {
       final root = (await restagePackageRoot('restage_codegen'))!;
       final directory = Directory.fromUri(
@@ -113,59 +112,72 @@ void main() {
             path: paths.$1,
             legacyPath: paths.$2,
           ),
-          throwsA(isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            allOf(
-                contains(paths.$1), contains(paths.$2), contains('Reconcile')),
-          )),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              allOf(
+                contains(paths.$1),
+                contains(paths.$2),
+                contains('Reconcile'),
+              ),
+            ),
+          ),
         );
         expect(legacy.readAsStringSync(), 'old');
         expect(current.readAsStringSync(), 'new');
       });
 
-      test('reads the new tracked asset and rejects conflicting tracked state',
-          () async {
-        List<int>? read;
-        await testBuilder(
-          _ReadState(paths.$1, paths.$2, (bytes) => read = bytes),
-          {'state_fixture|${paths.$1}': 'identity'},
-          rootPackage: 'state_fixture',
-        );
-        expect(read, 'identity'.codeUnits);
-        final result = await testBuilder(
-          _ReadState(paths.$1, paths.$2, (_) {}),
-          {
-            'state_fixture|${paths.$1}': 'identity',
-            'state_fixture|${paths.$2}': 'different',
-          },
-          rootPackage: 'state_fixture',
-        );
-        expect(result.succeeded, isFalse);
-      });
+      test(
+        'reads the new tracked asset and rejects conflicting tracked state',
+        () async {
+          List<int>? read;
+          await testBuilder(
+            _ReadState(paths.$1, paths.$2, (bytes) => read = bytes),
+            {'state_fixture|${paths.$1}': 'identity'},
+            rootPackage: 'state_fixture',
+          );
+          expect(read, 'identity'.codeUnits);
+          final result = await testBuilder(
+            _ReadState(paths.$1, paths.$2, (_) {}),
+            {
+              'state_fixture|${paths.$1}': 'identity',
+              'state_fixture|${paths.$2}': 'different',
+            },
+            rootPackage: 'state_fixture',
+          );
+          expect(result.succeeded, isFalse);
+        },
+      );
     });
   }
 }
 
 class _ReadState implements Builder {
-  _ReadState(this.path, this.legacyPath, this.onRead,
-      {this.requireTracked = false});
+  _ReadState(
+    this.path,
+    this.legacyPath,
+    this.onRead, {
+    this.requireTracked = false,
+  });
   final bool requireTracked;
   final String path;
   final String legacyPath;
   final void Function(List<int>?) onRead;
   @override
   Map<String, List<String>> get buildExtensions => {
-        r'$package$': ['read.txt']
-      };
+    r'$package$': ['read.txt'],
+  };
   @override
   Future<void> build(BuildStep buildStep) async {
-    onRead(await readDurableRestageState(
-      buildStep,
-      path: path,
-      legacyPath: legacyPath,
-      requireTracked: requireTracked,
-    ));
+    onRead(
+      await readDurableRestageState(
+        buildStep,
+        path: path,
+        legacyPath: legacyPath,
+        requireTracked: requireTracked,
+      ),
+    );
   }
 }
 
@@ -193,20 +205,24 @@ void untrackedStateTests() {
           ],
         );
 
-    test('a state file on disk that is not a build input is untracked',
-        () async {
-      expect(await untracked({}), ['.restage/measurement-state.json']);
-    });
+    test(
+      'a state file on disk that is not a build input is untracked',
+      () async {
+        expect(await untracked({}), ['.restage/measurement-state.json']);
+      },
+    );
 
-    test('a state file build.yaml admits is tracked even when absent at start',
-        () async {
-      File('${root.path}/build.yaml').writeAsStringSync('''
+    test(
+      'a state file build.yaml admits is tracked even when absent at start',
+      () async {
+        File('${root.path}/build.yaml').writeAsStringSync('''
 additional_public_assets:
   - .restage/measurement-state.json
   - .restage/wire-ids.events.jsonl
 ''');
-      expect(await untracked({}), isEmpty);
-    });
+        expect(await untracked({}), isEmpty);
+      },
+    );
 
     test('a state file a target source glob admits is tracked', () async {
       for (final sources in [

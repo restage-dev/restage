@@ -287,8 +287,9 @@ final class WidgetClassifier {
   /// custom widget to recurse into.
   final Catalog catalog;
 
-  late final Set<String> _admittedHelperPackages =
-      artifactHelperPackages(catalog);
+  late final Set<String> _admittedHelperPackages = artifactHelperPackages(
+    catalog,
+  );
 
   /// Registry of recognised paywall-helper calls — a helper call inside a
   /// custom widget classifies as composition, not as a Dart call.
@@ -388,8 +389,9 @@ final class WidgetClassifier {
       buildHost = stateClass;
     }
 
-    final buildMethod =
-        buildHost.methods.where((m) => m.name == 'build').firstOrNull;
+    final buildMethod = buildHost.methods
+        .where((m) => m.name == 'build')
+        .firstOrNull;
     if (buildMethod == null) {
       return UnclassifiableWidget(key, reason: 'no build() method was found');
     }
@@ -404,7 +406,8 @@ final class WidgetClassifier {
     if (extracted == null) {
       return UnclassifiableWidget(
         key,
-        reason: preludeDeclarationProblem(node.body) ??
+        reason:
+            preludeDeclarationProblem(node.body) ??
             'build() body is not a single returned expression',
       );
     }
@@ -443,7 +446,8 @@ final class WidgetClassifier {
       // follow-up; until then a positional call could mis-map arguments.
       return UnclassifiableWidget(
         key,
-        reason: 'the widget declares more than one constructor, which '
+        reason:
+            'the widget declares more than one constructor, which '
             'Restage does not yet disambiguate for inlining',
       );
     }
@@ -454,7 +458,8 @@ final class WidgetClassifier {
     if (params == null) {
       return UnclassifiableWidget(
         key,
-        reason: 'a constructor parameter has a default value Restage '
+        reason:
+            'a constructor parameter has a default value Restage '
             'cannot fold to a literal',
       );
     }
@@ -514,8 +519,9 @@ final class WidgetClassifier {
   /// Resolves the `State` subclass a `StatefulWidget`'s `createState()`
   /// returns — from the declared return type, then the returned instance.
   Future<ClassElement?> _resolveStateClass(ClassElement widget) async {
-    final createState =
-        widget.methods.where((m) => m.name == 'createState').firstOrNull;
+    final createState = widget.methods
+        .where((m) => m.name == 'createState')
+        .firstOrNull;
     if (createState == null) return null;
     final returnType = createState.returnType;
     if (returnType is InterfaceType) {
@@ -609,10 +615,10 @@ class _Walk {
   final Map<Element, Expression> _collectionBindings = {};
 
   Map<Element, Expression> get _activeBindings => {
-        ..._localBindings,
-        ..._paramBindings,
-        ..._collectionBindings,
-      };
+    ..._localBindings,
+    ..._paramBindings,
+    ..._collectionBindings,
+  };
 
   Expression? _activeBindingFor(Element? element) =>
       _collectionBindings[element] ??
@@ -639,11 +645,11 @@ class _Walk {
 
   /// The captured named intermediates for the blueprint.
   InlinedDefinitions get inlinedDefinitions => InlinedDefinitions(
-        helpers: Map.of(_capturedHelpers),
-        localBindings: Map.of(
-          withHelperLocals(_localBindings, _capturedHelpers.values),
-        ),
-      );
+    helpers: Map.of(_capturedHelpers),
+    localBindings: Map.of(
+      withHelperLocals(_localBindings, _capturedHelpers.values),
+    ),
+  );
 
   /// The `State` fields captured by [classifyStateShape], in declaration
   /// order — passed to the blueprint when a stateful widget classifies
@@ -937,7 +943,8 @@ class _Walk {
     }
     if (expr is FunctionExpression) {
       if (expr.staticType != null &&
-          widgetBuilderContractFor(expr.staticType!) != null) return;
+          widgetBuilderContractFor(expr.staticType!) != null)
+        return;
       _unclassifiable(
         'an inline closure Restage does not analyse yet: '
         '${_truncateSource(expr)}',
@@ -970,7 +977,8 @@ class _Walk {
   }
 
   Future<void> _construction(InstanceCreationExpression expr) async {
-    final type = expr.constructorName.element?.enclosingElement ??
+    final type =
+        expr.constructorName.element?.enclosingElement ??
         expr.constructorName.type.element;
     if (type is! ClassElement) {
       _unclassifiable('a widget construction whose type did not resolve');
@@ -986,8 +994,10 @@ class _Walk {
               : value,
         );
         if (arguments == null) {
-          _unclassifiable(reason!,
-              diagnosticCode: IssueCode.shaderMaskFormUnsupported);
+          _unclassifiable(
+            reason!,
+            diagnosticCode: IssueCode.shaderMaskFormUnsupported,
+          );
           return;
         }
         for (final MapEntry(:key, :value) in arguments.entries) {
@@ -1043,7 +1053,8 @@ class _Walk {
 
   Future<void> _classifyArguments(InstanceCreationExpression expr) async {
     final type = expr.constructorName.type.element;
-    final isCatalogWidget = type is ClassElement &&
+    final isCatalogWidget =
+        type is ClassElement &&
         _isWidgetClass(type) &&
         _classifier.isCatalogWidget(
           type,
@@ -1154,7 +1165,8 @@ class _Walk {
       }
       return;
     }
-    final copyWith = (isSystemUiOverlayStyleCopyWith(expr) ||
+    final copyWith =
+        (isSystemUiOverlayStyleCopyWith(expr) ||
             isIconThemeDataCopyWith(expr)) &&
         expr.target != null;
     if (copyWith || isIconThemeDataLerp(expr)) {
@@ -1177,8 +1189,9 @@ class _Walk {
     }
     // `<theme style read>.copyWith(...)`. The translator expands it and
     // checks the contract, as it does for every other theme read.
-    final copyWithTarget =
-        expr.methodName.name == 'copyWith' ? expr.target : null;
+    final copyWithTarget = expr.methodName.name == 'copyWith'
+        ? expr.target
+        : null;
     if (copyWithTarget != null &&
         isThemeReadChain(copyWithTarget, bindings: _activeBindings)) {
       _mechanisms.add(InliningMechanism.themeAsData);
@@ -1310,27 +1323,25 @@ class _Walk {
   /// probe resolved, for promotion once the traversal's terminals classify.
   CollectionSemanticProbe _collectionSemanticProbe({
     Map<Element, HelperDef>? followed,
-  }) =>
-      CollectionSemanticProbe(
-        bindingFor: (identifier) => _activeBindingFor(identifier.element),
-        helperFor: (invocation) {
-          final helper = _resolveInlinableHelper(invocation);
-          if (helper == null) return null;
-          final definition =
-              _capturedHelpers[helper] ?? _indexedHelpers[helper];
-          if (definition == null) return null;
-          final bindings = bindHelperArguments(
-            definition.params,
-            invocation.argumentList.arguments.toList(),
-          );
-          if (bindings == null) return null;
-          followed?[helper] = definition;
-          return CollectionResolvedHelper(
-            body: definition.body,
-            parameterBindings: {...definition.localBindings, ...bindings},
-          );
-        },
+  }) => CollectionSemanticProbe(
+    bindingFor: (identifier) => _activeBindingFor(identifier.element),
+    helperFor: (invocation) {
+      final helper = _resolveInlinableHelper(invocation);
+      if (helper == null) return null;
+      final definition = _capturedHelpers[helper] ?? _indexedHelpers[helper];
+      if (definition == null) return null;
+      final bindings = bindHelperArguments(
+        definition.params,
+        invocation.argumentList.arguments.toList(),
       );
+      if (bindings == null) return null;
+      followed?[helper] = definition;
+      return CollectionResolvedHelper(
+        body: definition.body,
+        parameterBindings: {...definition.localBindings, ...bindings},
+      );
+    },
+  );
 
   /// Runs [attempt] and reports whether it recorded a blocker or reason, so a
   /// caller can tell "not recognised" from "recognised and rejected".
@@ -1340,7 +1351,8 @@ class _Walk {
     final blockersBefore = _blockers.length;
     final reasonBefore = _unclassifiableReason;
     final admitted = await attempt();
-    final recorded = _blockers.length != blockersBefore ||
+    final recorded =
+        _blockers.length != blockersBefore ||
         (reasonBefore == null && _unclassifiableReason != null);
     return (admitted: admitted, recorded: recorded);
   }
@@ -1753,8 +1765,10 @@ class _Walk {
   bool _isStructuredConstMember(PrefixedIdentifier expr) {
     final value = frameworkStaticConst(expr);
     if (value != null && encodeFrameworkConst(value) != null) return true;
-    if (!kStructuredConstMembers
-        .contains((expr.prefix.name, expr.identifier.name))) {
+    if (!kStructuredConstMembers.contains((
+      expr.prefix.name,
+      expr.identifier.name,
+    ))) {
       return false;
     }
     return isFrameworkValueTypeLibrary(expr.prefix.element);
@@ -1933,21 +1947,21 @@ class _Walk {
   /// operand; a bare/prefixed identifier is its own name. Any other node falls
   /// back to the truncated source.
   String _idiomSubjectOf(AstNode node) => switch (node) {
-        InstanceCreationExpression(:final constructorName) =>
-          _constructionSubject(constructorName),
-        MethodInvocation(:final target, :final methodName) => switch (target) {
-            SimpleIdentifier(:final name) => '$name.${methodName.name}',
-            PrefixedIdentifier(:final name) => '$name.${methodName.name}',
-            _ => methodName.name,
-          },
-        PrefixedIdentifier(:final name) => name,
-        SimpleIdentifier(:final name) => name,
-        BinaryExpression(:final leftOperand) => _idiomSubjectOf(leftOperand),
-        PrefixExpression(:final operand) => _idiomSubjectOf(operand),
-        ParenthesizedExpression(:final expression) =>
-          _idiomSubjectOf(expression),
-        _ => _truncateSource(node),
-      };
+    InstanceCreationExpression(:final constructorName) => _constructionSubject(
+      constructorName,
+    ),
+    MethodInvocation(:final target, :final methodName) => switch (target) {
+      SimpleIdentifier(:final name) => '$name.${methodName.name}',
+      PrefixedIdentifier(:final name) => '$name.${methodName.name}',
+      _ => methodName.name,
+    },
+    PrefixedIdentifier(:final name) => name,
+    SimpleIdentifier(:final name) => name,
+    BinaryExpression(:final leftOperand) => _idiomSubjectOf(leftOperand),
+    PrefixExpression(:final operand) => _idiomSubjectOf(operand),
+    ParenthesizedExpression(:final expression) => _idiomSubjectOf(expression),
+    _ => _truncateSource(node),
+  };
 
   /// The `Type` or `Type.namedCtor` subject of a construction, from the
   /// resolved type element (the source text when unresolved).
@@ -1988,12 +2002,14 @@ class _Walk {
     // Uniform-coalescing gate: a property read both directly and as
     // `prop ?? fallback` cannot be completed consistently at the call site (a
     // completed value would feed the direct read too), so it defers.
-    final mixedRead =
-        _coalescedParams.keys.where(_bareParamReads.contains).firstOrNull;
+    final mixedRead = _coalescedParams.keys
+        .where(_bareParamReads.contains)
+        .firstOrNull;
     if (mixedRead != null) {
       return UnclassifiableWidget(
         key,
-        reason: "build() reads '$mixedRead' both directly and as "
+        reason:
+            "build() reads '$mixedRead' both directly and as "
             "'$mixedRead ?? <fallback>'; a property read both ways cannot be "
             'completed consistently at the call site',
       );
@@ -2137,12 +2153,16 @@ void visitStaticallyAdmittedExpressions(
   required void Function(
     Expression expression,
     Map<Element, Expression> bindings,
-  ) visit,
+  )
+  visit,
   InlinedDefinitions inlined = const InlinedDefinitions.empty(),
   Set<String> admittedHelperPackages = const {},
 }) {
-  _StaticallyAdmittedExpressionVisitor(visit, inlined, admittedHelperPackages)
-      .collect(expression);
+  _StaticallyAdmittedExpressionVisitor(
+    visit,
+    inlined,
+    admittedHelperPackages,
+  ).collect(expression);
 }
 
 final class _StaticallyAdmittedExpressionVisitor {
@@ -2155,7 +2175,8 @@ final class _StaticallyAdmittedExpressionVisitor {
   final void Function(
     Expression expression,
     Map<Element, Expression> bindings,
-  ) _visit;
+  )
+  _visit;
   final InlinedDefinitions _inlined;
   final Set<String> _admittedHelperPackages;
   final Set<Expression> _active = <Expression>{};
@@ -2205,9 +2226,9 @@ final class _StaticallyAdmittedExpressionVisitor {
           final occurrences = switch (entry) {
             CollectionListElement(:final occurrence) => [occurrence],
             CollectionListRefusal(:final refusal) => [
-                ...?refusal.runtimeLoop?.template.leafOccurrences,
-                ...?refusal.runtimeIf?.leafOccurrences,
-              ],
+              ...?refusal.runtimeLoop?.template.leafOccurrences,
+              ...?refusal.runtimeIf?.leafOccurrences,
+            ],
           };
           for (final occurrence in occurrences) {
             _collect(

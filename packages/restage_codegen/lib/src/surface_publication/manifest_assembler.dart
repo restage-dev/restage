@@ -71,12 +71,12 @@ final class SurfacePublicationScreenContractFacts {
       hostDataContract.isEmpty ? null : hostDataContract;
 
   String get contractFingerprint => SurfaceScreenContractFingerprint.hash(
-        sourceKind: SurfaceSourceKind.screen,
-        payloadKind: SurfacePayloadKind.blob,
-        capabilities: capabilities,
-        eventContractHash: eventContractHash,
-        hostDataContractHash: hostDataContractHash,
-      );
+    sourceKind: SurfaceSourceKind.screen,
+    payloadKind: SurfacePayloadKind.blob,
+    capabilities: capabilities,
+    eventContractHash: eventContractHash,
+    hostDataContractHash: hostDataContractHash,
+  );
 }
 
 /// The normalized facts and exact artifacts for one publication.
@@ -96,13 +96,13 @@ final class SurfacePublicationAssemblyInput {
     this.declaredPresentation,
     this.fitRequirement,
     this.hostDataContract = const SurfaceScreenHostDataSchema.empty(),
-  })  : artifacts = List.unmodifiable(artifacts),
-        // Ordered by the same rule as every other generated-path list in
-        // this manifest family, so `sources` cannot be the one member whose
-        // canonical byte order disagrees with the rest.
-        sources = List.unmodifiable(
-          SplayTreeSet<String>(compareGeneratedOutputPaths)..addAll(sources),
-        );
+  }) : artifacts = List.unmodifiable(artifacts),
+       // Ordered by the same rule as every other generated-path list in
+       // this manifest family, so `sources` cannot be the one member whose
+       // canonical byte order disagrees with the rest.
+       sources = List.unmodifiable(
+         SplayTreeSet<String>(compareGeneratedOutputPaths)..addAll(sources),
+       );
 
   final Surface surface;
   final String slug;
@@ -138,42 +138,40 @@ final class SurfacePublicationAssemblyInput {
     required Map<String, SurfaceCompiledScreenContractV1> contracts,
     SurfacePresentationV1? presentation,
     SurfaceFitRequirementV1? requirement,
-  }) =>
-      SurfacePublicationAssemblyInput(
-        surface: surface,
-        slug: slug,
-        sourceKind: sourceKind,
-        payloadKind: payloadKind,
-        artifacts: artifacts,
-        sources: sources,
-        flowFacts: flowFacts,
-        screenContractFacts: screenContractFacts,
-        mountName: mountName,
-        compiledScreenContracts: contracts,
-        declaredPresentation: presentation,
-        fitRequirement: requirement,
-        hostDataContract: hostDataContract,
-      );
+  }) => SurfacePublicationAssemblyInput(
+    surface: surface,
+    slug: slug,
+    sourceKind: sourceKind,
+    payloadKind: payloadKind,
+    artifacts: artifacts,
+    sources: sources,
+    flowFacts: flowFacts,
+    screenContractFacts: screenContractFacts,
+    mountName: mountName,
+    compiledScreenContracts: contracts,
+    declaredPresentation: presentation,
+    fitRequirement: requirement,
+    hostDataContract: hostDataContract,
+  );
 
   /// This input with [artifacts] in place of its own, every other fact kept.
   SurfacePublicationAssemblyInput withArtifacts(
     Iterable<SurfacePublicationArtifactInput> artifacts,
-  ) =>
-      SurfacePublicationAssemblyInput(
-        surface: surface,
-        slug: slug,
-        sourceKind: sourceKind,
-        payloadKind: payloadKind,
-        artifacts: artifacts,
-        sources: sources,
-        flowFacts: flowFacts,
-        screenContractFacts: screenContractFacts,
-        mountName: mountName,
-        compiledScreenContracts: compiledScreenContracts,
-        declaredPresentation: declaredPresentation,
-        fitRequirement: fitRequirement,
-        hostDataContract: hostDataContract,
-      );
+  ) => SurfacePublicationAssemblyInput(
+    surface: surface,
+    slug: slug,
+    sourceKind: sourceKind,
+    payloadKind: payloadKind,
+    artifacts: artifacts,
+    sources: sources,
+    flowFacts: flowFacts,
+    screenContractFacts: screenContractFacts,
+    mountName: mountName,
+    compiledScreenContracts: compiledScreenContracts,
+    declaredPresentation: declaredPresentation,
+    fitRequirement: fitRequirement,
+    hostDataContract: hostDataContract,
+  );
 }
 
 /// The strict, canonical result of publication assembly.
@@ -197,8 +195,7 @@ abstract final class SurfacePublicationManifestAssembler {
   /// Assembles only the canonical manifest bytes.
   static Uint8List assembleBytes(
     Iterable<SurfacePublicationAssemblyInput> inputs,
-  ) =>
-      assemble(inputs).canonicalBytes;
+  ) => assemble(inputs).canonicalBytes;
 
   /// Assembles and strictly round-trips one package publication manifest.
   static SurfacePublicationAssemblyResult assemble(
@@ -210,7 +207,8 @@ abstract final class SurfacePublicationManifestAssembler {
 
     final identities = <String>{};
     for (final publication in prepared) {
-      final identity = '${publication.publication.surface.wireName}\u0000'
+      final identity =
+          '${publication.publication.surface.wireName}\u0000'
           '${publication.publication.slug}';
       if (!identities.add(identity)) {
         throw FormatException(
@@ -281,8 +279,9 @@ abstract final class SurfacePublicationManifestAssembler {
       manifest,
     );
     final decoded = SurfacePublicationManifestV1Codec.decodeJson(encoded);
-    final roundTripped =
-        SurfacePublicationManifestV1Codec.encodeCanonicalJson(decoded);
+    final roundTripped = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
+      decoded,
+    );
     if (roundTripped != encoded) {
       throw StateError(
         'Surface publication manifest codec did not preserve canonical bytes.',
@@ -510,9 +509,11 @@ abstract final class SurfacePublicationManifestAssembler {
       eventContract: contractFacts?.eventContract,
       eventContractHash: contractFacts?.eventContractHash,
       contractFingerprint: contractFacts?.contractFingerprint,
-      hostDataContract: contractFacts?.publishedHostDataContract ??
+      hostDataContract:
+          contractFacts?.publishedHostDataContract ??
           (input.hostDataContract.isEmpty ? null : input.hostDataContract),
-      hostDataContractHash: contractFacts?.hostDataContractHash ??
+      hostDataContractHash:
+          contractFacts?.hostDataContractHash ??
           (input.hostDataContract.isEmpty
               ? null
               : SurfaceScreenHostDataContractHash.hash(input.hostDataContract)),
@@ -825,12 +826,12 @@ int _compareArtifacts(_PreparedArtifact left, _PreparedArtifact right) {
 }
 
 int _roleOrder(SurfacePublicationArtifactRole role) => switch (role) {
-      SurfacePublicationArtifactRole.flowDocument => 0,
-      SurfacePublicationArtifactRole.screenBlob => 1,
-      SurfacePublicationArtifactRole.capabilitySidecar => 2,
-      SurfacePublicationArtifactRole.iconFont => 3,
-      SurfacePublicationArtifactRole.localSeeds => 4,
-    };
+  SurfacePublicationArtifactRole.flowDocument => 0,
+  SurfacePublicationArtifactRole.screenBlob => 1,
+  SurfacePublicationArtifactRole.capabilitySidecar => 2,
+  SurfacePublicationArtifactRole.iconFont => 3,
+  SurfacePublicationArtifactRole.localSeeds => 4,
+};
 
 bool _sameArtifactDeclaration(
   SurfacePublicationArtifact left,

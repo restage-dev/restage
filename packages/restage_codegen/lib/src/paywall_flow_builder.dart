@@ -18,18 +18,19 @@ const String _kPaywallSourceDir = 'lib/paywalls';
 const String _kPaywallOutputDir = 'assets/paywalls';
 const String _kPaywallScreenOutputDir = kPaywallScreensAssetDir;
 const String _kDoneState = 'done';
-const String _zeroHash = 'sha256:00000000000000000000000000000000'
+const String _zeroHash =
+    'sha256:00000000000000000000000000000000'
     '00000000000000000000000000000000';
 
 final class PaywallNavigationCompilationResult {
   PaywallNavigationCompilationResult({
     required Map<String, List<int>> documents,
     required List<Issue> issues,
-  })  : documents = Map.unmodifiable({
-          for (final entry in documents.entries)
-            entry.key: Uint8List.fromList(entry.value),
-        }),
-        issues = List.unmodifiable(issues);
+  }) : documents = Map.unmodifiable({
+         for (final entry in documents.entries)
+           entry.key: Uint8List.fromList(entry.value),
+       }),
+       issues = List.unmodifiable(issues);
 
   final Map<String, Uint8List> documents;
   final List<Issue> issues;
@@ -63,7 +64,8 @@ PaywallNavigationCompilationResult compilePaywallNavigationFlows({
       issues.add(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
-          message: 'Navigation plan entryId "${plan.entryId}" does not '
+          message:
+              'Navigation plan entryId "${plan.entryId}" does not '
               'match canonical paywall id "$id".',
           location: sourceId.path,
         ),
@@ -75,7 +77,8 @@ PaywallNavigationCompilationResult compilePaywallNavigationFlows({
         issues.add(
           Issue(
             code: IssueCode.navigationFormUnsupported,
-            message: 'Screen navigation deeper than one level is not '
+            message:
+                'Screen navigation deeper than one level is not '
                 'supported: pushed paywall "${transition.pushedId}" also '
                 'navigates.',
             location: sourceId.path,
@@ -98,7 +101,8 @@ PaywallNavigationCompilationResult compilePaywallNavigationFlows({
         issues.add(
           Issue(
             code: IssueCode.missingScreenDescriptor,
-            message: 'Navigation paywall "$id" is missing the aggregate '
+            message:
+                'Navigation paywall "$id" is missing the aggregate '
                 'adapter family for "$paywallId".',
             location: sourceId.path,
           ),
@@ -120,7 +124,8 @@ PaywallNavigationCompilationResult compilePaywallNavigationFlows({
         issues.add(
           Issue(
             code: IssueCode.malformedTranslatorOutput,
-            message: 'Aggregate paywall adapter sidecar for "$paywallId" '
+            message:
+                'Aggregate paywall adapter sidecar for "$paywallId" '
                 'does not match its blob.',
             location: sourceId.path,
           ),
@@ -144,7 +149,8 @@ PaywallNavigationCompilationResult compilePaywallNavigationFlows({
         issues.add(
           Issue(
             code: IssueCode.malformedTranslatorOutput,
-            message: 'Navigation plan contains duplicate event '
+            message:
+                'Navigation plan contains duplicate event '
                 '"${transition.event}".',
             location: sourceId.path,
           ),
@@ -159,7 +165,8 @@ PaywallNavigationCompilationResult compilePaywallNavigationFlows({
       issues.add(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
-          message: 'Navigation plan terminating event '
+          message:
+              'Navigation plan terminating event '
               '"${plan.terminatingEvent}" conflicts with a push event.',
           location: sourceId.path,
         ),
@@ -198,7 +205,8 @@ PaywallNavigationCompilationResult compilePaywallNavigationFlows({
       issues.add(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
-          message: 'Generated paywall flow document failed validation: '
+          message:
+              'Generated paywall flow document failed validation: '
               '$error',
           location: sourceId.path,
         ),
@@ -221,10 +229,10 @@ final class PaywallFlowBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '$_kPaywallSourceDir/{{name}}.dart': [
-          '$_kPaywallOutputDir/{{name}}.flow.json',
-        ],
-      };
+    '$_kPaywallSourceDir/{{name}}.dart': [
+      '$_kPaywallOutputDir/{{name}}.flow.json',
+    ],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -308,7 +316,8 @@ Future<FlowDocument> _synthesizeFlowDocument(
       issues.add(
         Issue(
           code: IssueCode.navigationFormUnsupported,
-          message: 'Screen navigation deeper than one level is not supported '
+          message:
+              'Screen navigation deeper than one level is not supported '
               'in this increment: the pushed screen "${transition.pushedId}" '
               'itself navigates. Flatten the navigation, or defer the deeper '
               'screen.',
@@ -347,7 +356,8 @@ Future<FlowDocument> _synthesizeFlowDocument(
       issues.add(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
-          message: 'Navigation plan contains duplicate event '
+          message:
+              'Navigation plan contains duplicate event '
               '"${transition.event}".',
           location: sourceId.path,
         ),
@@ -362,7 +372,8 @@ Future<FlowDocument> _synthesizeFlowDocument(
     issues.add(
       Issue(
         code: IssueCode.malformedTranslatorOutput,
-        message: 'Navigation plan terminating event '
+        message:
+            'Navigation plan terminating event '
             '"${plan.terminatingEvent}" conflicts with a push event.',
         location: sourceId.path,
       ),
@@ -450,7 +461,8 @@ Future<ScreenArtifact> _artifactFor(
     issues.add(
       Issue(
         code: IssueCode.missingScreenDescriptor,
-        message: 'Missing paywall screen capability sidecar '
+        message:
+            'Missing paywall screen capability sidecar '
             '${capabilityId.path}.',
         location: sourceId.path,
       ),
@@ -468,19 +480,25 @@ Future<ScreenArtifact> _artifactFor(
       issues.add(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
-          message: 'Paywall screen capability sidecar ${capabilityId.path} '
+          message:
+              'Paywall screen capability sidecar ${capabilityId.path} '
               'does not match ${rfwId.path}.',
           location: sourceId.path,
         ),
       );
     }
-    final manifest =
-        _deriveScreenCapabilities(bytes, catalog, sourceId, issues);
+    final manifest = _deriveScreenCapabilities(
+      bytes,
+      catalog,
+      sourceId,
+      issues,
+    );
     if (sidecar != null && manifest != null && sidecar.manifest != manifest) {
       issues.add(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
-          message: 'Paywall screen capability sidecar ${capabilityId.path} '
+          message:
+              'Paywall screen capability sidecar ${capabilityId.path} '
               'does not match the capabilities derived from ${rfwId.path}.',
           location: sourceId.path,
         ),
@@ -528,7 +546,8 @@ CapabilityManifest? _deriveScreenCapabilities(
     issues.add(
       Issue(
         code: IssueCode.malformedTranslatorOutput,
-        message: 'Could not decode the compiled screen blob to derive its '
+        message:
+            'Could not decode the compiled screen blob to derive its '
             'capability floor: $error. This is a codegen bug.',
         location: sourceId.path,
       ),
@@ -556,7 +575,8 @@ CapabilitySidecar? _decodeCapabilitySidecar(
     issues.add(
       Issue(
         code: IssueCode.malformedTranslatorOutput,
-        message: 'Could not decode paywall screen capability sidecar '
+        message:
+            'Could not decode paywall screen capability sidecar '
             '${capabilityId.path}: $error.',
         location: sourceId.path,
       ),
@@ -567,7 +587,8 @@ CapabilitySidecar? _decodeCapabilitySidecar(
     issues.add(
       Issue(
         code: IssueCode.malformedTranslatorOutput,
-        message: 'Paywall screen capability sidecar ${capabilityId.path} '
+        message:
+            'Paywall screen capability sidecar ${capabilityId.path} '
             'must be a JSON object.',
         location: sourceId.path,
       ),
@@ -580,7 +601,8 @@ CapabilitySidecar? _decodeCapabilitySidecar(
     issues.add(
       Issue(
         code: IssueCode.malformedTranslatorOutput,
-        message: 'Invalid paywall screen capability sidecar '
+        message:
+            'Invalid paywall screen capability sidecar '
             '${capabilityId.path}: $error.',
         location: sourceId.path,
       ),
@@ -642,8 +664,12 @@ _NavigationPlan _decodeNavigationPlan(
   }
 
   final entryId = _stringField(decoded, 'entryId', sourceId, issues);
-  final terminatingEvent =
-      _stringField(decoded, 'terminatingEvent', sourceId, issues);
+  final terminatingEvent = _stringField(
+    decoded,
+    'terminatingEvent',
+    sourceId,
+    issues,
+  );
   if (kReservedCommerceEventNames.contains(terminatingEvent)) {
     issues.add(unsupportedCommerceEventIssue(terminatingEvent, sourceId.path));
   }
@@ -722,9 +748,9 @@ final class _NavigationPlan {
   }) : transitions = List.unmodifiable(transitions);
 
   _NavigationPlan.invalid()
-      : entryId = '_invalid',
-        transitions = const [],
-        terminatingEvent = '_invalid';
+    : entryId = '_invalid',
+      transitions = const [],
+      terminatingEvent = '_invalid';
 
   final String entryId;
   final List<_NavigationTransition> transitions;

@@ -35,8 +35,7 @@ ExpressionTranslator _translatorWith(WidgetClassification classification) =>
 
 void main() {
   group('Diagnostic wording — Deferred category', () {
-    test(
-        'customWidgetInliningDeferred surfaces the deferred verb '
+    test('customWidgetInliningDeferred surfaces the deferred verb '
         '("does not yet")', () async {
       final translator = _translatorWith(
         ComposableWidget(
@@ -56,20 +55,21 @@ void main() {
       expect(
         result.issues.single.message,
         contains('does not yet'),
-        reason: 'Deferred messages must use the "does not yet" verb so the '
+        reason:
+            'Deferred messages must use the "does not yet" verb so the '
             'custom reads it as a future-codegen-unlockable shape, not as '
             'a structural RFW boundary.',
       );
       expect(
         result.issues.single.message,
         isNot(contains('cannot express')),
-        reason: 'Structural-category verbs must not leak into the '
+        reason:
+            'Structural-category verbs must not leak into the '
             'deferred-category message.',
       );
     });
 
-    test(
-        'customWidgetUnclassified umbrella message uses the deferred '
+    test('customWidgetUnclassified umbrella message uses the deferred '
         'verb ("does not yet")', () async {
       final translator = _translatorWith(
         const UnclassifiableWidget(
@@ -84,22 +84,23 @@ void main() {
       expect(
         result.issues.single.message,
         contains('does not yet'),
-        reason: 'The unclassified-widget umbrella message is deferred-shaped '
+        reason:
+            'The unclassified-widget umbrella message is deferred-shaped '
             'per the IssueCode doc ("may well be transpilable; the transpiler '
             'simply cannot tell") — the verb must signal that.',
       );
       expect(
         result.issues.single.message,
         isNot(contains('cannot express')),
-        reason: 'Structural-category verbs must not leak into the '
+        reason:
+            'Structural-category verbs must not leak into the '
             'unclassified-widget umbrella message.',
       );
     });
   });
 
   group('Diagnostic wording — Structural category', () {
-    test(
-        'customWidgetImperative surfaces the structural verb '
+    test('customWidgetImperative surfaces the structural verb '
         '("cannot express")', () async {
       final translator = _translatorWith(
         ImperativeWidget(
@@ -120,14 +121,16 @@ void main() {
       expect(
         result.issues.single.message,
         contains('cannot express'),
-        reason: 'Structural messages must use the "cannot express" verb so '
+        reason:
+            'Structural messages must use the "cannot express" verb so '
             'the custom reads it as an RFW capability boundary, not as a '
             'future-codegen-unlockable shape.',
       );
       expect(
         result.issues.single.message,
         isNot(contains('does not yet')),
-        reason: 'Deferred-category verbs must not leak into the '
+        reason:
+            'Deferred-category verbs must not leak into the '
             'structural-category message.',
       );
     });
@@ -135,32 +138,35 @@ void main() {
 
   group('Reclassification — reducible-blocker disposition', () {
     Future<Issue> issueFor(WidgetClassification c) async {
-      final result = _translatorWith(c)
-          .translate(await parseExpressionFromSourceForTest(_acmeWidgetSource));
+      final result = _translatorWith(
+        c,
+      ).translate(await parseExpressionFromSourceForTest(_acmeWidgetSource));
       return result.issues.single;
     }
 
-    test('a dartCall blocker reads "not supported yet", not "cannot express"',
-        () async {
-      // A dart call is reducible-in-principle (could become a recipe / helper /
-      // auto-substitution), so it must NOT be sold as a capability boundary.
-      final issue = await issueFor(
-        ImperativeWidget(
-          _key,
-          blockers: const [
-            Blocker(
-              kind: BlockerKind.dartCall,
-              location: '$_key@9:7',
-              detail: 'formatPrice(amount)',
-            ),
-          ],
-        ),
-      );
-      expect(issue.code, IssueCode.customWidgetUnsupportedReducible);
-      expect(issue.message, contains('not supported in delivered surfaces'));
-      expect(issue.message, isNot(contains('cannot express')));
-      expect(issue.message, isNot(contains('later')));
-    });
+    test(
+      'a dartCall blocker reads "not supported yet", not "cannot express"',
+      () async {
+        // A dart call is reducible-in-principle (could become a recipe / helper /
+        // auto-substitution), so it must NOT be sold as a capability boundary.
+        final issue = await issueFor(
+          ImperativeWidget(
+            _key,
+            blockers: const [
+              Blocker(
+                kind: BlockerKind.dartCall,
+                location: '$_key@9:7',
+                detail: 'formatPrice(amount)',
+              ),
+            ],
+          ),
+        );
+        expect(issue.code, IssueCode.customWidgetUnsupportedReducible);
+        expect(issue.message, contains('not supported in delivered surfaces'));
+        expect(issue.message, isNot(contains('cannot express')));
+        expect(issue.message, isNot(contains('later')));
+      },
+    );
 
     test('a widget with no catalog entry says how to add one', () async {
       final issue = await issueFor(
@@ -221,23 +227,25 @@ void main() {
       expect(issue.code, IssueCode.customWidgetUnsupportedReducible);
     });
 
-    test('composesImperativeWidget with a dead-end child stays a dead end',
-        () async {
-      final issue = await issueFor(
-        ImperativeWidget(
-          _key,
-          blockers: const [
-            Blocker(
-              kind: BlockerKind.composesImperativeWidget,
-              location: '$_key@9:7',
-              detail: 'InnerPainter()',
-              dispositionOverride: CustomWidgetDisposition.deadEnd,
-            ),
-          ],
-        ),
-      );
-      expect(issue.code, IssueCode.customWidgetImperative);
-    });
+    test(
+      'composesImperativeWidget with a dead-end child stays a dead end',
+      () async {
+        final issue = await issueFor(
+          ImperativeWidget(
+            _key,
+            blockers: const [
+              Blocker(
+                kind: BlockerKind.composesImperativeWidget,
+                location: '$_key@9:7',
+                detail: 'InnerPainter()',
+                dispositionOverride: CustomWidgetDisposition.deadEnd,
+              ),
+            ],
+          ),
+        );
+        expect(issue.code, IssueCode.customWidgetImperative);
+      },
+    );
 
     test('a mixed widget (any dead-end blocker) is a dead end', () async {
       // A single genuine boundary makes the whole widget a dead end, even
@@ -286,7 +294,8 @@ void main() {
 
   group('Diagnostic wording — values and widgets from the running app', () {
     test('a widget its package left out of the catalog says why', () async {
-      const reason = "property 'icon' targets 'Glyph' whose closure is not "
+      const reason =
+          "property 'icon' targets 'Glyph' whose closure is not "
           'fully renderable (Glyph: dash: Unsupported structured field)';
       final translator = ExpressionTranslator(
         catalog: const Catalog(
@@ -318,8 +327,7 @@ void main() {
       );
     });
 
-    test(
-        'an exclusion of a same-named widget in another library is not '
+    test('an exclusion of a same-named widget in another library is not '
         'cited', () async {
       final translator = ExpressionTranslator(
         catalog: const Catalog(
@@ -352,19 +360,20 @@ void main() {
     });
 
     test("another package's builder widget points at host data", () async {
-      final result = ExpressionTranslator(
-        catalog: kEmptyCatalog,
-        helpers: HelperRegistry(),
-      ).translate(
-        await parseExpressionFromSourceForTest(
-          '''
+      final result =
+          ExpressionTranslator(
+            catalog: kEmptyCatalog,
+            helpers: HelperRegistry(),
+          ).translate(
+            await parseExpressionFromSourceForTest(
+              '''
           import 'package:flutter/widgets.dart';
           import 'package:acme_state/acme_state.dart';
           Object x() => SignalBuilder(builder: (context, value) => const SizedBox());
           ''',
-          rootPackage: 'apps_examples',
-          otherFiles: {
-            'acme_state|lib/acme_state.dart': '''
+              rootPackage: 'apps_examples',
+              otherFiles: {
+                'acme_state|lib/acme_state.dart': '''
               import 'package:flutter/widgets.dart';
               class SignalBuilder extends StatelessWidget {
                 const SignalBuilder({super.key, required this.builder});
@@ -373,9 +382,9 @@ void main() {
                 Widget build(BuildContext context) => builder(context, 0);
               }
             ''',
-          },
-        ),
-      );
+              },
+            ),
+          );
       expect(
         result.issues.single.message,
         startsWith(
@@ -386,15 +395,15 @@ void main() {
       );
     });
 
-    test(
-        'a builder widget that hands over only a callback is not app '
+    test('a builder widget that hands over only a callback is not app '
         'state', () async {
-      final result = ExpressionTranslator(
-        catalog: kEmptyCatalog,
-        helpers: HelperRegistry(),
-      ).translate(
-        await parseExpressionFromSourceForTest(
-          '''
+      final result =
+          ExpressionTranslator(
+            catalog: kEmptyCatalog,
+            helpers: HelperRegistry(),
+          ).translate(
+            await parseExpressionFromSourceForTest(
+              '''
           import 'package:flutter/widgets.dart';
           import 'package:acme_motion/acme_motion.dart';
           Object x() => OpenContainer(
@@ -402,9 +411,9 @@ void main() {
             openBuilder: (context, close) => const SizedBox(),
           );
           ''',
-          rootPackage: 'apps_examples',
-          otherFiles: {
-            'acme_motion|lib/acme_motion.dart': '''
+              rootPackage: 'apps_examples',
+              otherFiles: {
+                'acme_motion|lib/acme_motion.dart': '''
               import 'package:flutter/widgets.dart';
               class OpenContainer extends StatelessWidget {
                 const OpenContainer({
@@ -419,9 +428,9 @@ void main() {
                     closedBuilder(context, () {});
               }
             ''',
-          },
-        ),
-      );
+              },
+            ),
+          );
       expect(
         result.issues.single.message,
         isNot(contains('builds from app state')),

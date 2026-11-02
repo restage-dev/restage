@@ -22,10 +22,10 @@ String surfaceCapturePlanKey(Surface surface, String slug) =>
 
 /// How a push draws [declaration]'s flow: its first screen, from its ref.
 Map<String, Object?> captureFlowPlan(Element declaration) => {
-      'kind': 'flow',
-      'importUri': declaration.library!.identifier,
-      'ref': generatedHandleName(declaration.name!, fallback: 'surfaceFlow'),
-    };
+  'kind': 'flow',
+  'importUri': declaration.library!.identifier,
+  'ref': generatedHandleName(declaration.name!, fallback: 'surfaceFlow'),
+};
 
 /// How a push constructs the surface widget [widget] from sample host data.
 Map<String, Object?> captureWidgetPlan(ClassElement widget) =>
@@ -87,15 +87,18 @@ final class _CapturePlanner {
       'sampleKey': root
           ? name
           : resolved.field?.name ??
-              (cls.fields.any((field) => !field.isStatic && field.name == name)
-                  ? name
-                  : null),
+                (cls.fields.any(
+                      (field) => !field.isStatic && field.name == name,
+                    )
+                    ? name
+                    : null),
       'type': type(resolved.type),
     };
   }
 
   Map<String, Object?> type(DartType type) {
-    final nullable = type.nullabilitySuffix == NullabilitySuffix.question ||
+    final nullable =
+        type.nullabilitySuffix == NullabilitySuffix.question ||
         type is DynamicType;
     final shape = _shape(type);
     return {...shape, if (nullable) 'nullable': true};

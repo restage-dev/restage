@@ -28,8 +28,8 @@ Directory _findWorkspaceRoot() {
     final pubspec = File('${candidate.path}/pubspec.yaml');
     if (pubspec.existsSync()) {
       final declaresWorkspace = pubspec.readAsLinesSync().any(
-            (line) => line.trim() == 'name: restage_workspace',
-          );
+        (line) => line.trim() == 'name: restage_workspace',
+      );
       if (declaresWorkspace) {
         return candidate;
       }
@@ -94,14 +94,16 @@ void main() {
     expect(
       unclassified,
       isEmpty,
-      reason: 'UNCLASSIFIED scalar decoder roster entries:\n'
+      reason:
+          'UNCLASSIFIED scalar decoder roster entries:\n'
           '${unclassified.join('\n')}',
     );
 
     expect(
       unknown,
       isEmpty,
-      reason: 'Unrouted, unexempted layout-double slots:\n'
+      reason:
+          'Unrouted, unexempted layout-double slots:\n'
           '${unknown.join('\n')}',
     );
   });

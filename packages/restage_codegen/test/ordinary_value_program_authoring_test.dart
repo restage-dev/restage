@@ -23,28 +23,34 @@ final class _ItemsReader implements ValueReader {
 }
 
 void main() {
-  test('contextual double integer literals retain native arithmetic type',
-      () async {
-    final expression = await parseExpressionFromSourceForTest(
-        'double x(bool wide)=>wide ? 2 : 1;');
-    final lowering = BuilderExpressionLowering(capture: (e) => e.toSource());
-    final program = lowering.program(lowering.lower(expression));
-    program.validate();
-    expect(
+  test(
+    'contextual double integer literals retain native arithmetic type',
+    () async {
+      final expression = await parseExpressionFromSourceForTest(
+        'double x(bool wide)=>wide ? 2 : 1;',
+      );
+      final lowering = BuilderExpressionLowering(capture: (e) => e.toSource());
+      final program = lowering.program(lowering.lower(expression));
+      program.validate();
+      expect(
         program.nodes
             .where((node) => node.op == 'literal')
             .map((node) => node.type.kind),
-        everyElement('double'));
-    expect(
+        everyElement('double'),
+      );
+      expect(
         program.nodes
             .where((node) => node.op == 'literal')
             .map((node) => node.value),
-        everyElement(isA<double>()));
-  });
+        everyElement(isA<double>()),
+      );
+    },
+  );
 
-  test('native constructor scalar slots use the shared pure value program',
-      () async {
-    final probe = await parseMethodExpressionFromSourceForTest('''
+  test(
+    'native constructor scalar slots use the shared pure value program',
+    () async {
+      final probe = await parseMethodExpressionFromSourceForTest('''
 import 'package:flutter/widgets.dart';
 class Probe extends StatelessWidget {
   const Probe({required this.items});
@@ -53,49 +59,67 @@ class Probe extends StatelessWidget {
     child: IgnorePointer(ignoring: items.length.isEven, child: const SizedBox()));
 }
 ''', className: 'Probe');
-    final parameter =
-        probe.classes['Probe']!.unnamedConstructor!.formalParameters.single;
-    final shape = deriveHostDataShape(parameter.type, root: 'items');
-    final file =
-        File('packages/restage_core/lib/src/widget_catalog/catalog.json')
-                .existsSync()
-            ? File('packages/restage_core/lib/src/widget_catalog/catalog.json')
-            : File('../restage_core/lib/src/widget_catalog/catalog.json');
-    final catalog =
-        requireNativeCatalog(decodeCatalog(file.readAsStringSync()));
-    final result =
-        ExpressionTranslator(catalog: catalog, helpers: HelperRegistry())
-            .translate(probe.expression, rootParams: [
-      RootContextParam(
-        name: 'items',
-        type: parameter.type,
-        typeCode: 'List<String>',
-        kind: RootContextParamKind.named,
-        hostDataShape: shape.shape,
-        field: (parameter as FieldFormalParameterElement).field,
-        isRequired: true,
-        defaultValueCode: null,
-        hasNullDefault: false,
-      )
-    ]);
-    expect(result.issues.where((i) => !i.code.isBuildNotice), isEmpty);
-    expect(result.dsl, contains('program:'));
-    expect(result.dsl, contains('isEven'));
-    final root = rfw
-        .parseLibraryFile('import restage.core;widget Root=${result.dsl};')
-        .widgets
-        .single
-        .root as rfw.ConstructorCall;
-    final width = root.arguments['width']! as Map;
-    final program = ValueProgram.decode(width['program']! as String);
-    expect(
-        ValueEvaluator(program, captures: _ItemsReader(), parameters: {})
-            .evaluate(),
-        1.5);
-    expect(
+      final parameter =
+          probe.classes['Probe']!.unnamedConstructor!.formalParameters.single;
+      final shape = deriveHostDataShape(parameter.type, root: 'items');
+      final file =
+          File(
+            'packages/restage_core/lib/src/widget_catalog/catalog.json',
+          ).existsSync()
+          ? File('packages/restage_core/lib/src/widget_catalog/catalog.json')
+          : File('../restage_core/lib/src/widget_catalog/catalog.json');
+      final catalog = requireNativeCatalog(
+        decodeCatalog(file.readAsStringSync()),
+      );
+      final result =
+          ExpressionTranslator(
+            catalog: catalog,
+            helpers: HelperRegistry(),
+          ).translate(
+            probe.expression,
+            rootParams: [
+              RootContextParam(
+                name: 'items',
+                type: parameter.type,
+                typeCode: 'List<String>',
+                kind: RootContextParamKind.named,
+                hostDataShape: shape.shape,
+                field: (parameter as FieldFormalParameterElement).field,
+                isRequired: true,
+                defaultValueCode: null,
+                hasNullDefault: false,
+              ),
+            ],
+          );
+      expect(result.issues.where((i) => !i.code.isBuildNotice), isEmpty);
+      expect(result.dsl, contains('program:'));
+      expect(result.dsl, contains('isEven'));
+      final root =
+          rfw
+                  .parseLibraryFile(
+                    'import restage.core;widget Root=${result.dsl};',
+                  )
+                  .widgets
+                  .single
+                  .root
+              as rfw.ConstructorCall;
+      final width = root.arguments['width']! as Map;
+      final program = ValueProgram.decode(width['program']! as String);
+      expect(
+        ValueEvaluator(
+          program,
+          captures: _ItemsReader(),
+          parameters: {},
+        ).evaluate(),
+        1.5,
+      );
+      expect(
         emitFactoryFunction(
-            catalog.widgets.firstWhere((w) => w.name == 'SizedBox'),
-            nativeIndex: NativeCatalogIndex(catalog)),
-        contains('source = RestageValueBinding.dataSource(source, context);'));
-  });
+          catalog.widgets.firstWhere((w) => w.name == 'SizedBox'),
+          nativeIndex: NativeCatalogIndex(catalog),
+        ),
+        contains('source = RestageValueBinding.dataSource(source, context);'),
+      );
+    },
+  );
 }

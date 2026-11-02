@@ -113,7 +113,8 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
       entry.namedConstructor,
       entry.staticAccessor,
     ),
-    (key) => 'variant owner=${key.$1.value} kind=${key.$2.name} '
+    (key) =>
+        'variant owner=${key.$1.value} kind=${key.$2.name} '
         'named=${key.$3} static=${key.$4}',
   );
   final seededParameters = _indexBy(
@@ -516,12 +517,12 @@ final class _PotentialClassRename {
   }
 
   DeprecateWireIdEvent get deprecateEvent => DeprecateWireIdEvent(
-        type: type,
-        id: id,
-        reason: 'Replaced by $to',
-        at: _kUserCatalogAllocationTimestamp,
-        by: _kUserCatalogAllocationActor,
-      );
+    type: type,
+    id: id,
+    reason: 'Replaced by $to',
+    at: _kUserCatalogAllocationTimestamp,
+    by: _kUserCatalogAllocationActor,
+  );
 }
 
 final class _PotentialClassRenameException implements Exception {
@@ -671,7 +672,7 @@ WireId _resolveOrAllocateStructuredField({
 FactoryVariant _resolveOrAllocateVariant({
   required WireIdAllocator allocator,
   required Map<(WireId, VariantSourceKind, String?, String?), WireIdEntryState>
-      seededVariants,
+  seededVariants,
   required Map<(WireId, String), WireIdEntryState> seededParameters,
   required StructuredEntry structured,
   required FactoryVariant variant,
@@ -707,7 +708,7 @@ FactoryVariant _resolveOrAllocateVariant({
 WireId _resolveOrAllocateVariantId({
   required WireIdAllocator allocator,
   required Map<(WireId, VariantSourceKind, String?, String?), WireIdEntryState>
-      seededVariants,
+  seededVariants,
   required StructuredEntry structured,
   required FactoryVariant variant,
   required WireId owner,
@@ -718,8 +719,9 @@ WireId _resolveOrAllocateVariantId({
     return variant.wireId;
   }
   final sourceKind = factoryVariantSourceKind(variant);
-  final namedConstructor =
-      variant is ConstructorVariant ? variant.namedConstructor : null;
+  final namedConstructor = variant is ConstructorVariant
+      ? variant.namedConstructor
+      : null;
   final staticAccessor = _staticAccessorOf(variant);
   final seeded =
       seededVariants[(owner, sourceKind, namedConstructor, staticAccessor)];
@@ -964,18 +966,19 @@ CatalogValueShape? _resolveShapeRef(CatalogValueShape? shape, WireIdRef ref) {
   if (shape == null) return null;
   return switch (shape) {
     ScalarShape() || EnumShape() || UnionShape() => shape,
-    StructuredShape(:final structuredRef) => structuredRef.wireId.isUnallocated
-        ? StructuredShape(
-            propertyType: shape.propertyType,
-            structuredRef: ref,
-            wireCodec: shape.wireCodec,
-          )
-        : shape,
+    StructuredShape(:final structuredRef) =>
+      structuredRef.wireId.isUnallocated
+          ? StructuredShape(
+              propertyType: shape.propertyType,
+              structuredRef: ref,
+              wireCodec: shape.wireCodec,
+            )
+          : shape,
     ListShape(:final itemShape) => ListShape(
-        propertyType: shape.propertyType,
-        itemShape: _resolveShapeRef(itemShape, ref)!,
-        wireCodec: shape.wireCodec,
-      ),
+      propertyType: shape.propertyType,
+      itemShape: _resolveShapeRef(itemShape, ref)!,
+      wireCodec: shape.wireCodec,
+    ),
   };
 }
 
@@ -1139,12 +1142,11 @@ FactoryParameter _copyParameter(
 }
 
 String? _staticAccessorOf(FactoryVariant variant) => switch (variant) {
-      ConstructorVariant() => null,
-      StaticMethodVariant(:final staticAccessor) ||
-      StaticGetterVariant(:final staticAccessor) ||
-      ConstValueVariant(:final staticAccessor) =>
-        staticAccessor,
-    };
+  ConstructorVariant() => null,
+  StaticMethodVariant(:final staticAccessor) ||
+  StaticGetterVariant(:final staticAccessor) ||
+  ConstValueVariant(:final staticAccessor) => staticAccessor,
+};
 
 /// The advisory source string recorded on a variant's alloc event — the
 /// structured type's sourceType plus the variant's accessor suffix (matching

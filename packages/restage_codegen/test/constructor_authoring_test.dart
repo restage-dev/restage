@@ -41,7 +41,8 @@ void main() {
 
     test('includes unannotated field formals in constructor order', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A constructor-authored probe.
@@ -88,7 +89,8 @@ class Probe {
 
     test('constructor requiredness is authoritative on every target', () async {
       final sources = {
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A requiredness probe.
@@ -122,10 +124,10 @@ class Probe {
       }
     });
 
-    test('portable constructor defaults feed RFW and A2UI target lowering',
-        () async {
+    test('portable constructor defaults feed RFW and A2UI target lowering', () async {
       final sources = {
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 enum Mode { ready, busy }
@@ -187,8 +189,9 @@ class Probe {
         ],
       );
       expect(
-        a2ui.widgets.single.properties
-            .map((property) => property.defaultSource),
+        a2ui.widgets.single.properties.map(
+          (property) => property.defaultSource,
+        ),
         const [
           LiteralDefault(true),
           LiteralDefault(3),
@@ -197,8 +200,9 @@ class Probe {
         ],
       );
       expect(
-        widgetbook.widgets.single.properties
-            .map((property) => property.defaultSource),
+        widgetbook.widgets.single.properties.map(
+          (property) => property.defaultSource,
+        ),
         everyElement(isNull),
       );
 
@@ -215,13 +219,19 @@ class Probe {
       }
       expect(
         flat,
-        contains(RegExp(
-            r'RestageValueBinding\.read<bool>\(\s*source,\s*restagePresenceEnabled\.valuePath,\s*context\)')),
+        contains(
+          RegExp(
+            r'RestageValueBinding\.read<bool>\(\s*source,\s*restagePresenceEnabled\.valuePath,\s*context\)',
+          ),
+        ),
       );
       expect(
         flat,
-        contains(RegExp(
-            r'RestageValueBinding\.read<int>\(\s*source,\s*restagePresenceCount\.valuePath,\s*context\)')),
+        contains(
+          RegExp(
+            r'RestageValueBinding\.read<int>\(\s*source,\s*restagePresenceCount\.valuePath,\s*context\)',
+          ),
+        ),
       );
       expect(
         flat,
@@ -239,10 +249,12 @@ class Probe {
       expect(flat, isNot(contains('s0.Mode.ready')));
     });
 
-    test('annotation defaults remain metadata beside constructor truth',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'annotation defaults remain metadata beside constructor truth',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A metadata-default probe.
@@ -257,28 +269,30 @@ class Probe {
   final String? label;
 }
 ''',
-      });
+        });
 
-      expect(
-        result.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      final property = result.widgets.single.properties.single;
-      expect(property.defaultSource, const LiteralDefault('preview'));
-      expect(property.constructorNullable, isTrue);
-      expect(
-        property.constructorDefault,
-        const DartConstScalar('constructor'),
-      );
-      final factory = emitUserFactoriesDart(result.widgets)!;
-      expect(factory, contains('RestageRfwConstructorPresence.read('));
-      expect(factory, contains('Function.apply('));
-      expect(factory, isNot(contains("?? 'preview'")));
-    });
+        expect(
+          result.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        final property = result.widgets.single.properties.single;
+        expect(property.defaultSource, const LiteralDefault('preview'));
+        expect(property.constructorNullable, isTrue);
+        expect(
+          property.constructorDefault,
+          const DartConstScalar('constructor'),
+        );
+        final factory = emitUserFactoriesDart(result.widgets)!;
+        expect(factory, contains('RestageRfwConstructorPresence.read('));
+        expect(factory, contains('Function.apply('));
+        expect(factory, isNot(contains("?? 'preview'")));
+      },
+    );
 
     test('A2UI admits portable scalar-list constructor defaults', () async {
       final sources = {
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A portable collection-default probe.
@@ -320,7 +334,8 @@ class Probe {
 
     test('constructor invocation defaults feed enabled wire targets', () async {
       final sources = {
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -375,7 +390,8 @@ class Probe {
 
     test('public scalar const defaults retain symbol identity', () async {
       final sources = {
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 class Tokens {
@@ -418,16 +434,21 @@ class Probe {
       expect(factory, contains('RestageRfwConstructorPresence.read('));
       expect(
         factory,
-        contains(RegExp(
-            r'RestageValueBinding\.read<int>\(\s*source,\s*restagePresenceRetries\.valuePath,\s*context\)')),
+        contains(
+          RegExp(
+            r'RestageValueBinding\.read<int>\(\s*source,\s*restagePresenceRetries\.valuePath,\s*context\)',
+          ),
+        ),
       );
       expect(factory, isNot(contains('Tokens.retries')));
     });
 
-    test('public extension scalar const defaults retain symbol identity',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'public extension scalar const defaults retain symbol identity',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 extension Tokens on Object {
@@ -443,34 +464,40 @@ class Probe {
   final int retries;
 }
 ''',
-      });
+        });
 
-      expect(
-        result.issues.where((candidate) => !candidate.code.isInformational),
-        isEmpty,
-      );
-      expect(
-        result.widgets.single.properties.single.constructorDefault,
-        const DartConstReference(
-          libraryUri: 'package:apps_examples/probe.dart',
-          owner: 'Tokens',
-          member: 'retries',
-        ),
-      );
-      final factory = emitUserFactoriesDart(result.widgets)!;
-      expect(factory, contains('RestageRfwConstructorPresence.read('));
-      expect(
-        factory,
-        contains(RegExp(
-            r'RestageValueBinding\.read<int>\(\s*source,\s*restagePresenceRetries\.valuePath,\s*context\)')),
-      );
-      expect(factory, isNot(contains('Tokens.retries')));
-    });
+        expect(
+          result.issues.where((candidate) => !candidate.code.isInformational),
+          isEmpty,
+        );
+        expect(
+          result.widgets.single.properties.single.constructorDefault,
+          const DartConstReference(
+            libraryUri: 'package:apps_examples/probe.dart',
+            owner: 'Tokens',
+            member: 'retries',
+          ),
+        );
+        final factory = emitUserFactoriesDart(result.widgets)!;
+        expect(factory, contains('RestageRfwConstructorPresence.read('));
+        expect(
+          factory,
+          contains(
+            RegExp(
+              r'RestageValueBinding\.read<int>\(\s*source,\s*restagePresenceRetries\.valuePath,\s*context\)',
+            ),
+          ),
+        );
+        expect(factory, isNot(contains('Tokens.retries')));
+      },
+    );
 
-    test('private const defaults fail closed while public identities recurse',
-        () async {
-      const sources = {
-        'lib/probe.dart': '''
+    test(
+      'private const defaults fail closed while public identities recurse',
+      () async {
+        const sources = {
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:flutter/widgets.dart';
 
@@ -512,76 +539,82 @@ class Probe {
   final Color publicExtensionNested;
 }
 ''',
-      };
+        };
 
-      final facts = await runWidgetConstructorFactsOn(sources);
-      final defaults = {
-        for (final input in facts.inputs) input.name: input.constructorDefault,
-      };
-      final privateOuter = defaults['privateOuter'];
-      expect(privateOuter, isA<UnsupportedWidgetConstructorDefault>());
-      expect(
-        defaults['privateNested'],
-        isA<UnsupportedWidgetConstructorDefault>(),
-      );
-      expect(
-        defaults['publicTopLevel']!.reconstructedValue,
-        const DartConstReference(
-          libraryUri: 'package:apps_examples/probe.dart',
-          member: 'topLevelDefault',
-        ),
-      );
-      final publicStaticNested = defaults['publicStaticNested']!
-          .reconstructedValue! as DartConstInvocation;
-      expect(
-        publicStaticNested.positional,
-        const [
-          DartConstReference(
-            libraryUri: 'package:apps_examples/probe.dart',
-            owner: 'PublicStatics',
-            member: 'value',
-          ),
-        ],
-      );
-      final publicExtensionNested = defaults['publicExtensionNested']!
-          .reconstructedValue! as DartConstInvocation;
-      expect(
-        publicExtensionNested.positional,
-        const [
-          DartConstReference(
-            libraryUri: 'package:apps_examples/probe.dart',
-            owner: 'PublicExtension',
-            member: 'value',
-          ),
-        ],
-      );
-
-      for (final target in const [
-        WidgetVisitorTarget.rfw,
-        WidgetVisitorTarget.a2ui,
-      ]) {
-        final result = await runWidgetVisitorOn(sources, target: target);
-        final issues = result.issues
-            .where(
-              (issue) => issue.code == IssueCode.invalidWidgetConstructorInput,
-            )
-            .toList();
-        expect(issues, hasLength(2), reason: target.name);
+        final facts = await runWidgetConstructorFactsOn(sources);
+        final defaults = {
+          for (final input in facts.inputs)
+            input.name: input.constructorDefault,
+        };
+        final privateOuter = defaults['privateOuter'];
+        expect(privateOuter, isA<UnsupportedWidgetConstructorDefault>());
         expect(
-          issues.map((issue) => issue.location),
-          containsAll([
-            'lib/probe.dart#Probe.privateOuter',
-            'lib/probe.dart#Probe.privateNested',
-          ]),
-          reason: target.name,
+          defaults['privateNested'],
+          isA<UnsupportedWidgetConstructorDefault>(),
         );
-      }
-    });
+        expect(
+          defaults['publicTopLevel']!.reconstructedValue,
+          const DartConstReference(
+            libraryUri: 'package:apps_examples/probe.dart',
+            member: 'topLevelDefault',
+          ),
+        );
+        final publicStaticNested =
+            defaults['publicStaticNested']!.reconstructedValue!
+                as DartConstInvocation;
+        expect(
+          publicStaticNested.positional,
+          const [
+            DartConstReference(
+              libraryUri: 'package:apps_examples/probe.dart',
+              owner: 'PublicStatics',
+              member: 'value',
+            ),
+          ],
+        );
+        final publicExtensionNested =
+            defaults['publicExtensionNested']!.reconstructedValue!
+                as DartConstInvocation;
+        expect(
+          publicExtensionNested.positional,
+          const [
+            DartConstReference(
+              libraryUri: 'package:apps_examples/probe.dart',
+              owner: 'PublicExtension',
+              member: 'value',
+            ),
+          ],
+        );
 
-    test('public callback tear-off defaults retain importable identity',
-        () async {
-      final facts = await runWidgetConstructorFactsOn({
-        'lib/probe.dart': '''
+        for (final target in const [
+          WidgetVisitorTarget.rfw,
+          WidgetVisitorTarget.a2ui,
+        ]) {
+          final result = await runWidgetVisitorOn(sources, target: target);
+          final issues = result.issues
+              .where(
+                (issue) =>
+                    issue.code == IssueCode.invalidWidgetConstructorInput,
+              )
+              .toList();
+          expect(issues, hasLength(2), reason: target.name);
+          expect(
+            issues.map((issue) => issue.location),
+            containsAll([
+              'lib/probe.dart#Probe.privateOuter',
+              'lib/probe.dart#Probe.privateNested',
+            ]),
+            reason: target.name,
+          );
+        }
+      },
+    );
+
+    test(
+      'public callback tear-off defaults retain importable identity',
+      () async {
+        final facts = await runWidgetConstructorFactsOn({
+          'lib/probe.dart': '''
 typedef Callback = void Function();
 
 void topLevelCallback() {}
@@ -603,31 +636,33 @@ class Probe {
   final Callback privateFunction;
 }
 ''',
-      });
+        });
 
-      final defaults = {
-        for (final input in facts.inputs) input.name: input.constructorDefault,
-      };
-      expect(
-        defaults['topLevel']!.reconstructedValue,
-        const DartConstReference(
-          libraryUri: 'package:apps_examples/probe.dart',
-          member: 'topLevelCallback',
-        ),
-      );
-      expect(
-        defaults['staticMethod']!.reconstructedValue,
-        const DartConstReference(
-          libraryUri: 'package:apps_examples/probe.dart',
-          owner: 'PublicCallbacks',
-          member: 'staticCallback',
-        ),
-      );
-      expect(
-        defaults['privateFunction'],
-        isA<UnsupportedWidgetConstructorDefault>(),
-      );
-    });
+        final defaults = {
+          for (final input in facts.inputs)
+            input.name: input.constructorDefault,
+        };
+        expect(
+          defaults['topLevel']!.reconstructedValue,
+          const DartConstReference(
+            libraryUri: 'package:apps_examples/probe.dart',
+            member: 'topLevelCallback',
+          ),
+        );
+        expect(
+          defaults['staticMethod']!.reconstructedValue,
+          const DartConstReference(
+            libraryUri: 'package:apps_examples/probe.dart',
+            owner: 'PublicCallbacks',
+            member: 'staticCallback',
+          ),
+        );
+        expect(
+          defaults['privateFunction'],
+          isA<UnsupportedWidgetConstructorDefault>(),
+        );
+      },
+    );
 
     test('nested public null consts retain reference identity', () async {
       final facts = await runWidgetConstructorFactsOn({
@@ -687,10 +722,11 @@ class Probe {
       expect(defaults['privateItems'], isNull);
     });
 
-    test('constructor constants retain identity, invocation, and structures',
-        () async {
-      final facts = await runWidgetConstructorFactsOn({
-        'lib/probe.dart': '''
+    test(
+      'constructor constants retain identity, invocation, and structures',
+      () async {
+        final facts = await runWidgetConstructorFactsOn({
+          'lib/probe.dart': '''
 class Value<T> {
   const Value(this.value, {required this.meta});
 
@@ -727,49 +763,50 @@ class Probe {
   final ({int count, String label}) record;
 }
 ''',
-      });
+        });
 
-      expect(
-        facts.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      final defaults = {
-        for (final input in facts.inputs)
-          input.name: input.constructorDefault.reconstructedValue,
-      };
-      expect(
-        defaults['identity'],
-        const DartConstReference(
-          libraryUri: 'package:apps_examples/probe.dart',
-          owner: 'Tokens',
-          member: 'exact',
-        ),
-      );
-      final invocation = defaults['invocation']! as DartConstInvocation;
-      final invocationType = invocation.type as DartNamedTypeIdentity;
-      expect(invocationType.symbolName, 'Value');
-      expect(
-        (invocationType.typeArguments.single as DartNamedTypeIdentity)
-            .symbolName,
-        'String',
-      );
-      expect(
-        invocation.positional,
-        const [
-          DartConstReference(
+        expect(
+          facts.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        final defaults = {
+          for (final input in facts.inputs)
+            input.name: input.constructorDefault.reconstructedValue,
+        };
+        expect(
+          defaults['identity'],
+          const DartConstReference(
             libraryUri: 'package:apps_examples/probe.dart',
             owner: 'Tokens',
-            member: 'invocationLabel',
+            member: 'exact',
           ),
-        ],
-      );
-      expect(invocation.named.single.name, 'meta');
-      expect(invocation.named.single.value, isA<DartConstRecord>());
-      expect(defaults['items'], isA<DartConstList>());
-      expect(defaults['values'], isA<DartConstSet>());
-      expect(defaults['lookup'], isA<DartConstMap>());
-      expect(defaults['record'], isA<DartConstRecord>());
-    });
+        );
+        final invocation = defaults['invocation']! as DartConstInvocation;
+        final invocationType = invocation.type as DartNamedTypeIdentity;
+        expect(invocationType.symbolName, 'Value');
+        expect(
+          (invocationType.typeArguments.single as DartNamedTypeIdentity)
+              .symbolName,
+          'String',
+        );
+        expect(
+          invocation.positional,
+          const [
+            DartConstReference(
+              libraryUri: 'package:apps_examples/probe.dart',
+              owner: 'Tokens',
+              member: 'invocationLabel',
+            ),
+          ],
+        );
+        expect(invocation.named.single.name, 'meta');
+        expect(invocation.named.single.value, isA<DartConstRecord>());
+        expect(defaults['items'], isA<DartConstList>());
+        expect(defaults['values'], isA<DartConstSet>());
+        expect(defaults['lookup'], isA<DartConstMap>());
+        expect(defaults['record'], isA<DartConstRecord>());
+      },
+    );
 
     test('reconstruction canonicalizes named members by name', () async {
       final facts = await runWidgetConstructorFactsOn({
@@ -815,10 +852,11 @@ class Probe {
       expect(recordType.named.map((field) => field.name), ['alpha', 'zeta']);
     });
 
-    test('collection defaults retain explicit source generic identity',
-        () async {
-      final facts = await runWidgetConstructorFactsOn({
-        'lib/probe.dart': '''
+    test(
+      'collection defaults retain explicit source generic identity',
+      () async {
+        final facts = await runWidgetConstructorFactsOn({
+          'lib/probe.dart': '''
 class Probe {
   const Probe({
     this.items = const <num>[1],
@@ -831,60 +869,62 @@ class Probe {
   final Map<String, num> lookup;
 }
 ''',
-      });
+        });
 
-      expect(
-        facts.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      final defaults = {
-        for (final input in facts.inputs)
-          input.name: input.constructorDefault.reconstructedValue,
-      };
-      expect(
-        (defaults['items']! as DartConstList).type,
-        const DartTypeIdentity(
-          libraryUri: 'dart:core',
-          symbolName: 'List',
-          typeArguments: [
-            DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'num'),
-          ],
-        ),
-      );
-      expect(
-        (defaults['values']! as DartConstSet).type,
-        const DartTypeIdentity(
-          libraryUri: 'dart:core',
-          symbolName: 'Set',
-          typeArguments: [
-            DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'Object'),
-          ],
-        ),
-      );
-      expect(
-        (defaults['lookup']! as DartConstMap).type,
-        const DartTypeIdentity(
-          libraryUri: 'dart:core',
-          symbolName: 'Map',
-          typeArguments: [
-            DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'String'),
-            DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'num'),
-          ],
-        ),
-      );
-    });
+        expect(
+          facts.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        final defaults = {
+          for (final input in facts.inputs)
+            input.name: input.constructorDefault.reconstructedValue,
+        };
+        expect(
+          (defaults['items']! as DartConstList).type,
+          const DartTypeIdentity(
+            libraryUri: 'dart:core',
+            symbolName: 'List',
+            typeArguments: [
+              DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'num'),
+            ],
+          ),
+        );
+        expect(
+          (defaults['values']! as DartConstSet).type,
+          const DartTypeIdentity(
+            libraryUri: 'dart:core',
+            symbolName: 'Set',
+            typeArguments: [
+              DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'Object'),
+            ],
+          ),
+        );
+        expect(
+          (defaults['lookup']! as DartConstMap).type,
+          const DartTypeIdentity(
+            libraryUri: 'dart:core',
+            symbolName: 'Map',
+            typeArguments: [
+              DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'String'),
+              DartTypeIdentity(libraryUri: 'dart:core', symbolName: 'num'),
+            ],
+          ),
+        );
+      },
+    );
 
-    test('typed collection defaults retain structural record type identity',
-        () async {
-      final facts = await runWidgetConstructorFactsOn({
-        'lib/model.dart': '''
+    test(
+      'typed collection defaults retain structural record type identity',
+      () async {
+        final facts = await runWidgetConstructorFactsOn({
+          'lib/model.dart': '''
 class ExternalValue {
   const ExternalValue(this.value);
 
   final int value;
 }
 ''',
-        'lib/probe.dart': '''
+          'lib/probe.dart': '''
 import 'model.dart';
 
 class Probe {
@@ -908,52 +948,59 @@ class Probe {
   final Map<String, ({List<int?>? counts, ExternalValue value})> lookup;
 }
 ''',
-      });
+        });
 
-      expect(
-        facts.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      final defaults = {
-        for (final input in facts.inputs)
-          input.name: input.constructorDefault.reconstructedValue,
-      };
+        expect(
+          facts.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        final defaults = {
+          for (final input in facts.inputs)
+            input.name: input.constructorDefault.reconstructedValue,
+        };
 
-      final itemType =
-          (defaults['items']! as DartConstList).type! as DartNamedTypeIdentity;
-      final itemRecord =
-          itemType.typeArguments.single as DartRecordTypeIdentity;
-      expect(itemRecord.named.map((field) => field.name), ['count', 'value']);
-      expect(itemRecord.named.last.type.nullable, isTrue);
-      expect(
-        itemRecord.named.last.type,
-        isA<DartNamedTypeIdentity>().having(
-          (type) => type.libraryUri,
-          'libraryUri',
-          'package:apps_examples/model.dart',
-        ),
-      );
+        final itemType =
+            (defaults['items']! as DartConstList).type!
+                as DartNamedTypeIdentity;
+        final itemRecord =
+            itemType.typeArguments.single as DartRecordTypeIdentity;
+        expect(itemRecord.named.map((field) => field.name), ['count', 'value']);
+        expect(itemRecord.named.last.type.nullable, isTrue);
+        expect(
+          itemRecord.named.last.type,
+          isA<DartNamedTypeIdentity>().having(
+            (type) => type.libraryUri,
+            'libraryUri',
+            'package:apps_examples/model.dart',
+          ),
+        );
 
-      final setType =
-          (defaults['values']! as DartConstSet).type! as DartNamedTypeIdentity;
-      final setRecord = setType.typeArguments.single as DartRecordTypeIdentity;
-      expect(setRecord.nullable, isTrue);
-      expect(setRecord.positional, hasLength(2));
-      expect(setRecord.positional.first.nullable, isTrue);
+        final setType =
+            (defaults['values']! as DartConstSet).type!
+                as DartNamedTypeIdentity;
+        final setRecord =
+            setType.typeArguments.single as DartRecordTypeIdentity;
+        expect(setRecord.nullable, isTrue);
+        expect(setRecord.positional, hasLength(2));
+        expect(setRecord.positional.first.nullable, isTrue);
 
-      final mapType =
-          (defaults['lookup']! as DartConstMap).type! as DartNamedTypeIdentity;
-      final mapRecord = mapType.typeArguments.last as DartRecordTypeIdentity;
-      expect(mapRecord.named.map((field) => field.name), ['counts', 'value']);
-      final countsType = mapRecord.named.first.type as DartNamedTypeIdentity;
-      expect(countsType.nullable, isTrue);
-      expect(countsType.typeArguments.single.nullable, isTrue);
-    });
+        final mapType =
+            (defaults['lookup']! as DartConstMap).type!
+                as DartNamedTypeIdentity;
+        final mapRecord = mapType.typeArguments.last as DartRecordTypeIdentity;
+        expect(mapRecord.named.map((field) => field.name), ['counts', 'value']);
+        final countsType = mapRecord.named.first.type as DartNamedTypeIdentity;
+        expect(countsType.nullable, isTrue);
+        expect(countsType.typeArguments.single.nullable, isTrue);
+      },
+    );
 
-    test('private collection type arguments reject at the source property',
-        () async {
-      const sources = {
-        'lib/probe.dart': '''
+    test(
+      'private collection type arguments reject at the source property',
+      () async {
+        const sources = {
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 typedef _PrivateInt = int;
@@ -967,40 +1014,43 @@ class Probe {
   final List<int> values;
 }
 ''',
-      };
+        };
 
-      final facts = await runWidgetConstructorFactsOn(sources);
-      expect(
-        facts.inputs.single.constructorDefault,
-        isA<UnsupportedWidgetConstructorDefault>(),
-      );
+        final facts = await runWidgetConstructorFactsOn(sources);
+        expect(
+          facts.inputs.single.constructorDefault,
+          isA<UnsupportedWidgetConstructorDefault>(),
+        );
 
-      final result = await runWidgetVisitorOn(
-        sources,
-        target: WidgetVisitorTarget.a2ui,
-      );
-      expect(
-        result.issues,
-        contains(
-          isA<Issue>()
-              .having(
-                (issue) => issue.code,
-                'code',
-                IssueCode.invalidWidgetConstructorInput,
-              )
-              .having(
-                (issue) => issue.location,
-                'location',
-                'lib/probe.dart#Probe.values',
-              ),
-        ),
-      );
-    });
+        final result = await runWidgetVisitorOn(
+          sources,
+          target: WidgetVisitorTarget.a2ui,
+        );
+        expect(
+          result.issues,
+          contains(
+            isA<Issue>()
+                .having(
+                  (issue) => issue.code,
+                  'code',
+                  IssueCode.invalidWidgetConstructorInput,
+                )
+                .having(
+                  (issue) => issue.location,
+                  'location',
+                  'lib/probe.dart#Probe.values',
+                ),
+          ),
+        );
+      },
+    );
 
-    test('supports substituted super formals and excludes Flutter super.key',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'supports substituted super formals and excludes Flutter super.key',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -1024,24 +1074,27 @@ class Probe extends BaseProbe<String> {
   });
 }
 ''',
-      });
+        });
 
-      expect(
-        result.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      expect(result.widgets.single.properties, hasLength(1));
-      final property = result.widgets.single.properties.single;
-      expect(property.name, 'value');
-      expect(property.type, PropertyType.string);
-      expect(property.required, isTrue);
-      expect(property.description, 'Local super-formal documentation.');
-    });
+        expect(
+          result.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        expect(result.widgets.single.properties, hasLength(1));
+        final property = result.widgets.single.properties.single;
+        expect(property.name, 'value');
+        expect(property.type, PropertyType.string);
+        expect(property.required, isTrue);
+        expect(property.description, 'Local super-formal documentation.');
+      },
+    );
 
-    test('excludes positional super.key through its resolved forwarding chain',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'excludes positional super.key through its resolved forwarding chain',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -1061,20 +1114,23 @@ class Probe extends PositionalKeyBase {
   Widget build(BuildContext context) => Text(label);
 }
 ''',
-      });
+        });
 
-      expect(
-        result.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      expect(result.widgets.single.properties, hasLength(1));
-      expect(result.widgets.single.properties.single.name, 'label');
-    });
+        expect(
+          result.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        expect(result.widgets.single.properties, hasLength(1));
+        expect(result.widgets.single.properties.single.name, 'label');
+      },
+    );
 
-    test('excludes classic Flutter Key forwarding by resolved identity',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'excludes classic Flutter Key forwarding by resolved identity',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -1090,14 +1146,15 @@ class Probe extends StatelessWidget {
   Widget build(BuildContext context) => Text(label);
 }
 ''',
-      });
+        });
 
-      expect(
-        result.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      expect(result.widgets.single.properties.single.name, 'label');
-    });
+        expect(
+          result.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        expect(result.widgets.single.properties.single.name, 'label');
+      },
+    );
 
     test('rejects named-only and factory-only constructor classes', () async {
       for (final fixture in <({String name, String declaration})>[
@@ -1131,7 +1188,8 @@ class FactoryOnlyProbeImpl implements FactoryOnlyProbe {
         ),
       ]) {
         final result = await runWidgetVisitorOn({
-          'lib/probe.dart': '''
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 $_annotation
@@ -1165,7 +1223,8 @@ ${fixture.declaration}
 
     test('rejects @ignore on an assert-guarded optional input', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// An assert-guarded exclusion probe.
@@ -1190,7 +1249,8 @@ class Probe {
 
     test('rejects @ignore on an is-guarded optional input', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A type-guarded exclusion probe.
@@ -1215,7 +1275,8 @@ class Probe {
 
     test('is guards respect generic bounds and nullable aliases', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 typedef MaybeLabel = String?;
@@ -1247,7 +1308,8 @@ class Probe<T extends Object?> {
 
     test('is guards resolve non-null aliases semantically', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 typedef Label = String;
@@ -1270,10 +1332,12 @@ class Probe {
       expect(issue.message, contains('assert'));
     });
 
-    test('raw generic is guards instantiate type arguments to bounds',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'raw generic is guards instantiate type arguments to bounds',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 typedef Maybe<T extends Object?> = T;
@@ -1293,33 +1357,34 @@ class Probe {
   final Object? bucket;
 }
 ''',
-      });
+        });
 
-      final failures = result.issues
-          .where(
-            (candidate) =>
-                candidate.code == IssueCode.invalidWidgetConstructorInput,
-          )
-          .toList();
-      expect(failures, hasLength(2));
-      expect(
-        failures.map((issue) => issue.location),
-        containsAll([
-          'lib/probe.dart#Probe.box',
-          'lib/probe.dart#Probe.bucket',
-        ]),
-      );
-      expect(
-        failures.map((issue) => issue.message),
-        everyElement(contains('assert')),
-      );
-    });
+        final failures = result.issues
+            .where(
+              (candidate) =>
+                  candidate.code == IssueCode.invalidWidgetConstructorInput,
+            )
+            .toList();
+        expect(failures, hasLength(2));
+        expect(
+          failures.map((issue) => issue.location),
+          containsAll([
+            'lib/probe.dart#Probe.box',
+            'lib/probe.dart#Probe.bucket',
+          ]),
+        );
+        expect(
+          failures.map((issue) => issue.message),
+          everyElement(contains('assert')),
+        );
+      },
+    );
 
-    test(
-        'rejects @ignore on an optional positional before a supplied '
+    test('rejects @ignore on an optional positional before a supplied '
         'positional', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A positional-hole exclusion probe.
@@ -1349,10 +1414,12 @@ class Probe {
       );
     });
 
-    test('rejects a target auto-exclusion that creates a positional hole',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'rejects a target auto-exclusion that creates a positional hole',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// An automatic positional-hole probe.
@@ -1367,22 +1434,25 @@ class Probe {
   final String label;
 }
 ''',
-      });
+        });
 
-      final issue = result.issues.singleWhere(
-        (candidate) =>
-            candidate.code == IssueCode.invalidWidgetConstructorInput,
-      );
-      expect(issue.location, 'lib/probe.dart#Probe.hostOwned');
-      expect(issue.message, contains('hostOwned'));
-      expect(issue.message, contains('label'));
-      expect(issue.message, contains('shift'));
-    });
+        final issue = result.issues.singleWhere(
+          (candidate) =>
+              candidate.code == IssueCode.invalidWidgetConstructorInput,
+        );
+        expect(issue.location, 'lib/probe.dart#Probe.hostOwned');
+        expect(issue.message, contains('hostOwned'));
+        expect(issue.message, contains('label'));
+        expect(issue.message, contains('shift'));
+      },
+    );
 
-    test('dynamic optional input is semantically nullable and auto-excluded',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'dynamic optional input is semantically nullable and auto-excluded',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A semantic-nullability probe.
@@ -1394,19 +1464,21 @@ class Probe {
   final dynamic hostState;
 }
 ''',
-      });
+        });
 
-      expect(
-        result.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      expect(result.exclusions, hasLength(1));
-      expect(result.exclusions.single.property, 'hostState');
-    });
+        expect(
+          result.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        expect(result.exclusions, hasLength(1));
+        expect(result.exclusions.single.property, 'hostState');
+      },
+    );
 
     test('admits annotated inherited inputs without diagnostics', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 class BaseProbe {
@@ -1451,10 +1523,12 @@ class Probe extends BaseProbe {
       );
     });
 
-    test('accepts an unchanged ordinary parameter-to-field initializer',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'accepts an unchanged ordinary parameter-to-field initializer',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// An ordinary binding probe.
@@ -1466,23 +1540,25 @@ class Probe {
   final String value;
 }
 ''',
-      });
+        });
 
-      expect(
-        result.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      final property = result.widgets.single.properties.single;
-      expect(property.name, 'raw');
-      expect(property.type, PropertyType.string);
-      expect(property.required, isTrue);
-      expect(property.positional, isTrue);
-      expect(property.description, 'Stored value.');
-    });
+        expect(
+          result.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        final property = result.widgets.single.properties.single;
+        expect(property.name, 'raw');
+        expect(property.type, PropertyType.string);
+        expect(property.required, isTrue);
+        expect(property.positional, isTrue);
+        expect(property.description, 'Stored value.');
+      },
+    );
 
     test('ordinary binding ignores unrelated same-named identifiers', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 class Tokens {
@@ -1516,7 +1592,8 @@ class Probe {
 
     test('ordinary binding respects nested local shadowing', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A locally-shadowed ordinary parameter probe.
@@ -1553,11 +1630,13 @@ class Probe {
       expect(result.widgets.single.properties.single.name, 'raw');
     });
 
-    test('ordinary function binding respects a same-named local function',
-        () async {
-      final result = await runWidgetVisitorOn(
-        {
-          'lib/probe.dart': '''
+    test(
+      'ordinary function binding respects a same-named local function',
+      () async {
+        final result = await runWidgetVisitorOn(
+          {
+            'lib/probe.dart':
+                '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A locally-shadowed function parameter probe.
@@ -1576,23 +1655,25 @@ class Probe {
   final int marker;
 }
 ''',
-        },
-        target: WidgetVisitorTarget.widgetbook,
-      );
+          },
+          target: WidgetVisitorTarget.widgetbook,
+        );
 
-      expect(
-        result.issues.where(
-          (issue) => issue.code == IssueCode.invalidWidgetConstructorInput,
-        ),
-        isEmpty,
-      );
-      expect(result.widgets.single.properties.single.name, 'raw');
-    });
+        expect(
+          result.issues.where(
+            (issue) => issue.code == IssueCode.invalidWidgetConstructorInput,
+          ),
+          isEmpty,
+        );
+        expect(result.widgets.single.properties.single.name, 'raw');
+      },
+    );
 
-    test('rejects private and initializer-transformed constructor inputs',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probes.dart': '''
+    test(
+      'rejects private and initializer-transformed constructor inputs',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probes.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A private-input probe.
@@ -1619,26 +1700,28 @@ class TransformedProbe {
   final String value;
 }
 ''',
-      });
+        });
 
-      final failures = result.issues
-          .where(
-            (issue) => issue.code == IssueCode.invalidWidgetConstructorInput,
-          )
-          .toList();
-      expect(failures, hasLength(2));
-      expect(
-        failures.map((issue) => issue.location),
-        containsAll([
-          'lib/probes.dart#PrivateProbe._secret',
-          'lib/probes.dart#TransformedProbe.raw',
-        ]),
-      );
-    });
+        final failures = result.issues
+            .where(
+              (issue) => issue.code == IssueCode.invalidWidgetConstructorInput,
+            )
+            .toList();
+        expect(failures, hasLength(2));
+        expect(
+          failures.map((issue) => issue.location),
+          containsAll([
+            'lib/probes.dart#PrivateProbe._secret',
+            'lib/probes.dart#TransformedProbe.raw',
+          ]),
+        );
+      },
+    );
 
     test('rejects an unresolved generic super-formal type', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 class BaseProbe<T> {
@@ -1665,7 +1748,8 @@ class Probe<T> extends BaseProbe<T> {
 
     test('super-formal metadata falls back to the backing formal', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 class BaseProbe {
@@ -1712,10 +1796,12 @@ class Probe extends BaseProbe {
       );
     });
 
-    test('field Dartdoc wins, parameter Dartdoc falls back, paragraphs remain',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'field Dartdoc wins, parameter Dartdoc falls back, paragraphs remain',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// First widget paragraph.
@@ -1739,26 +1825,27 @@ class Probe {
   final String note;
 }
 ''',
-      });
+        });
 
-      expect(
-        result.issues.where((issue) => !issue.code.isInformational),
-        isEmpty,
-      );
-      expect(
-        result.widgets.single.description,
-        'First widget paragraph.\n\nSecond widget paragraph.',
-      );
-      expect(
-        result.widgets.single.properties[0].description,
-        'Field text wins.',
-      );
-      expect(
-        result.widgets.single.properties[1].description,
-        'First parameter line. Second parameter line.\n\n'
-        'Second parameter paragraph.',
-      );
-    });
+        expect(
+          result.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        expect(
+          result.widgets.single.description,
+          'First widget paragraph.\n\nSecond widget paragraph.',
+        );
+        expect(
+          result.widgets.single.properties[0].description,
+          'Field text wins.',
+        );
+        expect(
+          result.widgets.single.properties[1].description,
+          'First parameter line. Second parameter line.\n\n'
+          'Second parameter paragraph.',
+        );
+      },
+    );
 
     test('explicit descriptions override Dartdoc', () async {
       final result = await runWidgetVisitorOn({
@@ -1795,7 +1882,8 @@ class Probe {
 
     test('missing descriptions fail with widget and property paths', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 $_annotation
@@ -1818,7 +1906,8 @@ class Probe {
 
     test('annotated fields follow constructor order', () async {
       final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+        'lib/probe.dart':
+            '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// An ordering probe.
@@ -1844,10 +1933,12 @@ class Probe {
       expect(result.issues, isEmpty);
     });
 
-    test('a widget with no property annotations admits every input silently',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
+    test(
+      'a widget with no property annotations admits every input silently',
+      () async {
+        final result = await runWidgetVisitorOn({
+          'lib/probe.dart':
+              '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A greenfield probe.
@@ -1862,13 +1953,14 @@ class Probe {
   final String? subtitle;
 }
 ''',
-      });
+        });
 
-      expect(result.issues, isEmpty);
-      expect(
-        result.widgets.single.properties.map((property) => property.name),
-        ['title', 'subtitle'],
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(
+          result.widgets.single.properties.map((property) => property.name),
+          ['title', 'subtitle'],
+        );
+      },
+    );
   });
 }

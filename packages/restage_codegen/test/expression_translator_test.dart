@@ -67,14 +67,14 @@ final List<HelperDefinition> _testHelpers = [
 ];
 
 HelperDefinition _hostTextHelper(String libraryOrigin) => HelperDefinition(
-      name: 'hostText',
-      libraryOrigin: libraryOrigin,
-      returnCategory: HelperReturnCategory.string,
-      translate: (args) {
-        final key = _stripTestQuotes(args.named['key']!);
-        return 'data.context.$key';
-      },
-    );
+  name: 'hostText',
+  libraryOrigin: libraryOrigin,
+  returnCategory: HelperReturnCategory.string,
+  translate: (args) {
+    final key = _stripTestQuotes(args.named['key']!);
+    return 'data.context.$key';
+  },
+);
 
 String _stripTestQuotes(String s) {
   if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
@@ -97,8 +97,7 @@ $prelude
 }
 Object x() => value();
 ''');
-  final value = (call.root as CompilationUnit)
-      .declarations
+  final value = (call.root as CompilationUnit).declarations
       .whereType<FunctionDeclaration>()
       .singleWhere((candidate) => candidate.name.lexeme == 'value');
   final body = extractInlinableBuildBody(value.functionExpression.body)!;
@@ -117,8 +116,9 @@ RootContextParam _rootParamFrom(
   final classElement = probe.classes[className]!;
   final parameter = classElement.unnamedConstructor!.formalParameters
       .firstWhere((element) => element.name == name);
-  final defaultValue =
-      parameter.hasDefaultValue ? parameter.computeConstantValue() : null;
+  final defaultValue = parameter.hasDefaultValue
+      ? parameter.computeConstantValue()
+      : null;
   final hostData = isHostData
       ? deriveHostDataShape(parameter.type, root: name)
       : const HostDataShapeFact.refused(
@@ -131,14 +131,15 @@ RootContextParam _rootParamFrom(
     kind: parameter.isOptionalPositional
         ? RootContextParamKind.optionalPositional
         : parameter.isNamed
-            ? RootContextParamKind.named
-            : RootContextParamKind.requiredPositional,
+        ? RootContextParamKind.named
+        : RootContextParamKind.requiredPositional,
     hostDataShape: hostData.shape,
     hostDataProblem: hostData.problem,
     field: parameter is FieldFormalParameterElement ? parameter.field : null,
     isRequired: parameter.isRequired,
     defaultValueCode: parameter.defaultValueCode,
-    hasNullDefault: parameter.hasDefaultValue &&
+    hasNullDefault:
+        parameter.hasDefaultValue &&
         defaultValue != null &&
         defaultValue.isNull,
   );
@@ -210,12 +211,14 @@ void main() {
       expect(r.issues, isEmpty);
     });
 
-    test('adjacent string literals lower to a single concatenated string',
-        () async {
-      final r = translator.translate(await parseExpressionForTest("'a' 'b'"));
-      expect(r.dsl, '"ab"');
-      expect(r.issues, isEmpty);
-    });
+    test(
+      'adjacent string literals lower to a single concatenated string',
+      () async {
+        final r = translator.translate(await parseExpressionForTest("'a' 'b'"));
+        expect(r.dsl, '"ab"');
+        expect(r.issues, isEmpty);
+      },
+    );
 
     test('three adjacent string literals concatenate in order', () async {
       final r = translator.translate(
@@ -315,7 +318,8 @@ void main() {
       expect(success.dsl, 'ListSink(values: ["ok", "more"])');
 
       for (final (name, tail) in flowTails) {
-        final source = '''
+        final source =
+            '''
 class ListSink {
   const ListSink({required this.values});
   final List<String> values;
@@ -325,14 +329,17 @@ const bool enabled = true;
 Object x() => ListSink(values: <String>['ok', $tail]);
 ''';
         final expression = await parseExpressionFromSourceForTest(source);
-        final argument = (expression as InstanceCreationExpression)
-            .argumentList
-            .arguments
-            .single as NamedArgument;
+        final argument =
+            (expression as InstanceCreationExpression)
+                    .argumentList
+                    .arguments
+                    .single
+                as NamedArgument;
         final list = argument.argumentExpression as ListLiteral;
         final lineInfo = LineInfo.fromContent(source);
-        final offendingLocation =
-            lineInfo.getLocation(list.elements.last.offset);
+        final offendingLocation = lineInfo.getLocation(
+          list.elements.last.offset,
+        );
         final result = directTranslator.translate(
           expression,
           sourcePath: 'direct_list.dart',
@@ -356,19 +363,20 @@ Object x() => ListSink(values: <String>['ok', $tail]);
       }
     });
 
-    test('direct list slots refuse a present child with no DSL bytes',
-        () async {
-      final directTranslator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'ListSink',
-            properties: [prop('values', PropertyType.stringList)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-      );
-      final result = directTranslator.translate(
-        await parseExpressionFromSourceForTest('''
+    test(
+      'direct list slots refuse a present child with no DSL bytes',
+      () async {
+        final directTranslator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'ListSink',
+              properties: [prop('values', PropertyType.stringList)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+        );
+        final result = directTranslator.translate(
+          await parseExpressionFromSourceForTest('''
           class ListSink {
             const ListSink({required this.values});
             final List<String> values;
@@ -378,65 +386,70 @@ Object x() => ListSink(values: <String>['ok', $tail]);
             values: <String>['ok', unavailable()],
           );
         '''),
-      );
-
-      expect(result.dsl, isEmpty);
-      expect(result.dsl, isNot(contains('["ok", ]')));
-      expect(
-        result.issues.map((issue) => issue.code),
-        contains(IssueCode.unknownWidget),
-      );
-    });
-
-    test('generated list recipes suppress every collection-flow form',
-        () async {
-      final success = translator.translate(
-        await parseExpressionForTest(
-          'RadialGradient(colors: <Color>['
-          ' Color(0xFF112233), Color(0xFF445566)])',
-        ),
-      );
-      expect(success.issues, isEmpty);
-      expect(
-        success.dsl,
-        '{type: "radial", colors: [0xFF112233, 0xFF445566]}',
-      );
-
-      for (final (name, tail) in const <(String, String)>[
-        ('spread', '...more'),
-        ('collection-if', 'if (enabled) Color(0xFF445566)'),
-        ('collection-for', 'for (final color in more) color'),
-      ]) {
-        final source = 'Object x() => RadialGradient(colors: <Color>[ '
-            'Color(0xFF112233), $tail]);';
-        final expression = await parseExpressionFromSourceForTest(source);
-        final argument = callArgumentsOf(expression).single as NamedArgument;
-        final list = argument.argumentExpression as ListLiteral;
-        final lineInfo = LineInfo.fromContent(source);
-        final offendingLocation =
-            lineInfo.getLocation(list.elements.last.offset);
-        final result = translator.translate(
-          expression,
-          sourcePath: 'generated_list.dart',
-          lineInfo: lineInfo,
         );
 
-        expect(result.issues, hasLength(1), reason: name);
+        expect(result.dsl, isEmpty);
+        expect(result.dsl, isNot(contains('["ok", ]')));
         expect(
-          result.issues.single.code,
-          IssueCode.unsupportedCollectionFlow,
-          reason: name,
+          result.issues.map((issue) => issue.code),
+          contains(IssueCode.unknownWidget),
         );
-        expect(result.dsl, isEmpty, reason: name);
-        expect(result.dsl, isNot(contains('0xFF112233')), reason: name);
+      },
+    );
+
+    test(
+      'generated list recipes suppress every collection-flow form',
+      () async {
+        final success = translator.translate(
+          await parseExpressionForTest(
+            'RadialGradient(colors: <Color>['
+            ' Color(0xFF112233), Color(0xFF445566)])',
+          ),
+        );
+        expect(success.issues, isEmpty);
         expect(
-          result.issues.single.location,
-          'generated_list.dart:${offendingLocation.lineNumber}:'
-          '${offendingLocation.columnNumber}',
-          reason: name,
+          success.dsl,
+          '{type: "radial", colors: [0xFF112233, 0xFF445566]}',
         );
-      }
-    });
+
+        for (final (name, tail) in const <(String, String)>[
+          ('spread', '...more'),
+          ('collection-if', 'if (enabled) Color(0xFF445566)'),
+          ('collection-for', 'for (final color in more) color'),
+        ]) {
+          final source =
+              'Object x() => RadialGradient(colors: <Color>[ '
+              'Color(0xFF112233), $tail]);';
+          final expression = await parseExpressionFromSourceForTest(source);
+          final argument = callArgumentsOf(expression).single as NamedArgument;
+          final list = argument.argumentExpression as ListLiteral;
+          final lineInfo = LineInfo.fromContent(source);
+          final offendingLocation = lineInfo.getLocation(
+            list.elements.last.offset,
+          );
+          final result = translator.translate(
+            expression,
+            sourcePath: 'generated_list.dart',
+            lineInfo: lineInfo,
+          );
+
+          expect(result.issues, hasLength(1), reason: name);
+          expect(
+            result.issues.single.code,
+            IssueCode.unsupportedCollectionFlow,
+            reason: name,
+          );
+          expect(result.dsl, isEmpty, reason: name);
+          expect(result.dsl, isNot(contains('0xFF112233')), reason: name);
+          expect(
+            result.issues.single.location,
+            'generated_list.dart:${offendingLocation.lineNumber}:'
+            '${offendingLocation.columnNumber}',
+            reason: name,
+          );
+        }
+      },
+    );
 
     test('strict-double lists suppress dynamic collection flow', () async {
       final success = translator.translate(
@@ -456,15 +469,17 @@ Object x() => ListSink(values: <String>['ok', $tail]);
         ('collection-if', 'if (enabled) 1.0'),
         ('collection-for', 'for (final stop in more) stop'),
       ]) {
-        final source = 'Object x() => LinearGradient( '
+        final source =
+            'Object x() => LinearGradient( '
             'colors: <Color>[Color(0xFF112233)], '
             'stops: <double>[0.0, $tail]);';
         final expression = await parseExpressionFromSourceForTest(source);
         final argument = callArgumentsOf(expression).last as NamedArgument;
         final list = argument.argumentExpression as ListLiteral;
         final lineInfo = LineInfo.fromContent(source);
-        final offendingLocation =
-            lineInfo.getLocation(list.elements.last.offset);
+        final offendingLocation = lineInfo.getLocation(
+          list.elements.last.offset,
+        );
         final result = translator.translate(
           expression,
           sourcePath: 'double_list.dart',
@@ -613,22 +628,26 @@ Object x() => Curves.$member;
       }
     });
 
-    test('real-flutter Colors.red retains its canonical Material identity',
-        () async {
-      // The resolved Flutter declaration retains its canonical swatch token.
-      final r = translator.translate(
-        await parseExpressionFromSourceForTest(
-          '''
+    test(
+      'real-flutter Colors.red retains its canonical Material identity',
+      () async {
+        // The resolved Flutter declaration retains its canonical swatch token.
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest(
+            '''
           import 'package:flutter/material.dart';
           Object x() => Colors.red;
           ''',
-          rootPackage: 'apps_examples',
-        ),
-      );
-      expect(r.dsl,
-          '{colorSpace: "sRGB", material: "red", a: 1.0, r: 0.9568627450980393, g: 0.2627450980392157, b: 0.21176470588235294}');
-      expect(r.issues, isEmpty);
-    });
+            rootPackage: 'apps_examples',
+          ),
+        );
+        expect(
+          r.dsl,
+          '{colorSpace: "sRGB", material: "red", a: 1.0, r: 0.9568627450980393, g: 0.2627450980392157, b: 0.21176470588235294}',
+        );
+        expect(r.issues, isEmpty);
+      },
+    );
 
     test('real-flutter Colors.transparent → 0x00000000', () async {
       final r = translator.translate(
@@ -644,24 +663,27 @@ Object x() => Curves.$member;
       expect(r.issues, isEmpty);
     });
 
-    test('real-flutter Colors.X outside the old curated table lowers by value',
-        () async {
-      final r = translator.translate(
-        await parseExpressionFromSourceForTest(
-          '''
+    test(
+      'real-flutter Colors.X outside the old curated table lowers by value',
+      () async {
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest(
+            '''
           import 'package:flutter/material.dart';
           Object x() => Colors.teal;
           ''',
-          rootPackage: 'apps_examples',
-        ),
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl,
-          '{colorSpace: "sRGB", material: "teal", a: 1.0, r: 0.0, g: 0.5882352941176471, b: 0.5333333333333333}');
-    });
+            rootPackage: 'apps_examples',
+          ),
+        );
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          '{colorSpace: "sRGB", material: "teal", a: 1.0, r: 0.0, g: 0.5882352941176471, b: 0.5333333333333333}',
+        );
+      },
+    );
 
-    test(
-        'a custom Colors lookalike (scalar int member) defers — never the '
+    test('a custom Colors lookalike (scalar int member) defers — never the '
         'material int (#2 silent-wrong closed)', () async {
       // `red` matches a curated Material name, but this is a CUSTOM class
       // named `Colors`, not package:flutter's. The classifier's scalar-fold
@@ -683,8 +705,7 @@ Object x() => Curves.$member;
       expect(r.issues, isNotEmpty);
     });
 
-    test(
-        'a custom Colors lookalike (Color-object member) defers — the '
+    test('a custom Colors lookalike (Color-object member) defers — the '
         'translator-direct object-path negative', () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest('''
@@ -700,30 +721,34 @@ Object x() => Curves.$member;
       expect(r.dsl, isEmpty);
     });
 
-    test('an unresolved Colors.X prefix defers (never name-match on null)',
-        () async {
-      // parseExpressionForTest produces an unresolved AST; the element-resolved
-      // arm must defer rather than name-match against the Material table.
-      final r = translator.translate(
-        await parseExpressionForTest('Colors.red'),
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unresolvedIdentifier),
-      );
-      expect(r.dsl, isEmpty);
-    });
+    test(
+      'an unresolved Colors.X prefix defers (never name-match on null)',
+      () async {
+        // parseExpressionForTest produces an unresolved AST; the element-resolved
+        // arm must defer rather than name-match against the Material table.
+        final r = translator.translate(
+          await parseExpressionForTest('Colors.red'),
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unresolvedIdentifier),
+        );
+        expect(r.dsl, isEmpty);
+      },
+    );
 
-    test('method call on unknown target emits unrecognizedMethodCall',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest('someVar.toUpper()'),
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-    });
+    test(
+      'method call on unknown target emits unrecognizedMethodCall',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest('someVar.toUpper()'),
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+      },
+    );
   });
 
   group('enumValue slot fallback', () {
@@ -732,22 +757,24 @@ Object x() => Curves.$member;
       helpers: HelperRegistry(),
     );
 
-    test('valid framework enum member lowers by name for an enumValue slot',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'valid framework enum member lowers by name for an enumValue slot',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/widgets.dart';
 
         Object x() => Text('hi', textAlign: TextAlign.center);
         ''',
-        rootPackage: 'apps_examples',
-      );
+          rootPackage: 'apps_examples',
+        );
 
-      final r = enumSlotTranslator.translate(expr);
+        final r = enumSlotTranslator.translate(expr);
 
-      expect(r.issues, isEmpty);
-      expect(r.dsl, 'Text(text: "hi", textAlign: "center")');
-    });
+        expect(r.issues, isEmpty);
+        expect(r.dsl, 'Text(text: "hi", textAlign: "center")');
+      },
+    );
 
     test('absent enum member defers at the enumValue slot', () async {
       final expr = await parseExpressionFromSourceForTest(
@@ -844,28 +871,32 @@ Object x() => Curves.$member;
       expect(r.dsl, isNot(contains('key')));
     });
 
-    test('PageController(initialPage:, viewportFraction:) flattens onto props',
-        () async {
-      final r = await alias(
-        'PageView('
-        'controller: PageController(initialPage: 2, viewportFraction: 0.9), '
-        'children: const [SizedBox()])',
-      );
-      expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
-      expect(r.dsl, contains('initialPage: 2'));
-      expect(r.dsl, contains('viewportFraction: 0.9'));
-    });
+    test(
+      'PageController(initialPage:, viewportFraction:) flattens onto props',
+      () async {
+        final r = await alias(
+          'PageView('
+          'controller: PageController(initialPage: 2, viewportFraction: 0.9), '
+          'children: const [SizedBox()])',
+        );
+        expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
+        expect(r.dsl, contains('initialPage: 2'));
+        expect(r.dsl, contains('viewportFraction: 0.9'));
+      },
+    );
 
-    test('PageController() with no args flattens to RestagePager defaults',
-        () async {
-      final r = await alias(
-        'PageView(controller: PageController(), children: const [SizedBox()])',
-      );
-      expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
-      // No initialPage/viewportFraction emitted — RestagePager's defaults
-      // equal PageController's, so the lowering is faithful.
-      expect(r.dsl, 'RestagePager(children: [SizedBox()])');
-    });
+    test(
+      'PageController() with no args flattens to RestagePager defaults',
+      () async {
+        final r = await alias(
+          'PageView(controller: PageController(), children: const [SizedBox()])',
+        );
+        expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
+        // No initialPage/viewportFraction emitted — RestagePager's defaults
+        // equal PageController's, so the lowering is faithful.
+        expect(r.dsl, 'RestagePager(children: [SizedBox()])');
+      },
+    );
 
     test('an unmapped argument defers the whole widget, named', () async {
       final r = await alias(
@@ -895,23 +926,25 @@ Object x() => Curves.$member;
       );
     });
 
-    test('a PageController arg outside {initialPage, viewportFraction} defers',
-        () async {
-      final r = await alias(
-        'PageView('
-        'controller: PageController(initialPage: 2, keepPage: false), '
-        'children: const [SizedBox()])',
-      );
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.pageViewFormUnsupported),
-      );
-      expect(
-        r.issues.map((i) => i.message).join('\n'),
-        contains('controller'),
-      );
-    });
+    test(
+      'a PageController arg outside {initialPage, viewportFraction} defers',
+      () async {
+        final r = await alias(
+          'PageView('
+          'controller: PageController(initialPage: 2, keepPage: false), '
+          'children: const [SizedBox()])',
+        );
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.pageViewFormUnsupported),
+        );
+        expect(
+          r.issues.map((i) => i.message).join('\n'),
+          contains('controller'),
+        );
+      },
+    );
 
     test('a controller that is not a literal PageController defers', () async {
       final r = await alias(
@@ -924,30 +957,34 @@ Object x() => Curves.$member;
       );
     });
 
-    test('a non-statically-extractable flatten value defers the whole widget',
-        () async {
-      // The flatten arg routes through the integer slot translation; a value
-      // that looks extractable but is a runtime reference defers — never a
-      // RestagePager with a degraded initialPage.
-      final r = await alias(
-        'PageView('
-        'controller: PageController(initialPage: dynamicPage), '
-        'children: const [SizedBox()])',
-      );
-      expect(r.dsl, isEmpty);
-      expect(r.issues.where((i) => !i.code.isInformational), isNotEmpty);
-      expect(r.dsl, isNot(contains('RestagePager')));
-    });
+    test(
+      'a non-statically-extractable flatten value defers the whole widget',
+      () async {
+        // The flatten arg routes through the integer slot translation; a value
+        // that looks extractable but is a runtime reference defers — never a
+        // RestagePager with a degraded initialPage.
+        final r = await alias(
+          'PageView('
+          'controller: PageController(initialPage: dynamicPage), '
+          'children: const [SizedBox()])',
+        );
+        expect(r.dsl, isEmpty);
+        expect(r.issues.where((i) => !i.code.isInformational), isNotEmpty);
+        expect(r.dsl, isNot(contains('RestagePager')));
+      },
+    );
 
-    test('an empty children list defers (RestagePager requires non-empty)',
-        () async {
-      final r = await alias('PageView(children: const [])');
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.pageViewFormUnsupported),
-      );
-    });
+    test(
+      'an empty children list defers (RestagePager requires non-empty)',
+      () async {
+        final r = await alias('PageView(children: const [])');
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.pageViewFormUnsupported),
+        );
+      },
+    );
 
     test('an absent children list defers', () async {
       final r = await alias('PageView(scrollDirection: Axis.horizontal)');
@@ -958,25 +995,27 @@ Object x() => Curves.$member;
       );
     });
 
-    test('a custom PageView look-alike does NOT alias (unknownWidget)',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'a custom PageView look-alike does NOT alias (unknownWidget)',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         class PageView {
           const PageView({this.children});
           final List<Object>? children;
         }
         Object x() => const PageView(children: []);
         ''',
-      );
-      final r = pagerTranslator.translate(expr);
-      expect(r.dsl, isEmpty);
-      expect(r.issues.map((i) => i.code), contains(IssueCode.unknownWidget));
-      expect(
-        r.issues.map((i) => i.code),
-        isNot(contains(IssueCode.pageViewFormUnsupported)),
-      );
-    });
+        );
+        final r = pagerTranslator.translate(expr);
+        expect(r.dsl, isEmpty);
+        expect(r.issues.map((i) => i.code), contains(IssueCode.unknownWidget));
+        expect(
+          r.issues.map((i) => i.code),
+          isNot(contains(IssueCode.pageViewFormUnsupported)),
+        );
+      },
+    );
   });
 
   group('DraggableScrollableSheet -> RestageDraggableSheet alias', () {
@@ -999,53 +1038,60 @@ Object x() => Curves.$member;
       return sheetTranslator.translate(expr);
     }
 
-    test('the canonical builder lowers to a RestageDraggableSheet node',
-        timeout: const Timeout(Duration(minutes: 3)), () async {
-      // The first Flutter-resolution build in this group is slow on a cold
-      // cache; the rest run warm under the default per-test timeout.
-      final r = await alias(
-        'DraggableScrollableSheet(builder: (context, sc) => '
-        'SingleChildScrollView(controller: sc, child: const SizedBox()))',
-      );
-      expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
-      expect(r.dsl, 'RestageDraggableSheet(child: SizedBox())');
-    });
+    test(
+      'the canonical builder lowers to a RestageDraggableSheet node',
+      timeout: const Timeout(Duration(minutes: 3)),
+      () async {
+        // The first Flutter-resolution build in this group is slow on a cold
+        // cache; the rest run warm under the default per-test timeout.
+        final r = await alias(
+          'DraggableScrollableSheet(builder: (context, sc) => '
+          'SingleChildScrollView(controller: sc, child: const SizedBox()))',
+        );
+        expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
+        expect(r.dsl, 'RestageDraggableSheet(child: SizedBox())');
+      },
+    );
 
-    test('detents map by name onto the catalog slots in catalog order',
-        () async {
-      final r = await alias(
-        'DraggableScrollableSheet(initialChildSize: 0.3, minChildSize: 0.1, '
-        'maxChildSize: 0.9, expand: false, snap: true, '
-        'builder: (context, sc) => '
-        'SingleChildScrollView(controller: sc, child: const SizedBox()))',
-      );
-      expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
-      expect(
-        r.dsl,
-        'RestageDraggableSheet(child: SizedBox(), initialChildSize: 0.3, '
-        'minChildSize: 0.1, maxChildSize: 0.9, expand: false, snap: true)',
-      );
-    });
+    test(
+      'detents map by name onto the catalog slots in catalog order',
+      () async {
+        final r = await alias(
+          'DraggableScrollableSheet(initialChildSize: 0.3, minChildSize: 0.1, '
+          'maxChildSize: 0.9, expand: false, snap: true, '
+          'builder: (context, sc) => '
+          'SingleChildScrollView(controller: sc, child: const SizedBox()))',
+        );
+        expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
+        expect(
+          r.dsl,
+          'RestageDraggableSheet(child: SizedBox(), initialChildSize: 0.3, '
+          'minChildSize: 0.1, maxChildSize: 0.9, expand: false, snap: true)',
+        );
+      },
+    );
 
-    test('a custom DraggableScrollableSheet look-alike does NOT alias',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'a custom DraggableScrollableSheet look-alike does NOT alias',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         class DraggableScrollableSheet {
           const DraggableScrollableSheet({this.builder});
           final Object? builder;
         }
         Object x() => const DraggableScrollableSheet();
         ''',
-      );
-      final r = sheetTranslator.translate(expr);
-      expect(r.dsl, isEmpty);
-      expect(r.issues.map((i) => i.code), contains(IssueCode.unknownWidget));
-      expect(
-        r.issues.map((i) => i.code),
-        isNot(contains(IssueCode.draggableSheetFormUnsupported)),
-      );
-    });
+        );
+        final r = sheetTranslator.translate(expr);
+        expect(r.dsl, isEmpty);
+        expect(r.issues.map((i) => i.code), contains(IssueCode.unknownWidget));
+        expect(
+          r.issues.map((i) => i.code),
+          isNot(contains(IssueCode.draggableSheetFormUnsupported)),
+        );
+      },
+    );
 
     test('a non-empty snapSizes fatal-defers the whole widget', () async {
       final r = await alias(
@@ -1083,33 +1129,36 @@ Object x() => Curves.$member;
       );
     });
 
-    test('shouldCloseOnMinExtent: true fatal-defers (a closeable sheet)',
-        () async {
-      final r = await alias(
-        'DraggableScrollableSheet(shouldCloseOnMinExtent: true, '
-        'builder: (context, sc) => '
-        'SingleChildScrollView(controller: sc, child: const SizedBox()))',
-      );
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.draggableSheetFormUnsupported),
-      );
-    });
-
-    test('shouldCloseOnMinExtent: false is dropped (the widget lowers)',
-        () async {
-      final r = await alias(
-        'DraggableScrollableSheet(shouldCloseOnMinExtent: false, '
-        'builder: (context, sc) => '
-        'SingleChildScrollView(controller: sc, child: const SizedBox()))',
-      );
-      expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
-      expect(r.dsl, 'RestageDraggableSheet(child: SizedBox())');
-    });
+    test(
+      'shouldCloseOnMinExtent: true fatal-defers (a closeable sheet)',
+      () async {
+        final r = await alias(
+          'DraggableScrollableSheet(shouldCloseOnMinExtent: true, '
+          'builder: (context, sc) => '
+          'SingleChildScrollView(controller: sc, child: const SizedBox()))',
+        );
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.draggableSheetFormUnsupported),
+        );
+      },
+    );
 
     test(
-        'a scrollable builder body fatal-defers (the silent-wrong-render '
+      'shouldCloseOnMinExtent: false is dropped (the widget lowers)',
+      () async {
+        final r = await alias(
+          'DraggableScrollableSheet(shouldCloseOnMinExtent: false, '
+          'builder: (context, sc) => '
+          'SingleChildScrollView(controller: sc, child: const SizedBox()))',
+        );
+        expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
+        expect(r.dsl, 'RestageDraggableSheet(child: SizedBox())');
+      },
+    );
+
+    test('a scrollable builder body fatal-defers (the silent-wrong-render '
         'tripwire — never a bare Column)', () async {
       final r = await alias(
         'DraggableScrollableSheet(builder: (context, sc) => '
@@ -1122,8 +1171,7 @@ Object x() => Curves.$member;
       );
     });
 
-    test(
-        'a scroll view carrying an extra argument fatal-defers (the strict '
+    test('a scroll view carrying an extra argument fatal-defers (the strict '
         'subset tripwire)', () async {
       final r = await alias(
         'DraggableScrollableSheet(builder: (context, sc) => '
@@ -1149,8 +1197,7 @@ Object x() => Curves.$member;
       );
     });
 
-    test(
-        'a resolved custom SingleChildScrollView function does NOT alias '
+    test('a resolved custom SingleChildScrollView function does NOT alias '
         'as the canonical scroll view (fatal-defers)', () async {
       // A paywall that hides Flutter's SingleChildScrollView and defines its
       // own same-named function must not be mis-recognised as the canonical
@@ -1194,33 +1241,39 @@ Object x() => Curves.$member;
         ''',
         rootPackage: 'apps_examples',
       );
-      return ExpressionTranslator(catalog: catalog, helpers: HelperRegistry())
-          .translate(expr);
+      return ExpressionTranslator(
+        catalog: catalog,
+        helpers: HelperRegistry(),
+      ).translate(expr);
     }
 
-    test('a catalog whose RestageDraggableSheet lacks the child slot is fatal',
-        () async {
-      final r = await aliasWith(_draggableSheetCatalog(includeChild: false));
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.draggableSheetFormUnsupported),
-      );
-    });
-
-    test('a catalog exposing an author-bindable controller slot is fatal',
-        () async {
-      final r =
-          await aliasWith(_draggableSheetCatalog(includeController: true));
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.draggableSheetFormUnsupported),
-      );
-    });
+    test(
+      'a catalog whose RestageDraggableSheet lacks the child slot is fatal',
+      () async {
+        final r = await aliasWith(_draggableSheetCatalog(includeChild: false));
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.draggableSheetFormUnsupported),
+        );
+      },
+    );
 
     test(
-        'a catalog missing a mapped slot fatal-defers rather than silently '
+      'a catalog exposing an author-bindable controller slot is fatal',
+      () async {
+        final r = await aliasWith(
+          _draggableSheetCatalog(includeController: true),
+        );
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.draggableSheetFormUnsupported),
+        );
+      },
+    );
+
+    test('a catalog missing a mapped slot fatal-defers rather than silently '
         'drop the authored value', () async {
       // A skewed catalog without `initialChildSize`: the authored 0.3 has no
       // slot to emit onto, so the lowering must fatal-defer rather than emit a
@@ -1268,8 +1321,7 @@ Object x() => Curves.$member;
       return selectTranslator.translate(expr);
     }
 
-    test(
-        'a RadioGroup lowers to a RestageRadioGroupString node with its '
+    test('a RadioGroup lowers to a RestageRadioGroupString node with its '
         'option list in order + the flattened selected', () async {
       final r = await alias('''
 RadioGroup<String>(
@@ -1290,8 +1342,7 @@ RadioGroup<String>(
       );
     });
 
-    test(
-        'a DropdownButton lowers to a RestageDropdownString node with its '
+    test('a DropdownButton lowers to a RestageDropdownString node with its '
         'option list', () async {
       final r = await alias('''
 DropdownButton<String>(
@@ -1310,22 +1361,24 @@ DropdownButton<String>(
       );
     });
 
-    test('an unselected group (no groupValue) omits the selected slot',
-        () async {
-      final r = await alias('''
+    test(
+      'an unselected group (no groupValue) omits the selected slot',
+      () async {
+        final r = await alias('''
 RadioGroup<String>(
   child: Column(children: const [
     RadioListTile<String>(value: 'a', title: Text('A')),
   ]),
 )
 ''');
-      expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
-      expect(
-        r.dsl,
-        'RestageRadioGroupString(items: [{ value: "a", label: "A" }])',
-      );
-      expect(r.dsl, isNot(contains('selected')));
-    });
+        expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
+        expect(
+          r.dsl,
+          'RestageRadioGroupString(items: [{ value: "a", label: "A" }])',
+        );
+        expect(r.dsl, isNot(contains('selected')));
+      },
+    );
 
     test('validates host data used by single-select string slots', () async {
       final probe = await parseMethodExpressionFromSourceForTest(
@@ -1360,8 +1413,8 @@ RadioGroup<String>(
         _rootParamFrom(probe, className: 'P', name: 'title'),
         _rootParamFrom(probe, className: 'P', name: 'count'),
       ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
 
       final valid = selectTranslator.translate(
         expressions[0],
@@ -1424,15 +1477,15 @@ DropdownButton<String>(
     });
 
     test(
-        'two const refs folding to the same value defer (post-fold dup), named',
-        () async {
-      // `proKey` and `alsoPro` are distinct identifiers that const-fold to the
-      // same string. The recogniser's raw-literal dup check does not catch them
-      // (they are not SimpleStringLiterals), but the emitter re-checks the
-      // FOLDED value and defers loud — otherwise the compiled widget would
-      // silently de-dupe (drop) the second option, shipping a wrong group.
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+      'two const refs folding to the same value defer (post-fold dup), named',
+      () async {
+        // `proKey` and `alsoPro` are distinct identifiers that const-fold to the
+        // same string. The recogniser's raw-literal dup check does not catch them
+        // (they are not SimpleStringLiterals), but the emitter re-checks the
+        // FOLDED value and defers loud — otherwise the compiled widget would
+        // silently de-dupe (drop) the second option, shipping a wrong group.
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/material.dart';
 
         const String proKey = 'pro';
@@ -1445,19 +1498,20 @@ DropdownButton<String>(
           ],
         );
         ''',
-        rootPackage: 'apps_examples',
-      );
-      final r = selectTranslator.translate(expr);
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.singleSelectFormUnsupported),
-      );
-      expect(
-        r.issues.map((i) => i.message).join('\n'),
-        contains('same value'),
-      );
-    });
+          rootPackage: 'apps_examples',
+        );
+        final r = selectTranslator.translate(expr);
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.singleSelectFormUnsupported),
+        );
+        expect(
+          r.issues.map((i) => i.message).join('\n'),
+          contains('same value'),
+        );
+      },
+    );
 
     // A single-select translator that ALSO knows a host-data helper, so an
     // option `value:` can lower to a runtime reference (`hostText(...)`
@@ -1496,8 +1550,7 @@ DropdownButton<String>(
       return selectWithHelpers.translate(expr);
     }
 
-    test(
-        'two options with the SAME runtime-ref value defer (post-lower dup), '
+    test('two options with the SAME runtime-ref value defer (post-lower dup), '
         'named', () async {
       // Both options' `value:` lower to the IDENTICAL runtime ref
       // `data.context.pro`. The recogniser's raw-literal dup
@@ -1527,8 +1580,7 @@ DropdownButton<String>(
       );
     });
 
-    test(
-        'two options with DISTINCT runtime-ref values still emit (not '
+    test('two options with DISTINCT runtime-ref values still emit (not '
         'over-deferred)', () async {
       // The two `value:` expressions lower to DIFFERENT runtime refs
       // (`data.context.pro` vs `data.context.plus`). Distinct DSL is
@@ -1553,9 +1605,10 @@ DropdownButton<String>(
       );
     });
 
-    test('an unmapped RadioGroup argument defers the whole widget, named',
-        () async {
-      final r = await alias('''
+    test(
+      'an unmapped RadioGroup argument defers the whole widget, named',
+      () async {
+        final r = await alias('''
 RadioGroup<String>(
   groupValue: 'a',
   mouseCursor: SystemMouseCursors.click,
@@ -1564,21 +1617,23 @@ RadioGroup<String>(
   ]),
 )
 ''');
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.singleSelectFormUnsupported),
-      );
-      expect(
-        r.issues.map((i) => i.message).join('\n'),
-        contains('mouseCursor'),
-      );
-    });
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.singleSelectFormUnsupported),
+        );
+        expect(
+          r.issues.map((i) => i.message).join('\n'),
+          contains('mouseCursor'),
+        );
+      },
+    );
 
-    test('a custom RadioGroup look-alike does NOT alias (unknownWidget)',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'a custom RadioGroup look-alike does NOT alias (unknownWidget)',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         class RadioGroup<T> {
           const RadioGroup({this.groupValue, this.child});
           final T? groupValue;
@@ -1586,15 +1641,16 @@ RadioGroup<String>(
         }
         Object x() => const RadioGroup<String>(groupValue: 'a', child: null);
         ''',
-      );
-      final r = selectTranslator.translate(expr);
-      expect(r.dsl, isEmpty);
-      expect(r.issues.map((i) => i.code), contains(IssueCode.unknownWidget));
-      expect(
-        r.issues.map((i) => i.code),
-        isNot(contains(IssueCode.singleSelectFormUnsupported)),
-      );
-    });
+        );
+        final r = selectTranslator.translate(expr);
+        expect(r.dsl, isEmpty);
+        expect(r.issues.map((i) => i.code), contains(IssueCode.unknownWidget));
+        expect(
+          r.issues.map((i) => i.code),
+          isNot(contains(IssueCode.singleSelectFormUnsupported)),
+        );
+      },
+    );
   });
 
   group('ToggleButtons -> RestageToggleButtons alias', () {
@@ -1616,8 +1672,7 @@ RadioGroup<String>(
       return toggleTranslator.translate(expr);
     }
 
-    test(
-        'a ToggleButtons lowers to a RestageToggleButtons node with its '
+    test('a ToggleButtons lowers to a RestageToggleButtons node with its '
         'children + isSelected in order', () async {
       final r = await alias('''
 ToggleButtons(
@@ -1637,23 +1692,25 @@ ToggleButtons(
       );
     });
 
-    test('a display-only ToggleButtons (no onPressed) lowers cleanly',
-        () async {
-      final r = await alias('''
+    test(
+      'a display-only ToggleButtons (no onPressed) lowers cleanly',
+      () async {
+        final r = await alias('''
 ToggleButtons(
   isSelected: const [true, false],
   children: const [Text('A'), Text('B')],
 )
 ''');
-      expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
-      expect(
-        r.dsl,
-        'RestageToggleButtons(children: [Text(text: "A"), Text(text: "B")], '
-        'isSelected: [true, false])',
-      );
-      // No onPressed authored → no onPressed part emitted (not a defer).
-      expect(r.dsl, isNot(contains('onPressed')));
-    });
+        expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
+        expect(
+          r.dsl,
+          'RestageToggleButtons(children: [Text(text: "A"), Text(text: "B")], '
+          'isSelected: [true, false])',
+        );
+        // No onPressed authored → no onPressed part emitted (not a defer).
+        expect(r.dsl, isNot(contains('onPressed')));
+      },
+    );
 
     test('a literal children/isSelected length mismatch defers loud', () async {
       final r = await alias('''
@@ -1709,8 +1766,7 @@ ToggleButtons(
       return segmentedTranslator.translate(expr);
     }
 
-    test(
-        'a SegmentedButton lowers to a RestageSegmentedButtonString node with '
+    test('a SegmentedButton lowers to a RestageSegmentedButtonString node with '
         'its segment list in order + the selected list', () async {
       final r = await alias('''
 SegmentedButton<String>(
@@ -1731,8 +1787,7 @@ SegmentedButton<String>(
       );
     });
 
-    test(
-        'a declarative onSelectionChanged lowers through the event slot to an '
+    test('a declarative onSelectionChanged lowers through the event slot to an '
         'event reference', () async {
       // The host callback shape (`(Set<String> s)`) is irrelevant to the blob —
       // only the declarative body lowers, to an `event "…"` reference the host
@@ -1811,8 +1866,8 @@ SegmentedButton<String>(
         _rootParamFrom(probe, className: 'P', name: 'enabled'),
         _rootParamFrom(probe, className: 'P', name: 'label'),
       ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
 
       final valid = segmentedTranslator.translate(
         expressions[0],
@@ -1835,8 +1890,7 @@ SegmentedButton<String>(
       );
     });
 
-    test(
-        'a display-only SegmentedButton (no selected/onSelectionChanged) '
+    test('a display-only SegmentedButton (no selected/onSelectionChanged) '
         'lowers cleanly', () async {
       final r = await alias('''
 SegmentedButton<String>(
@@ -1866,9 +1920,10 @@ SegmentedButton<int>(
       );
     });
 
-    test('a duplicate segment value defers loud (never a dropped segment)',
-        () async {
-      final r = await alias('''
+    test(
+      'a duplicate segment value defers loud (never a dropped segment)',
+      () async {
+        final r = await alias('''
 SegmentedButton<String>(
   segments: const [
     ButtonSegment<String>(value: 'a', label: Text('A')),
@@ -1877,15 +1932,15 @@ SegmentedButton<String>(
   selected: const {'a'},
 )
 ''');
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.segmentedButtonFormUnsupported),
-      );
-    });
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.segmentedButtonFormUnsupported),
+        );
+      },
+    );
 
-    test(
-        'a host-imperative onSelectionChanged body defers loud at the event '
+    test('a host-imperative onSelectionChanged body defers loud at the event '
         'slot (never silently dropped)', () async {
       // `someHostCall(s)` is not a declarative event, so the whole widget
       // aborts rather than ship a silently-dropped callback.
@@ -1902,9 +1957,10 @@ SegmentedButton<String>(
       expect(r.issues, isNotEmpty);
     });
 
-    test('a navigation onSelectionChanged reaches the navigation path',
-        () async {
-      final r = await alias('''
+    test(
+      'a navigation onSelectionChanged reaches the navigation path',
+      () async {
+        final r = await alias('''
 SegmentedButton<String>(
   segments: const [
     ButtonSegment<String>(value: 'a', label: Text('A')),
@@ -1916,19 +1972,21 @@ SegmentedButton<String>(
   ),
 )
 ''');
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.message).join('\n'),
-        allOf(
-          contains('FunctionExpression'),
-          contains('Navigator.push'),
-        ),
-      );
-    });
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.message).join('\n'),
+          allOf(
+            contains('FunctionExpression'),
+            contains('Navigator.push'),
+          ),
+        );
+      },
+    );
 
-    test('a value-returning onSelectionChanged refuses at the event slot',
-        () async {
-      final r = await alias('''
+    test(
+      'a value-returning onSelectionChanged refuses at the event slot',
+      () async {
+        final r = await alias('''
 SegmentedButton<String>(
   segments: const [
     ButtonSegment<String>(value: 'a', label: Text('A')),
@@ -1937,13 +1995,14 @@ SegmentedButton<String>(
   onSelectionChanged: (Set<String> s) => hostText(key: 'a'),
 )
 ''');
-      expect(r.dsl, isEmpty);
-      expect(r.issues, isNotEmpty);
-      expect(
-        r.issues.map((i) => i.message).join('\n'),
-        isNot(contains('data.context.a')),
-      );
-    });
+        expect(r.dsl, isEmpty);
+        expect(r.issues, isNotEmpty);
+        expect(
+          r.issues.map((i) => i.message).join('\n'),
+          isNot(contains('data.context.a')),
+        );
+      },
+    );
   });
 
   group('const icon resolution', () {
@@ -1963,19 +2022,21 @@ SegmentedButton<String>(
       expect(r.dsl, matches(RegExp(r'^\d+$')));
     });
 
-    test('real-flutter CupertinoIcons.X resolves to its integer codepoint',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'real-flutter CupertinoIcons.X resolves to its integer codepoint',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/cupertino.dart';
         Object x() => CupertinoIcons.heart_fill;
         ''',
-        rootPackage: 'apps_examples',
-      );
-      final r = translator.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(r.dsl, matches(RegExp(r'^\d+$')));
-    });
+          rootPackage: 'apps_examples',
+        );
+        final r = translator.translate(expr);
+        expect(r.issues, isEmpty);
+        expect(r.dsl, matches(RegExp(r'^\d+$')));
+      },
+    );
 
     test('a custom Icons lookalike (not package:flutter) defers', () async {
       // The icon arm reads the real codepoint, so a custom `Icons` is not a
@@ -1998,25 +2059,27 @@ SegmentedButton<String>(
       expect(r.dsl, isEmpty);
     });
 
-    test('unresolved Icons.X surfaces unresolvedIdentifier with empty dsl',
-        () async {
-      // parseExpressionForTest produces an unresolved AST, so the
-      // analyzer never populates the identifier's element and the
-      // translator must surface a diagnostic rather than fall through.
-      // The empty-string sentinel matches the translator's convention
-      // for issue-emitting paths — callers gate on `issues.isNotEmpty`
-      // and never read the dsl, and a future caller that does will fail
-      // the downstream `parseLibraryFile` step loudly instead of
-      // emitting a zero codepoint that the rfw decoder would accept.
-      final r = translator.translate(
-        await parseExpressionForTest('Icons.bolt_rounded'),
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unresolvedIdentifier),
-      );
-      expect(r.dsl, isEmpty);
-    });
+    test(
+      'unresolved Icons.X surfaces unresolvedIdentifier with empty dsl',
+      () async {
+        // parseExpressionForTest produces an unresolved AST, so the
+        // analyzer never populates the identifier's element and the
+        // translator must surface a diagnostic rather than fall through.
+        // The empty-string sentinel matches the translator's convention
+        // for issue-emitting paths — callers gate on `issues.isNotEmpty`
+        // and never read the dsl, and a future caller that does will fail
+        // the downstream `parseLibraryFile` step loudly instead of
+        // emitting a zero codepoint that the rfw decoder would accept.
+        final r = translator.translate(
+          await parseExpressionForTest('Icons.bolt_rounded'),
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unresolvedIdentifier),
+        );
+        expect(r.dsl, isEmpty);
+      },
+    );
   });
 
   // The translator's name-based structured-value recognition (EdgeInsets /
@@ -2030,8 +2093,7 @@ SegmentedButton<String>(
   // origin libraries — `package:flutter/` (EdgeInsets / BorderRadius /
   // Alignment), `dart:ui` (Color / Locale / Offset), and `dart:core`
   // (Duration) — so the gate accepts `dart:` and `package:flutter/`.
-  group('framework value-type look-alike defers (value-substitution sweep)',
-      () {
+  group('framework value-type look-alike defers (value-substitution sweep)', () {
     // -- EdgeInsets (package:flutter/) — InstanceCreation factory --
     test('a custom EdgeInsets.all look-alike defers (no [8,8,8,8])', () async {
       final r = translator.translate(
@@ -2107,8 +2169,7 @@ SegmentedButton<String>(
     });
 
     // -- FontWeight (dart:ui) — PrefixedIdentifier enum-like-const --
-    test(
-        'a custom FontWeight look-alike defers — never the framework weight '
+    test('a custom FontWeight look-alike defers — never the framework weight '
         'name (the coincidental-canonical value-substitution)', () async {
       // `w600` matches a canonical framework weight, so the validator backstop
       // cannot catch it — only the element gate can. A custom class named
@@ -2129,8 +2190,7 @@ SegmentedButton<String>(
     });
 
     // -- TextDecoration (dart:ui) — PrefixedIdentifier enum-like-const --
-    test(
-        'a custom TextDecoration look-alike defers — never the bare member '
+    test('a custom TextDecoration look-alike defers — never the bare member '
         'name (the runtime defaults an unknown decoration to none)', () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest('''
@@ -2161,8 +2221,7 @@ SegmentedButton<String>(
 
     // -- Curves (package:flutter/animation) — PrefixedIdentifier
     //    enum-like-const --
-    test(
-        'a custom Curves look-alike defers — never the framework curve name '
+    test('a custom Curves look-alike defers — never the framework curve name '
         '(coincidental-supported value-substitution)', () async {
       // `easeIn` IS a supported curve name, so the catalog validator's curve
       // backstop cannot catch it — it only rejects names OUTSIDE the supported
@@ -2203,55 +2262,65 @@ SegmentedButton<String>(
     // and is only lowered when it reaches the static-call shape (as it does
     // nested inside a `TextStyle(decoration:)`). The constructor shape defers
     // (unknownWidget), matching the pre-normalization behavior.
-    test('TextDecoration.combine on the constructor shape defers (not lowered)',
-        () async {
-      final r = translator.translate(
-        await parseExpressionFromSourceForTest('''
+    test(
+      'TextDecoration.combine on the constructor shape defers (not lowered)',
+      () async {
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest('''
         import 'package:flutter/material.dart';
         Object x() => TextDecoration.combine(
           [TextDecoration.underline, TextDecoration.overline],
         );
       '''),
-      );
-      expect(r.dsl, isEmpty);
-      expect(r.issues.map((i) => i.code), contains(IssueCode.unknownWidget));
-    });
+        );
+        expect(r.dsl, isEmpty);
+        expect(r.issues.map((i) => i.code), contains(IssueCode.unknownWidget));
+      },
+    );
 
     // An import alias on a value-type DEFAULT constructor (`ui.Locale('en')`)
     // must lower identically to the unprefixed form: the prefix is the import
     // alias, not the class, so the value-type routing keys on the type name
     // exactly as it does without the alias. Covers both a hand-authored row
     // (Locale) and recipe-backed rows (Color / Offset).
-    test('import-prefixed default ctors lower like their unprefixed form',
-        () async {
-      Future<String> dslOf(String expr, {String extraImport = ''}) async {
-        final r = translator.translate(
-          await parseExpressionFromSourceForTest('''
+    test(
+      'import-prefixed default ctors lower like their unprefixed form',
+      () async {
+        Future<String> dslOf(String expr, {String extraImport = ''}) async {
+          final r = translator.translate(
+            await parseExpressionFromSourceForTest('''
           import 'package:flutter/material.dart';
           $extraImport
           Object x() => $expr;
         '''),
-        );
-        expect(r.issues, isEmpty, reason: '$expr should lower cleanly');
-        return r.dsl;
-      }
+          );
+          expect(r.issues, isEmpty, reason: '$expr should lower cleanly');
+          return r.dsl;
+        }
 
-      expect(
-        await dslOf("const ui.Locale('en')",
-            extraImport: "import 'dart:ui' as ui;"),
-        await dslOf("const Locale('en')"),
-      );
-      expect(
-        await dslOf('const ui.Color(0xFF112233)',
-            extraImport: "import 'dart:ui' as ui;"),
-        await dslOf('const Color(0xFF112233)'),
-      );
-      expect(
-        await dslOf('const ui.Offset(1.0, 2.0)',
-            extraImport: "import 'dart:ui' as ui;"),
-        await dslOf('const Offset(1.0, 2.0)'),
-      );
-    });
+        expect(
+          await dslOf(
+            "const ui.Locale('en')",
+            extraImport: "import 'dart:ui' as ui;",
+          ),
+          await dslOf("const Locale('en')"),
+        );
+        expect(
+          await dslOf(
+            'const ui.Color(0xFF112233)',
+            extraImport: "import 'dart:ui' as ui;",
+          ),
+          await dslOf('const Color(0xFF112233)'),
+        );
+        expect(
+          await dslOf(
+            'const ui.Offset(1.0, 2.0)',
+            extraImport: "import 'dart:ui' as ui;",
+          ),
+          await dslOf('const Offset(1.0, 2.0)'),
+        );
+      },
+    );
 
     // -- Locale (dart:ui) — InstanceCreation --
     test('a custom Locale look-alike defers', () async {
@@ -2325,38 +2394,41 @@ SegmentedButton<String>(
       expect(r.dsl, '{left: 0.0, top: 0.0, right: 0.0, bottom: 0.0}');
       expect(r.issues, isEmpty);
     });
-    test('real-flutter BorderRadius.zero still lowers to its zero value',
-        () async {
-      // `.zero` must preserve its constant value — assert the
-      // emitted WIRE VALUE (uniform-corner 0), not merely non-deferral, so the
-      // const-folded value-correctness stays covered.
-      final r = translator.translate(
-        await parseExpressionFromSourceForTest(
-          '''
+    test(
+      'real-flutter BorderRadius.zero still lowers to its zero value',
+      () async {
+        // `.zero` must preserve its constant value — assert the
+        // emitted WIRE VALUE (uniform-corner 0), not merely non-deferral, so the
+        // const-folded value-correctness stays covered.
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest(
+            '''
           import 'package:flutter/widgets.dart';
           Object x() => BorderRadius.zero;
           ''',
-          rootPackage: 'apps_examples',
-        ),
-      );
-      expect(r.dsl, '0');
-      expect(r.issues, isEmpty);
-    });
+            rootPackage: 'apps_examples',
+          ),
+        );
+        expect(r.dsl, '0');
+        expect(r.issues, isEmpty);
+      },
+    );
 
     // -- Option B: the unresolved affordance is preserved (name-fallback) --
     test(
-        'an UNRESOLVED EdgeInsets.all still lowers (synthetic-test affordance)',
-        () async {
-      // parseExpressionForTest yields an unresolved AST (null element); the
-      // name-based recognition still fires (no resolved custom lookalike to
-      // disambiguate from). Production always resolves, so this path is the
-      // synthetic-test affordance, not a production silent-wrong vector.
-      final r = translator.translate(
-        await parseExpressionForTest('EdgeInsets.all(12)'),
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, '{left: 12.0, top: 12.0, right: 12.0, bottom: 12.0}');
-    });
+      'an UNRESOLVED EdgeInsets.all still lowers (synthetic-test affordance)',
+      () async {
+        // parseExpressionForTest yields an unresolved AST (null element); the
+        // name-based recognition still fires (no resolved custom lookalike to
+        // disambiguate from). Production always resolves, so this path is the
+        // synthetic-test affordance, not a production silent-wrong vector.
+        final r = translator.translate(
+          await parseExpressionForTest('EdgeInsets.all(12)'),
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, '{left: 12.0, top: 12.0, right: 12.0, bottom: 12.0}');
+      },
+    );
   });
 
   // Pins how each commonly-used const namespace currently translates
@@ -2370,25 +2442,28 @@ SegmentedButton<String>(
     // resolution' groups above, which exercise real-flutter vs lookalike
     // resolution. This group covers the other const namespaces.
 
-    test('real Flutter Alignment.X lowers for flat catalog properties',
-        () async {
-      const source = '''
+    test(
+      'real Flutter Alignment.X lowers for flat catalog properties',
+      () async {
+        const source = '''
         import 'package:flutter/widgets.dart';
         Object x() => Alignment.topLeft;
       ''';
-      final r = translator.translate(
-        await parseExpressionFromSourceForTest(
-          source,
-          rootPackage: 'apps_examples',
-        ),
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, '{x: -1.0, y: -1.0}');
-    });
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest(
+            source,
+            rootPackage: 'apps_examples',
+          ),
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, '{x: -1.0, y: -1.0}');
+      },
+    );
 
-    test('custom Alignment.X cannot impersonate the framework static const',
-        () async {
-      const source = '''
+    test(
+      'custom Alignment.X cannot impersonate the framework static const',
+      () async {
+        const source = '''
         class Alignment {
           const Alignment(this.x, this.y);
           final double x;
@@ -2397,15 +2472,16 @@ SegmentedButton<String>(
         }
         Object x() => Alignment.topLeft;
       ''';
-      final r = translator.translate(
-        await parseExpressionFromSourceForTest(source),
-      );
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((issue) => issue.code),
-        contains(IssueCode.unresolvedIdentifier),
-      );
-    });
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest(source),
+        );
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((issue) => issue.code),
+          contains(IssueCode.unresolvedIdentifier),
+        );
+      },
+    );
 
     // The `EdgeInsets.zero` / `BorderRadius.zero` positives + their custom
     // look-alike defers now live in the 'value-substitution sweep' group above
@@ -2498,13 +2574,15 @@ SegmentedButton<String>(
       expect(r.dsl, '{left: 8.0, top: 4.0, right: 8.0, bottom: 4.0}');
     });
 
-    test('EdgeInsets.symmetric(horizontal: 8) defaults vertical to 0',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest('EdgeInsets.symmetric(horizontal: 8)'),
-      );
-      expect(r.dsl, '{left: 8.0, top: 0.0, right: 8.0, bottom: 0.0}');
-    });
+    test(
+      'EdgeInsets.symmetric(horizontal: 8) defaults vertical to 0',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest('EdgeInsets.symmetric(horizontal: 8)'),
+        );
+        expect(r.dsl, '{left: 8.0, top: 0.0, right: 8.0, bottom: 0.0}');
+      },
+    );
 
     test('EdgeInsets.fromLTRB(1, 2, 3, 4)', () async {
       final r = translator.translate(
@@ -2537,43 +2615,49 @@ SegmentedButton<String>(
       );
     });
 
-    test('EdgeInsets.all() with no args emits unrecognizedMethodCall',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest('EdgeInsets.all()'),
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-    });
+    test(
+      'EdgeInsets.all() with no args emits unrecognizedMethodCall',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest('EdgeInsets.all()'),
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+      },
+    );
 
     test(
-        'EdgeInsets.fromLTRB with wrong arg count emits unrecognizedMethodCall',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest('EdgeInsets.fromLTRB(1, 2)'),
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-    });
+      'EdgeInsets.fromLTRB with wrong arg count emits unrecognizedMethodCall',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest('EdgeInsets.fromLTRB(1, 2)'),
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+      },
+    );
   });
 
   group('const-factory zero lowering', () {
-    test('EdgeInsets.zero lowers to the same value as EdgeInsets.all(0)',
-        () async {
-      final zero =
-          translator.translate(await parseExpressionForTest('EdgeInsets.zero'));
-      final explicit = translator
-          .translate(await parseExpressionForTest('EdgeInsets.all(0)'));
-      expect(zero.issues, isEmpty);
-      expect(zero.dsl, explicit.dsl);
-    });
-
     test(
-        'EdgeInsetsDirectional.zero lowers to the same value as '
+      'EdgeInsets.zero lowers to the same value as EdgeInsets.all(0)',
+      () async {
+        final zero = translator.translate(
+          await parseExpressionForTest('EdgeInsets.zero'),
+        );
+        final explicit = translator.translate(
+          await parseExpressionForTest('EdgeInsets.all(0)'),
+        );
+        expect(zero.issues, isEmpty);
+        expect(zero.dsl, explicit.dsl);
+      },
+    );
+
+    test('EdgeInsetsDirectional.zero lowers to the same value as '
         'EdgeInsetsDirectional.all(0)', () async {
       final zero = translator.translate(
         await parseExpressionForTest('EdgeInsetsDirectional.zero'),
@@ -2586,11 +2670,11 @@ SegmentedButton<String>(
       expect(zero.dsl, explicit.dsl);
     });
 
-    test(
-        'BorderRadius.zero lowers to the same value as '
+    test('BorderRadius.zero lowers to the same value as '
         'BorderRadius.circular(0)', () async {
-      final zero = translator
-          .translate(await parseExpressionForTest('BorderRadius.zero'));
+      final zero = translator.translate(
+        await parseExpressionForTest('BorderRadius.zero'),
+      );
       final explicit = translator.translate(
         await parseExpressionForTest('BorderRadius.circular(0)'),
       );
@@ -2633,15 +2717,17 @@ SegmentedButton<String>(
       );
     });
 
-    test('Color.fromRGBO maps opacity to alpha via round(255*opacity)',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest('Color.fromRGBO(0x12, 0x34, 0x56, 0.5)'),
-      );
-      expect(r.issues, isEmpty);
-      // 0.5 * 255 = 127.5 → 128 → 0x80 alpha
-      expect(r.dsl, '0x80123456');
-    });
+    test(
+      'Color.fromRGBO maps opacity to alpha via round(255*opacity)',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest('Color.fromRGBO(0x12, 0x34, 0x56, 0.5)'),
+        );
+        expect(r.issues, isEmpty);
+        // 0.5 * 255 = 127.5 → 128 → 0x80 alpha
+        expect(r.dsl, '0x80123456');
+      },
+    );
 
     test('Color.fromRGBO opacity out of 0..1 emits a diagnostic', () async {
       final r = translator.translate(
@@ -2681,47 +2767,53 @@ SegmentedButton<String>(
       expect(r.dsl, '8.5');
     });
 
-    test('BorderRadius.all(Radius.circular(r)) flattens to the uniform radius',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest('BorderRadius.all(Radius.circular(8))'),
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, '8');
-    });
+    test(
+      'BorderRadius.all(Radius.circular(r)) flattens to the uniform radius',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest('BorderRadius.all(Radius.circular(8))'),
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, '8');
+      },
+    );
 
-    test('BorderRadius.only emits a per-corner sentinel for the SET corners',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest(
-          'BorderRadius.only(topLeft: Radius.circular(1), '
-          'bottomRight: Radius.circular(4))',
-        ),
-      );
-      expect(r.issues, isEmpty);
-      // Only the two specified corners; omitted corners absent (reconstruct to
-      // Radius.zero on the catalog side). Coerced to double literals.
-      expect(
-        r.dsl,
-        '__rfw_border_radius_corners(topLeft: 1.0, bottomRight: 4.0)',
-      );
-    });
+    test(
+      'BorderRadius.only emits a per-corner sentinel for the SET corners',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest(
+            'BorderRadius.only(topLeft: Radius.circular(1), '
+            'bottomRight: Radius.circular(4))',
+          ),
+        );
+        expect(r.issues, isEmpty);
+        // Only the two specified corners; omitted corners absent (reconstruct to
+        // Radius.zero on the catalog side). Coerced to double literals.
+        expect(
+          r.dsl,
+          '__rfw_border_radius_corners(topLeft: 1.0, bottomRight: 4.0)',
+        );
+      },
+    );
 
-    test('BorderRadius.vertical mirrors top->TL/TR and bottom->BL/BR',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest(
-          'BorderRadius.vertical(top: Radius.circular(4), '
-          'bottom: Radius.circular(8))',
-        ),
-      );
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        '__rfw_border_radius_corners(topLeft: 4.0, topRight: 4.0, '
-        'bottomLeft: 8.0, bottomRight: 8.0)',
-      );
-    });
+    test(
+      'BorderRadius.vertical mirrors top->TL/TR and bottom->BL/BR',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest(
+            'BorderRadius.vertical(top: Radius.circular(4), '
+            'bottom: Radius.circular(8))',
+          ),
+        );
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          '__rfw_border_radius_corners(topLeft: 4.0, topRight: 4.0, '
+          'bottomLeft: 8.0, bottomRight: 8.0)',
+        );
+      },
+    );
 
     test('BorderRadius.vertical emits only the specified side', () async {
       final r = translator.translate(
@@ -2736,19 +2828,21 @@ SegmentedButton<String>(
       );
     });
 
-    test('BorderRadius.horizontal mirrors left->TL/BL and right->TR/BR',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest(
-          'BorderRadius.horizontal(left: Radius.circular(4))',
-        ),
-      );
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        '__rfw_border_radius_corners(topLeft: 4.0, bottomLeft: 4.0)',
-      );
-    });
+    test(
+      'BorderRadius.horizontal mirrors left->TL/BL and right->TR/BR',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest(
+            'BorderRadius.horizontal(left: Radius.circular(4))',
+          ),
+        );
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          '__rfw_border_radius_corners(topLeft: 4.0, bottomLeft: 4.0)',
+        );
+      },
+    );
 
     test('an elliptical corner defers the WHOLE borderRadius loudly', () async {
       final r = translator.translate(
@@ -2828,21 +2922,23 @@ SegmentedButton<String>(
       expect(r.dsl, 'ClipRRect(borderRadius: 8.0)');
     });
 
-    test('ClipRRect .only splices onto per-corner slots, no uniform slot',
-        () async {
-      final r = await run(
-        'ClipRRect(borderRadius: '
-        'BorderRadius.only(topLeft: Radius.circular(8), '
-        'bottomRight: Radius.circular(4)))',
-      );
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'ClipRRect(borderRadiusTopLeft: 8.0, borderRadiusBottomRight: 4.0)',
-      );
-      expect(r.dsl, isNot(contains('borderRadius:')));
-      expect(r.dsl, isNot(contains('__rfw_border_radius_corners')));
-    });
+    test(
+      'ClipRRect .only splices onto per-corner slots, no uniform slot',
+      () async {
+        final r = await run(
+          'ClipRRect(borderRadius: '
+          'BorderRadius.only(topLeft: Radius.circular(8), '
+          'bottomRight: Radius.circular(4)))',
+        );
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'ClipRRect(borderRadiusTopLeft: 8.0, borderRadiusBottomRight: 4.0)',
+        );
+        expect(r.dsl, isNot(contains('borderRadius:')));
+        expect(r.dsl, isNot(contains('__rfw_border_radius_corners')));
+      },
+    );
 
     // -- decompose path (Container.decoration -> BoxDecoration.borderRadius) --
     test('Container .circular stays the uniform slot (byte parity)', () async {
@@ -2868,16 +2964,18 @@ SegmentedButton<String>(
       expect(r.dsl, isNot(contains('__rfw_border_radius_corners')));
     });
 
-    test('Container .all(Radius.circular) collapses to the uniform slot',
-        () async {
-      final r = await run(
-        'Container(decoration: '
-        'BoxDecoration(borderRadius: '
-        'BorderRadius.all(Radius.circular(12))))',
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, 'Container(borderRadius: 12.0)');
-    });
+    test(
+      'Container .all(Radius.circular) collapses to the uniform slot',
+      () async {
+        final r = await run(
+          'Container(decoration: '
+          'BoxDecoration(borderRadius: '
+          'BorderRadius.all(Radius.circular(12))))',
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, 'Container(borderRadius: 12.0)');
+      },
+    );
 
     test('Container .only emits only the set corners', () async {
       final r = await run(
@@ -2889,22 +2987,23 @@ SegmentedButton<String>(
       expect(r.dsl, 'Container(borderRadiusBottomLeft: 6.0)');
     });
 
-    test('Container with an elliptical corner defers loudly, no partial emit',
-        () async {
-      final r = await run(
-        'Container(decoration: '
-        'BoxDecoration(borderRadius: BorderRadius.only(topLeft: '
-        'Radius.elliptical(4, 8), topRight: Radius.circular(2))))',
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-      expect(r.dsl, isNot(contains('borderRadiusTopRight')));
-    });
-
     test(
-        'a conditional wrapping an asymmetric BorderRadius defers loudly, '
+      'Container with an elliptical corner defers loudly, no partial emit',
+      () async {
+        final r = await run(
+          'Container(decoration: '
+          'BoxDecoration(borderRadius: BorderRadius.only(topLeft: '
+          'Radius.elliptical(4, 8), topRight: Radius.circular(2))))',
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+        expect(r.dsl, isNot(contains('borderRadiusTopRight')));
+      },
+    );
+
+    test('a conditional wrapping an asymmetric BorderRadius defers loudly, '
         'no sentinel leak (direct slot)', () async {
       // The conditional lowers each branch through the slot translator; the
       // asymmetric branch would otherwise embed the per-corner sentinel inside
@@ -2926,19 +3025,21 @@ SegmentedButton<String>(
       expect(r.dsl, isNot(contains('__rfw_border_radius_corners')));
     });
 
-    test('AnimatedContainer .horizontal splices onto per-corner slots',
-        () async {
-      final r = await run(
-        'AnimatedContainer(duration: Duration(milliseconds: 200), '
-        'decoration: '
-        'BoxDecoration(borderRadius: '
-        'BorderRadius.horizontal(left: Radius.circular(10))))',
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('borderRadiusTopLeft: 10.0'));
-      expect(r.dsl, contains('borderRadiusBottomLeft: 10.0'));
-      expect(r.dsl, isNot(contains('__rfw_border_radius_corners')));
-    });
+    test(
+      'AnimatedContainer .horizontal splices onto per-corner slots',
+      () async {
+        final r = await run(
+          'AnimatedContainer(duration: Duration(milliseconds: 200), '
+          'decoration: '
+          'BoxDecoration(borderRadius: '
+          'BorderRadius.horizontal(left: Radius.circular(10))))',
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, contains('borderRadiusTopLeft: 10.0'));
+        expect(r.dsl, contains('borderRadiusBottomLeft: 10.0'));
+        expect(r.dsl, isNot(contains('__rfw_border_radius_corners')));
+      },
+    );
 
     // End-to-end: translate -> emit library -> validate against the real
     // catalog -> encode -> decode, then assert the decoded blob carries the
@@ -2946,8 +3047,9 @@ SegmentedButton<String>(
     // catalog properties that survive the full wire round-trip.
     Future<fmt.ConstructorCall> roundTrip(String body) async {
       final coreCatalog = decodeCatalog(
-        File('../restage_core/lib/src/widget_catalog/catalog.json')
-            .readAsStringSync(),
+        File(
+          '../restage_core/lib/src/widget_catalog/catalog.json',
+        ).readAsStringSync(),
       );
       final r = await run(body);
       expect(r.issues, isEmpty);
@@ -2958,36 +3060,41 @@ SegmentedButton<String>(
       final bytes = fmt.encodeLibraryBlob(parsed);
       final decoded = fmt.decodeLibraryBlob(Uint8List.fromList(bytes));
       return decoded.widgets
-          .firstWhere((w) => w.name == paywallRootWidgetName)
-          .root as fmt.ConstructorCall;
+              .firstWhere((w) => w.name == paywallRootWidgetName)
+              .root
+          as fmt.ConstructorCall;
     }
 
-    test('direct path: the decoded ClipRRect blob carries the per-corner keys',
-        () async {
-      final root = await roundTrip(
-        'ClipRRect(borderRadius: '
-        'BorderRadius.only(topLeft: Radius.circular(8), '
-        'bottomRight: Radius.circular(4)))',
-      );
-      expect(root.name, 'ClipRRect');
-      expect(root.arguments['borderRadiusTopLeft'], 8.0);
-      expect(root.arguments['borderRadiusBottomRight'], 4.0);
-      expect(root.arguments.containsKey('borderRadiusTopRight'), isFalse);
-      expect(root.arguments.containsKey('borderRadius'), isFalse);
-    });
+    test(
+      'direct path: the decoded ClipRRect blob carries the per-corner keys',
+      () async {
+        final root = await roundTrip(
+          'ClipRRect(borderRadius: '
+          'BorderRadius.only(topLeft: Radius.circular(8), '
+          'bottomRight: Radius.circular(4)))',
+        );
+        expect(root.name, 'ClipRRect');
+        expect(root.arguments['borderRadiusTopLeft'], 8.0);
+        expect(root.arguments['borderRadiusBottomRight'], 4.0);
+        expect(root.arguments.containsKey('borderRadiusTopRight'), isFalse);
+        expect(root.arguments.containsKey('borderRadius'), isFalse);
+      },
+    );
 
-    test('decompose path: the decoded Container blob carries per-corner keys',
-        () async {
-      final root = await roundTrip(
-        'Container(decoration: '
-        'BoxDecoration(borderRadius: '
-        'BorderRadius.vertical(top: Radius.circular(20))))',
-      );
-      expect(root.name, 'Container');
-      expect(root.arguments['borderRadiusTopLeft'], 20.0);
-      expect(root.arguments['borderRadiusTopRight'], 20.0);
-      expect(root.arguments.containsKey('borderRadius'), isFalse);
-    });
+    test(
+      'decompose path: the decoded Container blob carries per-corner keys',
+      () async {
+        final root = await roundTrip(
+          'Container(decoration: '
+          'BoxDecoration(borderRadius: '
+          'BorderRadius.vertical(top: Radius.circular(20))))',
+        );
+        expect(root.name, 'Container');
+        expect(root.arguments['borderRadiusTopLeft'], 20.0);
+        expect(root.arguments['borderRadiusTopRight'], 20.0);
+        expect(root.arguments.containsKey('borderRadius'), isFalse);
+      },
+    );
   });
 
   group('unary minus on numeric literals', () {
@@ -3162,19 +3269,21 @@ SegmentedButton<String>(
       );
     });
 
-    test('omits center/radius when unset — rfw decoder applies defaults',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest(
-          'RadialGradient(colors: [Color(0xFF000000), Color(0xFFFFFFFF)])',
-        ),
-      );
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        '{type: "radial", colors: [0xFF000000, 0xFFFFFFFF]}',
-      );
-    });
+    test(
+      'omits center/radius when unset — rfw decoder applies defaults',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest(
+            'RadialGradient(colors: [Color(0xFF000000), Color(0xFFFFFFFF)])',
+          ),
+        );
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          '{type: "radial", colors: [0xFF000000, 0xFFFFFFFF]}',
+        );
+      },
+    );
 
     test('threads focal/focalRadius and an Alignment(x, y) center', () async {
       final r = translator.translate(
@@ -3267,83 +3376,91 @@ Object x() => LinearGradient(
       '[0, for (final stop in values) stop]',
       '[0, ...values]',
     ]) {
-      test('LinearGradient refuses dynamic numeric collection flow: $stops',
-          () async {
-        final source = '''
+      test(
+        'LinearGradient refuses dynamic numeric collection flow: $stops',
+        () async {
+          final source =
+              '''
 Object x(List<double> values, bool enabled) => LinearGradient(
   colors: [Color(0xFF112233), Color(0xFF445566)],
   stops: $stops,
 );''';
-        final r = translator.translate(
-          await parseExpressionFromSourceForTest(source),
-          sourcePath: 'lib/dynamic_stops.dart',
-          lineInfo: LineInfo.fromContent(source),
-        );
+          final r = translator.translate(
+            await parseExpressionFromSourceForTest(source),
+            sourcePath: 'lib/dynamic_stops.dart',
+            lineInfo: LineInfo.fromContent(source),
+          );
 
-        expect(r.dsl, isEmpty);
-        expect(r.issues, hasLength(1));
-        expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
-        expect(r.issues.single.message, contains('known only at run time'));
-        expect(
-          r.issues.single.location,
-          startsWith('lib/dynamic_stops.dart:3:'),
-        );
-      });
+          expect(r.dsl, isEmpty);
+          expect(r.issues, hasLength(1));
+          expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+          expect(r.issues.single.message, contains('known only at run time'));
+          expect(
+            r.issues.single.location,
+            startsWith('lib/dynamic_stops.dart:3:'),
+          );
+        },
+      );
     }
 
-    test('LinearGradient refuses a conditional collection list in stops',
-        () async {
-      const source = '''
+    test(
+      'LinearGradient refuses a conditional collection list in stops',
+      () async {
+        const source = '''
 Object x() => LinearGradient(
   colors: [Color(0xFF112233), Color(0xFF445566)],
   stops: true
       ? [0.0]
       : [for (final stop in const [0, 1]) stop],
 );''';
-      final r = translator.translate(
-        await parseExpressionFromSourceForTest(source),
-        sourcePath: 'lib/gradient_conditional_stops.dart',
-        lineInfo: LineInfo.fromContent(source),
-      );
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest(source),
+          sourcePath: 'lib/gradient_conditional_stops.dart',
+          lineInfo: LineInfo.fromContent(source),
+        );
 
-      expect(r.dsl, isNot(contains('stops: [0, 1]')));
-      expect(r.issues, hasLength(1));
-      expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
-      expect(
-        r.issues.single.location,
-        startsWith(
-          'lib/gradient_conditional_stops.dart:'
-          '${_sourceLineOf(source, 'for (final stop in')}:',
-        ),
-      );
-    });
+        expect(r.dsl, isNot(contains('stops: [0, 1]')));
+        expect(r.issues, hasLength(1));
+        expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+        expect(
+          r.issues.single.location,
+          startsWith(
+            'lib/gradient_conditional_stops.dart:'
+            '${_sourceLineOf(source, 'for (final stop in')}:',
+          ),
+        );
+      },
+    );
 
     for (final gradientName in ['LinearGradient', 'SweepGradient']) {
-      test('$gradientName expands collection flow from a const field',
-          () async {
-        final source = _gradientStopsSource(
-          gradientName,
-          declarations: '''
+      test(
+        '$gradientName expands collection flow from a const field',
+        () async {
+          final source = _gradientStopsSource(
+            gradientName,
+            declarations: '''
 const stopSet = StopSet(<double>[
   if (true) 0,
   1,
 ]);
 ''',
-          stopsExpression: 'stopSet.values',
-        );
+            stopsExpression: 'stopSet.values',
+          );
 
-        await _expectStopsExpansion(
-          translator,
-          source,
-          'lib/${gradientName.toLowerCase()}_const_stops.dart',
-        );
-      });
+          await _expectStopsExpansion(
+            translator,
+            source,
+            'lib/${gradientName.toLowerCase()}_const_stops.dart',
+          );
+        },
+      );
 
-      test('$gradientName expands collection flow from a nested const field',
-          () async {
-        final source = _gradientStopsSource(
-          gradientName,
-          declarations: '''
+      test(
+        '$gradientName expands collection flow from a nested const field',
+        () async {
+          final source = _gradientStopsSource(
+            gradientName,
+            declarations: '''
 class GradientStops {
   const GradientStops(this.primary);
   final StopSet primary;
@@ -3354,65 +3471,71 @@ const gradientStops = GradientStops(StopSet(<double>[
   1,
 ]));
 ''',
-          stopsExpression: 'gradientStops.primary.values',
-        );
+            stopsExpression: 'gradientStops.primary.values',
+          );
 
-        await _expectStopsExpansion(
-          translator,
-          source,
-          'lib/${gradientName.toLowerCase()}_nested_stops.dart',
-        );
-      });
+          await _expectStopsExpansion(
+            translator,
+            source,
+            'lib/${gradientName.toLowerCase()}_nested_stops.dart',
+          );
+        },
+      );
 
-      test('$gradientName refuses collection flow through a const alias',
-          () async {
-        final source = _gradientStopsSource(
-          gradientName,
-          declarations: '''
+      test(
+        '$gradientName refuses collection flow through a const alias',
+        () async {
+          final source = _gradientStopsSource(
+            gradientName,
+            declarations: '''
 const stopSet = StopSet(<double>[
   if (true) 0,
   1,
 ]);
 const selectedStops = stopSet.values;
 ''',
-          stopsExpression: 'selectedStops',
-        );
+            stopsExpression: 'selectedStops',
+          );
 
-        await _expectConstStopsRefusal(
-          translator,
-          source,
-          'lib/${gradientName.toLowerCase()}_aliased_stops.dart',
-          constAlias: true,
-        );
-      });
+          await _expectConstStopsRefusal(
+            translator,
+            source,
+            'lib/${gradientName.toLowerCase()}_aliased_stops.dart',
+            constAlias: true,
+          );
+        },
+      );
 
-      test('$gradientName refuses collection flow in a conditional branch',
-          () async {
-        final source = _gradientStopsSource(
-          gradientName,
-          declarations: '''
+      test(
+        '$gradientName refuses collection flow in a conditional branch',
+        () async {
+          final source = _gradientStopsSource(
+            gradientName,
+            declarations: '''
 const stopSet = StopSet(<double>[
   if (true) 0,
   1,
 ]);
 ''',
-          stopsExpression:
-              'useSelected ? stopSet.values : const <double>[0, 1]',
-          parameter: 'bool useSelected',
-        );
+            stopsExpression:
+                'useSelected ? stopSet.values : const <double>[0, 1]',
+            parameter: 'bool useSelected',
+          );
 
-        await _expectConstStopsRefusal(
-          translator,
-          source,
-          'lib/${gradientName.toLowerCase()}_conditional_field_stops.dart',
-        );
-      });
+          await _expectConstStopsRefusal(
+            translator,
+            source,
+            'lib/${gradientName.toLowerCase()}_conditional_field_stops.dart',
+          );
+        },
+      );
 
-      test('$gradientName preserves plain numeric and structured const fields',
-          () async {
-        final source = _gradientStopsSource(
-          gradientName,
-          declarations: '''
+      test(
+        '$gradientName preserves plain numeric and structured const fields',
+        () async {
+          final source = _gradientStopsSource(
+            gradientName,
+            declarations: '''
 class GradientTheme {
   const GradientTheme(this.primary, this.stops);
   final Color primary;
@@ -3424,9 +3547,40 @@ const gradientTheme = GradientTheme(
   StopSet(<double>[0, 1]),
 );
 ''',
-          colorsExpression:
-              'const <Color>[gradientTheme.primary, Color(0xFF445566)]',
-          stopsExpression: 'gradientTheme.stops.values',
+            colorsExpression:
+                'const <Color>[gradientTheme.primary, Color(0xFF445566)]',
+            stopsExpression: 'gradientTheme.stops.values',
+          );
+          final result = translator.translate(
+            await parseExpressionFromSourceForTest(
+              source,
+              rootPackage: 'apps_examples',
+            ),
+          );
+
+          expect(result.issues, isEmpty);
+          expect(
+            result.dsl,
+            contains('colors: [0xFF112233, 0xFF445566]'),
+          );
+          expect(result.dsl, contains('stops: [0.0, 1.0]'));
+          expect(result.dsl, isNot(contains('stops: [0, 1]')));
+        },
+      );
+    }
+
+    test(
+      'LinearGradient refuses mixed const and runtime stop receivers',
+      () async {
+        final source = _gradientStopsSource(
+          'LinearGradient',
+          declarations: '',
+          stopsExpression: '''
+(selectConstant
+      ? const StopSet(<double>[0.25, 1])
+      : StopSet(<double>[0.75, 1]))
+    .values''',
+          parameter: 'bool selectConstant',
         );
         final result = translator.translate(
           await parseExpressionFromSourceForTest(
@@ -3435,43 +3589,15 @@ const gradientTheme = GradientTheme(
           ),
         );
 
-        expect(result.issues, isEmpty);
+        expect(result.dsl, isEmpty);
+        expect(result.issues, hasLength(1));
+        expect(result.issues.single.code, IssueCode.unrecognizedMethodCall);
         expect(
-          result.dsl,
-          contains('colors: [0xFF112233, 0xFF445566]'),
+          result.issues.single.message,
+          startsWith('Unsupported expression:'),
         );
-        expect(result.dsl, contains('stops: [0.0, 1.0]'));
-        expect(result.dsl, isNot(contains('stops: [0, 1]')));
-      });
-    }
-
-    test('LinearGradient refuses mixed const and runtime stop receivers',
-        () async {
-      final source = _gradientStopsSource(
-        'LinearGradient',
-        declarations: '',
-        stopsExpression: '''
-(selectConstant
-      ? const StopSet(<double>[0.25, 1])
-      : StopSet(<double>[0.75, 1]))
-    .values''',
-        parameter: 'bool selectConstant',
-      );
-      final result = translator.translate(
-        await parseExpressionFromSourceForTest(
-          source,
-          rootPackage: 'apps_examples',
-        ),
-      );
-
-      expect(result.dsl, isEmpty);
-      expect(result.issues, hasLength(1));
-      expect(result.issues.single.code, IssueCode.unrecognizedMethodCall);
-      expect(
-        result.issues.single.message,
-        startsWith('Unsupported expression:'),
-      );
-    });
+      },
+    );
 
     test('LinearGradient refuses collection elements in colors', () async {
       const source = '''
@@ -3788,7 +3914,8 @@ Object x() => LinearGradient(
       expect(
         firesNonFinite(r),
         isTrue,
-        reason: 'the guard funnels through _translate, so every structured '
+        reason:
+            'the guard funnels through _translate, so every structured '
             'numeric field is covered, not only BoxShadow',
       );
     });
@@ -3808,18 +3935,21 @@ Object x() => LinearGradient(
     });
 
     // ─── Funnel A: an overflowing double literal (a non-finite VALUE) ───────
-    test('BoxShadow.blurRadius = 1e400 (overflow literal) fails loud',
-        () async {
-      final r = translator.translate(
-        await parseExpressionForTest('BoxShadow(blurRadius: 1e400)'),
-      );
-      expect(
-        firesNonFinite(r),
-        isTrue,
-        reason: 'an overflow literal evaluates to a non-finite double and '
-            'would otherwise emit the bare token `Infinity`',
-      );
-    });
+    test(
+      'BoxShadow.blurRadius = 1e400 (overflow literal) fails loud',
+      () async {
+        final r = translator.translate(
+          await parseExpressionForTest('BoxShadow(blurRadius: 1e400)'),
+        );
+        expect(
+          firesNonFinite(r),
+          isTrue,
+          reason:
+              'an overflow literal evaluates to a non-finite double and '
+              'would otherwise emit the bare token `Infinity`',
+        );
+      },
+    );
 
     test('BoxShadow.blurRadius = -1e400 fails loud', () async {
       final r = translator.translate(
@@ -3862,7 +3992,8 @@ Object x() => LinearGradient(
       expect(
         firesNonFinite(r),
         isFalse,
-        reason: 'the guard must fire on !isFinite only, never on a finite '
+        reason:
+            'the guard must fire on !isFinite only, never on a finite '
             'value like double.maxFinite',
       );
     });
@@ -3902,12 +4033,14 @@ Object x() => LinearGradient(
       expect(r.dsl, 'Text(text: "hi")');
     });
 
-    test('Text("hi") positional first arg maps to first declared property',
-        () async {
-      final r = t.translate(await parseExpressionForTest("Text('hi')"));
-      expect(r.issues, isEmpty);
-      expect(r.dsl, 'Text(text: "hi")');
-    });
+    test(
+      'Text("hi") positional first arg maps to first declared property',
+      () async {
+        final r = t.translate(await parseExpressionForTest("Text('hi')"));
+        expect(r.issues, isEmpty);
+        expect(r.dsl, 'Text(text: "hi")');
+      },
+    );
 
     test('Text with multiple named props', () async {
       final r = t.translate(
@@ -3982,8 +4115,7 @@ Object x() => Column(
       );
     });
 
-    test(
-        'positional args target positional-marked props, '
+    test('positional args target positional-marked props, '
         'not declaration-order props', () async {
       // Icon-shape regression: a property declared before the positional-
       // marked one (e.g. `size` ahead of `iconCodepoint`) must not absorb
@@ -4021,28 +4153,30 @@ Object x() => Column(
       );
     });
 
-    test('coerces integer literals through ternary branches at numeric slots',
-        () async {
-      // A ternary's branches feed the same slot; a bare integer branch at a
-      // `real` slot would be silently nulled by the runtime's strict double
-      // decode if coercion only saw the assembled `switch` value.
-      final iconCatalog = probeCatalogWith([
-        entry(
-          name: 'Icon',
-          category: WidgetCategory.decoration,
-          properties: [prop('size', PropertyType.real)],
-        ),
-      ]);
-      final tr = ExpressionTranslator(
-        catalog: iconCatalog,
-        helpers: HelperRegistry(),
-      );
-      final r = tr.translate(
-        await parseExpressionForTest('Icon(size: true ? 38 : 24)'),
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, 'Icon(size: switch true { true: 38.0, false: 24.0 })');
-    });
+    test(
+      'coerces integer literals through ternary branches at numeric slots',
+      () async {
+        // A ternary's branches feed the same slot; a bare integer branch at a
+        // `real` slot would be silently nulled by the runtime's strict double
+        // decode if coercion only saw the assembled `switch` value.
+        final iconCatalog = probeCatalogWith([
+          entry(
+            name: 'Icon',
+            category: WidgetCategory.decoration,
+            properties: [prop('size', PropertyType.real)],
+          ),
+        ]);
+        final tr = ExpressionTranslator(
+          catalog: iconCatalog,
+          helpers: HelperRegistry(),
+        );
+        final r = tr.translate(
+          await parseExpressionForTest('Icon(size: true ? 38 : 24)'),
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, 'Icon(size: switch true { true: 38.0, false: 24.0 })');
+      },
+    );
 
     test('coerces nested ternary branches at numeric slots', () async {
       final iconCatalog = probeCatalogWith([
@@ -4226,10 +4360,11 @@ Object x() => Column(
       );
     });
 
-    test('rejects root widget field reads instead of lowering to args',
-        () async {
-      final probe = await parseMethodExpressionFromSourceForTest(
-        '''
+    test(
+      'rejects root widget field reads instead of lowering to args',
+      () async {
+        final probe = await parseMethodExpressionFromSourceForTest(
+          '''
         $_kRootExpressionStubs
         class P extends StatefulWidget {
           const P({required this.name});
@@ -4239,34 +4374,35 @@ Object x() => Column(
           Widget build(BuildContext context) => Text(text: widget.label);
         }
       ''',
-        className: '_PState',
-      );
+          className: '_PState',
+        );
 
-      final result = stateTranslator.translate(
-        probe.expression,
-        rootState: [
-          const CustomWidgetStateField(
-            name: 'annual',
-            isNumeric: false,
-            initialValue: false,
+        final result = stateTranslator.translate(
+          probe.expression,
+          rootState: [
+            const CustomWidgetStateField(
+              name: 'annual',
+              isNumeric: false,
+              initialValue: false,
+            ),
+          ],
+          rootParams: [_rootParamFrom(probe, className: 'P', name: 'name')],
+        );
+
+        expect(result.dsl, isNot(contains('args.label')));
+        expect(
+          result.issues.map((issue) => issue.code),
+          contains(IssueCode.stateShapeUnsupported),
+        );
+        expect(
+          result.issues.single.message,
+          allOf(
+            contains('Root source State.build() cannot read widget.label'),
+            contains('no args.label binding to emit'),
           ),
-        ],
-        rootParams: [_rootParamFrom(probe, className: 'P', name: 'name')],
-      );
-
-      expect(result.dsl, isNot(contains('args.label')));
-      expect(
-        result.issues.map((issue) => issue.code),
-        contains(IssueCode.stateShapeUnsupported),
-      );
-      expect(
-        result.issues.single.message,
-        allOf(
-          contains('Root source State.build() cannot read widget.label'),
-          contains('no args.label binding to emit'),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('lowers root widget params to host data references', () async {
       final probe = await parseMethodExpressionFromSourceForTest(
@@ -4299,10 +4435,11 @@ Object x() => Column(
       expect(result.dsl, contains('data.context.label'));
     });
 
-    test('requires the inherited State widget receiver for host data',
-        () async {
-      final overridden = await parseMethodExpressionFromSourceForTest(
-        '''
+    test(
+      'requires the inherited State widget receiver for host data',
+      () async {
+        final overridden = await parseMethodExpressionFromSourceForTest(
+          '''
         import 'package:flutter/widgets.dart';
 
         class Sink {
@@ -4322,12 +4459,12 @@ Object x() => Column(
           Object render() => Sink(text: widget.title);
         }
       ''',
-        className: '_PState',
-        methodName: 'render',
-        rootPackage: 'apps_examples',
-      );
-      final shadowed = await parseMethodExpressionFromSourceForTest(
-        '''
+          className: '_PState',
+          methodName: 'render',
+          rootPackage: 'apps_examples',
+        );
+        final shadowed = await parseMethodExpressionFromSourceForTest(
+          '''
         import 'package:flutter/widgets.dart';
 
         class Sink {
@@ -4348,32 +4485,33 @@ Object x() => Column(
           }
         }
       ''',
-        className: '_PState',
-        methodName: 'render',
-        rootPackage: 'apps_examples',
-      );
+          className: '_PState',
+          methodName: 'render',
+          rootPackage: 'apps_examples',
+        );
 
-      TranslationResult translate(ResolvedMethodExpressionForTest probe) =>
-          stateTranslator.translate(
-            probe.expression,
-            rootState: const [],
-            rootParams: [
-              _rootParamFrom(probe, className: 'P', name: 'title'),
-            ],
-          );
+        TranslationResult translate(ResolvedMethodExpressionForTest probe) =>
+            stateTranslator.translate(
+              probe.expression,
+              rootState: const [],
+              rootParams: [
+                _rootParamFrom(probe, className: 'P', name: 'title'),
+              ],
+            );
 
-      final overriddenResult = translate(overridden);
-      expect(overriddenResult.dsl, isNot(contains('data.context.title')));
-      expect(
-        overriddenResult.issues.map((issue) => issue.code),
-        contains(IssueCode.stateShapeUnsupported),
-      );
+        final overriddenResult = translate(overridden);
+        expect(overriddenResult.dsl, isNot(contains('data.context.title')));
+        expect(
+          overriddenResult.issues.map((issue) => issue.code),
+          contains(IssueCode.stateShapeUnsupported),
+        );
 
-      final shadowedResult = translate(shadowed);
-      expect(shadowedResult.issues, isEmpty);
-      expect(shadowedResult.dsl, 'Sink(text: "local")');
-      expect(shadowedResult.dsl, isNot(contains('data.context.title')));
-    });
+        final shadowedResult = translate(shadowed);
+        expect(shadowedResult.issues, isEmpty);
+        expect(shadowedResult.dsl, 'Sink(text: "local")');
+        expect(shadowedResult.dsl, isNot(contains('data.context.title')));
+      },
+    );
 
     test('lowers stateless root params to host data references', () async {
       final probe = await parseMethodExpressionFromSourceForTest(
@@ -4574,15 +4712,18 @@ Object x() => Column(
 
       expect(
         result.issues.map((issue) => issue.message).join('\n'),
-        contains('does not support reading a member of the host data '
-            'parameter'),
+        contains(
+          'does not support reading a member of the host data '
+          'parameter',
+        ),
       );
     });
 
-    test('refuses whole structured values when typed children refuse',
-        () async {
-      final probe = await parseMethodExpressionFromSourceForTest(
-        '''
+    test(
+      'refuses whole structured values when typed children refuse',
+      () async {
+        final probe = await parseMethodExpressionFromSourceForTest(
+          '''
         import 'package:flutter/widgets.dart';
 
         class P {
@@ -4595,31 +4736,32 @@ Object x() => Column(
           ];
         }
       ''',
-        className: 'P',
-        methodName: 'render',
-        rootPackage: 'apps_examples',
-      );
-      final params = [
-        _rootParamFrom(probe, className: 'P', name: 'gap'),
-        _rootParamFrom(probe, className: 'P', name: 'color'),
-      ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+          className: 'P',
+          methodName: 'render',
+          rootPackage: 'apps_examples',
+        );
+        final params = [
+          _rootParamFrom(probe, className: 'P', name: 'gap'),
+          _rootParamFrom(probe, className: 'P', name: 'color'),
+        ];
+        final expressions = (probe.expression as ListLiteral).elements
+            .cast<Expression>();
 
-      final insets = translator.translate(expressions[0], rootParams: params);
-      final shadow = translator.translate(expressions[1], rootParams: params);
+        final insets = translator.translate(expressions[0], rootParams: params);
+        final shadow = translator.translate(expressions[1], rootParams: params);
 
-      expect(insets.dsl, isEmpty);
-      expect(shadow.dsl, isEmpty);
-      expect(
-        insets.issues.map((issue) => issue.code),
-        [IssueCode.propertyValueTypeMismatch],
-      );
-      expect(
-        shadow.issues.map((issue) => issue.code),
-        [IssueCode.propertyValueTypeMismatch],
-      );
-    });
+        expect(insets.dsl, isEmpty);
+        expect(shadow.dsl, isEmpty);
+        expect(
+          insets.issues.map((issue) => issue.code),
+          [IssueCode.propertyValueTypeMismatch],
+        );
+        expect(
+          shadow.issues.map((issue) => issue.code),
+          [IssueCode.propertyValueTypeMismatch],
+        );
+      },
+    );
 
     test('keeps exact root list decoders at typed list terminals', () async {
       final probe = await parseMethodExpressionFromSourceForTest(
@@ -4667,8 +4809,8 @@ Object x() => Column(
         _rootParamFrom(probe, className: 'P', name: 'wrongStops'),
       ];
 
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
       final results = [
         for (final expression in expressions)
           translator.translate(expression, rootParams: params),
@@ -4707,10 +4849,11 @@ Object x() => Column(
       }
     });
 
-    test('validates conditional typed list terminals for each decoder',
-        () async {
-      final probe = await parseMethodExpressionFromSourceForTest(
-        '''
+    test(
+      'validates conditional typed list terminals for each decoder',
+      () async {
+        final probe = await parseMethodExpressionFromSourceForTest(
+          '''
         import 'package:flutter/material.dart';
 
         class P {
@@ -4737,58 +4880,59 @@ Object x() => Column(
           ];
         }
       ''',
-        className: 'P',
-        methodName: 'render',
-        rootPackage: 'apps_examples',
-      );
-      final params = [
-        for (final name in [
-          'flag',
-          'colors',
-          'alternateColors',
-          'wrongColors',
-        ])
-          _rootParamFrom(probe, className: 'P', name: name),
-      ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
-      final results = [
-        for (final expression in expressions)
-          translator.translate(expression, rootParams: params),
-      ];
-      const matchingSwitch =
-          'switch data.context.flag { true: data.context.colors, '
-          'false: data.context.alternateColors }';
+          className: 'P',
+          methodName: 'render',
+          rootPackage: 'apps_examples',
+        );
+        final params = [
+          for (final name in [
+            'flag',
+            'colors',
+            'alternateColors',
+            'wrongColors',
+          ])
+            _rootParamFrom(probe, className: 'P', name: name),
+        ];
+        final expressions = (probe.expression as ListLiteral).elements
+            .cast<Expression>();
+        final results = [
+          for (final expression in expressions)
+            translator.translate(expression, rootParams: params),
+        ];
+        const matchingSwitch =
+            'switch data.context.flag { true: data.context.colors, '
+            'false: data.context.alternateColors }';
 
-      expect(
-        results.map((result) => result.dsl),
-        [
-          '{type: "linear", colors: data.context.colors}',
-          '',
-          '{type: "linear", colors: $matchingSwitch}',
-          '',
-          '{type: "linear", colors: [0xFF000000, 0xFFFFFFFF]}',
-          '{type: "radial", colors: $matchingSwitch}',
-          '',
-        ],
-      );
-      for (final index in [0, 2, 4, 5]) {
-        expect(results[index].issues, isEmpty);
-      }
-      for (final index in [1, 3, 6]) {
         expect(
-          results[index].issues.map((issue) => issue.code),
-          [IssueCode.propertyValueTypeMismatch],
+          results.map((result) => result.dsl),
+          [
+            '{type: "linear", colors: data.context.colors}',
+            '',
+            '{type: "linear", colors: $matchingSwitch}',
+            '',
+            '{type: "linear", colors: [0xFF000000, 0xFFFFFFFF]}',
+            '{type: "radial", colors: $matchingSwitch}',
+            '',
+          ],
         );
-        expect(results[index].issues.single.location, isNotEmpty);
-      }
-      for (final index in [3, 6]) {
-        expect(
-          results[index].issues.single.message,
-          allOf(contains("'List<num>'"), contains("'color' item decoder")),
-        );
-      }
-    });
+        for (final index in [0, 2, 4, 5]) {
+          expect(results[index].issues, isEmpty);
+        }
+        for (final index in [1, 3, 6]) {
+          expect(
+            results[index].issues.map((issue) => issue.code),
+            [IssueCode.propertyValueTypeMismatch],
+          );
+          expect(results[index].issues.single.location, isNotEmpty);
+        }
+        for (final index in [3, 6]) {
+          expect(
+            results[index].issues.single.message,
+            allOf(contains("'List<num>'"), contains("'color' item decoder")),
+          );
+        }
+      },
+    );
 
     test('refuses a nullable list element and names the position', () async {
       final probe = await parseMethodExpressionFromSourceForTest(
@@ -4873,8 +5017,8 @@ Object x() => Column(
         name: 'profile',
         isHostData: false,
       );
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
       final results = [
         for (final expression in expressions)
           translator.translate(expression, rootParams: [param]),
@@ -4995,8 +5139,8 @@ Object x() => Column(
         ])
           _rootParamFrom(probe, className: 'P', name: name),
       ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
       final results = [
         for (final expression in expressions)
           exactTranslator.translate(expression, rootParams: params),
@@ -5069,8 +5213,8 @@ Object x() => Column(
         _rootParamFrom(probe, className: 'P', name: 'gap'),
         _rootParamFrom(probe, className: 'P', name: 'extent'),
       ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
       final results = [
         for (final expression in expressions)
           structuredTranslator.translate(expression, rootParams: params),
@@ -5160,8 +5304,8 @@ Object x() => Column(
         for (final name in ['flag', 'count', 'extent', 'label'])
           _rootParamFrom(probe, className: 'P', name: name),
       ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
       final results = [
         for (final expression in expressions)
           valueTranslator.translate(expression, rootParams: params),
@@ -5281,8 +5425,8 @@ Object x() => Column(
         for (final name in ['extent', 'count', 'color', 'label', 'url'])
           _rootParamFrom(probe, className: 'P', name: name),
       ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
       final results = [
         for (final expression in expressions)
           recipeTranslator.translate(expression, rootParams: params),
@@ -5301,10 +5445,11 @@ Object x() => Column(
       }
     });
 
-    test('does not capture a stateful top-level const with the same name',
-        () async {
-      final probe = await parseMethodExpressionFromSourceForTest(
-        '''
+    test(
+      'does not capture a stateful top-level const with the same name',
+      () async {
+        final probe = await parseMethodExpressionFromSourceForTest(
+          '''
         $_kRootExpressionStubs
         const String title = 'fixed';
         class P extends StatefulWidget {
@@ -5315,19 +5460,20 @@ Object x() => Column(
           Widget build(BuildContext context) => Text(text: title);
         }
       ''',
-        className: '_PState',
-      );
+          className: '_PState',
+        );
 
-      final result = stateTranslator.translate(
-        probe.expression,
-        rootState: const [],
-        rootParams: [_rootParamFrom(probe, className: 'P', name: 'title')],
-      );
+        final result = stateTranslator.translate(
+          probe.expression,
+          rootState: const [],
+          rootParams: [_rootParamFrom(probe, className: 'P', name: 'title')],
+        );
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'Text(text: "fixed")');
-      expect(result.dsl, isNot(contains('data.context')));
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'Text(text: "fixed")');
+        expect(result.dsl, isNot(contains('data.context')));
+      },
+    );
 
     test('does not capture local, static, or getter lookalikes', () async {
       final localProbe = await parseMethodExpressionFromSourceForTest(
@@ -5437,10 +5583,11 @@ Object x() => Column(
       );
     });
 
-    test('implicit and explicit nullable null defaults lower equivalently',
-        () async {
-      final probe = await parseMethodExpressionFromSourceForTest(
-        '''
+    test(
+      'implicit and explicit nullable null defaults lower equivalently',
+      () async {
+        final probe = await parseMethodExpressionFromSourceForTest(
+          '''
         $_kRootExpressionStubs
         class P extends StatelessWidget {
           const P({this.implicitName, this.explicitName = null});
@@ -5452,25 +5599,30 @@ Object x() => Column(
           ];
         }
       ''',
-        className: 'P',
-      );
-      final params = [
-        _rootParamFrom(probe, className: 'P', name: 'implicitName'),
-        _rootParamFrom(probe, className: 'P', name: 'explicitName'),
-      ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+          className: 'P',
+        );
+        final params = [
+          _rootParamFrom(probe, className: 'P', name: 'implicitName'),
+          _rootParamFrom(probe, className: 'P', name: 'explicitName'),
+        ];
+        final expressions = (probe.expression as ListLiteral).elements
+            .cast<Expression>();
 
-      final implicitResult =
-          stateTranslator.translate(expressions[0], rootParams: params);
-      final explicitResult =
-          stateTranslator.translate(expressions[1], rootParams: params);
+        final implicitResult = stateTranslator.translate(
+          expressions[0],
+          rootParams: params,
+        );
+        final explicitResult = stateTranslator.translate(
+          expressions[1],
+          rootParams: params,
+        );
 
-      expect(implicitResult.issues, isEmpty);
-      expect(explicitResult.issues, isEmpty);
-      expect(implicitResult.dsl, 'Text(text: data.context.implicitName)');
-      expect(explicitResult.dsl, 'Text(text: data.context.explicitName)');
-    });
+        expect(implicitResult.issues, isEmpty);
+        expect(explicitResult.issues, isEmpty);
+        expect(implicitResult.dsl, 'Text(text: data.context.implicitName)');
+        expect(explicitResult.dsl, 'Text(text: data.context.explicitName)');
+      },
+    );
 
     test('does not leak root state or handlers between translations', () async {
       final stateful = await parseExpressionForTest(
@@ -5648,8 +5800,8 @@ Object x() => Column(
         className: 'P',
         name: 'habit',
       );
-      final directExpressions =
-          (directProbe.expression as ListLiteral).elements.cast<Expression>();
+      final directExpressions = (directProbe.expression as ListLiteral).elements
+          .cast<Expression>();
       final direct = [
         for (final expression in directExpressions)
           loopTranslator.translate(expression, rootParams: [directParam]),
@@ -5687,8 +5839,8 @@ Object x() => Column(
         _rootParamFrom(readProbe, className: 'P', name: 'habit'),
         _rootParamFrom(readProbe, className: 'P', name: 'control'),
       ];
-      final readExpressions =
-          (readProbe.expression as ListLiteral).elements.cast<Expression>();
+      final readExpressions = (readProbe.expression as ListLiteral).elements
+          .cast<Expression>();
       final unreadInvalid = loopTranslator.translate(
         readExpressions.first,
         rootParams: readParams,
@@ -5702,7 +5854,8 @@ Object x() => Column(
       expect(readInvalid.dsl, isEmpty);
       expect(readInvalid.issues.single.message, contains("At 'control'"));
 
-      final loop = await translate('''
+      final loop = await translate(
+        '''
         $_kRootExpressionStubs
         class Column extends Widget {
           const Column({required this.children});
@@ -5733,7 +5886,9 @@ Object x() => Column(
             ],
           );
         }
-      ''', params: const ['habits']);
+      ''',
+        params: const ['habits'],
+      );
 
       expect(loop.issues, isEmpty, reason: loop.issues.join('\n'));
       expect(
@@ -5837,13 +5992,16 @@ Object x() => Column(
       expect(
         {
           'mismatchDsl': loopMismatch.dsl,
-          'mismatchCodes':
-              loopMismatch.issues.map((issue) => issue.code).toList(),
-          'mismatchMessages':
-              loopMismatch.issues.map((issue) => issue.message).toList(),
+          'mismatchCodes': loopMismatch.issues
+              .map((issue) => issue.code)
+              .toList(),
+          'mismatchMessages': loopMismatch.issues
+              .map((issue) => issue.message)
+              .toList(),
           'interpolationDsl': loopInterpolation.dsl,
-          'interpolationCodes':
-              loopInterpolation.issues.map((issue) => issue.code).toList(),
+          'interpolationCodes': loopInterpolation.issues
+              .map((issue) => issue.code)
+              .toList(),
         },
         {
           'mismatchDsl': rootMismatch.dsl,
@@ -5856,13 +6014,14 @@ Object x() => Column(
           ],
           'interpolationDsl':
               'Column(children: [...for habit in data.context.habits: '
-                  'TextRich(textSpan: { children: [{ text: "Habit: " }, '
-                  '{ text: habit.name }, { text: "!" }] })])',
+              'TextRich(textSpan: { children: [{ text: "Habit: " }, '
+              '{ text: habit.name }, { text: "!" }] })])',
           'interpolationCodes': <IssueCode>[],
         },
       );
 
-      final computed = await translate('''
+      final computed = await translate(
+        '''
         $_kRootExpressionStubs
         class Column extends Widget {
           const Column({required this.children});
@@ -5882,7 +6041,9 @@ Object x() => Column(
             children: [for (final habit in habits) Text(text: habit.label)],
           );
         }
-      ''', params: const ['habits']);
+      ''',
+        params: const ['habits'],
+      );
 
       expect(computed.dsl, 'Column(children: [])');
       expect(computed.issues.single.code, IssueCode.unsupportedCollectionFlow);
@@ -5937,8 +6098,9 @@ Object x() => Column(
       final outer =
           (root.arguments['children']! as List<Object?>).single! as fmt.Loop;
       final outerBody = outer.output as fmt.ConstructorCall;
-      final inner = (outerBody.arguments['children']! as List<Object?>).single!
-          as fmt.Loop;
+      final inner =
+          (outerBody.arguments['children']! as List<Object?>).single!
+              as fmt.Loop;
       final innerBody = inner.output as fmt.ConstructorCall;
       expect((inner.input as fmt.LoopReference).loop, 0);
       expect((inner.input as fmt.LoopReference).parts, ['items']);
@@ -5990,9 +6152,10 @@ Object x() => Column(
       }
     });
 
-    test('rejects reserved names, index reads, and constructor collisions',
-        () async {
-      Future<TranslationResult> guarded(String body) => translate('''
+    test(
+      'rejects reserved names, index reads, and constructor collisions',
+      () async {
+        Future<TranslationResult> guarded(String body) => translate('''
         $_kRootExpressionStubs
         class Column extends Widget {
           const Column({required this.children});
@@ -6005,31 +6168,32 @@ Object x() => Column(
         }
       ''');
 
-      final reserved = await guarded(
-        'for (final data in values) Text(text: data.first)',
-      );
-      final invalid = await guarded(
-        r'for (final $value in values) Text(text: $value.first)',
-      );
-      final indexed = await guarded(
-        'for (final value in values) Text(text: value[0])',
-      );
-      final collision = await guarded(
-        'for (final Text in values) const Text(text: "fixed")',
-      );
+        final reserved = await guarded(
+          'for (final data in values) Text(text: data.first)',
+        );
+        final invalid = await guarded(
+          r'for (final $value in values) Text(text: $value.first)',
+        );
+        final indexed = await guarded(
+          'for (final value in values) Text(text: value[0])',
+        );
+        final collision = await guarded(
+          'for (final Text in values) const Text(text: "fixed")',
+        );
 
-      expect(reserved.dsl, isNot(contains('...for')));
-      expect(reserved.issues.single.message, contains("name 'data'"));
-      expect(invalid.dsl, isNot(contains('...for')));
-      expect(invalid.issues.single.message, contains(r"name '$value'"));
-      expect(indexed.dsl, isNot(contains('...for')));
-      expect(
-        indexed.issues.single.message,
-        contains('cannot be read by index'),
-      );
-      expect(collision.dsl, isNot(contains('...for')));
-      expect(collision.issues.single.message, contains('conflicts with'));
-    });
+        expect(reserved.dsl, isNot(contains('...for')));
+        expect(reserved.issues.single.message, contains("name 'data'"));
+        expect(invalid.dsl, isNot(contains('...for')));
+        expect(invalid.issues.single.message, contains(r"name '$value'"));
+        expect(indexed.dsl, isNot(contains('...for')));
+        expect(
+          indexed.issues.single.message,
+          contains('cannot be read by index'),
+        );
+        expect(collision.dsl, isNot(contains('...for')));
+        expect(collision.issues.single.message, contains('conflicts with'));
+      },
+    );
 
     test('constructor collision checks ignore string contents', () async {
       final result = await translate('''
@@ -6057,9 +6221,10 @@ Object x() => Column(
       );
     });
 
-    test('suppresses a loop whose template is diagnosed or incomplete',
-        () async {
-      final result = await translate('''
+    test(
+      'suppresses a loop whose template is diagnosed or incomplete',
+      () async {
+        final result = await translate('''
         $_kRootExpressionStubs
         class Column extends Widget {
           const Column({required this.children});
@@ -6078,12 +6243,13 @@ Object x() => Column(
         }
       ''');
 
-      expect(result.dsl, 'Column(children: [])');
-      expect(result.dsl, isNot(contains('...for')));
-      expect(result.dsl, isNot(contains('Missing')));
-      expect(result.issues, hasLength(1));
-      expect(result.issues.single.code, IssueCode.unknownWidget);
-    });
+        expect(result.dsl, 'Column(children: [])');
+        expect(result.dsl, isNot(contains('...for')));
+        expect(result.dsl, isNot(contains('Missing')));
+        expect(result.issues, hasLength(1));
+        expect(result.issues.single.code, IssueCode.unknownWidget);
+      },
+    );
 
     test('discards valid output beside a diagnosed template child', () async {
       final result = await translate('''
@@ -6173,9 +6339,10 @@ Object paywallEvent(String name, {Map<String, Object?>? args}) => Object();''';
       });
     }
 
-    test('a helper refused for a grouped prelude declaration is named',
-        () async {
-      const source = '''
+    test(
+      'a helper refused for a grouped prelude declaration is named',
+      () async {
+        const source = '''
         class Text {
           const Text(this.data);
           final String data;
@@ -6186,16 +6353,17 @@ Object paywallEvent(String name, {Map<String, Object?>? args}) => Object();''';
         }
         Object x() => label();
       ''';
-      final expr = await parseExpressionFromSourceForTest(source);
-      final r = tHelpers.translate(expr);
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((issue) => issue.code),
-        contains(IssueCode.customWidgetInliningDeferred),
-      );
-      expect(r.issues.first.message, contains("'first, second'"));
-      expect(r.issues.first.message, contains('split'));
-    });
+        final expr = await parseExpressionFromSourceForTest(source);
+        final r = tHelpers.translate(expr);
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((issue) => issue.code),
+          contains(IssueCode.customWidgetInliningDeferred),
+        );
+        expect(r.issues.first.message, contains("'first, second'"));
+        expect(r.issues.first.message, contains('split'));
+      },
+    );
 
     test('paywallEvent("restore") is rejected', () async {
       final expr = await parseExpressionForTest('paywallEvent("restore")');
@@ -6218,36 +6386,41 @@ Object paywallEvent(String name, {Map<String, Object?>? args}) => Object();''';
       expect(r.dsl, 'data.context.basic');
     });
 
-    test('unregistered free function falls through to catalog lookup',
-        () async {
-      // A call to a function not in the helper registry routes to catalog
-      // construction and emits unknownWidget (no matching catalog entry).
-      final r = tHelpers.translate(
-        await parseExpressionForTest('NotAHelper()'),
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unknownWidget),
-      );
-    });
+    test(
+      'unregistered free function falls through to catalog lookup',
+      () async {
+        // A call to a function not in the helper registry routes to catalog
+        // construction and emits unknownWidget (no matching catalog entry).
+        final r = tHelpers.translate(
+          await parseExpressionForTest('NotAHelper()'),
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unknownWidget),
+        );
+      },
+    );
 
-    test('findByNameOnly fires when element is null (unresolved AST)',
-        () async {
-      // parseExpressionForTest returns an unresolved AST, so element on
-      // method names is null and findByNameOnly fires.
-      final r = tHelpers.translate(
-        await parseExpressionForTest("paywallEvent('hello')"),
-      );
-      // The unresolved path hits findByNameOnly; paywallEvent is in the
-      // registry → should translate without issues.
-      expect(r.issues, isEmpty);
-      expect(r.dsl, 'event "hello" {}');
-    });
+    test(
+      'findByNameOnly fires when element is null (unresolved AST)',
+      () async {
+        // parseExpressionForTest returns an unresolved AST, so element on
+        // method names is null and findByNameOnly fires.
+        final r = tHelpers.translate(
+          await parseExpressionForTest("paywallEvent('hello')"),
+        );
+        // The unresolved path hits findByNameOnly; paywallEvent is in the
+        // registry → should translate without issues.
+        expect(r.issues, isEmpty);
+        expect(r.dsl, 'event "hello" {}');
+      },
+    );
 
-    test('deprecated OnboardingEvent typedef resolves as SurfaceEvent',
-        () async {
-      final expression = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'deprecated OnboardingEvent typedef resolves as SurfaceEvent',
+      () async {
+        final expression = await parseExpressionFromSourceForTest(
+          '''
 import 'package:restage/restage.dart';
 
 abstract final class Probe {
@@ -6256,21 +6429,23 @@ abstract final class Probe {
 
 Object x() => onboardingEvent(Probe.next);
 ''',
-        rootPackage: 'apps_examples',
-      );
-      final result = ExpressionTranslator(
-        catalog: kEmptyCatalog,
-        helpers: HelperRegistry()..registerAll(onboardingHelpers),
-      ).translate(expression);
+          rootPackage: 'apps_examples',
+        );
+        final result = ExpressionTranslator(
+          catalog: kEmptyCatalog,
+          helpers: HelperRegistry()..registerAll(onboardingHelpers),
+        ).translate(expression);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'event "next" {}');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'event "next" {}');
+      },
+    );
 
-    test('canonical SurfaceEvent resolves through the same event predicate',
-        () async {
-      final expression = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'canonical SurfaceEvent resolves through the same event predicate',
+      () async {
+        final expression = await parseExpressionFromSourceForTest(
+          '''
 import 'package:restage/restage.dart';
 
 abstract final class Probe {
@@ -6279,16 +6454,17 @@ abstract final class Probe {
 
 Object x() => surfaceEvent(Probe.next);
 ''',
-        rootPackage: 'apps_examples',
-      );
-      final result = ExpressionTranslator(
-        catalog: kEmptyCatalog,
-        helpers: HelperRegistry()..registerAll(onboardingHelpers),
-      ).translate(expression);
+          rootPackage: 'apps_examples',
+        );
+        final result = ExpressionTranslator(
+          catalog: kEmptyCatalog,
+          helpers: HelperRegistry()..registerAll(onboardingHelpers),
+        ).translate(expression);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'event "next" {}');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'event "next" {}');
+      },
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -6317,8 +6493,7 @@ Object x() => surfaceEvent(Probe.next);
       helpers: HelperRegistry()..registerAll(onboardingHelpers),
     );
 
-    test(
-        'a surrounding function parameter sharing a State field name '
+    test('a surrounding function parameter sharing a State field name '
         'defers loud instead of substituting the state value', () async {
       final expression = await parseExpressionFromSourceForTest(
         '''
@@ -6349,10 +6524,11 @@ Object x(bool value) => Switch(
       );
     });
 
-    test('an integer switch cannot capture a surrounding function parameter',
-        () async {
-      final expression = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'an integer switch cannot capture a surrounding function parameter',
+      () async {
+        final expression = await parseExpressionFromSourceForTest(
+          '''
 import 'package:flutter/material.dart';
 
 Object x(int step) => Switch(
@@ -6362,38 +6538,39 @@ Object x(int step) => Switch(
       : ((value) => paywallEvent("b")),
 );
 ''',
-        rootPackage: 'apps_examples',
-      );
-      final result = tPaywall.translate(
-        expression,
-        rootState: [
-          const CustomWidgetStateField(
-            name: 'step',
-            isNumeric: false,
-            initialValue: 0,
-          ),
-        ],
-      );
-      const capturedStateDsl =
-          'Switch(value: false, onChanged: switch state.step '
-          '{ 0: event "a" {}, default: event "b" {} })';
+          rootPackage: 'apps_examples',
+        );
+        final result = tPaywall.translate(
+          expression,
+          rootState: [
+            const CustomWidgetStateField(
+              name: 'step',
+              isNumeric: false,
+              initialValue: 0,
+            ),
+          ],
+        );
+        const capturedStateDsl =
+            'Switch(value: false, onChanged: switch state.step '
+            '{ 0: event "a" {}, default: event "b" {} })';
 
-      expect(result.dsl, isNot(capturedStateDsl));
-      expect(result.dsl, isNot(contains('state.step')));
-      expect(result.dsl, isNot(contains('event "a" {}')));
-      expect(result.dsl, isNot(contains('event "b" {}')));
-      expect(result.dsl, isEmpty);
-      expect(result.issues, isNotEmpty);
-    });
+        expect(result.dsl, isNot(capturedStateDsl));
+        expect(result.dsl, isNot(contains('state.step')));
+        expect(result.dsl, isNot(contains('event "a" {}')));
+        expect(result.dsl, isNot(contains('event "b" {}')));
+        expect(result.dsl, isEmpty);
+        expect(result.issues, isNotEmpty);
+      },
+    );
 
     test(
-        'a value-callback closure that does not reference its own '
-        'parameter unwraps to its declarative event on an arbitrary widget',
-        () async {
-      // Switch has no dedicated recogniser, so this exercises the generic
-      // unwrap at an ordinary catalog widget's event slot.
-      final expression = await parseExpressionFromSourceForTest(
-        '''
+      'a value-callback closure that does not reference its own '
+      'parameter unwraps to its declarative event on an arbitrary widget',
+      () async {
+        // Switch has no dedicated recogniser, so this exercises the generic
+        // unwrap at an ordinary catalog widget's event slot.
+        final expression = await parseExpressionFromSourceForTest(
+          '''
 import 'package:flutter/material.dart';
 
 Object x() => Switch(
@@ -6401,12 +6578,13 @@ Object x() => Switch(
   onChanged: (value) => paywallEvent("toggled"),
 );
 ''',
-        rootPackage: 'apps_examples',
-      );
-      final result = tPaywall.translate(expression);
-      expect(result.issues.where((i) => !i.code.isInformational), isEmpty);
-      expect(result.dsl, contains('onChanged: event "toggled" {}'));
-    });
+          rootPackage: 'apps_examples',
+        );
+        final result = tPaywall.translate(expression);
+        expect(result.issues.where((i) => !i.code.isInformational), isEmpty);
+        expect(result.dsl, contains('onChanged: event "toggled" {}'));
+      },
+    );
 
     test('a diagnosed event arm aborts the shared bool switch', () async {
       final expression = await parseExpressionFromSourceForTest(
@@ -6502,13 +6680,14 @@ Object x() => Switch(
       expect(result.dsl, isNot(contains('0: ,')));
     });
 
-    test('a block-bodied closure at a generic event slot defers loud',
-        () async {
-      // `_wrapsEventHelper` only recognises an ExpressionFunctionBody; a
-      // block body must fall through to the pre-existing loud diagnostic,
-      // not a silent drop.
-      final expression = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'a block-bodied closure at a generic event slot defers loud',
+      () async {
+        // `_wrapsEventHelper` only recognises an ExpressionFunctionBody; a
+        // block body must fall through to the pre-existing loud diagnostic,
+        // not a silent drop.
+        final expression = await parseExpressionFromSourceForTest(
+          '''
 import 'package:flutter/material.dart';
 
 Object x() => Switch(
@@ -6518,18 +6697,18 @@ Object x() => Switch(
   },
 );
 ''',
-        rootPackage: 'apps_examples',
-      );
-      final result = tPaywall.translate(expression);
-      expect(
-        result.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-      expect(result.dsl, isNot(contains('event "toggled"')));
-    });
+          rootPackage: 'apps_examples',
+        );
+        final result = tPaywall.translate(expression);
+        expect(
+          result.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+        expect(result.dsl, isNot(contains('event "toggled"')));
+      },
+    );
 
-    test(
-        'a closure calling an unregistered free function is not mistaken '
+    test('a closure calling an unregistered free function is not mistaken '
         'for a value-callback wrapper', () async {
       // Proves the helper-registry gate is load-bearing, not just the
       // closure shape gate.
@@ -6553,8 +6732,7 @@ Object x() => Switch(
       );
     });
 
-    test(
-        'a string-category helper at an event slot is not unwrapped as a '
+    test('a string-category helper at an event slot is not unwrapped as a '
         'value callback', () async {
       // paywallPriceFor returns HelperReturnCategory.string — not a valid
       // closure-unwrap target at an event slot.
@@ -6577,8 +6755,7 @@ Object x() => Switch(
       expect(result.dsl, isNot(contains('data.products')));
     });
 
-    test(
-        'the screen-event helper special case unwraps through the generic '
+    test('the screen-event helper special case unwraps through the generic '
         'event slot, not only through the onboarding screen builder', () async {
       final expression = await parseExpressionFromSourceForTest(
         '''
@@ -6601,8 +6778,7 @@ Object x() => Switch(
       expect(result.dsl, contains('onChanged: event "next" {}'));
     });
 
-    test(
-        'a navigation call at a generic event slot is left wrapped, not '
+    test('a navigation call at a generic event slot is left wrapped, not '
         'mistaken for a value-callback helper', () async {
       // `Navigator.of(context).push(...)` has a non-null target, so the
       // event-helper unwrap must leave it for the navigation lowering.
@@ -6700,58 +6876,66 @@ Object x(BuildContext context) => $body;
     const goEvent =
         'GestureDetector(onTap: event "go" {}, child: Text(text: "a"))';
 
-    test('a ValueChanged callback on a catalog widget lowers to its event',
-        () async {
-      final r = await lower(
-        'CompactList(onReorder: (moved) => surfaceEvent(Probe.reorderRows))',
-      );
-      expectClosureNotice(r, 'surfaceEvent');
-      expect(r.dsl, 'CompactList(onReorder: event "reorderRows" {})');
-    });
+    test(
+      'a ValueChanged callback on a catalog widget lowers to its event',
+      () async {
+        final r = await lower(
+          'CompactList(onReorder: (moved) => surfaceEvent(Probe.reorderRows))',
+        );
+        expectClosureNotice(r, 'surfaceEvent');
+        expect(r.dsl, 'CompactList(onReorder: event "reorderRows" {})');
+      },
+    );
 
-    test('a zero-parameter closure lowers exactly like the bare event call',
-        () async {
-      final closured = await lower(
-        "GestureDetector(onTap: () => paywallEvent('go'), "
-        "child: const Text('a'))",
-      );
-      final bare = await lower(
-        "GestureDetector(onTap: paywallEvent('go'), child: const Text('a'))",
-      );
-      expectClosureNotice(closured, 'paywallEvent');
-      expect(bare.issues, isEmpty);
-      // The closure carries nothing of its own: the DSL is unchanged.
-      expect(closured.dsl, bare.dsl);
-      expect(closured.dsl, goEvent);
-    });
+    test(
+      'a zero-parameter closure lowers exactly like the bare event call',
+      () async {
+        final closured = await lower(
+          "GestureDetector(onTap: () => paywallEvent('go'), "
+          "child: const Text('a'))",
+        );
+        final bare = await lower(
+          "GestureDetector(onTap: paywallEvent('go'), child: const Text('a'))",
+        );
+        expectClosureNotice(closured, 'paywallEvent');
+        expect(bare.issues, isEmpty);
+        // The closure carries nothing of its own: the DSL is unchanged.
+        expect(closured.dsl, bare.dsl);
+        expect(closured.dsl, goEvent);
+      },
+    );
 
-    test('a built-in widget event slot admits the same closure shape',
-        () async {
-      final r = await lower(
-        'Switch(value: true, '
-        'onChanged: (v) => surfaceEvent(Probe.reorderRows))',
-      );
-      expectClosureNotice(r, 'surfaceEvent');
-      expect(r.dsl, 'Switch(value: true, onChanged: event "reorderRows" {})');
-    });
+    test(
+      'a built-in widget event slot admits the same closure shape',
+      () async {
+        final r = await lower(
+          'Switch(value: true, '
+          'onChanged: (v) => surfaceEvent(Probe.reorderRows))',
+        );
+        expectClosureNotice(r, 'surfaceEvent');
+        expect(r.dsl, 'Switch(value: true, onChanged: event "reorderRows" {})');
+      },
+    );
 
-    test('a value callback given the event directly lowers like the closure',
-        () async {
-      final direct = await lower(
-        'Switch(value: true, onChanged: surfaceEvent(Probe.reorderRows))',
-      );
-      final closured = await lower(
-        'Switch(value: true, '
-        'onChanged: (_) => surfaceEvent(Probe.reorderRows))',
-      );
-      expect(direct.issues, isEmpty);
-      expect(direct.dsl, closured.dsl);
-      expect(
-        direct.dsl,
-        'Switch(value: true, onChanged: event "reorderRows" {})',
-      );
-      expectClosureNotice(closured, 'surfaceEvent');
-    });
+    test(
+      'a value callback given the event directly lowers like the closure',
+      () async {
+        final direct = await lower(
+          'Switch(value: true, onChanged: surfaceEvent(Probe.reorderRows))',
+        );
+        final closured = await lower(
+          'Switch(value: true, '
+          'onChanged: (_) => surfaceEvent(Probe.reorderRows))',
+        );
+        expect(direct.issues, isEmpty);
+        expect(direct.dsl, closured.dsl);
+        expect(
+          direct.dsl,
+          'Switch(value: true, onChanged: event "reorderRows" {})',
+        );
+        expectClosureNotice(closured, 'surfaceEvent');
+      },
+    );
 
     test('a direct value event keeps its authored value', () async {
       final direct = await lower(
@@ -6811,9 +6995,10 @@ Object x(BuildContext context) => $body;
       );
     });
 
-    test('a navigation closure still reaches the navigation path unchanged',
-        () async {
-      final r = await lower('''
+    test(
+      'a navigation closure still reaches the navigation path unchanged',
+      () async {
+        final r = await lower('''
 GestureDetector(
   onTap: () => Navigator.push<void>(
     context,
@@ -6821,13 +7006,15 @@ GestureDetector(
   ),
   child: const Text('a'),
 )''');
-      expectClosureUnchanged(r);
-      expect(r.issues.single.message, contains('Navigator.push'));
-    });
+        expectClosureUnchanged(r);
+        expect(r.issues.single.message, contains('Navigator.push'));
+      },
+    );
 
-    test('a sheet-presenting closure still reaches the sheet path unchanged',
-        () async {
-      final r = await lower('''
+    test(
+      'a sheet-presenting closure still reaches the sheet path unchanged',
+      () async {
+        final r = await lower('''
 GestureDetector(
   onTap: () => showModalBottomSheet<void>(
     context: context,
@@ -6835,13 +7022,14 @@ GestureDetector(
   ),
   child: const Text('a'),
 )''');
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        [IssueCode.modalSheetFormUnsupported],
-      );
-      expect(r.issues.single.message, contains('RestageModalSheet'));
-    });
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          [IssueCode.modalSheetFormUnsupported],
+        );
+        expect(r.issues.single.message, contains('RestageModalSheet'));
+      },
+    );
 
     test('a pop closure is unchanged', () async {
       final r = await lower(
@@ -6852,14 +7040,16 @@ GestureDetector(
       expect(r.issues.single.message, contains('Navigator.pop'));
     });
 
-    test('a setState closure is not an event helper and is unchanged',
-        () async {
-      final r = await lower(
-        'GestureDetector(onTap: () => setState(() { flag = true; }), '
-        "child: const Text('a'))",
-      );
-      expectClosureUnchanged(r);
-    });
+    test(
+      'a setState closure is not an event helper and is unchanged',
+      () async {
+        final r = await lower(
+          'GestureDetector(onTap: () => setState(() { flag = true; }), '
+          "child: const Text('a'))",
+        );
+        expectClosureUnchanged(r);
+      },
+    );
 
     test('a state method tear-off never reaches the closure gate', () async {
       final r = unwrapTranslator.translate(
@@ -6909,41 +7099,45 @@ GestureDetector(
       expectClosureUnchanged(r);
     });
 
-    test('a closure whose event call reads its own parameter is refused',
-        () async {
-      // The parameter is the host's and has no wire representation.
-      final r = await lower(
-        'GestureDetector(onTap: (v) => paywallEvent(v), '
-        "child: const Text('a'))",
-      );
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        [IssueCode.invalidEventConfiguration],
-      );
-      expect(
-        r.issues.single.message,
-        'The callback value reaches the event automatically. Pass '
-        '`paywallEvent(...)` directly to the callback, without a closure.',
-      );
-    });
+    test(
+      'a closure whose event call reads its own parameter is refused',
+      () async {
+        // The parameter is the host's and has no wire representation.
+        final r = await lower(
+          'GestureDetector(onTap: (v) => paywallEvent(v), '
+          "child: const Text('a'))",
+        );
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          [IssueCode.invalidEventConfiguration],
+        );
+        expect(
+          r.issues.single.message,
+          'The callback value reaches the event automatically. Pass '
+          '`paywallEvent(...)` directly to the callback, without a closure.',
+        );
+      },
+    );
 
-    test('a parameter read inside the event arguments is refused too',
-        () async {
-      final r = await lower(
-        "GestureDetector(onTap: (v) => paywallEvent('go', args: {'k': v}), "
-        "child: const Text('a'))",
-      );
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((i) => i.code),
-        [IssueCode.invalidEventConfiguration],
-      );
-      expect(
-        r.issues.single.message,
-        contains('Pass `paywallEvent(...)` directly'),
-      );
-    });
+    test(
+      'a parameter read inside the event arguments is refused too',
+      () async {
+        final r = await lower(
+          "GestureDetector(onTap: (v) => paywallEvent('go', args: {'k': v}), "
+          "child: const Text('a'))",
+        );
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((i) => i.code),
+          [IssueCode.invalidEventConfiguration],
+        );
+        expect(
+          r.issues.single.message,
+          contains('Pass `paywallEvent(...)` directly'),
+        );
+      },
+    );
 
     test('a wildcard parameter lowers', () async {
       final r = await lower(
@@ -7055,25 +7249,28 @@ GestureDetector(
       expect(r.dsl, 'Text(text: data.context.pro)');
     });
 
-    test('interpolation with literal segments lowers to TextRich spans',
-        () async {
-      const source = r'''
+    test(
+      'interpolation with literal segments lowers to TextRich spans',
+      () async {
+        const source = r'''
         String hostText({String? key}) => "";
         Object x() => Text(text: 'Only ${hostText(key: "pro")}/mo');
       ''';
-      final expr = await parseExpressionFromSourceForTest(source);
-      final r = tInterp.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'TextRich(textSpan: { children: [{ text: "Only " }, '
-        '{ text: data.context.pro }, { text: "/mo" }] })',
-      );
-    });
+        final expr = await parseExpressionFromSourceForTest(source);
+        final r = tInterp.translate(expr);
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'TextRich(textSpan: { children: [{ text: "Only " }, '
+          '{ text: data.context.pro }, { text: "/mo" }] })',
+        );
+      },
+    );
 
-    test('styled interpolated host text carries Text props to TextRich',
-        () async {
-      const source = r'''
+    test(
+      'styled interpolated host text carries Text props to TextRich',
+      () async {
+        const source = r'''
         import 'package:flutter/painting.dart' show Color, FontWeight;
         class Text {
           const Text({
@@ -7095,19 +7292,20 @@ GestureDetector(
           fontWeight: FontWeight.w700,
         );
       ''';
-      final expr = await parseExpressionFromSourceForTest(
-        source,
-        rootPackage: 'apps_examples',
-      );
-      final r = tInterp.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'TextRich(textSpan: { children: [{ text: "Only " }, '
-        '{ text: data.context.ent }, { text: "/month" }] }, '
-        'color: 0xFF111111, fontSize: 18.0, fontWeight: "w700")',
-      );
-    });
+        final expr = await parseExpressionFromSourceForTest(
+          source,
+          rootPackage: 'apps_examples',
+        );
+        final r = tInterp.translate(expr);
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'TextRich(textSpan: { children: [{ text: "Only " }, '
+          '{ text: data.context.ent }, { text: "/month" }] }, '
+          'color: 0xFF111111, fontSize: 18.0, fontWeight: "w700")',
+        );
+      },
+    );
 
     test('interpolated state ref lowers to TextRich spans', () async {
       final expr = await parseExpressionForTest(
@@ -7122,8 +7320,7 @@ GestureDetector(
       );
     });
 
-    test(
-        'interpolates non-nullable String root data and rejects nullable '
+    test('interpolates non-nullable String root data and rejects nullable '
         'String', () async {
       final probe = await parseMethodExpressionFromSourceForTest(
         '''
@@ -7144,12 +7341,16 @@ GestureDetector(
         _rootParamFrom(probe, className: 'P', name: 'name'),
         _rootParamFrom(probe, className: 'P', name: 'nickname'),
       ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
-      final stringResult =
-          tInterp.translate(expressions[0], rootParams: params);
-      final nullableResult =
-          tInterp.translate(expressions[1], rootParams: params);
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
+      final stringResult = tInterp.translate(
+        expressions[0],
+        rootParams: params,
+      );
+      final nullableResult = tInterp.translate(
+        expressions[1],
+        rootParams: params,
+      );
 
       expect(stringResult.issues, isEmpty);
       expect(stringResult.dsl, contains('data.context.name'));
@@ -7160,43 +7361,47 @@ GestureDetector(
       expect(nullableResult.dsl, isEmpty);
     });
 
-    test('interpolated Text with uncarried prop defers whole rewrite',
-        () async {
-      const source = r'''
+    test(
+      'interpolated Text with uncarried prop defers whole rewrite',
+      () async {
+        const source = r'''
         String hostText({String? key}) => "";
         Object x() => Text(
           text: 'Only ${hostText(key: "pro")}/mo',
           semanticsLabel: 'price',
         );
       ''';
-      final expr = await parseExpressionFromSourceForTest(source);
-      final r = tInterp.translate(expr);
-      expect(r.dsl, isEmpty);
-      expect(
-        r.issues.map((issue) => issue.code),
-        contains(IssueCode.unsupportedHelperPosition),
-      );
-      expect(
-        r.issues.map((issue) => issue.message).join('\n'),
-        contains('semanticsLabel'),
-      );
-    });
+        final expr = await parseExpressionFromSourceForTest(source);
+        final r = tInterp.translate(expr);
+        expect(r.dsl, isEmpty);
+        expect(
+          r.issues.map((issue) => issue.code),
+          contains(IssueCode.unsupportedHelperPosition),
+        );
+        expect(
+          r.issues.map((issue) => issue.message).join('\n'),
+          contains('semanticsLabel'),
+        );
+      },
+    );
 
-    test('adjacent strings mixing text and values lower like one string',
-        () async {
-      const source = r'''
+    test(
+      'adjacent strings mixing text and values lower like one string',
+      () async {
+        const source = r'''
         String hostText({String? key}) => "";
         Object x() => Text(text: 'Only ' '${hostText(key: "pro")}' '/mo');
       ''';
-      final expr = await parseExpressionFromSourceForTest(source);
-      final r = tInterp.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'TextRich(textSpan: { children: [{ text: "Only " }, '
-        '{ text: data.context.pro }, { text: "/mo" }] })',
-      );
-    });
+        final expr = await parseExpressionFromSourceForTest(source);
+        final r = tInterp.translate(expr);
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'TextRich(textSpan: { children: [{ text: "Only " }, '
+          '{ text: data.context.pro }, { text: "/mo" }] })',
+        );
+      },
+    );
 
     test('adjacent plain parts join before an interpolated part', () async {
       final expr = await parseExpressionForTest(
@@ -7244,10 +7449,11 @@ GestureDetector(
       initialValue: true,
     );
 
-    test('Text.rich host-data span emits a structured inlineSpan tree',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'Text.rich host-data span emits a structured inlineSpan tree',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/material.dart';
         String hostText({String? key}) => '';
         bool annualBilling = true;
@@ -7276,54 +7482,57 @@ GestureDetector(
           ),
         );
       ''',
-        rootPackage: 'apps_examples',
-      );
+          rootPackage: 'apps_examples',
+        );
 
-      final r = textRichTranslator.translate(
-        expr,
-        rootState: [annualBilling],
-      );
+        final r = textRichTranslator.translate(
+          expr,
+          rootState: [annualBilling],
+        );
 
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'TextRich(textSpan: { children: [{ text: switch state.annualBilling '
-        '{ true: data.context.plus_annual, '
-        'false: data.context.plus_monthly }, '
-        'style: { color: 0xFF191918, fontSize: 24.0, '
-        'fontWeight: "w700" } }, { text: "  per member / month", '
-        'style: { color: 0xFF787774, fontSize: 13.0 } }] })',
-      );
-    });
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'TextRich(textSpan: { children: [{ text: switch state.annualBilling '
+          '{ true: data.context.plus_annual, '
+          'false: data.context.plus_monthly }, '
+          'style: { color: 0xFF191918, fontSize: 24.0, '
+          'fontWeight: "w700" } }, { text: "  per member / month", '
+          'style: { color: 0xFF787774, fontSize: 13.0 } }] })',
+        );
+      },
+    );
 
-    test('a whole text-theme style on a style slot decomposes per field',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        """
+    test(
+      'a whole text-theme style on a style slot decomposes per field',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          """
         import 'package:flutter/material.dart';
         Object x() => Text(
           text: 'Go Pro',
           style: Theme.of(context).textTheme.titleLarge,
         );
         """,
-        rootPackage: 'apps_examples',
-      );
+          rootPackage: 'apps_examples',
+        );
 
-      final r = textRichTranslator.translate(expr);
+        final r = textRichTranslator.translate(expr);
 
-      expect(r.issues, isEmpty);
-      // Only published fields bind, and only where the fixture declares a
-      // property: `fontFamily` has no slot here.
-      expect(
-        r.dsl,
-        'Text(text: "Go Pro", '
-        'color: data.theme.textTheme.titleLarge.color, '
-        'fontSize: data.theme.textTheme.titleLarge.fontSize, '
-        'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
-        'fontStyle: data.theme.textTheme.titleLarge.fontStyle, '
-        'decoration: data.theme.textTheme.titleLarge.decoration)',
-      );
-    });
+        expect(r.issues, isEmpty);
+        // Only published fields bind, and only where the fixture declares a
+        // property: `fontFamily` has no slot here.
+        expect(
+          r.dsl,
+          'Text(text: "Go Pro", '
+          'color: data.theme.textTheme.titleLarge.color, '
+          'fontSize: data.theme.textTheme.titleLarge.fontSize, '
+          'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
+          'fontStyle: data.theme.textTheme.titleLarge.fontStyle, '
+          'decoration: data.theme.textTheme.titleLarge.decoration)',
+        );
+      },
+    );
 
     test('a null-aware whole-style read decomposes the same way', () async {
       final expr = await parseExpressionFromSourceForTest(
@@ -7373,10 +7582,11 @@ GestureDetector(
       );
     });
 
-    test('the TextTheme.of shortcut decomposes and copies the same way',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        """
+    test(
+      'the TextTheme.of shortcut decomposes and copies the same way',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          """
         import 'package:flutter/material.dart';
         Object x() => Text(
           text: 'Go Pro',
@@ -7384,48 +7594,51 @@ GestureDetector(
               ?.copyWith(color: const Color(0xFF112233)),
         );
         """,
-        rootPackage: 'apps_examples',
-      );
+          rootPackage: 'apps_examples',
+        );
 
-      final r = textRichTranslator.translate(expr);
+        final r = textRichTranslator.translate(expr);
 
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'Text(text: "Go Pro", color: 0xFF112233, '
-        'fontSize: data.theme.textTheme.titleLarge.fontSize, '
-        'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
-        'fontStyle: data.theme.textTheme.titleLarge.fontStyle, '
-        'decoration: data.theme.textTheme.titleLarge.decoration)',
-      );
-    });
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'Text(text: "Go Pro", color: 0xFF112233, '
+          'fontSize: data.theme.textTheme.titleLarge.fontSize, '
+          'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
+          'fontStyle: data.theme.textTheme.titleLarge.fontStyle, '
+          'decoration: data.theme.textTheme.titleLarge.decoration)',
+        );
+      },
+    );
 
-    test('a whole TextTheme.of style on a style slot decomposes per field',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        """
+    test(
+      'a whole TextTheme.of style on a style slot decomposes per field',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          """
         import 'package:flutter/material.dart';
         Object x() => Text(
           text: 'Go Pro',
           style: TextTheme.of(context).titleLarge,
         );
         """,
-        rootPackage: 'apps_examples',
-      );
+          rootPackage: 'apps_examples',
+        );
 
-      final r = textRichTranslator.translate(expr);
+        final r = textRichTranslator.translate(expr);
 
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'Text(text: "Go Pro", '
-        'color: data.theme.textTheme.titleLarge.color, '
-        'fontSize: data.theme.textTheme.titleLarge.fontSize, '
-        'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
-        'fontStyle: data.theme.textTheme.titleLarge.fontStyle, '
-        'decoration: data.theme.textTheme.titleLarge.decoration)',
-      );
-    });
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'Text(text: "Go Pro", '
+          'color: data.theme.textTheme.titleLarge.color, '
+          'fontSize: data.theme.textTheme.titleLarge.fontSize, '
+          'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
+          'fontStyle: data.theme.textTheme.titleLarge.fontStyle, '
+          'decoration: data.theme.textTheme.titleLarge.decoration)',
+        );
+      },
+    );
 
     test('copyWith naming an unpublished field is refused', () async {
       final expr = await parseExpressionFromSourceForTest(
@@ -7494,8 +7707,8 @@ GestureDetector(
         _rootParamFrom(probe, className: 'P', name: 'title'),
         _rootParamFrom(probe, className: 'P', name: 'count'),
       ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
 
       final valid = textRichTranslator.translate(
         expressions[0],
@@ -7578,7 +7791,9 @@ Object x() => Text.rich(
 
       expect(r.issues, isEmpty);
       expect(
-          r.dsl, contains('children: [{ text: "first" }, { text: "second" }]'));
+        r.dsl,
+        contains('children: [{ text: "first" }, { text: "second" }]'),
+      );
     });
 
     test('TextSpan(recognizer:) carries an empty native constructor', () async {
@@ -7598,111 +7813,136 @@ Object x() => Text.rich(
     });
 
     test(
-        'an immutable local recognizer is admitted once and shared aliases refuse',
-        () async {
-      const imports =
-          "import 'package:flutter/widgets.dart'; import 'package:flutter/gestures.dart';";
-      final admitted = await _translateResolvedBody(textRichTranslator,
+      'an immutable local recognizer is admitted once and shared aliases refuse',
+      () async {
+        const imports =
+            "import 'package:flutter/widgets.dart'; import 'package:flutter/gestures.dart';";
+        final admitted = await _translateResolvedBody(
+          textRichTranslator,
           declaration: imports,
           prelude: 'final recognizer = TapGestureRecognizer();',
           expression:
-              "Text.rich(TextSpan(text: 'Tap', recognizer: recognizer))");
-      expect(admitted.issues.where((issue) => !issue.code.isInformational),
-          isEmpty);
-      expect(admitted.dsl, contains('kind: "tap"'));
-      final shared = await _translateResolvedBody(textRichTranslator,
+              "Text.rich(TextSpan(text: 'Tap', recognizer: recognizer))",
+        );
+        expect(
+          admitted.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        expect(admitted.dsl, contains('kind: "tap"'));
+        final shared = await _translateResolvedBody(
+          textRichTranslator,
           declaration: imports,
           prelude: 'final recognizer = TapGestureRecognizer();',
           expression:
-              "Text.rich(TextSpan(children: [TextSpan(text: 'One', recognizer: recognizer), TextSpan(text: 'Two', recognizer: recognizer)]))");
-      expect(shared.dsl, isEmpty);
-      expect(shared.issues.where((issue) => !issue.code.isInformational),
-          isNotEmpty);
-      final acrossWidgets = await _translateResolvedBody(
+              "Text.rich(TextSpan(children: [TextSpan(text: 'One', recognizer: recognizer), TextSpan(text: 'Two', recognizer: recognizer)]))",
+        );
+        expect(shared.dsl, isEmpty);
+        expect(
+          shared.issues.where((issue) => !issue.code.isInformational),
+          isNotEmpty,
+        );
+        final acrossWidgets = await _translateResolvedBody(
           ExpressionTranslator(
-              helpers: HelperRegistry(),
-              catalog: catalogWith([
-                ..._textRichCatalog().widgets,
-                entry(
-                    name: 'Column',
-                    properties: [prop('children', PropertyType.widgetList)],
-                    childrenSlot: ChildrenSlot.list),
-              ])),
-          declaration: imports,
-          prelude: 'final recognizer = TapGestureRecognizer();',
-          expression:
-              "Column(children: [Text.rich(TextSpan(text: 'One', recognizer: recognizer)), Text.rich(TextSpan(text: 'Two', recognizer: recognizer))])");
-      expect(acrossWidgets.issues.map((issue) => issue.message).join('\n'),
-          contains('shared'));
-    });
-
-    test(
-        'recognizer ownership follows aliases and containing span or list locals',
-        () async {
-      final translator = ExpressionTranslator(
-          helpers: HelperRegistry()..registerAll(_testHelpers),
-          catalog: catalogWith([
-            ..._textRichCatalog().widgets,
-            entry(
+            helpers: HelperRegistry(),
+            catalog: catalogWith([
+              ..._textRichCatalog().widgets,
+              entry(
                 name: 'Column',
                 properties: [prop('children', PropertyType.widgetList)],
-                childrenSlot: ChildrenSlot.list),
-          ]));
+                childrenSlot: ChildrenSlot.list,
+              ),
+            ]),
+          ),
+          declaration: imports,
+          prelude: 'final recognizer = TapGestureRecognizer();',
+          expression:
+              "Column(children: [Text.rich(TextSpan(text: 'One', recognizer: recognizer)), Text.rich(TextSpan(text: 'Two', recognizer: recognizer))])",
+        );
+        expect(
+          acrossWidgets.issues.map((issue) => issue.message).join('\n'),
+          contains('shared'),
+        );
+      },
+    );
+
+    test('recognizer ownership follows aliases and containing span or list locals', () async {
+      final translator = ExpressionTranslator(
+        helpers: HelperRegistry()..registerAll(_testHelpers),
+        catalog: catalogWith([
+          ..._textRichCatalog().widgets,
+          entry(
+            name: 'Column',
+            properties: [prop('children', PropertyType.widgetList)],
+            childrenSlot: ChildrenSlot.list,
+          ),
+        ]),
+      );
       const declaration =
           "import 'package:flutter/widgets.dart'; import 'package:flutter/gestures.dart'; VoidCallback paywallEvent(String name) => () {};";
       final admissions = <(bool, int)>[];
       for (final (prelude, span) in [
         (
           "final r = DoubleTapGestureRecognizer(); final alias = r; final next = alias;",
-          "TextSpan(text: 'Tap', recognizer: next)"
+          "TextSpan(text: 'Tap', recognizer: next)",
         ),
         (
           "final span = TextSpan(text: 'Tap', recognizer: DoubleTapGestureRecognizer()); final alias = span;",
-          'alias'
+          'alias',
         ),
         (
           "final spans = [TextSpan(text: 'Tap', recognizer: DoubleTapGestureRecognizer())]; final alias = spans;",
-          'TextSpan(children: alias)'
+          'TextSpan(children: alias)',
         ),
       ]) {
-        final result = await _translateResolvedBody(translator,
-            declaration: declaration,
-            prelude: prelude,
-            expression:
-                'Column(children: [Text.rich($span), Text.rich($span)])');
+        final result = await _translateResolvedBody(
+          translator,
+          declaration: declaration,
+          prelude: prelude,
+          expression: 'Column(children: [Text.rich($span), Text.rich($span)])',
+        );
         admissions.add((
           result.issues.any((issue) => !issue.code.isInformational),
           'kind: "doubleTap"'.allMatches(result.dsl).length,
         ));
       }
       expect(admissions, [(true, 0), (true, 0), (true, 0)]);
-      final single = await _translateResolvedBody(translator,
-          declaration: declaration,
-          prelude:
-              "final r = DoubleTapGestureRecognizer(); final alias = r; final span = TextSpan(text: 'Tap', recognizer: alias); final spans = [span];",
-          expression: 'Text.rich(TextSpan(children: spans))');
+      final single = await _translateResolvedBody(
+        translator,
+        declaration: declaration,
+        prelude:
+            "final r = DoubleTapGestureRecognizer(); final alias = r; final span = TextSpan(text: 'Tap', recognizer: alias); final spans = [span];",
+        expression: 'Text.rich(TextSpan(children: spans))',
+      );
       expect(
-          single.issues.where((issue) => !issue.code.isInformational), isEmpty);
+        single.issues.where((issue) => !issue.code.isInformational),
+        isEmpty,
+      );
       expect(single.dsl, contains('kind: "doubleTap"'));
-      final repeated = await _translateResolvedBody(translator,
-          declaration: declaration,
-          prelude:
-              "final span = TextSpan(text: 'Tap', recognizer: DoubleTapGestureRecognizer());",
-          expression:
-              'Column(children: [for (final item in [1, 2]) Text.rich(span)])');
-      expect((
-        repeated.issues.any((issue) => !issue.code.isInformational),
-        'kind: "doubleTap"'.allMatches(repeated.dsl).length,
-      ), (
-        true,
-        0
-      ));
-      final fresh = await _translateResolvedBody(translator,
-          declaration: declaration,
-          expression:
-              "Column(children: [for (final item in [1, 2]) Text.rich(TextSpan(text: 'Tap', recognizer: DoubleTapGestureRecognizer()))])");
+      final repeated = await _translateResolvedBody(
+        translator,
+        declaration: declaration,
+        prelude:
+            "final span = TextSpan(text: 'Tap', recognizer: DoubleTapGestureRecognizer());",
+        expression:
+            'Column(children: [for (final item in [1, 2]) Text.rich(span)])',
+      );
       expect(
-          fresh.issues.where((issue) => !issue.code.isInformational), isEmpty);
+        (
+          repeated.issues.any((issue) => !issue.code.isInformational),
+          'kind: "doubleTap"'.allMatches(repeated.dsl).length,
+        ),
+        (true, 0),
+      );
+      final fresh = await _translateResolvedBody(
+        translator,
+        declaration: declaration,
+        expression:
+            "Column(children: [for (final item in [1, 2]) Text.rich(TextSpan(text: 'Tap', recognizer: DoubleTapGestureRecognizer()))])",
+      );
+      expect(
+        fresh.issues.where((issue) => !issue.code.isInformational),
+        isEmpty,
+      );
       expect('kind: "doubleTap"'.allMatches(fresh.dsl), hasLength(2));
     });
 
@@ -7855,21 +8095,23 @@ Object x() => Text.rich(
   // -------------------------------------------------------------------------
 
   group('regression: _locationOf format', () {
-    test('issue location starts with sourcePath when lineInfo is provided',
-        () async {
-      // Trigger any issue (unsupported expression type) while providing a
-      // sourcePath and a minimal LineInfo. Assert that the location string
-      // starts with the given path (file:line:column format) rather than
-      // containing only a raw byte offset.
-      final expr = await parseExpressionForTest('someVar.toUpper()');
-      final r = translator.translate(
-        expr,
-        sourcePath: 'lib/paywalls/foo.dart',
-        lineInfo: LineInfo([0]),
-      );
-      expect(r.issues, isNotEmpty);
-      expect(r.issues.first.location, startsWith('lib/paywalls/foo.dart:'));
-    });
+    test(
+      'issue location starts with sourcePath when lineInfo is provided',
+      () async {
+        // Trigger any issue (unsupported expression type) while providing a
+        // sourcePath and a minimal LineInfo. Assert that the location string
+        // starts with the given path (file:line:column format) rather than
+        // containing only a raw byte offset.
+        final expr = await parseExpressionForTest('someVar.toUpper()');
+        final r = translator.translate(
+          expr,
+          sourcePath: 'lib/paywalls/foo.dart',
+          lineInfo: LineInfo([0]),
+        );
+        expect(r.issues, isNotEmpty);
+        expect(r.issues.first.location, startsWith('lib/paywalls/foo.dart:'));
+      },
+    );
 
     test('issue location falls back to offset when lineInfo is null', () async {
       final expr = await parseExpressionForTest('someVar.toUpper()');
@@ -7911,8 +8153,9 @@ Object x() => Text.rich(
     );
 
     test('production translator source has no bridge-field dependency', () {
-      final source =
-          File('lib/src/expression_translator.dart').readAsStringSync();
+      final source = File(
+        'lib/src/expression_translator.dart',
+      ).readAsStringSync();
       expect(source, isNot(contains('toConsumerShape')));
       expect(source, isNot(contains('legacyStructuredType')));
       expect(source, isNot(contains('legacyFlatProperties')));
@@ -7932,10 +8175,11 @@ Object x() => Text.rich(
       expect(r.dsl, 'Container(backgroundColor: 0xFF112233)');
     });
 
-    test('a compatible theme read through a decompose field passes clean',
-        () async {
-      final r = t.translate(
-        await parseExpressionFromSourceForTest('''
+    test(
+      'a compatible theme read through a decompose field passes clean',
+      () async {
+        final r = t.translate(
+          await parseExpressionFromSourceForTest('''
           $_nativeExpressionSourceStubs
           Object x(context) => Container(
             decoration: BoxDecoration(
@@ -7943,20 +8187,22 @@ Object x() => Text.rich(
             ),
           );
         '''),
-      );
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'Container(backgroundColor: data.theme.colorScheme.primary)',
-      );
-    });
+        );
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'Container(backgroundColor: data.theme.colorScheme.primary)',
+        );
+      },
+    );
 
-    test('a mismatched theme read through a decompose parameter is caught',
-        () async {
-      // `borderRadius` lowers through a constructor-parameter mapping to a
-      // length-typed flat property; a colour-kind theme read cannot feed it.
-      final r = t.translate(
-        await parseExpressionFromSourceForTest('''
+    test(
+      'a mismatched theme read through a decompose parameter is caught',
+      () async {
+        // `borderRadius` lowers through a constructor-parameter mapping to a
+        // length-typed flat property; a colour-kind theme read cannot feed it.
+        final r = t.translate(
+          await parseExpressionFromSourceForTest('''
           $_nativeExpressionSourceStubs
           Object x(context) => Container(
             decoration: BoxDecoration(
@@ -7966,15 +8212,15 @@ Object x() => Text.rich(
             ),
           );
         '''),
-      );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.propertyValueTypeMismatch),
-      );
-    });
+        );
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.propertyValueTypeMismatch),
+        );
+      },
+    );
 
-    test(
-        'coerces ternary integer branches bound through a decompose '
+    test('coerces ternary integer branches bound through a decompose '
         'parameter', () async {
       // The bound radius becomes the length-typed flat property's value, so
       // each ternary branch is coerced to a double literal like a direct
@@ -8095,7 +8341,8 @@ Object x() => Text.rich(
     });
 
     test('projectList(identity) refuses collection elements', () async {
-      const source = '''
+      const source =
+          '''
         $_nativeExpressionSourceStubs
         Object x() => Container(
           decoration: BoxDecoration(
@@ -8158,10 +8405,11 @@ Object x() => Text.rich(
       );
     });
 
-    test('matches owning-widget static factories by native receiver metadata',
-        () async {
-      final r = t.translate(
-        await parseExpressionFromSourceForTest('''
+    test(
+      'matches owning-widget static factories by native receiver metadata',
+      () async {
+        final r = t.translate(
+          await parseExpressionFromSourceForTest('''
           $_nativeExpressionSourceStubs
           Object x() => FilledButton(
             style: FilledButton.styleFrom(
@@ -8170,14 +8418,15 @@ Object x() => Text.rich(
             ),
           );
         '''),
-      );
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'FilledButton(backgroundColor: 0xFF112233, '
-        'padding: {left: 8.0, top: 8.0, right: 8.0, bottom: 8.0})',
-      );
-    });
+        );
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'FilledButton(backgroundColor: 0xFF112233, '
+          'padding: {left: 8.0, top: 8.0, right: 8.0, bottom: 8.0})',
+        );
+      },
+    );
 
     test('decomposes supported button ShapeBorder variants', () async {
       final cases = <String, String>{
@@ -8186,14 +8435,16 @@ Object x() => Text.rich(
             side: BorderSide(color: Color(0xFFAA0000), width: 2),
             borderRadius: BorderRadius.circular(14),
           )
-        ''': 'FilledButton(shape: {type: "rounded", '
-                'side: {color: 0xFFAA0000, width: 2.0}, borderRadius: 14})',
+        ''':
+            'FilledButton(shape: {type: "rounded", '
+            'side: {color: 0xFFAA0000, width: 2.0}, borderRadius: 14})',
         '''
           RoundedSuperellipseBorder(
             borderRadius: BorderRadius.circular(16),
           )
-        ''': 'FilledButton(shape: {type: "roundedSuperellipse", '
-                'borderRadius: 16})',
+        ''':
+            'FilledButton(shape: {type: "roundedSuperellipse", '
+            'borderRadius: 16})',
         'CircleBorder(eccentricity: 0.5)':
             'FilledButton(shape: {type: "circle", eccentricity: 0.5})',
         'StadiumBorder()': 'FilledButton(shape: {type: "stadium"})',
@@ -8201,29 +8452,32 @@ Object x() => Text.rich(
           ContinuousRectangleBorder(
             borderRadius: BorderRadius.circular(4),
           )
-        ''': 'FilledButton(shape: {type: "continuous", borderRadius: 4})',
+        ''':
+            'FilledButton(shape: {type: "continuous", borderRadius: 4})',
         '''
           BeveledRectangleBorder(
             side: BorderSide(style: BorderStyle.none),
           )
-        ''': 'FilledButton(shape: {type: "beveled", '
-                'side: {style: "none"}})',
+        ''':
+            'FilledButton(shape: {type: "beveled", '
+            'side: {style: "none"}})',
         '''
           LinearBorder(
             start: LinearBorderEdge(size: 0.5),
             end: LinearBorderEdge(alignment: -1),
           )
-        ''': 'FilledButton(shape: {type: "linear", '
-                'start: {size: 0.5}, end: {alignment: -1.0}})',
+        ''':
+            'FilledButton(shape: {type: "linear", '
+            'start: {size: 0.5}, end: {alignment: -1.0}})',
         'LinearBorder.bottom(size: 0.75, alignment: 1)':
             'FilledButton(shape: {type: "linear", '
-                'bottom: {size: 0.75, alignment: 1.0}})',
+            'bottom: {size: 0.75, alignment: 1.0}})',
         'StarBorder(points: 6, innerRadiusRatio: 0.5)':
             'FilledButton(shape: {type: "star", points: 6.0, '
-                'innerRadiusRatio: 0.5})',
+            'innerRadiusRatio: 0.5})',
         'StarBorder.polygon(sides: 5, rotation: 15)':
             'FilledButton(shape: {type: "polygon", sides: 5.0, '
-                'rotation: 15.0})',
+            'rotation: 15.0})',
       };
 
       for (final entry in cases.entries) {
@@ -8240,10 +8494,11 @@ Object x() => Text.rich(
       }
     });
 
-    test('decomposes TextStyle structured values and constructor parameters',
-        () async {
-      final r = t.translate(
-        await parseExpressionFromSourceForTest('''
+    test(
+      'decomposes TextStyle structured values and constructor parameters',
+      () async {
+        final r = t.translate(
+          await parseExpressionFromSourceForTest('''
           $_nativeExpressionSourceStubs
           Object x() => Text(
             text: "Hi",
@@ -8277,43 +8532,47 @@ Object x() => Text.rich(
             ),
           );
         '''),
-      );
-      expect(r.issues, isEmpty);
-      expect(
-        r.dsl,
-        'Text(text: "Hi", inherit: false, fontStyle: "italic", '
-        'locale: "zh-Hant-TW", foreground: {color: 0xFF112233}, '
-        'shadows: [{color: 0x55000000, blurRadius: 4.0, '
-        'offset: {x: 0.0, y: 2.0}}], '
-        'fontFeatures: [{feature: "kern", value: 1}, '
-        '{feature: "liga", value: 0}], '
-        'fontVariations: [{axis: "wght", value: 700.0}], '
-        'decoration: ["underline", "overline"], '
-        'fontFamilyFallback: ["Inter", "SF Pro"], '
-        'fontPackage: "brand_fonts")',
-      );
-    });
+        );
+        expect(r.issues, isEmpty);
+        expect(
+          r.dsl,
+          'Text(text: "Hi", inherit: false, fontStyle: "italic", '
+          'locale: "zh-Hant-TW", foreground: {color: 0xFF112233}, '
+          'shadows: [{color: 0x55000000, blurRadius: 4.0, '
+          'offset: {x: 0.0, y: 2.0}}], '
+          'fontFeatures: [{feature: "kern", value: 1}, '
+          '{feature: "liga", value: 0}], '
+          'fontVariations: [{axis: "wght", value: 700.0}], '
+          'decoration: ["underline", "overline"], '
+          'fontFamilyFallback: ["Inter", "SF Pro"], '
+          'fontPackage: "brand_fonts")',
+        );
+      },
+    );
 
     test('accepts only the resolved TextDecoration list item type', () async {
-      final cases = <({
-        String type,
-        String first,
-        String second,
-        bool accepted,
-      })>[
-        (
-          type: 'TextDecoration',
-          first: 'TextDecoration.underline',
-          second: 'TextDecoration.overline',
-          accepted: true,
-        ),
-        (
-          type: 'Shadow',
-          first: 'const Shadow()',
-          second: 'const Shadow()',
-          accepted: false,
-        ),
-      ];
+      final cases =
+          <
+            ({
+              String type,
+              String first,
+              String second,
+              bool accepted,
+            })
+          >[
+            (
+              type: 'TextDecoration',
+              first: 'TextDecoration.underline',
+              second: 'TextDecoration.overline',
+              accepted: true,
+            ),
+            (
+              type: 'Shadow',
+              first: 'const Shadow()',
+              second: 'const Shadow()',
+              accepted: false,
+            ),
+          ];
 
       for (final entry in cases) {
         final probe = await parseMethodExpressionFromSourceForTest(
@@ -8365,9 +8624,11 @@ class P {
       }
     });
 
-    test('TextDecoration.combine refuses wrapped collection elements',
-        () async {
-      const source = '''
+    test(
+      'TextDecoration.combine refuses wrapped collection elements',
+      () async {
+        const source =
+            '''
 $_nativeExpressionSourceStubs
 Object x() => Text(
   text: "Hi",
@@ -8377,27 +8638,29 @@ Object x() => Text(
     ])),
   ),
 );''';
-      final r = t.translate(
-        await parseExpressionFromSourceForTest(source),
-        sourcePath: 'lib/text_decoration_collection.dart',
-        lineInfo: LineInfo.fromContent(source),
-      );
+        final r = t.translate(
+          await parseExpressionFromSourceForTest(source),
+          sourcePath: 'lib/text_decoration_collection.dart',
+          lineInfo: LineInfo.fromContent(source),
+        );
 
-      expect(r.issues, hasLength(1));
-      expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
-      expect(
-        r.issues.single.location,
-        startsWith(
-          'lib/text_decoration_collection.dart:'
-          '${_sourceLineOf(source, 'for (final decoration in')}:',
-        ),
-      );
-    });
+        expect(r.issues, hasLength(1));
+        expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+        expect(
+          r.issues.single.location,
+          startsWith(
+            'lib/text_decoration_collection.dart:'
+            '${_sourceLineOf(source, 'for (final decoration in')}:',
+          ),
+        );
+      },
+    );
 
-    test('diagnoses unsupported Paint setters instead of dropping them',
-        () async {
-      final r = t.translate(
-        await parseExpressionFromSourceForTest('''
+    test(
+      'diagnoses unsupported Paint setters instead of dropping them',
+      () async {
+        final r = t.translate(
+          await parseExpressionFromSourceForTest('''
           $_nativeExpressionSourceStubs
           Object x() => Text(
             text: "Hi",
@@ -8406,20 +8669,20 @@ Object x() => Text(
             ),
           );
         '''),
-      );
-      expect(r.dsl, 'Text(text: "Hi")');
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-      expect(
-        r.issues.map((i) => i.message),
-        contains(contains('Paint.style is not supported')),
-      );
-    });
+        );
+        expect(r.dsl, 'Text(text: "Hi")');
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+        expect(
+          r.issues.map((i) => i.message),
+          contains(contains('Paint.style is not supported')),
+        );
+      },
+    );
 
-    test(
-        'a style value outside the literal constructor form names the '
+    test('a style value outside the literal constructor form names the '
         'decompose remedy, not a missing property', () async {
       // A whole style object the recipe cannot match (a theme read, a
       // variable, a function result) used to fall through to the generic
@@ -8474,10 +8737,11 @@ Object x() => Text(
       );
     });
 
-    test('diagnoses unsupported custom button shapes instead of dropping them',
-        () async {
-      final r = t.translate(
-        await parseExpressionFromSourceForTest('''
+    test(
+      'diagnoses unsupported custom button shapes instead of dropping them',
+      () async {
+        final r = t.translate(
+          await parseExpressionFromSourceForTest('''
           $_nativeExpressionSourceStubs
           class CustomBorder extends OutlinedBorder {
             const CustomBorder();
@@ -8487,17 +8751,18 @@ Object x() => Text(
             style: FilledButton.styleFrom(shape: CustomBorder()),
           );
         '''),
-      );
-      expect(r.dsl, 'FilledButton()');
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
-      expect(
-        r.issues.map((i) => i.message),
-        contains(contains('Unsupported ShapeBorder/OutlinedBorder value')),
-      );
-    });
+        );
+        expect(r.dsl, 'FilledButton()');
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+        expect(
+          r.issues.map((i) => i.message),
+          contains(contains('Unsupported ShapeBorder/OutlinedBorder value')),
+        );
+      },
+    );
 
     test('diagnoses unmapped native fields instead of dropping them', () async {
       final r = t.translate(
@@ -8519,53 +8784,59 @@ Object x() => Text(
       );
     });
 
-    test('diagnoses unknown native arguments instead of dropping them',
-        () async {
-      final r = t.translate(
-        await parseExpressionFromSourceForTest('''
+    test(
+      'diagnoses unknown native arguments instead of dropping them',
+      () async {
+        final r = t.translate(
+          await parseExpressionFromSourceForTest('''
           $_nativeExpressionSourceStubs
           Object x() => Container(
             decoration: BoxDecoration(foo: 1),
           );
         '''),
-      );
-      expect(r.dsl, 'Container()');
-      expect(r.issues.map((i) => i.code), contains(IssueCode.unknownProperty));
-      expect(
-        r.issues.map((i) => i.message),
-        contains(contains("Native decomposition argument 'foo'")),
-      );
-    });
+        );
+        expect(r.dsl, 'Container()');
+        expect(
+          r.issues.map((i) => i.code),
+          contains(IssueCode.unknownProperty),
+        );
+        expect(
+          r.issues.map((i) => i.message),
+          contains(contains("Native decomposition argument 'foo'")),
+        );
+      },
+    );
 
-    test('diagnoses relevant recipes missing native construction metadata',
-        () async {
-      final translator = ExpressionTranslator.forTesting(
-        catalog: _nativeExpressionCatalog(omitContainerConstruction: true),
-        helpers: HelperRegistry(),
-        frameworkLibraryPredicate: syntheticFrameworkLibrary,
-      );
-      final r = translator.translate(
-        await parseExpressionFromSourceForTest('''
+    test(
+      'diagnoses relevant recipes missing native construction metadata',
+      () async {
+        final translator = ExpressionTranslator.forTesting(
+          catalog: _nativeExpressionCatalog(omitContainerConstruction: true),
+          helpers: HelperRegistry(),
+          frameworkLibraryPredicate: syntheticFrameworkLibrary,
+        );
+        final r = translator.translate(
+          await parseExpressionFromSourceForTest('''
           $_nativeExpressionSourceStubs
           Object x() => Container(
             decoration: BoxDecoration(color: Color(0xFF112233)),
           );
         '''),
-      );
+        );
 
-      expect(r.dsl, 'Container()');
-      expect(
-        r.issues.map((i) => i.message),
-        contains(contains('missing native construction metadata')),
-      );
-      expect(
-        r.issues.map((i) => i.message),
-        isNot(contains(contains("Property 'decoration' is not declared"))),
-      );
-    });
+        expect(r.dsl, 'Container()');
+        expect(
+          r.issues.map((i) => i.message),
+          contains(contains('missing native construction metadata')),
+        );
+        expect(
+          r.issues.map((i) => i.message),
+          isNot(contains(contains("Property 'decoration' is not declared"))),
+        );
+      },
+    );
 
-    test(
-        'a non-recipe structured value in a decompose-only slot reports the '
+    test('a non-recipe structured value in a decompose-only slot reports the '
         'literal-constructor remedy', () async {
       // Foo() matches no decomposition recipe. The slot itself is real, so
       // the report names the constructor the recipe decomposes instead of
@@ -8620,26 +8891,28 @@ Object x() => Text(
       helpers: HelperRegistry(),
     );
 
-    test('picks the entry whose flutterType matches the resolved type',
-        () async {
-      // Inline class declaration so the analyzer resolves FilledButton
-      // to a class element under package:restage_codegen/_expr_probe.dart
-      // — which matches the second catalog entry.
-      const source = '''
+    test(
+      'picks the entry whose flutterType matches the resolved type',
+      () async {
+        // Inline class declaration so the analyzer resolves FilledButton
+        // to a class element under package:restage_codegen/_expr_probe.dart
+        // — which matches the second catalog entry.
+        const source = '''
         class FilledButton {
           const FilledButton({this.text});
           final String? text;
         }
         Object x() => FilledButton(text: 'go');
       ''';
-      final expr = await parseExpressionFromSourceForTest(source);
-      final r = t.translate(expr);
-      expect(r.issues, isEmpty);
-      // The second entry declares `text:`; the first declares `label:`.
-      // A successful translation against the second entry confirms the
-      // resolved-type path picked the right one.
-      expect(r.dsl, 'FilledButton(text: "go")');
-    });
+        final expr = await parseExpressionFromSourceForTest(source);
+        final r = t.translate(expr);
+        expect(r.issues, isEmpty);
+        // The second entry declares `text:`; the first declares `label:`.
+        // A successful translation against the second entry confirms the
+        // resolved-type path picked the right one.
+        expect(r.dsl, 'FilledButton(text: "go")');
+      },
+    );
 
     test('preserves named-constructor suffix in flutterType lookup', () async {
       final namedCtorCatalog = probeCatalogWith([
@@ -8673,16 +8946,20 @@ Object x() => Text(
       expect(r.dsl, 'ImageAsset(source: "hero.png")');
     });
 
-    test('falls back to name-based lookup when resolved type is unavailable',
-        () async {
-      // parseExpressionForTest uses an unresolved AST — the analyzer
-      // can't tie FilledButton to a class element. The lookup falls
-      // back to name and picks the first catalog entry by priority,
-      // which expects `label:`.
-      final r = t.translate(await parseExpressionForTest("FilledButton('go')"));
-      expect(r.issues, isEmpty);
-      expect(r.dsl, 'FilledButton(label: "go")');
-    });
+    test(
+      'falls back to name-based lookup when resolved type is unavailable',
+      () async {
+        // parseExpressionForTest uses an unresolved AST — the analyzer
+        // can't tie FilledButton to a class element. The lookup falls
+        // back to name and picks the first catalog entry by priority,
+        // which expects `label:`.
+        final r = t.translate(
+          await parseExpressionForTest("FilledButton('go')"),
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, 'FilledButton(label: "go")');
+      },
+    );
   });
 
   group('recipe-path proof (translator recipe infrastructure)', () {
@@ -8732,8 +9009,10 @@ Catalog _textRichCatalog() {
   final decorationField = WireId('p9206');
 
   final fontStyleShape = _enumShape('FontStyle');
-  final decorationShape =
-      _scalarShape(PropertyType.textDecoration, symbol: 'TextDecoration');
+  final decorationShape = _scalarShape(
+    PropertyType.textDecoration,
+    symbol: 'TextDecoration',
+  );
 
   final widgets = [
     WidgetEntry(
@@ -8939,41 +9218,41 @@ Catalog _textRichCatalog() {
 }
 
 Catalog _textAlignCatalog() => probeCatalogWith([
-      WidgetEntry(
-        wireId: WireId('w9300'),
-        name: 'Text',
-        library: WidgetLibrary.core,
-        category: WidgetCategory.decoration,
+  WidgetEntry(
+    wireId: WireId('w9300'),
+    name: 'Text',
+    library: WidgetLibrary.core,
+    category: WidgetCategory.decoration,
+    description: '',
+    flutterType: 'package:flutter/src/widgets/text.dart#Text',
+    childrenSlot: ChildrenSlot.none,
+    properties: [
+      PropertyEntry(
+        wireId: WireId('p9300'),
+        name: 'text',
+        type: PropertyType.string,
         description: '',
-        flutterType: 'package:flutter/src/widgets/text.dart#Text',
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          PropertyEntry(
-            wireId: WireId('p9300'),
-            name: 'text',
-            type: PropertyType.string,
-            description: '',
-            required: true,
-            positional: true,
-            valueShape: const ScalarShape(propertyType: PropertyType.string),
-          ),
-          PropertyEntry(
-            wireId: WireId('p9301'),
-            name: 'textAlign',
-            type: PropertyType.enumValue,
-            description: '',
-            enumType: 'TextAlign',
-            valueShape: const EnumShape(
-              propertyType: PropertyType.enumValue,
-              enumRef: DartTypeRef(
-                libraryUri: 'dart:ui',
-                symbolName: 'TextAlign',
-              ),
-            ),
-          ),
-        ],
+        required: true,
+        positional: true,
+        valueShape: const ScalarShape(propertyType: PropertyType.string),
       ),
-    ]);
+      PropertyEntry(
+        wireId: WireId('p9301'),
+        name: 'textAlign',
+        type: PropertyType.enumValue,
+        description: '',
+        enumType: 'TextAlign',
+        valueShape: const EnumShape(
+          propertyType: PropertyType.enumValue,
+          enumRef: DartTypeRef(
+            libraryUri: 'dart:ui',
+            symbolName: 'TextAlign',
+          ),
+        ),
+      ),
+    ],
+  ),
+]);
 
 // RestagePager (alias target) + a minimal SizedBox child entry, so a
 // `PageView(children: [SizedBox()])` aliases to a RestagePager node whose
@@ -8981,80 +9260,79 @@ Catalog _textAlignCatalog() => probeCatalogWith([
 // (children/initialPage/viewportFraction/scrollDirection/pageSnapping/
 // onPageChanged) including the `scrollDirection` enumByName<Axis> slot.
 Catalog _pagerCatalog() => probeCatalogWith([
-      WidgetEntry(
-        wireId: WireId('w9400'),
-        name: 'RestagePager',
-        library: WidgetLibrary.core,
-        category: WidgetCategory.action,
+  WidgetEntry(
+    wireId: WireId('w9400'),
+    name: 'RestagePager',
+    library: WidgetLibrary.core,
+    category: WidgetCategory.action,
+    description: '',
+    flutterType:
+        'package:restage_material/src/widgets/restage_pager.dart#RestagePager',
+    childrenSlot: ChildrenSlot.list,
+    properties: [
+      prop('children', PropertyType.widgetList, required: true),
+      prop('initialPage', PropertyType.integer),
+      prop('viewportFraction', PropertyType.real),
+      PropertyEntry(
+        wireId: WireId('p9403'),
+        name: 'scrollDirection',
+        type: PropertyType.enumValue,
         description: '',
-        flutterType:
-            'package:restage_material/src/widgets/restage_pager.dart#RestagePager',
-        childrenSlot: ChildrenSlot.list,
-        properties: [
-          prop('children', PropertyType.widgetList, required: true),
-          prop('initialPage', PropertyType.integer),
-          prop('viewportFraction', PropertyType.real),
-          PropertyEntry(
-            wireId: WireId('p9403'),
-            name: 'scrollDirection',
-            type: PropertyType.enumValue,
-            description: '',
-            enumType: 'Axis',
-            valueShape: const EnumShape(
-              propertyType: PropertyType.enumValue,
-              enumRef: DartTypeRef(
-                libraryUri: 'package:flutter/src/painting/basic_types.dart',
-                symbolName: 'Axis',
-              ),
-            ),
+        enumType: 'Axis',
+        valueShape: const EnumShape(
+          propertyType: PropertyType.enumValue,
+          enumRef: DartTypeRef(
+            libraryUri: 'package:flutter/src/painting/basic_types.dart',
+            symbolName: 'Axis',
           ),
-          prop('pageSnapping', PropertyType.boolean),
-          prop('onPageChanged', PropertyType.event),
-        ],
+        ),
       ),
-      entry(
-        name: 'SizedBox',
-        properties: const [],
-        flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
-      ),
-    ]);
+      prop('pageSnapping', PropertyType.boolean),
+      prop('onPageChanged', PropertyType.event),
+    ],
+  ),
+  entry(
+    name: 'SizedBox',
+    properties: const [],
+    flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
+  ),
+]);
 
 Catalog _draggableSheetCatalog({
   bool includeChild = true,
   bool includeController = false,
   bool includeInitialChildSize = true,
-}) =>
-    probeCatalogWith([
-      WidgetEntry(
-        wireId: WireId('w9410'),
-        name: 'RestageDraggableSheet',
-        library: WidgetLibrary.material,
-        category: WidgetCategory.action,
-        description: '',
-        flutterType: 'package:restage_material/src/widgets/'
-            'restage_draggable_sheet.dart#RestageDraggableSheet',
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          if (includeChild) prop('child', PropertyType.widget, required: true),
-          if (includeController) prop('controller', PropertyType.string),
-          if (includeInitialChildSize)
-            prop('initialChildSize', PropertyType.real),
-          prop('minChildSize', PropertyType.real),
-          prop('maxChildSize', PropertyType.real),
-          prop('expand', PropertyType.boolean),
-          prop('snap', PropertyType.boolean),
-          prop('snapAnimationDuration', PropertyType.duration),
-          prop('expanded', PropertyType.boolean),
-          prop('expandDuration', PropertyType.duration),
-          prop('expandCurve', PropertyType.curve),
-        ],
-      ),
-      entry(
-        name: 'SizedBox',
-        properties: const [],
-        flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
-      ),
-    ]);
+}) => probeCatalogWith([
+  WidgetEntry(
+    wireId: WireId('w9410'),
+    name: 'RestageDraggableSheet',
+    library: WidgetLibrary.material,
+    category: WidgetCategory.action,
+    description: '',
+    flutterType:
+        'package:restage_material/src/widgets/'
+        'restage_draggable_sheet.dart#RestageDraggableSheet',
+    childrenSlot: ChildrenSlot.none,
+    properties: [
+      if (includeChild) prop('child', PropertyType.widget, required: true),
+      if (includeController) prop('controller', PropertyType.string),
+      if (includeInitialChildSize) prop('initialChildSize', PropertyType.real),
+      prop('minChildSize', PropertyType.real),
+      prop('maxChildSize', PropertyType.real),
+      prop('expand', PropertyType.boolean),
+      prop('snap', PropertyType.boolean),
+      prop('snapAnimationDuration', PropertyType.duration),
+      prop('expanded', PropertyType.boolean),
+      prop('expandDuration', PropertyType.duration),
+      prop('expandCurve', PropertyType.curve),
+    ],
+  ),
+  entry(
+    name: 'SizedBox',
+    properties: const [],
+    flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
+  ),
+]);
 
 // Builds the exact `items: [...]` DSL the single-select emitter produces from
 // an ordered list of `(value, label)` pairs — `[{ value: "v", label: "l" }, …]`
@@ -9074,67 +9352,70 @@ String _optionListDsl(List<(String value, String label)> options) {
 // out the catalog. The committed catalog stamps these `sinceVersion: 2`; the
 // alias path does not read sinceVersion, so the default baseline is fine here.
 Catalog _singleSelectCatalog() => probeCatalogWith([
-      WidgetEntry(
-        wireId: WireId('w9420'),
-        name: 'RestageRadioGroupString',
-        library: WidgetLibrary.material,
-        category: WidgetCategory.action,
-        description: '',
-        flutterType: 'package:restage_material/src/widgets/'
-            'restage_radio_group.dart#RestageRadioGroup<String>',
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          prop('items', PropertyType.selectionOptionList, required: true),
-          prop('selected', PropertyType.string),
-          prop('onChanged', PropertyType.event),
-        ],
-      ),
-      WidgetEntry(
-        wireId: WireId('w9421'),
-        name: 'RestageDropdownString',
-        library: WidgetLibrary.material,
-        category: WidgetCategory.action,
-        description: '',
-        flutterType: 'package:restage_material/src/widgets/'
-            'restage_dropdown.dart#RestageDropdown<String>',
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          prop('items', PropertyType.selectionOptionList, required: true),
-          prop('selected', PropertyType.string),
-          prop('onChanged', PropertyType.event),
-        ],
-      ),
-      entry(
-        name: 'SizedBox',
-        properties: const [],
-        flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
-      ),
-    ]);
+  WidgetEntry(
+    wireId: WireId('w9420'),
+    name: 'RestageRadioGroupString',
+    library: WidgetLibrary.material,
+    category: WidgetCategory.action,
+    description: '',
+    flutterType:
+        'package:restage_material/src/widgets/'
+        'restage_radio_group.dart#RestageRadioGroup<String>',
+    childrenSlot: ChildrenSlot.none,
+    properties: [
+      prop('items', PropertyType.selectionOptionList, required: true),
+      prop('selected', PropertyType.string),
+      prop('onChanged', PropertyType.event),
+    ],
+  ),
+  WidgetEntry(
+    wireId: WireId('w9421'),
+    name: 'RestageDropdownString',
+    library: WidgetLibrary.material,
+    category: WidgetCategory.action,
+    description: '',
+    flutterType:
+        'package:restage_material/src/widgets/'
+        'restage_dropdown.dart#RestageDropdown<String>',
+    childrenSlot: ChildrenSlot.none,
+    properties: [
+      prop('items', PropertyType.selectionOptionList, required: true),
+      prop('selected', PropertyType.string),
+      prop('onChanged', PropertyType.event),
+    ],
+  ),
+  entry(
+    name: 'SizedBox',
+    properties: const [],
+    flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
+  ),
+]);
 
 Catalog _toggleButtonsCatalog() => probeCatalogWith([
-      WidgetEntry(
-        wireId: WireId('w9430'),
-        name: 'RestageToggleButtons',
-        library: WidgetLibrary.material,
-        category: WidgetCategory.input,
-        description: '',
-        flutterType: 'package:restage_material/src/widgets/'
-            'restage_toggle_buttons.dart#RestageToggleButtons',
-        childrenSlot: ChildrenSlot.list,
-        properties: [
-          prop('children', PropertyType.widgetList, required: true),
-          prop('isSelected', PropertyType.booleanList, required: true),
-          prop('onPressed', PropertyType.event),
-        ],
-      ),
-      entry(
-        name: 'Text',
-        category: WidgetCategory.decoration,
-        properties: [
-          prop('text', PropertyType.string, required: true, positional: true),
-        ],
-      ),
-    ]);
+  WidgetEntry(
+    wireId: WireId('w9430'),
+    name: 'RestageToggleButtons',
+    library: WidgetLibrary.material,
+    category: WidgetCategory.input,
+    description: '',
+    flutterType:
+        'package:restage_material/src/widgets/'
+        'restage_toggle_buttons.dart#RestageToggleButtons',
+    childrenSlot: ChildrenSlot.list,
+    properties: [
+      prop('children', PropertyType.widgetList, required: true),
+      prop('isSelected', PropertyType.booleanList, required: true),
+      prop('onPressed', PropertyType.event),
+    ],
+  ),
+  entry(
+    name: 'Text',
+    category: WidgetCategory.decoration,
+    properties: [
+      prop('text', PropertyType.string, required: true, positional: true),
+    ],
+  ),
+]);
 
 // RestageSegmentedButtonString (the alias target) mirroring the real material
 // catalog surface: a required `items` selectionOptionList, a `selected` string
@@ -9142,88 +9423,89 @@ Catalog _toggleButtonsCatalog() => probeCatalogWith([
 // entry rounds out the catalog. The alias path does not read sinceVersion, so
 // the default baseline is fine here.
 Catalog _segmentedButtonCatalog() => probeCatalogWith([
-      WidgetEntry(
-        wireId: WireId('w9440'),
-        name: 'RestageSegmentedButtonString',
-        library: WidgetLibrary.material,
-        category: WidgetCategory.input,
+  WidgetEntry(
+    wireId: WireId('w9440'),
+    name: 'RestageSegmentedButtonString',
+    library: WidgetLibrary.material,
+    category: WidgetCategory.input,
+    description: '',
+    flutterType:
+        'package:restage_material/src/widgets/'
+        'restage_segmented_button.dart#RestageSegmentedButton<String>',
+    childrenSlot: ChildrenSlot.none,
+    properties: [
+      prop('items', PropertyType.selectionOptionList, required: true),
+      prop('selected', PropertyType.stringList),
+      // The settled selection is the first list-valued event; the
+      // callbackSignature carries the `ValueChanged<List<String>>` shape
+      // the typed-handler path now accepts.
+      const PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'onChanged',
+        type: PropertyType.event,
         description: '',
-        flutterType: 'package:restage_material/src/widgets/'
-            'restage_segmented_button.dart#RestageSegmentedButton<String>',
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          prop('items', PropertyType.selectionOptionList, required: true),
-          prop('selected', PropertyType.stringList),
-          // The settled selection is the first list-valued event; the
-          // callbackSignature carries the `ValueChanged<List<String>>` shape
-          // the typed-handler path now accepts.
-          const PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'onChanged',
-            type: PropertyType.event,
-            description: '',
-            callbackSignature: 'ValueChanged<List<String>>',
-          ),
-          prop('multiSelectionEnabled', PropertyType.boolean),
-          prop('emptySelectionAllowed', PropertyType.boolean),
-        ],
+        callbackSignature: 'ValueChanged<List<String>>',
       ),
-      entry(
-        name: 'SizedBox',
-        properties: const [],
-        flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
-      ),
-    ]);
+      prop('multiSelectionEnabled', PropertyType.boolean),
+      prop('emptySelectionAllowed', PropertyType.boolean),
+    ],
+  ),
+  entry(
+    name: 'SizedBox',
+    properties: const [],
+    flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
+  ),
+]);
 
 // The event-slot shapes the unwrap serves: a `ValueChanged` callback property
 // and a built-in event slot. `label` is the non-event slot it leaves alone.
 Catalog _eventSlotCatalog() => probeCatalogWith([
-      WidgetEntry(
-        wireId: WireId('w9450'),
-        name: 'CompactList',
-        library: WidgetLibrary.core,
-        category: WidgetCategory.layout,
+  WidgetEntry(
+    wireId: WireId('w9450'),
+    name: 'CompactList',
+    library: WidgetLibrary.core,
+    category: WidgetCategory.layout,
+    description: '',
+    flutterType: 'package:apps_examples/_expr_probe.dart#CompactList',
+    childrenSlot: ChildrenSlot.none,
+    properties: [
+      const PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'onReorder',
+        type: PropertyType.event,
         description: '',
-        flutterType: 'package:apps_examples/_expr_probe.dart#CompactList',
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          const PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'onReorder',
-            type: PropertyType.event,
-            description: '',
-            callbackSignature: 'ValueChanged<List<int>>',
-          ),
-          prop('label', PropertyType.string),
-        ],
+        callbackSignature: 'ValueChanged<List<int>>',
       ),
-      entry(
-        name: 'GestureDetector',
-        properties: [
-          prop('onTap', PropertyType.event),
-          prop('child', PropertyType.widget),
-        ],
-        flutterType:
-            'package:flutter/src/widgets/gesture_detector.dart#GestureDetector',
-      ),
-      entry(
-        name: 'Switch',
-        library: WidgetLibrary.material,
-        category: WidgetCategory.input,
-        properties: [
-          prop('value', PropertyType.boolean),
-          prop('onChanged', PropertyType.event),
-        ],
-        flutterType: 'package:flutter/src/material/switch.dart#Switch',
-      ),
-      entry(
-        name: 'Text',
-        properties: [
-          prop('text', PropertyType.string, required: true, positional: true),
-        ],
-        flutterType: 'package:flutter/src/widgets/text.dart#Text',
-      ),
-    ]);
+      prop('label', PropertyType.string),
+    ],
+  ),
+  entry(
+    name: 'GestureDetector',
+    properties: [
+      prop('onTap', PropertyType.event),
+      prop('child', PropertyType.widget),
+    ],
+    flutterType:
+        'package:flutter/src/widgets/gesture_detector.dart#GestureDetector',
+  ),
+  entry(
+    name: 'Switch',
+    library: WidgetLibrary.material,
+    category: WidgetCategory.input,
+    properties: [
+      prop('value', PropertyType.boolean),
+      prop('onChanged', PropertyType.event),
+    ],
+    flutterType: 'package:flutter/src/material/switch.dart#Switch',
+  ),
+  entry(
+    name: 'Text',
+    properties: [
+      prop('text', PropertyType.string, required: true, positional: true),
+    ],
+    flutterType: 'package:flutter/src/widgets/text.dart#Text',
+  ),
+]);
 String _gradientStopsSource(
   String gradientName, {
   required String declarations,
@@ -9616,15 +9898,14 @@ CatalogValueShape _scalarShape(PropertyType propertyType, {String? symbol}) =>
     );
 
 CatalogValueShape _enumShape(String symbol) => EnumShape(
-      propertyType: PropertyType.enumValue,
-      enumRef: DartTypeRef(libraryUri: _nativeSourceUri, symbolName: symbol),
-    );
+  propertyType: PropertyType.enumValue,
+  enumRef: DartTypeRef(libraryUri: _nativeSourceUri, symbolName: symbol),
+);
 
 CatalogValueShape _listShape(
   PropertyType propertyType,
   CatalogValueShape itemShape,
-) =>
-    ListShape(propertyType: propertyType, itemShape: itemShape);
+) => ListShape(propertyType: propertyType, itemShape: itemShape);
 
 Catalog _nativeExpressionCatalog({
   bool omitContainerConstruction = false,
@@ -9701,8 +9982,10 @@ Catalog _nativeExpressionCatalog({
     PropertyType.fontVariationList,
     _scalarShape(PropertyType.fontVariationList, symbol: 'FontVariation'),
   );
-  final decorationShape =
-      _scalarShape(PropertyType.textDecoration, symbol: 'TextDecoration');
+  final decorationShape = _scalarShape(
+    PropertyType.textDecoration,
+    symbol: 'TextDecoration',
+  );
   final fontFamilyFallbackShape = _listShape(
     PropertyType.stringList,
     _scalarShape(PropertyType.string),
@@ -10047,24 +10330,22 @@ PropertyEntry _nativeProperty({
   required String name,
   required PropertyType type,
   CatalogValueShape? valueShape,
-}) =>
-    PropertyEntry(
-      wireId: wireId,
-      name: name,
-      type: type,
-      description: '',
-      valueShape: valueShape ?? ScalarShape(propertyType: type),
-    );
+}) => PropertyEntry(
+  wireId: wireId,
+  name: name,
+  type: type,
+  description: '',
+  valueShape: valueShape ?? ScalarShape(propertyType: type),
+);
 
 DecompositionFieldMapping _nativeFieldMapping(
   WireId fieldRef,
   WireId propertyRef,
-) =>
-    DecompositionFieldMapping(
-      fieldRef: fieldRef,
-      propertyRef: propertyRef,
-      transform: const IdentityTransform(),
-    );
+) => DecompositionFieldMapping(
+  fieldRef: fieldRef,
+  propertyRef: propertyRef,
+  transform: const IdentityTransform(),
+);
 
 StructuredEntry _boxDecorationStructured({
   required WireIdRef boxRef,
@@ -10076,33 +10357,80 @@ StructuredEntry _boxDecorationStructured({
   required WireId borderRadiusField,
   required WireId boxShadowField,
   required WireId gradientField,
-}) =>
-    StructuredEntry(
-      wireId: boxRef.wireId,
-      name: 'NativeDecoration',
-      library: WidgetLibrary.core,
-      description: '',
-      sourceType: '$_nativeSourceUri#BoxDecoration',
-      fields: [
-        _nativeField(
-          wireId: colorField,
-          name: 'color',
-          type: PropertyType.color,
+}) => StructuredEntry(
+  wireId: boxRef.wireId,
+  name: 'NativeDecoration',
+  library: WidgetLibrary.core,
+  description: '',
+  sourceType: '$_nativeSourceUri#BoxDecoration',
+  fields: [
+    _nativeField(
+      wireId: colorField,
+      name: 'color',
+      type: PropertyType.color,
+    ),
+    _nativeField(
+      wireId: borderRadiusField,
+      name: 'borderRadius',
+      type: PropertyType.structured,
+      valueShape: StructuredShape(
+        propertyType: PropertyType.structured,
+        structuredRef: borderRadiusRef,
+      ),
+      structuredRef: borderRadiusRef,
+    ),
+    _nativeField(
+      wireId: boxShadowField,
+      name: 'boxShadow',
+      type: PropertyType.boxShadowList,
+      valueShape: ListShape(
+        propertyType: PropertyType.boxShadowList,
+        itemShape: StructuredShape(
+          propertyType: PropertyType.structured,
+          structuredRef: boxShadowRef,
         ),
-        _nativeField(
-          wireId: borderRadiusField,
+        wireCodec: CatalogWireCodec.rfwBoxShadowList,
+      ),
+    ),
+    _nativeField(
+      wireId: gradientField,
+      name: 'gradient',
+      type: PropertyType.gradient,
+      valueShape: StructuredShape(
+        propertyType: PropertyType.structured,
+        structuredRef: linearGradientRef,
+      ),
+      structuredRef: linearGradientRef,
+    ),
+  ],
+  variants: [
+    ConstructorVariant(
+      wireId: boxCtorRef.wireId,
+      argMappings: {
+        'color': ArgMapping(targetFields: [colorField]),
+        'borderRadius': ArgMapping(targetFields: [borderRadiusField]),
+        'boxShadow': ArgMapping(targetFields: [boxShadowField]),
+        'gradient': ArgMapping(targetFields: [gradientField]),
+      },
+      parameters: [
+        _namedNativeParam(
+          wireId: WireId('a0002'),
+          name: 'color',
+          propertyType: PropertyType.color,
+        ),
+        _namedNativeParam(
+          wireId: WireId('a0003'),
           name: 'borderRadius',
-          type: PropertyType.structured,
+          propertyType: PropertyType.structured,
           valueShape: StructuredShape(
             propertyType: PropertyType.structured,
             structuredRef: borderRadiusRef,
           ),
-          structuredRef: borderRadiusRef,
         ),
-        _nativeField(
-          wireId: boxShadowField,
+        _namedNativeParam(
+          wireId: WireId('a0004'),
           name: 'boxShadow',
-          type: PropertyType.boxShadowList,
+          propertyType: PropertyType.boxShadowList,
           valueShape: ListShape(
             propertyType: PropertyType.boxShadowList,
             itemShape: StructuredShape(
@@ -10112,67 +10440,19 @@ StructuredEntry _boxDecorationStructured({
             wireCodec: CatalogWireCodec.rfwBoxShadowList,
           ),
         ),
-        _nativeField(
-          wireId: gradientField,
+        _namedNativeParam(
+          wireId: WireId('a0005'),
           name: 'gradient',
-          type: PropertyType.gradient,
+          propertyType: PropertyType.structured,
           valueShape: StructuredShape(
             propertyType: PropertyType.structured,
             structuredRef: linearGradientRef,
           ),
-          structuredRef: linearGradientRef,
         ),
       ],
-      variants: [
-        ConstructorVariant(
-          wireId: boxCtorRef.wireId,
-          argMappings: {
-            'color': ArgMapping(targetFields: [colorField]),
-            'borderRadius': ArgMapping(targetFields: [borderRadiusField]),
-            'boxShadow': ArgMapping(targetFields: [boxShadowField]),
-            'gradient': ArgMapping(targetFields: [gradientField]),
-          },
-          parameters: [
-            _namedNativeParam(
-              wireId: WireId('a0002'),
-              name: 'color',
-              propertyType: PropertyType.color,
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0003'),
-              name: 'borderRadius',
-              propertyType: PropertyType.structured,
-              valueShape: StructuredShape(
-                propertyType: PropertyType.structured,
-                structuredRef: borderRadiusRef,
-              ),
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0004'),
-              name: 'boxShadow',
-              propertyType: PropertyType.boxShadowList,
-              valueShape: ListShape(
-                propertyType: PropertyType.boxShadowList,
-                itemShape: StructuredShape(
-                  propertyType: PropertyType.structured,
-                  structuredRef: boxShadowRef,
-                ),
-                wireCodec: CatalogWireCodec.rfwBoxShadowList,
-              ),
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0005'),
-              name: 'gradient',
-              propertyType: PropertyType.structured,
-              valueShape: StructuredShape(
-                propertyType: PropertyType.structured,
-                structuredRef: linearGradientRef,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+    ),
+  ],
+);
 
 StructuredField _nativeField({
   required WireId wireId,
@@ -10180,55 +10460,53 @@ StructuredField _nativeField({
   required PropertyType type,
   CatalogValueShape? valueShape,
   WireIdRef? structuredRef,
-}) =>
-    StructuredField(
-      wireId: wireId,
-      name: name,
-      type: type,
-      description: '',
-      structuredRef: structuredRef,
-      valueShape: valueShape ?? ScalarShape(propertyType: type),
-    );
+}) => StructuredField(
+  wireId: wireId,
+  name: name,
+  type: type,
+  description: '',
+  structuredRef: structuredRef,
+  valueShape: valueShape ?? ScalarShape(propertyType: type),
+);
 
 StructuredEntry _borderRadiusStructured({
   required WireIdRef borderRadiusRef,
   required WireIdRef circularCtorRef,
   required WireId circularRadiusParam,
-}) =>
-    StructuredEntry(
-      wireId: borderRadiusRef.wireId,
-      name: 'NativeRadius',
-      library: WidgetLibrary.fromNamespace(borderRadiusRef.library),
-      description: '',
-      sourceType: '$_nativeSourceUri#BorderRadius',
-      fields: [
-        _nativeField(
-          wireId: WireId('p0009'),
-          name: 'radius',
-          type: PropertyType.real,
+}) => StructuredEntry(
+  wireId: borderRadiusRef.wireId,
+  name: 'NativeRadius',
+  library: WidgetLibrary.fromNamespace(borderRadiusRef.library),
+  description: '',
+  sourceType: '$_nativeSourceUri#BorderRadius',
+  fields: [
+    _nativeField(
+      wireId: WireId('p0009'),
+      name: 'radius',
+      type: PropertyType.real,
+    ),
+  ],
+  variants: [
+    ConstructorVariant(
+      wireId: circularCtorRef.wireId,
+      namedConstructor: 'circular',
+      argMappings: {
+        '': ArgMapping(targetFields: [WireId('p0009')]),
+      },
+      parameters: [
+        FactoryParameter(
+          wireId: circularRadiusParam,
+          position: 0,
+          kind: FactoryParameterKind.positional,
+          required: true,
+          nullable: false,
+          defaultPolicy: FactoryParameterDefaultPolicy.requiredValue,
+          valueShape: const ScalarShape(propertyType: PropertyType.real),
         ),
       ],
-      variants: [
-        ConstructorVariant(
-          wireId: circularCtorRef.wireId,
-          namedConstructor: 'circular',
-          argMappings: {
-            '': ArgMapping(targetFields: [WireId('p0009')]),
-          },
-          parameters: [
-            FactoryParameter(
-              wireId: circularRadiusParam,
-              position: 0,
-              kind: FactoryParameterKind.positional,
-              required: true,
-              nullable: false,
-              defaultPolicy: FactoryParameterDefaultPolicy.requiredValue,
-              valueShape: const ScalarShape(propertyType: PropertyType.real),
-            ),
-          ],
-        ),
-      ],
-    );
+    ),
+  ],
+);
 
 StructuredEntry _textStyleStructured({
   required WireIdRef textStyleRef,
@@ -10251,152 +10529,151 @@ StructuredEntry _textStyleStructured({
   required CatalogValueShape fontVariationListShape,
   required CatalogValueShape decorationShape,
   required CatalogValueShape fontFamilyFallbackShape,
-}) =>
-    StructuredEntry(
-      wireId: textStyleRef.wireId,
-      name: 'NativeTextStyle',
-      library: WidgetLibrary.core,
-      description: '',
-      sourceType: '$_nativeSourceUri#TextStyle',
-      fields: [
-        _nativeField(
-          wireId: inheritField,
-          name: 'inherit',
-          type: PropertyType.boolean,
+}) => StructuredEntry(
+  wireId: textStyleRef.wireId,
+  name: 'NativeTextStyle',
+  library: WidgetLibrary.core,
+  description: '',
+  sourceType: '$_nativeSourceUri#TextStyle',
+  fields: [
+    _nativeField(
+      wireId: inheritField,
+      name: 'inherit',
+      type: PropertyType.boolean,
+    ),
+    _nativeField(
+      wireId: fontStyleField,
+      name: 'fontStyle',
+      type: PropertyType.enumValue,
+      valueShape: fontStyleShape,
+    ),
+    _nativeField(
+      wireId: localeField,
+      name: 'locale',
+      type: PropertyType.locale,
+      valueShape: localeShape,
+    ),
+    _nativeField(
+      wireId: foregroundField,
+      name: 'foreground',
+      type: PropertyType.paint,
+      valueShape: paintShape,
+    ),
+    _nativeField(
+      wireId: shadowsField,
+      name: 'shadows',
+      type: PropertyType.shadowList,
+      valueShape: shadowListShape,
+    ),
+    _nativeField(
+      wireId: fontFeaturesField,
+      name: 'fontFeatures',
+      type: PropertyType.fontFeatureList,
+      valueShape: fontFeatureListShape,
+    ),
+    _nativeField(
+      wireId: fontVariationsField,
+      name: 'fontVariations',
+      type: PropertyType.fontVariationList,
+      valueShape: fontVariationListShape,
+    ),
+    _nativeField(
+      wireId: decorationField,
+      name: 'decoration',
+      type: PropertyType.textDecoration,
+      valueShape: decorationShape,
+    ),
+    _nativeField(
+      wireId: fontFamilyFallbackField,
+      name: 'fontFamilyFallback',
+      type: PropertyType.stringList,
+      valueShape: fontFamilyFallbackShape,
+    ),
+  ],
+  variants: [
+    ConstructorVariant(
+      wireId: textStyleCtorRef.wireId,
+      argMappings: {
+        'inherit': ArgMapping(targetFields: [inheritField]),
+        'fontStyle': ArgMapping(targetFields: [fontStyleField]),
+        'locale': ArgMapping(targetFields: [localeField]),
+        'foreground': ArgMapping(targetFields: [foregroundField]),
+        'shadows': ArgMapping(targetFields: [shadowsField]),
+        'fontFeatures': ArgMapping(targetFields: [fontFeaturesField]),
+        'fontVariations': ArgMapping(targetFields: [fontVariationsField]),
+        'decoration': ArgMapping(targetFields: [decorationField]),
+        'fontFamilyFallback': ArgMapping(
+          targetFields: [fontFamilyFallbackField],
         ),
-        _nativeField(
-          wireId: fontStyleField,
+      },
+      parameters: [
+        FactoryParameter(
+          wireId: WireId('a0301'),
+          name: 'inherit',
+          kind: FactoryParameterKind.named,
+          required: false,
+          nullable: false,
+          defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+          defaultValue: const LiteralParameterDefault(true),
+          valueShape: _scalarShape(PropertyType.boolean),
+        ),
+        _namedNativeParam(
+          wireId: WireId('a0302'),
           name: 'fontStyle',
-          type: PropertyType.enumValue,
+          propertyType: PropertyType.enumValue,
           valueShape: fontStyleShape,
         ),
-        _nativeField(
-          wireId: localeField,
+        _namedNativeParam(
+          wireId: WireId('a0303'),
           name: 'locale',
-          type: PropertyType.locale,
+          propertyType: PropertyType.locale,
           valueShape: localeShape,
         ),
-        _nativeField(
-          wireId: foregroundField,
+        _namedNativeParam(
+          wireId: WireId('a0304'),
           name: 'foreground',
-          type: PropertyType.paint,
+          propertyType: PropertyType.paint,
           valueShape: paintShape,
         ),
-        _nativeField(
-          wireId: shadowsField,
+        _namedNativeParam(
+          wireId: WireId('a0305'),
           name: 'shadows',
-          type: PropertyType.shadowList,
+          propertyType: PropertyType.shadowList,
           valueShape: shadowListShape,
         ),
-        _nativeField(
-          wireId: fontFeaturesField,
+        _namedNativeParam(
+          wireId: WireId('a0306'),
           name: 'fontFeatures',
-          type: PropertyType.fontFeatureList,
+          propertyType: PropertyType.fontFeatureList,
           valueShape: fontFeatureListShape,
         ),
-        _nativeField(
-          wireId: fontVariationsField,
+        _namedNativeParam(
+          wireId: WireId('a0307'),
           name: 'fontVariations',
-          type: PropertyType.fontVariationList,
+          propertyType: PropertyType.fontVariationList,
           valueShape: fontVariationListShape,
         ),
-        _nativeField(
-          wireId: decorationField,
+        _namedNativeParam(
+          wireId: WireId('a0308'),
           name: 'decoration',
-          type: PropertyType.textDecoration,
+          propertyType: PropertyType.textDecoration,
           valueShape: decorationShape,
         ),
-        _nativeField(
-          wireId: fontFamilyFallbackField,
+        _namedNativeParam(
+          wireId: WireId('a0309'),
           name: 'fontFamilyFallback',
-          type: PropertyType.stringList,
+          propertyType: PropertyType.stringList,
           valueShape: fontFamilyFallbackShape,
         ),
-      ],
-      variants: [
-        ConstructorVariant(
-          wireId: textStyleCtorRef.wireId,
-          argMappings: {
-            'inherit': ArgMapping(targetFields: [inheritField]),
-            'fontStyle': ArgMapping(targetFields: [fontStyleField]),
-            'locale': ArgMapping(targetFields: [localeField]),
-            'foreground': ArgMapping(targetFields: [foregroundField]),
-            'shadows': ArgMapping(targetFields: [shadowsField]),
-            'fontFeatures': ArgMapping(targetFields: [fontFeaturesField]),
-            'fontVariations': ArgMapping(targetFields: [fontVariationsField]),
-            'decoration': ArgMapping(targetFields: [decorationField]),
-            'fontFamilyFallback': ArgMapping(
-              targetFields: [fontFamilyFallbackField],
-            ),
-          },
-          parameters: [
-            FactoryParameter(
-              wireId: WireId('a0301'),
-              name: 'inherit',
-              kind: FactoryParameterKind.named,
-              required: false,
-              nullable: false,
-              defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
-              defaultValue: const LiteralParameterDefault(true),
-              valueShape: _scalarShape(PropertyType.boolean),
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0302'),
-              name: 'fontStyle',
-              propertyType: PropertyType.enumValue,
-              valueShape: fontStyleShape,
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0303'),
-              name: 'locale',
-              propertyType: PropertyType.locale,
-              valueShape: localeShape,
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0304'),
-              name: 'foreground',
-              propertyType: PropertyType.paint,
-              valueShape: paintShape,
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0305'),
-              name: 'shadows',
-              propertyType: PropertyType.shadowList,
-              valueShape: shadowListShape,
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0306'),
-              name: 'fontFeatures',
-              propertyType: PropertyType.fontFeatureList,
-              valueShape: fontFeatureListShape,
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0307'),
-              name: 'fontVariations',
-              propertyType: PropertyType.fontVariationList,
-              valueShape: fontVariationListShape,
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0308'),
-              name: 'decoration',
-              propertyType: PropertyType.textDecoration,
-              valueShape: decorationShape,
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0309'),
-              name: 'fontFamilyFallback',
-              propertyType: PropertyType.stringList,
-              valueShape: fontFamilyFallbackShape,
-            ),
-            _namedNativeParam(
-              wireId: packageParam,
-              name: 'package',
-              propertyType: PropertyType.string,
-            ),
-          ],
+        _namedNativeParam(
+          wireId: packageParam,
+          name: 'package',
+          propertyType: PropertyType.string,
         ),
       ],
-    );
+    ),
+  ],
+);
 
 StructuredEntry _buttonStyleStructured({
   required WireIdRef buttonStyleRef,
@@ -10404,98 +10681,94 @@ StructuredEntry _buttonStyleStructured({
   required WireId backgroundColorField,
   required WireId paddingField,
   WireId? shapeField,
-}) =>
-    StructuredEntry(
-      wireId: buttonStyleRef.wireId,
-      name: 'NativeButtonStyle',
-      library: WidgetLibrary.material,
-      description: '',
-      sourceType: '$_nativeSourceUri#ButtonStyle',
-      fields: [
-        _nativeField(
-          wireId: backgroundColorField,
+}) => StructuredEntry(
+  wireId: buttonStyleRef.wireId,
+  name: 'NativeButtonStyle',
+  library: WidgetLibrary.material,
+  description: '',
+  sourceType: '$_nativeSourceUri#ButtonStyle',
+  fields: [
+    _nativeField(
+      wireId: backgroundColorField,
+      name: 'backgroundColor',
+      type: PropertyType.color,
+    ),
+    _nativeField(
+      wireId: paddingField,
+      name: 'padding',
+      type: PropertyType.edgeInsets,
+    ),
+    if (shapeField != null)
+      _nativeField(
+        wireId: shapeField,
+        name: 'shape',
+        type: PropertyType.shapeBorder,
+        valueShape: const ScalarShape(propertyType: PropertyType.shapeBorder),
+      ),
+  ],
+  variants: [
+    StaticMethodVariant(
+      wireId: styleFromRef.wireId,
+      staticAccessor: 'styleFrom',
+      argMappings: {
+        'backgroundColor': ArgMapping(targetFields: [backgroundColorField]),
+        'padding': ArgMapping(targetFields: [paddingField]),
+        if (shapeField != null) 'shape': ArgMapping(targetFields: [shapeField]),
+      },
+      parameters: [
+        _namedNativeParam(
+          wireId: WireId('a0001'),
           name: 'backgroundColor',
-          type: PropertyType.color,
+          propertyType: PropertyType.color,
         ),
-        _nativeField(
-          wireId: paddingField,
+        _namedNativeParam(
+          wireId: WireId('a0002'),
           name: 'padding',
-          type: PropertyType.edgeInsets,
+          propertyType: PropertyType.edgeInsets,
         ),
         if (shapeField != null)
-          _nativeField(
-            wireId: shapeField,
+          _namedNativeParam(
+            wireId: WireId('a0005'),
             name: 'shape',
-            type: PropertyType.shapeBorder,
-            valueShape:
-                const ScalarShape(propertyType: PropertyType.shapeBorder),
+            propertyType: PropertyType.shapeBorder,
+            valueShape: const ScalarShape(
+              propertyType: PropertyType.shapeBorder,
+            ),
           ),
       ],
-      variants: [
-        StaticMethodVariant(
-          wireId: styleFromRef.wireId,
-          staticAccessor: 'styleFrom',
-          argMappings: {
-            'backgroundColor': ArgMapping(targetFields: [backgroundColorField]),
-            'padding': ArgMapping(targetFields: [paddingField]),
-            if (shapeField != null)
-              'shape': ArgMapping(targetFields: [shapeField]),
-          },
-          parameters: [
-            _namedNativeParam(
-              wireId: WireId('a0001'),
-              name: 'backgroundColor',
-              propertyType: PropertyType.color,
-            ),
-            _namedNativeParam(
-              wireId: WireId('a0002'),
-              name: 'padding',
-              propertyType: PropertyType.edgeInsets,
-            ),
-            if (shapeField != null)
-              _namedNativeParam(
-                wireId: WireId('a0005'),
-                name: 'shape',
-                propertyType: PropertyType.shapeBorder,
-                valueShape:
-                    const ScalarShape(propertyType: PropertyType.shapeBorder),
-              ),
-          ],
-        ),
-      ],
-    );
+    ),
+  ],
+);
 
 StructuredEntry _emptyNativeStructured({
   required WireIdRef ref,
   required String name,
   required String sourceType,
-}) =>
-    StructuredEntry(
-      wireId: ref.wireId,
-      name: name,
-      library: WidgetLibrary.fromNamespace(ref.library),
-      description: '',
-      sourceType: sourceType,
-      fields: const [],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v${ref.wireId.value.substring(1)}'),
-        ),
-      ],
-    );
+}) => StructuredEntry(
+  wireId: ref.wireId,
+  name: name,
+  library: WidgetLibrary.fromNamespace(ref.library),
+  description: '',
+  sourceType: sourceType,
+  fields: const [],
+  variants: [
+    ConstructorVariant(
+      wireId: WireId('v${ref.wireId.value.substring(1)}'),
+    ),
+  ],
+);
 
 FactoryParameter _namedNativeParam({
   required WireId wireId,
   required String name,
   required PropertyType propertyType,
   CatalogValueShape? valueShape,
-}) =>
-    FactoryParameter(
-      wireId: wireId,
-      name: name,
-      kind: FactoryParameterKind.named,
-      required: false,
-      nullable: true,
-      defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
-      valueShape: valueShape ?? ScalarShape(propertyType: propertyType),
-    );
+}) => FactoryParameter(
+  wireId: wireId,
+  name: name,
+  kind: FactoryParameterKind.named,
+  required: false,
+  nullable: true,
+  defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
+  valueShape: valueShape ?? ScalarShape(propertyType: propertyType),
+);

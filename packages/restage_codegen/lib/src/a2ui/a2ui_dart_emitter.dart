@@ -1,9 +1,11 @@
 import 'dart:collection';
 
+import 'package:a2ui_core/a2ui_core.dart' as core;
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:collection/collection.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_model.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_data_builder.dart';
@@ -11,6 +13,7 @@ import 'package:restage_codegen/src/a2ui/a2ui_definition_registry.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_legacy_constraint_parser.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_native_screen.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_protocol.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_safe_pattern.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_semantics.dart';
@@ -82,10 +85,7 @@ enum A2uiDartCoverageReason {
   /// built-in catalog cannot supply to the A2UI emit (a required callback
   /// marked optional by the catalog's event convention, or a required
   /// style/decoration represented only by a decompose / not as a property), so
-  /// emitting it would produce an uncompilable constructor call. Scoped out by
-  /// a contained interim guard so the merged built-in catalog compiles; the
-  /// proper fix (the built-in emits the argument correctly) is tracked
-  /// separately.
+  /// emitting it would produce an uncompilable constructor call.
   unconstructableBuiltIn,
 }
 
@@ -187,22 +187,11 @@ final class A2uiDartWidgetPlan {
   /// but are NOT data fields, so they never enter the data schema.
   final List<A2uiWriteBack> writeBacks;
 
-  /// Dispatch callbacks (`VoidCallback`) lowered to an outward `dispatchEvent`
+  /// Dispatch callbacks (`VoidCallback`) lowered to an outward `dispatchAction`
   /// with a compile-fixed event name. Emitted as constructor arguments; never
   /// data fields, so they never enter the data schema.
   final List<PropertyEntry> dispatches;
-
-  /// Whether this custom-authored component stores constructor inputs below
-  /// Restage's required top-level `props` object. The outer protocol envelope
-  /// (`id` and `component`) remains protocol-owned; `props` is Restage's
-  /// uniform custom payload convention, so an exact custom property named
-  /// `props` is addressed as `props.props`.
-  bool get usesPropsNamespace => _usesPropsNamespace(entry, nativeScreen);
 }
-
-bool _usesPropsNamespace(WidgetEntry entry, A2uiNativeScreen? nativeScreen) =>
-    nativeScreen != null ||
-    WidgetLibrary.builtInByNamespace(entry.library.namespace) == null;
 
 /// One lowered write-back pair: an interactive callback that writes its value
 /// back into the data model at the path bound by its paired value property.
@@ -310,14 +299,13 @@ final class A2uiDataField extends A2uiFieldEmission {
   /// Creates a data-field emission over [node].
   ///
   /// [rich] is true for an analyzer-fed custom data shape (reconstructed
-  /// through the value-builder, bound via `BoundObject`); false for the
-  /// catalog-fed leaf binding. Catalog classification always yields false, so
-  /// the built-in catalogs are byte-neutral.
+  /// through the value-builder from upstream-resolved properties); false for
+  /// the catalog-fed leaf binding. Catalog classification always yields false,
+  /// so the built-in catalogs are byte-neutral.
   ///
-  /// [writeBack] is true for the value property of a write-back pair: its leaf
-  /// `Bound*` read is rewritten to the resolved data path `{'path': P}` (rather
-  /// than the raw value) so it is subscribed to the exact path the paired
-  /// callback writes. Catalog classification always yields false.
+  /// [writeBack] is true for a paired controlled value. Its helper follows the
+  /// upstream binding signal and writes to an authored `@path`, or keeps a
+  /// self-scoped local override for literal and `@call` sources.
   const A2uiDataField(
     this.node, {
     this.rich = false,
@@ -409,6 +397,12 @@ A2uiDartCatalogPlan classifyA2uiCatalogDart(
   ];
   for (final componentSource in componentSources) {
     final entry = componentSource.entry;
+    validateA2uiComponentName(
+      entry.name,
+      annotation: componentSource.screen == null
+          ? '@RestageWidget(name: ...)'
+          : '${componentSource.screen!.source.sourceAnnotation}(id: ...)',
+    );
     final drop = _dropReasonForWidget(entry);
     if (drop != null) {
       _rejectA2uiConstraintsForDroppedWidget(entry, drop);
@@ -462,7 +456,7 @@ A2uiDartCatalogPlan classifyA2uiCatalogDart(
         writeBacks.add(wired);
         continue;
       }
-      // A dispatch callback is lowered to an outward `dispatchEvent`, likewise
+      // A dispatch callback is lowered to an outward `dispatchAction`, likewise
       // outside the catalog-fed field classification.
       if (interactions?.dispatches.any((d) => d.name == property.name) ??
           false) {
@@ -517,14 +511,14 @@ A2uiDartCatalogPlan classifyA2uiCatalogDart(
         property,
         richShapes,
         prefixesCustomLibs,
-        usesPropsNamespace: _usesPropsNamespace(entry, componentSource.screen),
       );
       switch (field) {
         case _EmitField(:final plan):
           // Mark the value property of a write-back pair so its leaf read is
           // rewritten to the write-back data path.
           final emission = plan.emission;
-          final isBoundValue = interactions != null &&
+          final isBoundValue =
+              interactions != null &&
               interactions.writeBacks.any(
                 (w) => w.valuePropertyName == property.name,
               );
@@ -622,7 +616,8 @@ void _validateA2uiConstraintValues(
   if (issue.message == 'numeric values must be finite') {
     detail = '$relativePath numeric value must be finite';
   } else if (issue.message.startsWith('duplicate value ')) {
-    detail = 'duplicate $relativePath '
+    detail =
+        'duplicate $relativePath '
         '${issue.message.substring('duplicate '.length)}';
   } else if (relativePath.isEmpty) {
     detail = issue.message;
@@ -636,7 +631,7 @@ void _validateA2uiConstraintValues(
   );
 }
 
-/// Composes the genui `systemPromptFragments` for [plan]'s widgets, in the
+/// Composes the catalog instruction fragments for [plan]'s widgets, in the
 /// plan's widget order (the production builder pre-sorts by library, then
 /// name — this function itself does not sort).
 ///
@@ -655,14 +650,22 @@ List<String> composeSystemPromptFragments(
   final fragments = <String>[];
   for (final widget in plan.widgets) {
     final name = widget.entry.name;
-    final text = _normalizedDescription(usageByWidget[name]) ??
+    final text =
+        _normalizedDescription(usageByWidget[name]) ??
         _normalizedDescription(widget.entry.description);
     if (text != null) fragments.add('$name: $text');
+    final names = [
+      for (final field in widget.fields)
+        '${field.property.name} => ${a2uiPropertyName(field.property.name)}',
+    ];
+    if (names.isNotEmpty) {
+      fragments.add('$name constructor fields: ${names.join(', ')}.');
+    }
   }
   return fragments;
 }
 
-/// Emits Dart source defining genui `CatalogItem`s for [catalog].
+/// Emits Dart source defining A2UI `ComponentImplementation`s for [catalog].
 String emitA2uiCatalogDart(
   Catalog catalog, {
   RestageStampedA2uiCatalog? registration,
@@ -672,17 +675,16 @@ String emitA2uiCatalogDart(
   A2uiEventSeam? eventSeam,
   A2uiPairingSeam? pairingSeam,
   Map<String, String> usageByWidget = const {},
-}) =>
-    _emitA2uiCatalogDart(
-      catalog,
-      registration: registration,
-      nativeIndex: nativeIndex,
-      nativeScreens: nativeScreens,
-      richShapes: richShapes,
-      eventSeam: eventSeam,
-      pairingSeam: pairingSeam,
-      usageByWidget: usageByWidget,
-    );
+}) => _emitA2uiCatalogDart(
+  catalog,
+  registration: registration,
+  nativeIndex: nativeIndex,
+  nativeScreens: nativeScreens,
+  richShapes: richShapes,
+  eventSeam: eventSeam,
+  pairingSeam: pairingSeam,
+  usageByWidget: usageByWidget,
+);
 
 String _emitA2uiCatalogDart(
   Catalog catalog, {
@@ -713,12 +715,11 @@ String _emitA2uiCatalogDart(
   final emitsControlledValue = plan.widgets.any(
     (widget) => widget.fields.any(_usesControlledValue),
   );
-  if (emitsControlledValue) importUris.add('dart:async');
+
   final imports = DartImportPlanner(
     libraryUris: importUris,
     prefixStem: 'p',
     unprefixedLibraryUris: <String>{
-      'dart:async',
       'package:flutter/widgets.dart',
       if (registration != null) 'package:restage_a2ui/restage_a2ui.dart',
       if (emitsNativeScreens) 'package:restage/restage.dart',
@@ -746,7 +747,8 @@ String _emitA2uiCatalogDart(
 
   imports.importDirectives.forEach(buf.writeln);
   buf
-    ..writeln("import 'package:genui/genui.dart';")
+    ..writeln("import 'package:a2ui_core/a2ui_core.dart';")
+    ..writeln("import 'package:a2ui_flutter/a2ui_flutter.dart';")
     ..writeln("import 'package:json_schema_builder/json_schema_builder.dart';")
     ..writeln();
   if (registration != null) {
@@ -755,21 +757,26 @@ String _emitA2uiCatalogDart(
       ..writeln(
         '/// A composed Catalog must use a new application-owned catalog ID;',
       )
-      ..writeln('/// do not reuse the generated catalog ID for a different')
+      ..writeln(
+        '/// do not reuse the generated catalog ID for a different',
+      )
       ..writeln('/// item or schema set.');
   }
   buf
-    ..writeln('List<CatalogItem> buildRestageCatalogItems() {')
-    ..writeln('  return <CatalogItem>[');
+    ..writeln('List<ComponentImplementation> buildRestageCatalogItems() {')
+    ..writeln('  return <ComponentImplementation>[');
 
-  for (final widget in plan.widgets) {
+  final orderedWidgets = [...plan.widgets]
+    ..sort((a, b) => a.entry.name.compareTo(b.entry.name));
+  for (final widget in orderedWidgets) {
     _writeCatalogItem(
       buf,
       widget,
       dataBuilder,
       prefixes,
-      catalogIdExpression:
-          registration == null ? 'null' : 'restageA2uiCatalogId',
+      catalogIdExpression: registration == null
+          ? 'null'
+          : 'restageA2uiCatalogId',
     );
   }
 
@@ -786,20 +793,23 @@ String _emitA2uiCatalogDart(
     ..writeln('  ];')
     ..writeln('}')
     ..writeln();
+  final definitions = a2uiCatalogDefinitions({
+    for (final widget in orderedWidgets)
+      widget.entry.name: a2uiCatalogComponentSchemaMapForPlan(widget),
+  });
+  buf
+    ..writeln(
+      '/// Merge these definitions alongside [buildRestageCatalogItems] when composing catalogs.',
+    )
+    ..writeln(
+      'Map<String, Object?> buildRestageCatalogDefinitions() '
+      '=> ${_dartJsonLiteral(definitions)};',
+    )
+    ..writeln();
   if (registration != null) {
     buf
       ..writeln(
         '/// Content address for exactly the generated custom-only catalog.',
-      )
-      ..writeln(
-        '/// Default A2A supportedCatalogIds use requires server registration',
-      )
-      ..writeln('/// of this exact predefined catalog contract.')
-      ..writeln(
-        '/// GenUI 0.10.1 inline catalogs are serialization-only here;',
-      )
-      ..writeln(
-        '/// no end-to-end inline server interoperability is claimed.',
       )
       ..writeln(
         'const String restageA2uiCatalogId = '
@@ -820,128 +830,72 @@ String _emitA2uiCatalogDart(
   if (registration != null) {
     buf
       ..writeln(
-        '/// Builds the generated custom-only GenUI catalog identified by',
+        '/// Builds the generated custom-only A2UI catalog identified by',
       )
       ..writeln('/// [restageA2uiCatalogId].')
       ..writeln('///')
       ..writeln('/// To compose a different catalog, use')
-      ..writeln('/// [buildRestageCatalogItems] and assign the new Catalog an')
+      ..writeln(
+        '/// [buildRestageCatalogItems] with [buildRestageCatalogDefinitions] and assign an',
+      )
       ..writeln('/// application-owned catalog ID.');
   } else {
     buf
-      ..writeln('/// The fully-assembled GenUI catalog: the generated items')
+      ..writeln(
+        '/// The fully-assembled A2UI catalog: the generated items',
+      )
       ..writeln('/// plus the system-prompt fragments composed from each')
-      ..writeln("/// widget's usage note (falling back to its description).");
+      ..writeln(
+        "/// widget's usage note (falling back to its description).",
+      );
   }
+  final catalogIdentity = registration == null
+      ? 'catalogId'
+      : 'restageA2uiCatalogId';
   buf
-    ..writeln('Catalog buildRestageCatalog() => Catalog(')
-    ..writeln('      buildRestageCatalogItems(),');
-  if (registration != null) {
-    buf.writeln('      catalogId: restageA2uiCatalogId,');
-  }
-  buf
-    ..writeln('      systemPromptFragments: _restageA2uiSystemPromptFragments,')
+    ..writeln(
+      'CatalogImplementation buildRestageCatalog('
+      "${registration == null ? ' {required String catalogId}' : ''}) "
+      '=> CatalogImplementation(',
+    )
+    ..writeln('      components: buildRestageCatalogItems(),')
+    ..writeln('      definitions: buildRestageCatalogDefinitions(),')
+    ..writeln('      protocolVersion: A2uiProtocolVersion.v1_0,')
+    ..writeln("      title: 'Restage A2UI Catalog',")
+    ..writeln(
+      "      description: 'A2UI component catalog "
+      "generated from Restage widget source.',",
+    )
+    ..writeln(
+      '      schemaId: $catalogIdentity,',
+    )
+    ..writeln(
+      '      id: $catalogIdentity,',
+    )
+    ..writeln(
+      r"      instructions: _restageA2uiSystemPromptFragments.join('\n'),",
+    )
     ..writeln('    );')
     ..writeln()
     ..writeln(
-      'Widget? _restageA2uiBuildChild(CatalogItemContext itemContext, '
-      'Object? childId) {',
+      r'''
+Widget? _restageA2uiBuildChild(ChildWidgetBuilder buildChild, Object? child) {
+  return child is ComponentNode<ComponentImplementation> ? buildChild(child) : null;
+}
+
+Widget _restageA2uiRequireChild(ChildWidgetBuilder buildChild, Object? child, String propertyContext) {
+  if (child is! ComponentNode<ComponentImplementation> || child.isPlaceholder) {
+    throw StateError('Required A2UI child "$propertyContext" could not resolve. Provide a non-empty String id for a component registered on this surface.');
+  }
+  return buildChild(child);
+}
+
+List<Widget> _restageA2uiBuildChildren(ChildWidgetBuilder buildChild, Object? children) => [
+  if (children is List) for (final child in children)
+    if (child is ComponentNode<ComponentImplementation>) buildChild(child),
+];
+''',
     )
-    ..writeln('  if (childId is! String || childId.isEmpty) return null;')
-    // genui 0.10.1: CatalogItemContext.buildChild is a typed callback field
-    // `Widget Function(String id, [DataContext? dataContext])` — render a
-    // child by id with a direct typed call (no dynamic bridge).
-    ..writeln('  return itemContext.buildChild(childId);')
-    ..writeln('}')
-    ..writeln()
-    ..writeln(
-      'Never _restageA2uiRequiredChildError(Object? childId, '
-      'String propertyContext) {',
-    )
-    ..writeln('  final String reason;')
-    ..writeln('  if (childId == null) {')
-    ..writeln("    reason = 'the value was null or missing';")
-    ..writeln('  } else if (childId is! String) {')
-    ..writeln(
-      r"    reason = 'the value had runtime type ${childId.runtimeType}, ' ",
-    )
-    ..writeln("        'but a String component id is required';")
-    ..writeln('  } else if (childId.isEmpty) {')
-    ..writeln("    reason = 'the value was the empty string';")
-    ..writeln('  } else {')
-    ..writeln(
-      r'''    reason = 'component id "$childId" is not registered';''',
-    )
-    ..writeln('  }')
-    ..writeln('  throw StateError(')
-    ..writeln(
-      r"""    'Required A2UI child "$propertyContext" could not resolve: '""",
-    )
-    ..writeln(r"    '$reason. Provide a non-empty String id for a component '")
-    ..writeln("    'registered on this surface.',")
-    ..writeln('  );')
-    ..writeln('}')
-    ..writeln()
-    ..writeln(
-      'Never _restageA2uiRequiredChildBuildError(String childId, '
-      'String propertyContext, Object error, StackTrace stackTrace) {',
-    )
-    ..writeln('  Error.throwWithStackTrace(StateError(')
-    ..writeln(
-      r"""    'Required A2UI child "$propertyContext" with component id '""",
-    )
-    ..writeln(
-      r"""    '"$childId" failed to build: $error',""",
-    )
-    ..writeln('  ), stackTrace);')
-    ..writeln('}')
-    ..writeln()
-    ..writeln(
-      'Widget _restageA2uiRequireChild(CatalogItemContext itemContext, '
-      'Object? childId, String propertyContext) {',
-    )
-    ..writeln(
-      '  if (childId is! String || childId.isEmpty) {',
-    )
-    ..writeln('    _restageA2uiRequiredChildError(childId, propertyContext);')
-    ..writeln('  }')
-    ..writeln('  if (itemContext.getComponent(childId) == null) {')
-    ..writeln('    _restageA2uiRequiredChildError(childId, propertyContext);')
-    ..writeln('  }')
-    ..writeln('  late final Widget child;')
-    ..writeln('  try {')
-    ..writeln('    child = itemContext.buildChild(childId);')
-    ..writeln('  } catch (error, stackTrace) {')
-    ..writeln(
-      '    _restageA2uiRequiredChildBuildError(childId, '
-      'propertyContext, error, stackTrace);',
-    )
-    ..writeln('  }')
-    // GenUI 0.10.1's Surface converts a child build exception into an errored
-    // FallbackWidget. Treat that as a failed required child, while preserving
-    // loading and empty fallbacks whose error is null.
-    ..writeln('  if (child is FallbackWidget && child.error != null) {')
-    ..writeln(
-      '    _restageA2uiRequiredChildBuildError(childId, '
-      'propertyContext, child.error!, '
-      'child.stackTrace ?? StackTrace.current);',
-    )
-    ..writeln('  }')
-    ..writeln('  return child;')
-    ..writeln('}')
-    ..writeln()
-    ..writeln(
-      'List<Widget> _restageA2uiBuildChildren(CatalogItemContext itemContext, '
-      'Object? childIds) {',
-    )
-    ..writeln('  if (childIds is! List<Object?>) return const <Widget>[];')
-    ..writeln('  return <Widget>[')
-    ..writeln('    for (final childId in childIds)')
-    ..writeln('      if (_restageA2uiBuildChild(itemContext, childId) != null)')
-    ..writeln('        _restageA2uiBuildChild(itemContext, childId)!,')
-    ..writeln('  ];')
-    ..writeln('}')
-    ..writeln()
     ..writeln('Color? _restageA2uiColor(String? value) {')
     ..writeln('  if (value == null || value.isEmpty) return null;')
     ..writeln("  final normalized = value.startsWith('#')")
@@ -1083,14 +1037,14 @@ void _verifyRegistrationContract(
 /// Every analyzer-fed rich data node across the plan's widgets, in widget then
 /// field order — the value-builder dedups shared/recursive classes itself.
 List<A2uiSchemaNode> _collectRichNodes(A2uiDartCatalogPlan plan) => [
-      for (final widget in plan.widgets)
-        for (final field in widget.fields)
-          if (field.emission case A2uiDataField(:final node, rich: true)) node,
-    ];
+  for (final widget in plan.widgets)
+    for (final field in widget.fields)
+      if (field.emission case A2uiDataField(:final node, rich: true)) node,
+];
 
 /// Whether emitting [catalog] (+ its [richShapes]) will import-prefix at least
-/// one custom library — i.e. a widget constructor or a rich data shape lives
-/// in a prefixable library. Computed before classification (independent of the
+/// one custom library — i.e. a widget constructor or a rich data shape lives in
+/// a prefixable library. Computed before classification (independent of the
 /// plan) so a catalog-fed enum lacking a library can be scoped out when bare
 /// spelling is no longer safe.
 bool _catalogPrefixesCustomLibs(Catalog catalog, A2uiRichShapes? richShapes) {
@@ -1136,6 +1090,28 @@ void _assertPrefixableSpellings(
   }
 }
 
+/// Checks names using the qualified core's protocol rules.
+void validateA2uiComponentName(
+  String name, {
+  String annotation = '@RestageWidget(name: ...)',
+}) {
+  try {
+    core.assertUax31Identifier(name, context: 'component name');
+    core.Catalog<core.ComponentApi, core.FunctionApi>(
+      id: 'restage:name-validation',
+      protocolVersion: core.A2uiProtocolVersion.v1_0,
+      components: [core.ComponentApi(name: name, schema: S.object())],
+    );
+  } on core.A2uiCatalogError catch (error) {
+    throw ArgumentError.value(
+      name,
+      annotation,
+      '$error Choose a non-reserved A2UI component '
+      'identifier with $annotation.',
+    );
+  }
+}
+
 void _writeCatalogItem(
   StringBuffer buf,
   A2uiDartWidgetPlan widget,
@@ -1143,6 +1119,7 @@ void _writeCatalogItem(
   Map<String, String> prefixes, {
   required String catalogIdExpression,
 }) {
+  validateA2uiComponentName(widget.entry.name);
   final entry = widget.entry;
   final symbols = _A2uiGeneratedSymbolPlan.forWidget(
     widget,
@@ -1160,16 +1137,28 @@ void _writeCatalogItem(
   final prelude = scope.prelude;
   final returnExpression = scope.returnExpression;
   buf
-    ..writeln('    CatalogItem(')
+    ..writeln('    ComponentImplementation(')
     ..writeln('      name: ${_dartStringLiteral(entry.name)},')
-    ..writeln('      dataSchema: ${_schemaExpression(widget)},')
-    ..writeln('      widgetBuilder: (${symbols.itemContext}) {')
+    ..writeln('      schema: ${_schemaExpression(widget)},')
     ..writeln(
-      '        final ${symbols.data} = ${symbols.itemContext}.data '
-      'as Map<String, Object?>;',
+      '      builder: (${symbols.boundContext}, '
+      'restageNode, restageProps, restageBuildChild) {',
     );
-  if (symbols.propsDeclaration case final declaration?) {
-    buf.writeln('        $declaration');
+  final body = [...prelude, returnExpression].join('\n');
+  final readsData =
+      body.contains('${symbols.data}[') || body.contains('${symbols.data}.');
+  if (readsData || body.contains('${symbols.itemContext}.')) {
+    buf.writeln('        final ${symbols.itemContext} = restageNode.context!;');
+  }
+  if (readsData) {
+    buf
+      ..writeln('        final ${symbols.data} = <String, Object?>{')
+      ..writeln(
+        '          for (final key in '
+        '${symbols.itemContext}.componentModel.properties.keys) '
+        'key: restageProps.value(key),',
+      )
+      ..writeln('        };');
   }
   for (final statement in prelude) {
     buf.writeln('        $statement');
@@ -1187,14 +1176,10 @@ void _writeCatalogItem(
   _A2uiGeneratedSymbolPlan symbols, {
   required String catalogIdExpression,
 }) {
-  // Rich nested objects/maps/records/lists-of-objects are reconstructed
-  // DIRECTLY from the widget data as a builder prelude (no BoundObject — its
-  // `{path}`/`{call}` binding-sentinel patterns would misread a literal value
-  // whose own field/key is named `path`/`call`). Top-level scalars/enums/
-  // leaf-lists keep their reactive `Bound*` wrappers around the constructor.
+  // Rich values are reconstructed from upstream-resolved component properties.
   final prelude = [
     // The write-back path derivation comes first (it only reads `data`); both
-    // the value field's `Bound*` and the callback's update reference its local.
+    // the controlled value helper and callback share the derived destination.
     ..._writeBackPreludeStatements(widget, symbols),
     ..._richPreludeStatements(widget, dataBuilder, prefixes, symbols),
   ];
@@ -1217,13 +1202,9 @@ String _nativeScreenReturnExpression(
     '''
 RestageEventDispatcher(
   onEvent: (eventId, value) {
-    ${symbols.itemContext}.dispatchEvent(
-      UserActionEvent(
-        name: eventId,
-        sourceComponentId: ${symbols.itemContext}.id,
-        context: <String, Object?>{'value': value},
-      ),
-    );
+    ${symbols.itemContext}.dispatchAction({
+      'event': {'name': eventId, 'context': <String, Object?>{'value': value}},
+    });
   },
   child: $childExpression,
 )''';
@@ -1231,6 +1212,8 @@ RestageEventDispatcher(
 String _schemaExpression(A2uiDartWidgetPlan widget) {
   return _widgetDataSchemaExpressionForLayout(
     a2uiWidgetSchemaLayoutForPlan(widget),
+    referencePrefix: a2uiComponentReferencePrefix(widget.entry.name),
+    includeDefinitions: false,
     widgetDescription: _normalizedDescription(widget.entry.description),
   );
 }
@@ -1247,10 +1230,9 @@ String? _normalizedDescription(String? description) {
 /// Maps each field's property name to its normalized description, omitting
 /// fields with no (or blank) description.
 Map<String, String> _fieldDescriptions(List<A2uiDartFieldPlan> fields) => {
-      for (final field in fields)
-        if (_normalizedDescription(field.property.description) case final desc?)
-          field.property.name: desc,
-    };
+  for (final field in fields)
+    field.property.name: ?_normalizedDescription(field.property.description),
+};
 
 /// One field in a widget's data schema: its property name, whether it is
 /// required (present), and how it is emitted.
@@ -1270,7 +1252,6 @@ typedef A2uiWidgetField = ({
 @internal
 final class A2uiWidgetSchemaLayout {
   const A2uiWidgetSchemaLayout._({
-    required this.usesPropsNamespace,
     required this.fields,
     required this.residualDescriptions,
     required this.registry,
@@ -1279,9 +1260,6 @@ final class A2uiWidgetSchemaLayout {
     required this.definitionIds,
     required this.safeDefinitionKeys,
   });
-
-  /// Whether [fields] are nested under a required root `props` object.
-  final bool usesPropsNamespace;
 
   /// Effective widget fields after top-level occurrence overlays.
   final List<A2uiWidgetField> fields;
@@ -1324,15 +1302,13 @@ A2uiWidgetSchemaLayout a2uiWidgetSchemaLayoutForPlan(
         ),
     ],
     (name) => descriptions[name],
-    usesPropsNamespace: plan.usesPropsNamespace,
   );
 }
 
 A2uiWidgetSchemaLayout _buildA2uiWidgetSchemaLayout(
   List<A2uiWidgetField> fields,
-  String? Function(String fieldName)? fieldDescription, {
-  required bool usesPropsNamespace,
-}) {
+  String? Function(String fieldName)? fieldDescription,
+) {
   final resolved = <A2uiWidgetField>[];
   final residual = <String, String>{};
   for (final field in fields) {
@@ -1380,7 +1356,6 @@ A2uiWidgetSchemaLayout _buildA2uiWidgetSchemaLayout(
           assignA2uiSafeDefinitionKeys(definitionIds),
         );
   return A2uiWidgetSchemaLayout._(
-    usesPropsNamespace: usesPropsNamespace,
     fields: effectiveFields,
     residualDescriptions: Map<String, String>.unmodifiable(residual),
     registry: registry,
@@ -1399,69 +1374,68 @@ A2uiWidgetSchemaLayout _buildA2uiWidgetSchemaLayout(
 A2uiSchemaNode? _withOuterOccurrenceOverlay(
   A2uiSchemaNode node,
   String description,
-) =>
-    switch (node) {
-      ScalarNode(
-        :final type,
-        :final preserveNumericRuntimeType,
-        :final occurrenceDescription,
-        :final nullable,
-      ) =>
-        _normalizedDescription(occurrenceDescription) == null
-            ? null
-            : ScalarNode(
-                type,
-                preserveNumericRuntimeType: preserveNumericRuntimeType,
-                occurrenceDescription: description,
-                nullable: nullable,
-              ),
-      EnumNode(
-        :final members,
-        :final dartTypeName,
-        :final libraryUri,
-        :final nullable,
-      ) =>
-        EnumNode(
-          members: members,
-          dartTypeName: dartTypeName,
-          libraryUri: libraryUri,
-          occurrenceDescription: description,
-          nullable: nullable,
-        ),
-      ListNode(:final element, :final nullable) => ListNode(
-          element: element,
-          occurrenceDescription: description,
-          nullable: nullable,
-        ),
-      ObjectNode(
-        :final fields,
-        :final required,
-        :final defId,
-        :final construction,
-        :final definitionDescription,
-        :final nullable,
-      ) =>
-        ObjectNode(
-          fields: fields,
-          required: required,
-          defId: defId,
-          construction: construction,
-          definitionDescription: definitionDescription,
-          occurrenceDescription: description,
-          nullable: nullable,
-        ),
-      MapNode(:final valueType, :final nullable) => MapNode(
-          valueType: valueType,
-          occurrenceDescription: description,
-          nullable: nullable,
-        ),
-      RefNode(:final defId, :final nullable) => RefNode(
-          defId,
-          occurrenceDescription: description,
-          nullable: nullable,
-        ),
-      _ => null,
-    };
+) => switch (node) {
+  ScalarNode(
+    :final type,
+    :final preserveNumericRuntimeType,
+    :final occurrenceDescription,
+    :final nullable,
+  ) =>
+    _normalizedDescription(occurrenceDescription) == null
+        ? null
+        : ScalarNode(
+            type,
+            preserveNumericRuntimeType: preserveNumericRuntimeType,
+            occurrenceDescription: description,
+            nullable: nullable,
+          ),
+  EnumNode(
+    :final members,
+    :final dartTypeName,
+    :final libraryUri,
+    :final nullable,
+  ) =>
+    EnumNode(
+      members: members,
+      dartTypeName: dartTypeName,
+      libraryUri: libraryUri,
+      occurrenceDescription: description,
+      nullable: nullable,
+    ),
+  ListNode(:final element, :final nullable) => ListNode(
+    element: element,
+    occurrenceDescription: description,
+    nullable: nullable,
+  ),
+  ObjectNode(
+    :final fields,
+    :final required,
+    :final defId,
+    :final construction,
+    :final definitionDescription,
+    :final nullable,
+  ) =>
+    ObjectNode(
+      fields: fields,
+      required: required,
+      defId: defId,
+      construction: construction,
+      definitionDescription: definitionDescription,
+      occurrenceDescription: description,
+      nullable: nullable,
+    ),
+  MapNode(:final valueType, :final nullable) => MapNode(
+    valueType: valueType,
+    occurrenceDescription: description,
+    nullable: nullable,
+  ),
+  RefNode(:final defId, :final nullable) => RefNode(
+    defId,
+    occurrenceDescription: description,
+    nullable: nullable,
+  ),
+  _ => null,
+};
 
 /// Projects a widget's whole data schema from its [fields].
 ///
@@ -1483,19 +1457,19 @@ String a2uiWidgetDataSchemaExpression(
   List<A2uiWidgetField> fields, {
   String? widgetDescription,
   String? Function(String fieldName)? fieldDescription,
-}) =>
-    _widgetDataSchemaExpressionForLayout(
-      _buildA2uiWidgetSchemaLayout(
-        fields,
-        fieldDescription,
-        usesPropsNamespace: false,
-      ),
-      widgetDescription: widgetDescription,
-    );
+}) => _widgetDataSchemaExpressionForLayout(
+  _buildA2uiWidgetSchemaLayout(
+    fields,
+    fieldDescription,
+  ),
+  widgetDescription: widgetDescription,
+);
 
 String _widgetDataSchemaExpressionForLayout(
   A2uiWidgetSchemaLayout layout, {
   String? widgetDescription,
+  String referencePrefix = r'#/$defs/',
+  bool includeDefinitions = true,
 }) {
   final projectionFields = layout.fields;
   final residualDescriptions = layout.residualDescriptions;
@@ -1505,13 +1479,13 @@ String _widgetDataSchemaExpressionForLayout(
     final ctx = registry.canonicalOrderTargets.isEmpty
         ? null
         : _DefsContext(
+            referencePrefix: referencePrefix,
             definitionTargets: const {},
             safeKeys: const {},
             canonicalOrderTargets: registry.canonicalOrderTargets,
           );
     return _widgetRootSchema(
       projectionFields,
-      usesPropsNamespace: layout.usesPropsNamespace,
       ctx: ctx,
       widgetDescription: widgetDescription,
       fieldDescription: (name) => residualDescriptions[name],
@@ -1523,9 +1497,15 @@ String _widgetDataSchemaExpressionForLayout(
   // (the widget object always exists, so the root itself is never nullable).
   // The widget description lands on the hoisted root object — the actual
   // widget shape — not on the `$ref` wrapper.
+  if (!includeDefinitions) {
+    final root = layout.safeDefinitionKeys[a2uiSyntheticRootDefinitionId]!;
+    final reference = _refLiteral(root, referencePrefix);
+    return 'S.combined(allOf: [S.combined(\$ref: $reference)])';
+  }
   final defIds = layout.definitionIds;
   final safeKeys = layout.safeDefinitionKeys;
   final ctx = _DefsContext(
+    referencePrefix: referencePrefix,
     definitionTargets: definitionTargets,
     safeKeys: safeKeys,
     canonicalOrderTargets: registry.canonicalOrderTargets,
@@ -1542,7 +1522,6 @@ String _widgetDataSchemaExpressionForLayout(
     final schema = id == a2uiSyntheticRootDefinitionId
         ? _widgetRootSchema(
             projectionFields,
-            usesPropsNamespace: layout.usesPropsNamespace,
             ctx: ctx,
             widgetDescription: widgetDescription,
             fieldDescription: (name) => residualDescriptions[name],
@@ -1550,34 +1529,23 @@ String _widgetDataSchemaExpressionForLayout(
         : _projectNode(nodeForDef[id]!, ctx, atDefRoot: true);
     defEntries.add('${_dartStringLiteral(safeKeys[id]!)}: $schema');
   }
-  return r'S.combined($ref: '
-      '${_refLiteral(safeKeys[a2uiSyntheticRootDefinitionId]!)}, '
-      r'$defs: {'
-      '${defEntries.join(', ')}})';
+  final rootReference = _refLiteral(
+    safeKeys[a2uiSyntheticRootDefinitionId]!,
+    referencePrefix,
+  );
+  final entries = defEntries.join(', ');
+  return 'S.combined(\$ref: $rootReference, \$defs: {$entries})';
 }
 
 // ── A2UI data-schema MAP projection (the standalone-document twin) ───────────
 //
-// The standalone `.a2ui.json` catalog document carries each component's full
-// data schema (so a producer generating payloads against the document alone —
-// not the generated `.g.dart` — can see a component's fields). It is projected
-// from the SAME `plan.fields` the generated `CatalogItem.dataSchema` is, but as
-// a plain `Map` built directly here — NOT via `json_schema_builder` (which the
-// build-time toolchain must not depend on; see `a2ui_isolation_test`). Each map
-// preserves the same accepted-value semantics as the `.g.dart`'s `S.*`
-// constructors. The runtime serializer may add representation-only keywords
-// such as `additionalProperties: true`; parity tests normalize those defaults
-// before comparing the two projections and fail loud on semantic drift.
-//
-// Each `…Map` function below mirrors its `…Expression`/`…Schema` source twin
-// arm-for-arm (same fail-loud arms, same nullability + `$defs`/`$ref` two-pass,
-// same write-back value-reference shape), reusing the shared, output-agnostic
-// helpers (`A2uiDefinitionRegistry`, `assignA2uiSafeDefinitionKeys`,
-// `_DefsContext`, …).
+// The standalone document and emitted Dart share the classified field plan.
+// Pure-Dart schema maps support registration hashing and catalog definitions;
+// schema expressions construct the same upstream Schema values at runtime.
 
 /// The data-schema map for [plan] — the document-side twin of
 /// [_schemaExpression]. Consumes the SAME field projection, so the document's
-/// component schema and the generated `CatalogItem` schema agree.
+/// component schema and the generated `ComponentImplementation` schema agree.
 Map<String, Object?> a2uiWidgetDataSchemaMapForPlan(A2uiDartWidgetPlan plan) {
   return _widgetDataSchemaMap(
     a2uiWidgetSchemaLayoutForPlan(plan),
@@ -1585,34 +1553,23 @@ Map<String, Object?> a2uiWidgetDataSchemaMapForPlan(A2uiDartWidgetPlan plan) {
   );
 }
 
-/// The full catalog component schema for [plan], including genui's required
-/// `component` discriminator. This is the single projection used by both the
-/// standalone registration and generated-Dart registration verification.
+/// The component property schema shared by registration and generated Dart.
 Map<String, Object?> a2uiCatalogComponentSchemaMapForPlan(
   A2uiDartWidgetPlan plan,
 ) {
-  final data = a2uiWidgetDataSchemaMapForPlan(plan);
-  final dataProperties =
-      (data['properties'] as Map?)?.cast<String, Object?>() ??
-          const <String, Object?>{};
-  final dataRequired = (data['required'] as List?) ?? const <Object?>[];
-  return <String, Object?>{
-    ...data,
-    'properties': <String, Object?>{
-      ...dataProperties,
-      'component': <String, Object?>{
-        'type': 'string',
-        'enum': <String>[plan.entry.name],
-      },
-    },
-    'required': <Object?>['component', ...dataRequired],
-  };
+  validateA2uiComponentName(plan.entry.name);
+  return _widgetDataSchemaMap(
+    a2uiWidgetSchemaLayoutForPlan(plan),
+    referencePrefix: a2uiComponentReferencePrefix(plan.entry.name),
+    widgetDescription: _normalizedDescription(plan.entry.description),
+  );
 }
 
 /// Map mirror of [a2uiWidgetDataSchemaExpression].
 Map<String, Object?> _widgetDataSchemaMap(
   A2uiWidgetSchemaLayout layout, {
   String? widgetDescription,
+  String referencePrefix = r'#/$defs/',
 }) {
   final projectionFields = layout.fields;
   final residualDescriptions = layout.residualDescriptions;
@@ -1622,13 +1579,13 @@ Map<String, Object?> _widgetDataSchemaMap(
     final ctx = registry.canonicalOrderTargets.isEmpty
         ? null
         : _DefsContext(
+            referencePrefix: referencePrefix,
             definitionTargets: const {},
             safeKeys: const {},
             canonicalOrderTargets: registry.canonicalOrderTargets,
           );
     return _widgetRootSchemaMap(
       projectionFields,
-      usesPropsNamespace: layout.usesPropsNamespace,
       ctx: ctx,
       widgetDescription: widgetDescription,
       fieldDescription: (name) => residualDescriptions[name],
@@ -1638,6 +1595,7 @@ Map<String, Object?> _widgetDataSchemaMap(
   final defIds = layout.definitionIds;
   final safeKeys = layout.safeDefinitionKeys;
   final ctx = _DefsContext(
+    referencePrefix: referencePrefix,
     definitionTargets: definitionTargets,
     safeKeys: safeKeys,
     canonicalOrderTargets: registry.canonicalOrderTargets,
@@ -1654,7 +1612,6 @@ Map<String, Object?> _widgetDataSchemaMap(
     defs[safeKeys[id]!] = id == a2uiSyntheticRootDefinitionId
         ? _widgetRootSchemaMap(
             projectionFields,
-            usesPropsNamespace: layout.usesPropsNamespace,
             ctx: ctx,
             widgetDescription: widgetDescription,
             fieldDescription: (name) => residualDescriptions[name],
@@ -1662,45 +1619,29 @@ Map<String, Object?> _widgetDataSchemaMap(
         : _projectNodeMap(nodeForDef[id]!, ctx, atDefRoot: true);
   }
   // `$defs` before `$ref` matches json_schema_builder's `S.combined` map order
-  // (its factory literal lists `$defs` first), so the document is byte-stable
+  // (its factory literal lists `$defs` first), so the document is byte- stable
   // against what the `.g.dart`'s `S.combined($ref:, $defs:)` serializes to.
   return {
     r'$defs': defs,
-    r'$ref': _refPointer(safeKeys[a2uiSyntheticRootDefinitionId]!),
+    r'$ref': _refPointer(
+      safeKeys[a2uiSyntheticRootDefinitionId]!,
+      referencePrefix,
+    ),
   };
 }
 
-/// Map projection of a widget's root. Custom constructor fields live below
-/// one required `props` object while built-in component schemas stay flat.
+/// Map projection of top-level constructor inputs with collision-safe names.
 Map<String, Object?> _widgetRootSchemaMap(
   List<A2uiWidgetField> fields, {
-  required bool usesPropsNamespace,
   _DefsContext? ctx,
   String? widgetDescription,
   String? Function(String fieldName)? fieldDescription,
-}) {
-  if (!usesPropsNamespace) {
-    return _widgetObjectSchemaMap(
-      fields,
-      ctx: ctx,
-      widgetDescription: widgetDescription,
-      fieldDescription: fieldDescription,
-    );
-  }
-  final props = _widgetObjectSchemaMap(
-    fields,
-    ctx: ctx,
-    fieldDescription: fieldDescription,
-  );
-  return _withMapDescription(
-    <String, Object?>{
-      'type': 'object',
-      'properties': <String, Object?>{'props': props},
-      'required': <String>['props'],
-    },
-    widgetDescription,
-  );
-}
+}) => _widgetObjectSchemaMap(
+  fields,
+  ctx: ctx,
+  widgetDescription: widgetDescription,
+  fieldDescription: fieldDescription,
+);
 
 /// Map mirror of [_widgetObjectSchema].
 Map<String, Object?> _widgetObjectSchemaMap(
@@ -1711,14 +1652,14 @@ Map<String, Object?> _widgetObjectSchemaMap(
 }) {
   final properties = <String, Object?>{
     for (final field in fields)
-      field.name: _withMapDescription(
+      a2uiPropertyName(field.name): _withMapDescription(
         _fieldSchemaMap(field.emission, ctx),
         fieldDescription?.call(field.name),
       ),
   };
   final required = <String>[
     for (final field in fields)
-      if (field.required) field.name,
+      if (field.required) a2uiPropertyName(field.name),
   ];
   final base = {
     'type': 'object',
@@ -1728,10 +1669,10 @@ Map<String, Object?> _widgetObjectSchemaMap(
   return _withMapDescription(base, widgetDescription);
 }
 
-/// Inserts a `'description'` key into [schema] at the same position genui's
-/// own `json_schema_builder` factories place it — immediately after `'type'`
-/// (or first, for a `type`-less combined/`oneOf` schema) — so the emitted
-/// `.a2ui.json` component schema matches what the generated `.g.dart`'s
+/// Inserts a `'description'` key into [schema] at the same position the schema
+/// builder's own `json_schema_builder` factories place it — immediately after
+/// `'type'` (or first, for a `type`-less combined/`oneOf` schema) — so the
+/// emitted `.a2ui.json` component schema matches what the generated `.g.dart`'s
 /// `S.*(description: …)` call serializes to. A `null` [description] returns
 /// [schema] unchanged (no empty `description` key).
 Map<String, Object?> _withMapDescription(
@@ -1740,10 +1681,15 @@ Map<String, Object?> _withMapDescription(
 ) {
   if (description == null) return schema;
   if (!schema.containsKey('type')) {
-    return {'description': description, ...schema};
+    return {
+      'description': description,
+      for (final entry in schema.entries)
+        if (entry.key != 'description') entry.key: entry.value,
+    };
   }
   final described = <String, Object?>{};
   for (final entry in schema.entries) {
+    if (entry.key == 'description') continue;
     described[entry.key] = entry.value;
     if (entry.key == 'type') described['description'] = description;
   }
@@ -1757,10 +1703,10 @@ Map<String, Object?> _fieldSchemaMap(
 ) {
   switch (emission) {
     case A2uiDataField(
-        :final node,
-        :final writeBack,
-        :final constraints,
-      ):
+      :final node,
+      :final writeBack,
+      :final constraints,
+    ):
       final projectionNode = _orderedProjectionNode(
         node,
         atDefinitionRoot: _defIdOf(node) != null,
@@ -1784,12 +1730,12 @@ Map<String, Object?> _fieldSchemaMap(
     case A2uiChildField(:final slot):
       switch (slot) {
         case A2uiChildNode(:final nullable):
-          return _nullableSchemaMap({'type': 'string'}, nullable);
+          return _nullableSchemaMap(a2uiComponentIdSchema, nullable);
         case A2uiChildrenNode(:final nullable):
           return _nullableSchemaMap(
             {
               'type': 'array',
-              'items': {'type': 'string'},
+              'items': a2uiComponentIdSchema,
             },
             nullable,
           );
@@ -1800,51 +1746,37 @@ Map<String, Object?> _fieldSchemaMap(
 Map<String, Object?> _nullableSchemaMap(
   Map<String, Object?> schema,
   bool nullable,
-) =>
-    nullable
-        ? {
-            'anyOf': <Object?>[
-              schema,
-              {'type': 'null'},
-            ],
-          }
-        : schema;
+) => nullable
+    ? {
+        'anyOf': <Object?>[
+          schema,
+          {'type': 'null'},
+        ],
+      }
+    : schema;
 
-/// Map mirror of [_valueReferenceSchema] — the genui value-reference shape
+/// Map mirror of [_valueReferenceSchema] — the upstream data-
+/// binding/function-call alternatives
 /// (a literal OR a `{path}` binding OR a `{call}` function-call source).
 Map<String, Object?> _valueReferenceMap(
   A2uiSchemaNode node,
   A2uiConstraintSet constraints,
   _DefsContext? ctx,
-) =>
-    _withMapDescription(
-      {
-        'oneOf': <Object?>[
-          _constrainedSchemaForNodeMap(
-            node,
-            constraints,
-            ctx,
-            includeOccurrenceDescription: false,
-          ),
-          {
-            'type': 'object',
-            'properties': {
-              'path': {'type': 'string'},
-            },
-            'required': const ['path'],
-          },
-          {
-            'type': 'object',
-            'properties': {
-              'call': {'type': 'string'},
-              'args': {'type': 'object', 'additionalProperties': true},
-            },
-            'required': const ['call'],
-          },
-        ],
-      },
-      _normalizedDescription(node.occurrenceDescription),
-    );
+) => _withMapDescription(
+  {
+    'oneOf': <Object?>[
+      _constrainedSchemaForNodeMap(
+        node,
+        constraints,
+        ctx,
+        includeOccurrenceDescription: false,
+      ),
+      {r'$ref': r'common_types.json#/$defs/DataBinding'},
+      {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+    ],
+  },
+  _normalizedDescription(node.occurrenceDescription),
+);
 
 /// Projects constraints onto the non-null literal base, then applies the
 /// property's nullability. Deferred `{path}`/`{call}` arms never pass here.
@@ -1888,15 +1820,14 @@ Map<String, Object?> _schemaForNodeMap(A2uiSchemaNode node) =>
 Map<String, Object?> _wrapNullableMap(
   Map<String, Object?> base,
   bool nullable,
-) =>
-    nullable
-        ? {
-            'anyOf': <Object?>[
-              base,
-              {'type': 'null'},
-            ],
-          }
-        : base;
+) => nullable
+    ? {
+        'anyOf': <Object?>[
+          base,
+          {'type': 'null'},
+        ],
+      }
+    : base;
 
 /// Map mirror of [_schemaForNodeBase].
 Map<String, Object?> _schemaForNodeBaseMap(
@@ -2060,8 +1991,8 @@ Map<String, Object?> _projectNodeBaseMap(
         atDefRoot
             ? _normalizedDescription(object.definitionDescription)
             : includeOccurrenceDescription
-                ? _inlineObjectDescription(object)
-                : _definitionOnlyObjectDescription(object),
+            ? _inlineObjectDescription(object)
+            : _definitionOnlyObjectDescription(object),
       );
     case RefNode(:final defId, :final occurrenceDescription):
       return _withMapDescription(
@@ -2079,14 +2010,16 @@ Map<String, Object?> _projectNodeBaseMap(
 Map<String, Object?> _refMap(_DefsContext ctx, String defId) {
   final key = ctx.safeKeys[defId];
   if (key == null) {
-    throw StateError('A2UI projection: no \$defs key assigned for "$defId".');
+    throw StateError(
+      'A2UI projection: no \$defs key assigned for "$defId".',
+    );
   }
-  return {r'$ref': _refPointer(key)};
+  return {r'$ref': _refPointer(key, ctx.referencePrefix)};
 }
 
 /// The JSON pointer `#/$defs/<key>` value (the runtime twin of [_refLiteral],
 /// which produces the same pointer as Dart SOURCE).
-String _refPointer(String key) => '#/\$defs/$key';
+String _refPointer(String key, [String prefix = r'#/$defs/']) => '$prefix$key';
 
 /// The widget `S.object` body for [fields]. With a [ctx] each data field is
 /// projected cycle-aware (recursive occurrences become `$ref`s, the `$defs`
@@ -2108,49 +2041,34 @@ String _widgetObjectSchema(
       _fieldSchema(field.emission, ctx),
       fieldDescription?.call(field.name),
     );
-    props.add('${_dartStringLiteral(field.name)}: $schema');
+    props.add('${_wirePropertyKey(field.name)}: $schema');
   }
   final required = [
     for (final field in fields)
-      if (field.required) _dartStringLiteral(field.name),
+      if (field.required) _wirePropertyKey(field.name),
   ];
-  final base = 'S.object(properties: {${props.join(', ')}}, '
+  final base =
+      'S.object(properties: {${props.join(', ')}}, '
       'required: <String>[${required.join(', ')}],)';
   return _withSchemaDescription(base, widgetDescription);
 }
 
-/// Dart projection of a widget's root. Custom constructor fields live below
-/// one required `props` object while built-in component schemas stay flat.
+/// Dart projection of top-level constructor inputs with collision-safe names.
 String _widgetRootSchema(
   List<A2uiWidgetField> fields, {
-  required bool usesPropsNamespace,
   _DefsContext? ctx,
   String? widgetDescription,
   String? Function(String fieldName)? fieldDescription,
-}) {
-  if (!usesPropsNamespace) {
-    return _widgetObjectSchema(
-      fields,
-      ctx: ctx,
-      widgetDescription: widgetDescription,
-      fieldDescription: fieldDescription,
-    );
-  }
-  final props = _widgetObjectSchema(
-    fields,
-    ctx: ctx,
-    fieldDescription: fieldDescription,
-  );
-  return _withSchemaDescription(
-    "S.object(properties: {'props': $props}, "
-    "required: <String>['props'],)",
-    widgetDescription,
-  );
-}
+}) => _widgetObjectSchema(
+  fields,
+  ctx: ctx,
+  widgetDescription: widgetDescription,
+  fieldDescription: fieldDescription,
+);
 
 /// Inserts a `description: <literal>,` named argument right after the
 /// opening parenthesis of the outermost `S.*(...)` call in [schemaExpr] —
-/// every genui `S.*` schema builder accepts `description`, so this works
+/// every `S.*` schema builder accepts `description`, so this works
 /// uniformly whether [schemaExpr] is a scalar/enum/list/object/combined
 /// schema. Named-argument order is immaterial to Dart, so inserting first is
 /// always valid regardless of what other arguments follow. A `null`
@@ -2158,6 +2076,10 @@ String _widgetRootSchema(
 /// [_withMapDescription], its document-side twin.
 String _withSchemaDescription(String schemaExpr, String? description) {
   if (description == null) return schemaExpr;
+  if (schemaExpr.startsWith('CommonSchemas.')) {
+    return 'S.fromMap(<String, Object?>{...$schemaExpr.value, '
+        '"description": ${_dartStringLiteral(description)}})';
+  }
   if (schemaExpr.startsWith('S.fromMap(<String, Object?>{')) {
     const spreadEnd = '.value,';
     final spreadEndIndex = schemaExpr.indexOf(spreadEnd);
@@ -2192,10 +2114,10 @@ String _withSchemaDescription(String schemaExpr, String? description) {
 String _fieldSchema(A2uiFieldEmission emission, _DefsContext? ctx) {
   switch (emission) {
     case A2uiDataField(
-        :final node,
-        :final writeBack,
-        :final constraints,
-      ):
+      :final node,
+      :final writeBack,
+      :final constraints,
+    ):
       final projectionNode = _orderedProjectionNode(
         node,
         atDefinitionRoot: _defIdOf(node) != null,
@@ -2222,31 +2144,17 @@ String _fieldSchema(A2uiFieldEmission emission, _DefsContext? ctx) {
     case A2uiChildField(:final slot):
       switch (slot) {
         case A2uiChildNode(:final nullable):
-          return _wrapNullable('S.string()', nullable);
+          return _wrapNullable('CommonSchemas.componentId', nullable);
         case A2uiChildrenNode(:final nullable):
-          return _wrapNullable('S.list(items: S.string())', nullable);
+          return _wrapNullable(
+            'S.list(items: CommonSchemas.componentId)',
+            nullable,
+          );
       }
   }
 }
 
-/// The genui value-reference schema for a bound value — a literal OR a `{path}`
-/// data binding OR a `{call}` function-call value source. For a scalar or enum
-/// [node] the literal arm preserves its exact leaf schema (including enum
-/// members), alongside genui's reference arms. Scalar leaves replicate
-/// `A2uiSchemas.{boolean,number,string}Reference`
-/// (a2ui_schemas.dart:299-343); for a `List<scalar>` [node] it replicates
-/// `A2uiSchemas.listOrReference(items:)` / `stringArrayReference()`
-/// (a2ui_schemas.dart:418-428, 522-531) — the same `oneOf` with
-/// `S.list(items:)` as the literal option. The literal is the only difference
-/// between the two; the `{path}` binding + `{call}` function-call options are
-/// identical. The shape is
-/// replicated raw from `json_schema_builder` primitives rather than by calling
-/// genui's `A2uiSchemas` helper: genui is 0.x/experimental, so depending on its
-/// helper API would risk inheriting its churn (a helper rename/signature change
-/// would break the app's generated build); raw + per-version grounding is
-/// the churn-robust track-genui posture, and the producer-facing shape is
-/// identical. (The toolchain emits source text and never imports genui either
-/// way.) Re-ground the shape + those file:lines on a genui version bump.
+/// A constrained literal plus the protocol's dynamic binding/call branches.
 String _valueReferenceSchema(
   A2uiSchemaNode node,
   A2uiConstraintSet constraints,
@@ -2258,11 +2166,9 @@ String _valueReferenceSchema(
     ctx,
     includeOccurrenceDescription: false,
   );
-  const binding = "S.object(properties: {'path': S.string()}, "
-      "required: <String>['path'])";
-  const functionCall = "S.object(properties: {'call': S.string(), "
-      "'args': S.object(additionalProperties: true)}, "
-      "required: <String>['call'])";
+  const binding = r"S.combined($ref: r'common_types.json#/$defs/DataBinding')";
+  const functionCall =
+      r"S.combined($ref: r'common_types.json#/$defs/FunctionCall')";
   return _withSchemaDescription(
     'S.combined(oneOf: [$literal, $binding, $functionCall])',
     _normalizedDescription(node.occurrenceDescription),
@@ -2289,7 +2195,8 @@ String _constrainedSchemaForNode(
         );
   final entries = constraints.keywords.entries
       .map(
-        (entry) => '${_dartStringLiteral(entry.key)}: '
+        (entry) =>
+            '${_dartStringLiteral(entry.key)}: '
             '${_dartJsonScalarOrListLiteral(entry.value)}',
       )
       .join(', ');
@@ -2303,6 +2210,25 @@ String _constrainedSchemaForNode(
           _normalizedDescription(node.occurrenceDescription),
         )
       : composed;
+}
+
+String _wirePropertyKey(String name) =>
+    _dartStringLiteral(a2uiPropertyName(name));
+
+String _dartJsonLiteral(Object? value) {
+  if (value is Map) {
+    final entries = <String>[];
+    for (final entry in value.entries) {
+      final key = _dartStringLiteral(entry.key as String);
+      final literal = _dartJsonLiteral(entry.value);
+      entries.add('$key: $literal');
+    }
+    return '<String, Object?>{${entries.join(', ')}}';
+  }
+  if (value is List) {
+    return '<Object?>[${value.map(_dartJsonLiteral).join(', ')}]';
+  }
+  return _dartJsonScalarOrListLiteral(value);
 }
 
 String _dartJsonScalarOrListLiteral(Object? value) {
@@ -2365,7 +2291,7 @@ String _schemaForNodeBase(
       final base = members.isEmpty
           ? 'S.string()'
           : 'S.string(enumValues: <Object?>['
-              '${members.map(_dartStringLiteral).join(', ')}])';
+                '${members.map(_dartStringLiteral).join(', ')}])';
       return _withSchemaDescription(
         base,
         includeOccurrenceDescription
@@ -2505,7 +2431,10 @@ final class _DefsContext {
     required this.definitionTargets,
     required this.safeKeys,
     required this.canonicalOrderTargets,
+    this.referencePrefix = r'#/$defs/',
   });
+
+  final String referencePrefix;
 
   /// Canonical ids materialized once in `$defs`.
   final Set<String> definitionTargets;
@@ -2598,15 +2527,16 @@ String _projectNodeBase(
         for (final name in _orderedRequired(object.required, canonicalOrder))
           _dartStringLiteral(name),
       ];
-      final base = 'S.object(properties: {${props.join(', ')}}, '
+      final base =
+          'S.object(properties: {${props.join(', ')}}, '
           'required: <String>[${req.join(', ')}],)';
       return _withSchemaDescription(
         base,
         atDefRoot
             ? _normalizedDescription(object.definitionDescription)
             : includeOccurrenceDescription
-                ? _inlineObjectDescription(object)
-                : _definitionOnlyObjectDescription(object),
+            ? _inlineObjectDescription(object)
+            : _definitionOnlyObjectDescription(object),
       );
     case RefNode(:final defId, :final occurrenceDescription):
       return _withSchemaDescription(
@@ -2627,9 +2557,11 @@ String _projectNodeBase(
 String _refExpression(_DefsContext ctx, String defId) {
   final key = ctx.safeKeys[defId];
   if (key == null) {
-    throw StateError('A2UI projection: no \$defs key assigned for "$defId".');
+    throw StateError(
+      'A2UI projection: no \$defs key assigned for "$defId".',
+    );
   }
-  return 'S.combined(\$ref: ${_refLiteral(key)})';
+  return 'S.combined(\$ref: ${_refLiteral(key, ctx.referencePrefix)})';
 }
 
 /// The Dart source literal for the JSON pointer `#/$defs/<key>`.
@@ -2637,14 +2569,15 @@ String _refExpression(_DefsContext ctx, String defId) {
 /// The `$` is backslash-escaped (`\$`) so the *emitted* Dart string literal
 /// carries the pointer text rather than interpolating; built explicitly (not
 /// via [_dartStringLiteral]) so the shared string helper stays untouched.
-String _refLiteral(String key) => "'#/\\\$defs/$key'";
+String _refLiteral(String key, [String prefix = r'#/$defs/']) =>
+    _dartStringLiteral('$prefix$key');
 
 /// The `defId` of an object/union node, or null for any other node.
 String? _defIdOf(A2uiSchemaNode node) => switch (node) {
-      ObjectNode(:final defId) => defId,
-      UnionNode(:final defId) => defId,
-      _ => null,
-    };
+  ObjectNode(:final defId) => defId,
+  UnionNode(:final defId) => defId,
+  _ => null,
+};
 
 bool _hasOwnProjectionDocumentation(
   A2uiSchemaNode node, {
@@ -2658,8 +2591,7 @@ bool _hasOwnProjectionDocumentation(
     ObjectNode(:final definitionDescription) ||
     UnionNode(
       :final definitionDescription,
-    ) =>
-      _normalizedDescription(definitionDescription) != null,
+    ) => _normalizedDescription(definitionDescription) != null,
     _ => false,
   };
 }
@@ -2677,25 +2609,25 @@ bool _hasProjectionDocumentation(
   return switch (node) {
     ScalarNode() || EnumNode() || RefNode() => false,
     ListNode(:final element) => _hasProjectionDocumentation(
-        element,
-        atDefinitionRoot: false,
-      ),
+      element,
+      atDefinitionRoot: false,
+    ),
     MapNode(:final valueType) => _hasProjectionDocumentation(
-        valueType,
+      valueType,
+      atDefinitionRoot: false,
+    ),
+    ObjectNode(:final fields) => fields.values.any(
+      (field) => _hasProjectionDocumentation(
+        field,
         atDefinitionRoot: false,
       ),
-    ObjectNode(:final fields) => fields.values.any(
-        (field) => _hasProjectionDocumentation(
-          field,
-          atDefinitionRoot: false,
-        ),
-      ),
+    ),
     UnionNode(:final variants) => variants.any(
-        (variant) => _hasProjectionDocumentation(
-          variant,
-          atDefinitionRoot: false,
-        ),
+      (variant) => _hasProjectionDocumentation(
+        variant,
+        atDefinitionRoot: false,
       ),
+    ),
   };
 }
 
@@ -2709,7 +2641,8 @@ A2uiSchemaNode _orderedProjectionNode(
   required bool atDefinitionRoot,
   bool insideDocumentedSubtree = false,
 }) {
-  final descendantContext = insideDocumentedSubtree ||
+  final descendantContext =
+      insideDocumentedSubtree ||
       _hasOwnProjectionDocumentation(
         node,
         atDefinitionRoot: atDefinitionRoot,
@@ -2718,10 +2651,10 @@ A2uiSchemaNode _orderedProjectionNode(
     case ScalarNode() || EnumNode() || RefNode():
       return node;
     case ListNode(
-        :final element,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final element,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       return ListNode(
         element: _orderedProjectionNode(
           element,
@@ -2732,10 +2665,10 @@ A2uiSchemaNode _orderedProjectionNode(
         nullable: nullable,
       );
     case MapNode(
-        :final valueType,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final valueType,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       return MapNode(
         valueType: _orderedProjectionNode(
           valueType,
@@ -2746,15 +2679,16 @@ A2uiSchemaNode _orderedProjectionNode(
         nullable: nullable,
       );
     case ObjectNode(
-        :final fields,
-        :final required,
-        :final defId,
-        :final construction,
-        :final definitionDescription,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
-      final canonicalOrder = insideDocumentedSubtree ||
+      :final fields,
+      :final required,
+      :final defId,
+      :final construction,
+      :final definitionDescription,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
+      final canonicalOrder =
+          insideDocumentedSubtree ||
           _hasProjectionDocumentation(
             node,
             atDefinitionRoot: atDefinitionRoot,
@@ -2782,13 +2716,13 @@ A2uiSchemaNode _orderedProjectionNode(
         nullable: nullable,
       );
     case UnionNode(
-        :final variants,
-        :final discriminatorField,
-        :final defId,
-        :final definitionDescription,
-        :final occurrenceDescription,
-        :final nullable,
-      ):
+      :final variants,
+      :final discriminatorField,
+      :final defId,
+      :final definitionDescription,
+      :final occurrenceDescription,
+      :final nullable,
+    ):
       return UnionNode(
         variants: [
           for (final variant in variants)
@@ -2868,8 +2802,8 @@ String _richNodeUnsupportedMessage(A2uiSchemaNode node) =>
 
 /// The statements that reconstruct each rich field's typed value into a local
 /// at the top of the widget builder. A REQUIRED, non-null reconstruction that
-/// can be null fails the whole widget safe (`const SizedBox.shrink()`) — the
-/// ruling-#5 fail-safe — while a nullable one passes the value through.
+/// can be null fails the whole widget safe (`const SizedBox.shrink()`), while a
+/// nullable one passes the value through.
 List<String> _richPreludeStatements(
   A2uiDartWidgetPlan widget,
   A2uiDataBuilder dataBuilder,
@@ -2882,7 +2816,8 @@ List<String> _richPreludeStatements(
     if (emission is! A2uiDataField || !emission.rich) continue;
     final property = field.property;
     final variable = symbols.richValueFor(property.name);
-    final access = '${symbols.fieldData}[${_dartStringLiteral(property.name)}]';
+    final propertyKey = _wirePropertyKey(property.name);
+    final access = '${symbols.fieldData}[${_wirePropertyKey(property.name)}]';
     var reconstruction = dataBuilder.valueExpression(emission.node, access);
     final constructorDefault = property.constructorDefault;
     if (constructorDefault != null) {
@@ -2891,20 +2826,33 @@ List<String> _richPreludeStatements(
         prefixes,
       );
       reconstruction = property.constructorNullable
-          ? '${symbols.fieldData}.containsKey('
-              '${_dartStringLiteral(property.name)}) '
-              '? $reconstruction : $fallback'
+          ? '${symbols.fieldData}.containsKey($propertyKey) '
+                '? $reconstruction : $fallback'
           : '($reconstruction ?? $fallback)';
     }
     statements.add('final $variable = $reconstruction;');
     if (property.required &&
         !emission.node.nullable &&
         dataBuilder.valueCanBeNull(emission.node)) {
-      statements.add('if ($variable == null) return const SizedBox.shrink();');
+      statements.add(
+        'if ($variable == null) return const SizedBox.shrink();',
+      );
     }
   }
   return statements;
 }
+
+/// One slot per component ID and data context, so template rows sharing an ID
+/// keep separate values. The prefixes keep every segment clear of DataModel's
+/// forbidden constructor/prototype/__proto__ segments.
+String _selfStoragePathExpression(
+  _A2uiGeneratedSymbolPlan symbols,
+  String propertyName,
+) =>
+    "'/restage_\${Uri.encodeComponent(${symbols.itemContext}.componentModel.id)}"
+    "\${${symbols.itemContext}.dataContext.path == '/' ? '' : "
+    "'/context_\${Uri.encodeComponent(${symbols.itemContext}.dataContext.path)}'}"
+    "/${a2uiPropertyName(propertyName)}'";
 
 /// The statements that derive write-back paths at the top of the widget
 /// builder. Controlled leaf values retain their raw producer descriptor
@@ -2930,8 +2878,10 @@ List<String> _writeBackPreludeStatements(
           '"${widget.entry.name}".',
         );
       }
-      final selfScoped =
-          "'\${${symbols.itemContext}.id}.${writeBack.valuePropertyName}'";
+      final selfScoped = _selfStoragePathExpression(
+        symbols,
+        writeBack.valuePropertyName,
+      );
       statements.add('final $selfPathVar = $selfScoped;');
       continue;
     }
@@ -2945,13 +2895,15 @@ List<String> _writeBackPreludeStatements(
       );
     }
     final refVar = symbols.writeBackRefFor(writeBack.valuePropertyName);
-    final access = '${symbols.fieldData}['
-        '${_dartStringLiteral(writeBack.valuePropertyName)}]';
-    final pathKey = _dartStringLiteral('path');
-    // The emitted self-scoped path interpolates `itemContext.id` at render
-    // time, so the `$` is escaped here to land in the generated source as-is.
-    final selfScoped =
-        "'\${${symbols.itemContext}.id}.${writeBack.valuePropertyName}'";
+    final propertyKey = _wirePropertyKey(writeBack.valuePropertyName);
+    final access =
+        '${symbols.itemContext}.componentModel.properties[$propertyKey]';
+    final pathKey = _dartStringLiteral('@path');
+    // Literal fallback writes use the same encoded storage path as controls.
+    final selfScoped = _selfStoragePathExpression(
+      symbols,
+      writeBack.valuePropertyName,
+    );
     statements
       ..add('final $refVar = $access;')
       ..add(
@@ -2962,10 +2914,9 @@ List<String> _writeBackPreludeStatements(
   return statements;
 }
 
-/// The widget builder's return expression: the constructor wrapped in the
-/// reactive `Bound*` layers for the LEAF (catalog-fed scalar/enum/leaf-list)
-/// fields. Rich fields are not wrapped here — they are reconstructed in the
-/// prelude and referenced by the constructor as locals.
+/// Wraps the constructor in controlled-field state helpers where needed.
+/// Ordinary leaves read upstream-resolved properties; rich fields use typed
+/// reconstruction locals from the prelude.
 String _widgetReturnExpression(
   A2uiDartWidgetPlan widget,
   Map<String, String> prefixes, {
@@ -3023,54 +2974,38 @@ String _boundWrapperExpression(
       ObjectNode() ||
       MapNode() ||
       UnionNode() ||
-      RefNode() =>
-        throw StateError(_richNodeUnsupportedMessage(emission.node)),
+      RefNode() => throw StateError(_richNodeUnsupportedMessage(emission.node)),
     };
     return '''
 _RestageA2uiControlledValue(
   dataContext: ${symbols.itemContext}.dataContext,
-  source: ${symbols.fieldData}[${_dartStringLiteral(name)}],
-  sourcePresent: ${symbols.fieldData}.containsKey(${_dartStringLiteral(name)}),
-  surfaceId: ${symbols.itemContext}.surfaceId,
-  catalogId: $catalogIdExpression,
-  componentId: ${symbols.itemContext}.id,
+  resolvedProps: restageNode.props,
+  propertyName: ${_wirePropertyKey(name)},
+  source: ${symbols.itemContext}.componentModel.properties[${_wirePropertyKey(name)}],
+  sourcePresent: ${symbols.itemContext}.componentModel.properties.containsKey(${_wirePropertyKey(name)}),
+  surfaceId: ${symbols.itemContext}.surface.id,
+  catalogId: ${symbols.itemContext}.componentModel.catalog ?? ${symbols.itemContext}.surface.defaultCatalog?.id,
+  componentId: ${symbols.itemContext}.componentModel.id,
   field: ${_dartStringLiteral(name)},
   selfPath: ${symbols.writeBackSelfPathFor(name)},
-  reportError: ${symbols.itemContext}.reportError,
   builder: (${symbols.boundContext}, $raw, $present, $kind, $writer) {
     final ${symbols.valueFor(name)} = $normalized;
     return $child;
   },
 )''';
   }
-  final bound = switch (emission.node) {
-    ScalarNode(:final type) => switch (type) {
-        A2uiScalarType.boolean => 'BoundBool',
-        A2uiScalarType.number || A2uiScalarType.integer => 'BoundNumber',
-        A2uiScalarType.string => 'BoundString',
-      },
-    EnumNode() => 'BoundString',
-    ListNode() => 'BoundObject',
-    ObjectNode() ||
-    MapNode() ||
-    UnionNode() ||
-    RefNode() =>
-      throw StateError(_richNodeUnsupportedMessage(emission.node)),
-  };
   final variable = symbols.valueFor(property.name);
-  // A write-back value field reads from its resolved data path (a literal
-  // `{'path': P}` reference) — NOT the raw value — so the binding is subscribed
-  // to the exact path the paired callback writes. A scalar value is never a
-  // map, so the `{path}` map-pattern cannot hijack a scalar literal.
-  final value = emission.writeBack
-      ? "{'path': ${symbols.writeBackPathFor(property.name)}}"
-      : '${symbols.fieldData}[${_dartStringLiteral(property.name)}]';
-  return '''
-$bound(
-  dataContext: ${symbols.itemContext}.dataContext,
-  value: $value,
-  builder: (${symbols.boundContext}, $variable) => $child,
-)''';
+  final access = '${symbols.fieldData}[${_wirePropertyKey(property.name)}]';
+  final value = switch (emission.node) {
+    ScalarNode(type: A2uiScalarType.boolean) =>
+      'ComponentProps.asBoolean($access)',
+    ScalarNode(type: A2uiScalarType.number || A2uiScalarType.integer) =>
+      '($access is num ? $access as num : null)',
+    ScalarNode(type: A2uiScalarType.string) ||
+    EnumNode() => 'ComponentProps.asString($access)',
+    _ => access,
+  };
+  return '(() { final $variable = $value; return $child; })()';
 }
 
 String _constructorExpression(
@@ -3117,7 +3052,7 @@ String _constructorExpression(
       named.add(
         enumWireValue != null
             ? '${writeBack.callbackProperty.name}: '
-                '(restageA2uiNext) => $writer($enumWireValue)'
+                  '(restageA2uiNext) => $writer($enumWireValue)'
             : '${writeBack.callbackProperty.name}: $writer',
       );
     } else {
@@ -3125,23 +3060,20 @@ String _constructorExpression(
         writeBack.valuePropertyName,
       );
       named.add(
-        '${writeBack.callbackProperty.name}: (_restageA2uiNext) => '
-        '${symbols.itemContext}.dataContext.update('
-        'DataPath($pathVar), _restageA2uiNext)',
+        '${writeBack.callbackProperty.name}: (_restageA2uiNext) '
+        '=> ${symbols.itemContext}.dataContext.set('
+        '$pathVar, _restageA2uiNext)',
       );
     }
   }
 
-  // A dispatch callback fires an outward `UserActionEvent` whose name is
-  // compile-fixed from the callback property name (the producer cannot repoint
-  // it — load-bearing for inertness). Named-only, like write-backs.
+  // A dispatch callback sends an upstream action with a compile-fixed name.
+  // Its identity comes from the callback property, never producer data.
   for (final dispatch in widget.dispatches) {
     final eventName = _dartStringLiteral(dispatch.name);
     named.add(
       '${dispatch.name}: () => '
-      '${symbols.itemContext}.dispatchEvent('
-      'UserActionEvent(name: $eventName, '
-      'sourceComponentId: ${symbols.itemContext}.id))',
+      "${symbols.itemContext}.dispatchAction({'event': {'name': $eventName}})",
     );
   }
 
@@ -3176,12 +3108,13 @@ String _argumentExpression(
     case A2uiChildField(:final slot):
       switch (slot) {
         case A2uiChildNode(:final nullable):
-          final child = '_restageA2uiBuildChild(${symbols.itemContext}, '
-              '${symbols.fieldData}[${_dartStringLiteral(property.name)}])';
+          final child =
+              '_restageA2uiBuildChild(restageBuildChild, '
+              '${symbols.fieldData}[${_wirePropertyKey(property.name)}])';
           if (!nullable && property.required) {
-            return '_restageA2uiRequireChild(${symbols.itemContext}, '
-                '${symbols.fieldData}[${_dartStringLiteral(property.name)}], '
-                '${_dartStringLiteral('$widgetName.${property.name}')})';
+            return '_restageA2uiRequireChild(restageBuildChild, '
+                '${symbols.fieldData}[${_wirePropertyKey(property.name)}], '
+                "${_dartStringLiteral('$widgetName.${property.name}')})";
           }
           final constructorDefault = property.constructorDefault;
           if (constructorDefault != null &&
@@ -3207,8 +3140,9 @@ String _argumentExpression(
             symbols.fieldData,
           );
         case A2uiChildrenNode(:final nullable):
-          final children = '_restageA2uiBuildChildren(${symbols.itemContext}, '
-              '${symbols.fieldData}[${_dartStringLiteral(property.name)}])';
+          final children =
+              '_restageA2uiBuildChildren(restageBuildChild, '
+              '${symbols.fieldData}[${_wirePropertyKey(property.name)}])';
           final constructorDefault = property.constructorDefault;
           if (constructorDefault != null &&
               constructorDefault is! DartConstNull) {
@@ -3224,9 +3158,10 @@ String _argumentExpression(
                 symbols.fieldData,
               );
             }
-            final access = '${symbols.fieldData}['
-                '${_dartStringLiteral(property.name)}]';
-            final nullableChildren = '$access == null '
+            final access =
+                '${symbols.fieldData}[${_wirePropertyKey(property.name)}]';
+            final nullableChildren =
+                '$access == null '
                 '? null : $children';
             return _nullableDataPresenceExpression(
               property,
@@ -3236,9 +3171,10 @@ String _argumentExpression(
             );
           }
           if (!nullable) return children;
-          final access = '${symbols.fieldData}['
-              '${_dartStringLiteral(property.name)}]';
-          final nullableChildren = '$access == null '
+          final access =
+              '${symbols.fieldData}[${_wirePropertyKey(property.name)}]';
+          final nullableChildren =
+              '$access == null '
               '? null : $children';
           return _nullableDataPresenceExpression(
             property,
@@ -3264,36 +3200,53 @@ String _nullableDataPresenceExpression(
   String dataSymbol,
 ) {
   if (property.required) return whenPresent;
-  final key = _dartStringLiteral(property.name);
+  final key = _wirePropertyKey(property.name);
   return '$dataSymbol.containsKey($key) ? $whenPresent : $whenAbsent';
 }
 
 /// Preserves the complete three-state invariant for a nullable leaf.
 ///
-/// A missing optional source uses [fallback]. A present raw JSON or local
-/// override `null` remains `null`. A present non-null raw value whose binding,
-/// lookup, or conversion produces `null` fails closed to [fallback]. Required
-/// nullable fields implement only the latter two states because their schema
-/// already requires the source.
+/// With a declared default, a missing source, a binding resolving to `null`,
+/// and a value whose lookup or conversion fails all use [fallback]; a literal
+/// or local-override `null` stays `null`. Without one, each of those is `null`,
+/// as Dart gives an omitted nullable parameter. Required fields have no absent
+/// case.
 String _nullableLeafExpression(
   PropertyEntry property,
   String normalizedValue,
   String fallback, {
   required bool controlled,
   required _A2uiGeneratedSymbolPlan symbols,
+  required Map<String, String> prefixes,
+  bool? hasDeclaredDefault,
 }) {
-  final key = _dartStringLiteral(property.name);
-  final raw = controlled
-      ? symbols.controlledRawFor(property.name)
-      : '${symbols.fieldData}[$key]';
+  final key = _wirePropertyKey(property.name);
   final present = controlled
       ? symbols.controlledPresentFor(property.name)
       : '${symbols.fieldData}.containsKey($key)';
-  final recovered =
-      fallback == 'null' ? normalizedValue : '($normalizedValue ?? $fallback)';
-  final whenPresent = '$raw == null ? null : $recovered';
+  final resolvedNull = controlled
+      ? '${symbols.controlledRawFor(property.name)} == null'
+      : '${symbols.fieldData}[$key] == null';
+  // With a declared default, only a literal (or local override) null stays
+  // null; a binding that resolves to null uses the default.
+  final declared =
+      hasDeclaredDefault ?? _declaredDefault(property, prefixes) != null;
+  final nullWhen = !declared
+      ? resolvedNull
+      : controlled
+      ? '$resolvedNull && '
+            '(${symbols.controlledKindFor(property.name)} == '
+            '_RestageA2uiSourceKind.literal || '
+            '${symbols.controlledKindFor(property.name)} == '
+            '_RestageA2uiSourceKind.localOverride)'
+      : '${symbols.itemContext}.componentModel.properties[$key] == null';
+  final effectiveFallback = declared ? fallback : 'null';
+  final recovered = effectiveFallback == 'null'
+      ? normalizedValue
+      : '($normalizedValue ?? $effectiveFallback)';
+  final whenPresent = '$nullWhen ? null : $recovered';
   if (property.required) return whenPresent;
-  return '$present ? ($whenPresent) : $fallback';
+  return '$present ? ($whenPresent) : $effectiveFallback';
 }
 
 String _dataArgumentExpression(
@@ -3315,6 +3268,7 @@ String _dataArgumentExpression(
                   _defaultFor(property, prefixes),
                   controlled: controlled,
                   symbols: symbols,
+                  prefixes: prefixes,
                 )
               : '$variable ?? ${_defaultFor(property, prefixes)}';
         case A2uiScalarType.number:
@@ -3337,6 +3291,7 @@ String _dataArgumentExpression(
                     _defaultFor(property, prefixes),
                     controlled: controlled,
                     symbols: symbols,
+                    prefixes: prefixes,
                   )
                 : '$color ?? ${_defaultFor(property, prefixes)}';
           }
@@ -3347,6 +3302,7 @@ String _dataArgumentExpression(
                   _defaultFor(property, prefixes),
                   controlled: controlled,
                   symbols: symbols,
+                  prefixes: prefixes,
                 )
               : '$variable ?? ${_defaultFor(property, prefixes)}';
       }
@@ -3369,6 +3325,7 @@ String _dataArgumentExpression(
               fallback,
               controlled: controlled,
               symbols: symbols,
+              prefixes: prefixes,
             )
           : '$lookup ?? $fallback';
     case final ListNode list:
@@ -3412,43 +3369,53 @@ String _scalarListArgumentExpression(
   }
 
   final fallback = _scalarListDefaultExpression(property, list, prefixes);
-  final normalized = '($variable is List '
+  final normalized =
+      '($variable is List '
       '? $variable.cast<Object?>() '
       ': null)';
   final source = switch ((list.nullable, fallback)) {
-    (true, final String fallback) => '(${_nullableLeafExpression(
+    (true, final String fallback) =>
+      '(${_nullableLeafExpression(
         property,
         normalized,
         fallback,
         controlled: controlled,
         symbols: symbols,
+        prefixes: prefixes,
+        hasDeclaredDefault: fallback != 'null',
       )})',
-    (true, null) => '(${_nullableLeafExpression(
+    (true, null) =>
+      '(${_nullableLeafExpression(
         property,
         normalized,
         'null',
         controlled: controlled,
         symbols: symbols,
+        prefixes: prefixes,
+        hasDeclaredDefault: false,
       )})',
     (false, final String fallback) => '($normalized ?? $fallback)',
     (false, null) => '($normalized ?? const <Object?>[])',
   };
   final nullAware = list.nullable ? '?' : '';
   final mapped = switch (element.type) {
-    A2uiScalarType.string => element.nullable
-        ? '.map((value) => value is String ? value : null)'
-        : '.whereType<String>()',
-    A2uiScalarType.boolean => element.nullable
-        ? '.map((value) => value is bool ? value : null)'
-        : '.whereType<bool>()',
+    A2uiScalarType.string =>
+      element.nullable
+          ? '.map((value) => value is String ? value : null)'
+          : '.whereType<String>()',
+    A2uiScalarType.boolean =>
+      element.nullable
+          ? '.map((value) => value is bool ? value : null)'
+          : '.whereType<bool>()',
     A2uiScalarType.integer =>
       '.map((value) => value is num ? value.toInt() : null)'
           '${element.nullable ? '' : '.whereType<int>()'}',
-    A2uiScalarType.number => element.preserveNumericRuntimeType
-        ? '.map((value) => value is num ? value : null)'
-            '${element.nullable ? '' : '.whereType<num>()'}'
-        : '.map((value) => value is num ? value.toDouble() : null)'
-            '${element.nullable ? '' : '.whereType<double>()'}',
+    A2uiScalarType.number =>
+      element.preserveNumericRuntimeType
+          ? '.map((value) => value is num ? value : null)'
+                '${element.nullable ? '' : '.whereType<num>()'}'
+          : '.map((value) => value is num ? value.toDouble() : null)'
+                '${element.nullable ? '' : '.whereType<double>()'}',
   };
   return '$source$nullAware$mapped.toList(growable: false)';
 }
@@ -3523,9 +3490,9 @@ String? _scalarListDefaultExpression(
       A2uiScalarType.boolean => item is bool ? item.toString() : null,
       A2uiScalarType.integer => item is int ? item.toString() : null,
       A2uiScalarType.number => _numericListDefaultLiteral(
-          item,
-          preserveNumericRuntimeType: element.preserveNumericRuntimeType,
-        ),
+        item,
+        preserveNumericRuntimeType: element.preserveNumericRuntimeType,
+      ),
     };
     if (literal == null) {
       throw StateError(
@@ -3568,6 +3535,7 @@ String _numberArgumentExpression(
           '($variable ?? $fallback).toInt()',
           controlled: controlled,
           symbols: symbols,
+          prefixes: prefixes,
         );
       }
       return '($variable ?? $fallback).toInt()';
@@ -3580,6 +3548,7 @@ String _numberArgumentExpression(
           '($variable ?? $fallback).toDouble()',
           controlled: controlled,
           symbols: symbols,
+          prefixes: prefixes,
         );
       }
       return '($variable ?? $fallback).toDouble()';
@@ -3592,6 +3561,7 @@ String _numberArgumentExpression(
           'Duration(milliseconds: ($variable ?? $fallback).toInt())',
           controlled: controlled,
           symbols: symbols,
+          prefixes: prefixes,
         );
       }
       return 'Duration(milliseconds: ($variable ?? $fallback).toInt())';
@@ -3604,6 +3574,7 @@ String _numberArgumentExpression(
           '_restageA2uiFontWeight($variable, $fallback)',
           controlled: controlled,
           symbols: symbols,
+          prefixes: prefixes,
         );
       }
       return '_restageA2uiFontWeight($variable, $fallback)';
@@ -3642,23 +3613,29 @@ String _numberArgumentExpression(
     case PropertyType.curve:
     case PropertyType.unknown:
       throw StateError(
-        'PropertyType.${property.type.name} is not a BoundNumber field.',
+        'PropertyType.${property.type.name} is not a numeric binding field.',
       );
   }
 }
 
-String _defaultFor(PropertyEntry property, Map<String, String> prefixes) {
+/// The constructor or catalog default, or null when none is declared.
+String? _declaredDefault(PropertyEntry property, Map<String, String> prefixes) {
   final constructorDefault = property.constructorDefault;
-  if (constructorDefault is DartConstNull) return 'null';
+  if (constructorDefault is DartConstNull) return null;
   if (constructorDefault != null) {
     return renderDartConstValueFromPrefixes(constructorDefault, prefixes);
   }
   final source = property.defaultSource;
   final value = source is LiteralDefault ? source.value : null;
-  if (value != null) {
-    final literal = _literalDefaultExpression(property, value, prefixes);
-    if (literal != null) return literal;
-  }
+  return value == null
+      ? null
+      : _literalDefaultExpression(property, value, prefixes);
+}
+
+String _defaultFor(PropertyEntry property, Map<String, String> prefixes) {
+  if (property.constructorDefault is DartConstNull) return 'null';
+  final declared = _declaredDefault(property, prefixes);
+  if (declared != null) return declared;
 
   // A required (non-nullable) enum with no catalog-declared default must still
   // receive a valid member when the bound value is null/unknown — fail CLOSED
@@ -3728,28 +3705,28 @@ String _defaultFor(PropertyEntry property, Map<String, String> prefixes) {
 }
 
 Object? _portableConstructorLiteral(DartConstValue? value) => switch (value) {
-      DartConstScalar(:final value) => value,
-      DartConstList(:final values) => [
-          for (final value in values) _portableConstructorLiteral(value),
-        ],
-      _ => null,
-    };
+  DartConstScalar(:final value) => value,
+  DartConstList(:final values) => [
+    for (final value in values) _portableConstructorLiteral(value),
+  ],
+  _ => null,
+};
 
 bool _containsDartConstIdentity(DartConstValue value) => switch (value) {
-      DartConstReference() || DartConstInvocation() => true,
-      DartConstList(:final values) || DartConstSet(:final values) => values.any(
-          _containsDartConstIdentity,
-        ),
-      DartConstMap(:final entries) => entries.any(
-          (entry) =>
-              _containsDartConstIdentity(entry.key) ||
-              _containsDartConstIdentity(entry.value),
-        ),
-      DartConstRecord(:final positional, :final named) =>
-        positional.any(_containsDartConstIdentity) ||
-            named.any((field) => _containsDartConstIdentity(field.value)),
-      DartConstNull() || DartConstScalar() => false,
-    };
+  DartConstReference() || DartConstInvocation() => true,
+  DartConstList(:final values) || DartConstSet(:final values) => values.any(
+    _containsDartConstIdentity,
+  ),
+  DartConstMap(:final entries) => entries.any(
+    (entry) =>
+        _containsDartConstIdentity(entry.key) ||
+        _containsDartConstIdentity(entry.value),
+  ),
+  DartConstRecord(:final positional, :final named) =>
+    positional.any(_containsDartConstIdentity) ||
+        named.any((field) => _containsDartConstIdentity(field.value)),
+  DartConstNull() || DartConstScalar() => false,
+};
 
 String? _literalDefaultExpression(
   PropertyEntry property,
@@ -3811,9 +3788,9 @@ class _InteractionPlan {
   final Map<String, A2uiDartCoverageReason> scopedByCallbackName;
 }
 
-/// Resolves the interaction lowering for [entry] from [eventSeam]: write-back
+/// Resolves the interaction lowering for [entry] from [eventSeam]: write- back
 /// pairs (the auto single-pair rule) plus dispatch callbacks. A built-in
-/// catalog carries no seam → no interactions → returns null (byte-neutral).
+/// catalog carries no seam → no interactions → returns null (byte- neutral).
 ///
 /// Only NAMED callbacks are wired (a positional callback's constructor slot
 /// cannot be allocated without risking a positional shift, so it falls through
@@ -3885,21 +3862,21 @@ _InteractionPlan? _resolveInteractions(
 
 /// Resolves the write-back pairs for [entry]'s write-back [callbacks].
 ///
-/// A callback with an explicit
-/// `@a2ui.Config.writeBackValue('propertyName')` pairing (in [pairingSeam])
-/// OVERRIDES the auto rule: it resolves the named pair directly, validated the
-/// same way (the named value prop exists + is a matching-type bindable leaf),
-/// enabling MULTIPLE write-backs on a multi-control widget. Two
-/// callbacks naming the SAME value property collide → both fail closed loud. A
-/// callback WITHOUT a pairing takes the auto single-pair rule ONLY when it is
-/// the sole write-back callback and no explicit pairing is present (the
-/// zero-annotation default); otherwise it is ambiguous (`#pair` — annotate
-/// every control). Every ambiguity / bad pairing fails closed loud with a
-/// named reason.
+/// A callback with an explicit `@a2ui.Config.writeBackValue('propertyName')`
+/// pairing (in [pairingSeam]) OVERRIDES the auto rule: it resolves the named
+/// pair directly, validated the same way (the named value prop exists + is a
+/// matching-type bindable leaf), enabling MULTIPLE write-backs on a
+/// multi-control widget. Two callbacks naming the SAME value property collide →
+/// both fail closed loud. A callback WITHOUT a pairing takes the auto
+/// single-pair rule ONLY when it is the sole write-back callback and no
+/// explicit pairing is present (the zero-annotation default); otherwise it is
+/// ambiguous (`#pair` — annotate every control). Every ambiguity / bad pairing
+/// fails closed loud with a named reason.
 ({
   List<A2uiWriteBack> writeBacks,
   Map<String, A2uiDartCoverageReason> scoped,
-}) _resolveWriteBackPairs(
+})
+_resolveWriteBackPairs(
   WidgetEntry entry,
   List<({PropertyEntry property, A2uiCallbackWriteBack signature})> callbacks,
   A2uiPairingSeam? pairingSeam,
@@ -3912,10 +3889,12 @@ _InteractionPlan? _resolveInteractions(
   String? targetOf(PropertyEntry callback) =>
       pairingSeam?[(entry.name, callback.name)];
 
-  final annotated =
-      callbacks.where((c) => targetOf(c.property) != null).toList();
-  final unAnnotated =
-      callbacks.where((c) => targetOf(c.property) == null).toList();
+  final annotated = callbacks
+      .where((c) => targetOf(c.property) != null)
+      .toList();
+  final unAnnotated = callbacks
+      .where((c) => targetOf(c.property) == null)
+      .toList();
 
   final writeBacks = <A2uiWriteBack>[];
   final scoped = <String, A2uiDartCoverageReason>{};
@@ -4000,7 +3979,8 @@ A2uiDartCoverageReason? _validateExplicitPairing(
 ({
   List<A2uiWriteBack> writeBacks,
   Map<String, A2uiDartCoverageReason> scoped,
-}) _autoSinglePair(
+})
+_autoSinglePair(
   WidgetEntry entry,
   ({PropertyEntry property, A2uiCallbackWriteBack signature}) callback,
   A2uiRichShapes? richShapes,
@@ -4083,7 +4063,8 @@ bool _valuePropMatchesSignature(
   A2uiRichShapes? richShapes,
 ) {
   final reflected = richShapes?[(widgetName, property.name)];
-  final node = reflected is ScalarNode ||
+  final node =
+      reflected is ScalarNode ||
           reflected is EnumNode ||
           _isScalarListNode(reflected)
       ? reflected
@@ -4115,17 +4096,15 @@ bool _valuePropMatchesSignature(
 
 /// Whether [property] (on widget [widgetName]) classifies to a bindable
 /// catalog-fed leaf — a scalar, enum, or `List<scalar>` — using the same
-/// conditions
-/// [_classifyField] applies before emitting a leaf data field, so a value
-/// property that passes here can route through the shared controlled-value
-/// state machine.
+/// conditions [_classifyField] applies before emitting a leaf data field, so a
+/// value property that passes here can route through the shared
+/// controlled-value state machine.
 ///
 /// An analyzer-fed scalar list IS a bindable leaf: classification keeps it in a
 /// safe object binding, using its reflected element node for type-safe list
-/// construction.
-/// Other analyzer-fed shapes reconstruct raw in the prelude and remain
-/// non-bindable, keeping rich reconstruction and `{path:P}` binding mutually
-/// exclusive.
+/// construction. Other analyzer-fed shapes reconstruct raw in the prelude and
+/// remain non-bindable, keeping rich reconstruction and `{path:P}` binding
+/// mutually exclusive.
 bool _isBindableLeaf(
   String widgetName,
   PropertyEntry property,
@@ -4149,14 +4128,13 @@ bool _isBindableLeaf(
 A2uiDartFieldPlan _writeBackValueField(
   A2uiDartWidgetPlan widget,
   A2uiWriteBack writeBack,
-) =>
-    widget.fields.singleWhere(
-      (field) => field.property.name == writeBack.valuePropertyName,
-    );
+) => widget.fields.singleWhere(
+  (field) => field.property.name == writeBack.valuePropertyName,
+);
 
 /// Whether [field] uses the shared controlled-value state machine. Every
 /// supported write-back leaf family routes through this single predicate so
-/// source identity, local override provenance, cancellation, and stale-event
+/// source identity, local override provenance, cancellation, and stale- event
 /// rejection cannot drift between scalar and scalar-list constructor paths.
 bool _usesControlledValue(A2uiDartFieldPlan field) {
   final emission = field.emission;
@@ -4196,9 +4174,8 @@ _FieldClassification _classifyField(
   WidgetEntry entry,
   PropertyEntry property,
   A2uiRichShapes? richShapes,
-  bool prefixesCustomLibs, {
-  required bool usesPropsNamespace,
-}) {
+  bool prefixesCustomLibs,
+) {
   if (property.type == PropertyType.scalarCallback) {
     _rejectA2uiConstraintsWithoutDataNode(entry, property, 'scalar callback');
     return _DropWidget(
@@ -4209,22 +4186,6 @@ _FieldClassification _classifyField(
       ),
     );
   }
-  if (!usesPropsNamespace &&
-      isReservedA2uiComponentEnvelopeField(property.name)) {
-    _rejectA2uiConstraintOmission(
-      entry,
-      property,
-      'reserved GenUI component-envelope field drops the widget',
-    );
-    return _DropWidget(
-      A2uiDartWidgetDrop(
-        widgetName: entry.name,
-        fieldName: property.name,
-        reason: A2uiDartCoverageReason.requiredUnsupportedPropertyType,
-      ),
-    );
-  }
-
   final reflectedNode = richShapes?[(entry.name, property.name)];
   final childSlot = _childSlot(property, reflectedNode);
   if (childSlot != null) {
@@ -4421,15 +4382,14 @@ Never _a2uiLegacyConstraintFailure(
   PropertyEntry property,
   ValidationExpr legacy,
   String detail,
-) =>
-    throw UnsupportedError(
-      'A2UI validation rule "${legacy.expression}" on widget '
-      '"${entry.name}", property "${property.name}" is invalid: $detail. '
-      'Supported legacy forms are '
-      'range(<finite number>, <finite number>), '
-      'oneOf(<JSON scalar>, ...), and matches(<JSON string>). '
-      'Authored message: "${legacy.message}".',
-    );
+) => throw UnsupportedError(
+  'A2UI validation rule "${legacy.expression}" on widget '
+  '"${entry.name}", property "${property.name}" is invalid: $detail. '
+  'Supported legacy forms are '
+  'range(<finite number>, <finite number>), '
+  'oneOf(<JSON scalar>, ...), and matches(<JSON string>). '
+  'Authored message: "${legacy.message}".',
+);
 
 void _rejectA2uiConstraintsWithoutDataNode(
   WidgetEntry entry,
@@ -4457,7 +4417,8 @@ void _validateA2uiTypedConstraints(
     'exclusiveMaximum': constraints.exclusiveMaximum,
   };
   final hasNumeric = numericBounds.values.any((value) => value != null);
-  final numericNode = node is ScalarNode &&
+  final numericNode =
+      node is ScalarNode &&
       (node.type == A2uiScalarType.number ||
           node.type == A2uiScalarType.integer);
   if (hasNumeric && !numericNode) {
@@ -4468,10 +4429,12 @@ void _validateA2uiTypedConstraints(
       'got ${node.runtimeType}',
     );
   }
-  final hasString = constraints.pattern != null ||
+  final hasString =
+      constraints.pattern != null ||
       constraints.minLength != null ||
       constraints.maxLength != null;
-  final stringNode = node is EnumNode ||
+  final stringNode =
+      node is EnumNode ||
       node is ScalarNode && node.type == A2uiScalarType.string;
   if (hasString && !stringNode) {
     _a2uiConstraintFailure(
@@ -4537,11 +4500,10 @@ Never _a2uiConstraintFailure(
   WidgetEntry entry,
   PropertyEntry property,
   String detail,
-) =>
-    throw UnsupportedError(
-      'A2UI constraint validation failed on widget "${entry.name}", '
-      'property "${property.name}": $detail.',
-    );
+) => throw UnsupportedError(
+  'A2UI constraint validation failed on widget "${entry.name}", '
+  'property "${property.name}": $detail.',
+);
 
 /// Classifies a property the reflector resolved to an analyzer-fed data [node].
 ///
@@ -4750,35 +4712,18 @@ A2uiSchemaNode? _dataNode(
   }
 }
 
-/// The catalog-fed data node for [property], enriched only with analyzer-known
+/// The catalog-fed data node for [property], enriched only with analyzer- known
 /// source [nullable] state. Used by production seam assembly so ordinary A2UI
 /// leaves preserve nullability without widening the shared RFW catalog model.
 A2uiSchemaNode? a2uiCatalogDataNodeForProperty(
   PropertyEntry property, {
   required bool nullable,
-}) =>
-    _dataNode(property, nullable: nullable);
+}) => _dataNode(property, nullable: nullable);
 
-/// Built-in widgets that cannot currently be emitted to a compilable A2UI
-/// catalog: their Flutter constructor requires an argument the built-in catalog
-/// does not expose to the emit — a required callback the catalog marks optional
-/// (the event convention), or a required `style` / `decoration` represented
-/// only through a decompose recipe rather than a property. Emitting them
-/// produces a constructor call missing a required argument. A contained interim
-/// guard scopes them out so the merged built-in catalog compiles; the proper
-/// fix (the built-in supplies the argument) is tracked in the toolchain
-/// follow-ups. Gated on a built-in library so a same-named custom widget is
-/// unaffected.
-///
-/// INVARIANT: the merged built-in A2UI catalog MUST compile. This list is the
-/// interim guard that keeps it compiling. Adding a built-in widget requires
-/// verifying it is A2UI-constructable — if its Flutter constructor needs a
-/// required argument the emit cannot supply (a required callback, or a required
-/// structured value the catalog does not expose as a property), it would break
-/// the merged catalog's compilation and must be added here. The structural fix
-/// (the built-in catalog carries the required-ness so the emit scopes out any
-/// such widget by construction, plus a permanent merged-catalog-compiles test)
-/// retires this list entirely — see the catalog-capability follow-up.
+/// Built-in widgets whose Flutter constructor needs an argument the built-in
+/// catalog does not expose, so they are left out of the A2UI catalog. Gated on a
+/// built-in library so a same-named custom widget is unaffected. A new built-in
+/// that needs such an argument must be added here.
 const Set<String> _unconstructableBuiltIns = {
   // Required callback marked optional by the catalog's event convention.
   'FilterChip',
@@ -4954,16 +4899,15 @@ final class _A2uiGeneratedSymbolPlan {
   _A2uiGeneratedSymbolPlan._({
     required this.itemContext,
     required this.data,
-    required this.props,
     required this.boundContext,
     required Map<String, String> valueByProperty,
     required Map<String, String> richValueByProperty,
     required Map<String, _A2uiPathWriteBackSymbols> pathWriteBackByProperty,
     required Map<String, _A2uiControlledSymbols> controlledByProperty,
-  })  : _valueByProperty = valueByProperty,
-        _richValueByProperty = richValueByProperty,
-        _pathWriteBackByProperty = pathWriteBackByProperty,
-        _controlledByProperty = controlledByProperty;
+  }) : _valueByProperty = valueByProperty,
+       _richValueByProperty = richValueByProperty,
+       _pathWriteBackByProperty = pathWriteBackByProperty,
+       _controlledByProperty = controlledByProperty;
 
   factory _A2uiGeneratedSymbolPlan.forWidget(
     A2uiDartWidgetPlan widget, {
@@ -4987,11 +4931,12 @@ final class _A2uiGeneratedSymbolPlan {
       );
     }
 
-    final generatedIdentifiers = probeIdentifiers(
-      '_restageA2uiProbeA',
-    ).intersection(
-      probeIdentifiers('_restageA2uiProbeB'),
-    );
+    final generatedIdentifiers =
+        probeIdentifiers(
+          '_restageA2uiProbeA',
+        ).intersection(
+          probeIdentifiers('_restageA2uiProbeB'),
+        );
     return _A2uiGeneratedSymbolPlan._allocate(
       widget,
       generatedIdentifiers: generatedIdentifiers,
@@ -5007,8 +4952,12 @@ final class _A2uiGeneratedSymbolPlan {
     final allocator = _GeneratedDartSymbolAllocator();
     final itemContext = allocator.allocate('itemContext');
     final data = allocator.allocate('data');
-    final props =
-        widget.usesPropsNamespace ? allocator.allocate('props') : null;
+    allocator.reserveAll({
+      'restageNode',
+      'restageProps',
+      'restageBuildChild',
+      'ComponentProps',
+    });
     final boundContext = allocator.allocate('context');
 
     final richValueByProperty = <String, String>{};
@@ -5064,7 +5013,6 @@ final class _A2uiGeneratedSymbolPlan {
     return _A2uiGeneratedSymbolPlan._(
       itemContext: itemContext,
       data: data,
-      props: props,
       boundContext: boundContext,
       valueByProperty: valueByProperty,
       richValueByProperty: richValueByProperty,
@@ -5089,7 +5037,6 @@ final class _A2uiGeneratedSymbolPlan {
     );
     return '''
 final ${symbols.data} = ${symbols.itemContext}.data as Map<String, Object?>;
-${symbols.propsDeclaration ?? ''}
 ${scope.prelude.join('\n')}
 return ${scope.returnExpression};
 ''';
@@ -5097,7 +5044,6 @@ return ${scope.returnExpression};
 
   final String itemContext;
   final String data;
-  final String? props;
   final String boundContext;
   final Map<String, String> _valueByProperty;
   final Map<String, String> _richValueByProperty;
@@ -5105,15 +5051,7 @@ return ${scope.returnExpression};
   final Map<String, _A2uiControlledSymbols> _controlledByProperty;
 
   /// The map containing exact source property names for this component.
-  String get fieldData => props ?? data;
-
-  /// The custom-only declaration that extracts the required root `props`.
-  String? get propsDeclaration {
-    final props = this.props;
-    if (props == null) return null;
-    final access = "$data['props']!";
-    return 'final $props = ($access as Map).cast<String, Object?>();';
-  }
+  String get fieldData => data;
 
   String valueFor(String propertyName) =>
       _required(_valueByProperty, propertyName, 'value');
@@ -5122,35 +5060,35 @@ return ${scope.returnExpression};
   String writeBackPathFor(String propertyName) =>
       _required(_pathWriteBackByProperty, propertyName, 'write-back path').path;
   String writeBackRefFor(String propertyName) => _required(
-        _pathWriteBackByProperty,
-        propertyName,
-        'write-back reference',
-      ).reference;
+    _pathWriteBackByProperty,
+    propertyName,
+    'write-back reference',
+  ).reference;
   String writeBackSelfPathFor(String propertyName) => _required(
-        _controlledByProperty,
-        propertyName,
-        'write-back self path',
-      ).selfPath;
+    _controlledByProperty,
+    propertyName,
+    'write-back self path',
+  ).selfPath;
   String writeBackWriterFor(String propertyName) => _required(
-        _controlledByProperty,
-        propertyName,
-        'write-back writer',
-      ).writer;
+    _controlledByProperty,
+    propertyName,
+    'write-back writer',
+  ).writer;
   String controlledRawFor(String propertyName) => _required(
-        _controlledByProperty,
-        propertyName,
-        'controlled raw value',
-      ).raw;
+    _controlledByProperty,
+    propertyName,
+    'controlled raw value',
+  ).raw;
   String controlledPresentFor(String propertyName) => _required(
-        _controlledByProperty,
-        propertyName,
-        'controlled presence',
-      ).present;
+    _controlledByProperty,
+    propertyName,
+    'controlled presence',
+  ).present;
   String controlledKindFor(String propertyName) => _required(
-        _controlledByProperty,
-        propertyName,
-        'controlled source kind',
-      ).kind;
+    _controlledByProperty,
+    propertyName,
+    'controlled source kind',
+  ).kind;
 
   static T _required<T>(
     Map<String, T> symbols,
@@ -5265,6 +5203,8 @@ typedef _RestageA2uiControlledBuilder = Widget Function(
 final class _RestageA2uiControlledValue extends StatefulWidget {
   const _RestageA2uiControlledValue({
     required this.dataContext,
+    required this.resolvedProps,
+    required this.propertyName,
     required this.source,
     required this.sourcePresent,
     required this.surfaceId,
@@ -5272,11 +5212,12 @@ final class _RestageA2uiControlledValue extends StatefulWidget {
     required this.componentId,
     required this.field,
     required this.selfPath,
-    required this.reportError,
     required this.builder,
   });
 
   final DataContext dataContext;
+  final ReadonlySignal<NodeProps> resolvedProps;
+  final String propertyName;
   final Object? source;
   final bool sourcePresent;
   final String surfaceId;
@@ -5284,7 +5225,6 @@ final class _RestageA2uiControlledValue extends StatefulWidget {
   final String componentId;
   final String field;
   final String selfPath;
-  final void Function(Object error, StackTrace? stack) reportError;
   final _RestageA2uiControlledBuilder builder;
 
   @override
@@ -5294,8 +5234,7 @@ final class _RestageA2uiControlledValue extends StatefulWidget {
 
 final class _RestageA2uiControlledValueState
     extends State<_RestageA2uiControlledValue> {
-  StreamSubscription<Object?>? _subscription;
-  void Function(Object error, StackTrace? stack)? _subscriptionReportError;
+  void Function()? _unsubscribe;
   var _epoch = 0;
   late _RestageA2uiSourceDescriptor _descriptor;
   late _RestageA2uiSemanticIdentity _semanticIdentity;
@@ -5324,7 +5263,8 @@ final class _RestageA2uiControlledValueState
         _semanticIdentity != nextSemantic ||
         oldWidget.componentId != widget.componentId ||
         oldWidget.field != widget.field ||
-        oldWidget.selfPath != widget.selfPath;
+        oldWidget.selfPath != widget.selfPath ||
+        !identical(oldWidget.resolvedProps, widget.resolvedProps);
     if (bindingChanged) {
       _invalidateSubscription();
       _adoptBinding(nextDescriptor, nextSemantic);
@@ -5350,14 +5290,8 @@ final class _RestageA2uiControlledValueState
   ) {
     _descriptor = descriptor;
     _semanticIdentity = semanticIdentity;
-    _sourceValue = switch (descriptor.kind) {
-      _RestageA2uiSourceKind.literal => widget.source,
-      _RestageA2uiSourceKind.path =>
-        widget.dataContext.getValue<Object?>(DataPath(descriptor.path!)),
-      _RestageA2uiSourceKind.call ||
-      _RestageA2uiSourceKind.localOverride =>
-        null,
-    };
+    _sourceValue =
+        ComponentProps.unwrap(widget.resolvedProps.peek()[widget.propertyName]);
     _sourcePresent = widget.sourcePresent;
     _hasOverride = false;
     _overrideValue = null;
@@ -5365,62 +5299,42 @@ final class _RestageA2uiControlledValueState
 
   void _subscribe() {
     final subscribedEpoch = _epoch;
-    final literalPresence = widget.sourcePresent;
-    final reportError = widget.reportError;
-    _subscriptionReportError = reportError;
-    _subscription = widget.dataContext.resolve(widget.source).listen(
-      (value) {
-        if (!mounted || subscribedEpoch != _epoch || _hasOverride) return;
-        setState(() {
-          _sourceValue = value;
-          _sourcePresent =
-              _descriptor.kind == _RestageA2uiSourceKind.literal
-                  ? literalPresence
-                  : true;
-        });
-      },
-      onError: (Object error, StackTrace stack) {
-        if (!mounted || subscribedEpoch != _epoch) return;
-        reportError(error, stack);
-      },
-    );
+    void onValue(Object? value) {
+      if (!mounted || subscribedEpoch != _epoch || _hasOverride) return;
+      setState(() {
+        _sourceValue = value;
+        _sourcePresent = widget.sourcePresent;
+      });
+    }
+    final props = widget.resolvedProps;
+    var initial = true;
+    _unsubscribe = props.subscribe((value) {
+      if (!initial) {
+        onValue(ComponentProps.unwrap(value[widget.propertyName]));
+      }
+    });
+    initial = false;
+    _sourceValue = ComponentProps.unwrap(props.peek()[widget.propertyName]);
   }
 
   void _invalidateSubscription() {
-    final previous = _subscription;
-    final reportError = _subscriptionReportError ?? widget.reportError;
-    _subscription = null;
-    _subscriptionReportError = null;
+    final unsubscribe = _unsubscribe;
+    _unsubscribe = null;
     _epoch += 1;
-    if (previous == null) return;
-    Future<void> cancellation;
-    try {
-      cancellation = previous.cancel();
-    } catch (error, stack) {
-      reportError(error, stack);
-      return;
-    }
-    unawaited(
-      cancellation.then<void>(
-        (_) {},
-        onError: (Object error, StackTrace stack) {
-          reportError(error, stack);
-        },
-      ),
-    );
+    unsubscribe?.call();
   }
 
   void _write(Object? next) {
     if (!mounted) return;
     if (_descriptor.kind == _RestageA2uiSourceKind.path) {
-      widget.dataContext.update(DataPath(_descriptor.path!), next);
+      widget.dataContext.set(_descriptor.path!, next);
       return;
     }
 
     _invalidateSubscription();
     _hasOverride = true;
     _overrideValue = next;
-    widget.dataContext.update(DataPath(widget.selfPath), next);
+    widget.dataContext.set(widget.selfPath, next);
     if (mounted) setState(() {});
   }
 
@@ -5451,11 +5365,12 @@ final class _RestageA2uiSourceDescriptor {
     this.path,
     this.callName,
     this.callArgs,
+    this.callCatalogId,
   });
 
   factory _RestageA2uiSourceDescriptor.from(Object? source) {
-    if (source is Map && source.containsKey('path')) {
-      final path = source['path'];
+    if (source is Map && source.containsKey('@path')) {
+      final path = source['@path'];
       if (path is! String) {
         throw ArgumentError.value(
           path,
@@ -5468,8 +5383,8 @@ final class _RestageA2uiSourceDescriptor {
         path: path,
       );
     }
-    if (source is Map && source.containsKey('call')) {
-      final callName = source['call'];
+    if (source is Map && source.containsKey('@call')) {
+      final callName = source['@call'];
       if (callName != null && callName is! String) {
         throw ArgumentError.value(
           callName,
@@ -5481,6 +5396,7 @@ final class _RestageA2uiSourceDescriptor {
       return _RestageA2uiSourceDescriptor._(
         _RestageA2uiSourceKind.call,
         callName: callName as String?,
+        callCatalogId: source['catalogId'] as String?,
         callArgs: args is Map ? args : const <String, Object?>{},
       );
     }
@@ -5492,6 +5408,7 @@ final class _RestageA2uiSourceDescriptor {
   final _RestageA2uiSourceKind kind;
   final String? path;
   final String? callName;
+  final String? callCatalogId;
   final Map<Object?, Object?>? callArgs;
 
   bool sameBinding(_RestageA2uiSourceDescriptor other) {
@@ -5501,6 +5418,7 @@ final class _RestageA2uiSourceDescriptor {
       _RestageA2uiSourceKind.path => path == other.path,
       _RestageA2uiSourceKind.call =>
         callName == other.callName &&
+            callCatalogId == other.callCatalogId &&
             _restageA2uiCallIdentityEqual(callArgs, other.callArgs),
       _RestageA2uiSourceKind.localOverride => false,
     };
@@ -5528,7 +5446,7 @@ final class _RestageA2uiSemanticIdentity {
   final String surfaceId;
   final String? catalogId;
   final Object dataModel;
-  final DataPath contextPath;
+  final String contextPath;
 
   @override
   bool operator ==(Object other) =>

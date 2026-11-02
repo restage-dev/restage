@@ -26,7 +26,9 @@ RootContextParam _rootParamFrom(
   String name = 'label',
 }) {
   final parameter = probe
-      .classes[className]!.unnamedConstructor!.formalParameters
+      .classes[className]!
+      .unnamedConstructor!
+      .formalParameters
       .firstWhere((element) => element.name == name);
   final hostData = deriveHostDataShape(parameter.type, root: name);
   return RootContextParam(
@@ -36,8 +38,8 @@ RootContextParam _rootParamFrom(
     kind: parameter.isOptionalPositional
         ? RootContextParamKind.optionalPositional
         : parameter.isNamed
-            ? RootContextParamKind.named
-            : RootContextParamKind.requiredPositional,
+        ? RootContextParamKind.named
+        : RootContextParamKind.requiredPositional,
     hostDataShape: hostData.shape,
     hostDataProblem: hostData.problem,
     field: parameter is FieldFormalParameterElement ? parameter.field : null,
@@ -54,7 +56,9 @@ CustomWidgetParam _callbackParamFrom(
   String name = 'onTap',
 }) {
   final parameter = probe
-      .classes[className]!.unnamedConstructor!.formalParameters
+      .classes[className]!
+      .unnamedConstructor!
+      .formalParameters
       .firstWhere((element) => element.name == name);
   return CustomWidgetParam(
     name: name,
@@ -66,7 +70,8 @@ CustomWidgetParam _callbackParamFrom(
 
 /// Source declaring an `AcmeCard` whose `onTap` has the given callback type,
 /// constructed from a host class with a closure firing the event helper.
-String _callbackCardSource(String callbackType) => '''
+String _callbackCardSource(String callbackType) =>
+    '''
   class AcmeCard {
     const AcmeCard({required this.onTap});
     final $callbackType onTap;
@@ -92,64 +97,69 @@ final List<HelperDefinition> _eventHelpers = [
 
 void main() {
   group('ExpressionTranslator — custom-widget inlining', () {
-    test('translate() surfaces an empty widgetDefinitions map by default',
-        () async {
-      final translator = ExpressionTranslator(
-        catalog: kEmptyCatalog,
-        helpers: HelperRegistry(),
-      );
-      final expr = await parseExpressionForTest('"hello"');
-      final result = translator.translate(expr);
+    test(
+      'translate() surfaces an empty widgetDefinitions map by default',
+      () async {
+        final translator = ExpressionTranslator(
+          catalog: kEmptyCatalog,
+          helpers: HelperRegistry(),
+        );
+        final expr = await parseExpressionForTest('"hello"');
+        final result = translator.translate(expr);
 
-      expect(result.dsl, '"hello"');
-      expect(result.widgetDefinitions, isEmpty);
-    });
+        expect(result.dsl, '"hello"');
+        expect(result.widgetDefinitions, isEmpty);
+      },
+    );
 
-    test('inlines an inlinable-now ComposableWidget as a widget definition',
-        () async {
-      final body =
-          await parseExpressionForTest('Container(child: Text("Pro"))');
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Container',
-            properties: [prop('child', PropertyType.widget)],
-          ),
-          entry(
-            name: 'Text',
-            properties: [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-        customWidgetClassifications: {
-          _cardKey: ComposableWidget(
-            _cardKey,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [],
-          ),
-        },
-        customWidgetBlueprints: {
-          _cardKey: CustomWidgetBlueprint(
-            classKey: _cardKey,
-            rfwName: 'AcmeCard',
-            buildExpression: body,
-            params: const [],
-          ),
-        },
-      );
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'inlines an inlinable-now ComposableWidget as a widget definition',
+      () async {
+        final body = await parseExpressionForTest(
+          'Container(child: Text("Pro"))',
+        );
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Container',
+              properties: [prop('child', PropertyType.widget)],
+            ),
+            entry(
+              name: 'Text',
+              properties: [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+          customWidgetClassifications: {
+            _cardKey: ComposableWidget(
+              _cardKey,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [],
+            ),
+          },
+          customWidgetBlueprints: {
+            _cardKey: CustomWidgetBlueprint(
+              classKey: _cardKey,
+              rfwName: 'AcmeCard',
+              buildExpression: body,
+              params: const [],
+            ),
+          },
+        );
+        final expr = await parseExpressionFromSourceForTest('''
         class AcmeCard { const AcmeCard(); }
         Object x() => AcmeCard();
       ''');
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'AcmeCard()');
-      expect(
-        result.widgetDefinitions['AcmeCard'],
-        'Container(child: Text(text: "Pro"))',
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'AcmeCard()');
+        expect(
+          result.widgetDefinitions['AcmeCard'],
+          'Container(child: Text(text: "Pro"))',
+        );
+      },
+    );
 
     test('attemptInlineEmit clears enclosing root parameters', () async {
       final probe = await parseMethodExpressionFromSourceForTest(
@@ -200,54 +210,56 @@ void main() {
       );
     });
 
-    test('lowers constructor parameters to args. references in the definition',
-        () async {
-      final body = await parseExpressionForTest('Text(label)');
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Text',
-            properties: [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-        customWidgetClassifications: {
-          _cardKey: ComposableWidget(
-            _cardKey,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [],
-          ),
-        },
-        customWidgetBlueprints: {
-          _cardKey: CustomWidgetBlueprint(
-            classKey: _cardKey,
-            rfwName: 'AcmeCard',
-            buildExpression: body,
-            params: const [
-              CustomWidgetParam(
-                name: 'label',
-                isNumeric: false,
-                defaultValue: null,
-              ),
-            ],
-          ),
-        },
-      );
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'lowers constructor parameters to args. references in the definition',
+      () async {
+        final body = await parseExpressionForTest('Text(label)');
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Text',
+              properties: [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+          customWidgetClassifications: {
+            _cardKey: ComposableWidget(
+              _cardKey,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [],
+            ),
+          },
+          customWidgetBlueprints: {
+            _cardKey: CustomWidgetBlueprint(
+              classKey: _cardKey,
+              rfwName: 'AcmeCard',
+              buildExpression: body,
+              params: const [
+                CustomWidgetParam(
+                  name: 'label',
+                  isNumeric: false,
+                  defaultValue: null,
+                ),
+              ],
+            ),
+          },
+        );
+        final expr = await parseExpressionFromSourceForTest('''
         class AcmeCard {
           const AcmeCard({this.label});
           final String? label;
         }
         Object x() => AcmeCard(label: "Pro");
       ''');
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      // The call site passes the argument; the definition body reads it as
-      // an `args.` reference.
-      expect(result.dsl, 'AcmeCard(label: "Pro")');
-      expect(result.widgetDefinitions['AcmeCard'], 'Text(text: args.label)');
-    });
+        expect(result.issues, isEmpty);
+        // The call site passes the argument; the definition body reads it as
+        // an `args.` reference.
+        expect(result.dsl, 'AcmeCard(label: "Pro")');
+        expect(result.widgetDefinitions['AcmeCard'], 'Text(text: args.label)');
+      },
+    );
 
     test('does not leak root params into custom widget definitions', () async {
       final body = await parseExpressionForTest('Text(label)');
@@ -296,8 +308,10 @@ void main() {
           ),
         },
       );
-      final result =
-          translator.translate(probe.expression, rootParams: [rootLabel]);
+      final result = translator.translate(
+        probe.expression,
+        rootParams: [rootLabel],
+      );
 
       expect(result.issues, isEmpty);
       expect(result.dsl, 'AcmeCard(label: data.context.label)');
@@ -308,10 +322,11 @@ void main() {
       );
     });
 
-    test('a definition body cannot read a root param it does not declare',
-        () async {
-      final bodyProbe = await parseMethodExpressionFromSourceForTest(
-        '''
+    test(
+      'a definition body cannot read a root param it does not declare',
+      () async {
+        final bodyProbe = await parseMethodExpressionFromSourceForTest(
+          '''
         class Text { const Text(this.text); final String text; }
         class AcmeCard {
           const AcmeCard({required this.label});
@@ -319,35 +334,35 @@ void main() {
           Object build() => Text(label);
         }
       ''',
-        className: 'AcmeCard',
-      );
-      final body = bodyProbe.expression;
-      final rootLabel = _rootParamFrom(bodyProbe, className: 'AcmeCard');
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Text',
-            properties: [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-        customWidgetClassifications: {
-          _cardKey: ComposableWidget(
-            _cardKey,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [],
-          ),
-        },
-        customWidgetBlueprints: {
-          _cardKey: CustomWidgetBlueprint(
-            classKey: _cardKey,
-            rfwName: 'AcmeCard',
-            buildExpression: body,
-            params: const [],
-          ),
-        },
-      );
-      final expr = await parseExpressionFromSourceForTest('''
+          className: 'AcmeCard',
+        );
+        final body = bodyProbe.expression;
+        final rootLabel = _rootParamFrom(bodyProbe, className: 'AcmeCard');
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Text',
+              properties: [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+          customWidgetClassifications: {
+            _cardKey: ComposableWidget(
+              _cardKey,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [],
+            ),
+          },
+          customWidgetBlueprints: {
+            _cardKey: CustomWidgetBlueprint(
+              classKey: _cardKey,
+              rfwName: 'AcmeCard',
+              buildExpression: body,
+              params: const [],
+            ),
+          },
+        );
+        final expr = await parseExpressionFromSourceForTest('''
         class AcmeCard {
           const AcmeCard();
         }
@@ -355,17 +370,17 @@ void main() {
         String label = '';
         Object x() => AcmeCard();
       ''');
-      final result = translator.translate(expr, rootParams: [rootLabel]);
+        final result = translator.translate(expr, rootParams: [rootLabel]);
 
-      expect(
-        result.widgetDefinitions['AcmeCard'],
-        isNot(contains('data.context')),
-      );
-      expect(result.issues, isNotEmpty);
-    });
+        expect(
+          result.widgetDefinitions['AcmeCard'],
+          isNot(contains('data.context')),
+        );
+        expect(result.issues, isNotEmpty);
+      },
+    );
 
-    test(
-        'coerces ternary integer branches bound to a numeric parameter at '
+    test('coerces ternary integer branches bound to a numeric parameter at '
         'the call site', () async {
       // Each ternary branch becomes the numeric parameter's value, so a bare
       // integer branch must be normalised to a double literal — the
@@ -417,40 +432,41 @@ void main() {
       );
     });
 
-    test('rejects an integer root reference used as a double-decoded arg',
-        () async {
-      final body = await parseExpressionForTest('Text(size)');
-      final blueprint = CustomWidgetBlueprint(
-        classKey: _cardKey,
-        rfwName: 'AcmeCard',
-        buildExpression: body,
-        params: const [
-          CustomWidgetParam(
-            name: 'size',
-            isNumeric: true,
-            defaultValue: null,
-          ),
-        ],
-      );
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Text',
-            properties: [prop('size', PropertyType.real, positional: true)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-        customWidgetClassifications: {
-          _cardKey: ComposableWidget(
-            _cardKey,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [],
-          ),
-        },
-        customWidgetBlueprints: {_cardKey: blueprint},
-      );
-      final probe = await parseMethodExpressionFromSourceForTest(
-        '''
+    test(
+      'rejects an integer root reference used as a double-decoded arg',
+      () async {
+        final body = await parseExpressionForTest('Text(size)');
+        final blueprint = CustomWidgetBlueprint(
+          classKey: _cardKey,
+          rfwName: 'AcmeCard',
+          buildExpression: body,
+          params: const [
+            CustomWidgetParam(
+              name: 'size',
+              isNumeric: true,
+              defaultValue: null,
+            ),
+          ],
+        );
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Text',
+              properties: [prop('size', PropertyType.real, positional: true)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+          customWidgetClassifications: {
+            _cardKey: ComposableWidget(
+              _cardKey,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [],
+            ),
+          },
+          customWidgetBlueprints: {_cardKey: blueprint},
+        );
+        final probe = await parseMethodExpressionFromSourceForTest(
+          '''
         class AcmeCard {
           const AcmeCard({required this.size});
           final num size;
@@ -465,34 +481,39 @@ void main() {
           ];
         }
       ''',
-        className: 'P',
-      );
-      final params = [
-        _rootParamFrom(
-          probe,
-          name: 'count',
-        ),
-        _rootParamFrom(
-          probe,
-          name: 'size',
-        ),
-      ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+          className: 'P',
+        );
+        final params = [
+          _rootParamFrom(
+            probe,
+            name: 'count',
+          ),
+          _rootParamFrom(
+            probe,
+            name: 'size',
+          ),
+        ];
+        final expressions = (probe.expression as ListLiteral).elements
+            .cast<Expression>();
 
-      final integerResult =
-          translator.translate(expressions[0], rootParams: params);
-      final doubleResult =
-          translator.translate(expressions[1], rootParams: params);
+        final integerResult = translator.translate(
+          expressions[0],
+          rootParams: params,
+        );
+        final doubleResult = translator.translate(
+          expressions[1],
+          rootParams: params,
+        );
 
-      expect(
-        integerResult.issues.map((issue) => issue.code),
-        contains(IssueCode.propertyValueTypeMismatch),
-      );
-      expect(integerResult.dsl, isEmpty);
-      expect(doubleResult.issues, isEmpty);
-      expect(doubleResult.dsl, contains('data.context.size'));
-    });
+        expect(
+          integerResult.issues.map((issue) => issue.code),
+          contains(IssueCode.propertyValueTypeMismatch),
+        );
+        expect(integerResult.dsl, isEmpty);
+        expect(doubleResult.issues, isEmpty);
+        expect(doubleResult.dsl, contains('data.context.size'));
+      },
+    );
 
     test('keeps static list traversal for inlined arguments', () async {
       final probe = await parseMethodExpressionFromSourceForTest(
@@ -567,7 +588,10 @@ void main() {
         className: 'P',
       );
       final widgetParameter = probe
-          .classes['AcmeCard']!.unnamedConstructor!.formalParameters.single;
+          .classes['AcmeCard']!
+          .unnamedConstructor!
+          .formalParameters
+          .single;
       final blueprint = CustomWidgetBlueprint(
         classKey: _cardKey,
         rfwName: 'AcmeCard',
@@ -602,8 +626,8 @@ void main() {
         _rootParamFrom(probe, name: 'title'),
         _rootParamFrom(probe, name: 'count'),
       ];
-      final expressions =
-          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final expressions = (probe.expression as ListLiteral).elements
+          .cast<Expression>();
 
       final valid = translator.translate(expressions[0], rootParams: params);
       expect(valid.issues, isEmpty);
@@ -617,13 +641,14 @@ void main() {
       );
     });
 
-    test('recurses into composed custom widgets, emitting each definition',
-        () async {
-      const pillKey = 'package:restage_codegen/_expr_probe.dart#AcmePill';
-      // AcmeCard's body composes AcmePill — resolve it from a source that
-      // declares both, so the nested AcmePill() reference carries a resolved
-      // class element the translator can key the blueprint off.
-      final cardBody = await parseExpressionFromSourceForTest('''
+    test(
+      'recurses into composed custom widgets, emitting each definition',
+      () async {
+        const pillKey = 'package:restage_codegen/_expr_probe.dart#AcmePill';
+        // AcmeCard's body composes AcmePill — resolve it from a source that
+        // declares both, so the nested AcmePill() reference carries a resolved
+        // class element the translator can key the blueprint off.
+        final cardBody = await parseExpressionFromSourceForTest('''
         class AcmePill { const AcmePill(); }
         class Container {
           const Container({this.child});
@@ -631,244 +656,253 @@ void main() {
         }
         Object x() => Container(child: AcmePill());
       ''');
-      final pillBody = await parseExpressionForTest('Text("pill")');
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Container',
-            properties: [prop('child', PropertyType.widget)],
-          ),
-          entry(
-            name: 'Text',
-            properties: [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-        customWidgetClassifications: {
-          _cardKey: ComposableWidget(
-            _cardKey,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [pillKey],
-          ),
-          pillKey: ComposableWidget(
-            pillKey,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [],
-          ),
-        },
-        customWidgetBlueprints: {
-          _cardKey: CustomWidgetBlueprint(
-            classKey: _cardKey,
-            rfwName: 'AcmeCard',
-            buildExpression: cardBody,
-            params: const [],
-          ),
-          pillKey: CustomWidgetBlueprint(
-            classKey: pillKey,
-            rfwName: 'AcmePill',
-            buildExpression: pillBody,
-            params: const [],
-          ),
-        },
-      );
-      final expr = await parseExpressionFromSourceForTest('''
+        final pillBody = await parseExpressionForTest('Text("pill")');
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Container',
+              properties: [prop('child', PropertyType.widget)],
+            ),
+            entry(
+              name: 'Text',
+              properties: [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+          customWidgetClassifications: {
+            _cardKey: ComposableWidget(
+              _cardKey,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [pillKey],
+            ),
+            pillKey: ComposableWidget(
+              pillKey,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [],
+            ),
+          },
+          customWidgetBlueprints: {
+            _cardKey: CustomWidgetBlueprint(
+              classKey: _cardKey,
+              rfwName: 'AcmeCard',
+              buildExpression: cardBody,
+              params: const [],
+            ),
+            pillKey: CustomWidgetBlueprint(
+              classKey: pillKey,
+              rfwName: 'AcmePill',
+              buildExpression: pillBody,
+              params: const [],
+            ),
+          },
+        );
+        final expr = await parseExpressionFromSourceForTest('''
         class AcmeCard { const AcmeCard(); }
         Object x() => AcmeCard();
       ''');
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, 'AcmeCard()');
-      expect(
-        result.widgetDefinitions['AcmeCard'],
-        'Container(child: AcmePill())',
-      );
-      expect(result.widgetDefinitions['AcmePill'], 'Text(text: "pill")');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, 'AcmeCard()');
+        expect(
+          result.widgetDefinitions['AcmeCard'],
+          'Container(child: AcmePill())',
+        );
+        expect(result.widgetDefinitions['AcmePill'], 'Text(text: "pill")');
+      },
+    );
 
-    test('diagnoses two custom widgets emitting under the same RFW name',
-        () async {
-      const keyA = 'package:restage_codegen/_expr_probe.dart#CardA';
-      const keyB = 'package:restage_codegen/_expr_probe.dart#CardB';
-      final bodyA = await parseExpressionForTest('Text("a")');
-      final bodyB = await parseExpressionForTest('Text("b")');
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Column',
-            childrenSlot: ChildrenSlot.list,
-            properties: [prop('children', PropertyType.widgetList)],
-          ),
-          entry(
-            name: 'Text',
-            properties: [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-        customWidgetClassifications: {
-          keyA: ComposableWidget(
-            keyA,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [],
-          ),
-          keyB: ComposableWidget(
-            keyB,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [],
-          ),
-        },
-        customWidgetBlueprints: {
-          // Both blueprints claim the same RFW name — the collision.
-          keyA: CustomWidgetBlueprint(
-            classKey: keyA,
-            rfwName: 'Shared',
-            buildExpression: bodyA,
-            params: const [],
-          ),
-          keyB: CustomWidgetBlueprint(
-            classKey: keyB,
-            rfwName: 'Shared',
-            buildExpression: bodyB,
-            params: const [],
-          ),
-        },
-      );
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'diagnoses two custom widgets emitting under the same RFW name',
+      () async {
+        const keyA = 'package:restage_codegen/_expr_probe.dart#CardA';
+        const keyB = 'package:restage_codegen/_expr_probe.dart#CardB';
+        final bodyA = await parseExpressionForTest('Text("a")');
+        final bodyB = await parseExpressionForTest('Text("b")');
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Column',
+              childrenSlot: ChildrenSlot.list,
+              properties: [prop('children', PropertyType.widgetList)],
+            ),
+            entry(
+              name: 'Text',
+              properties: [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+          customWidgetClassifications: {
+            keyA: ComposableWidget(
+              keyA,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [],
+            ),
+            keyB: ComposableWidget(
+              keyB,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [],
+            ),
+          },
+          customWidgetBlueprints: {
+            // Both blueprints claim the same RFW name — the collision.
+            keyA: CustomWidgetBlueprint(
+              classKey: keyA,
+              rfwName: 'Shared',
+              buildExpression: bodyA,
+              params: const [],
+            ),
+            keyB: CustomWidgetBlueprint(
+              classKey: keyB,
+              rfwName: 'Shared',
+              buildExpression: bodyB,
+              params: const [],
+            ),
+          },
+        );
+        final expr = await parseExpressionFromSourceForTest('''
         class CardA { const CardA(); }
         class CardB { const CardB(); }
         class Column { const Column({this.children}); final Object? children; }
         Object x() => Column(children: [CardA(), CardB()]);
       ''');
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(
-        result.issues.map((i) => i.code),
-        contains(IssueCode.customWidgetNameCollision),
-      );
-    });
+        expect(
+          result.issues.map((i) => i.code),
+          contains(IssueCode.customWidgetNameCollision),
+        );
+      },
+    );
 
-    test('diagnoses a custom widget whose name shadows a catalog widget',
-        () async {
-      final body = await parseExpressionForTest('Container()');
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Text',
-            properties: [prop('text', PropertyType.string, positional: true)],
-          ),
-          entry(name: 'Container', properties: const []),
-        ]),
-        helpers: HelperRegistry(),
-        customWidgetClassifications: {
-          _cardKey: ComposableWidget(
-            _cardKey,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [],
-          ),
-        },
-        customWidgetBlueprints: {
-          // The custom widget would emit as `Text` — a catalog widget name.
-          _cardKey: CustomWidgetBlueprint(
-            classKey: _cardKey,
-            rfwName: 'Text',
-            buildExpression: body,
-            params: const [],
-          ),
-        },
-      );
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'diagnoses a custom widget whose name shadows a catalog widget',
+      () async {
+        final body = await parseExpressionForTest('Container()');
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Text',
+              properties: [prop('text', PropertyType.string, positional: true)],
+            ),
+            entry(name: 'Container', properties: const []),
+          ]),
+          helpers: HelperRegistry(),
+          customWidgetClassifications: {
+            _cardKey: ComposableWidget(
+              _cardKey,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [],
+            ),
+          },
+          customWidgetBlueprints: {
+            // The custom widget would emit as `Text` — a catalog widget name.
+            _cardKey: CustomWidgetBlueprint(
+              classKey: _cardKey,
+              rfwName: 'Text',
+              buildExpression: body,
+              params: const [],
+            ),
+          },
+        );
+        final expr = await parseExpressionFromSourceForTest('''
         class AcmeCard { const AcmeCard(); }
         Object x() => AcmeCard();
       ''');
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(
-        result.issues.map((i) => i.code),
-        contains(IssueCode.customWidgetNameCollision),
-      );
-    });
+        expect(
+          result.issues.map((i) => i.code),
+          contains(IssueCode.customWidgetNameCollision),
+        );
+      },
+    );
 
-    test('diagnoses a custom widget whose name shadows the paywall root',
-        () async {
-      final body = await parseExpressionForTest('Text("hi")');
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Text',
-            properties: [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-        customWidgetClassifications: {
-          _cardKey: ComposableWidget(
-            _cardKey,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [],
-          ),
-        },
-        customWidgetBlueprints: {
-          // The custom widget would emit under the reserved root name.
-          _cardKey: CustomWidgetBlueprint(
-            classKey: _cardKey,
-            rfwName: 'Paywall',
-            buildExpression: body,
-            params: const [],
-          ),
-        },
-      );
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'diagnoses a custom widget whose name shadows the paywall root',
+      () async {
+        final body = await parseExpressionForTest('Text("hi")');
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Text',
+              properties: [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+          customWidgetClassifications: {
+            _cardKey: ComposableWidget(
+              _cardKey,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [],
+            ),
+          },
+          customWidgetBlueprints: {
+            // The custom widget would emit under the reserved root name.
+            _cardKey: CustomWidgetBlueprint(
+              classKey: _cardKey,
+              rfwName: 'Paywall',
+              buildExpression: body,
+              params: const [],
+            ),
+          },
+        );
+        final expr = await parseExpressionFromSourceForTest('''
         class AcmeCard { const AcmeCard(); }
         Object x() => AcmeCard();
       ''');
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(
-        result.issues.map((i) => i.code),
-        contains(IssueCode.customWidgetNameCollision),
-      );
-    });
+        expect(
+          result.issues.map((i) => i.code),
+          contains(IssueCode.customWidgetNameCollision),
+        );
+      },
+    );
 
-    test('diagnoses a custom widget whose name shadows the onboarding root',
-        () async {
-      final body = await parseExpressionForTest('Text("hi")');
-      final translator = ExpressionTranslator(
-        catalog: probeCatalogWith([
-          entry(
-            name: 'Text',
-            properties: [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-        customWidgetClassifications: {
-          _cardKey: ComposableWidget(
-            _cardKey,
-            requiredMechanisms: const {},
-            composedCustomWidgets: const [],
-          ),
-        },
-        customWidgetBlueprints: {
-          // The custom widget would emit under the reserved root name.
-          _cardKey: CustomWidgetBlueprint(
-            classKey: _cardKey,
-            rfwName: 'OnboardingScreen',
-            buildExpression: body,
-            params: const [],
-          ),
-        },
-      );
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'diagnoses a custom widget whose name shadows the onboarding root',
+      () async {
+        final body = await parseExpressionForTest('Text("hi")');
+        final translator = ExpressionTranslator(
+          catalog: probeCatalogWith([
+            entry(
+              name: 'Text',
+              properties: [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+          helpers: HelperRegistry(),
+          customWidgetClassifications: {
+            _cardKey: ComposableWidget(
+              _cardKey,
+              requiredMechanisms: const {},
+              composedCustomWidgets: const [],
+            ),
+          },
+          customWidgetBlueprints: {
+            // The custom widget would emit under the reserved root name.
+            _cardKey: CustomWidgetBlueprint(
+              classKey: _cardKey,
+              rfwName: 'OnboardingScreen',
+              buildExpression: body,
+              params: const [],
+            ),
+          },
+        );
+        final expr = await parseExpressionFromSourceForTest('''
         class AcmeCard { const AcmeCard(); }
         Object x() => AcmeCard();
       ''');
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(
-        result.issues.map((i) => i.code),
-        contains(IssueCode.customWidgetNameCollision),
-      );
-      // Nothing may shadow the synthesized onboarding root definition.
-      expect(result.widgetDefinitions, isEmpty);
-    });
+        expect(
+          result.issues.map((i) => i.code),
+          contains(IssueCode.customWidgetNameCollision),
+        );
+        // Nothing may shadow the synthesized onboarding root definition.
+        expect(result.widgetDefinitions, isEmpty);
+      },
+    );
 
     test('inlines a custom widget whose name is not a surface root', () async {
       final body = await parseExpressionForTest('Text("hi")');
@@ -956,8 +990,7 @@ void main() {
       );
     });
 
-    test(
-        'inlines a themeAsData-only widget, lowering the theme read to a '
+    test('inlines a themeAsData-only widget, lowering the theme read to a '
         'data.theme.* reference in the definition body', () async {
       // The themeAsData mechanism exists, so a widget whose
       // required mechanisms are a subset of {constantFolding, themeAsData}
@@ -1111,26 +1144,27 @@ Object x() => AcmeCard();
       expect(result.dsl, 'AcmeCard(onTap: event "tapped" {})');
     });
 
-    test('unwraps a closure bound to a future-returning callback parameter',
-        () async {
-      final result = await translateCallbackCard('Future<void> Function()');
+    test(
+      'unwraps a closure bound to a future-returning callback parameter',
+      () async {
+        final result = await translateCallbackCard('Future<void> Function()');
 
-      expect(
-        result.issues.map((issue) => issue.code),
-        [IssueCode.idiomAutoSubstituted],
-      );
-      expect(result.dsl, 'AcmeCard(onTap: event "tapped" {})');
-    });
+        expect(
+          result.issues.map((issue) => issue.code),
+          [IssueCode.idiomAutoSubstituted],
+        );
+        expect(result.dsl, 'AcmeCard(onTap: event "tapped" {})');
+      },
+    );
   });
 
-  group(
-      'ExpressionTranslator.attemptInlineEmit — standalone '
+  group('ExpressionTranslator.attemptInlineEmit — standalone '
       'emit-confirmation seam (coverage harness + CLI)', () {
-    test(
-        'confirms an inlinable widget against a catalog that declares the '
+    test('confirms an inlinable widget against a catalog that declares the '
         'properties its body uses (no call site needed)', () async {
-      final body =
-          await parseExpressionForTest('Container(child: Text("Pro"))');
+      final body = await parseExpressionForTest(
+        'Container(child: Text("Pro"))',
+      );
       final classification = ComposableWidget(
         _cardKey,
         requiredMechanisms: const {},
@@ -1167,12 +1201,12 @@ Object x() => AcmeCard();
       );
     });
 
-    test(
-        'reports issues (emit-failed) when the catalog does not declare a '
+    test('reports issues (emit-failed) when the catalog does not declare a '
         'property the body uses — confirms the metric measures real emit, '
         'not merely classifier recognition', () async {
-      final body =
-          await parseExpressionForTest('Container(child: Text("Pro"))');
+      final body = await parseExpressionForTest(
+        'Container(child: Text("Pro"))',
+      );
       final classification = ComposableWidget(
         _cardKey,
         requiredMechanisms: const {},
@@ -1254,7 +1288,7 @@ Object x(BuildContext context) => AcmeCard(tap: $argument);
     }
 
     Future<({TranslationResult result, CustomWidgetParam param})>
-        lowerTypedDestination({
+    lowerTypedDestination({
       required String destinationType,
       String argument = "(v) => paywallEvent('x')",
     }) async {
@@ -1267,7 +1301,8 @@ Object x(BuildContext context) => AcmeCard(tap: $argument);
       ]);
       final classification = await classifyFixtureResult(
         {
-          'lib/_expr_probe.dart': '''
+          'lib/_expr_probe.dart':
+              '''
 $kClassifierStubs
 
 typedef VoidCallback = void Function();
@@ -1321,19 +1356,21 @@ Object x() => AcmeCard(tap: $argument);
       return (result: result, param: blueprint.params.single);
     }
 
-    test('a value-callback closure lowers to its event at the call site',
-        () async {
-      final r = await lowerCall("(v) => paywallEvent('x')");
-      expect(
-        r.issues.map((issue) => issue.code),
-        [IssueCode.idiomAutoSubstituted],
-      );
-      expect(r.dsl, 'AcmeCard(tap: event "x" {})');
-      expect(
-        r.widgetDefinitions['AcmeCard'],
-        'GestureDetector(onTap: args.tap)',
-      );
-    });
+    test(
+      'a value-callback closure lowers to its event at the call site',
+      () async {
+        final r = await lowerCall("(v) => paywallEvent('x')");
+        expect(
+          r.issues.map((issue) => issue.code),
+          [IssueCode.idiomAutoSubstituted],
+        );
+        expect(r.dsl, 'AcmeCard(tap: event "x" {})');
+        expect(
+          r.widgetDefinitions['AcmeCard'],
+          'GestureDetector(onTap: args.tap)',
+        );
+      },
+    );
 
     test('classifier metadata admits a declared void callback', () async {
       final lowered = await lowerTypedDestination(

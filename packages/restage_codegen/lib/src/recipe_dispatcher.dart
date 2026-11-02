@@ -13,33 +13,37 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 typedef TranslateCallback = String Function(Expression, List<Issue>);
 
 /// Translates one expression with exact element-keyed bindings.
-typedef TranslateBoundCallback = String Function(
-  Expression,
-  Map<Element, Expression>,
-  List<Issue>,
-);
+typedef TranslateBoundCallback =
+    String Function(
+      Expression,
+      Map<Element, Expression>,
+      List<Issue>,
+    );
 
 /// Translates an expression through one runtime property decoder.
-typedef TranslateSlotCallback = String Function(
-  Expression,
-  PropertyType,
-  List<Issue>,
-);
+typedef TranslateSlotCallback =
+    String Function(
+      Expression,
+      PropertyType,
+      List<Issue>,
+    );
 
 /// Translates a terminal typed-list source through its element decoder.
-typedef TranslateTypedListTerminalCallback = String Function(
-  Expression,
-  PropertyType,
-  List<Issue>,
-);
+typedef TranslateTypedListTerminalCallback =
+    String Function(
+      Expression,
+      PropertyType,
+      List<Issue>,
+    );
 
 /// Translates one typed expression with exact element-keyed bindings.
-typedef TranslateBoundSlotCallback = String Function(
-  Expression,
-  Map<Element, Expression>,
-  PropertyType,
-  List<Issue>,
-);
+typedef TranslateBoundSlotCallback =
+    String Function(
+      Expression,
+      Map<Element, Expression>,
+      PropertyType,
+      List<Issue>,
+    );
 
 /// How a resolved double-list source must be translated.
 enum DoubleListSourceDisposition {
@@ -78,9 +82,10 @@ final class DoubleListSourceResolution {
 }
 
 /// Resolves a double-list expression through active source bindings.
-typedef DoubleListSourceResolver = DoubleListSourceResolution Function(
-  Expression,
-);
+typedef DoubleListSourceResolver =
+    DoubleListSourceResolution Function(
+      Expression,
+    );
 
 /// Resolves wrappers and active bindings around a typed-list expression.
 typedef ResolveTypedListExpression = Expression Function(Expression);
@@ -95,7 +100,8 @@ CollectionTypedListProbeResult inspectTypedList(
   final probe = _typedListProbe(resolveExpression, semanticProbe);
   return probe.typedListCollectionElement(
     expression,
-    budget: semanticBudget ??
+    budget:
+        semanticBudget ??
         CollectionUnrollBudget(workCeiling: kCollectionUnrollCeiling),
   );
 }
@@ -143,7 +149,8 @@ DslEmission _emitTypedList(
       issues.add(
         Issue(
           code: IssueCode.unsupportedCollectionFlow,
-          message: 'Collection elements in a $listDescription are unsupported; '
+          message:
+              'Collection elements in a $listDescription are unsupported; '
               'write the values out.',
           location: locationOf?.call(offending) ?? location,
         ),
@@ -153,7 +160,8 @@ DslEmission _emitTypedList(
       issues.add(
         Issue(
           code: IssueCode.unsupportedCollectionFlow,
-          message: 'Static inspection of this $listDescription exceeded the '
+          message:
+              'Static inspection of this $listDescription exceeded the '
               'supported limit. Simplify the list expression.',
           location: location,
         ),
@@ -201,23 +209,22 @@ String emitTypedList(
   TranslateBoundCallback? translateElement,
   PropertyType? terminalItemType,
   TranslateTypedListTerminalCallback? translateTerminal,
-}) =>
-    unwrapDslEmission(
-      _emitTypedList(
-        expr,
-        translate,
-        issues,
-        location,
-        listDescription: listDescription,
-        resolveExpression: resolveExpression,
-        semanticProbe: semanticProbe,
-        semanticBudget: semanticBudget,
-        locationOf: locationOf,
-        translateElement: translateElement,
-        terminalItemType: terminalItemType,
-        translateTerminal: translateTerminal,
-      ),
-    );
+}) => unwrapDslEmission(
+  _emitTypedList(
+    expr,
+    translate,
+    issues,
+    location,
+    listDescription: listDescription,
+    resolveExpression: resolveExpression,
+    semanticProbe: semanticProbe,
+    semanticBudget: semanticBudget,
+    locationOf: locationOf,
+    translateElement: translateElement,
+    terminalItemType: terminalItemType,
+    translateTerminal: translateTerminal,
+  ),
+);
 
 /// Emits a list literal with each element coerced to a double-formatted
 /// literal (`[0, 1]` -> `[0.0, 1.0]`), using [translate] for each element.
@@ -261,10 +268,9 @@ DslEmission _emitDoubleList(
         'The list source is too deeply nested to lower at a double-decoded '
             'list slot. Simplify the source bindings.',
       DoubleListSourceDisposition.ordinary ||
-      DoubleListSourceDisposition.collectionFlow =>
-        throw StateError(
-          'ordinary and collection double-list sources are translated below',
-        ),
+      DoubleListSourceDisposition.collectionFlow => throw StateError(
+        'ordinary and collection double-list sources are translated below',
+      ),
     };
     issues.add(
       Issue(
@@ -288,9 +294,9 @@ DslEmission _emitDoubleList(
   var bindings = const <Element, Expression>{};
   switch (inspection) {
     case CollectionTypedListElement(
-        :final offending,
-        :final resolution,
-      ):
+      :final offending,
+      :final resolution,
+    ):
       if (resolution?.expression case final ListLiteral list) {
         inspectedList = list;
         bindings = resolution!.bindings;
@@ -299,7 +305,8 @@ DslEmission _emitDoubleList(
       issues.add(
         Issue(
           code: IssueCode.unsupportedCollectionFlow,
-          message: 'Collection elements in a numeric list require one '
+          message:
+              'Collection elements in a numeric list require one '
               'statically resolved list. Write the selected list directly.',
           location: locationOf?.call(offending) ?? location,
         ),
@@ -309,7 +316,8 @@ DslEmission _emitDoubleList(
       issues.add(
         Issue(
           code: IssueCode.unsupportedCollectionFlow,
-          message: 'Static inspection of this numeric list exceeded the '
+          message:
+              'Static inspection of this numeric list exceeded the '
               'supported limit. Simplify the list expression.',
           location: location,
         ),
@@ -390,23 +398,22 @@ String emitDoubleList(
   TranslateBoundCallback? translateDoubleElement,
   String Function(AstNode)? locationOf,
   TranslateTypedListTerminalCallback? translateTerminal,
-}) =>
-    unwrapDslEmission(
-      _emitDoubleList(
-        expr,
-        translate,
-        translateDouble,
-        resolveSource,
-        issues,
-        location,
-        resolveExpression: resolveExpression,
-        semanticProbe: semanticProbe,
-        semanticBudget: semanticBudget,
-        translateDoubleElement: translateDoubleElement,
-        locationOf: locationOf,
-        translateTerminal: translateTerminal,
-      ),
-    );
+}) => unwrapDslEmission(
+  _emitDoubleList(
+    expr,
+    translate,
+    translateDouble,
+    resolveSource,
+    issues,
+    location,
+    resolveExpression: resolveExpression,
+    semanticProbe: semanticProbe,
+    semanticBudget: semanticBudget,
+    translateDoubleElement: translateDoubleElement,
+    locationOf: locationOf,
+    translateTerminal: translateTerminal,
+  ),
+);
 
 /// Generic table-driven translator. Consumes a [TranslatorRecipe], runs its
 /// validations, evaluates its emit tree, and produces an RFW DSL fragment.
@@ -432,32 +439,37 @@ final class RecipeDispatcher {
     TranslateBoundSlotCallback? translateSlotElement,
     TranslateTypedListTerminalCallback? translateTypedListTerminal,
     bool Function(Element?) isFrameworkLibrary = isFrameworkValueTypeLibrary,
-  })  : _recipes = recipes,
-        _translate = translate,
-        _translateDouble = translateDouble,
-        _translateDoubleElement = translateDoubleElement ??
-            ((expr, _, issues) => translateDouble(expr, issues)),
-        _resolveDoubleListSource = resolveDoubleListSource ??
-            ((source) => DoubleListSourceResolution(
-                  source: source,
-                  disposition: DoubleListSourceDisposition.ordinary,
-                )),
-        _resolveTypedListExpression =
-            resolveTypedListExpression ?? _identityExpression,
-        _collectionSemanticProbe = collectionSemanticProbe,
-        _locationOf = locationOf,
-        _translateSlot =
-            translateSlot ?? ((expr, _, issues) => translate(expr, issues)),
-        _translateSlotElement = translateSlotElement ??
-            ((expr, _, type, issues) => (translateSlot ??
-                    ((expr, _, issues) => translate(expr, issues)))(
-                  expr,
-                  type,
-                  issues,
-                )),
-        _translateTypedListTerminal = translateTypedListTerminal ??
-            ((expr, _, issues) => translate(expr, issues)),
-        _isFrameworkLibrary = isFrameworkLibrary;
+  }) : _recipes = recipes,
+       _translate = translate,
+       _translateDouble = translateDouble,
+       _translateDoubleElement =
+           translateDoubleElement ??
+           ((expr, _, issues) => translateDouble(expr, issues)),
+       _resolveDoubleListSource =
+           resolveDoubleListSource ??
+           ((source) => DoubleListSourceResolution(
+             source: source,
+             disposition: DoubleListSourceDisposition.ordinary,
+           )),
+       _resolveTypedListExpression =
+           resolveTypedListExpression ?? _identityExpression,
+       _collectionSemanticProbe = collectionSemanticProbe,
+       _locationOf = locationOf,
+       _translateSlot =
+           translateSlot ?? ((expr, _, issues) => translate(expr, issues)),
+       _translateSlotElement =
+           translateSlotElement ??
+           ((expr, _, type, issues) =>
+               (translateSlot ??
+               ((expr, _, issues) => translate(expr, issues)))(
+                 expr,
+                 type,
+                 issues,
+               )),
+       _translateTypedListTerminal =
+           translateTypedListTerminal ??
+           ((expr, _, issues) => translate(expr, issues)),
+       _isFrameworkLibrary = isFrameworkLibrary;
 
   final Map<String, TranslatorRecipe> _recipes;
   final TranslateCallback _translate;
@@ -554,7 +566,8 @@ final class RecipeDispatcher {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
-            message: '${recipe.typeName} field(s) not yet supported: $fields. '
+            message:
+                '${recipe.typeName} field(s) not yet supported: $fields. '
                 'Remove them, or move this value into the host app where '
                 'the full type renders.',
             location: loc,
@@ -589,19 +602,20 @@ final class RecipeDispatcher {
         }
         return null;
       case PositionalIntsInRange(
-          :final start,
-          :final endExclusive,
-          :final min,
-          :final max,
-        ):
+        :final start,
+        :final endExclusive,
+        :final min,
+        :final max,
+      ):
         for (var i = start; i < endExclusive; i++) {
           final value = (positional[i] as IntegerLiteral).value!;
           if (value < min || value > max) return value;
         }
         return null;
       case PositionalNumLiteralInRange(:final index, :final min, :final max):
-        final value =
-            index < positional.length ? _numLiteral(positional[index]) : null;
+        final value = index < positional.length
+            ? _numLiteral(positional[index])
+            : null;
         if (value == null || value < min || value > max) return value ?? '';
         return null;
     }
@@ -618,13 +632,13 @@ final class RecipeDispatcher {
       case EmitFragmentLiteral(:final dsl):
         return deliberateFragment(dsl);
       case EmitFragmentArg(
-          :final arg,
-          :final ifUnset,
-          :final asLength,
-          :final asDoubleList,
-          :final propertyType,
-          :final itemPropertyType,
-        ):
+        :final arg,
+        :final ifUnset,
+        :final asLength,
+        :final asDoubleList,
+        :final propertyType,
+        :final itemPropertyType,
+      ):
         final expr = _resolveArg(arg, positional, named);
         if (expr == null) {
           return ifUnset == null
@@ -690,8 +704,13 @@ final class RecipeDispatcher {
       case EmitFragmentMap(:final entries):
         final parts = <String>[];
         for (final entry in entries) {
-          final emitted =
-              _emitFragment(entry.value, positional, named, issues, loc);
+          final emitted = _emitFragment(
+            entry.value,
+            positional,
+            named,
+            issues,
+            loc,
+          );
           switch (emitted) {
             case CompleteDslEmission(:final value):
               parts.add('${entry.key}: $value');
@@ -705,14 +724,15 @@ final class RecipeDispatcher {
         }
         return DslEmission.complete('{${parts.join(', ')}}');
       case EmitFragmentKernel(:final kernel, :final inputs):
-        final values =
-            inputs.map((i) => _emitValue(i, positional, named)).toList();
+        final values = inputs
+            .map((i) => _emitValue(i, positional, named))
+            .toList();
         return deliberateFragment(runFragmentKernel(kernel, values));
       case EmitFragmentMemberTable(
-          :final memberArg,
-          :final members,
-          :final fallback,
-        ):
+        :final memberArg,
+        :final members,
+        :final fallback,
+      ):
         final expr = _resolveArg(memberArg, positional, named);
         // Nested name-only gate. The member table maps a member NAME to a
         // framework value fragment. A member access (`X.member`) whose prefix
@@ -735,7 +755,8 @@ final class RecipeDispatcher {
           issues.add(
             Issue(
               code: IssueCode.unresolvedIdentifier,
-              message: "'${expr!.toSource()}' is not a framework value member; "
+              message:
+                  "'${expr!.toSource()}' is not a framework value member; "
                   'a custom class with this member name cannot be lowered as '
                   'the framework value. Reference its value directly.',
               location: loc,
@@ -769,7 +790,8 @@ final class RecipeDispatcher {
           issues.add(
             Issue(
               code: IssueCode.unrecognizedMethodCall,
-              message: "'${expr!.toSource()}' is not a supported value here. "
+              message:
+                  "'${expr!.toSource()}' is not a supported value here. "
                   'Supported members: ${members.keys.join(", ")}; or use the '
                   'constructor form for an arbitrary value.',
               location: loc,
@@ -812,8 +834,9 @@ final class RecipeDispatcher {
       case EmitValueArg(:final arg):
         return _numLiteral(_resolveArg(arg, positional, named)!)!;
       case EmitValueKernel(:final kernel, :final inputs):
-        final values =
-            inputs.map((i) => _emitValue(i, positional, named)).toList();
+        final values = inputs
+            .map((i) => _emitValue(i, positional, named))
+            .toList();
         return runValueKernel(kernel, values);
     }
   }

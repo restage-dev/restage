@@ -40,20 +40,23 @@ bool isBorrowedTextSpanRecognizer(Expression source) {
   }
   if (expression is! SimpleIdentifier &&
       expression is! PrefixedIdentifier &&
-      expression is! PropertyAccess) return false;
+      expression is! PropertyAccess)
+    return false;
   final element = switch (expression) {
     SimpleIdentifier() => expression.element,
     PrefixedIdentifier() => expression.element,
     PropertyAccess() => expression.propertyName.element,
     _ => null,
   };
-  final variable =
-      element is PropertyAccessorElement ? element.variable : element;
+  final variable = element is PropertyAccessorElement
+      ? element.variable
+      : element;
   if (element is PropertyAccessorElement && !element.isOriginVariable)
     return false;
   if (variable is! VariableElement) return false;
   if (expression is PropertyAccess &&
-      !_isExistingRecognizerOwner(expression.target)) return false;
+      !_isExistingRecognizerOwner(expression.target))
+    return false;
   final type = expression.staticType;
   if (type is! InterfaceType) return false;
   return [type, ...type.allSupertypes].any(
@@ -137,16 +140,16 @@ TextSpanRecognizerRecipe readTextSpanRecognizer(
   final (kind, origin) = switch (name) {
     'TapGestureRecognizer' => ('tap', 'package:flutter/src/gestures/tap.dart'),
     'DoubleTapGestureRecognizer' => (
-        'doubleTap',
-        'package:flutter/src/gestures/multitap.dart',
-      ),
+      'doubleTap',
+      'package:flutter/src/gestures/multitap.dart',
+    ),
     'LongPressGestureRecognizer' => (
-        'longPress',
-        'package:flutter/src/gestures/long_press.dart',
-      ),
+      'longPress',
+      'package:flutter/src/gestures/long_press.dart',
+    ),
     _ => throw ArgumentError(
-        'Only native tap, double-tap, and long-press recognizers are supported.',
-      ),
+      'Only native tap, double-tap, and long-press recognizers are supported.',
+    ),
   };
   if (member != null ||
       (element != null &&
@@ -170,7 +173,8 @@ TextSpanRecognizerRecipe readTextSpanRecognizer(
     final value = unwrap(argument.argumentExpression);
     if ((field == 'debugOwner' ||
             (field == 'allowedButtonsFilter' && kind == 'longPress')) &&
-        value is NullLiteral) continue;
+        value is NullLiteral)
+      continue;
     if (!constructorFields.contains(field))
       throw ArgumentError(
         'Unsupported recognizer constructor argument: $field.',
@@ -207,8 +211,9 @@ TextSpanRecognizerRecipe readTextSpanRecognizer(
   _requireSingleLocalUse(target);
   for (final binding in bindings) {
     final resolved = unwrap(binding);
-    final boundTarget =
-        resolved is CascadeExpression ? unwrap(resolved.target) : resolved;
+    final boundTarget = resolved is CascadeExpression
+        ? unwrap(resolved.target)
+        : resolved;
     if (identical(boundTarget, target)) _requireSingleLocalUse(binding);
   }
   return TextSpanRecognizerRecipe(
@@ -239,7 +244,8 @@ void _requireSingleLocalUse(Expression expression) {
       if (parent is VariableDeclaration) return parent;
       if (parent is FunctionExpression ||
           parent is MethodDeclaration ||
-          parent is CompilationUnit) return null;
+          parent is CompilationUnit)
+        return null;
     }
     return null;
   }
@@ -260,9 +266,11 @@ void _requireSingleLocalUse(Expression expression) {
           'A captured recognizer value requires proven installed ownership.',
         );
       }
-      for (var parent = reference.parent;
-          parent != null && !identical(parent, scopeFor(reference));
-          parent = parent.parent) {
+      for (
+        var parent = reference.parent;
+        parent != null && !identical(parent, scopeFor(reference));
+        parent = parent.parent
+      ) {
         if ((parent is ForElement ||
                 parent is ForStatement ||
                 parent is WhileStatement ||

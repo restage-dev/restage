@@ -101,8 +101,8 @@ PropertyType? inferPropertyType(DartType t) {
     return widgetBuilderContractFor(t) != null
         ? PropertyType.widgetBuilder
         : scalarCallbackContractFor(t) != null
-            ? PropertyType.scalarCallback
-            : PropertyType.event;
+        ? PropertyType.scalarCallback
+        : PropertyType.event;
   }
 
   if (t is InterfaceType && t.isDartCoreList && t.typeArguments.length == 1) {

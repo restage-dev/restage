@@ -12,17 +12,16 @@ PropertyEntry _synthetic(
   PropertyType type,
   String strategy, {
   List<String>? allowedValues,
-}) =>
-    PropertyEntry(
-      wireId: WireId.unallocatedProperty,
-      name: name,
-      type: type,
-      description: '',
-      synthetic: strategy,
-      constraints: allowedValues == null
-          ? RestageConstraints.empty
-          : RestageConstraints(allowedValues: allowedValues),
-    );
+}) => PropertyEntry(
+  wireId: WireId.unallocatedProperty,
+  name: name,
+  type: type,
+  description: '',
+  synthetic: strategy,
+  constraints: allowedValues == null
+      ? RestageConstraints.empty
+      : RestageConstraints(allowedValues: allowedValues),
+);
 
 const _keyboards = [
   'text',
@@ -96,8 +95,10 @@ final Catalog _catalog = catalogWith([
 ]);
 
 Future<TranslationResult> _translate(String body) async =>
-    ExpressionTranslator(catalog: _catalog, helpers: HelperRegistry())
-        .translate(
+    ExpressionTranslator(
+      catalog: _catalog,
+      helpers: HelperRegistry(),
+    ).translate(
       await parseExpressionFromSourceForTest(
         '''
         import 'package:flutter/cupertino.dart';

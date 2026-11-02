@@ -14,24 +14,23 @@ PropertyEntry _property({
   bool required = false,
   bool constructorNullable = true,
   DartConstValue? constructorDefault = _nonNullDefault,
-}) =>
-    PropertyEntry(
-      wireId: WireId.unallocatedProperty,
-      name: name,
-      type: PropertyType.string,
-      description: 'Optional label.',
-      required: required,
-      constructorNullable: constructorNullable,
-      constructorDefault: constructorDefault,
-    );
+}) => PropertyEntry(
+  wireId: WireId.unallocatedProperty,
+  name: name,
+  type: PropertyType.string,
+  description: 'Optional label.',
+  required: required,
+  constructorNullable: constructorNullable,
+  constructorDefault: constructorDefault,
+);
 
 Catalog _catalog() => catalogWith([
-      entry(
-        name: 'Probe',
-        category: WidgetCategory.input,
-        properties: [_property()],
-      ),
-    ]);
+  entry(
+    name: 'Probe',
+    category: WidgetCategory.input,
+    properties: [_property()],
+  ),
+]);
 
 Future<String> _translate(String argument) async {
   final expression = await parseExpressionFromSourceForTest('''
@@ -76,33 +75,70 @@ void main() {
       );
     });
 
-    test('wraps a supplied non-null value in the named versioned envelope',
-        () async {
-      expect(
-        await _translate("'authored'"),
-        'Probe(label: ${RfwConstructorPresenceEncoder.supplied('"authored"')})',
-      );
-    });
+    test(
+      'wraps a supplied non-null value in the named versioned envelope',
+      () async {
+        expect(
+          await _translate("'authored'"),
+          'Probe(label: ${RfwConstructorPresenceEncoder.supplied('"authored"')})',
+        );
+      },
+    );
 
-    test('keeps the envelope but omits its nested value for explicit null',
-        () async {
-      final dsl = await _translate('null');
+    test(
+      'keeps the envelope but omits its nested value for explicit null',
+      () async {
+        final dsl = await _translate('null');
 
-      expect(
-        dsl,
-        'Probe(label: ${RfwConstructorPresenceEncoder.supplied('null')})',
-      );
-      expect(dsl, contains(RfwConstructorPresenceProtocol.markerKey));
-      expect(
-        dsl,
-        isNot(contains('${RfwConstructorPresenceProtocol.valueKey}:')),
-      );
-    });
+        expect(
+          dsl,
+          'Probe(label: ${RfwConstructorPresenceEncoder.supplied('null')})',
+        );
+        expect(dsl, contains(RfwConstructorPresenceProtocol.markerKey));
+        expect(
+          dsl,
+          isNot(contains('${RfwConstructorPresenceProtocol.valueKey}:')),
+        );
+      },
+    );
   });
 
-  test('generated factory conditionally supplies the Dart constructor argument',
-      () {
-    final widget = WidgetEntry(
+  test(
+    'generated factory conditionally supplies the Dart constructor argument',
+    () {
+      final widget = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'Probe',
+        library: const WidgetLibrary.custom('acme.widgets'),
+        category: WidgetCategory.input,
+        description: 'A probe.',
+        flutterType: 'package:acme/widgets/probe.dart#Probe',
+        childrenSlot: ChildrenSlot.none,
+        properties: [_property()],
+      );
+
+      final source = emitFactoryFunction(
+        widget,
+        aliases: const {'package:acme/widgets/probe.dart': 's0'},
+      )!;
+
+      expect(source, contains('RestageRfwConstructorPresence.read('));
+      expect(source, contains('Function.apply(s0.Probe.new'));
+      expect(source, contains('if (restagePresenceLabel.supplied)'));
+      expect(source, contains('#label:'));
+      expect(
+        source,
+        isNot(
+          contains(
+            "RestageDecoders.string(source, <Object>['label'], context: context) ??",
+          ),
+        ),
+      );
+    },
+  );
+
+  test('generated factory allocates deterministic unique presence locals', () {
+    WidgetEntry widget() => WidgetEntry(
       wireId: WireId.unallocatedWidget,
       name: 'Probe',
       library: const WidgetLibrary.custom('acme.widgets'),
@@ -110,42 +146,14 @@ void main() {
       description: 'A probe.',
       flutterType: 'package:acme/widgets/probe.dart#Probe',
       childrenSlot: ChildrenSlot.none,
-      properties: [_property()],
+      properties: [
+        _property(name: 'foo'),
+        _property(name: 'Foo'),
+        _property(name: r'foo$'),
+        _property(name: r'Foo$'),
+        _property(),
+      ],
     );
-
-    final source = emitFactoryFunction(
-      widget,
-      aliases: const {'package:acme/widgets/probe.dart': 's0'},
-    )!;
-
-    expect(source, contains('RestageRfwConstructorPresence.read('));
-    expect(source, contains('Function.apply(s0.Probe.new'));
-    expect(source, contains('if (restagePresenceLabel.supplied)'));
-    expect(source, contains('#label:'));
-    expect(
-      source,
-      isNot(contains(
-          "RestageDecoders.string(source, <Object>['label'], context: context) ??")),
-    );
-  });
-
-  test('generated factory allocates deterministic unique presence locals', () {
-    WidgetEntry widget() => WidgetEntry(
-          wireId: WireId.unallocatedWidget,
-          name: 'Probe',
-          library: const WidgetLibrary.custom('acme.widgets'),
-          category: WidgetCategory.input,
-          description: 'A probe.',
-          flutterType: 'package:acme/widgets/probe.dart#Probe',
-          childrenSlot: ChildrenSlot.none,
-          properties: [
-            _property(name: 'foo'),
-            _property(name: 'Foo'),
-            _property(name: r'foo$'),
-            _property(name: r'Foo$'),
-            _property(),
-          ],
-        );
 
     final first = emitFactoryFunction(
       widget(),

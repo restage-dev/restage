@@ -55,8 +55,9 @@ Future<void> _expectGeneratedAnalyzesClean(
     },
     (resolver) async {
       final library = await resolver.libraryFor(AssetId.parse(generatedId));
-      final resolved =
-          await library.session.getResolvedLibraryByElement(library);
+      final resolved = await library.session.getResolvedLibraryByElement(
+        library,
+      );
       if (resolved is! ResolvedLibraryResult) {
         throw StateError('Generated A2UI catalog did not resolve.');
       }
@@ -69,7 +70,8 @@ Future<void> _expectGeneratedAnalyzesClean(
       expect(
         diagnostics,
         isEmpty,
-        reason: 'generated A2UI catalog must compile without errors:\n'
+        reason:
+            'generated A2UI catalog must compile without errors:\n'
             '$generated',
       );
     },
@@ -86,7 +88,7 @@ String _diagnosticText(Diagnostic diagnostic) {
 }
 
 void _expectCustomNameStaysExact(String generated, String name) {
-  expect(generated, contains("'$name':"), reason: '$name schema key');
+  expect(generated, contains("'props_$name':"), reason: '$name schema key');
   expect(
     generated,
     matches(RegExp('^\\s+$name:', multiLine: true)),
@@ -121,7 +123,7 @@ void main() {
 
         /// A widget whose legal source names overlap emitted Dart symbols.
         @a2ui.Config.writeBackValues({
-          'onBoundStringChanged': 'BoundString',
+          'onComponentPropsChanged': 'ComponentProps',
         })
         @RestageWidget(
           name: 'GeneratedSymbolCard',
@@ -135,16 +137,16 @@ void main() {
             required this.context,
             required this.itemContext,
             required this.restageA2uiStatus,
-            required this.restageA2uiWriteBoundString,
+            required this.restageA2uiWriteComponentProps,
             required this.p0,
             required this.restageA2uiCatalogId,
-            required this.BoundString,
+            required this.ComponentProps,
             required this.followingString,
-            required this.BoundBool,
+            required this.restageNode,
             required this.followingBool,
-            required this.BoundNumber,
+            required this.restageProps,
             required this.followingNumber,
-            required this.BoundObject,
+            required this.restageBuildChild,
             required this.followingList,
             required this.Duration,
             required this.followingDuration,
@@ -152,7 +154,7 @@ void main() {
             required this.followingWeight,
             required this.Color,
             required this.followingColor,
-            required this.UserActionEvent,
+            required this.Uri,
             required this.Map,
             required this.String,
             required this.SizedBox,
@@ -164,7 +166,7 @@ void main() {
             required this.milliseconds,
             required this.normal,
             required this.values,
-            required this.onBoundStringChanged,
+            required this.onComponentPropsChanged,
             required this.trigger,
             this.child = const flutter.SizedBox.shrink(),
           });
@@ -178,25 +180,25 @@ void main() {
           /// Generated-prefix-shaped non-collision.
           final GeneratedNameState restageA2uiStatus;
           /// Generated controlled-writer collision.
-          final core.String restageA2uiWriteBoundString;
+          final core.String restageA2uiWriteComponentProps;
           /// Dynamic-prefix collision.
           final core.String p0;
           /// Catalog identifier collision.
           final core.String restageA2uiCatalogId;
           /// String binder collision.
-          final core.String BoundString;
+          final core.String ComponentProps;
           /// Nested string binder witness.
           final core.String followingString;
           /// Boolean binder collision.
-          final core.bool BoundBool;
+          final core.bool restageNode;
           /// Nested boolean binder witness.
           final core.bool followingBool;
           /// Number binder collision.
-          final core.double BoundNumber;
+          final core.double restageProps;
           /// Nested number binder witness.
           final core.double followingNumber;
           /// Object binder collision.
-          final core.List<core.String> BoundObject;
+          final core.List<core.String> restageBuildChild;
           /// Nested object binder witness.
           final core.List<core.String> followingList;
           /// Core duration collision.
@@ -212,7 +214,7 @@ void main() {
           /// Nested color-constructor witness.
           final ui.Color followingColor;
           /// Runtime event-class collision.
-          final core.String UserActionEvent;
+          final core.String Uri;
           /// Core map-type collision.
           final core.String Map;
           /// Core string-type collision.
@@ -236,7 +238,7 @@ void main() {
           /// Member-selector witness.
           final core.String values;
           /// Controlled string callback.
-          final void Function(core.String) onBoundStringChanged;
+          final void Function(core.String) onComponentPropsChanged;
           /// Dispatch callback.
           final VoidCallback trigger;
           /// Child with a Flutter-owned constructor default.
@@ -259,20 +261,19 @@ void main() {
         'data',
         'context',
         'itemContext',
-        'restageA2uiWriteBoundString',
+        'restageA2uiWriteComponentProps',
         'p0',
-        'restageA2uiCatalogId',
-        'BoundString',
-        'BoundBool',
-        'BoundNumber',
-        'BoundObject',
+        'ComponentProps',
+        'restageNode',
+        'restageProps',
+        'restageBuildChild',
         'Duration',
         'FontWeight',
         'Color',
-        'UserActionEvent',
+        'Uri',
+        'SizedBox',
         'Map',
         'String',
-        'SizedBox',
       ]) {
         _expectCustomNameStaysExact(generated, name);
         expect(
@@ -282,6 +283,7 @@ void main() {
         );
       }
       for (final name in <String>[
+        'restageA2uiCatalogId',
         'restageA2uiStatus',
         'ordinaryLabel',
         'builder',
@@ -317,22 +319,21 @@ void main() {
       expect(
         generated,
         matches(
-          RegExp(r'onBoundStringChanged:\s*restageA2uiWriteBoundString'),
+          RegExp(r'onComponentPropsChanged:\s*restageA2uiWriteComponentProps'),
         ),
       );
-      expect(generated, matches(RegExp(r"name:\s*'trigger'")));
+      expect(generated, matches(RegExp(r"'name':\s*'trigger'")));
       expect(
         generated,
         matches(
-          RegExp(r'child:\s*_restageA2uiBuildChild\(\s*itemContext,'),
+          RegExp(r'child:\s*_restageA2uiBuildChild\(\s*restageBuildChild,'),
         ),
       );
       await _expectGeneratedAnalyzesClean(sources, generated);
     },
   );
 
-  test(
-      'production builder lowers scalar, list, and enum write-back plus an '
+  test('production builder lowers scalar, list, and enum write-back plus an '
       'arbitrary open-name dispatch', () async {
     const source = '''
       import 'package:flutter/widgets.dart';
@@ -418,7 +419,7 @@ void main() {
         ),
       ),
     );
-    expect(dart, contains("name: 'transmitImmediately'"));
+    expect(dart, contains("'name': 'transmitImmediately'"));
     await _expectGeneratedAnalyzesClean(sources, dart);
   });
 }

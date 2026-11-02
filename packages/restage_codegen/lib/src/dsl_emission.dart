@@ -63,7 +63,8 @@ DslEmission normalizePresentValue(
   int issueStart,
   String value,
 ) {
-  final refused = value.isEmpty ||
+  final refused =
+      value.isEmpty ||
       issues.skip(issueStart).any((issue) => !issue.code.isBuildNotice);
   return refused ? const DslEmission.refusal() : DslEmission.complete(value);
 }
@@ -83,6 +84,6 @@ DslEmission normalizeOptionalChild(
 
 /// Returns complete bytes and maps absence or refusal to no output.
 String unwrapDslEmission(DslEmission emission) => switch (emission) {
-      CompleteDslEmission(:final value) => value,
-      AbsentDslEmission() || RefusedDslEmission() => '',
-    };
+  CompleteDslEmission(:final value) => value,
+  AbsentDslEmission() || RefusedDslEmission() => '',
+};

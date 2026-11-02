@@ -5,8 +5,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('bucketFor — single-widget classification → CoverageBucket', () {
-    test(
-        'a ComposableWidget with no required mechanisms is '
+    test('a ComposableWidget with no required mechanisms is '
         'inlinable / composition-only', () {
       final classification = ComposableWidget(
         'pkg/lib.dart#Card',
@@ -16,8 +15,7 @@ void main() {
       expect(bucketFor(classification), CoverageBucket.inlinableComposition);
     });
 
-    test(
-        'a ComposableWidget needing constantFolding only is '
+    test('a ComposableWidget needing constantFolding only is '
         'inlinable / + const-fold', () {
       final classification = ComposableWidget(
         'pkg/lib.dart#Pad',
@@ -27,8 +25,7 @@ void main() {
       expect(bucketFor(classification), CoverageBucket.inlinableConstantFold);
     });
 
-    test(
-        'a ComposableWidget needing themeAsData (with or without '
+    test('a ComposableWidget needing themeAsData (with or without '
         'constantFolding) is inlinable / + theme-as-data', () {
       final themeOnly = ComposableWidget(
         'pkg/lib.dart#Pill',
@@ -47,8 +44,7 @@ void main() {
       expect(bucketFor(themeAndFold), CoverageBucket.inlinableThemeAsData);
     });
 
-    test(
-        'a ComposableWidget needing declarativeState (with or without '
+    test('a ComposableWidget needing declarativeState (with or without '
         'other mechanisms) is inlinable / + declarative-state', () {
       final stateOnly = ComposableWidget(
         'pkg/lib.dart#Toggle',
@@ -87,38 +83,38 @@ void main() {
     test('an UnclassifiableWidget is deferred', () {
       const classification = UnclassifiableWidget(
         'pkg/lib.dart#Strange',
-        reason: 'build() uses an inline event-handler closure, which this '
+        reason:
+            'build() uses an inline event-handler closure, which this '
             'transpiler increment does not yet analyse',
       );
       expect(bucketFor(classification), CoverageBucket.deferred);
     });
   });
 
-  group(
-      'bucketForEmit — emit-aware bucketing (emit-confirmed, not merely '
+  group('bucketForEmit — emit-aware bucketing (emit-confirmed, not merely '
       'classifier-recognised)', () {
     test(
-        'a ComposableWidget the classifier recognises as inlinable but whose '
-        'strict emit FAILED buckets to classifierOnly, not an inlinable '
-        'bucket — this is the lie-catcher the classifier-only metric missed',
-        () {
-      final classification = ComposableWidget(
-        'pkg/lib.dart#ThemePill',
-        requiredMechanisms: const {InliningMechanism.themeAsData},
-        composedCustomWidgets: const [],
-      );
-      // The classifier-only (upper-bound) view counts it inlinable.
-      expect(bucketFor(classification), CoverageBucket.inlinableThemeAsData);
-      // The emit-aware view demotes it: the translator's strict emit found
-      // issues (e.g. an out-of-contract theme read), so it does NOT inline.
-      expect(
-        bucketForEmit(classification, EmitOutcome.failed),
-        CoverageBucket.classifierOnly,
-      );
-    });
+      'a ComposableWidget the classifier recognises as inlinable but whose '
+      'strict emit FAILED buckets to classifierOnly, not an inlinable '
+      'bucket — this is the lie-catcher the classifier-only metric missed',
+      () {
+        final classification = ComposableWidget(
+          'pkg/lib.dart#ThemePill',
+          requiredMechanisms: const {InliningMechanism.themeAsData},
+          composedCustomWidgets: const [],
+        );
+        // The classifier-only (upper-bound) view counts it inlinable.
+        expect(bucketFor(classification), CoverageBucket.inlinableThemeAsData);
+        // The emit-aware view demotes it: the translator's strict emit found
+        // issues (e.g. an out-of-contract theme read), so it does NOT inline.
+        expect(
+          bucketForEmit(classification, EmitOutcome.failed),
+          CoverageBucket.classifierOnly,
+        );
+      },
+    );
 
-    test(
-        'a ComposableWidget whose strict emit is CONFIRMED keeps its '
+    test('a ComposableWidget whose strict emit is CONFIRMED keeps its '
         'classifier bucket', () {
       final classification = ComposableWidget(
         'pkg/lib.dart#Card',
@@ -131,8 +127,7 @@ void main() {
       );
     });
 
-    test(
-        'a deferred/structural widget is unaffected by the emit outcome — '
+    test('a deferred/structural widget is unaffected by the emit outcome — '
         'there is nothing to emit-confirm', () {
       const deferred = UnclassifiableWidget(
         'pkg/lib.dart#Strange',
@@ -158,8 +153,7 @@ void main() {
       );
     });
 
-    test(
-        'an inlinable candidate with notAttempted emit stays at the '
+    test('an inlinable candidate with notAttempted emit stays at the '
         'classifier (upper-bound) bucket — classifier-only CLI mode', () {
       final classification = ComposableWidget(
         'pkg/lib.dart#Pad',
@@ -217,7 +211,8 @@ void main() {
         ),
         'pkg/lib.dart#Strange': const UnclassifiableWidget(
           'pkg/lib.dart#Strange',
-          reason: 'build() uses something this transpiler increment does '
+          reason:
+              'build() uses something this transpiler increment does '
               'not yet recognise',
         ),
       });
@@ -232,8 +227,7 @@ void main() {
       expect(report.total, 6);
     });
 
-    test(
-        'with emitOutcomes, an emit-failed inlinable is demoted to '
+    test('with emitOutcomes, an emit-failed inlinable is demoted to '
         'classifierOnly and dropped from the inlinable rollup', () {
       final report = CoverageReport.from(
         {
@@ -283,8 +277,7 @@ void main() {
   });
 
   group('CoverageReport snapshot serialisation', () {
-    test(
-        'toSnapshotJson maps each bucket to its sorted widget-key list — a '
+    test('toSnapshotJson maps each bucket to its sorted widget-key list — a '
         'balanced bucket swap (count unchanged) shows up in the keys so the '
         'snapshot rail catches it', () {
       final report = CoverageReport.from({

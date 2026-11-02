@@ -30,9 +30,9 @@ Map<String, String> emitCatalogOptionsFixtures() {
       'packages/restage/test/runtime/fixtures/'
               'catalog_options_${full ? 'full' : 'derived'}.g.dart':
           emitEmptyUserFactoriesDart(
-        appVocabulary: runtimeVocabulary,
-        installWholeCatalog: full,
-      ),
+            appVocabulary: runtimeVocabulary,
+            installWholeCatalog: full,
+          ),
     releaseRegistrationFixturePath: emitEmptyUserFactoriesDart(
       appVocabulary: releaseVocabulary,
       installWholeCatalog: true,

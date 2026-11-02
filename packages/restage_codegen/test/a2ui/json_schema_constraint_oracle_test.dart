@@ -8,44 +8,67 @@ import 'a2ui_safe_pattern_corpus.dart';
 
 void main() {
   test('json_schema 5.2.2 enforces the admitted Draft 2020-12 keywords', () {
-    const cases = <({
-      Map<String, Object?> schema,
-      Object? valid,
-      Object? invalid,
-    })>[
-      (schema: {'type': 'number', 'minimum': 1.5}, valid: 1.5, invalid: 1.49),
-      (
-        schema: {'type': 'number', 'exclusiveMinimum': 1.5},
-        valid: 1.51,
-        invalid: 1.5,
-      ),
-      (schema: {'type': 'number', 'maximum': 2.5}, valid: 2.5, invalid: 2.51),
-      (
-        schema: {'type': 'number', 'exclusiveMaximum': 2.5},
-        valid: 2.49,
-        invalid: 2.5,
-      ),
-      (
-        schema: {
-          'enum': ['ready', 2, false, null],
-        },
-        valid: false,
-        invalid: true
-      ),
-      (
-        schema: {'type': 'string', 'pattern': 'a+'},
-        valid: 'baac',
-        invalid: 'bc'
-      ),
-      (schema: {'type': 'string', 'minLength': 2}, valid: 'ab', invalid: 'a'),
-      (schema: {'type': 'string', 'maxLength': 2}, valid: 'ab', invalid: 'abc'),
-      (schema: {'type': 'array', 'minItems': 2}, valid: [1, 2], invalid: [1]),
-      (
-        schema: {'type': 'array', 'maxItems': 2},
-        valid: [1, 2],
-        invalid: [1, 2, 3],
-      ),
-    ];
+    const cases =
+        <
+          ({
+            Map<String, Object?> schema,
+            Object? valid,
+            Object? invalid,
+          })
+        >[
+          (
+            schema: {'type': 'number', 'minimum': 1.5},
+            valid: 1.5,
+            invalid: 1.49,
+          ),
+          (
+            schema: {'type': 'number', 'exclusiveMinimum': 1.5},
+            valid: 1.51,
+            invalid: 1.5,
+          ),
+          (
+            schema: {'type': 'number', 'maximum': 2.5},
+            valid: 2.5,
+            invalid: 2.51,
+          ),
+          (
+            schema: {'type': 'number', 'exclusiveMaximum': 2.5},
+            valid: 2.49,
+            invalid: 2.5,
+          ),
+          (
+            schema: {
+              'enum': ['ready', 2, false, null],
+            },
+            valid: false,
+            invalid: true,
+          ),
+          (
+            schema: {'type': 'string', 'pattern': 'a+'},
+            valid: 'baac',
+            invalid: 'bc',
+          ),
+          (
+            schema: {'type': 'string', 'minLength': 2},
+            valid: 'ab',
+            invalid: 'a',
+          ),
+          (
+            schema: {'type': 'string', 'maxLength': 2},
+            valid: 'ab',
+            invalid: 'abc',
+          ),
+          (
+            schema: {'type': 'array', 'minItems': 2},
+            valid: [1, 2],
+            invalid: [1],
+          ),
+          (
+            schema: {'type': 'array', 'maxItems': 2},
+            valid: [1, 2],
+            invalid: [1, 2, 3],
+          ),
+        ];
 
     for (final testCase in cases) {
       final schema = JsonSchema.create(
@@ -179,7 +202,8 @@ Map<String, Object?> _projectedLeaf(
     ),
   ]);
   final plan = classifyA2uiCatalogDart(catalog).widgets.single;
-  return ((a2uiWidgetDataSchemaMapForPlan(plan)['properties']! as Map)['value']!
+  return ((a2uiWidgetDataSchemaMapForPlan(plan)['properties']!
+              as Map)['props_value']!
           as Map)
       .cast<String, Object?>();
 }
@@ -191,7 +215,9 @@ void _expectValidation(
   final schema = JsonSchema.create(
     {
       r'$schema': 'https://json-schema.org/draft/2020-12/schema',
-      ...projected,
+      ...(projected['oneOf'] is List
+          ? (projected['oneOf']! as List).first as Map<String, Object?>
+          : projected),
     },
     schemaVersion: SchemaVersion.draft2020_12,
   );

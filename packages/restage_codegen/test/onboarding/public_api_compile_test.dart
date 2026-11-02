@@ -14,8 +14,9 @@ import '../helpers.dart';
 
 /// The generated flow-reference declaration, matched across the line wrap
 /// Measurement introduces by lengthening the constructor.
-final _constFirstRunFlowRef =
-    RegExp(r'const firstRunFlowRef =\s*SurfaceFlowRef<\s*FirstRunResult\s*>');
+final _constFirstRunFlowRef = RegExp(
+  r'const firstRunFlowRef =\s*SurfaceFlowRef<\s*FirstRunResult\s*>',
+);
 
 void main() {
   test('public README recommends generated mounts and compiled fallbacks', () {
@@ -154,9 +155,10 @@ void main() {
     );
   });
 
-  test('public onboarding usage snippet compiles through SDK exports',
-      () async {
-    const source = '''
+  test(
+    'public onboarding usage snippet compiles through SDK exports',
+    () async {
+      const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -299,10 +301,11 @@ final class PublicSurfaceUsage extends StatelessWidget {
 }
 ''';
 
-    await _assertSourcesAnalyze({
-      'apps_examples|lib/onboarding/public_usage.dart': source,
-    });
-  });
+      await _assertSourcesAnalyze({
+        'apps_examples|lib/onboarding/public_usage.dart': source,
+      });
+    },
+  );
 
   test('flow delivery mode is authorable through SDK exports', () async {
     const source = '''
@@ -418,10 +421,14 @@ final class NotificationResult {
       generated,
       allOf([
         contains('final class FirstRunActions implements FlowActionRegistry'),
-        contains('required FlowActionHandler<void, NotificationResult> '
-            'requestNotifications'),
-        contains('final Map<String, FlowActionBinding<dynamic, dynamic>> '
-            'flowActionBindings;'),
+        contains(
+          'required FlowActionHandler<void, NotificationResult> '
+          'requestNotifications',
+        ),
+        contains(
+          'final Map<String, FlowActionBinding<dynamic, dynamic>> '
+          'flowActionBindings;',
+        ),
         matches(
           RegExp(
             r"'requestNotifications':\s*"
@@ -452,61 +459,67 @@ final class NotificationResult {
         contains('decodeResult: _decodeFirstRunFlowResult'),
         isNot(contains('typedef FlowActionHandler')),
         isNot(
-          contains('final FlowActionHandler<void, NotificationResult> '
-              'requestNotifications;'),
+          contains(
+            'final FlowActionHandler<void, NotificationResult> '
+            'requestNotifications;',
+          ),
         ),
         isNot(
-          contains('FlowActionHandler<void, NotificationResult> get '
-              'requestNotifications'),
+          contains(
+            'FlowActionHandler<void, NotificationResult> get '
+            'requestNotifications',
+          ),
         ),
       ]),
     );
     await _assertGeneratedFixtureAnalyzes(result, sources);
   });
 
-  test('idempotent action refs compile and preserve generated metadata',
-      () async {
-    final sources = _actionFixtureSources(
-      actionOptions: ', idempotent: true',
-    );
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    for (final source in sources.entries) {
-      readerWriter.testing.writeString(
-        AssetId.parse(source.key),
-        source.value,
+  test(
+    'idempotent action refs compile and preserve generated metadata',
+    () async {
+      final sources = _actionFixtureSources(
+        actionOptions: ', idempotent: true',
       );
-    }
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      for (final source in sources.entries) {
+        readerWriter.testing.writeString(
+          AssetId.parse(source.key),
+          source.value,
+        );
+      }
 
-    final result = await testBuilders(
-      [
-        onboardingScreenBuilder(BuilderOptions.empty),
-        onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-        restageGeneratedDartBuilder(BuilderOptions.empty),
-      ],
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
 
-    final generated = result.readerWriter.testing.readString(
-      AssetId(
-        'apps_examples',
-        'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-      ),
-    );
-    expect(
-      generated,
-      allOf(
-        contains('idempotent: true'),
-        contains('idempotent: requestNotificationsDescriptor.idempotent'),
-      ),
-    );
-    await _assertGeneratedFixtureAnalyzes(result, sources);
-  });
+      final generated = result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+        ),
+      );
+      expect(
+        generated,
+        allOf(
+          contains('idempotent: true'),
+          contains('idempotent: requestNotificationsDescriptor.idempotent'),
+        ),
+      );
+      await _assertGeneratedFixtureAnalyzes(result, sources);
+    },
+  );
 
   test('generated public API compile fixture exposes decodeResult', () async {
     const screen = '''
@@ -600,59 +613,65 @@ final class FirstRunFlow extends RestageFlow {
     await _assertGeneratedFixtureAnalyzes(result, sources);
   });
 
-  test('SDK action support symbol collisions reject generated output',
-      () async {
-    final cases = <String, String>{
-      'FlowActionHandler':
-          'typedef FlowActionHandler<I, O> = O Function(I input);',
-      'FlowActionBinding': 'final class FlowActionBinding<I, O> { '
-          'const FlowActionBinding(); }',
-      'FlowActionRegistry': 'abstract interface class FlowActionRegistry {}',
-      'FlowActionSchema': 'final class FlowActionSchema { '
-          'const FlowActionSchema(); }',
-      'FlowActionSchemaField': 'final class FlowActionSchemaField { '
-          'const FlowActionSchemaField(); }',
-      'FlowActionDescriptor': 'final class FlowActionDescriptor<I, O> { '
-          'const FlowActionDescriptor(); }',
-    };
+  test(
+    'SDK action support symbol collisions reject generated output',
+    () async {
+      final cases = <String, String>{
+        'FlowActionHandler':
+            'typedef FlowActionHandler<I, O> = O Function(I input);',
+        'FlowActionBinding':
+            'final class FlowActionBinding<I, O> { '
+            'const FlowActionBinding(); }',
+        'FlowActionRegistry': 'abstract interface class FlowActionRegistry {}',
+        'FlowActionSchema':
+            'final class FlowActionSchema { '
+            'const FlowActionSchema(); }',
+        'FlowActionSchemaField':
+            'final class FlowActionSchemaField { '
+            'const FlowActionSchemaField(); }',
+        'FlowActionDescriptor':
+            'final class FlowActionDescriptor<I, O> { '
+            'const FlowActionDescriptor(); }',
+      };
 
-    for (final entry in cases.entries) {
-      final sources = _actionFixtureSources(extraFlowSource: entry.value);
-      final logs = <LogRecord>[];
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      for (final source in sources.entries) {
-        readerWriter.testing.writeString(
-          AssetId.parse(source.key),
-          source.value,
+      for (final entry in cases.entries) {
+        final sources = _actionFixtureSources(extraFlowSource: entry.value);
+        final logs = <LogRecord>[];
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        for (final source in sources.entries) {
+          readerWriter.testing.writeString(
+            AssetId.parse(source.key),
+            source.value,
+          );
+        }
+
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          onLog: logs.add,
+        );
+
+        expect(result.succeeded, isFalse, reason: entry.key);
+        expect(
+          logs.map((log) => log.message).join('\n'),
+          allOf(
+            contains('generatedSymbolCollision'),
+            contains(entry.key),
+          ),
+          reason: entry.key,
         );
       }
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: logs.add,
-      );
-
-      expect(result.succeeded, isFalse, reason: entry.key);
-      expect(
-        logs.map((log) => log.message).join('\n'),
-        allOf(
-          contains('generatedSymbolCollision'),
-          contains(entry.key),
-        ),
-        reason: entry.key,
-      );
-    }
-  });
+    },
+  );
 
   test('invalid action wire names reject generated output', () async {
     final cases = <String, String>{
@@ -698,9 +717,10 @@ final class FirstRunFlow extends RestageFlow {
     }
   });
 
-  test('nested generic action args fail until generated decoders exist',
-      () async {
-    const screen = '''
+  test(
+    'nested generic action args fail until generated decoders exist',
+    () async {
+      const screen = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -715,7 +735,7 @@ final class WelcomeScreen extends StatelessWidget {
 }
 ''';
 
-    const flow = '''
+      const flow = '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -750,45 +770,46 @@ final class NotificationResult {
 }
 ''';
 
-    final sources = {
-      'apps_examples|lib/onboarding/screens/welcome.dart': screen,
-      'apps_examples|lib/onboarding/flows/first_run.dart': flow,
-    };
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    for (final entry in sources.entries) {
-      readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
-    }
+      final sources = {
+        'apps_examples|lib/onboarding/screens/welcome.dart': screen,
+        'apps_examples|lib/onboarding/flows/first_run.dart': flow,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      for (final entry in sources.entries) {
+        readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
+      }
 
-    final logs = <LogRecord>[];
-    final result = await testBuilders(
-      [
-        onboardingScreenBuilder(BuilderOptions.empty),
-        onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-        restageGeneratedDartBuilder(BuilderOptions.empty),
-      ],
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-      onLog: logs.add,
-    );
+      final logs = <LogRecord>[];
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+        onLog: logs.add,
+      );
 
-    expect(result.succeeded, isFalse);
-    expect(
-      logs.map((log) => log.message).join('\n'),
-      allOf(
-        contains('unsupported action argument type'),
-        contains('List<List<int>>'),
-        contains(
-          'Generated action argument decoders support only '
-          'FlowActionRef<void, R>',
+      expect(result.succeeded, isFalse);
+      expect(
+        logs.map((log) => log.message).join('\n'),
+        allOf(
+          contains('unsupported action argument type'),
+          contains('List<List<int>>'),
+          contains(
+            'Generated action argument decoders support only '
+            'FlowActionRef<void, R>',
+          ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   test('void result action bindings encode a null payload', () async {
     const screen = '''
@@ -876,9 +897,10 @@ final class FirstRunFlow extends RestageFlow {
     await _assertGeneratedFixtureAnalyzes(result, sources);
   });
 
-  test('local FlowActionRef lookalikes are ignored by action generation',
-      () async {
-    const screen = '''
+  test(
+    'local FlowActionRef lookalikes are ignored by action generation',
+    () async {
+      const screen = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -893,7 +915,7 @@ final class WelcomeScreen extends StatelessWidget {
 }
 ''';
 
-    const flow = '''
+      const flow = '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -933,49 +955,51 @@ final class NotificationResult {
 }
 ''';
 
-    final sources = {
-      'apps_examples|lib/onboarding/screens/welcome.dart': screen,
-      'apps_examples|lib/onboarding/flows/first_run.dart': flow,
-    };
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    for (final entry in sources.entries) {
-      readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
-    }
+      final sources = {
+        'apps_examples|lib/onboarding/screens/welcome.dart': screen,
+        'apps_examples|lib/onboarding/flows/first_run.dart': flow,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      for (final entry in sources.entries) {
+        readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
+      }
 
-    final result = await testBuilders(
-      [
-        onboardingScreenBuilder(BuilderOptions.empty),
-        onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-        restageGeneratedDartBuilder(BuilderOptions.empty),
-      ],
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    final generated = result.readerWriter.testing.readString(
-      AssetId(
-        'apps_examples',
-        'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-      ),
-    );
-    expect(
-      generated,
-      allOf(
-        contains('final class FirstRunActions {\n  const FirstRunActions();'),
-        isNot(contains('fakeAction')),
-        isNot(contains('FlowActionHandler')),
-      ),
-    );
-    await _assertGeneratedFixtureAnalyzes(result, sources);
-  });
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final generated = result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+        ),
+      );
+      expect(
+        generated,
+        allOf(
+          contains('final class FirstRunActions {\n  const FirstRunActions();'),
+          isNot(contains('fakeAction')),
+          isNot(contains('FlowActionHandler')),
+        ),
+      );
+      await _assertGeneratedFixtureAnalyzes(result, sources);
+    },
+  );
 
-  test('action named _handlers does not collide with generated storage',
-      () async {
-    const screen = '''
+  test(
+    'action named _handlers does not collide with generated storage',
+    () async {
+      const screen = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -990,7 +1014,7 @@ final class WelcomeScreen extends StatelessWidget {
 }
 ''';
 
-    const flow = '''
+      const flow = '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -1025,57 +1049,65 @@ final class NotificationResult {
 }
 ''';
 
-    final sources = {
-      'apps_examples|lib/onboarding/screens/welcome.dart': screen,
-      'apps_examples|lib/onboarding/flows/first_run.dart': flow,
-    };
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    for (final entry in sources.entries) {
-      readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
-    }
+      final sources = {
+        'apps_examples|lib/onboarding/screens/welcome.dart': screen,
+        'apps_examples|lib/onboarding/flows/first_run.dart': flow,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      for (final entry in sources.entries) {
+        readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
+      }
 
-    final result = await testBuilders(
-      [
-        onboardingScreenBuilder(BuilderOptions.empty),
-        onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-        restageGeneratedDartBuilder(BuilderOptions.empty),
-      ],
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    final generated = result.readerWriter.testing.readString(
-      AssetId(
-        'apps_examples',
-        'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-      ),
-    );
-    expect(
-      generated,
-      allOf(
-        contains('final class FirstRunActions implements FlowActionRegistry'),
-        contains('final Map<String, FlowActionBinding<dynamic, dynamic>> '
-            'flowActionBindings;'),
-        contains('required FlowActionHandler<void, NotificationResult> '
-            'handlers'),
-        contains("'handlers': FlowActionBinding<void, NotificationResult>("),
-        isNot(
-          contains('required FlowActionHandler<void, NotificationResult> '
-              '_handlers'),
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final generated = result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
-        isNot(contains('final Map<String, Object> _handlers;')),
-      ),
-    );
-    await _assertGeneratedFixtureAnalyzes(result, sources);
-  });
+      );
+      expect(
+        generated,
+        allOf(
+          contains('final class FirstRunActions implements FlowActionRegistry'),
+          contains(
+            'final Map<String, FlowActionBinding<dynamic, dynamic>> '
+            'flowActionBindings;',
+          ),
+          contains(
+            'required FlowActionHandler<void, NotificationResult> '
+            'handlers',
+          ),
+          contains("'handlers': FlowActionBinding<void, NotificationResult>("),
+          isNot(
+            contains(
+              'required FlowActionHandler<void, NotificationResult> '
+              '_handlers',
+            ),
+          ),
+          isNot(contains('final Map<String, Object> _handlers;')),
+        ),
+      );
+      await _assertGeneratedFixtureAnalyzes(result, sources);
+    },
+  );
 
-  test('action parameter names avoid Dart keywords after underscore stripping',
-      () async {
-    const screen = '''
+  test(
+    'action parameter names avoid Dart keywords after underscore stripping',
+    () async {
+      const screen = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -1090,7 +1122,7 @@ final class WelcomeScreen extends StatelessWidget {
 }
 ''';
 
-    const flow = '''
+      const flow = '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -1125,55 +1157,55 @@ final class NotificationResult {
 }
 ''';
 
-    final sources = {
-      'apps_examples|lib/onboarding/screens/welcome.dart': screen,
-      'apps_examples|lib/onboarding/flows/first_run.dart': flow,
-    };
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    for (final entry in sources.entries) {
-      readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
-    }
+      final sources = {
+        'apps_examples|lib/onboarding/screens/welcome.dart': screen,
+        'apps_examples|lib/onboarding/flows/first_run.dart': flow,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      for (final entry in sources.entries) {
+        readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
+      }
 
-    final result = await testBuilders(
-      [
-        onboardingScreenBuilder(BuilderOptions.empty),
-        onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-        restageGeneratedDartBuilder(BuilderOptions.empty),
-      ],
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    final generated = result.readerWriter.testing.readString(
-      AssetId(
-        'apps_examples',
-        'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-      ),
-    );
-    expect(
-      generated,
-      allOf(
-        contains(
-          'required FlowActionHandler<void, NotificationResult> handler',
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final generated = result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
-        contains("'x': FlowActionBinding<void, NotificationResult>("),
-        contains('handler: handler'),
-        isNot(
+      );
+      expect(
+        generated,
+        allOf(
           contains(
-            'required FlowActionHandler<void, NotificationResult> class',
+            'required FlowActionHandler<void, NotificationResult> handler',
+          ),
+          contains("'x': FlowActionBinding<void, NotificationResult>("),
+          contains('handler: handler'),
+          isNot(
+            contains(
+              'required FlowActionHandler<void, NotificationResult> class',
+            ),
           ),
         ),
-      ),
-    );
-    await _assertGeneratedFixtureAnalyzes(result, sources);
-  });
+      );
+      await _assertGeneratedFixtureAnalyzes(result, sources);
+    },
+  );
 
-  test(
-      'action named like generated actions class is renamed but keeps '
+  test('action named like generated actions class is renamed but keeps '
       'wire name', () async {
     const screen = '''
 import 'package:flutter/widgets.dart';
@@ -1262,8 +1294,10 @@ final class NotificationResult {
           'firstRunActions',
         ),
         contains("actionName: 'FirstRunActions'"),
-        contains("'FirstRunActions': "
-            'FlowActionBinding<void, NotificationResult>('),
+        contains(
+          "'FirstRunActions': "
+          'FlowActionBinding<void, NotificationResult>(',
+        ),
         contains('handler: firstRunActions'),
         isNot(
           contains(
@@ -1281,9 +1315,8 @@ Map<String, String> _actionFixtureSources({
   String actionName = 'requestNotifications',
   String actionOptions = '',
   String extraFlowSource = '',
-}) =>
-    {
-      'apps_examples|lib/onboarding/screens/welcome.dart': '''
+}) => {
+  'apps_examples|lib/onboarding/screens/welcome.dart': '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -1297,7 +1330,8 @@ final class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) => const Center();
 }
 ''',
-      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+  'apps_examples|lib/onboarding/flows/first_run.dart':
+      '''
 import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
@@ -1333,7 +1367,7 @@ final class NotificationResult {
 
 $extraFlowSource
 ''',
-    };
+};
 
 /// The package-relative asset key of [authoredAsset]'s generated part.
 String _generatedPartAssetFor(String authoredAsset) {
@@ -1376,8 +1410,9 @@ Future<void> _assertGeneratedFixtureAnalyzes(
       final library = await resolver.libraryFor(
         AssetId('apps_examples', 'lib/onboarding/flows/first_run.dart'),
       );
-      final resolved =
-          await library.session.getResolvedLibraryByElement(library);
+      final resolved = await library.session.getResolvedLibraryByElement(
+        library,
+      );
       if (resolved is! ResolvedLibraryResult) {
         throw StateError('Generated fixture did not resolve.');
       }
@@ -1436,13 +1471,15 @@ final class _BuilderSlotKeys extends RecursiveAstVisitor<void> {
 }
 
 String _readFlutterSdkReadme() {
-  return File('${_repoRoot().path}/packages/restage/README.md')
-      .readAsStringSync();
+  return File(
+    '${_repoRoot().path}/packages/restage/README.md',
+  ).readAsStringSync();
 }
 
 String _readFlutterSdkFlowsDoc() {
-  return File('${_repoRoot().path}/packages/restage/doc/flows.md')
-      .readAsStringSync();
+  return File(
+    '${_repoRoot().path}/packages/restage/doc/flows.md',
+  ).readAsStringSync();
 }
 
 Directory _repoRoot() {
@@ -1475,8 +1512,9 @@ Future<void> _assertSourcesAnalyze(Map<String, String> sources) async {
       final library = await resolver.libraryFor(
         AssetId('apps_examples', 'lib/onboarding/public_usage.dart'),
       );
-      final resolved =
-          await library.session.getResolvedLibraryByElement(library);
+      final resolved = await library.session.getResolvedLibraryByElement(
+        library,
+      );
       if (resolved is! ResolvedLibraryResult) {
         throw StateError('Public API fixture did not resolve.');
       }

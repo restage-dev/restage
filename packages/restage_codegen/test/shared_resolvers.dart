@@ -11,5 +11,5 @@ final Resolvers sharedResolvers = ResolversImpl.custom(
 /// Resolvers with an independent analysis driver for each build.
 /// Prevents a test from reusing another scenario's source at the same asset path.
 Resolvers freshResolvers() => ResolversImpl.custom(
-      analysisDriverModel: AnalysisDriverModel(),
-    );
+  analysisDriverModel: AnalysisDriverModel(),
+);

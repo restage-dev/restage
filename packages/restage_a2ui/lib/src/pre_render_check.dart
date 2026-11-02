@@ -1,5 +1,5 @@
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:genui/genui.dart';
 import 'package:restage_shared/restage_shared.dart'
     show CapabilityManifest, LibraryCompatibility;
 
@@ -13,7 +13,7 @@ sealed class A2uiPreRenderResult {
   const A2uiPreRenderResult();
 }
 
-/// The payload is safe to hand to the genui render seam.
+/// The payload is safe to hand to the A2UI render seam.
 @immutable
 final class A2uiRenderable extends A2uiPreRenderResult {
   /// Creates a renderable result.
@@ -40,39 +40,39 @@ final class A2uiRejected extends A2uiPreRenderResult {
       'A2uiRejected($diagnostic${gap == null ? '' : ' [$gap]'})';
 }
 
-/// The app-side pre-render capability check: verifies a cached A2UI payload
-/// against the catalog the app registered, BEFORE handing it to genui's render
-/// seam — so a payload this build cannot render faithfully fails with a clean
-/// diagnostic instead of genui's mid-render hard-fail.
+/// Checks a complete cached v1 message bundle against the registered catalogs.
 ///
-/// Two parts:
-///  * **(a) existence** — every component type the payload references must
-///    exist in [catalog]'s items. Universal: runs for any payload, including a
-///    raw model-generated one, and pre-empts genui's `CatalogItemNotFoundException`.
-///  * **(b) version** — when the payload is a Restage sidecar, its required
-///    [CapabilityManifest] must be satisfied by [installed] (the registered
-///    catalog's capability), mirroring the native delivery path's two-axis
-///    relation. **Fail-closed:** a stamped payload with no [installed]
-///    descriptor cannot be verified and is rejected — never skipped.
+/// Upstream parsing and validation resolve each component against its explicit
+/// catalog or its surface default. Validation tracks surface creation, updates,
+/// and deletion, and checks schemas without invoking functions or building UI.
+/// Each message is validated with the renderer's [validationConfig], as the
+/// renderer's processor would, and the finished bundle must also leave every
+/// surface with a root and no dangling reference.
 ///
-/// Restage sidecar decode errors fail closed with [A2uiRejected]. Part (a) is
-/// an existence walk, not a general validator for the inner A2UI payload
-/// shape; malformed component entries can still fail when genui parses them at
-/// the render seam.
+/// Restage sidecars additionally require [installed], the capability descriptor
+/// for the registered Restage capability set. Catalog IDs are routing identities,
+/// never authority for the two-axis library/version comparison.
 @immutable
 final class RestageA2uiPreRenderCheck {
-  /// Creates a check over the registered [catalog]. [installed] is the
-  /// registered catalog's capability descriptor (normally
-  /// [A2uiInstalledCapability.fromStampJson] of its `restageCapability` block);
-  /// supply it to verify Restage-stamped payloads. Without it, only part (a)
-  /// can run and stamped payloads are rejected as unverifiable.
-  const RestageA2uiPreRenderCheck({required this.catalog, this.installed});
+  /// Creates a check over [catalogs]. Supply [installed] to verify stamped
+  /// Restage payloads; without it those payloads are rejected as unverifiable.
+  const RestageA2uiPreRenderCheck({
+    required this.catalogs,
+    this.installed,
+    this.validationConfig,
+  });
 
-  /// The genui catalog the app registered — the render-truth for part (a).
-  final Catalog catalog;
+  /// The upstream catalogs registered by the host renderer.
+  final Iterable<Catalog> catalogs;
 
-  /// What the registered catalog provides — the available side for part (b).
+  /// The capability set supplied by the registered Restage catalogs.
   final A2uiInstalledCapability? installed;
+
+  /// The `ValidationConfig` the renderer's `MessageProcessor` uses; null means
+  /// the processor was given none.
+  final ValidationConfig? validationConfig;
+
+  String get _rootId => validationConfig?.rootId ?? 'root';
 
   /// Checks [cached] (a raw A2UI payload, or a Restage sidecar wrapping one).
   A2uiPreRenderResult check(Object? cached) {
@@ -102,16 +102,22 @@ final class RestageA2uiPreRenderCheck {
       required = null;
     }
 
-    // Part (a): existence — universal, the render-truth is the registered items.
-    final referenced = a2uiReferencedWidgetTypes(payload);
-    final known = {for (final item in catalog.items) item.name};
-    final missing = referenced.difference(known);
-    if (missing.isNotEmpty) {
-      final sorted = missing.toList()..sort();
-      return A2uiRejected(
-        'A2UI payload references component(s) not in the installed catalog: '
-        '${sorted.join(', ')}',
+    // Use upstream's non-executing processor: it owns catalog resolution,
+    // schema checks and surface lifecycle, including inline create components.
+    MessageProcessor<ComponentApi>? processor;
+    try {
+      final messages = parseA2uiV1Messages(payload);
+      processor = MessageProcessor<ComponentApi>.forAgent(
+        catalogs: catalogs.toList(),
+        defaultVersion: A2uiProtocolVersion.v1_0,
+        validationConfig: _perMessageConfig(),
       );
+      processor.processMessages(messages);
+      _checkFinalGraph(processor);
+    } on Object catch (error) {
+      return A2uiRejected('invalid A2UI v1 payload: $error');
+    } finally {
+      processor?.dispose();
     }
 
     // Part (b): version — only for a Restage-stamped payload.
@@ -119,6 +125,41 @@ final class RestageA2uiPreRenderCheck {
       return _checkCapability(required);
     }
     return const A2uiRenderable();
+  }
+
+  // The renderer's graph rules, or none without a config; unknown elements
+  // are always rejected and nothing outside v1 is accepted.
+  ValidationConfig _perMessageConfig() {
+    final host = validationConfig;
+    return ValidationConfig(
+      targetVersion: A2uiProtocolVersion.v1_0,
+      rootId: _rootId,
+      allowOrphanComponents: host?.allowOrphanComponents ?? true,
+      allowDanglingReferences: host?.allowDanglingReferences ?? true,
+      allowMissingRoot: host?.allowMissingRoot ?? true,
+      allowedMessages: host?.allowedMessages,
+      maxDepth: host?.maxDepth,
+    );
+  }
+
+  // A bundle the renderer could only show as a placeholder is not renderable.
+  void _checkFinalGraph(MessageProcessor<ComponentApi> processor) {
+    final finalGraph = ValidationConfig(
+      targetVersion: A2uiProtocolVersion.v1_0,
+      rootId: _rootId,
+      allowOrphanComponents: true,
+      maxDepth: validationConfig?.maxDepth,
+    );
+    final surfaces = processor.model.allSurfaces.toList();
+    if (surfaces.isEmpty) {
+      throw A2uiValidationError('the bundle leaves no surface to render');
+    }
+    for (final surface in surfaces) {
+      if (surface.componentsModel.keys.isEmpty) {
+        throw A2uiValidationError("surface '${surface.id}' has no components");
+      }
+      surface.componentsModel.validateTopology(finalGraph);
+    }
   }
 
   A2uiPreRenderResult _checkCapability(CapabilityManifest required) {

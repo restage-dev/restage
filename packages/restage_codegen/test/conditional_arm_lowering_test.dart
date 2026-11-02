@@ -12,7 +12,8 @@ import 'helpers.dart';
 
 const String _package = 'apps_examples';
 
-String _paywall(String name, String body) => '''
+String _paywall(String name, String body) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -69,19 +70,24 @@ void main() {
 
     setUpAll(() async {
       result = await _build({
-        'event_then_null': 'FilledButton(onPressed: busy ? null : '
+        'event_then_null':
+            'FilledButton(onPressed: busy ? null : '
             "paywallEvent('go'), child: const Text('Go'))",
-        'event_else_null': 'GestureDetector(onTap: busy ? '
+        'event_else_null':
+            'GestureDetector(onTap: busy ? '
             "paywallEvent('yearly') : null, child: const Text('x'))",
-        'border_null': 'Container(decoration: BoxDecoration(border: busy ? '
+        'border_null':
+            'Container(decoration: BoxDecoration(border: busy ? '
             'null : Border.all(color: Colors.black)))',
-        'keyed_null': "GestureDetector(onTap: plan == 'a' ? null : "
+        'keyed_null':
+            "GestureDetector(onTap: plan == 'a' ? null : "
             "paywallEvent('go'), child: const Text('x'))",
         'interpolated_arm':
             r"Text(busy ? 'Starting...' : 'Start ${days}-day trial')",
         'helper_collection_if': "_card('Yearly', busy ? days : '')",
         'helper_ternary': "Text(_chip(busy ? days : ''))",
-        'nested_interpolated_arm': "Text(busy ? 'Starting...' : plan == "
+        'nested_interpolated_arm':
+            "Text(busy ? 'Starting...' : plan == "
             r"'a' ? 'Plan ${plan}' : 'Start ${days}-day trial', "
             'textAlign: TextAlign.center)',
       });
@@ -93,9 +99,9 @@ void main() {
         .singleWhere((line) => line.startsWith('widget '));
 
     void parses(String id) => expect(
-          () => fmt.parseLibraryFile(widget(id)),
-          returnsNormally,
-        );
+      () => fmt.parseLibraryFile(widget(id)),
+      returnsNormally,
+    );
 
     test('every fixture compiles', () {
       expect(result.errors, isEmpty, reason: result.errors.join('\n'));
@@ -104,13 +110,17 @@ void main() {
     test('a null arm on an event slot is left out', () {
       expect(
         widget('event_then_null'),
-        contains('onPressed: switch data.context.busy '
-            '{ false: event "go" {} }'),
+        contains(
+          'onPressed: switch data.context.busy '
+          '{ false: event "go" {} }',
+        ),
       );
       expect(
         widget('event_else_null'),
-        contains('onTap: switch data.context.busy '
-            '{ true: event "yearly" {} }'),
+        contains(
+          'onTap: switch data.context.busy '
+          '{ true: event "yearly" {} }',
+        ),
       );
       parses('event_then_null');
       parses('event_else_null');
@@ -119,8 +129,10 @@ void main() {
     test('a null arm on a structured value is left out', () {
       expect(
         widget('border_null'),
-        contains('border: switch data.context.busy '
-            '{ false: [{color: 0xFF000000}] }'),
+        contains(
+          'border: switch data.context.busy '
+          '{ false: [{color: 0xFF000000}] }',
+        ),
       );
       parses('border_null');
     });
@@ -128,8 +140,10 @@ void main() {
     test('a null arm beside a default selects no value', () {
       expect(
         widget('keyed_null'),
-        contains('onTap: switch data.context.plan '
-            '{ "a": switch false {}, default: event "go" {} }'),
+        contains(
+          'onTap: switch data.context.plan '
+          '{ "a": switch false {}, default: event "go" {} }',
+        ),
       );
       parses('keyed_null');
     });
@@ -148,14 +162,18 @@ void main() {
     test('an equality over a substituted conditional splits into its arms', () {
       expect(
         widget('helper_collection_if'),
-        contains('...for presence in switch data.context.busy '
-            '{ true: switch data.context.days { "": [], default: [0] }, '
-            'false: [] }: Text('),
+        contains(
+          '...for presence in switch data.context.busy '
+          '{ true: switch data.context.days { "": [], default: [0] }, '
+          'false: [] }: Text(',
+        ),
       );
       expect(
         widget('helper_ternary'),
-        contains('Text(text: switch data.context.busy '
-            '{ true: switch data.context.days { "": "none", default: '),
+        contains(
+          'Text(text: switch data.context.busy '
+          '{ true: switch data.context.days { "": "none", default: ',
+        ),
       );
       parses('helper_collection_if');
       parses('helper_ternary');
@@ -165,8 +183,10 @@ void main() {
       expect(
         widget('nested_interpolated_arm'),
         allOf(
-          contains('switch data.context.plan { "a": { children: '
-              '[{ text: "Plan " }, { text: data.context.plan }] }'),
+          contains(
+            'switch data.context.plan { "a": { children: '
+            '[{ text: "Plan " }, { text: data.context.plan }] }',
+          ),
           contains('textAlign: "center"'),
           isNot(contains('__rfw')),
         ),
@@ -186,8 +206,8 @@ void main() {
     });
 
     String errorFor(String id, IssueCode code) => result.errors.firstWhere(
-          (e) => e.contains('[${code.name}] lib/paywalls/$id.dart'),
-        );
+      (e) => e.contains('[${code.name}] lib/paywalls/$id.dart'),
+    );
 
     test('an interpolation inside a structured value is refused', () {
       expect(
@@ -215,7 +235,8 @@ void main() {
 
   test('a measured callback with a handler in each arm is refused', () async {
     final result = await _build({
-      'two_handlers': "FilledButton(onPressed: busy ? paywallEvent('a') : "
+      'two_handlers':
+          "FilledButton(onPressed: busy ? paywallEvent('a') : "
           "paywallEvent('b'), child: const Text('Go'))",
     });
     expect(

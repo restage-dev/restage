@@ -15,76 +15,77 @@ import 'helpers.dart';
 const String _probe = kSyntheticProbeLibraryUri;
 
 Catalog _catalog(List<StructuredEntry> structuredTypes) => Catalog(
-      schemaVersion: kSupportedSchemaVersion,
-      generatedAt: '1970-01-01T00:00:00Z',
-      libraries: {
-        WidgetLibrary.material: const LibraryInfo(version: '1.0.0'),
-      },
-      widgets: const [],
-      structuredTypes: structuredTypes,
-    );
+  schemaVersion: kSupportedSchemaVersion,
+  generatedAt: '1970-01-01T00:00:00Z',
+  libraries: {
+    WidgetLibrary.material: const LibraryInfo(version: '1.0.0'),
+  },
+  widgets: const [],
+  structuredTypes: structuredTypes,
+);
 
 /// `Plan({required name, badge})` with ONLY its canonical unnamed constructor.
 StructuredEntry _planEntry() => StructuredEntry(
-      wireId: WireId('s0001'),
-      name: 'Plan',
-      library: WidgetLibrary.material,
+  wireId: WireId('s0001'),
+  name: 'Plan',
+  library: WidgetLibrary.material,
+  description: '',
+  sourceType: '$_probe#Plan',
+  fields: [
+    StructuredField(
+      wireId: WireId('p0001'),
+      name: 'name',
+      type: PropertyType.string,
       description: '',
-      sourceType: '$_probe#Plan',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0001'),
-          name: 'name',
-          type: PropertyType.string,
-          description: '',
-          required: true,
-        ),
-        StructuredField(
-          wireId: WireId('p0002'),
-          name: 'badge',
-          type: PropertyType.string,
-          description: '',
-        ),
-      ],
-      variants: [ConstructorVariant(wireId: WireId('v0001'))],
-    );
+      required: true,
+    ),
+    StructuredField(
+      wireId: WireId('p0002'),
+      name: 'badge',
+      type: PropertyType.string,
+      description: '',
+    ),
+  ],
+  variants: [ConstructorVariant(wireId: WireId('v0001'))],
+);
 
 /// `Plan({required name, badge})` plus a convenience `Plan.pro` named ctor —
 /// the canonical unnamed variant is the reconstruction target, so authoring via
 /// `.pro` must defer loud (its wire value would reconstruct through the wrong
 /// constructor).
 StructuredEntry _planWithNamedCtorEntry() => StructuredEntry(
-      wireId: WireId('s0001'),
-      name: 'Plan',
-      library: WidgetLibrary.material,
+  wireId: WireId('s0001'),
+  name: 'Plan',
+  library: WidgetLibrary.material,
+  description: '',
+  sourceType: '$_probe#Plan',
+  fields: [
+    StructuredField(
+      wireId: WireId('p0001'),
+      name: 'name',
+      type: PropertyType.string,
       description: '',
-      sourceType: '$_probe#Plan',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0001'),
-          name: 'name',
-          type: PropertyType.string,
-          description: '',
-          required: true,
-        ),
-        StructuredField(
-          wireId: WireId('p0002'),
-          name: 'badge',
-          type: PropertyType.string,
-          description: '',
-        ),
-      ],
-      variants: [
-        ConstructorVariant(wireId: WireId('v0001')),
-        ConstructorVariant(wireId: WireId('v0002'), namedConstructor: 'pro'),
-      ],
-    );
+      required: true,
+    ),
+    StructuredField(
+      wireId: WireId('p0002'),
+      name: 'badge',
+      type: PropertyType.string,
+      description: '',
+    ),
+  ],
+  variants: [
+    ConstructorVariant(wireId: WireId('v0001')),
+    ConstructorVariant(wireId: WireId('v0002'), namedConstructor: 'pro'),
+  ],
+);
 
 void main() {
   group('custom structured LIST value encode', () {
-    test('a list of canonical values encodes to a list of maps, in order',
-        () async {
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'a list of canonical values encodes to a list of maps, in order',
+      () async {
+        final expr = await parseExpressionFromSourceForTest('''
         class Plan {
           const Plan({required this.name, this.badge});
           final String name;
@@ -95,19 +96,19 @@ void main() {
           Plan(name: 'Starter'),
         ];
       ''');
-      final translator = ExpressionTranslator(
-        catalog: _catalog([_planEntry()]),
-        helpers: HelperRegistry(),
-      );
+        final translator = ExpressionTranslator(
+          catalog: _catalog([_planEntry()]),
+          helpers: HelperRegistry(),
+        );
 
-      final result = translator.translate(expr);
+        final result = translator.translate(expr);
 
-      expect(result.issues, isEmpty);
-      expect(result.dsl, '[{name: "Pro", badge: "Best"}, {name: "Starter"}]');
-    });
+        expect(result.issues, isEmpty);
+        expect(result.dsl, '[{name: "Pro", badge: "Best"}, {name: "Starter"}]');
+      },
+    );
 
-    test(
-        'a list mixing constructors encodes each element with its own '
+    test('a list mixing constructors encodes each element with its own '
         'constructor', () async {
       final expr = await parseExpressionFromSourceForTest('''
         class Plan {

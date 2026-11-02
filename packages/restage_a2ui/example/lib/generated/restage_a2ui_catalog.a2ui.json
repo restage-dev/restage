@@ -25,147 +25,315 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/sha256/aefc12c5a7be2b30aabf470e6e106d3a69fc7672230a2ad33867d07505f99337",
+    "$id": "restage:catalog/sha256/80ea0581b4e1675c7e0222017fc2d4af5ac4f59edd9002668b635a140e6ee8f1",
+    "protocolVersion": "1.0",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/sha256/aefc12c5a7be2b30aabf470e6e106d3a69fc7672230a2ad33867d07505f99337",
-    "a2uiProtocolVersion": "0.9.1",
+    "catalogId": "restage:catalog/sha256/80ea0581b4e1675c7e0222017fc2d4af5ac4f59edd9002668b635a140e6ee8f1",
+    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/80ea0581b4e1675c7e0222017fc2d4af5ac4f59edd9002668b635a140e6ee8f1\".\nCallout: Use for a short highlighted aside around optional content.\nCallout constructor fields: message => props_message, detail => props_detail.\nComparisonPanel: A headed panel with an introduction, examples, and conclusion.\nComparisonPanel constructor fields: heading => props_heading, introduction => props_introduction, examples => props_examples, conclusion => props_conclusion.\nQuizCheck: A prompt with a checkable answer bound to a boolean value.\nQuizCheck constructor fields: prompt => props_prompt, selected => props_selected.\nSectionHeader: A titled section header.\nSectionHeader constructor fields: title => props_title.\nCtaButton: A call-to-action button that dispatches a tap event.\nCtaButton constructor fields: label => props_label.\nIntegerListPicker: Adds values to a bound integer list.\nIntegerListPicker constructor fields: selected => props_selected.\nProductCard: Renders a structured product (nested price, tags, features, attributes, size).\nProductCard constructor fields: product => props_product.\nRatingPicker: A 1–5 star rating control bound to an integer value.\nRatingPicker constructor fields: rating => props_rating.\nScalarListPanel: Renders string, integer, number, and boolean lists.\nScalarListPanel constructor fields: labels => props_labels, counts => props_counts, weights => props_weights, measurements => props_measurements, flags => props_flags, maybeCounts => props_maybeCounts, fallbackCounts => props_fallbackCounts.",
     "components": {
       "Callout": {
         "type": "object",
         "description": "A message callout that wraps an optional child.",
         "properties": {
-          "props": {
-            "type": "object",
-            "properties": {
-              "message": {
-                "type": "string",
-                "description": "The callout message."
+          "props_message": {
+            "description": "The callout message.",
+            "oneOf": [
+              {
+                "type": "string"
               },
-              "detail": {
-                "description": "The wrapped detail content.",
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
               }
-            },
-            "required": [
-              "message"
             ]
           },
-          "component": {
-            "type": "string",
-            "enum": [
-              "Callout"
+          "props_detail": {
+            "description": "The wrapped detail content.",
+            "anyOf": [
+              {
+                "$ref": "common_types.json#/$defs/ComponentId",
+                "description": "The unique identifier for a component."
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
         "required": [
-          "component",
-          "props"
+          "props_message"
         ]
       },
       "ComparisonPanel": {
         "type": "object",
         "description": "A headed panel with an introduction, examples, and conclusion.",
         "properties": {
-          "props": {
-            "type": "object",
-            "properties": {
-              "heading": {
-                "type": "string",
-                "description": "The panel heading."
+          "props_heading": {
+            "description": "The panel heading.",
+            "oneOf": [
+              {
+                "type": "string"
               },
-              "introduction": {
-                "description": "Content shown before the lesson examples.",
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
               },
-              "examples": {
-                "type": "array",
-                "description": "The lesson example widgets.",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "conclusion": {
-                "description": "Content shown after the lesson examples.",
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
               }
-            },
-            "required": [
-              "heading",
-              "examples"
             ]
           },
-          "component": {
-            "type": "string",
-            "enum": [
-              "ComparisonPanel"
+          "props_introduction": {
+            "description": "Content shown before the lesson examples.",
+            "anyOf": [
+              {
+                "$ref": "common_types.json#/$defs/ComponentId",
+                "description": "The unique identifier for a component."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "props_examples": {
+            "type": "array",
+            "description": "The lesson example widgets.",
+            "items": {
+              "$ref": "common_types.json#/$defs/ComponentId",
+              "description": "The unique identifier for a component."
+            }
+          },
+          "props_conclusion": {
+            "description": "Content shown after the lesson examples.",
+            "anyOf": [
+              {
+                "$ref": "common_types.json#/$defs/ComponentId",
+                "description": "The unique identifier for a component."
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
         "required": [
-          "component",
-          "props"
+          "props_heading",
+          "props_examples"
         ]
       },
       "CtaButton": {
         "type": "object",
         "description": "A call-to-action button that dispatches a tap event.",
         "properties": {
-          "props": {
-            "type": "object",
-            "properties": {
-              "label": {
-                "type": "string",
-                "description": "The button caption."
+          "props_label": {
+            "description": "The button caption.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
               }
-            },
-            "required": [
-              "label"
-            ]
-          },
-          "component": {
-            "type": "string",
-            "enum": [
-              "CtaButton"
             ]
           }
         },
         "required": [
-          "component",
-          "props"
+          "props_label"
         ]
       },
       "IntegerListPicker": {
         "type": "object",
         "description": "Adds values to a bound integer list.",
         "properties": {
-          "props": {
-            "type": "object",
-            "properties": {
-              "selected": {
-                "description": "The selected integer values.",
-                "oneOf": [
+          "props_selected": {
+            "description": "The selected integer values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          }
+        },
+        "required": [
+          "props_selected"
+        ]
+      },
+      "ProductCard": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/restage_component_ProductCard/$defs/__a2ui_root__"
+          }
+        ]
+      },
+      "QuizCheck": {
+        "type": "object",
+        "description": "A prompt with a checkable answer bound to a boolean value.",
+        "properties": {
+          "props_prompt": {
+            "description": "The quiz prompt.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_selected": {
+            "description": "Whether the answer is selected.",
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          }
+        },
+        "required": [
+          "props_prompt",
+          "props_selected"
+        ]
+      },
+      "RatingPicker": {
+        "type": "object",
+        "description": "A 1–5 star rating control bound to an integer value.",
+        "properties": {
+          "props_rating": {
+            "description": "The selected rating, 1 through 5.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          }
+        },
+        "required": [
+          "props_rating"
+        ]
+      },
+      "ScalarListPanel": {
+        "type": "object",
+        "description": "Renders string, integer, number, and boolean lists.",
+        "properties": {
+          "props_labels": {
+            "description": "String list values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_counts": {
+            "description": "Integer list values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_weights": {
+            "description": "Number list values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_measurements": {
+            "description": "Dart num list values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_flags": {
+            "description": "Boolean list values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "boolean"
+                }
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_maybeCounts": {
+            "description": "Optional integer list values.",
+            "oneOf": [
+              {
+                "anyOf": [
                   {
                     "type": "array",
                     "items": {
@@ -173,51 +341,77 @@
                     }
                   },
                   {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
+                    "type": "null"
                   }
                 ]
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
               }
-            },
-            "required": [
-              "selected"
             ]
           },
-          "component": {
-            "type": "string",
-            "enum": [
-              "IntegerListPicker"
+          "props_fallbackCounts": {
+            "description": "Integer list values with a fallback.",
+            "oneOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
             ]
           }
         },
         "required": [
-          "component",
-          "props"
+          "props_labels",
+          "props_counts",
+          "props_weights",
+          "props_measurements",
+          "props_flags"
         ]
       },
-      "ProductCard": {
+      "SectionHeader": {
+        "type": "object",
+        "description": "A titled section header.",
+        "properties": {
+          "props_title": {
+            "description": "The header title.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          }
+        },
+        "required": [
+          "props_title"
+        ]
+      }
+    },
+    "$defs": {
+      "restage_component_ProductCard": {
         "$defs": {
           "Money": {
             "type": "object",
@@ -276,7 +470,7 @@
               },
               "price": {
                 "description": "The price — a nested data class.",
-                "$ref": "#/$defs/Money"
+                "$ref": "#/$defs/restage_component_ProductCard/$defs/Money"
               },
               "size": {
                 "type": "object",
@@ -315,500 +509,54 @@
             "type": "object",
             "description": "Renders a structured product (nested price, tags, features, attributes, size).",
             "properties": {
-              "props": {
-                "type": "object",
-                "properties": {
-                  "product": {
-                    "description": "The product to display.",
-                    "$ref": "#/$defs/Product"
-                  }
-                },
-                "required": [
-                  "product"
-                ]
+              "props_product": {
+                "description": "The product to display.",
+                "$ref": "#/$defs/restage_component_ProductCard/$defs/Product"
               }
             },
             "required": [
-              "props"
+              "props_product"
             ]
           }
-        },
-        "$ref": "#/$defs/__a2ui_root__",
-        "properties": {
-          "component": {
-            "type": "string",
-            "enum": [
-              "ProductCard"
-            ]
-          }
-        },
-        "required": [
-          "component"
-        ]
+        }
       },
-      "QuizCheck": {
-        "type": "object",
-        "description": "A prompt with a checkable answer bound to a boolean value.",
-        "properties": {
-          "props": {
-            "type": "object",
-            "properties": {
-              "prompt": {
-                "type": "string",
-                "description": "The quiz prompt."
-              },
-              "selected": {
-                "description": "Whether the answer is selected.",
-                "oneOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
-                  }
-                ]
-              }
-            },
-            "required": [
-              "prompt",
-              "selected"
-            ]
+      "anyComponent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/Callout"
           },
-          "component": {
-            "type": "string",
-            "enum": [
-              "QuizCheck"
-            ]
+          {
+            "$ref": "#/components/ComparisonPanel"
+          },
+          {
+            "$ref": "#/components/CtaButton"
+          },
+          {
+            "$ref": "#/components/IntegerListPicker"
+          },
+          {
+            "$ref": "#/components/ProductCard"
+          },
+          {
+            "$ref": "#/components/QuizCheck"
+          },
+          {
+            "$ref": "#/components/RatingPicker"
+          },
+          {
+            "$ref": "#/components/ScalarListPanel"
+          },
+          {
+            "$ref": "#/components/SectionHeader"
           }
-        },
-        "required": [
-          "component",
-          "props"
-        ]
+        ],
+        "discriminator": {
+          "propertyName": "component"
+        }
       },
-      "RatingPicker": {
-        "type": "object",
-        "description": "A 1–5 star rating control bound to an integer value.",
-        "properties": {
-          "props": {
-            "type": "object",
-            "properties": {
-              "rating": {
-                "description": "The selected rating, 1 through 5.",
-                "oneOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
-                  }
-                ]
-              }
-            },
-            "required": [
-              "rating"
-            ]
-          },
-          "component": {
-            "type": "string",
-            "enum": [
-              "RatingPicker"
-            ]
-          }
-        },
-        "required": [
-          "component",
-          "props"
-        ]
-      },
-      "ScalarListPanel": {
-        "type": "object",
-        "description": "Renders string, integer, number, and boolean lists.",
-        "properties": {
-          "props": {
-            "type": "object",
-            "properties": {
-              "labels": {
-                "description": "String list values.",
-                "oneOf": [
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
-                  }
-                ]
-              },
-              "counts": {
-                "description": "Integer list values.",
-                "oneOf": [
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
-                  }
-                ]
-              },
-              "weights": {
-                "description": "Number list values.",
-                "oneOf": [
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "number"
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
-                  }
-                ]
-              },
-              "measurements": {
-                "description": "Dart num list values.",
-                "oneOf": [
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "number"
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
-                  }
-                ]
-              },
-              "flags": {
-                "description": "Boolean list values.",
-                "oneOf": [
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "boolean"
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
-                  }
-                ]
-              },
-              "maybeCounts": {
-                "description": "Optional integer list values.",
-                "oneOf": [
-                  {
-                    "anyOf": [
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "integer"
-                        }
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
-                  }
-                ]
-              },
-              "fallbackCounts": {
-                "description": "Integer list values with a fallback.",
-                "oneOf": [
-                  {
-                    "anyOf": [
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "integer"
-                        }
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
-                  }
-                ]
-              }
-            },
-            "required": [
-              "labels",
-              "counts",
-              "weights",
-              "measurements",
-              "flags"
-            ]
-          },
-          "component": {
-            "type": "string",
-            "enum": [
-              "ScalarListPanel"
-            ]
-          }
-        },
-        "required": [
-          "component",
-          "props"
-        ]
-      },
-      "SectionHeader": {
-        "type": "object",
-        "description": "A titled section header.",
-        "properties": {
-          "props": {
-            "type": "object",
-            "properties": {
-              "title": {
-                "type": "string",
-                "description": "The header title."
-              }
-            },
-            "required": [
-              "title"
-            ]
-          },
-          "component": {
-            "type": "string",
-            "enum": [
-              "SectionHeader"
-            ]
-          }
-        },
-        "required": [
-          "component",
-          "props"
-        ]
+      "anyFunction": {
+        "not": {}
       }
-    },
-    "functions": {},
-    "systemPromptFragments": [
-      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/aefc12c5a7be2b30aabf470e6e106d3a69fc7672230a2ad33867d07505f99337\".",
-      "Callout: Use for a short highlighted aside around optional content.",
-      "ComparisonPanel: A headed panel with an introduction, examples, and conclusion.",
-      "QuizCheck: A prompt with a checkable answer bound to a boolean value.",
-      "SectionHeader: A titled section header.",
-      "CtaButton: A call-to-action button that dispatches a tap event.",
-      "IntegerListPicker: Adds values to a bound integer list.",
-      "ProductCard: Renders a structured product (nested price, tags, features, attributes, size).",
-      "RatingPicker: A 1–5 star rating control bound to an integer value.",
-      "ScalarListPanel: Renders string, integer, number, and boolean lists."
-    ]
+    }
   }
 }

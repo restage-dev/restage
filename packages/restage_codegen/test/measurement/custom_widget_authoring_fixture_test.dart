@@ -26,14 +26,14 @@ const _fixtureDartPaths = <String>[
 ];
 
 void main() {
-  test(
-      'taps inside an opaque custom wrapper are measured and complete the '
+  test('taps inside an opaque custom wrapper are measured and complete the '
       'paywall', () async {
     final compiled = await _compileFixture();
     expect(compiled.succeeded, isTrue, reason: compiled.log);
     expect(compiled.log, isNot(contains('Measurement is unavailable')));
-    final publication = compiled.output!.publications
-        .singleWhere((entry) => entry.selector.slug == 'grounded_offer');
+    final publication = compiled.output!.publications.singleWhere(
+      (entry) => entry.selector.slug == 'grounded_offer',
+    );
     final taps = publication.routePlan.routes
         .where((route) => route.orderedCaptureV1?.lifecycleChannel == null)
         .toList();
@@ -57,55 +57,62 @@ void main() {
       hasLength(2),
       reason: 'The emitted taps carry the routes discovery planned.',
     );
-    final legal =
-        _calls(library).singleWhere((call) => call.name == 'AppLegal');
+    final legal = _calls(
+      library,
+    ).singleWhere((call) => call.name == 'AppLegal');
     expect(legal.arguments['paragraphs'], isA<fmt.DataReference>());
     expect(legal.arguments['widths'], [1.0, 2.5]);
   });
 
-  test('surfaceEvent fires a standalone paywall event from a State class',
-      () async {
-    final compiled = await _compileFixture();
-    expect(compiled.succeeded, isTrue, reason: compiled.log);
-    final blob = compiled.handoff!.manifest!.publications
-        .singleWhere((entry) => entry.publication.slug == 'plan_picker')
-        .artifacts
-        .singleWhere(
-          (artifact) =>
-              artifact.role == SurfacePublicationArtifactRole.screenBlob,
-        );
-    final library = fmt.decodeLibraryBlob(
-      Uint8List.fromList(compiled.handoff!.artifacts[blob.path]!),
-    );
-    final text = _calls(library).singleWhere((call) => call.name == 'AppText');
-    expect(text.arguments['text'], isA<List<Object?>>());
-    final events = _events(library);
-    expect(
-      events.map((event) => event.eventName),
-      containsAll(['subscribe', 'close']),
-    );
-    expect(
-      events
-          .singleWhere((event) => event.eventName == 'subscribe')
-          .eventArguments['value'],
-      'yearly',
-    );
-    final taps = compiled.output!.publications
-        .singleWhere((entry) => entry.selector.slug == 'plan_picker')
-        .routePlan
-        .routes
-        .where((route) => route.orderedCaptureV1?.lifecycleChannel == null);
-    expect(taps, hasLength(2));
-  });
+  test(
+    'surfaceEvent fires a standalone paywall event from a State class',
+    () async {
+      final compiled = await _compileFixture();
+      expect(compiled.succeeded, isTrue, reason: compiled.log);
+      final blob = compiled.handoff!.manifest!.publications
+          .singleWhere((entry) => entry.publication.slug == 'plan_picker')
+          .artifacts
+          .singleWhere(
+            (artifact) =>
+                artifact.role == SurfacePublicationArtifactRole.screenBlob,
+          );
+      final library = fmt.decodeLibraryBlob(
+        Uint8List.fromList(compiled.handoff!.artifacts[blob.path]!),
+      );
+      final text = _calls(
+        library,
+      ).singleWhere((call) => call.name == 'AppText');
+      expect(text.arguments['text'], isA<List<Object?>>());
+      final events = _events(library);
+      expect(
+        events.map((event) => event.eventName),
+        containsAll(['subscribe', 'close']),
+      );
+      expect(
+        events
+            .singleWhere((event) => event.eventName == 'subscribe')
+            .eventArguments['value'],
+        'yearly',
+      );
+      final taps = compiled.output!.publications
+          .singleWhere((entry) => entry.selector.slug == 'plan_picker')
+          .routePlan
+          .routes
+          .where((route) => route.orderedCaptureV1?.lifecycleChannel == null);
+      expect(taps, hasLength(2));
+    },
+  );
 }
 
 Future<
-    ({
-      bool succeeded,
-      String log,
-      RestageMeasurementCompilerOutputV1? output,
-      RestageSurfacePublicationBundle? handoff,
-    })> _compileFixture() async {
+  ({
+    bool succeeded,
+    String log,
+    RestageMeasurementCompilerOutputV1? output,
+    RestageSurfacePublicationBundle? handoff,
+  })
+>
+_compileFixture() async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: _package,
   );
@@ -156,12 +163,16 @@ Future<
 }
 
 BuilderOptions _builderOptions(String builderKey) {
-  final document = loadYaml(
-    File(p.join(_fixtureRoot, 'build.yaml')).readAsStringSync(),
-  ) as YamlMap;
+  final document =
+      loadYaml(
+            File(p.join(_fixtureRoot, 'build.yaml')).readAsStringSync(),
+          )
+          as YamlMap;
   final options =
       ((((document['targets'] as YamlMap)[r'$default'] as YamlMap)['builders']
-          as YamlMap)[builderKey] as YamlMap)['options'] as YamlMap;
+                  as YamlMap)[builderKey]
+              as YamlMap)['options']
+          as YamlMap;
   return BuilderOptions(
     {for (final entry in options.entries) entry.key as String: entry.value},
     isRoot: true,
@@ -169,11 +180,11 @@ BuilderOptions _builderOptions(String builderKey) {
 }
 
 List<String> _routeCarriers(fmt.RemoteWidgetLibrary library) => [
-      for (final handler in _events(library))
-        if (handler.eventArguments[kMeasurementRouteArgumentKeyV1]
-            case final String carrier)
-          carrier,
-    ];
+  for (final handler in _events(library))
+    if (handler.eventArguments[kMeasurementRouteArgumentKeyV1]
+        case final String carrier)
+      carrier,
+];
 
 List<fmt.EventHandler> _events(fmt.RemoteWidgetLibrary library) {
   final handlers = <fmt.EventHandler>[];

@@ -10,58 +10,63 @@ import 'package:test/test.dart';
 import '../helpers.dart';
 
 A2uiDartWidgetPlan _planFor(A2uiSchemaNode node) => classifyA2uiCatalogDart(
-      catalogWith([
-        entry(
-          name: 'CarrierCard',
-          properties: [
-            prop('value', PropertyType.structured, required: true),
-          ],
-        ),
-      ]),
-      richShapes: {('CarrierCard', 'value'): node},
-    ).widgets.single;
+  catalogWith([
+    entry(
+      name: 'CarrierCard',
+      properties: [
+        prop('value', PropertyType.structured, required: true),
+      ],
+    ),
+  ]),
+  richShapes: {('CarrierCard', 'value'): node},
+).widgets.single;
 
 void main() {
   group('A2uiDefinitionRegistry node-family description reconciliation', () {
     const containerId = 'package:example/example.dart#Container';
 
     ObjectNode candidate({required bool withFacts}) => ObjectNode(
-          defId: containerId,
-          definitionDescription: 'Canonical container.',
-          occurrenceDescription:
-              withFacts ? 'Second container use.' : 'First container use.',
-          fields: {
-            'tone': EnumNode(
-              members: const ['soft', 'loud'],
-              dartTypeName: 'Tone',
-              occurrenceDescription: withFacts ? ' Selected tone. ' : null,
-            ),
-            'tags': ListNode(
-              occurrenceDescription: withFacts ? ' Visible tags. ' : null,
-              element: ScalarNode(
-                A2uiScalarType.string,
-                occurrenceDescription: withFacts ? ' One tag. ' : null,
-              ),
-            ),
-            'labels': MapNode(
-              occurrenceDescription: withFacts ? ' Labels by locale. ' : null,
-              valueType: EnumNode(
-                members: const ['short', 'long'],
-                dartTypeName: 'LabelKind',
-                occurrenceDescription: withFacts ? ' One label kind. ' : null,
-              ),
-            ),
-          },
-          required: const {'tone', 'tags', 'labels'},
-        );
+      defId: containerId,
+      definitionDescription: 'Canonical container.',
+      occurrenceDescription: withFacts
+          ? 'Second container use.'
+          : 'First container use.',
+      fields: {
+        'tone': EnumNode(
+          members: const ['soft', 'loud'],
+          dartTypeName: 'Tone',
+          occurrenceDescription: withFacts ? ' Selected tone. ' : null,
+        ),
+        'tags': ListNode(
+          occurrenceDescription: withFacts ? ' Visible tags. ' : null,
+          element: ScalarNode(
+            A2uiScalarType.string,
+            occurrenceDescription: withFacts ? ' One tag. ' : null,
+          ),
+        ),
+        'labels': MapNode(
+          occurrenceDescription: withFacts ? ' Labels by locale. ' : null,
+          valueType: EnumNode(
+            members: const ['short', 'long'],
+            dartTypeName: 'LabelKind',
+            occurrenceDescription: withFacts ? ' One label kind. ' : null,
+          ),
+        ),
+      },
+      required: const {'tone', 'tags', 'labels'},
+    );
 
     test('absent + present nested facts merge independent of root order', () {
       final absent = candidate(withFacts: false);
       final present = candidate(withFacts: true);
-      final forward =
-          A2uiDefinitionRegistry([absent, present]).definitionFor(containerId);
-      final reversed =
-          A2uiDefinitionRegistry([present, absent]).definitionFor(containerId);
+      final forward = A2uiDefinitionRegistry([
+        absent,
+        present,
+      ]).definitionFor(containerId);
+      final reversed = A2uiDefinitionRegistry([
+        present,
+        absent,
+      ]).definitionFor(containerId);
 
       expect(reversed, forward);
       final container = forward as ObjectNode;
@@ -87,242 +92,247 @@ void main() {
       );
     });
 
-    test('container occurrence conflicts report deterministic nested paths',
-        () {
-      ObjectNode withDescriptions({
-        required String enumDescription,
-        required String listDescription,
-        required String mapDescription,
-      }) =>
-          ObjectNode(
-            defId: containerId,
-            fields: {
-              'tone': EnumNode(
-                members: const ['soft', 'loud'],
-                dartTypeName: 'Tone',
-                occurrenceDescription: enumDescription,
-              ),
-              'tags': ListNode(
-                element: const ScalarNode(A2uiScalarType.string),
-                occurrenceDescription: listDescription,
-              ),
-              'labels': MapNode(
-                valueType: const ScalarNode(A2uiScalarType.string),
-                occurrenceDescription: mapDescription,
-              ),
-            },
-            required: const {'tone', 'tags', 'labels'},
-          );
-
-      final first = withDescriptions(
-        enumDescription: 'First tone.',
-        listDescription: 'Same tags.',
-        mapDescription: 'Same labels.',
-      );
-      final second = withDescriptions(
-        enumDescription: 'Second tone.',
-        listDescription: 'Same tags.',
-        mapDescription: 'Same labels.',
-      );
-      final enumConflict = isA<StateError>().having(
-        (error) => error.message,
-        'message',
-        'Conflicting canonical member description for "$containerId.tone".',
-      );
-      expect(
-        () => A2uiDefinitionRegistry([first, second]),
-        throwsA(enumConflict),
-      );
-      expect(
-        () => A2uiDefinitionRegistry([second, first]),
-        throwsA(enumConflict),
-      );
-
-      final listConflict = withDescriptions(
-        enumDescription: 'First tone.',
-        listDescription: 'Other tags.',
-        mapDescription: 'Same labels.',
-      );
-      expect(
-        () => A2uiDefinitionRegistry([first, listConflict]),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            'Conflicting canonical member description for '
-                '"$containerId.tags".',
-          ),
-        ),
-      );
-      expect(
-        () => A2uiDefinitionRegistry([listConflict, first]),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            'Conflicting canonical member description for '
-                '"$containerId.tags".',
-          ),
-        ),
-      );
-
-      final mapConflict = withDescriptions(
-        enumDescription: 'First tone.',
-        listDescription: 'Same tags.',
-        mapDescription: 'Other labels.',
-      );
-      expect(
-        () => A2uiDefinitionRegistry([first, mapConflict]),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            'Conflicting canonical member description for '
-                '"$containerId.labels".',
-          ),
-        ),
-      );
-      expect(
-        () => A2uiDefinitionRegistry([mapConflict, first]),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            'Conflicting canonical member description for '
-                '"$containerId.labels".',
-          ),
-        ),
-      );
-    });
-
-    test('nested documented carriers canonicalize order and first conflicts',
-        () {
-      ObjectNode documentedCandidate({
-        required bool reversed,
-        required String descriptionPrefix,
-      }) {
-        final entries = <MapEntry<String, A2uiSchemaNode>>[
-          MapEntry(
-            'aTone',
-            EnumNode(
+    test(
+      'container occurrence conflicts report deterministic nested paths',
+      () {
+        ObjectNode withDescriptions({
+          required String enumDescription,
+          required String listDescription,
+          required String mapDescription,
+        }) => ObjectNode(
+          defId: containerId,
+          fields: {
+            'tone': EnumNode(
               members: const ['soft', 'loud'],
               dartTypeName: 'Tone',
-              occurrenceDescription: '$descriptionPrefix tone.',
+              occurrenceDescription: enumDescription,
             ),
-          ),
-          MapEntry(
-            'mTags',
-            ListNode(
+            'tags': ListNode(
               element: const ScalarNode(A2uiScalarType.string),
-              occurrenceDescription: '$descriptionPrefix tags.',
+              occurrenceDescription: listDescription,
             ),
-          ),
-          MapEntry(
-            'zLabels',
-            MapNode(
+            'labels': MapNode(
               valueType: const ScalarNode(A2uiScalarType.string),
-              occurrenceDescription: '$descriptionPrefix labels.',
+              occurrenceDescription: mapDescription,
+            ),
+          },
+          required: const {'tone', 'tags', 'labels'},
+        );
+
+        final first = withDescriptions(
+          enumDescription: 'First tone.',
+          listDescription: 'Same tags.',
+          mapDescription: 'Same labels.',
+        );
+        final second = withDescriptions(
+          enumDescription: 'Second tone.',
+          listDescription: 'Same tags.',
+          mapDescription: 'Same labels.',
+        );
+        final enumConflict = isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Conflicting canonical member description for "$containerId.tone".',
+        );
+        expect(
+          () => A2uiDefinitionRegistry([first, second]),
+          throwsA(enumConflict),
+        );
+        expect(
+          () => A2uiDefinitionRegistry([second, first]),
+          throwsA(enumConflict),
+        );
+
+        final listConflict = withDescriptions(
+          enumDescription: 'First tone.',
+          listDescription: 'Other tags.',
+          mapDescription: 'Same labels.',
+        );
+        expect(
+          () => A2uiDefinitionRegistry([first, listConflict]),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'Conflicting canonical member description for '
+                  '"$containerId.tags".',
             ),
           ),
-        ];
-        final ordered = reversed ? entries.reversed : entries;
-        return ObjectNode(
-          defId: containerId,
-          occurrenceDescription:
-              reversed ? 'Second container use.' : 'First container use.',
-          fields: Map.fromEntries(ordered),
-          required: ordered.map((entry) => entry.key).toSet(),
         );
-      }
+        expect(
+          () => A2uiDefinitionRegistry([listConflict, first]),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'Conflicting canonical member description for '
+                  '"$containerId.tags".',
+            ),
+          ),
+        );
 
-      final first = documentedCandidate(
-        reversed: false,
-        descriptionPrefix: 'Canonical',
-      );
-      final second = documentedCandidate(
-        reversed: true,
-        descriptionPrefix: 'Canonical',
-      );
-      final forwardRegistry = A2uiDefinitionRegistry([first, second]);
-      final reversedRegistry = A2uiDefinitionRegistry([second, first]);
-      final forward = forwardRegistry.definitionFor(containerId);
-      final reversed = reversedRegistry.definitionFor(containerId);
-
-      expect(forwardRegistry.canonicalOrderTargets, contains(containerId));
-      expect(reversedRegistry.canonicalOrderTargets, contains(containerId));
-      expect(
-        (forward as ObjectNode).fields.keys,
-        ['aTone', 'mTags', 'zLabels'],
-      );
-      expect(
-        (reversed as ObjectNode).fields.keys,
-        ['aTone', 'mTags', 'zLabels'],
-      );
-      expect(
-        a2uiDataSchemaExpression(reversed),
-        a2uiDataSchemaExpression(forward),
-      );
-      expect(
-        jsonEncode(a2uiWidgetDataSchemaMapForPlan(_planFor(reversed))),
-        jsonEncode(a2uiWidgetDataSchemaMapForPlan(_planFor(forward))),
-      );
-
-      final conflictFirst = documentedCandidate(
-        reversed: false,
-        descriptionPrefix: 'First',
-      );
-      final conflictSecond = documentedCandidate(
-        reversed: true,
-        descriptionPrefix: 'Second',
-      );
-      final expectedConflict = isA<StateError>().having(
-        (error) => error.message,
-        'message',
-        'Conflicting canonical member description for '
-            '"$containerId.aTone".',
-      );
-      expect(
-        () => A2uiDefinitionRegistry([conflictFirst, conflictSecond]),
-        throwsA(expectedConflict),
-      );
-      expect(
-        () => A2uiDefinitionRegistry([conflictSecond, conflictFirst]),
-        throwsA(expectedConflict),
-      );
-    });
-
-    test('root use text preserves order; root definition text canonicalizes',
-        () {
-      ObjectNode root({String? definitionDescription}) => ObjectNode(
-            defId: containerId,
-            occurrenceDescription: 'This container use.',
-            definitionDescription: definitionDescription,
-            fields: const {
-              'zeta': ScalarNode(A2uiScalarType.string),
-              'alpha': ScalarNode(A2uiScalarType.integer),
-            },
-            required: const {'zeta', 'alpha'},
-          );
-
-      final useOnly = A2uiDefinitionRegistry([root()]);
-      expect(useOnly.canonicalOrderTargets, isNot(contains(containerId)));
-      expect(
-        (useOnly.definitionFor(containerId) as ObjectNode).fields.keys,
-        ['zeta', 'alpha'],
-      );
-
-      final canonical = A2uiDefinitionRegistry([
-        root(definitionDescription: 'Canonical container.'),
-      ]);
-      expect(canonical.canonicalOrderTargets, contains(containerId));
-      expect(
-        (canonical.definitionFor(containerId) as ObjectNode).fields.keys,
-        ['alpha', 'zeta'],
-      );
-    });
+        final mapConflict = withDescriptions(
+          enumDescription: 'First tone.',
+          listDescription: 'Same tags.',
+          mapDescription: 'Other labels.',
+        );
+        expect(
+          () => A2uiDefinitionRegistry([first, mapConflict]),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'Conflicting canonical member description for '
+                  '"$containerId.labels".',
+            ),
+          ),
+        );
+        expect(
+          () => A2uiDefinitionRegistry([mapConflict, first]),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'Conflicting canonical member description for '
+                  '"$containerId.labels".',
+            ),
+          ),
+        );
+      },
+    );
 
     test(
-        'nested anonymous documented objects canonicalize recursively without '
+      'nested documented carriers canonicalize order and first conflicts',
+      () {
+        ObjectNode documentedCandidate({
+          required bool reversed,
+          required String descriptionPrefix,
+        }) {
+          final entries = <MapEntry<String, A2uiSchemaNode>>[
+            MapEntry(
+              'aTone',
+              EnumNode(
+                members: const ['soft', 'loud'],
+                dartTypeName: 'Tone',
+                occurrenceDescription: '$descriptionPrefix tone.',
+              ),
+            ),
+            MapEntry(
+              'mTags',
+              ListNode(
+                element: const ScalarNode(A2uiScalarType.string),
+                occurrenceDescription: '$descriptionPrefix tags.',
+              ),
+            ),
+            MapEntry(
+              'zLabels',
+              MapNode(
+                valueType: const ScalarNode(A2uiScalarType.string),
+                occurrenceDescription: '$descriptionPrefix labels.',
+              ),
+            ),
+          ];
+          final ordered = reversed ? entries.reversed : entries;
+          return ObjectNode(
+            defId: containerId,
+            occurrenceDescription: reversed
+                ? 'Second container use.'
+                : 'First container use.',
+            fields: Map.fromEntries(ordered),
+            required: ordered.map((entry) => entry.key).toSet(),
+          );
+        }
+
+        final first = documentedCandidate(
+          reversed: false,
+          descriptionPrefix: 'Canonical',
+        );
+        final second = documentedCandidate(
+          reversed: true,
+          descriptionPrefix: 'Canonical',
+        );
+        final forwardRegistry = A2uiDefinitionRegistry([first, second]);
+        final reversedRegistry = A2uiDefinitionRegistry([second, first]);
+        final forward = forwardRegistry.definitionFor(containerId);
+        final reversed = reversedRegistry.definitionFor(containerId);
+
+        expect(forwardRegistry.canonicalOrderTargets, contains(containerId));
+        expect(reversedRegistry.canonicalOrderTargets, contains(containerId));
+        expect(
+          (forward as ObjectNode).fields.keys,
+          ['aTone', 'mTags', 'zLabels'],
+        );
+        expect(
+          (reversed as ObjectNode).fields.keys,
+          ['aTone', 'mTags', 'zLabels'],
+        );
+        expect(
+          a2uiDataSchemaExpression(reversed),
+          a2uiDataSchemaExpression(forward),
+        );
+        expect(
+          jsonEncode(a2uiWidgetDataSchemaMapForPlan(_planFor(reversed))),
+          jsonEncode(a2uiWidgetDataSchemaMapForPlan(_planFor(forward))),
+        );
+
+        final conflictFirst = documentedCandidate(
+          reversed: false,
+          descriptionPrefix: 'First',
+        );
+        final conflictSecond = documentedCandidate(
+          reversed: true,
+          descriptionPrefix: 'Second',
+        );
+        final expectedConflict = isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Conflicting canonical member description for '
+              '"$containerId.aTone".',
+        );
+        expect(
+          () => A2uiDefinitionRegistry([conflictFirst, conflictSecond]),
+          throwsA(expectedConflict),
+        );
+        expect(
+          () => A2uiDefinitionRegistry([conflictSecond, conflictFirst]),
+          throwsA(expectedConflict),
+        );
+      },
+    );
+
+    test(
+      'root use text preserves order; root definition text canonicalizes',
+      () {
+        ObjectNode root({String? definitionDescription}) => ObjectNode(
+          defId: containerId,
+          occurrenceDescription: 'This container use.',
+          definitionDescription: definitionDescription,
+          fields: const {
+            'zeta': ScalarNode(A2uiScalarType.string),
+            'alpha': ScalarNode(A2uiScalarType.integer),
+          },
+          required: const {'zeta', 'alpha'},
+        );
+
+        final useOnly = A2uiDefinitionRegistry([root()]);
+        expect(useOnly.canonicalOrderTargets, isNot(contains(containerId)));
+        expect(
+          (useOnly.definitionFor(containerId) as ObjectNode).fields.keys,
+          ['zeta', 'alpha'],
+        );
+
+        final canonical = A2uiDefinitionRegistry([
+          root(definitionDescription: 'Canonical container.'),
+        ]);
+        expect(canonical.canonicalOrderTargets, contains(containerId));
+        expect(
+          (canonical.definitionFor(containerId) as ObjectNode).fields.keys,
+          ['alpha', 'zeta'],
+        );
+      },
+    );
+
+    test('nested anonymous documented objects canonicalize recursively without '
         'reordering adjacent legacy subtrees', () {
       ObjectNode candidate({
         required bool reversed,
@@ -338,8 +348,9 @@ void main() {
             ScalarNode(A2uiScalarType.integer),
           ),
         ];
-        final orderedMapValues =
-            reversed ? mapValueEntries.reversed : mapValueEntries;
+        final orderedMapValues = reversed
+            ? mapValueEntries.reversed
+            : mapValueEntries;
         final documentedEntries = <MapEntry<String, A2uiSchemaNode>>[
           MapEntry(
             'alpha',
@@ -360,8 +371,9 @@ void main() {
             ),
           ),
         ];
-        final ordered =
-            reversed ? documentedEntries.reversed : documentedEntries;
+        final ordered = reversed
+            ? documentedEntries.reversed
+            : documentedEntries;
         return ObjectNode(
           defId: containerId,
           fields: {
@@ -392,10 +404,14 @@ void main() {
         reversed: true,
         descriptionPrefix: 'Canonical',
       );
-      final forward =
-          A2uiDefinitionRegistry([first, second]).definitionFor(containerId);
-      final reversed =
-          A2uiDefinitionRegistry([second, first]).definitionFor(containerId);
+      final forward = A2uiDefinitionRegistry([
+        first,
+        second,
+      ]).definitionFor(containerId);
+      final reversed = A2uiDefinitionRegistry([
+        second,
+        first,
+      ]).definitionFor(containerId);
 
       expect(reversed, forward);
       for (final definition in [forward, reversed]) {
@@ -451,40 +467,45 @@ void main() {
     const unionId = 'package:example/example.dart#Result';
 
     UnionNode candidate({required bool withFacts}) => UnionNode(
-          defId: unionId,
-          discriminatorField: 'type',
-          definitionDescription: withFacts ? ' Canonical result. ' : null,
-          occurrenceDescription:
-              withFacts ? 'Second result use.' : 'First result use.',
-          variants: [
-            EnumNode(
-              members: const ['success', 'failure'],
-              dartTypeName: 'ResultKind',
-              occurrenceDescription: withFacts ? ' Result kind. ' : null,
-            ),
-          ],
+      defId: unionId,
+      discriminatorField: 'type',
+      definitionDescription: withFacts ? ' Canonical result. ' : null,
+      occurrenceDescription: withFacts
+          ? 'Second result use.'
+          : 'First result use.',
+      variants: [
+        EnumNode(
+          members: const ['success', 'failure'],
+          dartTypeName: 'ResultKind',
+          occurrenceDescription: withFacts ? ' Result kind. ' : null,
+        ),
+      ],
+    );
+
+    test(
+      'registers type facts while excluding only the candidate root use',
+      () {
+        final absent = candidate(withFacts: false);
+        final present = candidate(withFacts: true);
+        final forwardRegistry = A2uiDefinitionRegistry([absent, present]);
+        final forward = forwardRegistry.definitionFor(unionId);
+        final reversed = A2uiDefinitionRegistry([
+          present,
+          absent,
+        ]).definitionFor(unionId);
+
+        expect(reversed, forward);
+        expect(forwardRegistry.hoistTargets, contains(unionId));
+        expect(forward, isA<UnionNode>());
+        final union = forward as UnionNode;
+        expect(union.definitionDescription, 'Canonical result.');
+        expect(union.occurrenceDescription, isNull);
+        expect(
+          (union.variants.single as EnumNode).occurrenceDescription,
+          'Result kind.',
         );
-
-    test('registers type facts while excluding only the candidate root use',
-        () {
-      final absent = candidate(withFacts: false);
-      final present = candidate(withFacts: true);
-      final forwardRegistry = A2uiDefinitionRegistry([absent, present]);
-      final forward = forwardRegistry.definitionFor(unionId);
-      final reversed =
-          A2uiDefinitionRegistry([present, absent]).definitionFor(unionId);
-
-      expect(reversed, forward);
-      expect(forwardRegistry.hoistTargets, contains(unionId));
-      expect(forward, isA<UnionNode>());
-      final union = forward as UnionNode;
-      expect(union.definitionDescription, 'Canonical result.');
-      expect(union.occurrenceDescription, isNull);
-      expect(
-        (union.variants.single as EnumNode).occurrenceDescription,
-        'Result kind.',
-      );
-    });
+      },
+    );
 
     test('a nested named union keeps its use description in its parent', () {
       final result = candidate(withFacts: true);
@@ -502,81 +523,83 @@ void main() {
       expect(canonical.occurrenceDescription, isNull);
     });
 
-    test('definition, nested occurrence, and structure conflicts are strict',
-        () {
-      final first = candidate(withFacts: true);
-      final definitionConflict = UnionNode(
-        defId: unionId,
-        discriminatorField: 'type',
-        definitionDescription: 'Different canonical result.',
-        variants: first.variants,
-      );
-      final canonicalError = isA<StateError>().having(
-        (error) => error.message,
-        'message',
-        'Conflicting canonical description for "$unionId".',
-      );
-      expect(
-        () => A2uiDefinitionRegistry([first, definitionConflict]),
-        throwsA(canonicalError),
-      );
-      expect(
-        () => A2uiDefinitionRegistry([definitionConflict, first]),
-        throwsA(canonicalError),
-      );
+    test(
+      'definition, nested occurrence, and structure conflicts are strict',
+      () {
+        final first = candidate(withFacts: true);
+        final definitionConflict = UnionNode(
+          defId: unionId,
+          discriminatorField: 'type',
+          definitionDescription: 'Different canonical result.',
+          variants: first.variants,
+        );
+        final canonicalError = isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Conflicting canonical description for "$unionId".',
+        );
+        expect(
+          () => A2uiDefinitionRegistry([first, definitionConflict]),
+          throwsA(canonicalError),
+        );
+        expect(
+          () => A2uiDefinitionRegistry([definitionConflict, first]),
+          throwsA(canonicalError),
+        );
 
-      final occurrenceConflict = UnionNode(
-        defId: unionId,
-        discriminatorField: 'type',
-        definitionDescription: 'Canonical result.',
-        variants: [
-          EnumNode(
-            members: const ['success', 'failure'],
-            dartTypeName: 'ResultKind',
-            occurrenceDescription: 'Different result kind.',
-          ),
-        ],
-      );
-      final occurrenceError = isA<StateError>().having(
-        (error) => error.message,
-        'message',
-        'Conflicting canonical member description for '
-            '"$unionId.variants[0]".',
-      );
-      expect(
-        () => A2uiDefinitionRegistry([first, occurrenceConflict]),
-        throwsA(occurrenceError),
-      );
-      expect(
-        () => A2uiDefinitionRegistry([occurrenceConflict, first]),
-        throwsA(occurrenceError),
-      );
+        final occurrenceConflict = UnionNode(
+          defId: unionId,
+          discriminatorField: 'type',
+          definitionDescription: 'Canonical result.',
+          variants: [
+            EnumNode(
+              members: const ['success', 'failure'],
+              dartTypeName: 'ResultKind',
+              occurrenceDescription: 'Different result kind.',
+            ),
+          ],
+        );
+        final occurrenceError = isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Conflicting canonical member description for '
+              '"$unionId.variants[0]".',
+        );
+        expect(
+          () => A2uiDefinitionRegistry([first, occurrenceConflict]),
+          throwsA(occurrenceError),
+        );
+        expect(
+          () => A2uiDefinitionRegistry([occurrenceConflict, first]),
+          throwsA(occurrenceError),
+        );
 
-      final structureConflict = UnionNode(
-        defId: unionId,
-        discriminatorField: 'type',
-        definitionDescription: 'Canonical result.',
-        variants: [
-          EnumNode(
-            members: const ['success'],
-            dartTypeName: 'ResultKind',
-          ),
-        ],
-      );
-      final structureError = isA<StateError>().having(
-        (error) => error.message,
-        'message',
-        'Conflicting canonical structure for "$unionId".',
-      );
-      expect(
-        () => A2uiDefinitionRegistry([first, structureConflict]),
-        throwsA(structureError),
-      );
-      expect(
-        () => A2uiDefinitionRegistry([structureConflict, first]),
-        throwsA(structureError),
-      );
-    });
+        final structureConflict = UnionNode(
+          defId: unionId,
+          discriminatorField: 'type',
+          definitionDescription: 'Canonical result.',
+          variants: [
+            EnumNode(
+              members: const ['success'],
+              dartTypeName: 'ResultKind',
+            ),
+          ],
+        );
+        final structureError = isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Conflicting canonical structure for "$unionId".',
+        );
+        expect(
+          () => A2uiDefinitionRegistry([first, structureConflict]),
+          throwsA(structureError),
+        );
+        expect(
+          () => A2uiDefinitionRegistry([structureConflict, first]),
+          throwsA(structureError),
+        );
+      },
+    );
 
     test('projection and construction remain loud with carriers populated', () {
       final union = candidate(withFacts: true);

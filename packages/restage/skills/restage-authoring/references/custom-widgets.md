@@ -131,7 +131,7 @@ publishing a surface revision or releasing new app code.
 
 ## Optional A2UI and Widgetbook output
 
-The same source can feed Restage delivery, Flutter GenUI and Widgetbook. Enable
+The same source can feed Restage delivery, Flutter A2UI and Widgetbook. Enable
 either optional emitter independently; one build generates its catalog or stories
 before the consuming app runs. Neither needs bundled RFW assets or a published
 surface. Read [emitters.md](emitters.md) for the build order, dependencies and

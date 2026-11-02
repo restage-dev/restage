@@ -10,9 +10,10 @@ import '../helpers.dart';
 import '../index_probe_helpers.dart';
 
 void main() {
-  test('no-screen builder path freezes the custom props Dart and JSON bytes',
-      () async {
-    const source = '''
+  test(
+    'no-screen builder path freezes the custom props Dart and JSON bytes',
+    () async {
+      const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -37,48 +38,111 @@ class LegacyGauge extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/legacy_gauge.dart'),
-      source,
-    );
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/legacy_gauge.dart'),
+        source,
+      );
 
-    final result = await testBuilder(
-      UserA2uiCatalogBuilder(BuilderOptions.empty),
-      const <String, String>{
-        'apps_examples|lib/legacy_gauge.dart': source,
+      final result = await testBuilder(
+        UserA2uiCatalogBuilder(BuilderOptions.empty),
+        const <String, String>{
+          'apps_examples|lib/legacy_gauge.dart': source,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+
+      expect(result.succeeded, isTrue);
+      final dartBytes = result.readerWriter.testing.readBytes(
+        AssetId(
+          'apps_examples',
+          'lib/generated/restage_a2ui_catalog.g.dart',
+        ),
+      );
+      final jsonBytes = result.readerWriter.testing.readBytes(
+        AssetId(
+          'apps_examples',
+          '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
+        ),
+      );
+      expect(
+        sha256.convert(dartBytes).toString(),
+        '32160f32a33483e923048084dee15d0c36ff406cbfc65b792bcf4d46821baef1',
+        reason: 'the custom props Dart artifact must match the emitter',
+      );
+      expect(
+        sha256.convert(jsonBytes).toString(),
+        'ea8cb08315a88bf7e3fcac89636ab4dd496b63900303306b997c1c3872c61cb8',
+        reason: 'the custom props JSON artifact must remain byte-identical',
+      );
+    },
+  );
+
+  for (final annotation in ['Screen', 'ScreenSource']) {
+    test(
+      '$annotation rejects a surface-valid ID forbidden as an A2UI component',
+      () async {
+        final source = _legacyNotice
+            .replaceAll('@ScreenSource', '@$annotation')
+            .replaceAll('legacy_notice', 'legacy-notice');
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        readerWriter.testing
+          ..writeString(
+            AssetId(
+              'apps_examples',
+              'lib/onboarding/screens/legacy-notice.dart',
+            ),
+            source,
+          )
+          ..writeString(
+            AssetId('apps_examples', 'pubspec.yaml'),
+            _screenSourcePubspec,
+          )
+          ..writeString(
+            AssetId('apps_examples', '.dart_tool/package_graph.json'),
+            _screenSourcePackageGraph,
+          );
+        final logs = <String>[];
+        final result = await runWithNativeScreenPackageGraphForTesting(
+          packageGraphSource: _screenSourcePackageGraph,
+          body: () => testBuilder(
+            UserA2uiCatalogBuilder(BuilderOptions.empty),
+            {
+              'apps_examples|lib/onboarding/screens/legacy-notice.dart': source,
+              'apps_examples|pubspec.yaml': _screenSourcePubspec,
+            },
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            onLog: (record) => logs.add(record.message),
+          ),
+        );
+        expect(result.succeeded, isFalse);
+        expect(
+          logs.join('\n'),
+          allOf(
+            contains('legacy-notice'),
+            contains('@$annotation(id: ...)'),
+            contains('non-reserved A2UI component identifier'),
+          ),
+        );
+        expect(
+          result.readerWriter.testing.exists(
+            AssetId(
+              'apps_examples',
+              'lib/generated/restage_a2ui_catalog.g.dart',
+            ),
+          ),
+          isFalse,
+        );
       },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
     );
-
-    expect(result.succeeded, isTrue);
-    final dartBytes = result.readerWriter.testing.readBytes(
-      AssetId(
-        'apps_examples',
-        'lib/generated/restage_a2ui_catalog.g.dart',
-      ),
-    );
-    final jsonBytes = result.readerWriter.testing.readBytes(
-      AssetId(
-        'apps_examples',
-        '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
-      ),
-    );
-    expect(
-      sha256.convert(dartBytes).toString(),
-      'dd907d669936317a09240ef4e1f494f894f51d9df0beae4e7356b1bdb3147d0a',
-      reason: 'the custom props Dart artifact must match the emitter',
-    );
-    expect(
-      sha256.convert(jsonBytes).toString(),
-      'be804d484063b9ef0fc6ce87ae442fee78941aefcf2dd4e70491a96601cda507',
-      reason: 'the custom props JSON artifact must remain byte-identical',
-    );
-  });
+  }
 
   test(
     'ordinary A2UI build emits one exact-ID opaque native screen component',
@@ -177,23 +241,16 @@ dependencies:
           : const <String, Object?>{};
 
       expect(dart, contains("name: 'opaque_screen'"));
-      expect(dart, contains("'props': S.object("));
-      expect(dart, contains("'title': S.string("));
-      expect(dart, contains("'enabled': S.boolean("));
-      expect(dart, contains("required: <String>['title']"));
-      expect(dart, contains("required: <String>['props']"));
-      expect(
-        dart,
-        contains(
-          "final props = (data['props']! as Map).cast<String, Object?>();",
-        ),
-      );
-      expect(dart, contains("value: props['title']"));
-      expect(dart, contains("value: props['enabled']"));
+      expect(dart, matches(RegExp(r"'props_title':\s*S.combined\(")));
+      expect(dart, matches(RegExp(r"'props_enabled':\s*S.combined\(")));
+      expect(dart, contains("required: <String>['props_title']"));
+      expect(dart, contains('restageProps.value(key)'));
+      expect(dart, contains("data['props_title']"));
+      expect(dart, contains("data['props_enabled']"));
       expect(dart, contains('OpaqueScreen('));
       expect(dart, contains('RestageEventDispatcher('));
-      expect(dart, contains('UserActionEvent('));
-      expect(dart, contains('sourceComponentId: itemContext.id'));
+      expect(dart, contains('itemContext.dispatchAction('));
+      expect(dart, contains("'name': eventId"));
       expect(dart, contains("'value': value"));
       expect(dart, isNot(contains('Column(')));
       expect(dart, isNot(contains('Text(')));
@@ -212,13 +269,8 @@ dependencies:
           components?['opaque_screen'] as Map<String, Object?>?;
       final screenProperties =
           screenSchema?['properties'] as Map<String, Object?>?;
-      final propsSchema = screenProperties?['props'] as Map<String, Object?>?;
-      expect(screenSchema?['required'], <Object?>['component', 'props']);
-      expect(
-        (propsSchema?['properties'] as Map<String, Object?>?)?.keys,
-        <String>['title', 'enabled'],
-      );
-      expect(propsSchema?['required'], <Object?>['title']);
+      expect(screenSchema?['required'], <Object?>['props_title']);
+      expect(screenProperties?.keys, <String>['props_title', 'props_enabled']);
       final capability = stamp['restageCapability'] as Map<String, Object?>?;
       expect(capability?['availableLibraries'], isEmpty);
       expect(
@@ -275,24 +327,26 @@ dependencies:
       );
 
       expect(result.succeeded, isTrue, reason: logs.join('\n'));
-      final stamp = jsonDecode(
-        utf8.decode(
-          result.readerWriter.testing.readBytes(
-            AssetId(
-              'apps_examples',
-              '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
-            ),
-          ),
-        ),
-      ) as Map<String, Object?>;
+      final stamp =
+          jsonDecode(
+                utf8.decode(
+                  result.readerWriter.testing.readBytes(
+                    AssetId(
+                      'apps_examples',
+                      '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
+                    ),
+                  ),
+                ),
+              )
+              as Map<String, Object?>;
       final catalog = stamp['a2uiCatalog']! as Map<String, Object?>;
       final components = catalog['components']! as Map<String, Object?>;
       expect(
         components.keys,
         containsAll(<String>[
           'implicit_notice',
-          'stable-first',
-          'stable-second',
+          'stable_first',
+          'stable_second',
           'legacy_notice',
         ]),
       );
@@ -363,9 +417,10 @@ dependencies:
     );
   }
 
-  test('A2UI rejects an abstract ScreenSource before generated construction',
-      () async {
-    const source = '''
+  test(
+    'A2UI rejects an abstract ScreenSource before generated construction',
+    () async {
+      const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' as restage;
 
@@ -376,63 +431,67 @@ abstract class AbstractScreen extends StatelessWidget {
   const AbstractScreen({super.key});
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    readerWriter.testing
-      ..writeString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/screens/abstract_screen.dart',
-        ),
-        source,
-      )
-      ..writeString(
-        AssetId('apps_examples', 'pubspec.yaml'),
-        _screenSourcePubspec,
-      )
-      ..writeString(
-        AssetId('apps_examples', '.dart_tool/package_graph.json'),
-        _screenSourcePackageGraph,
-      );
-    final logs = <String>[];
-
-    final result = await runWithNativeScreenPackageGraphForTesting(
-      packageGraphSource: _screenSourcePackageGraph,
-      body: () => testBuilder(
-        UserA2uiCatalogBuilder(BuilderOptions.empty),
-        const <String, String>{
-          'apps_examples|lib/onboarding/screens/abstract_screen.dart': source,
-          'apps_examples|pubspec.yaml': _screenSourcePubspec,
-        },
+      final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-        onLog: (record) => logs.add(record.message),
-      ),
-    );
+      );
+      readerWriter.testing
+        ..writeString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/screens/abstract_screen.dart',
+          ),
+          source,
+        )
+        ..writeString(
+          AssetId('apps_examples', 'pubspec.yaml'),
+          _screenSourcePubspec,
+        )
+        ..writeString(
+          AssetId('apps_examples', '.dart_tool/package_graph.json'),
+          _screenSourcePackageGraph,
+        );
+      final logs = <String>[];
 
-    expect(result.succeeded, isFalse);
-    expect(
-      logs.join('\n'),
-      allOf(
-        contains('has no build() method'),
-        contains('lib/onboarding/screens/abstract_screen.dart#AbstractScreen'),
-      ),
-    );
-    expect(
-      result.readerWriter.testing.exists(
-        AssetId(
-          'apps_examples',
-          'lib/generated/restage_a2ui_catalog.g.dart',
+      final result = await runWithNativeScreenPackageGraphForTesting(
+        packageGraphSource: _screenSourcePackageGraph,
+        body: () => testBuilder(
+          UserA2uiCatalogBuilder(BuilderOptions.empty),
+          const <String, String>{
+            'apps_examples|lib/onboarding/screens/abstract_screen.dart': source,
+            'apps_examples|pubspec.yaml': _screenSourcePubspec,
+          },
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+          onLog: (record) => logs.add(record.message),
         ),
-      ),
-      isFalse,
-    );
-  });
+      );
+
+      expect(result.succeeded, isFalse);
+      expect(
+        logs.join('\n'),
+        allOf(
+          contains('has no build() method'),
+          contains(
+            'lib/onboarding/screens/abstract_screen.dart#AbstractScreen',
+          ),
+        ),
+      );
+      expect(
+        result.readerWriter.testing.exists(
+          AssetId(
+            'apps_examples',
+            'lib/generated/restage_a2ui_catalog.g.dart',
+          ),
+        ),
+        isFalse,
+      );
+    },
+  );
 }
 
-String _screenWithPartDirectiveDecoy(String decoy) => '''
+String _screenWithPartDirectiveDecoy(String decoy) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -476,7 +535,7 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/message_bundle.restage.g.dart';
 
-@Screen(id: 'stable-first', surface: Surface.message)
+@Screen(id: 'stable_first', surface: Surface.message)
 final class StableFirst extends StatelessWidget {
   const StableFirst({super.key});
 
@@ -484,7 +543,7 @@ final class StableFirst extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
-@Screen(id: 'stable-second', surface: Surface.message)
+@Screen(id: 'stable_second', surface: Surface.message)
 final class StableSecond extends StatelessWidget {
   const StableSecond({super.key});
 

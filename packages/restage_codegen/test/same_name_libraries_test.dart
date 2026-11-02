@@ -39,7 +39,8 @@ final class WelcomeBanner extends StatelessWidget {
 }
 ''';
 
-String _paywall(String className, String id) => '''
+String _paywall(String className, String id) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -72,7 +73,8 @@ class HelloScreen extends StatelessWidget {
 }
 ''';
 
-String _flow(String className, String? id, {required String screens}) => '''
+String _flow(String className, String? id, {required String screens}) =>
+    '''
 import 'package:restage/restage.dart';
 
 import '$screens/hello.dart';
@@ -93,7 +95,8 @@ final class $className extends RestageFlow {
 }
 ''';
 
-String _catalogWidget(String className, String libraryName) => '''
+String _catalogWidget(String className, String libraryName) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -115,145 +118,187 @@ class $className extends StatelessWidget {
 ''';
 
 void main() {
-  test('two annotated libraries keep their own parts and surface ids',
-      () async {
-    final built = await _build({
-      'lib/welcome_banner.dart': _screen('WelcomeBanner', 'welcome_after'),
-      'lib/before/welcome_banner.dart':
-          _screen('WelcomeBannerBefore', 'welcome_before'),
-    });
+  test(
+    'two annotated libraries keep their own parts and surface ids',
+    () async {
+      final built = await _build({
+        'lib/welcome_banner.dart': _screen('WelcomeBanner', 'welcome_after'),
+        'lib/before/welcome_banner.dart': _screen(
+          'WelcomeBannerBefore',
+          'welcome_before',
+        ),
+      });
 
-    final after = built.read(
-      'lib/restage.generated/welcome_banner.restage.g.dart',
-    );
-    final before = built.read(
-      'lib/before/restage.generated/welcome_banner.restage.g.dart',
-    );
-    expect(after, contains("'welcome_after'"));
-    expect(after, isNot(contains("'welcome_before'")));
-    expect(before, contains("'welcome_before'"));
-    expect(before, isNot(contains("'welcome_after'")));
-    expect(
-      built.exists('.restage/build/bundles/lib/welcome_banner.rsbundle'),
-      isTrue,
-    );
-    expect(
-      built.exists('.restage/build/bundles/lib/before/welcome_banner.rsbundle'),
-      isTrue,
-    );
-  });
+      final after = built.read(
+        'lib/restage.generated/welcome_banner.restage.g.dart',
+      );
+      final before = built.read(
+        'lib/before/restage.generated/welcome_banner.restage.g.dart',
+      );
+      expect(after, contains("'welcome_after'"));
+      expect(after, isNot(contains("'welcome_before'")));
+      expect(before, contains("'welcome_before'"));
+      expect(before, isNot(contains("'welcome_after'")));
+      expect(
+        built.exists('.restage/build/bundles/lib/welcome_banner.rsbundle'),
+        isTrue,
+      );
+      expect(
+        built.exists(
+          '.restage/build/bundles/lib/before/welcome_banner.rsbundle',
+        ),
+        isTrue,
+      );
+    },
+  );
 
-  test('an unannotated library beside an annotated namesake is skipped',
-      () async {
-    final built = await _build({
-      'lib/welcome_banner.dart': _screen('WelcomeBanner', 'welcome_banner'),
-      'lib/before/welcome_banner.dart': _plainWidget,
-    });
+  test(
+    'an unannotated library beside an annotated namesake is skipped',
+    () async {
+      final built = await _build({
+        'lib/welcome_banner.dart': _screen('WelcomeBanner', 'welcome_banner'),
+        'lib/before/welcome_banner.dart': _plainWidget,
+      });
 
-    expect(
-      built.read('lib/restage.generated/welcome_banner.restage.g.dart'),
-      contains("'welcome_banner'"),
-    );
-    expect(
-      built
-          .exists('lib/before/restage.generated/welcome_banner.restage.g.dart'),
-      isFalse,
-    );
-    expect(
-      built.exists('.restage/build/bundles/lib/before/welcome_banner.rsbundle'),
-      isFalse,
-    );
-  });
+      expect(
+        built.read('lib/restage.generated/welcome_banner.restage.g.dart'),
+        contains("'welcome_banner'"),
+      );
+      expect(
+        built.exists(
+          'lib/before/restage.generated/welcome_banner.restage.g.dart',
+        ),
+        isFalse,
+      );
+      expect(
+        built.exists(
+          '.restage/build/bundles/lib/before/welcome_banner.rsbundle',
+        ),
+        isFalse,
+      );
+    },
+  );
 
-  test('two catalog widget libraries with one file name both register',
-      () async {
-    final built = await _build(
-      {
-        'lib/widgets/banner.dart':
-            _catalogWidget('WelcomeBanner', 'example.widgets'),
-        'lib/legacy/banner.dart':
-            _catalogWidget('LegacyBanner', 'example.legacy'),
-      },
-      catalog: true,
-    );
+  test(
+    'two catalog widget libraries with one file name both register',
+    () async {
+      final built = await _build(
+        {
+          'lib/widgets/banner.dart': _catalogWidget(
+            'WelcomeBanner',
+            'example.widgets',
+          ),
+          'lib/legacy/banner.dart': _catalogWidget(
+            'LegacyBanner',
+            'example.legacy',
+          ),
+        },
+        catalog: true,
+      );
 
-    final factories = built.read('lib/user_factories.g.dart');
-    expect(factories, contains('WelcomeBanner'));
-    expect(factories, contains('LegacyBanner'));
-  });
+      final factories = built.read('lib/user_factories.g.dart');
+      expect(factories, contains('WelcomeBanner'));
+      expect(factories, contains('LegacyBanner'));
+    },
+  );
 
-  test('per-folder builders place nested namesakes at their own paths',
-      () async {
-    final built = await _build(
-      {
-        'lib/paywalls/offer.dart': _paywall('Offer', 'offer'),
-        'lib/paywalls/legacy/offer.dart': _paywall('LegacyOffer', 'old_offer'),
-        'lib/onboarding/screens/welcome.dart':
-            _screen('Welcome', 'welcome', stem: 'welcome'),
-        'lib/onboarding/screens/old/welcome.dart':
-            _screen('OldWelcome', 'old_welcome', stem: 'welcome'),
-      },
-      conventional: true,
-    );
+  test(
+    'per-folder builders place nested namesakes at their own paths',
+    () async {
+      final built = await _build(
+        {
+          'lib/paywalls/offer.dart': _paywall('Offer', 'offer'),
+          'lib/paywalls/legacy/offer.dart': _paywall(
+            'LegacyOffer',
+            'old_offer',
+          ),
+          'lib/onboarding/screens/welcome.dart': _screen(
+            'Welcome',
+            'welcome',
+            stem: 'welcome',
+          ),
+          'lib/onboarding/screens/old/welcome.dart': _screen(
+            'OldWelcome',
+            'old_welcome',
+            stem: 'welcome',
+          ),
+        },
+        conventional: true,
+      );
 
-    for (final path in [
-      'assets/paywalls/offer.rfw',
-      'assets/paywalls/legacy/offer.rfw',
-      'assets/paywalls/screens/paywall_legacy/offer.rfw',
-      'assets/onboarding/screens/welcome.rfw',
-      'assets/onboarding/screens/old/welcome.rfw',
-    ]) {
-      expect(built.exists(path), isTrue, reason: path);
-    }
-    expect(
-      built.read('assets/paywalls/legacy/offer.rfwtxt'),
-      contains('old_offer'),
-    );
-    expect(
-      built.read('assets/onboarding/screens/old/welcome.rfwtxt'),
-      contains('old_welcome'),
-    );
-  });
+      for (final path in [
+        'assets/paywalls/offer.rfw',
+        'assets/paywalls/legacy/offer.rfw',
+        'assets/paywalls/screens/paywall_legacy/offer.rfw',
+        'assets/onboarding/screens/welcome.rfw',
+        'assets/onboarding/screens/old/welcome.rfw',
+      ]) {
+        expect(built.exists(path), isTrue, reason: path);
+      }
+      expect(
+        built.read('assets/paywalls/legacy/offer.rfwtxt'),
+        contains('old_offer'),
+      );
+      expect(
+        built.read('assets/onboarding/screens/old/welcome.rfwtxt'),
+        contains('old_welcome'),
+      );
+    },
+  );
 
-  test('nested flow namesakes keep their own documents, parts and bundles',
-      () async {
-    final built = await _build(
-      {
-        'lib/onboarding/screens/hello.dart': _flowScreen,
-        'lib/onboarding/flows/first_run.dart':
-            _flow('FirstRunFlow', 'first_run', screens: '../screens'),
-        'lib/onboarding/flows/old/first_run.dart':
-            _flow('OldFirstRunFlow', 'old_first_run', screens: '../../screens'),
-      },
-      conventional: true,
-    );
+  test(
+    'nested flow namesakes keep their own documents, parts and bundles',
+    () async {
+      final built = await _build(
+        {
+          'lib/onboarding/screens/hello.dart': _flowScreen,
+          'lib/onboarding/flows/first_run.dart': _flow(
+            'FirstRunFlow',
+            'first_run',
+            screens: '../screens',
+          ),
+          'lib/onboarding/flows/old/first_run.dart': _flow(
+            'OldFirstRunFlow',
+            'old_first_run',
+            screens: '../../screens',
+          ),
+        },
+        conventional: true,
+      );
 
-    for (final path in [
-      'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-      'lib/onboarding/flows/old/restage.generated/first_run.restage.g.dart',
-      '.restage/build/bundles/lib/onboarding/flows/first_run.rsbundle',
-      '.restage/build/bundles/lib/onboarding/flows/old/first_run.rsbundle',
-    ]) {
-      expect(built.exists(path), isTrue, reason: path);
-    }
-    expect(
-      built.read('assets/onboarding/flows/first_run.flow.json'),
-      allOf(contains('"first_run"'), isNot(contains('old_first_run'))),
-    );
-    expect(
-      built.read('assets/onboarding/flows/old/first_run.flow.json'),
-      contains('"old_first_run"'),
-    );
-  });
+      for (final path in [
+        'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+        'lib/onboarding/flows/old/restage.generated/first_run.restage.g.dart',
+        '.restage/build/bundles/lib/onboarding/flows/first_run.rsbundle',
+        '.restage/build/bundles/lib/onboarding/flows/old/first_run.rsbundle',
+      ]) {
+        expect(built.exists(path), isTrue, reason: path);
+      }
+      expect(
+        built.read('assets/onboarding/flows/first_run.flow.json'),
+        allOf(contains('"first_run"'), isNot(contains('old_first_run'))),
+      );
+      expect(
+        built.read('assets/onboarding/flows/old/first_run.flow.json'),
+        contains('"old_first_run"'),
+      );
+    },
+  );
 
   test('namesakes without ids report one duplicate id naming both', () async {
     final built = await _build(
       {
         'lib/onboarding/screens/hello.dart': _flowScreen,
-        'lib/onboarding/flows/first_run.dart':
-            _flow('FirstRunFlow', null, screens: '../screens'),
-        'lib/onboarding/flows/old/first_run.dart':
-            _flow('OldFirstRunFlow', null, screens: '../../screens'),
+        'lib/onboarding/flows/first_run.dart': _flow(
+          'FirstRunFlow',
+          null,
+          screens: '../screens',
+        ),
+        'lib/onboarding/flows/old/first_run.dart': _flow(
+          'OldFirstRunFlow',
+          null,
+          screens: '../../screens',
+        ),
       },
       expectSuccess: false,
     );

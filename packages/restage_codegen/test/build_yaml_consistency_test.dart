@@ -168,7 +168,8 @@ void main() {
         expect(
           declared[name],
           getter,
-          reason: 'build.yaml build_extensions for "$name" must exactly match '
+          reason:
+              'build.yaml build_extensions for "$name" must exactly match '
               "the builder's buildExtensions getter — the production "
               'build_runner reads build.yaml; tests read the getter.',
         );
@@ -181,20 +182,21 @@ void main() {
         expect(
           factoryNames[entry.key],
           [entry.value],
-          reason: 'build.yaml wires "${entry.key}" to the wrong factory — '
+          reason:
+              'build.yaml wires "${entry.key}" to the wrong factory — '
               'the string is resolved by name only at production '
               'build-plan time, so nothing else catches a mismatch.',
         );
       }
     });
 
-    test(
-        'the unified outputs builder is a normal builder with no '
+    test('the unified outputs builder is a normal builder with no '
         'post-process stage', () {
       expect(
         _buildYaml.containsKey('post_process_builders'),
         isFalse,
-        reason: 'Generated-output materialization is a normal builder with '
+        reason:
+            'Generated-output materialization is a normal builder with '
             'statically predictable buildExtensions; a post-process builder '
             'cannot declare static outputs and is not permitted.',
       );
@@ -237,8 +239,9 @@ void main() {
       // descriptors/artifacts before the screen builder wrote them fails the
       // build with a missing-artifact issue — loud, but pointing at the flow,
       // not at the ordering. Pin the edge here instead.
-      final screenBuilders =
-          declaredNames.where((n) => n.endsWith('_screen_codegen')).toList();
+      final screenBuilders = declaredNames
+          .where((n) => n.endsWith('_screen_codegen'))
+          .toList();
       expect(screenBuilders, isNotEmpty);
       for (final screen in screenBuilders) {
         final flow = screen.replaceFirst('_screen_codegen', '_flow_codegen');
@@ -250,7 +253,8 @@ void main() {
         expect(
           runsBefore[screen],
           contains('restage_codegen:$flow'),
-          reason: '"$screen" must run before "$flow" — the flow builder reads '
+          reason:
+              '"$screen" must run before "$flow" — the flow builder reads '
               "the screen builder's emitted descriptors and artifacts.",
         );
       }
@@ -284,7 +288,8 @@ void main() {
         expect(
           runsBefore['restage_source_roster'],
           contains('restage_codegen:$consumer'),
-          reason: 'the package roster must be complete before "$consumer" '
+          reason:
+              'the package roster must be complete before "$consumer" '
               'can consume or publish a Restage-owned source family.',
         );
       }
@@ -322,30 +327,33 @@ void main() {
       );
     });
 
-    test('the catalog JSON emitter is ordered before every catalog consumer',
-        () {
-      // Builders that resolve widgets against the merged custom catalog
-      // must appear in user_catalog_json.runs_before. If the edge is missing,
-      // the catalog read swallows the not-yet-written file and the consumer
-      // silently resolves against an EMPTY custom catalog — a custom widget
-      // then misclassifies with no build error naming the real cause. The
-      // consumer set is derived from the declared names, so a new surface's
-      // screen builder cannot be forgotten.
-      final consumers = <String>{
-        'paywall_codegen',
-        'factory_functions',
-        'render_catalog',
-        ...declaredNames.where((n) => n.endsWith('_screen_codegen')),
-      };
-      for (final consumer in consumers) {
-        expect(
-          runsBefore['user_catalog_json'],
-          contains('restage_codegen:$consumer'),
-          reason: '"$consumer" reads the merged custom catalog; '
-              '"user_catalog_json" must be ordered before it.',
-        );
-      }
-    });
+    test(
+      'the catalog JSON emitter is ordered before every catalog consumer',
+      () {
+        // Builders that resolve widgets against the merged custom catalog
+        // must appear in user_catalog_json.runs_before. If the edge is missing,
+        // the catalog read swallows the not-yet-written file and the consumer
+        // silently resolves against an EMPTY custom catalog — a custom widget
+        // then misclassifies with no build error naming the real cause. The
+        // consumer set is derived from the declared names, so a new surface's
+        // screen builder cannot be forgotten.
+        final consumers = <String>{
+          'paywall_codegen',
+          'factory_functions',
+          'render_catalog',
+          ...declaredNames.where((n) => n.endsWith('_screen_codegen')),
+        };
+        for (final consumer in consumers) {
+          expect(
+            runsBefore['user_catalog_json'],
+            contains('restage_codegen:$consumer'),
+            reason:
+                '"$consumer" reads the merged custom catalog; '
+                '"user_catalog_json" must be ordered before it.',
+          );
+        }
+      },
+    );
 
     test('the wire-id log owner runs before the catalog JSON emitter', () {
       expect(
@@ -369,10 +377,11 @@ void main() {
     /// The builder keys [text] names, in the `restage_codegen:<key>` form a
     /// custom writes in their own `build.yaml`.
     Set<String> builderKeysIn(String text) => {
-          for (final match
-              in RegExp('restage_codegen:([a-z_][a-z0-9_]*)').allMatches(text))
-            match.group(1)!,
-        };
+      for (final match in RegExp(
+        'restage_codegen:([a-z_][a-z0-9_]*)',
+      ).allMatches(text))
+        match.group(1)!,
+    };
 
     /// The `build_extensions` key of [builder] — a build_runner placeholder
     /// for a package-wide builder, a file pattern for a per-file one.
@@ -384,15 +393,15 @@ void main() {
 
     /// Builders whose input is a placeholder rather than the app's files.
     Set<String> packageWide({required String autoApply}) => {
-          for (final entry in builders.entries)
-            if (((entry.value as YamlMap)['auto_apply'] == autoApply ||
-                    (autoApply == 'dependents' &&
-                        {'root_package', 'all_packages'}.contains(
-                          (entry.value as YamlMap)['auto_apply'],
-                        ))) &&
-                primaryInput(entry.key.toString()).startsWith(r'$'))
-              entry.key.toString(),
-        };
+      for (final entry in builders.entries)
+        if (((entry.value as YamlMap)['auto_apply'] == autoApply ||
+                (autoApply == 'dependents' &&
+                    {'root_package', 'all_packages'}.contains(
+                      (entry.value as YamlMap)['auto_apply'],
+                    ))) &&
+            primaryInput(entry.key.toString()).startsWith(r'$'))
+          entry.key.toString(),
+    };
 
     test('every builder key the README names exists in build.yaml', () {
       final named = builderKeysIn(readme);
@@ -400,13 +409,15 @@ void main() {
       expect(
         named,
         isNotEmpty,
-        reason: 'the README names no builder key at all, so this guard has '
+        reason:
+            'the README names no builder key at all, so this guard has '
             'stopped reading what it is here to check',
       );
       expect(
         named.difference(builders.keys.map((key) => '$key').toSet()),
         isEmpty,
-        reason: 'the README tells a custom to configure these keys and '
+        reason:
+            'the README tells a custom to configure these keys and '
             'build.yaml does not declare them. build_runner accepts a '
             'configuration block under an unknown builder key without '
             'complaint, so the reader would get no error and no effect',
@@ -424,7 +435,8 @@ void main() {
       expect(
         recipe,
         isNotEmpty,
-        reason: 'the README no longer contains an opt-out recipe block, so '
+        reason:
+            'the README no longer contains an opt-out recipe block, so '
             'this guard is reading nothing',
       );
 
@@ -433,7 +445,8 @@ void main() {
       expect(
         listed,
         equals(packageWide(autoApply: 'dependents')),
-        reason: 'the recipe is presented as the complete way to switch these '
+        reason:
+            'the recipe is presented as the complete way to switch these '
             'builders off in a package. A package-wide builder added to '
             'build.yaml and left out of it would keep running in a package '
             'the custom believes they opted out of',
@@ -448,7 +461,8 @@ void main() {
         expect(
           readme,
           contains(input == r'$lib$' ? r'lib/$lib$' : input),
-          reason: '$builder takes "$input", and the README explains what a '
+          reason:
+              '$builder takes "$input", and the README explains what a '
               'glob does to it. If the placeholder changed, that explanation '
               'is now advice about a build that no longer exists',
         );
@@ -457,20 +471,23 @@ void main() {
 
     test('the README counts the package-wide builders correctly', () {
       const asWords = {5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine'};
-      final total = packageWide(autoApply: 'dependents').length +
+      final total =
+          packageWide(autoApply: 'dependents').length +
           packageWide(autoApply: 'none').length;
 
       expect(
         asWords,
         contains(total),
-        reason: 'build.yaml declares $total package-wide builders, which this '
+        reason:
+            'build.yaml declares $total package-wide builders, which this '
             'guard has no word for, so it cannot check the README sentence at '
             'all. Extend the table',
       );
       expect(
         readme,
         contains('these ${asWords[total]} builders'),
-        reason: 'the README says how many builders changed behaviour; '
+        reason:
+            'the README says how many builders changed behaviour; '
             'build.yaml now declares $total package-wide builders',
       );
     });

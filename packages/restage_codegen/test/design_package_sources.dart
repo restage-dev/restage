@@ -25,10 +25,10 @@ final Map<AssetId, String> kDesignPackageSources = {
 /// Whether any of [sources] imports one of the design packages, so the helper
 /// seeds these sources only for the tests that need them.
 bool importsDesignPackages(Iterable<String> sources) => sources.any(
-      (source) =>
-          source.contains('package:material_ui/') ||
-          source.contains('package:cupertino_ui/'),
-    );
+  (source) =>
+      source.contains('package:material_ui/') ||
+      source.contains('package:cupertino_ui/'),
+);
 
 const Map<String, String> _sources = {
   'material_ui|lib/material_ui.dart': '''

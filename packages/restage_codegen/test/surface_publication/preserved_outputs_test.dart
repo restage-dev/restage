@@ -19,7 +19,7 @@ void main() {
         source.bundlePath,
         source.inspectionReportPath!,
         plan.outputIndexPath,
-        plan.customCatalogPath
+        plan.customCatalogPath,
       ];
       for (final path in paths) {
         final file = File.fromUri(root.uri.resolve(path));

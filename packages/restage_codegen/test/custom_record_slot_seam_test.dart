@@ -14,8 +14,8 @@ final class _CollectionProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['record_slot_probe.txt'],
-      };
+    r'$lib$': ['record_slot_probe.txt'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -32,11 +32,13 @@ final class _CollectionProbeBuilder implements Builder {
 }
 
 Future<
-    ({
-      RestageWidgetCollection? collection,
-      Object? error,
-      List<String> logs,
-    })> _collect(String source) async {
+  ({
+    RestageWidgetCollection? collection,
+    Object? error,
+    List<String> logs,
+  })
+>
+_collect(String source) async {
   final builder = _CollectionProbeBuilder();
   final logs = <String>[];
   final readerWriter = await readerWriterWithFilesystemSources(
@@ -212,8 +214,7 @@ const _filteringWidgets = '''
 ''';
 
 void main() {
-  test('a record-only library raises its declared capability version',
-      () async {
+  test('a record-only library raises its declared capability version', () async {
     final declaredRun = await _collect(
       _fixture(_recordWidget, capabilityVersion: 3),
     );
@@ -265,10 +266,11 @@ void main() {
     expect(matchingIssues, hasLength(1));
   });
 
-  test('a scalar-only library without a capability version is not forced',
-      () async {
-    final run = await _collect(
-      _fixture('''
+  test(
+    'a scalar-only library without a capability version is not forced',
+    () async {
+      final run = await _collect(
+        _fixture('''
         @RestageWidget(
           name: 'SectionHeader',
           library: WidgetLibrary.custom('acme.design_system'),
@@ -282,38 +284,41 @@ void main() {
           final String heading;
         }
       '''),
-    );
+      );
 
-    expect(run.error, isNull);
-    final collection = run.collection!;
-    expect(
-      collection.stampedCapabilityVersions,
-      isNot(contains('acme.design_system')),
-    );
-    expect(
-      run.logs.where(
-        (message) => message.contains(
-          IssueCode.customLibraryMissingCapabilityVersion.name,
-        ),
-      ),
-      isEmpty,
-    );
-  });
-
-  test('a record library without a capability version emits the named issue',
-      () async {
-    final run = await _collect(_fixture(_recordWidget));
-
-    expect(run.error, isA<StateError>());
-    final matchingIssues = run.logs.where(
-      (message) =>
-          message.contains(
+      expect(run.error, isNull);
+      final collection = run.collection!;
+      expect(
+        collection.stampedCapabilityVersions,
+        isNot(contains('acme.design_system')),
+      );
+      expect(
+        run.logs.where(
+          (message) => message.contains(
             IssueCode.customLibraryMissingCapabilityVersion.name,
-          ) &&
-          message.contains('acme.design_system'),
-    );
-    expect(matchingIssues, hasLength(1));
-  });
+          ),
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'a record library without a capability version emits the named issue',
+    () async {
+      final run = await _collect(_fixture(_recordWidget));
+
+      expect(run.error, isA<StateError>());
+      final matchingIssues = run.logs.where(
+        (message) =>
+            message.contains(
+              IssueCode.customLibraryMissingCapabilityVersion.name,
+            ) &&
+            message.contains('acme.design_system'),
+      );
+      expect(matchingIssues, hasLength(1));
+    },
+  );
 
   test('catalog allocation bypasses an admitted record property', () async {
     final run = await _collect(
@@ -324,7 +329,8 @@ void main() {
     expect(
       run.collection,
       isNotNull,
-      reason: 'the widget walk produced no collection: has a record shape been '
+      reason:
+          'the widget walk produced no collection: has a record shape been '
           'folded into the nominal structured slot predicate?',
     );
     final collection = run.collection!;
@@ -378,7 +384,8 @@ void main() {
     expect(
       run.collection,
       isNotNull,
-      reason: 'the widget walk produced no collection: has a map shape been '
+      reason:
+          'the widget walk produced no collection: has a map shape been '
           'folded into the nominal structured slot predicate?',
     );
     final collection = run.collection!;
@@ -411,93 +418,98 @@ void main() {
     expect(allocatedProperty.structuredRef, isNull);
   });
 
-  test('record plans use exact slot keys, canonical labels, and enum identity',
-      () async {
-    final directRun = await _collect(
-      _fixture(_recordWidget, capabilityVersion: 3),
-    );
-    expect(directRun.error, isNull);
-    final directCollection = directRun.collection!;
-    final sectionHeader = directCollection.widgets.single;
-    final directKey = structuredSlotKey(
-      sectionHeader.flutterType,
-      'heading',
-    );
-    expect(directCollection.recordPlans, hasLength(1));
-    expect(directCollection.recordPlans.keys.single, directKey);
-    final directPlan = directCollection.recordPlans[directKey]!;
-    expect(
-      directPlan.labels.map((label) => label.name).toList(),
-      ['step', 'title', 'tone'],
-    );
-    final labelsByName = {
-      for (final label in directPlan.labels) label.name: label,
-    };
-    expect(labelsByName['tone']!.enumLibraryUri, isNotNull);
-    expect(labelsByName['tone']!.enumTypeName, 'Tone');
-    for (final name in ['step', 'title']) {
-      expect(labelsByName[name]!.enumLibraryUri, isNull);
-      expect(labelsByName[name]!.enumTypeName, isNull);
-    }
+  test(
+    'record plans use exact slot keys, canonical labels, and enum identity',
+    () async {
+      final directRun = await _collect(
+        _fixture(_recordWidget, capabilityVersion: 3),
+      );
+      expect(directRun.error, isNull);
+      final directCollection = directRun.collection!;
+      final sectionHeader = directCollection.widgets.single;
+      final directKey = structuredSlotKey(
+        sectionHeader.flutterType,
+        'heading',
+      );
+      expect(directCollection.recordPlans, hasLength(1));
+      expect(directCollection.recordPlans.keys.single, directKey);
+      final directPlan = directCollection.recordPlans[directKey]!;
+      expect(
+        directPlan.labels.map((label) => label.name).toList(),
+        ['step', 'title', 'tone'],
+      );
+      final labelsByName = {
+        for (final label in directPlan.labels) label.name: label,
+      };
+      expect(labelsByName['tone']!.enumLibraryUri, isNotNull);
+      expect(labelsByName['tone']!.enumTypeName, 'Tone');
+      for (final name in ['step', 'title']) {
+        expect(labelsByName[name]!.enumLibraryUri, isNull);
+        expect(labelsByName[name]!.enumTypeName, isNull);
+      }
 
-    final nestedRun = await _collect(
-      _fixture(_nestedRecordWidget, capabilityVersion: 3),
-    );
-    expect(nestedRun.error, isNull);
-    final nestedCollection = nestedRun.collection!;
-    final entry = nestedCollection.structuredTypes.singleWhere(
-      (structured) => structured.name == 'Entry',
-    );
-    final nestedKey = structuredSlotKey(entry.sourceType, 'meta');
-    expect(nestedCollection.recordPlans, hasLength(1));
-    expect(nestedCollection.recordPlans.keys.single, nestedKey);
-    expect(
-      nestedCollection.recordPlans[nestedKey]!.labels
-          .map((label) => label.name)
-          .toList(),
-      ['step', 'title', 'tone'],
-    );
-  });
+      final nestedRun = await _collect(
+        _fixture(_nestedRecordWidget, capabilityVersion: 3),
+      );
+      expect(nestedRun.error, isNull);
+      final nestedCollection = nestedRun.collection!;
+      final entry = nestedCollection.structuredTypes.singleWhere(
+        (structured) => structured.name == 'Entry',
+      );
+      final nestedKey = structuredSlotKey(entry.sourceType, 'meta');
+      expect(nestedCollection.recordPlans, hasLength(1));
+      expect(nestedCollection.recordPlans.keys.single, nestedKey);
+      expect(
+        nestedCollection.recordPlans[nestedKey]!.labels
+            .map((label) => label.name)
+            .toList(),
+        ['step', 'title', 'tone'],
+      );
+    },
+  );
 
-  test('record plans are filtered to admitted slots with the named cause',
-      () async {
-    final run = await _collect(
-      _fixture(
-        _filteringWidgets,
-        capabilityVersion: 3,
-      ),
-    );
+  test(
+    'record plans are filtered to admitted slots with the named cause',
+    () async {
+      final run = await _collect(
+        _fixture(
+          _filteringWidgets,
+          capabilityVersion: 3,
+        ),
+      );
 
-    expect(run.error, isNull);
-    final collection = run.collection!;
-    expect(collection.widgets.map((widget) => widget.name), ['PlanCard']);
-    final result = await runWidgetVisitorOn(
-      {
-        'lib/header.dart': '''
+      expect(run.error, isNull);
+      final collection = run.collection!;
+      expect(collection.widgets.map((widget) => widget.name), ['PlanCard']);
+      final result = await runWidgetVisitorOn(
+        {
+          'lib/header.dart':
+              '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
           $_filteringWidgets
         ''',
-      },
-    );
-    final admission = computeAdmission(
-      widgets: result.widgets,
-      structuredTypes: result.structuredTypes,
-      slotTargets: result.slotTargets,
-      localUnrenderable: result.localUnrenderable,
-      widgetUnrenderable: result.widgetUnrenderable,
-    );
-    expect(admission.excluded, hasLength(1));
-    expect(admission.excluded.single.widget.name, 'SectionHeader');
-    expect(
-      admission.excluded.single.reason,
-      allOf(
-        contains('step'),
-        contains('nullable'),
-      ),
-    );
-    expect(collection.recordPlans, isEmpty);
-  });
+        },
+      );
+      final admission = computeAdmission(
+        widgets: result.widgets,
+        structuredTypes: result.structuredTypes,
+        slotTargets: result.slotTargets,
+        localUnrenderable: result.localUnrenderable,
+        widgetUnrenderable: result.widgetUnrenderable,
+      );
+      expect(admission.excluded, hasLength(1));
+      expect(admission.excluded.single.widget.name, 'SectionHeader');
+      expect(
+        admission.excluded.single.reason,
+        allOf(
+          contains('step'),
+          contains('nullable'),
+        ),
+      );
+      expect(collection.recordPlans, isEmpty);
+    },
+  );
 
   group('generated record reconstruction', () {
     test('an absent nullable record reconstructs as null', () async {
@@ -538,198 +550,201 @@ void main() {
       );
     });
 
-    test('emits direct and nested records as presence-guarded hard reads',
-        () async {
-      final run = await _collect(
-        _fixture(
-          _recordReconstructionWidget,
-          capabilityVersion: 3,
-        ),
-      );
+    test(
+      'emits direct and nested records as presence-guarded hard reads',
+      () async {
+        final run = await _collect(
+          _fixture(
+            _recordReconstructionWidget,
+            capabilityVersion: 3,
+          ),
+        );
 
-      expect(run.error, isNull);
-      final collection = run.collection!;
-      final source = emitUserFactoriesDart(
-        collection.widgets,
-        structuredTypes: collection.structuredTypes,
-        slotTargets: collection.slotTargets,
-        nullableStructuredSlots: collection.nullableStructuredSlots,
-        reconstructionPlans: collection.reconstructionPlans,
-        recordPlans: collection.recordPlans,
-        stampedCapabilityVersions: collection.stampedCapabilityVersions,
-      )!;
+        expect(run.error, isNull);
+        final collection = run.collection!;
+        final source = emitUserFactoriesDart(
+          collection.widgets,
+          structuredTypes: collection.structuredTypes,
+          slotTargets: collection.slotTargets,
+          nullableStructuredSlots: collection.nullableStructuredSlots,
+          reconstructionPlans: collection.reconstructionPlans,
+          recordPlans: collection.recordPlans,
+          stampedCapabilityVersions: collection.stampedCapabilityVersions,
+        )!;
 
-      final flat = source.replaceAll(RegExp(r'\s+'), ' ');
+        final flat = source.replaceAll(RegExp(r'\s+'), ' ');
 
-      expect(
-        flat,
-        contains("source.isMap(<Object>['heading'])"),
-      );
-      expect(
-        flat,
-        contains(
-          ": (throw ArgumentError('SectionHeader.heading is required.'))",
-        ),
-      );
-      expect(
-        flat,
-        contains(
-          RegExp(
-            r'RestageValueBinding\.read<int>\(\s*source,\s*'
-            r"<Object>\['heading', 'step'\],\s*context\) \?\? "
-            r'\(throw ArgumentError\(\s*'
-            r"'SectionHeader\.heading\.step is required\.'\)\)",
+        expect(
+          flat,
+          contains("source.isMap(<Object>['heading'])"),
+        );
+        expect(
+          flat,
+          contains(
+            ": (throw ArgumentError('SectionHeader.heading is required.'))",
           ),
-        ),
-      );
-      expect(
-        flat,
-        contains(
-          RegExp(
-            r'RestageDecoders\.string\(\s*source,\s*'
-            r"<Object>\['heading', 'title'\],\s*context:\s*context\) \?\? "
-            r'\(throw ArgumentError\(\s*'
-            r"'SectionHeader\.heading\.title is required\.'\)\)",
+        );
+        expect(
+          flat,
+          contains(
+            RegExp(
+              r'RestageValueBinding\.read<int>\(\s*source,\s*'
+              r"<Object>\['heading', 'step'\],\s*context\) \?\? "
+              r'\(throw ArgumentError\(\s*'
+              r"'SectionHeader\.heading\.step is required\.'\)\)",
+            ),
           ),
-        ),
-      );
-      expect(
-        flat,
-        contains('RestageDecoders.enumByName<s0.Tone>('),
-      );
-      expect(
-        flat,
-        contains('s0.Tone.values'),
-      );
-      expect(
-        flat,
-        contains(
-          "<Object>['heading', 'tone']) ??",
-        ),
-      );
-      expect(
-        flat,
-        contains(
-          RegExp(
-            r'\(throw ArgumentError\(\s*'
-            r"'SectionHeader\.heading\.tone is required\.'\)\)",
+        );
+        expect(
+          flat,
+          contains(
+            RegExp(
+              r'RestageDecoders\.string\(\s*source,\s*'
+              r"<Object>\['heading', 'title'\],\s*context:\s*context\) \?\? "
+              r'\(throw ArgumentError\(\s*'
+              r"'SectionHeader\.heading\.title is required\.'\)\)",
+            ),
           ),
-        ),
-      );
-      expect(
-        flat,
-        isNot(contains('RestageDecoders.enumByName<Tone>(')),
-      );
+        );
+        expect(
+          flat,
+          contains('RestageDecoders.enumByName<s0.Tone>('),
+        );
+        expect(
+          flat,
+          contains('s0.Tone.values'),
+        );
+        expect(
+          flat,
+          contains(
+            "<Object>['heading', 'tone']) ??",
+          ),
+        );
+        expect(
+          flat,
+          contains(
+            RegExp(
+              r'\(throw ArgumentError\(\s*'
+              r"'SectionHeader\.heading\.tone is required\.'\)\)",
+            ),
+          ),
+        );
+        expect(
+          flat,
+          isNot(contains('RestageDecoders.enumByName<Tone>(')),
+        );
 
-      const headingGuard = "source.isMap(<Object>['heading'])";
-      final headingStart = flat.indexOf(headingGuard);
-      expect(headingStart, greaterThanOrEqualTo(0));
-      final headingEnd = flat.indexOf(
-        "'SectionHeader.heading is required.'",
-        headingStart,
-      );
-      expect(headingEnd, greaterThan(headingStart));
-      final headingBlock = flat.substring(headingStart, headingEnd);
-      final headingStep = headingBlock.indexOf('step:');
-      final headingTitle = headingBlock.indexOf('title:');
-      final headingTone = headingBlock.indexOf('tone:');
-      expect(headingStep, greaterThanOrEqualTo(0));
-      expect(headingStep, lessThan(headingTitle));
-      expect(headingTitle, lessThan(headingTone));
+        const headingGuard = "source.isMap(<Object>['heading'])";
+        final headingStart = flat.indexOf(headingGuard);
+        expect(headingStart, greaterThanOrEqualTo(0));
+        final headingEnd = flat.indexOf(
+          "'SectionHeader.heading is required.'",
+          headingStart,
+        );
+        expect(headingEnd, greaterThan(headingStart));
+        final headingBlock = flat.substring(headingStart, headingEnd);
+        final headingStep = headingBlock.indexOf('step:');
+        final headingTitle = headingBlock.indexOf('title:');
+        final headingTone = headingBlock.indexOf('tone:');
+        expect(headingStep, greaterThanOrEqualTo(0));
+        expect(headingStep, lessThan(headingTitle));
+        expect(headingTitle, lessThan(headingTone));
 
-      expect(
-        flat,
-        contains("source.isMap(<Object>['entry', 'meta'])"),
-      );
-      expect(
-        flat,
-        contains(
-          RegExp(
-            r'RestageValueBinding\.read<int>\(\s*source,\s*'
-            r"<Object>\['entry', 'meta', 'step'\],\s*context\) \?\?",
+        expect(
+          flat,
+          contains("source.isMap(<Object>['entry', 'meta'])"),
+        );
+        expect(
+          flat,
+          contains(
+            RegExp(
+              r'RestageValueBinding\.read<int>\(\s*source,\s*'
+              r"<Object>\['entry', 'meta', 'step'\],\s*context\) \?\?",
+            ),
           ),
-        ),
-      );
-      expect(
-        flat,
-        contains(
-          RegExp(
-            r'\(throw ArgumentError\(\s*'
-            r"'Entry\.meta\.step is required\.'\)\)",
+        );
+        expect(
+          flat,
+          contains(
+            RegExp(
+              r'\(throw ArgumentError\(\s*'
+              r"'Entry\.meta\.step is required\.'\)\)",
+            ),
           ),
-        ),
-      );
-      expect(
-        flat,
-        contains(
-          RegExp(
-            r'RestageDecoders\.string\(\s*source,\s*'
-            r"<Object>\['entry', 'meta', 'title'\],\s*context:\s*context\) \?\?",
+        );
+        expect(
+          flat,
+          contains(
+            RegExp(
+              r'RestageDecoders\.string\(\s*source,\s*'
+              r"<Object>\['entry', 'meta', 'title'\],\s*context:\s*context\) \?\?",
+            ),
           ),
-        ),
-      );
-      expect(
-        flat,
-        contains(
-          RegExp(
-            r'\(throw ArgumentError\(\s*'
-            r"'Entry\.meta\.title is required\.'\)\)",
+        );
+        expect(
+          flat,
+          contains(
+            RegExp(
+              r'\(throw ArgumentError\(\s*'
+              r"'Entry\.meta\.title is required\.'\)\)",
+            ),
           ),
-        ),
-      );
-      expect(
-        flat,
-        contains(
-          RegExp(
-            r'RestageDecoders\.enumByName<s0\.Tone>\(\s*s0\.Tone\.values, '
-            r"source, <Object>\['entry', 'meta', 'tone'\]\) \?\?",
+        );
+        expect(
+          flat,
+          contains(
+            RegExp(
+              r'RestageDecoders\.enumByName<s0\.Tone>\(\s*s0\.Tone\.values, '
+              r"source, <Object>\['entry', 'meta', 'tone'\]\) \?\?",
+            ),
           ),
-        ),
-      );
-      expect(
-        flat,
-        contains(
-          RegExp(
-            r'\(throw ArgumentError\(\s*'
-            r"'Entry\.meta\.tone is required\.'\)\)",
+        );
+        expect(
+          flat,
+          contains(
+            RegExp(
+              r'\(throw ArgumentError\(\s*'
+              r"'Entry\.meta\.tone is required\.'\)\)",
+            ),
           ),
-        ),
-      );
-      expect(
-        flat,
-        contains(
-          RegExp(
-            r'\(throw ArgumentError\(\s*'
-            r"'Entry\.meta is required\.'\)\)",
+        );
+        expect(
+          flat,
+          contains(
+            RegExp(
+              r'\(throw ArgumentError\(\s*'
+              r"'Entry\.meta is required\.'\)\)",
+            ),
           ),
-        ),
-      );
+        );
 
-      final nestedStep = flat.indexOf("<Object>['entry', 'meta', 'step']");
-      final nestedTitle = flat.indexOf("<Object>['entry', 'meta', 'title']");
-      final nestedTone = flat.indexOf("<Object>['entry', 'meta', 'tone']");
-      expect(nestedStep, greaterThanOrEqualTo(0));
-      expect(nestedStep, lessThan(nestedTitle));
-      expect(nestedTitle, lessThan(nestedTone));
+        final nestedStep = flat.indexOf("<Object>['entry', 'meta', 'step']");
+        final nestedTitle = flat.indexOf("<Object>['entry', 'meta', 'title']");
+        final nestedTone = flat.indexOf("<Object>['entry', 'meta', 'tone']");
+        expect(nestedStep, greaterThanOrEqualTo(0));
+        expect(nestedStep, lessThan(nestedTitle));
+        expect(nestedTitle, lessThan(nestedTone));
 
-      // Data classes may reproduce enum defaults, but a record label must not
-      // fabricate a value the author never sent.
-      expect(
-        flat,
-        isNot(contains("<Object>['heading', 'tone']) ?? s0.Tone.")),
-      );
-      expect(
-        flat,
-        isNot(
-          contains("<Object>['entry', 'meta', 'tone']) ?? s0.Tone."),
-        ),
-      );
-      expect(
-        flat,
-        isNot(contains(RegExp(r'\?\?\s+s0\.Tone\.'))),
-        reason: 'record enum labels must throw instead of defaulting to an '
-            'enum member',
-      );
-    });
+        // Data classes may reproduce enum defaults, but a record label must not
+        // fabricate a value the author never sent.
+        expect(
+          flat,
+          isNot(contains("<Object>['heading', 'tone']) ?? s0.Tone.")),
+        );
+        expect(
+          flat,
+          isNot(
+            contains("<Object>['entry', 'meta', 'tone']) ?? s0.Tone."),
+          ),
+        );
+        expect(
+          flat,
+          isNot(contains(RegExp(r'\?\?\s+s0\.Tone\.'))),
+          reason:
+              'record enum labels must throw instead of defaulting to an '
+              'enum member',
+        );
+      },
+    );
   });
 }

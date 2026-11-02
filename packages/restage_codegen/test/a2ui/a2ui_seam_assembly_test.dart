@@ -34,8 +34,9 @@ const _richShapeFixture =
 const _enumSeamFixture = 'test/a2ui/fixtures/a2ui_enum_seam_fixture.dart';
 
 Future<ResolvedLibraryResult> _resolve(String relativePath) async {
-  final abs = File('${Directory.current.path}/$relativePath')
-      .resolveSymbolicLinksSync();
+  final abs = File(
+    '${Directory.current.path}/$relativePath',
+  ).resolveSymbolicLinksSync();
   final collection = AnalysisContextCollection(includedPaths: [abs]);
   final context = collection.contextFor(abs);
   final resolved = await context.currentSession.getResolvedLibrary(abs);
@@ -60,11 +61,10 @@ ClassElement _classFor(ResolvedLibraryResult library, String name) =>
   String name,
   String widgetClass,
   List<PropertyEntry> properties,
-) =>
-    (
-      entry: entry(name: name, properties: properties),
-      element: _classFor(library, widgetClass),
-    );
+) => (
+  entry: entry(name: name, properties: properties),
+  element: _classFor(library, widgetClass),
+);
 
 void main() {
   group('assembleA2uiSeams — the interactive (event + pairing) legs', () {
@@ -148,9 +148,9 @@ void main() {
         eventSeam: seams.eventSeam,
       );
       final schema = a2uiWidgetDataSchemaMapForPlan(plan.widgets.single);
-      expect(schema['required'], ['values']);
+      expect(schema['required'], ['props_values']);
       final properties = schema['properties']! as Map<String, Object?>;
-      final value = properties['values']! as Map<String, Object?>;
+      final value = properties['props_values']! as Map<String, Object?>;
       final literal = (value['oneOf']! as List<Object?>).first;
       expect(literal, {
         'anyOf': [
@@ -183,8 +183,7 @@ void main() {
       expect(seams.pairingSeam, isEmpty);
     });
 
-    test(
-        'an event property with no matching constructor parameter fails LOUD '
+    test('an event property with no matching constructor parameter fails LOUD '
         '(a catalog/constructor inconsistency, never a silent drop)', () {
       // `QuickCheckFixture` has no `onPhantom` constructor parameter, so the
       // catalog declares an event property the widget cannot receive — the
@@ -208,8 +207,7 @@ void main() {
       );
     });
 
-    test(
-        'the multi-control case reads ONLY resolved target configuration into '
+    test('the multi-control case reads ONLY resolved target configuration into '
         'the pairing seam', () {
       final seams = assembleA2uiSeams(
         [
@@ -288,17 +286,16 @@ void main() {
       String name, {
       RestageConstraints constraints = RestageConstraints.empty,
       ValidationExpr? validationRule,
-    }) =>
-        PropertyEntry(
-          wireId: WireId.unallocatedProperty,
-          name: name,
-          type: PropertyType.enumValue,
-          description: '',
-          required: true,
-          enumType: 'SeamMode',
-          constraints: constraints,
-          validationRule: validationRule,
-        );
+    }) => PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: name,
+      type: PropertyType.enumValue,
+      description: '',
+      required: true,
+      enumType: 'SeamMode',
+      constraints: constraints,
+      validationRule: validationRule,
+    );
 
     test('populates enum members and validates typed plus legacy subsets', () {
       final widget = _widget(library, 'EnumSeam', 'EnumSeamFixture', [
@@ -331,73 +328,77 @@ void main() {
       ).widgets.single;
       final properties =
           a2uiWidgetDataSchemaMapForPlan(plan)['properties']! as Map;
-      expect(properties['typedMode'], {
+      expect(properties['props_typedMode'], {
         'type': 'string',
         'enum': ['compact'],
       });
-      expect(properties['legacyMode'], {
+      expect(properties['props_legacyMode'], {
         'type': 'string',
         'enum': ['expanded'],
       });
     });
 
-    test('rejects an invalid typed enum member through the production seam',
-        () {
-      final widget = _widget(library, 'EnumSeam', 'EnumSeamFixture', [
-        enumProperty(
-          'typedMode',
-          constraints: const RestageConstraints(
-            allowedValues: ['ghost'],
-          ),
-        ),
-      ]);
-      final seams = assembleA2uiSeams([widget]);
-
-      expect(
-        () => classifyA2uiCatalogDart(
-          catalogWith([widget.entry]),
-          richShapes: seams.richShapes,
-        ),
-        throwsA(
-          isA<UnsupportedError>().having(
-            (error) => error.message,
-            'message',
-            allOf(contains('typedMode'), contains('ghost')),
-          ),
-        ),
-      );
-    });
-
-    test('rejects an invalid legacy enum member through the production seam',
-        () {
-      final widget = _widget(library, 'EnumSeam', 'EnumSeamFixture', [
-        enumProperty(
-          'legacyMode',
-          validationRule: const ValidationExpr(
-            expression: 'oneOf("ghost")',
-            message: 'Choose an available mode.',
-          ),
-        ),
-      ]);
-      final seams = assembleA2uiSeams([widget]);
-
-      expect(
-        () => classifyA2uiCatalogDart(
-          catalogWith([widget.entry]),
-          richShapes: seams.richShapes,
-        ),
-        throwsA(
-          isA<UnsupportedError>().having(
-            (error) => error.message,
-            'message',
-            allOf(
-              contains('legacyMode'),
-              contains('oneOf("ghost")'),
-              contains('ghost'),
+    test(
+      'rejects an invalid typed enum member through the production seam',
+      () {
+        final widget = _widget(library, 'EnumSeam', 'EnumSeamFixture', [
+          enumProperty(
+            'typedMode',
+            constraints: const RestageConstraints(
+              allowedValues: ['ghost'],
             ),
           ),
-        ),
-      );
-    });
+        ]);
+        final seams = assembleA2uiSeams([widget]);
+
+        expect(
+          () => classifyA2uiCatalogDart(
+            catalogWith([widget.entry]),
+            richShapes: seams.richShapes,
+          ),
+          throwsA(
+            isA<UnsupportedError>().having(
+              (error) => error.message,
+              'message',
+              allOf(contains('typedMode'), contains('ghost')),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'rejects an invalid legacy enum member through the production seam',
+      () {
+        final widget = _widget(library, 'EnumSeam', 'EnumSeamFixture', [
+          enumProperty(
+            'legacyMode',
+            validationRule: const ValidationExpr(
+              expression: 'oneOf("ghost")',
+              message: 'Choose an available mode.',
+            ),
+          ),
+        ]);
+        final seams = assembleA2uiSeams([widget]);
+
+        expect(
+          () => classifyA2uiCatalogDart(
+            catalogWith([widget.entry]),
+            richShapes: seams.richShapes,
+          ),
+          throwsA(
+            isA<UnsupportedError>().having(
+              (error) => error.message,
+              'message',
+              allOf(
+                contains('legacyMode'),
+                contains('oneOf("ghost")'),
+                contains('ghost'),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   });
 }

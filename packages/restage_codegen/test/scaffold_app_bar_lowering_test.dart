@@ -9,7 +9,8 @@ import 'helpers.dart';
 
 void main() {
   test('Scaffold.appBar reaches the emitted surface', () async {
-    const source = '''
+    const source =
+        '''
       $kStubAnnotationsAndBases
 
       @PaywallSource(id: 'scaffold_app_bar')
@@ -58,7 +59,8 @@ void main() {
   });
 
   test('a bar with a tab bar under it carries the summed height', () async {
-    const source = '''
+    const source =
+        '''
       $kStubAnnotationsAndBases
 
       @PaywallSource(id: 'scaffold_tab_bar')
@@ -115,7 +117,8 @@ void main() {
   });
 
   test('a bar over a widget stating its own height sums the two', () async {
-    const source = '''
+    const source =
+        '''
       $kStubAnnotationsAndBases
 
       @PaywallSource(id: 'scaffold_stated_bottom')
@@ -153,13 +156,13 @@ void main() {
             anything,
         'apps_examples|assets/paywalls/scaffold_stated_bottom.rfwtxt':
             decodedMatches(
-          allOf(
-            // The size lowers to the bare height the widget asks for.
-            contains('PreferredSize(preferredSize: 30.0'),
-            contains('bottomHeight: 30.0'),
-            contains('appBarHeight: 86.0'),
-          ),
-        ),
+              allOf(
+                // The size lowers to the bare height the widget asks for.
+                contains('PreferredSize(preferredSize: 30.0'),
+                contains('bottomHeight: 30.0'),
+                contains('appBarHeight: 86.0'),
+              ),
+            ),
         'apps_examples|assets/paywalls/scaffold_stated_bottom.rfw': isNotEmpty,
         'apps_examples|assets/paywalls/screens/paywall_scaffold_stated_bottom.capability.json':
             anything,

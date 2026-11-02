@@ -51,11 +51,10 @@ final class _CompilerHandoffCache {
   Future<RestageSurfacePublicationBundle?> get(
     BuildStep buildStep,
     AssetId compilerInput,
-  ) =>
-      _byPackage.putIfAbsent(
-        compilerInput.package,
-        () => _decodeCompilerHandoff(buildStep, compilerInput),
-      );
+  ) => _byPackage.putIfAbsent(
+    compilerInput.package,
+    () => _decodeCompilerHandoff(buildStep, compilerInput),
+  );
 }
 
 Future<RestageSurfacePublicationBundle?> _decodeCompilerHandoff(
@@ -93,25 +92,25 @@ final class RestageSurfacePublicationBundle {
     required Map<String, List<int>> ownedOutputs,
     required Map<String, String> artifactLibraryPaths,
     required Iterable<String> surfaceWidgetNames,
-  })  : errors = List.unmodifiable(errors),
-        surfaceWidgetNames = List.unmodifiable(
-          surfaceWidgetNames.toSet().toList()..sort(),
-        ),
-        artifacts = Map.unmodifiable({
-          for (final entry in artifacts.entries)
-            entry.key: List<int>.unmodifiable(entry.value),
-        }),
-        borrowedArtifacts = Map.unmodifiable({
-          for (final entry in borrowedArtifacts.entries)
-            entry.key: List<int>.unmodifiable(entry.value),
-        }),
-        ownedOutputs = Map.unmodifiable({
-          for (final entry in ownedOutputs.entries)
-            entry.key: List<int>.unmodifiable(entry.value),
-        }),
-        artifactLibraryPaths = Map.unmodifiable(
-          Map.of(artifactLibraryPaths),
-        );
+  }) : errors = List.unmodifiable(errors),
+       surfaceWidgetNames = List.unmodifiable(
+         surfaceWidgetNames.toSet().toList()..sort(),
+       ),
+       artifacts = Map.unmodifiable({
+         for (final entry in artifacts.entries)
+           entry.key: List<int>.unmodifiable(entry.value),
+       }),
+       borrowedArtifacts = Map.unmodifiable({
+         for (final entry in borrowedArtifacts.entries)
+           entry.key: List<int>.unmodifiable(entry.value),
+       }),
+       ownedOutputs = Map.unmodifiable({
+         for (final entry in ownedOutputs.entries)
+           entry.key: List<int>.unmodifiable(entry.value),
+       }),
+       artifactLibraryPaths = Map.unmodifiable(
+         Map.of(artifactLibraryPaths),
+       );
 
   /// Creates and validates a complete delivery bundle.
   factory RestageSurfacePublicationBundle.valid({
@@ -139,8 +138,7 @@ final class RestageSurfacePublicationBundle {
       ...frozenArtifacts.keys.where(frozenBorrowedArtifacts.containsKey),
       ...frozenArtifacts.keys.where(frozenOwnedOutputs.containsKey),
       ...frozenBorrowedArtifacts.keys.where(frozenOwnedOutputs.containsKey),
-    }.toList()
-      ..sort();
+    }.toList()..sort();
     if (overlaps.isNotEmpty) {
       throw FormatException(
         'Bundle outputs are declared as both manifest artifacts and ancillary '
@@ -159,8 +157,7 @@ final class RestageSurfacePublicationBundle {
     final unattributed = <String>{
       ...frozenArtifacts.keys,
       ...frozenBorrowedArtifacts.keys,
-    }.where((path) => !artifactLibraryPaths.containsKey(path)).toList()
-      ..sort();
+    }.where((path) => !artifactLibraryPaths.containsKey(path)).toList()..sort();
     if (unattributed.isNotEmpty) {
       throw FormatException(
         'Bundle manifest artifacts have no authored-library attribution: '
@@ -181,12 +178,13 @@ final class RestageSurfacePublicationBundle {
 
   /// Creates a fail-closed bundle that carries diagnostics but no artifacts.
   factory RestageSurfacePublicationBundle.invalid(Iterable<String> errors) {
-    final normalized = errors
-        .map((error) => error.trim())
-        .where((error) => error.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final normalized =
+        errors
+            .map((error) => error.trim())
+            .where((error) => error.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
     if (normalized.isEmpty) {
       normalized.add('Surface publication compilation failed.');
     }
@@ -368,19 +366,18 @@ final class RestageSurfacePublicationBundle {
 /// [RestageSurfacePublicationBundle.encodeCanonicalJson] writes are encoded
 /// identically, so they share this.
 List<Map<String, Object?>> _encodeOutputs(Map<String, List<int>> outputs) => [
-      for (final entry
-          in outputs.entries.toList()
-            ..sort((left, right) => left.key.compareTo(right.key)))
-        <String, Object?>{
-          'path': entry.key,
-          'contentBase64': base64UrlEncode(entry.value).replaceAll('=', ''),
-        },
-    ];
+  for (final entry
+      in outputs.entries.toList()
+        ..sort((left, right) => left.key.compareTo(right.key)))
+    <String, Object?>{
+      'path': entry.key,
+      'contentBase64': base64UrlEncode(entry.value).replaceAll('=', ''),
+    },
+];
 
 SurfacePublicationManifest _canonicalizeManifest(
   SurfacePublicationManifest manifest,
-) =>
-    manifest.canonical();
+) => manifest.canonical();
 
 Map<String, List<int>> _decodeBundleOutputs(
   List<Object?> values,
@@ -521,10 +518,9 @@ List<String> _optionalStringList(
   Map<String, Object?> value,
   String key,
   String path,
-) =>
-    value.containsKey(key)
-        ? _requiredStringList(value, key, path)
-        : const <String>[];
+) => value.containsKey(key)
+    ? _requiredStringList(value, key, path)
+    : const <String>[];
 
 List<int> _decodeBase64Url(String value, String path) {
   if (value.isEmpty) {
@@ -549,7 +545,9 @@ void _validateOutputPaths(Iterable<String> paths) {
     if (path.isEmpty ||
         path.startsWith('/') ||
         path.contains(r'\') ||
-        path.split('/').any(
+        path
+            .split('/')
+            .any(
               (segment) => segment.isEmpty || segment == '.' || segment == '..',
             ) ||
         path == kRestageSurfacePublicationCompilerBundlePath) {

@@ -68,25 +68,29 @@ final class CompiledPaywallArtifacts {
     Map<String, Object> standaloneLocalSeeds = const {},
     Map<String, Object> adapterLocalSeeds = const {},
     Iterable<HoistedValue> hoisted = const [],
-  })  : navigationPushedIds = List.unmodifiable(navigationPushedIds),
-        hoisted = List.unmodifiable(hoisted),
-        standaloneLocalSeeds = Map.unmodifiable(standaloneLocalSeeds),
-        adapterLocalSeeds = Map.unmodifiable(adapterLocalSeeds),
-        standaloneBlob =
-            standaloneBlob == null ? null : Uint8List.fromList(standaloneBlob),
-        standaloneCapabilitySidecar = standaloneCapabilitySidecar == null
-            ? null
-            : Uint8List.fromList(standaloneCapabilitySidecar),
-        adapterBlob = Uint8List.fromList(adapterBlob),
-        adapterCapabilitySidecar = Uint8List.fromList(
-          adapterCapabilitySidecar,
-        ),
-        navigationPlan =
-            navigationPlan == null ? null : Uint8List.fromList(navigationPlan),
-        standaloneAnalyticsIdDeclarations =
-            List.unmodifiable(standaloneAnalyticsIdDeclarations),
-        adapterAnalyticsIdDeclarations =
-            List.unmodifiable(adapterAnalyticsIdDeclarations);
+  }) : navigationPushedIds = List.unmodifiable(navigationPushedIds),
+       hoisted = List.unmodifiable(hoisted),
+       standaloneLocalSeeds = Map.unmodifiable(standaloneLocalSeeds),
+       adapterLocalSeeds = Map.unmodifiable(adapterLocalSeeds),
+       standaloneBlob = standaloneBlob == null
+           ? null
+           : Uint8List.fromList(standaloneBlob),
+       standaloneCapabilitySidecar = standaloneCapabilitySidecar == null
+           ? null
+           : Uint8List.fromList(standaloneCapabilitySidecar),
+       adapterBlob = Uint8List.fromList(adapterBlob),
+       adapterCapabilitySidecar = Uint8List.fromList(
+         adapterCapabilitySidecar,
+       ),
+       navigationPlan = navigationPlan == null
+           ? null
+           : Uint8List.fromList(navigationPlan),
+       standaloneAnalyticsIdDeclarations = List.unmodifiable(
+         standaloneAnalyticsIdDeclarations,
+       ),
+       adapterAnalyticsIdDeclarations = List.unmodifiable(
+         adapterAnalyticsIdDeclarations,
+       );
 
   final PaywallSourceFound source;
   final String? standaloneText;
@@ -129,8 +133,8 @@ final class ResolvedPaywallCompilationResult {
   ResolvedPaywallCompilationResult({
     required List<CompiledPaywallArtifacts> paywalls,
     required List<Issue> issues,
-  })  : paywalls = List.unmodifiable(paywalls),
-        issues = List.unmodifiable(issues);
+  }) : paywalls = List.unmodifiable(paywalls),
+       issues = List.unmodifiable(issues);
 
   final List<CompiledPaywallArtifacts> paywalls;
   final List<Issue> issues;
@@ -148,11 +152,11 @@ final class MeasurementPaywallRouteEmissionOwnership {
   final bool adapter;
 }
 
-typedef MeasurementPaywallRouteOwnershipMap
-    = Map<String, MeasurementPaywallRouteEmissionOwnership>;
+typedef MeasurementPaywallRouteOwnershipMap =
+    Map<String, MeasurementPaywallRouteEmissionOwnership>;
 
-typedef RfwCatalogOccurrenceSetByDeclarationIdentity
-    = Map<String, ResolvedRfwCatalogOccurrenceSet>;
+typedef RfwCatalogOccurrenceSetByDeclarationIdentity =
+    Map<String, ResolvedRfwCatalogOccurrenceSet>;
 
 /// Compiles every supplied analyzer-resolved paywall without choosing an
 /// output path. The package roster remains the sole path/identity authority.
@@ -167,9 +171,11 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
   MeasurementPaywallRouteOwnershipMap measurementRouteOwnership =
       const <String, MeasurementPaywallRouteEmissionOwnership>{},
   RfwCatalogOccurrenceSetByDeclarationIdentity
-      adapterRfwCatalogOccurrenceSetsByDeclarationIdentity = const {},
+      adapterRfwCatalogOccurrenceSetsByDeclarationIdentity =
+      const {},
   RfwCatalogOccurrenceSetByDeclarationIdentity
-      standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity = const {},
+      standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity =
+      const {},
   Set<String>? buildNoticeKeys,
   void Function(Issue issue, bool isCanonical)? appFactoryNoticeCollector,
   bool Function(PaywallSourceFound source)? retainSource,
@@ -194,7 +200,8 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
     issues.add(
       Issue(
         code: IssueCode.analyzerResolutionFailed,
-        message: 'Could not resolve ${assetId.path} for canonical paywall '
+        message:
+            'Could not resolve ${assetId.path} for canonical paywall '
             'compilation.',
         location: assetId.path,
       ),
@@ -216,15 +223,14 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
   ExpressionTranslator translatorFor(
     PaywallSourceFound source,
     MeasurementRouteEmissionPlan? routePlan,
-  ) =>
-      ExpressionTranslator(
-        catalog: catalog,
-        helpers: helpers,
-        customWidgetClassifications: classification.classifications,
-        customWidgetBlueprints: classification.blueprints,
-        canonicalPaywallIdFor: canonicalPaywallIdFor,
-        measurementRouteEmissionPlan: routePlan,
-      );
+  ) => ExpressionTranslator(
+    catalog: catalog,
+    helpers: helpers,
+    customWidgetClassifications: classification.classifications,
+    customWidgetBlueprints: classification.blueprints,
+    canonicalPaywallIdFor: canonicalPaywallIdFor,
+    measurementRouteEmissionPlan: routePlan,
+  );
   final compiled = <CompiledPaywallArtifacts>[];
   for (final source in sources) {
     final sourceIsRetained = retainSource?.call(source) ?? true;
@@ -281,21 +287,21 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             rootBuildArguments: source.build.buildArguments,
           )
         : routePlan != null && emitAdapter
-            ? translatorFor(source, routePlan).translate(
-                source.rootExpression,
-                entryId: source.id,
-                sourcePath: assetId.path,
-                lineInfo: lineInfo,
-                rootState: source.build.state,
-                rootParams: source.build.rootParams,
-                rootEventHandlers: source.build.eventHandlers,
-                buildContextParameter: source.build.buildContextParameter,
-                flowScreenContext: true,
-                rootInlined: source.build.inlined,
-                hoistInMount: true,
-                rootBuildArguments: source.build.buildArguments,
-              )
-            : probe;
+        ? translatorFor(source, routePlan).translate(
+            source.rootExpression,
+            entryId: source.id,
+            sourcePath: assetId.path,
+            lineInfo: lineInfo,
+            rootState: source.build.state,
+            rootParams: source.build.rootParams,
+            rootEventHandlers: source.build.eventHandlers,
+            buildContextParameter: source.build.buildContextParameter,
+            flowScreenContext: true,
+            rootInlined: source.build.inlined,
+            hoistInMount: true,
+            rootBuildArguments: source.build.buildArguments,
+          )
+        : probe;
     _addFatalTranslationIssues(
       issues,
       standalone.issues,
@@ -324,8 +330,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
         sourceLibraryIdentity: library.identifier,
         sourceDeclarationIdentity: declarationIdentity,
         frozenOccurrenceSet:
-            standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity[
-                declarationIdentity],
+            standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity[declarationIdentity],
         requireFrozenOccurrenceSet: requireStandaloneFrozenOccurrenceSet,
         formName: 'standalone',
         catalog: catalog,
@@ -339,8 +344,8 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
       source: source,
       sourceLibraryIdentity: library.identifier,
       sourceDeclarationIdentity: declarationIdentity,
-      frozenOccurrenceSet: adapterRfwCatalogOccurrenceSetsByDeclarationIdentity[
-          declarationIdentity],
+      frozenOccurrenceSet:
+          adapterRfwCatalogOccurrenceSetsByDeclarationIdentity[declarationIdentity],
       requireFrozenOccurrenceSet: requireAdapterFrozenOccurrenceSet,
       formName: 'adapter',
       catalog: catalog,
@@ -360,8 +365,9 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             ? adapterForm.vocabulary
             : standaloneForm.vocabulary.union(adapterForm.vocabulary),
         navigationPushedIds: [
-          for (final transition in standalone.navigation?.transitions ??
-              const <NavigationTransition>[])
+          for (final transition
+              in standalone.navigation?.transitions ??
+                  const <NavigationTransition>[])
             transition.pushedId,
         ],
         standaloneRfwCatalogOccurrenceSet:
@@ -374,8 +380,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
         hoisted: {
           for (final value in [...standalone.hoisted, ...adapter.hoisted])
             value.key: value,
-        }.values.toList()
-          ..sort((left, right) => left.key.compareTo(right.key)),
+        }.values.toList()..sort((left, right) => left.key.compareTo(right.key)),
         navigationPlan: standalone.navigation == null
             ? null
             : utf8.encode(
@@ -429,13 +434,14 @@ _CompiledPaywallForm? _compilePaywallForm({
     issues.add(
       Issue(
         code: IssueCode.malformedTranslatorOutput,
-        message: 'Translator emitted DSL that failed to parse for '
+        message:
+            'Translator emitted DSL that failed to parse for '
             '"${source.id}" ($sourceIdentifier): $error '
             '${dslParseFailureDetail(
-          text,
-          error,
-          translation.emissionSources,
-        )} This is a codegen bug.',
+              text,
+              error,
+              translation.emissionSources,
+            )} This is a codegen bug.',
         location: '${source.assetId.path}#${source.className}',
       ),
     );
@@ -445,14 +451,16 @@ _CompiledPaywallForm? _compilePaywallForm({
     issues.add(
       Issue(
         code: IssueCode.missingScreenDescriptor,
-        message: 'Final Measurement $formName paywall emission requires its '
+        message:
+            'Final Measurement $formName paywall emission requires its '
             'frozen RFW occurrence evidence.',
         location: '${source.assetId.path}#${source.className}',
       ),
     );
     return null;
   }
-  final occurrenceSet = frozenOccurrenceSet ??
+  final occurrenceSet =
+      frozenOccurrenceSet ??
       ResolvedRfwCatalogOccurrenceSet.resolve(
         operations: translation.valueOperations,
         parsedLibrary: parsedLibrary,
@@ -466,8 +474,9 @@ _CompiledPaywallForm? _compilePaywallForm({
           renderEntryNames: [rootWidgetName],
         ),
       );
-  final occurrenceRebinding =
-      frozenOccurrenceSet?.rebindFinalLibrary(parsedLibrary);
+  final occurrenceRebinding = frozenOccurrenceSet?.rebindFinalLibrary(
+    parsedLibrary,
+  );
   final lowering = lowerAnalyticsIds(
     text: text,
     library: parsedLibrary,
@@ -486,8 +495,10 @@ _CompiledPaywallForm? _compilePaywallForm({
     catalog,
     rootLabels: {rootWidgetName: source.className},
     operations: translation.valueOperations,
-    hostDataContract:
-        hostDataContractOf(const [], hoisted: translation.hoisted),
+    hostDataContract: hostDataContractOf(
+      const [],
+      hoisted: translation.hoisted,
+    ),
   );
   if (validationIssues.isNotEmpty) {
     issues.addAll(validationIssues);
@@ -559,8 +570,8 @@ final class _CompiledPaywallForm {
     required this.vocabulary,
     required Iterable<AnalyticsIdDeclaration> analyticsIdDeclarations,
     Map<String, Object> localSeeds = const {},
-  })  : analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations),
-        localSeeds = Map.unmodifiable(localSeeds);
+  }) : analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations),
+       localSeeds = Map.unmodifiable(localSeeds);
 
   final String text;
   final Uint8List blob;
@@ -603,9 +614,9 @@ final class RestageCodegenBuilder implements Builder {
   /// Tests construct with a custom `visitors` list to exercise the
   /// registration shape.
   RestageCodegenBuilder(this.options, {List<LibraryVisitor>? visitors})
-      : _visitors = visitors == null
-            ? const <LibraryVisitor>[]
-            : List.unmodifiable(visitors);
+    : _visitors = visitors == null
+          ? const <LibraryVisitor>[]
+          : List.unmodifiable(visitors);
 
   /// `BuilderOptions` injected by build_runner.
   final BuilderOptions options;
@@ -617,20 +628,20 @@ final class RestageCodegenBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '$_kSourceDir/{{name}}.dart': [
-          '$_kOutputDir/{{name}}.rfwtxt',
-          '$_kOutputDir/{{name}}.rfw',
-          '$_kOutputDir/{{name}}.capability.json',
-          '$_kOutputDir/{{name}}.navplan.json',
-          '$_kOutputDir/{{name}}.local.json',
-          '$_kPaywallScreenOutputDir/paywall_{{name}}.rfw',
-          '$_kPaywallScreenOutputDir/paywall_{{name}}.capability.json',
-        ],
-        '$_kSourceDir/{{name}}.rfwtxt': [
-          '$_kOutputDir/{{name}}.rfw',
-          '$_kOutputDir/{{name}}.capability.json',
-        ],
-      };
+    '$_kSourceDir/{{name}}.dart': [
+      '$_kOutputDir/{{name}}.rfwtxt',
+      '$_kOutputDir/{{name}}.rfw',
+      '$_kOutputDir/{{name}}.capability.json',
+      '$_kOutputDir/{{name}}.navplan.json',
+      '$_kOutputDir/{{name}}.local.json',
+      '$_kPaywallScreenOutputDir/paywall_{{name}}.rfw',
+      '$_kPaywallScreenOutputDir/paywall_{{name}}.capability.json',
+    ],
+    '$_kSourceDir/{{name}}.rfwtxt': [
+      '$_kOutputDir/{{name}}.rfw',
+      '$_kOutputDir/{{name}}.capability.json',
+    ],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) {
@@ -705,7 +716,8 @@ final class RestageCodegenBuilder implements Builder {
         state.issues.add(
           Issue(
             code: IssueCode.filenameMismatch,
-            message: "Paywall id '${src.id}' does not match the file name "
+            message:
+                "Paywall id '${src.id}' does not match the file name "
                 "'$stem.dart'. Rename the file to '${src.id}.dart', or "
                 'change the @PaywallSource(id:) value to match.',
             location: '${assetId.path}#${src.className}',
@@ -742,8 +754,9 @@ final class RestageCodegenBuilder implements Builder {
 
     // Classification pre-pass — see classifyReferencedCustomWidgets.
     final classification = await classifyReferencedCustomWidgets(
-      rootExpressions:
-          state.paywallSources.expand((s) => s.build.collectorRoots),
+      rootExpressions: state.paywallSources.expand(
+        (s) => s.build.collectorRoots,
+      ),
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
@@ -770,7 +783,8 @@ final class RestageCodegenBuilder implements Builder {
         buildContextParameter: src.build.buildContextParameter,
         rootInlined: src.build.inlined,
       );
-      final adapterTranslation = (standaloneTranslation.navigation != null ||
+      final adapterTranslation =
+          (standaloneTranslation.navigation != null ||
               standaloneTranslation.suppressed)
           ? translator.translate(
               src.rootExpression,
@@ -798,10 +812,12 @@ final class RestageCodegenBuilder implements Builder {
       // A build notice (e.g. an announced idiom auto-substitution) annotates a
       // complete, correct translation — it must not block the emit. Only a real
       // translation error (an expression that could not be lowered) skips it.
-      final standaloneBlocked = standaloneTranslation.suppressed ||
+      final standaloneBlocked =
+          standaloneTranslation.suppressed ||
           standaloneTranslation.issues.any((i) => !i.code.isBuildNotice);
-      final adapterBlocked =
-          adapterTranslation.issues.any((i) => !i.code.isBuildNotice);
+      final adapterBlocked = adapterTranslation.issues.any(
+        (i) => !i.code.isBuildNotice,
+      );
 
       final writes = <Future<void>>[];
       if (!standaloneBlocked) {
@@ -828,8 +844,10 @@ final class RestageCodegenBuilder implements Builder {
             catalog,
             rootLabels: {paywallRootWidgetName: src.className},
             operations: standaloneTranslation.valueOperations,
-            hostDataContract: hostDataContractOf(const [],
-                hoisted: standaloneTranslation.hoisted),
+            hostDataContract: hostDataContractOf(
+              const [],
+              hoisted: standaloneTranslation.hoisted,
+            ),
           );
           if (validationIssues.isEmpty) {
             final derivation = deriveCapabilityManifest(
@@ -845,8 +863,9 @@ final class RestageCodegenBuilder implements Builder {
               // same posture as an unknown-widget validation error.
               _addIssues(state.issues, derivation.issues);
             } else {
-              final paywallBytes =
-                  fmt.encodeLibraryBlob(canonicalizeLibrary(rfwLibrary));
+              final paywallBytes = fmt.encodeLibraryBlob(
+                canonicalizeLibrary(rfwLibrary),
+              );
               final seeds = standaloneTranslation.localSeeds;
               if (seeds.isNotEmpty) {
                 writes.add(
@@ -918,8 +937,10 @@ final class RestageCodegenBuilder implements Builder {
             catalog,
             rootLabels: {onboardingScreenRootWidgetName: src.className},
             operations: adapterTranslation.valueOperations,
-            hostDataContract: hostDataContractOf(const [],
-                hoisted: adapterTranslation.hoisted),
+            hostDataContract: hostDataContractOf(
+              const [],
+              hoisted: adapterTranslation.hoisted,
+            ),
           );
           if (validationIssues.isEmpty) {
             final derivation = deriveCapabilityManifest(
@@ -933,8 +954,9 @@ final class RestageCodegenBuilder implements Builder {
               // same posture the standalone paywall path takes above.
               _addIssues(state.issues, derivation.issues);
             } else {
-              final flowScreenBytes =
-                  fmt.encodeLibraryBlob(canonicalizeLibrary(flowScreenLibrary));
+              final flowScreenBytes = fmt.encodeLibraryBlob(
+                canonicalizeLibrary(flowScreenLibrary),
+              );
               writes
                 ..add(
                   buildStep.writeAsBytes(
@@ -1006,8 +1028,9 @@ final class RestageCodegenBuilder implements Builder {
   ) async {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
-      measurementPolicy:
-          MeasurementCompilerPolicyInput.fromBuilderOptions(options),
+      measurementPolicy: MeasurementCompilerPolicyInput.fromBuilderOptions(
+        options,
+      ),
       builderKey: 'restage_codegen:paywall_codegen',
     );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);
@@ -1052,7 +1075,8 @@ final class RestageCodegenBuilder implements Builder {
       _surfaceIssues([
         Issue(
           code: IssueCode.missingScreenDescriptor,
-          message: 'Standalone canonical paywall fallback could not find the '
+          message:
+              'Standalone canonical paywall fallback could not find the '
               'aggregate artifact family for $id.',
           location: buildStep.inputId.path,
         ),
@@ -1109,13 +1133,14 @@ final class RestageCodegenBuilder implements Builder {
       state.issues.add(
         Issue(
           code: IssueCode.malformedTranslatorOutput,
-          message: 'Translator emitted DSL that failed to parse for '
+          message:
+              'Translator emitted DSL that failed to parse for '
               '"${src.id}" ($sourceIdentifier): $e '
               '${dslParseFailureDetail(
-            source,
-            e,
-            translation.emissionSources,
-          )} This is a codegen bug.',
+                source,
+                e,
+                translation.emissionSources,
+              )} This is a codegen bug.',
           location: '${src.assetId.path}#${src.className}',
         ),
       );
@@ -1169,13 +1194,16 @@ final class RestageCodegenBuilder implements Builder {
         if (validationIssues.isNotEmpty) {
           issues.addAll(validationIssues);
         } else {
-          final derivation =
-              deriveCapabilityManifest(lowering.library, catalog);
+          final derivation = deriveCapabilityManifest(
+            lowering.library,
+            catalog,
+          );
           if (derivation.issues.isNotEmpty) {
             issues.addAll(derivation.issues);
           } else {
-            final bytes =
-                fmt.encodeLibraryBlob(canonicalizeLibrary(lowering.library));
+            final bytes = fmt.encodeLibraryBlob(
+              canonicalizeLibrary(lowering.library),
+            );
             await buildStep.writeAsBytes(
               AssetId(assetId.package, '$_kOutputDir/$outputStem.rfw'),
               bytes,
@@ -1199,7 +1227,8 @@ final class RestageCodegenBuilder implements Builder {
       issues.add(
         Issue(
           code: IssueCode.malformedRawDsl,
-          message: 'Hand-authored RFW DSL at ${assetId.path} could not be '
+          message:
+              'Hand-authored RFW DSL at ${assetId.path} could not be '
               'parsed: $e',
           location: assetId.path,
         ),

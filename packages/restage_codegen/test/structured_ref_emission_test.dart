@@ -63,8 +63,9 @@ NativeCatalogIndex _index(WidgetEntry widget, StructuredEntry structured) {
         name: 'extent',
         type: PropertyType.structured,
         description: '',
-        structuredRef:
-            (shapeOnly || noRef) ? null : _ref('restage.material', 's0001'),
+        structuredRef: (shapeOnly || noRef)
+            ? null
+            : _ref('restage.material', 's0001'),
         valueShape: noRef ? null : structuredShape,
       ),
     ],
@@ -83,8 +84,7 @@ NativeCatalogIndex _index(WidgetEntry widget, StructuredEntry structured) {
 
 void main() {
   group('structured-ref emission substrate', () {
-    test(
-        'a structured slot whose structuredRef resolves to a registered '
+    test('a structured slot whose structuredRef resolves to a registered '
         'decoder (Size) lowers to that decoder', () {
       final f = _fixture(structuredTypeName: 'Size');
       final source = emitFactoryFunction(
@@ -100,8 +100,7 @@ void main() {
       );
     });
 
-    test(
-        'an AUTHORED structured slot whose structuredRef has NO registered '
+    test('an AUTHORED structured slot whose structuredRef has NO registered '
         'decoder FAILS the build loudly (no silent drop / default)', () {
       final f = _fixture(structuredTypeName: 'UnregisteredWidgetExtent');
 
@@ -120,8 +119,7 @@ void main() {
       );
     });
 
-    test(
-        'a structured slot whose ref is carried ONLY on its StructuredShape '
+    test('a structured slot whose ref is carried ONLY on its StructuredShape '
         'valueShape (no top-level structuredRef) still recovers the registered '
         'Size decoder', () {
       // The recipe-materialized-flat-property shape: the ref lives on the
@@ -140,8 +138,7 @@ void main() {
       );
     });
 
-    test(
-        'a shape-only structured slot whose ref resolves to an UNREGISTERED '
+    test('a shape-only structured slot whose ref resolves to an UNREGISTERED '
         'decoder FAILS the build loudly (no silent drop / default)', () {
       final f = _fixture(
         structuredTypeName: 'UnregisteredWidgetExtent',
@@ -163,8 +160,7 @@ void main() {
       );
     });
 
-    test(
-        'a malformed structured slot with NO resolvable ref (no top-level '
+    test('a malformed structured slot with NO resolvable ref (no top-level '
         'structuredRef AND no StructuredShape valueShape) FAILS the build '
         'loudly rather than being silently excluded', () {
       final f = _fixture(structuredTypeName: 'Size', noRef: true);

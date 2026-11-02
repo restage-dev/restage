@@ -204,15 +204,16 @@ final String _dependencyGraph = nativeScreenPackageGraph(
 );
 
 Map<String, String> _packageSources(Map<String, String> dartSources) => {
-      'apps_examples|pubspec.yaml': 'name: apps_examples\n'
-          'dependencies:\n'
-          '  flutter: any\n'
-          '  restage: any\n'
-          '  rfw_catalog_schema: any\n',
-      'apps_examples|.dart_tool/package_graph.json': _dependencyGraph,
-      for (final entry in dartSources.entries)
-        'apps_examples|${entry.key}': entry.value,
-    };
+  'apps_examples|pubspec.yaml':
+      'name: apps_examples\n'
+      'dependencies:\n'
+      '  flutter: any\n'
+      '  restage: any\n'
+      '  rfw_catalog_schema: any\n',
+  'apps_examples|.dart_tool/package_graph.json': _dependencyGraph,
+  for (final entry in dartSources.entries)
+    'apps_examples|${entry.key}': entry.value,
+};
 
 Future<TestReaderWriter> _writer(Map<String, String> sources) async {
   final readerWriter = await readerWriterWithFilesystemSources(
@@ -232,8 +233,8 @@ final class _NativeIndexProbe implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['native_index_probe.txt'],
-      };
+    r'$lib$': ['native_index_probe.txt'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -252,8 +253,8 @@ final class _WidgetbookIndexProbe implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['widgetbook_index_probe.txt'],
-      };
+    r'$lib$': ['widgetbook_index_probe.txt'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {

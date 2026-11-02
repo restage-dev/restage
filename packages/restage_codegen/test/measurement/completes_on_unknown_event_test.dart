@@ -21,8 +21,10 @@ void main() {
     expect(
       compiled.log,
       allOf(
-        contains("completesOn names the event 'subscribe', which no tap on "
-            'this paywall fires.'),
+        contains(
+          "completesOn names the event 'subscribe', which no tap on "
+          'this paywall fires.',
+        ),
         contains("paywallEvent('subscribe')"),
         contains('surfaceEvent(<the declared event constant>)'),
       ),
@@ -30,34 +32,40 @@ void main() {
   });
 
   test('a conditional tap fires its completing event', () async {
-    final compiled =
-        await _compileFixture('lib/paywalls/conditional_offer.dart');
+    final compiled = await _compileFixture(
+      'lib/paywalls/conditional_offer.dart',
+    );
     expect(compiled.succeeded, isTrue, reason: compiled.log);
     final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
       compiled.readerWriter.testing.readBytes(
         AssetId(_package, kRestageMeasurementCompilerOutputPath),
       ),
     );
-    final routes = output.publications.single.routePlan.routes
-        .where((route) => route.orderedCaptureV1?.lifecycleChannel == null);
+    final routes = output.publications.single.routePlan.routes.where(
+      (route) => route.orderedCaptureV1?.lifecycleChannel == null,
+    );
     expect(routes, hasLength(1));
     expect(routes.single.orderedCaptureV1!.completesSurfaceV1, isTrue);
   });
 
-  test('a tap whose branches disagree about completing is a build error',
-      () async {
-    final compiled = await _compileFixture('lib/paywalls/split_offer.dart');
-    expect(compiled.succeeded, isFalse);
-    expect(
-      compiled.log,
-      contains('This tap fires `start_trial` or `later`, and only '
-          '`start_trial` completes the surface.'),
-    );
-  });
+  test(
+    'a tap whose branches disagree about completing is a build error',
+    () async {
+      final compiled = await _compileFixture('lib/paywalls/split_offer.dart');
+      expect(compiled.succeeded, isFalse);
+      expect(
+        compiled.log,
+        contains(
+          'This tap fires `start_trial` or `later`, and only '
+          '`start_trial` completes the surface.',
+        ),
+      );
+    },
+  );
 }
 
 Future<({bool succeeded, String log, TestReaderWriter readerWriter})>
-    _compileFixture(String path) async {
+_compileFixture(String path) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: _package,
   );
@@ -109,8 +117,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -122,13 +131,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');

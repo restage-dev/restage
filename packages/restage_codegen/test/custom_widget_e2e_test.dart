@@ -117,10 +117,11 @@ const _listDecoderCases = <_ListDecoderCase>[
 
 void main() {
   group('custom-widget transpilation end-to-end', () {
-    test('a pure-composition custom widget transpiles and round-trips',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'a pure-composition custom widget transpiles and round-trips',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -149,31 +150,34 @@ class AcmeCard extends StatelessWidget {
 
 Object x() => AcmeCard(label: "Pro");
 ''',
-        catalogWith([
-          _entry('Container', [prop('child', PropertyType.widget)]),
-          _entry('Text', [prop('text', PropertyType.string, positional: true)]),
-        ]),
-      );
+          catalogWith([
+            _entry('Container', [prop('child', PropertyType.widget)]),
+            _entry('Text', [
+              prop('text', PropertyType.string, positional: true),
+            ]),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      final decoded = result.decoded!;
-      // Two widgets: the inlined custom widget and the paywall root.
-      expect(
-        decoded.widgets.map((w) => w.name),
-        containsAll(['AcmeCard', 'Paywall']),
-      );
-      // The paywall references the custom widget by name, passing the arg.
-      final paywall = _widget(decoded, 'Paywall');
-      expect(paywall.name, 'AcmeCard');
-      expect(paywall.arguments['label'], 'Pro');
-      // The definition body is the catalog-widget subtree, with the
-      // constructor parameter lowered to an `args.` reference.
-      final card = _widget(decoded, 'AcmeCard');
-      expect(card.name, 'Container');
-      final text = card.arguments['child'];
-      expect(text, isA<fmt.ConstructorCall>());
-      expect((text! as fmt.ConstructorCall).name, 'Text');
-    });
+        expect(result.issues, isEmpty);
+        final decoded = result.decoded!;
+        // Two widgets: the inlined custom widget and the paywall root.
+        expect(
+          decoded.widgets.map((w) => w.name),
+          containsAll(['AcmeCard', 'Paywall']),
+        );
+        // The paywall references the custom widget by name, passing the arg.
+        final paywall = _widget(decoded, 'Paywall');
+        expect(paywall.name, 'AcmeCard');
+        expect(paywall.arguments['label'], 'Pro');
+        // The definition body is the catalog-widget subtree, with the
+        // constructor parameter lowered to an `args.` reference.
+        final card = _widget(decoded, 'AcmeCard');
+        expect(card.name, 'Container');
+        final text = card.arguments['child'];
+        expect(text, isA<fmt.ConstructorCall>());
+        expect((text! as fmt.ConstructorCall).name, 'Text');
+      },
+    );
 
     test('a custom widget inlines a run-time collection-`if`', () async {
       final result = await _transpile(
@@ -246,10 +250,11 @@ Object x() => PlanCard(isPro: true, plan: "annual");
       expect((gate.input as fmt.Switch).outputs[false], <Object?>[]);
     });
 
-    test('a custom widget keys an equality chain on an int parameter',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'a custom widget keys an equality chain on an int parameter',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Text extends StatelessWidget {
@@ -273,25 +278,28 @@ class TierLabel extends StatelessWidget {
 
 Object x() => TierLabel(tier: 1);
 ''',
-        catalogWith([
-          _entry('Text', [prop('text', PropertyType.string, positional: true)]),
-        ]),
-      );
+          catalogWith([
+            _entry('Text', [
+              prop('text', PropertyType.string, positional: true),
+            ]),
+          ]),
+        );
 
-      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
-      final decoded = result.decoded!;
-      final label = _widget(decoded, 'TierLabel');
-      final selection = label.arguments['text'];
-      expect(selection, isA<fmt.Switch>());
-      final chain = selection! as fmt.Switch;
-      // One switch keyed on the parameter.
-      expect((chain.input as fmt.ArgsReference).parts, ['tier']);
-      expect(chain.outputs[0], 'Basic');
-      expect(chain.outputs[1], 'Plus');
-      expect(chain.outputs[null], 'Max');
-      // The call site passes a bare int, so the keys match.
-      expect(_widget(decoded, 'Paywall').arguments['tier'], 1);
-    });
+        expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+        final decoded = result.decoded!;
+        final label = _widget(decoded, 'TierLabel');
+        final selection = label.arguments['text'];
+        expect(selection, isA<fmt.Switch>());
+        final chain = selection! as fmt.Switch;
+        // One switch keyed on the parameter.
+        expect((chain.input as fmt.ArgsReference).parts, ['tier']);
+        expect(chain.outputs[0], 'Basic');
+        expect(chain.outputs[1], 'Plus');
+        expect(chain.outputs[null], 'Max');
+        // The call site passes a bare int, so the keys match.
+        expect(_widget(decoded, 'Paywall').arguments['tier'], 1);
+      },
+    );
 
     test('an int parameter `!=` lowers to the swapped 2-arm form', () async {
       final result = await _transpile(
@@ -371,10 +379,11 @@ Object x() => TierRange(tier: 1);
       expect(result.decoded, isNull);
     });
 
-    test('a custom widget emits statically repeated children in order',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'a custom widget emits statically repeated children in order',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Column extends StatelessWidget {
@@ -408,30 +417,32 @@ class RepeatedLabels extends StatelessWidget {
 
 Object x() => const RepeatedLabels();
 ''',
-        catalogWith([
-          _entry(
-            'Column',
-            [prop('children', PropertyType.widgetList)],
-          ),
-          _entry(
-            'Text',
-            [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-      );
+          catalogWith([
+            _entry(
+              'Column',
+              [prop('children', PropertyType.widgetList)],
+            ),
+            _entry(
+              'Text',
+              [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      expect(result.decoded, isNotNull);
-      expect(
-        result.translation.widgetDefinitions['RepeatedLabels'],
-        'Column(children: [Text(text: "first"), Text(text: "second")])',
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(result.decoded, isNotNull);
+        expect(
+          result.translation.widgetDefinitions['RepeatedLabels'],
+          'Column(children: [Text(text: "first"), Text(text: "second")])',
+        );
+      },
+    );
 
-    test('a local list from a helper emits statically repeated children',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'a local list from a helper emits statically repeated children',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Column extends StatelessWidget {
@@ -466,30 +477,32 @@ class LocalLabels extends StatelessWidget {
 
 Object x() => const LocalLabels();
 ''',
-        catalogWith([
-          _entry(
-            'Column',
-            [prop('children', PropertyType.widgetList)],
-          ),
-          _entry(
-            'Text',
-            [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-      );
+          catalogWith([
+            _entry(
+              'Column',
+              [prop('children', PropertyType.widgetList)],
+            ),
+            _entry(
+              'Text',
+              [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      expect(result.decoded, isNotNull);
-      expect(
-        result.translation.widgetDefinitions['LocalLabels'],
-        'Column(children: [Text(text: "first"), Text(text: "second")])',
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(result.decoded, isNotNull);
+        expect(
+          result.translation.widgetDefinitions['LocalLabels'],
+          'Column(children: [Text(text: "first"), Text(text: "second")])',
+        );
+      },
+    );
 
-    test('nested sources expose a composed custom widget and its blueprint',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'nested sources expose a composed custom widget and its blueprint',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Column extends StatelessWidget {
@@ -541,34 +554,36 @@ class NestedLabels extends StatelessWidget {
 
 Object x() => const NestedLabels();
 ''',
-        catalogWith([
-          _entry(
-            'Column',
-            [prop('children', PropertyType.widgetList)],
-          ),
-          _entry(
-            'Text',
-            [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-      );
+          catalogWith([
+            _entry(
+              'Column',
+              [prop('children', PropertyType.widgetList)],
+            ),
+            _entry(
+              'Text',
+              [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      expect(result.decoded, isNotNull);
-      expect(
-        result.translation.widgetDefinitions['NestedLabels'],
-        'Column(children: [HiddenLabel()])',
-      );
-      expect(
-        result.translation.widgetDefinitions['HiddenLabel'],
-        'Text(text: "resolved")',
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(result.decoded, isNotNull);
+        expect(
+          result.translation.widgetDefinitions['NestedLabels'],
+          'Column(children: [HiddenLabel()])',
+        );
+        expect(
+          result.translation.widgetDefinitions['HiddenLabel'],
+          'Text(text: "resolved")',
+        );
+      },
+    );
 
-    test('root collection sources expose a custom widget entry point',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'root collection sources expose a custom widget entry point',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Column extends StatelessWidget {
@@ -605,31 +620,33 @@ const rootEntries = <Widget>[if (true) rootSet.widget];
 
 Object x() => Column(children: [...rootEntries]);
 ''',
-        catalogWith([
-          _entry(
-            'Column',
-            [prop('children', PropertyType.widgetList)],
-          ),
-          _entry(
-            'Text',
-            [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-      );
+          catalogWith([
+            _entry(
+              'Column',
+              [prop('children', PropertyType.widgetList)],
+            ),
+            _entry(
+              'Text',
+              [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      expect(result.decoded, isNotNull);
-      expect(result.translation.dsl, 'Column(children: [HiddenRootLabel()])');
-      expect(
-        result.translation.widgetDefinitions['HiddenRootLabel'],
-        'Text(text: "resolved")',
-      );
-    });
+        expect(result.issues, isEmpty);
+        expect(result.decoded, isNotNull);
+        expect(result.translation.dsl, 'Column(children: [HiddenRootLabel()])');
+        expect(
+          result.translation.widgetDefinitions['HiddenRootLabel'],
+          'Text(text: "resolved")',
+        );
+      },
+    );
 
-    test('custom discovery stops at a reused ordinary callback source',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'custom discovery stops at a reused ordinary callback source',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Shell extends StatelessWidget {
@@ -679,33 +696,38 @@ Object x() => Shell(
       ],
     );
 ''',
-        catalogWith([
-          _entry(
-            'Shell',
-            [
-              prop('child', PropertyType.widget),
-              prop('children', PropertyType.widgetList),
-            ],
-          ),
-          _entry(
-            'GestureDetector',
-            [
-              prop('onTap', PropertyType.event),
-              prop('child', PropertyType.widget),
-            ],
-          ),
-          _entry(
-            'Text',
-            [prop('text', PropertyType.string, positional: true)],
-          ),
-        ]),
-      );
-      const hiddenKey = 'package:restage_codegen/_e2e_probe.dart#HiddenAction';
+          catalogWith([
+            _entry(
+              'Shell',
+              [
+                prop('child', PropertyType.widget),
+                prop('children', PropertyType.widgetList),
+              ],
+            ),
+            _entry(
+              'GestureDetector',
+              [
+                prop('onTap', PropertyType.event),
+                prop('child', PropertyType.widget),
+              ],
+            ),
+            _entry(
+              'Text',
+              [prop('text', PropertyType.string, positional: true)],
+            ),
+          ]),
+        );
+        const hiddenKey =
+            'package:restage_codegen/_e2e_probe.dart#HiddenAction';
 
-      expect(result.issues, isNotEmpty);
-      expect(result.classification.classifications, isNot(contains(hiddenKey)));
-      expect(result.classification.blueprints, isNot(contains(hiddenKey)));
-    });
+        expect(result.issues, isNotEmpty);
+        expect(
+          result.classification.classifications,
+          isNot(contains(hiddenKey)),
+        );
+        expect(result.classification.blueprints, isNot(contains(hiddenKey)));
+      },
+    );
 
     test('a mixed receiver creates no partial custom entry points', () async {
       final result = await _transpile(
@@ -841,8 +863,7 @@ Object x() => provider().action();
       expect(result.classification.blueprints, isEmpty);
     });
 
-    test(
-        'a parameterless own helper inlines its body, round-tripping to the '
+    test('a parameterless own helper inlines its body, round-tripping to the '
         'same blob as the hand-inlined composition', () async {
       final result = await _transpile(
         '''
@@ -894,10 +915,11 @@ Object x() => AcmeCard();
     });
 
     test(
-        'a same-library top-level helper function inlines its body at the call '
-        'site, round-tripping to the hand-inlined composition', () async {
-      final result = await _transpile(
-        '''
+      'a same-library top-level helper function inlines its body at the call '
+      'site, round-tripping to the hand-inlined composition',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -927,22 +949,24 @@ class AcmeCard extends StatelessWidget {
 
 Object x() => AcmeCard();
 ''',
-        catalogWith([
-          _entry('Container', [prop('child', PropertyType.widget)]),
-          _entry('Text', [prop('text', PropertyType.string, positional: true)]),
-        ]),
-      );
+          catalogWith([
+            _entry('Container', [prop('child', PropertyType.widget)]),
+            _entry('Text', [
+              prop('text', PropertyType.string, positional: true),
+            ]),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      final card = _widget(result.decoded!, 'AcmeCard');
-      expect(card.name, 'Container');
-      final text = card.arguments['child']! as fmt.ConstructorCall;
-      expect(text.name, 'Text');
-      expect(text.arguments['text'], 'hi');
-    });
+        expect(result.issues, isEmpty);
+        final card = _widget(result.decoded!, 'AcmeCard');
+        expect(card.name, 'Container');
+        final text = card.arguments['child']! as fmt.ConstructorCall;
+        expect(text.name, 'Text');
+        expect(text.arguments['text'], 'hi');
+      },
+    );
 
-    test(
-        'a same-library static helper method inlines its body at the call '
+    test('a same-library static helper method inlines its body at the call '
         'site, binding the argument 1:1', () async {
       final result = await _transpile(
         '''
@@ -992,8 +1016,7 @@ Object x() => AcmeCard();
       expect(text.arguments['text'], 'Pro');
     });
 
-    test(
-        'a parameterized own helper binds its argument 1:1 and inlines, '
+    test('a parameterized own helper binds its argument 1:1 and inlines, '
         'round-tripping like the hand-inlined composition', () async {
       final result = await _transpile(
         '''
@@ -1042,8 +1065,7 @@ Object x() => AcmeCard();
       expect(textCall.arguments['text'], 'Pro');
     });
 
-    test(
-        'a parameterized helper bound to a constructor parameter lowers the '
+    test('a parameterized helper bound to a constructor parameter lowers the '
         'parameter to an args. reference', () async {
       final result = await _transpile(
         '''
@@ -1096,8 +1118,7 @@ Object x() => AcmeCard(label: "Pro");
       expect(_widget(result.decoded!, 'Paywall').arguments['label'], 'Pro');
     });
 
-    test(
-        'a widget-valued final local binding inlines its initializer at the '
+    test('a widget-valued final local binding inlines its initializer at the '
         'use site', () async {
       final result = await _transpile(
         '''
@@ -1145,8 +1166,7 @@ Object x() => AcmeCard();
       expect(text.arguments['text'], 'hi');
     });
 
-    test(
-        'a final local shadowing a constructor parameter resolves-through to '
+    test('a final local shadowing a constructor parameter resolves-through to '
         'the local, not an args. reference', () async {
       // The element-keyed resolve-through must beat the name-based args/state
       // lowering — a local `child` shadowing the constructor param `child`
@@ -1200,12 +1220,13 @@ Object x() => AcmeCard(child: Text("passed"));
       expect(inner.arguments['text'], 'local');
     });
 
-    test('a final local cannot expose a const list to LinearGradient stops',
-        () async {
-      final result = await _transpile(
-        _constStopsFixture(
-          memberSource: '',
-          buildSource: '''
+    test(
+      'a final local cannot expose a const list to LinearGradient stops',
+      () async {
+        final result = await _transpile(
+          _constStopsFixture(
+            memberSource: '',
+            buildSource: '''
   Widget build(BuildContext context) {
     final stops = kStops;
     return Box(
@@ -1213,26 +1234,28 @@ Object x() => AcmeCard(child: Text("passed"));
     );
   }
 ''',
-        ),
-        _gradientBoxCatalog(),
-        rootPackage: 'apps_examples',
-      );
-      final definition = result.translation.widgetDefinitions['AcmeGradient'];
-      expect(definition, isNull);
-      expect(result.decoded, isNull);
-      expect(
-        result.issues.map((i) => i.code),
-        [IssueCode.unrecognizedMethodCall],
-      );
-      expect(result.issues.single.location, isNotEmpty);
-    });
+          ),
+          _gradientBoxCatalog(),
+          rootPackage: 'apps_examples',
+        );
+        final definition = result.translation.widgetDefinitions['AcmeGradient'];
+        expect(definition, isNull);
+        expect(result.decoded, isNull);
+        expect(
+          result.issues.map((i) => i.code),
+          [IssueCode.unrecognizedMethodCall],
+        );
+        expect(result.issues.single.location, isNotEmpty);
+      },
+    );
 
-    test('a final local cannot expose a const list to RadialGradient stops',
-        () async {
-      final result = await _transpile(
-        _constStopsFixture(
-          memberSource: '',
-          buildSource: '''
+    test(
+      'a final local cannot expose a const list to RadialGradient stops',
+      () async {
+        final result = await _transpile(
+          _constStopsFixture(
+            memberSource: '',
+            buildSource: '''
   Widget build(BuildContext context) {
     final stops = kStops;
     return Box(
@@ -1240,105 +1263,118 @@ Object x() => AcmeCard(child: Text("passed"));
     );
   }
 ''',
-        ),
-        _gradientBoxCatalog(),
-        rootPackage: 'apps_examples',
-      );
-      final definition = result.translation.widgetDefinitions['AcmeGradient'];
-      expect(definition, isNull);
-      expect(result.decoded, isNull);
-      expect(
-        result.issues.map((i) => i.code),
-        [IssueCode.unrecognizedMethodCall],
-      );
-      expect(result.issues.single.location, isNotEmpty);
-    });
+          ),
+          _gradientBoxCatalog(),
+          rootPackage: 'apps_examples',
+        );
+        final definition = result.translation.widgetDefinitions['AcmeGradient'];
+        expect(definition, isNull);
+        expect(result.decoded, isNull);
+        expect(
+          result.issues.map((i) => i.code),
+          [IssueCode.unrecognizedMethodCall],
+        );
+        expect(result.issues.single.location, isNotEmpty);
+      },
+    );
 
-    test('a helper parameter cannot expose a const list to LinearGradient',
-        () async {
-      final result = await _transpile(
-        _constStopsFixture(
-          memberSource: '''
+    test(
+      'a helper parameter cannot expose a const list to LinearGradient',
+      () async {
+        final result = await _transpile(
+          _constStopsFixture(
+            memberSource: '''
   Gradient gradient(List<double> stops) =>
       LinearGradient(colors: kColors, stops: stops);
 ''',
-          buildSource: '''
+            buildSource: '''
   Widget build(BuildContext context) =>
       Box(gradient: gradient(kStops));
 ''',
-        ),
-        _gradientBoxCatalog(),
-        rootPackage: 'apps_examples',
-      );
-      final definition = result.translation.widgetDefinitions['AcmeGradient'];
-      expect(definition, isNull);
-      expect(result.decoded, isNull);
-      expect(
-        result.issues.map((i) => i.code),
-        [IssueCode.unrecognizedMethodCall],
-      );
-      expect(result.issues.single.location, isNotEmpty);
-    });
+          ),
+          _gradientBoxCatalog(),
+          rootPackage: 'apps_examples',
+        );
+        final definition = result.translation.widgetDefinitions['AcmeGradient'];
+        expect(definition, isNull);
+        expect(result.decoded, isNull);
+        expect(
+          result.issues.map((i) => i.code),
+          [IssueCode.unrecognizedMethodCall],
+        );
+        expect(result.issues.single.location, isNotEmpty);
+      },
+    );
 
-    test('a helper parameter cannot expose a const list to RadialGradient',
-        () async {
-      final result = await _transpile(
-        _constStopsFixture(
-          memberSource: '''
+    test(
+      'a helper parameter cannot expose a const list to RadialGradient',
+      () async {
+        final result = await _transpile(
+          _constStopsFixture(
+            memberSource: '''
   Gradient gradient(List<double> stops) =>
       RadialGradient(colors: kColors, stops: stops);
 ''',
-          buildSource: '''
+            buildSource: '''
   Widget build(BuildContext context) =>
       Box(gradient: gradient(kStops));
 ''',
-        ),
-        _gradientBoxCatalog(),
-        rootPackage: 'apps_examples',
-      );
-      final definition = result.translation.widgetDefinitions['AcmeGradient'];
-      expect(definition, isNull);
-      expect(result.decoded, isNull);
-      expect(
-        result.issues.map((i) => i.code),
-        [IssueCode.unrecognizedMethodCall],
-      );
-      expect(result.issues.single.location, isNotEmpty);
-    });
+          ),
+          _gradientBoxCatalog(),
+          rootPackage: 'apps_examples',
+        );
+        final definition = result.translation.widgetDefinitions['AcmeGradient'];
+        expect(definition, isNull);
+        expect(result.decoded, isNull);
+        expect(
+          result.issues.map((i) => i.code),
+          [IssueCode.unrecognizedMethodCall],
+        );
+        expect(result.issues.single.location, isNotEmpty);
+      },
+    );
 
-    test('a diagnosed generic source suppresses a nested LinearGradient',
-        () async {
-      await _expectNestedGradientChildRefusal(
-        'LinearGradient('
-        'colors: kColors, stops: true ? [0, 1] : Colors.teal)',
-        code: IssueCode.unrecognizedMethodCall,
-      );
-    });
+    test(
+      'a diagnosed generic source suppresses a nested LinearGradient',
+      () async {
+        await _expectNestedGradientChildRefusal(
+          'LinearGradient('
+          'colors: kColors, stops: true ? [0, 1] : Colors.teal)',
+          code: IssueCode.unrecognizedMethodCall,
+        );
+      },
+    );
 
-    test('a diagnosed generic source suppresses a nested RadialGradient',
-        () async {
-      await _expectNestedGradientChildRefusal(
-        'RadialGradient('
-        'colors: kColors, stops: true ? [0, 1] : Colors.teal)',
-        code: IssueCode.unrecognizedMethodCall,
-      );
-    });
+    test(
+      'a diagnosed generic source suppresses a nested RadialGradient',
+      () async {
+        await _expectNestedGradientChildRefusal(
+          'RadialGradient('
+          'colors: kColors, stops: true ? [0, 1] : Colors.teal)',
+          code: IssueCode.unrecognizedMethodCall,
+        );
+      },
+    );
 
-    test('a diagnosed list element suppresses a nested LinearGradient',
-        () async {
-      await _expectNestedGradientChildRefusal(
-        'LinearGradient(colors: kColors, stops: [0, Colors.teal])',
-        code: IssueCode.propertyValueTypeMismatch,
-      );
-    });
+    test(
+      'a diagnosed list element suppresses a nested LinearGradient',
+      () async {
+        await _expectNestedGradientChildRefusal(
+          'LinearGradient(colors: kColors, stops: [0, Colors.teal])',
+          code: IssueCode.propertyValueTypeMismatch,
+        );
+      },
+    );
 
-    test('a diagnosed list element suppresses a nested RadialGradient',
-        () async {
-      await _expectNestedGradientChildRefusal(
-        'RadialGradient(colors: kColors, stops: [0, Colors.teal])',
-        code: IssueCode.propertyValueTypeMismatch,
-      );
-    });
+    test(
+      'a diagnosed list element suppresses a nested RadialGradient',
+      () async {
+        await _expectNestedGradientChildRefusal(
+          'RadialGradient(colors: kColors, stops: [0, Colors.teal])',
+          code: IssueCode.propertyValueTypeMismatch,
+        );
+      },
+    );
 
     test('a final local list is double-coerced by LinearGradient', () async {
       final result = await _transpile(
@@ -1386,198 +1422,207 @@ Object x() => AcmeCard(child: Text("passed"));
       expect(definition, isNot(contains('stops: [0, 1]')));
     });
 
-    test('a helper argument list is double-coerced by LinearGradient',
-        () async {
-      final result = await _transpile(
-        _constStopsFixture(
-          memberSource: '''
+    test(
+      'a helper argument list is double-coerced by LinearGradient',
+      () async {
+        final result = await _transpile(
+          _constStopsFixture(
+            memberSource: '''
   Gradient gradient(List<double> stops) =>
       LinearGradient(colors: kColors, stops: stops);
 ''',
-          buildSource: '''
+            buildSource: '''
   Widget build(BuildContext context) =>
       Box(gradient: gradient([0, 1]));
 ''',
-        ),
-        _gradientBoxCatalog(),
-        rootPackage: 'apps_examples',
-      );
-      final definition = result.translation.widgetDefinitions['AcmeGradient'];
-      expect(result.issues, isEmpty);
-      expect(result.decoded, isNotNull);
-      expect(definition, contains('stops: [0.0, 1.0]'));
-      expect(definition, isNot(contains('stops: [0, 1]')));
-    });
+          ),
+          _gradientBoxCatalog(),
+          rootPackage: 'apps_examples',
+        );
+        final definition = result.translation.widgetDefinitions['AcmeGradient'];
+        expect(result.issues, isEmpty);
+        expect(result.decoded, isNotNull);
+        expect(definition, contains('stops: [0.0, 1.0]'));
+        expect(definition, isNot(contains('stops: [0, 1]')));
+      },
+    );
 
-    test('a helper argument list is double-coerced by RadialGradient',
-        () async {
-      final result = await _transpile(
-        _constStopsFixture(
-          memberSource: '''
+    test(
+      'a helper argument list is double-coerced by RadialGradient',
+      () async {
+        final result = await _transpile(
+          _constStopsFixture(
+            memberSource: '''
   Gradient gradient(List<double> stops) =>
       RadialGradient(colors: kColors, stops: stops);
 ''',
-          buildSource: '''
+            buildSource: '''
   Widget build(BuildContext context) =>
       Box(gradient: gradient([0, 1]));
 ''',
-        ),
-        _gradientBoxCatalog(),
-        rootPackage: 'apps_examples',
-      );
-      final definition = result.translation.widgetDefinitions['AcmeGradient'];
-      expect(result.issues, isEmpty);
-      expect(result.decoded, isNotNull);
-      expect(definition, contains('stops: [0.0, 1.0]'));
-      expect(definition, isNot(contains('stops: [0, 1]')));
-    });
+          ),
+          _gradientBoxCatalog(),
+          rootPackage: 'apps_examples',
+        );
+        final definition = result.translation.widgetDefinitions['AcmeGradient'];
+        expect(result.issues, isEmpty);
+        expect(result.decoded, isNotNull);
+        expect(definition, contains('stops: [0.0, 1.0]'));
+        expect(definition, isNot(contains('stops: [0, 1]')));
+      },
+    );
 
     for (final gradient in ['LinearGradient', 'RadialGradient']) {
-      test('$gradient validates a typed list through a helper and final local',
-          () async {
-        final matching = await _transpile(
-          _indirectColorListFixture(
-            gradient: gradient,
-            alternateType: 'Color',
-            helperType: 'Color',
-          ),
-          _gradientBoxCatalog(),
-          rootPackage: 'apps_examples',
-        );
-        expect(matching.issues, isEmpty);
-        expect(matching.decoded, isNotNull);
-        expect(
-          matching.translation.widgetDefinitions['AcmeGradient'],
-          contains(
-            'colors: switch args.flag { true: args.colors, '
-            'false: args.alternate }',
-          ),
-        );
+      test(
+        '$gradient validates a typed list through a helper and final local',
+        () async {
+          final matching = await _transpile(
+            _indirectColorListFixture(
+              gradient: gradient,
+              alternateType: 'Color',
+              helperType: 'Color',
+            ),
+            _gradientBoxCatalog(),
+            rootPackage: 'apps_examples',
+          );
+          expect(matching.issues, isEmpty);
+          expect(matching.decoded, isNotNull);
+          expect(
+            matching.translation.widgetDefinitions['AcmeGradient'],
+            contains(
+              'colors: switch args.flag { true: args.colors, '
+              'false: args.alternate }',
+            ),
+          );
 
-        final mismatched = await _transpile(
-          _indirectColorListFixture(
-            gradient: gradient,
-            alternateType: 'double',
-            helperType: 'Object',
-          ),
-          _gradientBoxCatalog(),
-          rootPackage: 'apps_examples',
-        );
-        expect(mismatched.decoded, isNull);
-        expect(
-          mismatched.translation.widgetDefinitions['AcmeGradient'],
-          isNull,
-        );
-        expect(
-          mismatched.issues.map((issue) => issue.code),
-          [IssueCode.propertyValueTypeMismatch],
-        );
-        expect(
-          mismatched.issues.single.message,
-          allOf(contains("'List<Object>'"), contains("'color' item decoder")),
-        );
-        expect(mismatched.issues.single.location, isNotEmpty);
-      });
+          final mismatched = await _transpile(
+            _indirectColorListFixture(
+              gradient: gradient,
+              alternateType: 'double',
+              helperType: 'Object',
+            ),
+            _gradientBoxCatalog(),
+            rootPackage: 'apps_examples',
+          );
+          expect(mismatched.decoded, isNull);
+          expect(
+            mismatched.translation.widgetDefinitions['AcmeGradient'],
+            isNull,
+          );
+          expect(
+            mismatched.issues.map((issue) => issue.code),
+            [IssueCode.propertyValueTypeMismatch],
+          );
+          expect(
+            mismatched.issues.single.message,
+            allOf(contains("'List<Object>'"), contains("'color' item decoder")),
+          );
+          expect(mismatched.issues.single.location, isNotEmpty);
+        },
+      );
     }
 
-    test('distinguishes every indirect list decoder by resolved item type',
-        () async {
-      final accepted = await _transpile(
-        _listDecoderFixture(
-          _listDecoderCases,
-          (entry) => entry.acceptedType,
-        ),
-        _listDecoderCatalog(_listDecoderCases),
-        rootPackage: 'apps_examples',
-      );
-      expect(accepted.issues, isEmpty);
-      expect(accepted.decoded, isNotNull);
-      final definition =
-          accepted.translation.widgetDefinitions['TypedListValues'];
-      for (final entry in _listDecoderCases) {
-        expect(
-          definition,
-          contains(
-            '${entry.property}: switch args.flag { '
-            'true: args.${entry.property}, '
-            'false: args.${entry.property}Alternate }',
-          ),
-          reason: entry.property,
-        );
-      }
-
-      for (final entry in _listDecoderCases) {
-        final siblings = await _transpile(
-          _listDecoderFixture([entry], (entry) => entry.siblingType),
-          _listDecoderCatalog([entry]),
-          rootPackage: 'apps_examples',
-        );
-        expect(siblings.decoded, isNull, reason: entry.property);
-        expect(siblings.issues, isNotEmpty, reason: entry.property);
-        expect(
-          siblings.issues.map((issue) => issue.code),
-          everyElement(IssueCode.propertyValueTypeMismatch),
-          reason: entry.property,
-        );
-        expect(
-          siblings.issues.map((issue) => issue.location),
-          everyElement(isNotEmpty),
-          reason: entry.property,
-        );
-      }
-
-      final lookalikeCases = _listDecoderCases
-          .where((entry) => entry.lookalikeType != null)
-          .toList();
-      for (final entry in lookalikeCases) {
-        final lookalikes = await _transpile(
+    test(
+      'distinguishes every indirect list decoder by resolved item type',
+      () async {
+        final accepted = await _transpile(
           _listDecoderFixture(
-            [entry],
-            (entry) => entry.lookalikeType!,
-            declareLookalikes: true,
+            _listDecoderCases,
+            (entry) => entry.acceptedType,
           ),
-          _listDecoderCatalog([entry]),
+          _listDecoderCatalog(_listDecoderCases),
           rootPackage: 'apps_examples',
         );
-        expect(lookalikes.decoded, isNull, reason: entry.property);
-        expect(lookalikes.issues, isNotEmpty, reason: entry.property);
-        expect(
-          lookalikes.issues.map((issue) => issue.code),
-          everyElement(IssueCode.propertyValueTypeMismatch),
-          reason: entry.property,
+        expect(accepted.issues, isEmpty);
+        expect(accepted.decoded, isNotNull);
+        final definition =
+            accepted.translation.widgetDefinitions['TypedListValues'];
+        for (final entry in _listDecoderCases) {
+          expect(
+            definition,
+            contains(
+              '${entry.property}: switch args.flag { '
+              'true: args.${entry.property}, '
+              'false: args.${entry.property}Alternate }',
+            ),
+            reason: entry.property,
+          );
+        }
+
+        for (final entry in _listDecoderCases) {
+          final siblings = await _transpile(
+            _listDecoderFixture([entry], (entry) => entry.siblingType),
+            _listDecoderCatalog([entry]),
+            rootPackage: 'apps_examples',
+          );
+          expect(siblings.decoded, isNull, reason: entry.property);
+          expect(siblings.issues, isNotEmpty, reason: entry.property);
+          expect(
+            siblings.issues.map((issue) => issue.code),
+            everyElement(IssueCode.propertyValueTypeMismatch),
+            reason: entry.property,
+          );
+          expect(
+            siblings.issues.map((issue) => issue.location),
+            everyElement(isNotEmpty),
+            reason: entry.property,
+          );
+        }
+
+        final lookalikeCases = _listDecoderCases
+            .where((entry) => entry.lookalikeType != null)
+            .toList();
+        for (final entry in lookalikeCases) {
+          final lookalikes = await _transpile(
+            _listDecoderFixture(
+              [entry],
+              (entry) => entry.lookalikeType!,
+              declareLookalikes: true,
+            ),
+            _listDecoderCatalog([entry]),
+            rootPackage: 'apps_examples',
+          );
+          expect(lookalikes.decoded, isNull, reason: entry.property);
+          expect(lookalikes.issues, isNotEmpty, reason: entry.property);
+          expect(
+            lookalikes.issues.map((issue) => issue.code),
+            everyElement(IssueCode.propertyValueTypeMismatch),
+            reason: entry.property,
+          );
+        }
+
+        final declared = await _transpile(
+          _declaredListFixture('ui.Shadow'),
+          _declaredListCatalog(),
+          rootPackage: 'apps_examples',
         );
-      }
+        expect(declared.issues, isEmpty);
+        expect(declared.decoded, isNotNull);
+        expect(
+          declared.translation.dsl,
+          contains(
+            'DeclaredListValue(values: switch true { true: [], false: [] })',
+          ),
+        );
 
-      final declared = await _transpile(
-        _declaredListFixture('ui.Shadow'),
-        _declaredListCatalog(),
-        rootPackage: 'apps_examples',
-      );
-      expect(declared.issues, isEmpty);
-      expect(declared.decoded, isNotNull);
-      expect(
-        declared.translation.dsl,
-        contains(
-          'DeclaredListValue(values: switch true { true: [], false: [] })',
-        ),
-      );
+        final unknown = await _transpile(
+          _declaredListFixture('UnknownValue', declareType: true),
+          _declaredListCatalog(),
+          rootPackage: 'apps_examples',
+        );
+        expect(unknown.decoded, isNull);
+        expect(
+          unknown.issues.map((issue) => issue.code),
+          [IssueCode.propertyValueTypeMismatch],
+        );
+      },
+    );
 
-      final unknown = await _transpile(
-        _declaredListFixture('UnknownValue', declareType: true),
-        _declaredListCatalog(),
-        rootPackage: 'apps_examples',
-      );
-      expect(unknown.decoded, isNull);
-      expect(
-        unknown.issues.map((issue) => issue.code),
-        [IssueCode.propertyValueTypeMismatch],
-      );
-    });
-
-    test('composition with constant-folding transpiles and round-trips',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'composition with constant-folding transpiles and round-trips',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 const double kGap = 16;
@@ -1601,20 +1646,20 @@ class AcmeGap extends StatelessWidget {
 
 Object x() => AcmeGap();
 ''',
-        catalogWith([
-          _entry('Box', [prop('size', PropertyType.real)]),
-        ]),
-      );
+          catalogWith([
+            _entry('Box', [prop('size', PropertyType.real)]),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      final gap = _widget(result.decoded!, 'AcmeGap');
-      expect(gap.name, 'Box');
-      // `kGap * 2` folded to a literal.
-      expect(gap.arguments['size'], 32.0);
-    });
+        expect(result.issues, isEmpty);
+        final gap = _widget(result.decoded!, 'AcmeGap');
+        expect(gap.name, 'Box');
+        // `kGap * 2` folded to a literal.
+        expect(gap.arguments['size'], 32.0);
+      },
+    );
 
-    test(
-        'a const local shadowing a constructor parameter folds to its value, '
+    test('a const local shadowing a constructor parameter folds to its value, '
         'not the args reference', () async {
       // A `const` local in build() whose name collides with a constructor
       // parameter must fold to the const value — NOT be mistaken for the
@@ -1660,10 +1705,11 @@ Object x() => AcmeBadge(label: "Pro");
       expect(badge.arguments['text'], 'gold');
     });
 
-    test('a custom widget inlines a platform-gated conditional element',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'a custom widget inlines a platform-gated conditional element',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Column extends StatelessWidget {
@@ -1698,48 +1744,50 @@ class AcmePlatformNote extends StatelessWidget {
 
 Object x() => AcmePlatformNote(verbose: true);
 ''',
-        catalogWith([
-          _entry(
-            'Column',
-            [prop('children', PropertyType.widgetList)],
-            rootPackage: 'apps_examples',
-          ),
-          _entry(
-            'Label',
-            [prop('text', PropertyType.string, required: true)],
-            rootPackage: 'apps_examples',
-          ),
-          _entry('SizedBox', [], rootPackage: 'apps_examples'),
-        ]),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith([
+            _entry(
+              'Column',
+              [prop('children', PropertyType.widgetList)],
+              rootPackage: 'apps_examples',
+            ),
+            _entry(
+              'Label',
+              [prop('text', PropertyType.string, required: true)],
+              rootPackage: 'apps_examples',
+            ),
+            _entry('SizedBox', [], rootPackage: 'apps_examples'),
+          ]),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
-      final classified = result.classification.classifications.values
-          .whereType<ComposableWidget>()
-          .single;
-      expect(
-        classified.requiredMechanisms,
-        containsAll([
-          InliningMechanism.conditionalElement,
-          InliningMechanism.themeAsData,
-        ]),
-      );
-      final note = _widget(result.decoded!, 'AcmePlatformNote');
-      final children = note.arguments['children']! as List<Object?>;
-      expect(children, hasLength(2));
-      final gate = children[1]! as fmt.Loop;
-      final outer = gate.input as fmt.Switch;
-      expect(
-        (outer.input as fmt.DataReference).parts,
-        ['device', 'platform'],
-      );
-    });
+        expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+        final classified = result.classification.classifications.values
+            .whereType<ComposableWidget>()
+            .single;
+        expect(
+          classified.requiredMechanisms,
+          containsAll([
+            InliningMechanism.conditionalElement,
+            InliningMechanism.themeAsData,
+          ]),
+        );
+        final note = _widget(result.decoded!, 'AcmePlatformNote');
+        final children = note.arguments['children']! as List<Object?>;
+        expect(children, hasLength(2));
+        final gate = children[1]! as fmt.Loop;
+        final outer = gate.input as fmt.Switch;
+        expect(
+          (outer.input as fmt.DataReference).parts,
+          ['device', 'platform'],
+        );
+      },
+    );
 
-    test('a custom widget inlines a brightness-gated conditional element',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'a custom widget inlines a brightness-gated conditional element',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Column extends StatelessWidget {
@@ -1779,48 +1827,50 @@ class AcmeNightNote extends StatelessWidget {
 
 Object x() => AcmeNightNote(dimmed: true);
 ''',
-        catalogWith([
-          _entry(
-            'Column',
-            [prop('children', PropertyType.widgetList)],
-            rootPackage: 'apps_examples',
-          ),
-          _entry(
-            'Label',
-            [prop('text', PropertyType.string, required: true)],
-            rootPackage: 'apps_examples',
-          ),
-          _entry('SizedBox', [], rootPackage: 'apps_examples'),
-        ]),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith([
+            _entry(
+              'Column',
+              [prop('children', PropertyType.widgetList)],
+              rootPackage: 'apps_examples',
+            ),
+            _entry(
+              'Label',
+              [prop('text', PropertyType.string, required: true)],
+              rootPackage: 'apps_examples',
+            ),
+            _entry('SizedBox', [], rootPackage: 'apps_examples'),
+          ]),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
-      final classified = result.classification.classifications.values
-          .whereType<ComposableWidget>()
-          .single;
-      expect(
-        classified.requiredMechanisms,
-        containsAll([
-          InliningMechanism.conditionalElement,
-          InliningMechanism.themeAsData,
-        ]),
-      );
-      final note = _widget(result.decoded!, 'AcmeNightNote');
-      final children = note.arguments['children']! as List<Object?>;
-      expect(children, hasLength(2));
-      final gate = children[1]! as fmt.Loop;
-      final outer = gate.input as fmt.Switch;
-      expect(
-        (outer.input as fmt.DataReference).parts,
-        ['theme', 'brightness'],
-      );
-    });
+        expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+        final classified = result.classification.classifications.values
+            .whereType<ComposableWidget>()
+            .single;
+        expect(
+          classified.requiredMechanisms,
+          containsAll([
+            InliningMechanism.conditionalElement,
+            InliningMechanism.themeAsData,
+          ]),
+        );
+        final note = _widget(result.decoded!, 'AcmeNightNote');
+        final children = note.arguments['children']! as List<Object?>;
+        expect(children, hasLength(2));
+        final gate = children[1]! as fmt.Loop;
+        final outer = gate.input as fmt.Switch;
+        expect(
+          (outer.input as fmt.DataReference).parts,
+          ['theme', 'brightness'],
+        );
+      },
+    );
 
-    test('an object-valued const local lowers through its initializer',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'an object-valued const local lowers through its initializer',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -1845,26 +1895,28 @@ class AcmeBrand extends StatelessWidget {
 
 Object x() => AcmeBrand();
 ''',
-        catalogWith([
-          _entry(
-            'Box',
-            [prop('color', PropertyType.color)],
-            rootPackage: 'apps_examples',
-          ),
-        ]),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith([
+            _entry(
+              'Box',
+              [prop('color', PropertyType.color)],
+              rootPackage: 'apps_examples',
+            ),
+          ]),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.issues, isEmpty);
-      final brand = _widget(result.decoded!, 'AcmeBrand');
-      expect(brand.name, 'Box');
-      expect(brand.arguments['color'], 0xFF112233);
-    });
+        expect(result.issues, isEmpty);
+        final brand = _widget(result.decoded!, 'AcmeBrand');
+        expect(brand.name, 'Box');
+        expect(brand.arguments['color'], 0xFF112233);
+      },
+    );
 
-    test('a custom widget composing another transpiles both definitions',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'a custom widget composing another transpiles both definitions',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Container extends StatelessWidget {
@@ -1903,26 +1955,29 @@ class AcmeCard extends StatelessWidget {
 
 Object x() => AcmeCard();
 ''',
-        catalogWith([
-          _entry('Container', [prop('child', PropertyType.widget)]),
-          _entry('Text', [prop('text', PropertyType.string, positional: true)]),
-        ]),
-      );
+          catalogWith([
+            _entry('Container', [prop('child', PropertyType.widget)]),
+            _entry('Text', [
+              prop('text', PropertyType.string, positional: true),
+            ]),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      final decoded = result.decoded!;
-      // Both composed custom widgets emit a definition, alongside the paywall.
-      expect(
-        decoded.widgets.map((w) => w.name),
-        containsAll(['AcmeCard', 'AcmePill', 'Paywall']),
-      );
-      // AcmeCard's body references the nested custom widget by name.
-      final card = _widget(decoded, 'AcmeCard');
-      expect(card.name, 'Container');
-      final nested = card.arguments['child'];
-      expect(nested, isA<fmt.ConstructorCall>());
-      expect((nested! as fmt.ConstructorCall).name, 'AcmePill');
-    });
+        expect(result.issues, isEmpty);
+        final decoded = result.decoded!;
+        // Both composed custom widgets emit a definition, alongside the paywall.
+        expect(
+          decoded.widgets.map((w) => w.name),
+          containsAll(['AcmeCard', 'AcmePill', 'Paywall']),
+        );
+        // AcmeCard's body references the nested custom widget by name.
+        final card = _widget(decoded, 'AcmeCard');
+        expect(card.name, 'Container');
+        final nested = card.arguments['child'];
+        expect(nested, isA<fmt.ConstructorCall>());
+        expect((nested! as fmt.ConstructorCall).name, 'AcmePill');
+      },
+    );
 
     test('a numeric argument is coerced to a double literal', () async {
       final result = await _transpile(
@@ -1961,16 +2016,16 @@ Object x() => AcmeBox(gap: 12);
     });
 
     test(
-        'a Theme.of(c).colorScheme.primary read transpiles to a '
-        'data.theme.colorScheme.primary reference in the emitted blob',
-        () async {
-      // Mounts the fixture under `apps_examples` so `Theme` resolves to
-      // the real `package:flutter/material.dart` class — the strict theme-
-      // read recognizer requires a `package:flutter/` library URI. Uses a
-      // local `Box` widget for catalog matching (decoupled from Flutter's
-      // private `Container` library path).
-      final result = await _transpile(
-        '''
+      'a Theme.of(c).colorScheme.primary read transpiles to a '
+      'data.theme.colorScheme.primary reference in the emitted blob',
+      () async {
+        // Mounts the fixture under `apps_examples` so `Theme` resolves to
+        // the real `package:flutter/material.dart` class — the strict theme-
+        // read recognizer requires a `package:flutter/` library URI. Uses a
+        // local `Box` widget for catalog matching (decoupled from Flutter's
+        // private `Container` library path).
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -1995,36 +2050,36 @@ class AcmeBanner extends StatelessWidget {
 
 Object x() => const AcmeBanner();
 ''',
-        catalogWith([
-          _entry(
-            'Box',
-            [prop('color', PropertyType.color)],
-            rootPackage: 'apps_examples',
-          ),
-        ]),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith([
+            _entry(
+              'Box',
+              [prop('color', PropertyType.color)],
+              rootPackage: 'apps_examples',
+            ),
+          ]),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.issues, isEmpty);
-      final decoded = result.decoded!;
-      expect(
-        decoded.widgets.map((w) => w.name),
-        containsAll(['AcmeBanner', 'Paywall']),
-      );
-      // The inlined widget definition's body references the data.theme.*
-      // namespace at the contract path the SDK publishes.
-      final banner = _widget(decoded, 'AcmeBanner');
-      expect(banner.name, 'Box');
-      final color = banner.arguments['color'];
-      expect(color, isA<fmt.DataReference>());
-      expect(
-        (color! as fmt.DataReference).parts,
-        ['theme', 'colorScheme', 'primary'],
-      );
-    });
+        expect(result.issues, isEmpty);
+        final decoded = result.decoded!;
+        expect(
+          decoded.widgets.map((w) => w.name),
+          containsAll(['AcmeBanner', 'Paywall']),
+        );
+        // The inlined widget definition's body references the data.theme.*
+        // namespace at the contract path the SDK publishes.
+        final banner = _widget(decoded, 'AcmeBanner');
+        expect(banner.name, 'Box');
+        final color = banner.arguments['color'];
+        expect(color, isA<fmt.DataReference>());
+        expect(
+          (color! as fmt.DataReference).parts,
+          ['theme', 'colorScheme', 'primary'],
+        );
+      },
+    );
 
-    test(
-        'a final local bound to an Alignment lowers through a special-cased '
+    test('a final local bound to an Alignment lowers through a special-cased '
         'alignmentXY slot (resolve-through reaches the slot path)', () async {
       // Regression: the alignmentXY slot path (`_translateSlotValue`) calls
       // `_alignmentGeometry` directly, bypassing `_translate`'s
@@ -2082,16 +2137,16 @@ Object x() => const AcmeAligned();
     });
 
     test(
-        'a final local bound to a LinearBorderEdge lowers through a nested '
-        'LinearBorder edge (resolve-through reaches _linearBorderEdge)',
-        () async {
-      // `_linearBorderEdge` dispatches on the RAW expr shape (the
-      // `LinearBorderEdge(...)` ctor) and diagnoses directly (no `_translate`
-      // fallback), so a `final` local bound to a `LinearBorderEdge` used as a
-      // nested edge must resolve-through here — otherwise it over-claims
-      // (classifier inlinable, translator an `unrecognizedMethodCall`).
-      final result = await _transpile(
-        '''
+      'a final local bound to a LinearBorderEdge lowers through a nested '
+      'LinearBorder edge (resolve-through reaches _linearBorderEdge)',
+      () async {
+        // `_linearBorderEdge` dispatches on the RAW expr shape (the
+        // `LinearBorderEdge(...)` ctor) and diagnoses directly (no `_translate`
+        // fallback), so a `final` local bound to a `LinearBorderEdge` used as a
+        // nested edge must resolve-through here — otherwise it over-claims
+        // (classifier inlinable, translator an `unrecognizedMethodCall`).
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -2119,39 +2174,40 @@ class AcmeShaped extends StatelessWidget {
 
 Object x() => const AcmeShaped();
 ''',
-        catalogWith(
-          [
-            _entry(
-              'Box',
-              [
-                prop('shape', PropertyType.shapeBorder),
-                prop('child', PropertyType.widget),
-              ],
-              rootPackage: 'apps_examples',
-            ),
-          ],
-          structuredTypes: [
-            structuredEntry('LinearBorder'),
-            structuredEntry('LinearBorderEdge'),
-          ],
-        ),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith(
+            [
+              _entry(
+                'Box',
+                [
+                  prop('shape', PropertyType.shapeBorder),
+                  prop('child', PropertyType.widget),
+                ],
+                rootPackage: 'apps_examples',
+              ),
+            ],
+            structuredTypes: [
+              structuredEntry('LinearBorder'),
+              structuredEntry('LinearBorderEdge'),
+            ],
+          ),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.issues, isEmpty);
-      final shaped = _widget(result.decoded!, 'AcmeShaped');
-      expect(shaped.name, 'Box');
-      final shape = shaped.arguments['shape']! as Map<Object?, Object?>;
-      // The nested bound LinearBorderEdge resolved through to the edge map.
-      expect(shape['start'], {'size': 0.5, 'alignment': 1.0});
-    });
+        expect(result.issues, isEmpty);
+        final shaped = _widget(result.decoded!, 'AcmeShaped');
+        expect(shaped.name, 'Box');
+        final shape = shaped.arguments['shape']! as Map<Object?, Object?>;
+        // The nested bound LinearBorderEdge resolved through to the edge map.
+        expect(shape['start'], {'size': 0.5, 'alignment': 1.0});
+      },
+    );
 
     test(
-        'a whole-style theme read into a slot with no style decomposition '
-        'transpiles to a themeReadOutOfContract diagnostic, no blob emitted',
-        () async {
-      final result = await _transpile(
-        '''
+      'a whole-style theme read into a slot with no style decomposition '
+      'transpiles to a themeReadOutOfContract diagnostic, no blob emitted',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -2176,25 +2232,25 @@ class AcmeBanner extends StatelessWidget {
 
 Object x() => const AcmeBanner();
 ''',
-        catalogWith([
-          _entry(
-            'Box',
-            [prop('style', PropertyType.string)],
-            rootPackage: 'apps_examples',
-          ),
-        ]),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith([
+            _entry(
+              'Box',
+              [prop('style', PropertyType.string)],
+              rootPackage: 'apps_examples',
+            ),
+          ]),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.decoded, isNull);
-      expect(
-        result.issues.any((i) => i.code == IssueCode.themeReadOutOfContract),
-        isTrue,
-      );
-    });
+        expect(result.decoded, isNull);
+        expect(
+          result.issues.any((i) => i.code == IssueCode.themeReadOutOfContract),
+          isTrue,
+        );
+      },
+    );
 
-    test(
-        'a bound whole text-theme style decomposes into the flat style '
+    test('a bound whole text-theme style decomposes into the flat style '
         'properties', () async {
       final result = await _transpile(
         '''
@@ -2243,10 +2299,11 @@ Object x() => const AcmeHeading();
       }
     });
 
-    test('copyWith on a bound whole-style read overrides the fields it names',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'copyWith on a bound whole-style read overrides the fields it names',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Label extends StatelessWidget {
@@ -2282,50 +2339,53 @@ class AcmeHeading extends StatelessWidget {
 
 Object x() => const AcmeHeading();
 ''',
-        _styleDecomposeCatalog(),
-        rootPackage: 'apps_examples',
-      );
-
-      expect(result.issues, isEmpty);
-      // copyWith on a theme style must inline the widget, not defer it.
-      const headingKey = 'package:apps_examples/_e2e_probe.dart#AcmeHeading';
-      final classified = result.classification.classifications[headingKey];
-      expect(classified, isA<ComposableWidget>());
-      expect(
-        (classified! as ComposableWidget).requiredMechanisms,
-        {InliningMechanism.themeAsData},
-      );
-      expect(result.classification.blueprints, contains(headingKey));
-
-      final heading = _widget(result.decoded!, 'AcmeHeading');
-      expect(heading.name, 'Label');
-      // A colour-role theme read as the override lands as its own binding.
-      final color = heading.arguments['color'];
-      expect(color, isA<fmt.DataReference>());
-      expect(
-        (color! as fmt.DataReference).parts,
-        ['theme', 'colorScheme', 'primary'],
-      );
-      expect(heading.arguments['fontFamily'], 'Charter');
-      expect(heading.arguments['fontWeight'], 'w700');
-      expect(heading.arguments['height'], 1.4);
-      // Unnamed fields stay bound to the style, the font style among them.
-      const overridden = {'color', 'fontFamily', 'fontWeight', 'height'};
-      for (final field
-          in _publishedStyleFields.where((f) => !overridden.contains(f))) {
-        final value = heading.arguments[field];
-        expect(value, isA<fmt.DataReference>(), reason: field);
-        expect(
-          (value! as fmt.DataReference).parts,
-          ['theme', 'textTheme', 'titleLarge', field],
+          _styleDecomposeCatalog(),
+          rootPackage: 'apps_examples',
         );
-      }
-    });
 
-    test('copyWith naming a field the theme style does not carry is refused',
-        () async {
-      final result = await _transpile(
-        '''
+        expect(result.issues, isEmpty);
+        // copyWith on a theme style must inline the widget, not defer it.
+        const headingKey = 'package:apps_examples/_e2e_probe.dart#AcmeHeading';
+        final classified = result.classification.classifications[headingKey];
+        expect(classified, isA<ComposableWidget>());
+        expect(
+          (classified! as ComposableWidget).requiredMechanisms,
+          {InliningMechanism.themeAsData},
+        );
+        expect(result.classification.blueprints, contains(headingKey));
+
+        final heading = _widget(result.decoded!, 'AcmeHeading');
+        expect(heading.name, 'Label');
+        // A colour-role theme read as the override lands as its own binding.
+        final color = heading.arguments['color'];
+        expect(color, isA<fmt.DataReference>());
+        expect(
+          (color! as fmt.DataReference).parts,
+          ['theme', 'colorScheme', 'primary'],
+        );
+        expect(heading.arguments['fontFamily'], 'Charter');
+        expect(heading.arguments['fontWeight'], 'w700');
+        expect(heading.arguments['height'], 1.4);
+        // Unnamed fields stay bound to the style, the font style among them.
+        const overridden = {'color', 'fontFamily', 'fontWeight', 'height'};
+        for (final field in _publishedStyleFields.where(
+          (f) => !overridden.contains(f),
+        )) {
+          final value = heading.arguments[field];
+          expect(value, isA<fmt.DataReference>(), reason: field);
+          expect(
+            (value! as fmt.DataReference).parts,
+            ['theme', 'textTheme', 'titleLarge', field],
+          );
+        }
+      },
+    );
+
+    test(
+      'copyWith naming a field the theme style does not carry is refused',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Label extends StatelessWidget {
@@ -2356,26 +2416,27 @@ class AcmeHeading extends StatelessWidget {
 
 Object x() => const AcmeHeading();
 ''',
-        _styleDecomposeCatalog(),
-        rootPackage: 'apps_examples',
-      );
+          _styleDecomposeCatalog(),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.decoded, isNull);
-      final refusal = result.issues.singleWhere(
-        (i) => i.code == IssueCode.themeReadOutOfContract,
-      );
-      expect(refusal.message, contains('inherit'));
-      for (final field in _publishedStyleFields) {
-        expect(refusal.message, contains(field), reason: field);
-      }
-    });
+        expect(result.decoded, isNull);
+        final refusal = result.issues.singleWhere(
+          (i) => i.code == IssueCode.themeReadOutOfContract,
+        );
+        expect(refusal.message, contains('inherit'));
+        for (final field in _publishedStyleFields) {
+          expect(refusal.message, contains(field), reason: field);
+        }
+      },
+    );
 
     test(
-        'a `final cs = Theme.of(c).colorScheme` local resolves through: '
-        'cs.primary lowers to data.theme.colorScheme.primary (rung 2)',
-        () async {
-      final result = await _transpile(
-        '''
+      'a `final cs = Theme.of(c).colorScheme` local resolves through: '
+      'cs.primary lowers to data.theme.colorScheme.primary (rung 2)',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -2402,31 +2463,30 @@ class AcmeBanner extends StatelessWidget {
 
 Object x() => const AcmeBanner();
 ''',
-        catalogWith([
-          _entry(
-            'Box',
-            [prop('color', PropertyType.color)],
-            rootPackage: 'apps_examples',
-          ),
-        ]),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith([
+            _entry(
+              'Box',
+              [prop('color', PropertyType.color)],
+              rootPackage: 'apps_examples',
+            ),
+          ]),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.issues, isEmpty);
-      final banner = _widget(result.decoded!, 'AcmeBanner');
-      expect(banner.name, 'Box');
-      final color = banner.arguments['color'];
-      expect(color, isA<fmt.DataReference>());
-      expect(
-        (color! as fmt.DataReference).parts,
-        ['theme', 'colorScheme', 'primary'],
-      );
-    });
+        expect(result.issues, isEmpty);
+        final banner = _widget(result.decoded!, 'AcmeBanner');
+        expect(banner.name, 'Box');
+        final color = banner.arguments['color'];
+        expect(color, isA<fmt.DataReference>());
+        expect(
+          (color! as fmt.DataReference).parts,
+          ['theme', 'colorScheme', 'primary'],
+        );
+      },
+    );
 
-    test(
-        'the slot validator sees a bound-chain theme fallback: a color-kind '
-        'read in a length slot is caught (propertyValueTypeMismatch)',
-        () async {
+    test('the slot validator sees a bound-chain theme fallback: a color-kind '
+        'read in a length slot is caught (propertyValueTypeMismatch)', () async {
       // A PropertyAccess-only validator would silently skip a bound-chain
       // fallback (`cs.primary` is a PrefixedIdentifier) and bypass the kind
       // check — this negative pins that the binding-aware recognizer is routed
@@ -2477,10 +2537,11 @@ Object x() => const AcmeBanner();
     });
 
     test(
-        'an unfollowable theme-local use defers (out-of-contract, not silent): '
-        'passing the whole colorScheme to a color slot', () async {
-      final result = await _transpile(
-        '''
+      'an unfollowable theme-local use defers (out-of-contract, not silent): '
+      'passing the whole colorScheme to a color slot',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -2507,28 +2568,28 @@ class AcmeBanner extends StatelessWidget {
 
 Object x() => const AcmeBanner();
 ''',
-        catalogWith([
-          _entry(
-            'Box',
-            [prop('color', PropertyType.color)],
-            rootPackage: 'apps_examples',
-          ),
-        ]),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith([
+            _entry(
+              'Box',
+              [prop('color', PropertyType.color)],
+              rootPackage: 'apps_examples',
+            ),
+          ]),
+          rootPackage: 'apps_examples',
+        );
 
-      // `cs` is the whole ColorScheme (path 'colorScheme', not a leaf role) —
-      // it resolves through but is out of the published contract, a clean
-      // diagnosed defer rather than a silent-wrong blob.
-      expect(result.decoded, isNull);
-      expect(
-        result.issues.any((i) => i.code == IssueCode.themeReadOutOfContract),
-        isTrue,
-      );
-    });
+        // `cs` is the whole ColorScheme (path 'colorScheme', not a leaf role) —
+        // it resolves through but is out of the published contract, a clean
+        // diagnosed defer rather than a silent-wrong blob.
+        expect(result.decoded, isNull);
+        expect(
+          result.issues.any((i) => i.code == IssueCode.themeReadOutOfContract),
+          isTrue,
+        );
+      },
+    );
 
-    test(
-        'an optional `color ?? scheme.primary` property inlines: the body '
+    test('an optional `color ?? scheme.primary` property inlines: the body '
         'reads args.color and the omitting call site is completed with the '
         'fallback (c1 + rung 2)', () async {
       final result = await _transpile(
@@ -2589,10 +2650,11 @@ Object x() => const AcmeBanner();
       );
     });
 
-    test('a bound text-theme local reads through a null-aware field access',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'a bound text-theme local reads through a null-aware field access',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -2619,27 +2681,27 @@ class AcmeGap extends StatelessWidget {
 
 Object x() => const AcmeGap();
 ''',
-        catalogWith([
-          _entry(
-            'Box',
-            [prop('width', PropertyType.length)],
-            rootPackage: 'apps_examples',
-          ),
-        ]),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith([
+            _entry(
+              'Box',
+              [prop('width', PropertyType.length)],
+              rootPackage: 'apps_examples',
+            ),
+          ]),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.issues, isEmpty);
-      final width = _widget(result.decoded!, 'AcmeGap').arguments['width'];
-      expect(width, isA<fmt.DataReference>());
-      expect(
-        (width! as fmt.DataReference).parts,
-        ['theme', 'textTheme', 'titleLarge', 'fontSize'],
-      );
-    });
+        expect(result.issues, isEmpty);
+        final width = _widget(result.decoded!, 'AcmeGap').arguments['width'];
+        expect(width, isA<fmt.DataReference>());
+        expect(
+          (width! as fmt.DataReference).parts,
+          ['theme', 'textTheme', 'titleLarge', 'fontSize'],
+        );
+      },
+    );
 
-    test(
-        'a device read through a bound `final` local inlines to a '
+    test('a device read through a bound `final` local inlines to a '
         'data.device reference', () async {
       final result = await _transpile(
         '''
@@ -2699,8 +2761,7 @@ class Box extends StatelessWidget {
 }
 ''';
 
-    test(
-        'completion row 1: an omitted property with a constructor default '
+    test('completion row 1: an omitted property with a constructor default '
         'emits the default (the `??` never fires), NOT the fallback', () async {
       final result = await _transpile(
         '''
@@ -2729,8 +2790,7 @@ Object x() => const Meter();
       expect(_widget(result.decoded!, 'Paywall').arguments['width'], 4.0);
     });
 
-    test(
-        'completion row 2: an omitted property with no default emits the '
+    test('completion row 2: an omitted property with no default emits the '
         'fallback', () async {
       final result = await _transpile(
         '''
@@ -2756,8 +2816,7 @@ Object x() => const Meter();
       expect(_widget(result.decoded!, 'Paywall').arguments['width'], 8.0);
     });
 
-    test(
-        'completion row 3: an explicit `null` fires the `??` and emits the '
+    test('completion row 3: an explicit `null` fires the `??` and emits the '
         'fallback (distinct from an omitted default)', () async {
       final result = await _transpile(
         '''
@@ -2783,10 +2842,11 @@ Object x() => const Meter(width: null);
       expect(_widget(result.decoded!, 'Paywall').arguments['width'], 8.0);
     });
 
-    test('completion row 4: a passed value is used unchanged, NOT the fallback',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'completion row 4: a passed value is used unchanged, NOT the fallback',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 $meterBox
@@ -2800,17 +2860,17 @@ class Meter extends StatelessWidget {
 
 Object x() => const Meter(width: 2.0);
 ''',
-        catalogWith([
-          _entry('Box', [prop('width', PropertyType.length)]),
-        ]),
-      );
+          catalogWith([
+            _entry('Box', [prop('width', PropertyType.length)]),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      expect(_widget(result.decoded!, 'Paywall').arguments['width'], 2.0);
-    });
+        expect(result.issues, isEmpty);
+        expect(_widget(result.decoded!, 'Paywall').arguments['width'], 2.0);
+      },
+    );
 
-    test(
-        'gate 3: a runtime-nullable passed value to a coalesced property '
+    test('gate 3: a runtime-nullable passed value to a coalesced property '
         'defers (the fallback would be lost), never a silent blob', () async {
       final result = await _transpile(
         '''
@@ -2841,14 +2901,14 @@ Object x() => const Outer();
 
       expect(result.decoded, isNull);
       expect(
-        result.issues
-            .any((i) => i.code == IssueCode.customWidgetUnsupportedReducible),
+        result.issues.any(
+          (i) => i.code == IssueCode.customWidgetUnsupportedReducible,
+        ),
         isTrue,
       );
     });
 
-    test(
-        'gate 1: a property read both directly and coalesced defers '
+    test('gate 1: a property read both directly and coalesced defers '
         '(it cannot be completed consistently)', () async {
       final result = await _transpile(
         '''
@@ -2885,10 +2945,8 @@ Object x() => const Meter();
       );
     });
 
-    test(
-        'a framework FontWeight.<member> static-const lowers to its enum '
-        'string and transpiles through the classified path end-to-end',
-        () async {
+    test('a framework FontWeight.<member> static-const lowers to its enum '
+        'string and transpiles through the classified path end-to-end', () async {
       // Mounted under apps_examples so `FontWeight` resolves to the real
       // package:flutter class — the element gate (look-alike-safe) requires it.
       final result = await _transpile(
@@ -2934,8 +2992,7 @@ Object x() => const Heading();
       expect(_widget(result.decoded!, 'Heading').arguments['weight'], 'w600');
     });
 
-    test(
-        'a framework FontWeight alias (.bold) canonicalises to its wN name '
+    test('a framework FontWeight alias (.bold) canonicalises to its wN name '
         'through the classified path end-to-end', () async {
       // `FontWeight.bold` aliases `w700`; the bare alias name `"bold"` is not
       // in `FontWeight.values[].name`, so without canonicalisation the decoder
@@ -2979,8 +3036,7 @@ Object x() => const Heading();
       expect(_widget(result.decoded!, 'Heading').arguments['weight'], 'w700');
     });
 
-    test(
-        'a custom FontWeight look-alike (a non-Flutter class) defers — '
+    test('a custom FontWeight look-alike (a non-Flutter class) defers — '
         'no enum string is emitted (element-gated)', () async {
       final result = await _transpile(
         '''
@@ -3029,10 +3085,8 @@ Object x() => const Heading();
       expect(result.issues, isNotEmpty);
     });
 
-    test(
-        'a framework TextDecoration.<member> static-const lowers to its enum '
-        'string and transpiles through the classified path end-to-end',
-        () async {
+    test('a framework TextDecoration.<member> static-const lowers to its enum '
+        'string and transpiles through the classified path end-to-end', () async {
       // `TextDecoration` is the same non-enum static-const-class shape as
       // FontWeight; the general framework enum-like-const recogniser classifies
       // it as composition and the translator lowers it to its member-name
@@ -3079,8 +3133,7 @@ Object x() => const Heading();
       );
     });
 
-    test(
-        'a custom TextDecoration look-alike (a non-Flutter class) defers — '
+    test('a custom TextDecoration look-alike (a non-Flutter class) defers — '
         'no enum string is emitted (element-gated)', () async {
       final result = await _transpile(
         '''
@@ -3129,8 +3182,7 @@ Object x() => const Heading();
       expect(result.issues, isNotEmpty);
     });
 
-    test(
-        'a framework Curves.<supported> member lowers to its name and '
+    test('a framework Curves.<supported> member lowers to its name and '
         'transpiles through the classified path end-to-end', () async {
       // `Curves` is the third framework enum-like-const class; a supported
       // member is composition and lowers to its name, which the curve decoder
@@ -3174,8 +3226,7 @@ Object x() => const Anim();
       expect(_widget(result.decoded!, 'Anim').arguments['curve'], 'easeInOut');
     });
 
-    test(
-        'a framework Curves.fastEaseInToSlowEaseOut (a real-but-unsupported '
+    test('a framework Curves.fastEaseInToSlowEaseOut (a real-but-unsupported '
         'member) DEFERS — never a silent drop', () async {
       // fastEaseInToSlowEaseOut is the ONE real Flutter Curves member outside
       // the supported decoder set. The custom-widget body path has NO curve
@@ -3223,8 +3274,7 @@ Object x() => const Anim();
       expect(result.issues, isNotEmpty);
     });
 
-    test(
-        'a custom Curves look-alike (a non-Flutter class) defers — no curve '
+    test('a custom Curves look-alike (a non-Flutter class) defers — no curve '
         'name is emitted (element-gated)', () async {
       final result = await _transpile(
         '''
@@ -3279,11 +3329,11 @@ Object x() => const Anim();
     //    recognises the curated (class, member) pairs so a custom-widget body
     //    using them inlines instead of deferring.
     test(
-        'the .zero structured-const siblings (EdgeInsets/Offset/BorderRadius) '
-        'lower to their structured values through the classified path',
-        () async {
-      final result = await _transpile(
-        '''
+      'the .zero structured-const siblings (EdgeInsets/Offset/BorderRadius) '
+      'lower to their structured values through the classified path',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -3313,27 +3363,32 @@ class Acme extends StatelessWidget {
 
 Object x() => const Acme();
 ''',
-        catalogWith([
-          _entry(
-            'Box',
-            [
-              prop('padding', PropertyType.edgeInsets),
-              prop('offset', PropertyType.offset),
-              prop('radius', PropertyType.real),
-            ],
-            rootPackage: 'apps_examples',
-          ),
-        ]),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith([
+            _entry(
+              'Box',
+              [
+                prop('padding', PropertyType.edgeInsets),
+                prop('offset', PropertyType.offset),
+                prop('radius', PropertyType.real),
+              ],
+              rootPackage: 'apps_examples',
+            ),
+          ]),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.issues, isEmpty);
-      final box = _widget(result.decoded!, 'Acme');
-      expect(box.arguments['padding'],
-          {'left': 0.0, 'top': 0.0, 'right': 0.0, 'bottom': 0.0});
-      expect(box.arguments['offset'], {'x': 0.0, 'y': 0.0});
-      expect(box.arguments['radius'], 0);
-    });
+        expect(result.issues, isEmpty);
+        final box = _widget(result.decoded!, 'Acme');
+        expect(box.arguments['padding'], {
+          'left': 0.0,
+          'top': 0.0,
+          'right': 0.0,
+          'bottom': 0.0,
+        });
+        expect(box.arguments['offset'], {'x': 0.0, 'y': 0.0});
+        expect(box.arguments['radius'], 0);
+      },
+    );
 
     test('directional radii require directional geometry slots', () async {
       final result = await _transpile(
@@ -3378,12 +3433,13 @@ Object x() => const Acme();
         rootPackage: 'apps_examples',
       );
 
-      expect(result.issues.map((issue) => issue.code),
-          contains(IssueCode.unrecognizedMethodCall));
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.unrecognizedMethodCall),
+      );
     });
 
-    test(
-        'a direct BorderSide.none inside a real shape border lowers to the '
+    test('a direct BorderSide.none inside a real shape border lowers to the '
         'framework none-map through the classified path', () async {
       final result = await _transpile(
         '''
@@ -3431,13 +3487,14 @@ Object x() => const Acme();
     });
 
     test(
-        'a bound `final s = BorderSide.none` resolves through the nested border '
-        'value-helper end-to-end (the carried obligation)', () async {
-      // BorderSide.none now classifies, so a bound local reaches
-      // `_borderSideExpression`'s resolve-through (landed defensively in the
-      // nested-value-helper cut) for the first time.
-      final result = await _transpile(
-        '''
+      'a bound `final s = BorderSide.none` resolves through the nested border '
+      'value-helper end-to-end (the carried obligation)',
+      () async {
+        // BorderSide.none now classifies, so a bound local reaches
+        // `_borderSideExpression`'s resolve-through (landed defensively in the
+        // nested-value-helper cut) for the first time.
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -3464,27 +3521,27 @@ class Acme extends StatelessWidget {
 
 Object x() => const Acme();
 ''',
-        catalogWith(
-          [
-            _entry(
-              'Box',
-              [prop('shape', PropertyType.shapeBorder)],
-              rootPackage: 'apps_examples',
-            ),
-          ],
-          structuredTypes: [structuredEntry('RoundedRectangleBorder')],
-        ),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith(
+            [
+              _entry(
+                'Box',
+                [prop('shape', PropertyType.shapeBorder)],
+                rootPackage: 'apps_examples',
+              ),
+            ],
+            structuredTypes: [structuredEntry('RoundedRectangleBorder')],
+          ),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.issues, isEmpty);
-      final box = _widget(result.decoded!, 'Acme');
-      final shape = box.arguments['shape']! as Map<Object?, Object?>;
-      expect(shape['side'], {'width': 0.0, 'style': 'none'});
-    });
+        expect(result.issues, isEmpty);
+        final box = _widget(result.decoded!, 'Acme');
+        final shape = box.arguments['shape']! as Map<Object?, Object?>;
+        expect(shape['side'], {'width': 0.0, 'style': 'none'});
+      },
+    );
 
-    test(
-        'a custom EdgeInsets.zero look-alike (a non-Flutter class) defers — '
+    test('a custom EdgeInsets.zero look-alike (a non-Flutter class) defers — '
         'no zero list substituted', () async {
       final result = await _transpile(
         '''
@@ -3530,8 +3587,7 @@ Object x() => const Acme();
       expect(result.issues, isNotEmpty);
     });
 
-    test(
-        'a custom BorderSide.none look-alike (a non-Flutter class) defers — '
+    test('a custom BorderSide.none look-alike (a non-Flutter class) defers — '
         'no framework none-map substituted', () async {
       final result = await _transpile(
         '''
@@ -3577,8 +3633,7 @@ Object x() => const Acme();
       expect(result.issues, isNotEmpty);
     });
 
-    test(
-        'a direct BorderSide.none inside a box Border(top:) lowers to the '
+    test('a direct BorderSide.none inside a box Border(top:) lowers to the '
         'none-map, not a bare string, through the classified path', () async {
       // The box `Border(top:/right:/bottom:/left:)` constructor lowers each
       // side through `_borderSideExpression` (the same look-alike-safe,
@@ -3632,17 +3687,18 @@ Object x() => const Acme();
       // (index 1) must be the none-map, not the bare string "none" the generic
       // translate path would emit (which rfw's borderSide decoder ignores,
       // silently inheriting the start side — the value-wrong shape this closes).
-      final border = _widget(result.decoded!, 'Acme').arguments['border']!
-          as List<Object?>;
+      final border =
+          _widget(result.decoded!, 'Acme').arguments['border']!
+              as List<Object?>;
       expect(border[1], {'width': 0.0, 'style': 'none'});
     });
 
     test(
-        'a bound `final s = BorderSide.none` resolves through a box Border(top:) '
-        'end-to-end (the resolve-through, parallel to the shape-border case)',
-        () async {
-      final result = await _transpile(
-        '''
+      'a bound `final s = BorderSide.none` resolves through a box Border(top:) '
+      'end-to-end (the resolve-through, parallel to the shape-border case)',
+      () async {
+        final result = await _transpile(
+          '''
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -3674,28 +3730,30 @@ class Acme extends StatelessWidget {
 
 Object x() => const Acme();
 ''',
-        catalogWith([
-          _entry(
-            'Box',
-            [prop('border', PropertyType.border)],
-            rootPackage: 'apps_examples',
-          ),
-        ]),
-        rootPackage: 'apps_examples',
-      );
+          catalogWith([
+            _entry(
+              'Box',
+              [prop('border', PropertyType.border)],
+              rootPackage: 'apps_examples',
+            ),
+          ]),
+          rootPackage: 'apps_examples',
+        );
 
-      expect(result.issues, isEmpty);
-      final border = _widget(result.decoded!, 'Acme').arguments['border']!
-          as List<Object?>;
-      expect(border[1], {'width': 0.0, 'style': 'none'});
-    });
+        expect(result.issues, isEmpty);
+        final border =
+            _widget(result.decoded!, 'Acme').arguments['border']!
+                as List<Object?>;
+        expect(border[1], {'width': 0.0, 'style': 'none'});
+      },
+    );
 
     test(
-        'gate 1 (distinct fallbacks): a property read with two different '
-        '`?? fallback` values defers — it cannot be completed consistently',
-        () async {
-      final result = await _transpile(
-        '''
+      'gate 1 (distinct fallbacks): a property read with two different '
+      '`?? fallback` values defers — it cannot be completed consistently',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Box extends StatelessWidget {
@@ -3715,22 +3773,22 @@ class Meter extends StatelessWidget {
 
 Object x() => const Meter();
 ''',
-        catalogWith([
-          _entry('Box', [
-            prop('width', PropertyType.length),
-            prop('height', PropertyType.length),
+          catalogWith([
+            _entry('Box', [
+              prop('width', PropertyType.length),
+              prop('height', PropertyType.length),
+            ]),
           ]),
-        ]),
-      );
+        );
 
-      // `size` is coalesced with two DIFFERENT fallbacks; the call site cannot
-      // complete it with a single value, so the widget defers, never emits one.
-      expect(result.decoded, isNull);
-      expect(result.issues, isNotEmpty);
-    });
+        // `size` is coalesced with two DIFFERENT fallbacks; the call site cannot
+        // complete it with a single value, so the widget defers, never emits one.
+        expect(result.decoded, isNull);
+        expect(result.issues, isNotEmpty);
+      },
+    );
 
-    test(
-        'gate 2 (binding-hidden context): a fallback reading own args through '
+    test('gate 2 (binding-hidden context): a fallback reading own args through '
         'a captured `final` local defers', () async {
       final result = await _transpile(
         '''
@@ -3767,8 +3825,7 @@ Object x() => const Meter(other: 2.0);
       expect(result.issues, isNotEmpty);
     });
 
-    test(
-        'gate 3 (data-ref passed value): a value lowering to a '
+    test('gate 3 (data-ref passed value): a value lowering to a '
         'possibly-missing data ref (a host-data helper) passed to a coalesced '
         'property defers — the fallback would be lost at runtime', () async {
       final result = await _transpile(
@@ -3816,16 +3873,18 @@ Object x() => Price(label: hostText());
       // instead of "Free", so the static-nullability gate defers.
       expect(result.decoded, isNull);
       expect(
-        result.issues
-            .any((i) => i.code == IssueCode.customWidgetUnsupportedReducible),
+        result.issues.any(
+          (i) => i.code == IssueCode.customWidgetUnsupportedReducible,
+        ),
         isTrue,
       );
     });
 
-    test('a coalesced widget list item validates its fallback before emission',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'a coalesced widget list item validates its fallback before emission',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Column extends StatelessWidget {
@@ -3849,22 +3908,26 @@ class Wrap extends StatelessWidget {
 
 Object x() => const Wrap();
 ''',
-        catalogWith([
-          _entry('Column', [prop('children', PropertyType.widgetList)]),
-          _entry('Box', const []),
-        ]),
-      );
+          catalogWith([
+            _entry('Column', [prop('children', PropertyType.widgetList)]),
+            _entry('Box', const []),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      final decoded = result.decoded!;
-      final wrap = _widget(decoded, 'Wrap');
-      expect(wrap.name, 'Column');
-      final children = wrap.arguments['children']! as List<Object?>;
-      expect((children.single! as fmt.ArgsReference).parts, ['child']);
-      final paywall = _widget(decoded, 'Paywall');
-      expect(paywall.name, 'Wrap');
-      expect((paywall.arguments['child']! as fmt.ConstructorCall).name, 'Box');
-    });
+        expect(result.issues, isEmpty);
+        final decoded = result.decoded!;
+        final wrap = _widget(decoded, 'Wrap');
+        expect(wrap.name, 'Column');
+        final children = wrap.arguments['children']! as List<Object?>;
+        expect((children.single! as fmt.ArgsReference).parts, ['child']);
+        final paywall = _widget(decoded, 'Paywall');
+        expect(paywall.name, 'Wrap');
+        expect(
+          (paywall.arguments['child']! as fmt.ConstructorCall).name,
+          'Box',
+        );
+      },
+    );
 
     test('a coalesced widget list item refuses a color fallback', () async {
       final result = await _transpile(
@@ -3917,10 +3980,11 @@ Object x() => const Wrap();
       );
     });
 
-    test('coalesced widget items retain mixed static collection traversal',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'coalesced widget items retain mixed static collection traversal',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Column extends StatelessWidget {
@@ -3949,26 +4013,29 @@ class Wrap extends StatelessWidget {
 
 Object x() => const Wrap();
 ''',
-        catalogWith([
-          _entry('Column', [prop('children', PropertyType.widgetList)]),
-          _entry('Box', const []),
-        ]),
-      );
+          catalogWith([
+            _entry('Column', [prop('children', PropertyType.widgetList)]),
+            _entry('Box', const []),
+          ]),
+        );
 
-      expect(result.issues, isEmpty);
-      final decoded = result.decoded!;
-      final wrap = _widget(decoded, 'Wrap');
-      final children = wrap.arguments['children']! as List<Object?>;
-      expect(children, hasLength(3));
-      expect((children[0]! as fmt.ConstructorCall).name, 'Box');
-      expect((children[1]! as fmt.ArgsReference).parts, ['child']);
-      expect((children[2]! as fmt.ConstructorCall).name, 'Box');
-      final paywall = _widget(decoded, 'Paywall');
-      expect((paywall.arguments['child']! as fmt.ConstructorCall).name, 'Box');
-    });
+        expect(result.issues, isEmpty);
+        final decoded = result.decoded!;
+        final wrap = _widget(decoded, 'Wrap');
+        final children = wrap.arguments['children']! as List<Object?>;
+        expect(children, hasLength(3));
+        expect((children[0]! as fmt.ConstructorCall).name, 'Box');
+        expect((children[1]! as fmt.ArgsReference).parts, ['child']);
+        expect((children[2]! as fmt.ConstructorCall).name, 'Box');
+        final paywall = _widget(decoded, 'Paywall');
+        expect(
+          (paywall.arguments['child']! as fmt.ConstructorCall).name,
+          'Box',
+        );
+      },
+    );
 
-    test(
-        "gate 2: a fallback reading the widget's own args defers "
+    test("gate 2: a fallback reading the widget's own args defers "
         '(context-dependent, not hoistable)', () async {
       final result = await _transpile(
         '''
@@ -4002,8 +4069,7 @@ Object x() => const Meter(width: 1.0, other: 2.0);
       );
     });
 
-    test(
-        'a stateful widget with primitive State fields transpiles its '
+    test('a stateful widget with primitive State fields transpiles its '
         'initial state into a `widget X { name: init } = body` block and '
         'lowers state-field reads to `state.<name>`', () async {
       // No setState in this fixture — pure state-block + state-read
@@ -4052,8 +4118,9 @@ Object x() => AcmeDisplay(prefix: "P");
       final decoded = result.decoded!;
       // The stateful definition's initial state is carried on the
       // declaration — the canonical RFW state container.
-      final display =
-          decoded.widgets.firstWhere((w) => w.name == 'AcmeDisplay');
+      final display = decoded.widgets.firstWhere(
+        (w) => w.name == 'AcmeDisplay',
+      );
       expect(display.initialState, isNotNull);
       expect(display.initialState!['message'], 'hello');
       // The body reads the State field as `state.message` and the
@@ -4072,8 +4139,7 @@ Object x() => AcmeDisplay(prefix: "P");
       expect(paywall.arguments['prefix'], 'P');
     });
 
-    test(
-        'a State body reading a top-level const emits the constant, not the '
+    test('a State body reading a top-level const emits the constant, not the '
         'same-named constructor parameter', () async {
       // In `State.build()` a bare name reaches a constructor parameter only
       // through `widget.X`, so `gap` here is the top-level const.
@@ -4135,8 +4201,7 @@ Object x() => AcmeGapped(gap: 24);
       expect(paywall.arguments['gap'], 24.0);
     });
 
-    test(
-        'a stateless body reading its own constructor parameter still emits '
+    test('a stateless body reading its own constructor parameter still emits '
         'an args reference when a same-named const is in scope', () async {
       // The stateless `build()` has the parameter in scope, so Dart binds
       // `gap` to it and the const is shadowed.
@@ -4181,8 +4246,7 @@ Object x() => AcmeSpaced(gap: 24);
       expect(paywall.arguments['gap'], 24.0);
     });
 
-    test(
-        'a stateful toggle widget emits its setState bool-flip as the '
+    test('a stateful toggle widget emits its setState bool-flip as the '
         'no-negation switch form RFW data accepts', () async {
       // The canonical bool-flip pattern: `setState(() => on = !on);`. RFW
       // has no negation operator in data, so the flip emits as
@@ -4256,8 +4320,7 @@ Object x() => AcmeToggle();
       expect(flip.outputs[false], isTrue);
     });
 
-    test(
-        'a stateful counter widget emits its setState literal assignment '
+    test('a stateful counter widget emits its setState literal assignment '
         'as the canonical `set state.x = N` shape', () async {
       final result = await _transpile(
         '''
@@ -4317,11 +4380,11 @@ Object x() => AcmeReset();
     });
 
     test(
-        'a stateful segmented-selector widget emits one `set state.index = '
-        'N` handler per segment from its setState literal assignments',
-        () async {
-      final result = await _transpile(
-        '''
+      'a stateful segmented-selector widget emits one `set state.index = '
+      'N` handler per segment from its setState literal assignments',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class GestureDetector extends StatelessWidget {
@@ -4370,43 +4433,44 @@ class _AcmeSegmentedState extends State<AcmeSegmented> {
 
 Object x() => AcmeSegmented();
 ''',
-        catalogWith([
-          _entry('GestureDetector', [
-            prop('onTap', PropertyType.event),
-            prop('child', PropertyType.widget),
+          catalogWith([
+            _entry('GestureDetector', [
+              prop('onTap', PropertyType.event),
+              prop('child', PropertyType.widget),
+            ]),
+            _entry('Row', [prop('children', PropertyType.widgetList)]),
+            _entry('Box', [prop('label', PropertyType.string)]),
           ]),
-          _entry('Row', [prop('children', PropertyType.widgetList)]),
-          _entry('Box', [prop('label', PropertyType.string)]),
-        ]),
-      );
-
-      expect(result.issues, isEmpty);
-      final decoded = result.decoded!;
-      final segmented =
-          decoded.widgets.firstWhere((w) => w.name == 'AcmeSegmented');
-      expect(segmented.initialState!['index'], 0);
-      final row = segmented.root as fmt.ConstructorCall;
-      expect(row.name, 'Row');
-      final children = row.arguments['children']! as List<dynamic>;
-      expect(children, hasLength(3));
-      for (var i = 0; i < 3; i++) {
-        final segment = children[i] as fmt.ConstructorCall;
-        expect(segment.name, 'GestureDetector');
-        final handler = segment.arguments['onTap']! as fmt.SetStateHandler;
-        expect(
-          (handler.stateReference as fmt.StateReference).parts,
-          ['index'],
         );
-        expect(
-          handler.value,
-          i,
-          reason: 'segment $i must set state.index to $i',
-        );
-      }
-    });
 
-    test(
-        'a stateful expand-collapse widget lowers a Dart ternary on bool '
+        expect(result.issues, isEmpty);
+        final decoded = result.decoded!;
+        final segmented = decoded.widgets.firstWhere(
+          (w) => w.name == 'AcmeSegmented',
+        );
+        expect(segmented.initialState!['index'], 0);
+        final row = segmented.root as fmt.ConstructorCall;
+        expect(row.name, 'Row');
+        final children = row.arguments['children']! as List<dynamic>;
+        expect(children, hasLength(3));
+        for (var i = 0; i < 3; i++) {
+          final segment = children[i] as fmt.ConstructorCall;
+          expect(segment.name, 'GestureDetector');
+          final handler = segment.arguments['onTap']! as fmt.SetStateHandler;
+          expect(
+            (handler.stateReference as fmt.StateReference).parts,
+            ['index'],
+          );
+          expect(
+            handler.value,
+            i,
+            reason: 'segment $i must set state.index to $i',
+          );
+        }
+      },
+    );
+
+    test('a stateful expand-collapse widget lowers a Dart ternary on bool '
         'State to the no-`!` switch shape RFW data accepts', () async {
       final result = await _transpile(
         '''
@@ -4467,8 +4531,9 @@ Object x() => AcmeExpander();
 
       expect(result.issues, isEmpty);
       final decoded = result.decoded!;
-      final expander =
-          decoded.widgets.firstWhere((w) => w.name == 'AcmeExpander');
+      final expander = decoded.widgets.firstWhere(
+        (w) => w.name == 'AcmeExpander',
+      );
       expect(expander.initialState!['expanded'], isFalse);
       final column = expander.root as fmt.ConstructorCall;
       expect(column.name, 'Column');
@@ -4483,8 +4548,7 @@ Object x() => AcmeExpander();
       expect(switchNode.outputs.keys, containsAll([true, false]));
     });
 
-    test(
-        'a stateful widget with a non-foldable State initialiser produces a '
+    test('a stateful widget with a non-foldable State initialiser produces a '
         'stateShapeUnsupported diagnostic, no blob emitted', () async {
       final result = await _transpile(
         '''
@@ -4527,13 +4591,13 @@ Object x() => AcmeBad();
       expect(
         result.issues.any((i) => i.code == IssueCode.stateShapeUnsupported),
         isTrue,
-        reason: 'a non-foldable State initialiser must diagnose '
+        reason:
+            'a non-foldable State initialiser must diagnose '
             'stateShapeUnsupported',
       );
     });
 
-    test(
-        'a stateful widget with an unrecognised setState body produces a '
+    test('a stateful widget with an unrecognised setState body produces a '
         'stateShapeUnsupported diagnostic, no blob emitted', () async {
       final result = await _transpile(
         '''
@@ -4581,8 +4645,7 @@ Object x() => AcmeWeird();
       );
     });
 
-    test(
-        'a setState literal int RHS into a double State field coerces to '
+    test('a setState literal int RHS into a double State field coerces to '
         'a double in the emitted set handler', () async {
       final result = await _transpile(
         '''
@@ -4625,8 +4688,9 @@ Object x() => AcmeScale();
       // Initial value is already double-coerced — confirms the regression
       // is the setState RHS, not the initial.
       expect(scale.initialState!['scale'], 0.0);
-      final handler = (scale.root as fmt.ConstructorCall).arguments['onTap']!
-          as fmt.SetStateHandler;
+      final handler =
+          (scale.root as fmt.ConstructorCall).arguments['onTap']!
+              as fmt.SetStateHandler;
       // The Dart int literal `1` lands as a double `1.0` so a runtime
       // `source.v<double>` read after the tap doesn't silently null out.
       // (Dart's `1 == 1.0` is `true`, so an int sneaking through compares
@@ -4636,20 +4700,20 @@ Object x() => AcmeScale();
     });
 
     test(
-        'a non-finite overflow-literal State-field initialiser defers loud, '
-        'never emitting a bare Infinity (the const-fold boundary closes it)',
-        () async {
-      // The declarative-state path consumes `tryFoldConstant` directly,
-      // bypassing the translator's non-finite emit guard. Before the const-fold
-      // `DoubleLiteral` finite filter, `1e400` folded to Infinity and was
-      // emitted as the bare token `set state.scale = Infinity` — which is not a
-      // representable RFW value. The filter makes it fold to null
-      // (captured-but-unfoldable), so the state shape defers loud via
-      // `stateShapeUnsupported` and NO blob is emitted. (The state-path keeps
-      // the generic-but-loud code by design; the precise code is the
-      // slot-path's, not this one's.)
-      final result = await _transpile(
-        '''
+      'a non-finite overflow-literal State-field initialiser defers loud, '
+      'never emitting a bare Infinity (the const-fold boundary closes it)',
+      () async {
+        // The declarative-state path consumes `tryFoldConstant` directly,
+        // bypassing the translator's non-finite emit guard. Before the const-fold
+        // `DoubleLiteral` finite filter, `1e400` folded to Infinity and was
+        // emitted as the bare token `set state.scale = Infinity` — which is not a
+        // representable RFW value. The filter makes it fold to null
+        // (captured-but-unfoldable), so the state shape defers loud via
+        // `stateShapeUnsupported` and NO blob is emitted. (The state-path keeps
+        // the generic-but-loud code by design; the precise code is the
+        // slot-path's, not this one's.)
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class GestureDetector extends StatelessWidget {
@@ -4678,28 +4742,29 @@ class _AcmeNonFiniteStateState extends State<AcmeNonFiniteState> {
 
 Object x() => AcmeNonFiniteState();
 ''',
-        catalogWith([
-          _entry('GestureDetector', [prop('onTap', PropertyType.event)]),
-        ]),
-      );
+          catalogWith([
+            _entry('GestureDetector', [prop('onTap', PropertyType.event)]),
+          ]),
+        );
 
-      expect(
-        result.decoded,
-        isNull,
-        reason: 'a non-finite State-field initialiser must not emit a blob '
-            'carrying a bare Infinity token',
-      );
-      expect(
-        result.issues.any((i) => i.code == IssueCode.stateShapeUnsupported),
-        isTrue,
-        reason:
-            'a non-finite (1e400) State-field initialiser folds to null and '
-            'must defer loud via stateShapeUnsupported, never a bare Infinity',
-      );
-    });
+        expect(
+          result.decoded,
+          isNull,
+          reason:
+              'a non-finite State-field initialiser must not emit a blob '
+              'carrying a bare Infinity token',
+        );
+        expect(
+          result.issues.any((i) => i.code == IssueCode.stateShapeUnsupported),
+          isTrue,
+          reason:
+              'a non-finite (1e400) State-field initialiser folds to null and '
+              'must defer loud via stateShapeUnsupported, never a bare Infinity',
+        );
+      },
+    );
 
-    test(
-        'a `widget.X` method tear-off on the StatefulWidget side surfaces a '
+    test('a `widget.X` method tear-off on the StatefulWidget side surfaces a '
         'stateShapeUnsupported diagnostic, no blob emitted', () async {
       final result = await _transpile(
         '''
@@ -4740,13 +4805,13 @@ Object x() => AcmeMixed();
       expect(
         result.issues.any((i) => i.code == IssueCode.stateShapeUnsupported),
         isTrue,
-        reason: 'a method tear-off on the StatefulWidget side is not a '
+        reason:
+            'a method tear-off on the StatefulWidget side is not a '
             'setState handler — must diagnose stateShapeUnsupported',
       );
     });
 
-    test(
-        'a State method that both mutates state and invokes a callback defers '
+    test('a State method that both mutates state and invokes a callback defers '
         'with stateShapeUnsupported', () async {
       // A multi-statement handler cannot lower as a single state update.
       final result = await _transpile(
@@ -4803,11 +4868,11 @@ Object x() => AcmeSelectAndBuy();
     });
 
     test(
-        'a stateless widget with a method tear-off as an event handler is '
-        'not inlinable — surfaces as an imperative-widget diagnostic',
-        () async {
-      final result = await _transpile(
-        '''
+      'a stateless widget with a method tear-off as an event handler is '
+      'not inlinable — surfaces as an imperative-widget diagnostic',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class GestureDetector extends StatelessWidget {
@@ -4831,36 +4896,39 @@ class AcmeButton extends StatelessWidget {
 
 Object x() => AcmeButton();
 ''',
-        catalogWith([
-          _entry('GestureDetector', [prop('onTap', PropertyType.event)]),
-        ]),
-      );
+          catalogWith([
+            _entry('GestureDetector', [prop('onTap', PropertyType.event)]),
+          ]),
+        );
 
-      expect(result.decoded, isNull);
-      // The diagnostic must fire at the classification gate — the
-      // alternative ("unrecognized expression" from the bare-identifier
-      // fallback in the translator) would be a leak of the
-      // false-inlineable-classification invariant.
-      final relevant = result.issues.where(
-        (i) =>
-            i.code == IssueCode.customWidgetUnclassified ||
-            i.code == IssueCode.customWidgetImperative ||
-            i.code == IssueCode.stateShapeUnsupported,
-      );
-      expect(
-        relevant,
-        isNotEmpty,
-        reason: 'a stateless widget composing a Dart method tear-off must '
-            'be rejected at the classification boundary, not at the '
-            'identifier-fallback path',
-      );
-      expect(
-        result.issues.any((i) => i.code == IssueCode.unrecognizedMethodCall),
-        isFalse,
-        reason: 'the fallback "Unsupported expression" path indicates the '
-            'widget reached body translation — the gate failed',
-      );
-    });
+        expect(result.decoded, isNull);
+        // The diagnostic must fire at the classification gate — the
+        // alternative ("unrecognized expression" from the bare-identifier
+        // fallback in the translator) would be a leak of the
+        // false-inlineable-classification invariant.
+        final relevant = result.issues.where(
+          (i) =>
+              i.code == IssueCode.customWidgetUnclassified ||
+              i.code == IssueCode.customWidgetImperative ||
+              i.code == IssueCode.stateShapeUnsupported,
+        );
+        expect(
+          relevant,
+          isNotEmpty,
+          reason:
+              'a stateless widget composing a Dart method tear-off must '
+              'be rejected at the classification boundary, not at the '
+              'identifier-fallback path',
+        );
+        expect(
+          result.issues.any((i) => i.code == IssueCode.unrecognizedMethodCall),
+          isFalse,
+          reason:
+              'the fallback "Unsupported expression" path indicates the '
+              'widget reached body translation — the gate failed',
+        );
+      },
+    );
 
     test('an omitted parameter emits its constructor default', () async {
       final result = await _transpile(
@@ -4904,31 +4972,28 @@ Object x() => AcmeBox();
   // class: an inlineable widget still inlines — its composition travels
   // in the blob and renders with no runtime factory; an imperative widget
   // widget references the catalog entry, resolved by the runtime factory.
-  group('registered custom widget — inlineable inlines, app-backed references',
-      () {
+  group('registered custom widget — inlineable inlines, app-backed references', () {
     Catalog catalogWithCustom(List<WidgetEntry> widgets) => Catalog(
-          schemaVersion: kSupportedSchemaVersion,
-          generatedAt: '1970-01-01T00:00:00Z',
-          libraries: {
-            WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
-            WidgetLibrary.custom('acme.ds'):
-                const LibraryInfo(version: '0.1.0'),
-          },
-          widgets: widgets,
-        );
+      schemaVersion: kSupportedSchemaVersion,
+      generatedAt: '1970-01-01T00:00:00Z',
+      libraries: {
+        WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
+        WidgetLibrary.custom('acme.ds'): const LibraryInfo(version: '0.1.0'),
+      },
+      widgets: widgets,
+    );
 
     WidgetEntry customEntry(
       String name,
       List<PropertyEntry> properties, {
       String rootPackage = 'restage_codegen',
-    }) =>
-        entry(
-          name: name,
-          properties: properties,
-          library: WidgetLibrary.custom('acme.ds'),
-          category: WidgetCategory.decoration,
-          flutterType: 'package:$rootPackage/_e2e_probe.dart#$name',
-        );
+    }) => entry(
+      name: name,
+      properties: properties,
+      library: WidgetLibrary.custom('acme.ds'),
+      category: WidgetCategory.decoration,
+      flutterType: 'package:$rootPackage/_e2e_probe.dart#$name',
+    );
 
     test('a registered inlineable custom widget emits a definition', () async {
       final result = await _transpile(
@@ -5038,8 +5103,9 @@ Object x(BuildContext context) => Pair(
       expect(result.issues, isEmpty, reason: result.issues.join('\n'));
       expect(result.translation.widgetDefinitions.keys, contains('DayTile'));
       expect(
-        result.translation.widgetDefinitions.keys
-            .where((name) => name == 'DayTile'),
+        result.translation.widgetDefinitions.keys.where(
+          (name) => name == 'DayTile',
+        ),
         hasLength(1),
       );
       expect(result.translation.referencedCustomLibraries, isEmpty);
@@ -5059,10 +5125,11 @@ Object x(BuildContext context) => Pair(
       expect(themed.arguments['size'], 20.0);
     });
 
-    test('registered call fallback applies to every matching occurrence',
-        () async {
-      final result = await _transpile(
-        '''
+    test(
+      'registered call fallback applies to every matching occurrence',
+      () async {
+        final result = await _transpile(
+          '''
 $kClassifierStubs
 
 class Pair extends StatelessWidget {
@@ -5092,53 +5159,53 @@ Object x() => Pair(
   second: InlinePanel(values: const {'a': 'b'}),
 );
 ''',
-        catalogWithCustom([
-          _entry('Pair', [
-            prop('first', PropertyType.widget),
-            prop('second', PropertyType.widget),
+          catalogWithCustom([
+            _entry('Pair', [
+              prop('first', PropertyType.widget),
+              prop('second', PropertyType.widget),
+            ]),
+            _entry('MapSink', [prop('values', PropertyType.unknown)]),
+            customEntry(
+              'InlinePanel',
+              [prop('values', PropertyType.unknown)],
+            ),
           ]),
-          _entry('MapSink', [prop('values', PropertyType.unknown)]),
-          customEntry(
-            'InlinePanel',
-            [prop('values', PropertyType.unknown)],
-          ),
-        ]),
-      );
+        );
 
-      expect(
-        result.issues.where((issue) => !issue.code.isBuildNotice),
-        isEmpty,
-        reason: result.issues.join('\n'),
-      );
-      final notice = result.issues.singleWhere(
-        (issue) => issue.code == IssueCode.customWidgetAppFactoryUsed,
-      );
-      expect(notice.code.isBuildNotice, isTrue);
-      expect(notice.location, contains('#InlinePanel'));
-      expect(notice.message, contains("Custom widget 'InlinePanel'"));
-      expect(
-        notice.message,
-        contains("renders from your app's compiled code because"),
-      );
-      expect(notice.message, contains('still set its arguments'));
-      expect(notice.message, contains('ship with your next app release'));
-      expect(notice.message, isNot(contains('transpiler')));
-      expect(
-        result.translation.widgetDefinitions.keys,
-        isNot(contains('InlinePanel')),
-      );
-      expect(result.translation.referencedCustomLibraries, {'acme.ds'});
-      final root = _widget(result.decoded!, 'Paywall');
-      final first = root.arguments['first']! as fmt.ConstructorCall;
-      final second = root.arguments['second']! as fmt.ConstructorCall;
-      expect(first.name, 'InlinePanel');
-      expect(first.arguments, isEmpty);
-      expect(second.name, 'InlinePanel');
-      expect(second.arguments['values'], {'a': 'b'});
-    });
+        expect(
+          result.issues.where((issue) => !issue.code.isBuildNotice),
+          isEmpty,
+          reason: result.issues.join('\n'),
+        );
+        final notice = result.issues.singleWhere(
+          (issue) => issue.code == IssueCode.customWidgetAppFactoryUsed,
+        );
+        expect(notice.code.isBuildNotice, isTrue);
+        expect(notice.location, contains('#InlinePanel'));
+        expect(notice.message, contains("Custom widget 'InlinePanel'"));
+        expect(
+          notice.message,
+          contains("renders from your app's compiled code because"),
+        );
+        expect(notice.message, contains('still set its arguments'));
+        expect(notice.message, contains('ship with your next app release'));
+        expect(notice.message, isNot(contains('transpiler')));
+        expect(
+          result.translation.widgetDefinitions.keys,
+          isNot(contains('InlinePanel')),
+        );
+        expect(result.translation.referencedCustomLibraries, {'acme.ds'});
+        final root = _widget(result.decoded!, 'Paywall');
+        final first = root.arguments['first']! as fmt.ConstructorCall;
+        final second = root.arguments['second']! as fmt.ConstructorCall;
+        expect(first.name, 'InlinePanel');
+        expect(first.arguments, isEmpty);
+        expect(second.name, 'InlinePanel');
+        expect(second.arguments['values'], {'a': 'b'});
+      },
+    );
 
-    test(
-        'an app-backed custom widget is referenced (no inline definition, '
+    test('an app-backed custom widget is referenced (no inline definition, '
         'no customWidgetUnclassified)', () async {
       final result = await _transpile(
         '''
@@ -5173,8 +5240,9 @@ Object x() => AppBackedBadge(label: "Pro", count: 3);
       );
 
       expect(
-        result.issues
-            .where((i) => i.code == IssueCode.customWidgetUnclassified),
+        result.issues.where(
+          (i) => i.code == IssueCode.customWidgetUnclassified,
+        ),
         isEmpty,
       );
       final decoded = result.decoded!;
@@ -5186,8 +5254,7 @@ Object x() => AppBackedBadge(label: "Pro", count: 3);
       );
     });
 
-    test(
-        'an app-backed custom widget named like a surface root fails loud '
+    test('an app-backed custom widget named like a surface root fails loud '
         '(never a silent self-reference)', () async {
       // A registered custom widget whose name is the reserved paywall root
       // name would emit `Paywall(...)` into the blob, which name-resolution
@@ -5275,30 +5342,30 @@ Object x() => const AcmeGradient();
 ''';
 
 Catalog _gradientBoxCatalog() => catalogWith([
-      _entry(
-        'Box',
-        [prop('gradient', PropertyType.gradient)],
-        rootPackage: 'apps_examples',
-      ),
-    ]);
+  _entry(
+    'Box',
+    [prop('gradient', PropertyType.gradient)],
+    rootPackage: 'apps_examples',
+  ),
+]);
 
 Catalog _listDecoderCatalog(List<_ListDecoderCase> cases) => catalogWith([
-      _entry(
-        'ListDecoderSink',
-        [
-          for (final entry in cases) prop(entry.property, entry.decoder),
-        ],
-        rootPackage: 'apps_examples',
-      ),
-    ]);
+  _entry(
+    'ListDecoderSink',
+    [
+      for (final entry in cases) prop(entry.property, entry.decoder),
+    ],
+    rootPackage: 'apps_examples',
+  ),
+]);
 
 Catalog _declaredListCatalog() => catalogWith([
-      entry(
-        name: 'SizedBox',
-        properties: const [],
-        flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
-      ),
-    ]);
+  entry(
+    name: 'SizedBox',
+    properties: const [],
+    flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
+  ),
+]);
 
 String _listDecoderFixture(
   List<_ListDecoderCase> cases,
@@ -5308,10 +5375,12 @@ String _listDecoderFixture(
   final declarations = declareLookalikes
       ? cases.map((entry) => 'class ${entry.lookalikeType} {}').join('\n')
       : '';
-  final sinkParameters =
-      cases.map((entry) => 'this.${entry.property},').join('\n');
-  final sinkFields =
-      cases.map((entry) => 'final Object? ${entry.property};').join('\n');
+  final sinkParameters = cases
+      .map((entry) => 'this.${entry.property},')
+      .join('\n');
+  final sinkFields = cases
+      .map((entry) => 'final Object? ${entry.property};')
+      .join('\n');
   final valueParameters = cases
       .expand(
         (entry) => [
@@ -5320,29 +5389,34 @@ String _listDecoderFixture(
         ],
       )
       .join('\n');
-  final valueFields = cases.expand((entry) {
-    final type = itemType(entry);
-    return [
-      'final List<$type> ${entry.property};',
-      'final List<$type> ${entry.property}Alternate;',
-    ];
-  }).join('\n');
+  final valueFields = cases
+      .expand((entry) {
+        final type = itemType(entry);
+        return [
+          'final List<$type> ${entry.property};',
+          'final List<$type> ${entry.property}Alternate;',
+        ];
+      })
+      .join('\n');
   final localValues = cases
       .map(
-        (entry) => 'final ${entry.property}Value = flag ? ${entry.property} : '
+        (entry) =>
+            'final ${entry.property}Value = flag ? ${entry.property} : '
             '${entry.property}Alternate;',
       )
       .join('\n');
   final sinkArguments = cases
       .map((entry) => '${entry.property}: ${entry.property}Value,')
       .join('\n');
-  final rootArguments = cases.expand((entry) {
-    final type = itemType(entry);
-    return [
-      '${entry.property}: const <$type>[],',
-      '${entry.property}Alternate: const <$type>[],',
-    ];
-  }).join('\n');
+  final rootArguments = cases
+      .expand((entry) {
+        final type = itemType(entry);
+        return [
+          '${entry.property}: const <$type>[],',
+          '${entry.property}Alternate: const <$type>[],',
+        ];
+      })
+      .join('\n');
 
   return '''
 import 'package:flutter/material.dart' as ui;
@@ -5388,7 +5462,8 @@ Object x() => TypedListValues(
 ''';
 }
 
-String _declaredListFixture(String itemType, {bool declareType = false}) => '''
+String _declaredListFixture(String itemType, {bool declareType = false}) =>
+    '''
 import 'package:flutter/material.dart' as ui;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -5474,7 +5549,8 @@ Future<void> _expectNestedGradientChildRefusal(
   final result = await _transpile(
     _constStopsFixture(
       memberSource: '',
-      buildSource: '''
+      buildSource:
+          '''
   Widget build(BuildContext context) => Box(gradient: $gradient);
 ''',
     ),
@@ -5503,12 +5579,11 @@ WidgetEntry _entry(
   String name,
   List<PropertyEntry> properties, {
   String rootPackage = 'restage_codegen',
-}) =>
-    entry(
-      name: name,
-      properties: properties,
-      flutterType: 'package:$rootPackage/_e2e_probe.dart#$name',
-    );
+}) => entry(
+  name: name,
+  properties: properties,
+  flutterType: 'package:$rootPackage/_e2e_probe.dart#$name',
+);
 
 /// Transpiles [source] (which defines the custom widgets and a paywall
 /// root `Object x() => <root>;`) through the full transpile chain against
@@ -5560,22 +5635,24 @@ class _TranspileProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.e2e'],
-      };
+    '.dart': ['.e2e'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {
     if (!step.inputId.path.endsWith('_e2e_probe.dart')) return;
     final library = await step.inputLibrary;
     final fn = library.topLevelFunctions.firstWhere((f) => f.name == 'x');
-    final resolvedLib =
-        await library.session.getResolvedLibraryByElement(library);
+    final resolvedLib = await library.session.getResolvedLibraryByElement(
+      library,
+    );
     if (resolvedLib is! ResolvedLibraryResult) {
       throw StateError('e2e probe: library did not resolve');
     }
     final node = resolvedLib.getFragmentDeclaration(fn.firstFragment)?.node;
-    final body =
-        node is FunctionDeclaration ? node.functionExpression.body : null;
+    final body = node is FunctionDeclaration
+        ? node.functionExpression.body
+        : null;
     if (body is! ExpressionFunctionBody) {
       throw StateError('e2e probe: `x` must be `Object x() => <root>;`');
     }
@@ -5887,22 +5964,28 @@ Catalog _styleDecomposeCatalog() {
               'height': ArgMapping(targetFields: [heightField]),
               'fontFamily': ArgMapping(targetFields: [fontFamilyField]),
               'fontStyle': ArgMapping(targetFields: [fontStyleField]),
-              'backgroundColor':
-                  ArgMapping(targetFields: [backgroundColorField]),
-              'fontFamilyFallback':
-                  ArgMapping(targetFields: [fontFamilyFallbackField]),
+              'backgroundColor': ArgMapping(
+                targetFields: [backgroundColorField],
+              ),
+              'fontFamilyFallback': ArgMapping(
+                targetFields: [fontFamilyFallbackField],
+              ),
               'wordSpacing': ArgMapping(targetFields: [wordSpacingField]),
-              'leadingDistribution':
-                  ArgMapping(targetFields: [leadingDistributionField]),
+              'leadingDistribution': ArgMapping(
+                targetFields: [leadingDistributionField],
+              ),
               'textBaseline': ArgMapping(targetFields: [textBaselineField]),
               'overflow': ArgMapping(targetFields: [overflowField]),
               'decoration': ArgMapping(targetFields: [decorationField]),
-              'decorationColor':
-                  ArgMapping(targetFields: [decorationColorField]),
-              'decorationStyle':
-                  ArgMapping(targetFields: [decorationStyleField]),
-              'decorationThickness':
-                  ArgMapping(targetFields: [decorationThicknessField]),
+              'decorationColor': ArgMapping(
+                targetFields: [decorationColorField],
+              ),
+              'decorationStyle': ArgMapping(
+                targetFields: [decorationStyleField],
+              ),
+              'decorationThickness': ArgMapping(
+                targetFields: [decorationThicknessField],
+              ),
             },
             parameters: const [],
           ),

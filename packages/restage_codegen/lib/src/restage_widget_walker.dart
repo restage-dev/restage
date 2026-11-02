@@ -58,13 +58,12 @@ bool isCustomFactoryEmittableForWalker(
   WidgetEntry widget, {
   required CustomReconstruction custom,
   NativeCatalogIndex? builtInIndex,
-}) =>
-    isFactoryEmittable(
-      widget,
-      nativeIndex: builtInIndex,
-      custom: custom,
-      customChildProperties: true,
-    );
+}) => isFactoryEmittable(
+  widget,
+  nativeIndex: builtInIndex,
+  custom: custom,
+  customChildProperties: true,
+);
 
 /// Scans every `lib/**.dart` and walks the files that spell a
 /// Restage annotation (or an alias of one) asset in [buildStep]'s package for
@@ -124,8 +123,9 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     }
     sources.add((assetId: assetId, library: library));
   }
-  sources
-      .sort((left, right) => left.assetId.path.compareTo(right.assetId.path));
+  sources.sort(
+    (left, right) => left.assetId.path.compareTo(right.assetId.path),
+  );
   final packageFacts = indexRestageWidgetPackage(sources);
   final builtInCatalog = await loadBuiltInCatalog(buildStep);
   final builtInIndex = NativeCatalogIndex(builtInCatalog);
@@ -192,7 +192,8 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
         issues.add(
           Issue(
             code: IssueCode.duplicateId,
-            message: 'conflicting @RestageLibrary capabilityVersion for '
+            message:
+                'conflicting @RestageLibrary capabilityVersion for '
                 '"$namespace": $existing vs ${declaration.capabilityVersion}.',
             location: assetId.path,
           ),
@@ -204,7 +205,8 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
         issues.add(
           Issue(
             code: IssueCode.duplicateId,
-            message: 'conflicting @RestageLibrary compatibleSince for '
+            message:
+                'conflicting @RestageLibrary compatibleSince for '
                 '"$namespace": $since vs ${declaration.compatibleSince}.',
             location: assetId.path,
           ),
@@ -380,7 +382,8 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     issues.add(
       Issue(
         code: IssueCode.duplicateWidgetName,
-        message: 'Multiple @RestageWidget classes across this package '
+        message:
+            'Multiple @RestageWidget classes across this package '
             'share name in ${entry.key}: $declarations.',
         location: 'lib/',
       ),
@@ -429,7 +432,8 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
       issues.add(
         Issue(
           code: IssueCode.customLibraryMissingCapabilityVersion,
-          message: 'Custom library "$namespace" renders a custom '
+          message:
+              'Custom library "$namespace" renders a custom '
               'structured, map, or record property but declares no capability '
               'version. Add `capabilityVersion:` to '
               'its @RestageLibrary so the delivery-time floor rejects an '
@@ -527,8 +531,9 @@ Future<void> _excludeUnexportedFlutterEnums({
   required Map<String, String> localUnrenderable,
 }) async {
   // Nothing to check unless some structured field references a flutter enum.
-  final hasFlutterEnum = structuredTypes
-      .any((s) => s.fields.any((f) => _flutterEnumRef(f) != null));
+  final hasFlutterEnum = structuredTypes.any(
+    (s) => s.fields.any((f) => _flutterEnumRef(f) != null),
+  );
   if (!hasFlutterEnum) return;
 
   final widgetsLib = await _resolveWidgetsLibrary(resolver);
@@ -540,12 +545,15 @@ Future<void> _excludeUnexportedFlutterEnums({
       // symbol resolves to the SAME defining library, rejecting a same-name
       // collision). A null `widgetsLib` (fail-closed) or a missing/mismatched
       // symbol excludes.
-      final exportedFrom =
-          widgetsLib?.exportNamespace.get2(ref.symbolName)?.library?.identifier;
+      final exportedFrom = widgetsLib?.exportNamespace
+          .get2(ref.symbolName)
+          ?.library
+          ?.identifier;
       if (exportedFrom != ref.libraryUri) {
         localUnrenderable.putIfAbsent(
           structured.sourceType,
-          () => 'the field "${field.name}" has a Flutter enum '
+          () =>
+              'the field "${field.name}" has a Flutter enum '
               '"${ref.symbolName}" (${ref.libraryUri}) not exported by '
               'package:flutter/widgets.dart, so the generated factory cannot '
               'name it',

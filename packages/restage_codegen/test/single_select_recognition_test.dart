@@ -17,9 +17,10 @@ import 'helpers.dart';
 /// radio/dropdown is the one failure this widget must not ship.
 void main() {
   group('recogniseRadioGroup — the canonical lower-able form', () {
-    test('extracts {value, label} pairs in source order + selected + onChanged',
-        () async {
-      final outcome = await _radio('''
+    test(
+      'extracts {value, label} pairs in source order + selected + onChanged',
+      () async {
+        final outcome = await _radio('''
 RadioGroup<String>(
   groupValue: selectedPlan,
   onChanged: (String? v) => onSelect(v),
@@ -30,15 +31,16 @@ RadioGroup<String>(
 )
 ''');
 
-      final recognised = _expectRecognised(outcome);
-      expect(recognised.options, hasLength(2));
-      expect(_value(recognised.options[0]), "'monthly'");
-      expect(_label(recognised.options[0]), "'Monthly'");
-      expect(_value(recognised.options[1]), "'annual'");
-      expect(_label(recognised.options[1]), "'Annual'");
-      expect(recognised.selected?.toSource(), 'selectedPlan');
-      expect(recognised.onChanged, isNotNull);
-    });
+        final recognised = _expectRecognised(outcome);
+        expect(recognised.options, hasLength(2));
+        expect(_value(recognised.options[0]), "'monthly'");
+        expect(_label(recognised.options[0]), "'Monthly'");
+        expect(_value(recognised.options[1]), "'annual'");
+        expect(_label(recognised.options[1]), "'Annual'");
+        expect(recognised.selected?.toSource(), 'selectedPlan');
+        expect(recognised.onChanged, isNotNull);
+      },
+    );
 
     test('a bare list literal child (no Column wrapper) is accepted', () async {
       final outcome = await _radio('''
@@ -71,9 +73,9 @@ RadioGroup<String>(
     });
 
     test(
-        'a missing groupValue (unselected group) recognises with null selected',
-        () async {
-      final outcome = await _radio('''
+      'a missing groupValue (unselected group) recognises with null selected',
+      () async {
+        final outcome = await _radio('''
 RadioGroup<String>(
   onChanged: onSel,
   child: Column(children: [
@@ -81,18 +83,20 @@ RadioGroup<String>(
   ]),
 )
 ''');
-      final recognised = _expectRecognised(outcome);
-      expect(recognised.selected, isNull);
-      expect(recognised.onChanged, isNotNull);
-    });
+        final recognised = _expectRecognised(outcome);
+        expect(recognised.selected, isNull);
+        expect(recognised.onChanged, isNotNull);
+      },
+    );
 
-    test('a RadioListTile with a behavioral arg (enabled) defers the group',
-        () async {
-      // `enabled: false` makes a remote option un-tappable; the flat
-      // single-select has no per-option enabled, so silently dropping it would
-      // render the option enabled. Carry-all-or-defer: the WHOLE group defers
-      // loud (named) rather than ship a wrong-behavior option.
-      final outcome = await _radio('''
+    test(
+      'a RadioListTile with a behavioral arg (enabled) defers the group',
+      () async {
+        // `enabled: false` makes a remote option un-tappable; the flat
+        // single-select has no per-option enabled, so silently dropping it would
+        // render the option enabled. Carry-all-or-defer: the WHOLE group defers
+        // loud (named) rather than ship a wrong-behavior option.
+        final outcome = await _radio('''
 RadioGroup<String>(
   groupValue: sel,
   onChanged: onSel,
@@ -101,12 +105,14 @@ RadioGroup<String>(
   ]),
 )
 ''');
-      _expectDeferred(outcome, reasonContains: 'enabled');
-    });
+        _expectDeferred(outcome, reasonContains: 'enabled');
+      },
+    );
 
-    test('a RadioListTile with an onTap behavioral arg defers the whole group',
-        () async {
-      final outcome = await _radio('''
+    test(
+      'a RadioListTile with an onTap behavioral arg defers the whole group',
+      () async {
+        final outcome = await _radio('''
 RadioGroup<String>(
   groupValue: sel,
   onChanged: onSel,
@@ -115,14 +121,16 @@ RadioGroup<String>(
   ]),
 )
 ''');
-      _expectDeferred(outcome, reasonContains: 'onTap');
-    });
+        _expectDeferred(outcome, reasonContains: 'onTap');
+      },
+    );
   });
 
   group('recogniseRadioGroup — all-or-defer-loud negatives', () {
-    test('a non-list / dynamic builder child defers the WHOLE widget',
-        () async {
-      final outcome = await _radio('''
+    test(
+      'a non-list / dynamic builder child defers the WHOLE widget',
+      () async {
+        final outcome = await _radio('''
 RadioGroup<String>(
   groupValue: sel,
   onChanged: onSel,
@@ -131,8 +139,9 @@ RadioGroup<String>(
   ])),
 )
 ''');
-      _expectDeferred(outcome);
-    });
+        _expectDeferred(outcome);
+      },
+    );
 
     test('a ListView.builder (dynamic itemBuilder) child defers', () async {
       final outcome = await _radio('''
@@ -145,9 +154,10 @@ RadioGroup<String>(
       _expectDeferred(outcome);
     });
 
-    test('a child list with a spread element defers (not a static list)',
-        () async {
-      final outcome = await _radio('''
+    test(
+      'a child list with a spread element defers (not a static list)',
+      () async {
+        final outcome = await _radio('''
 RadioGroup<String>(
   groupValue: sel,
   onChanged: onSel,
@@ -157,8 +167,9 @@ RadioGroup<String>(
   ]),
 )
 ''');
-      _expectDeferred(outcome);
-    });
+        _expectDeferred(outcome);
+      },
+    );
 
     test('a child list with an `if` collection element defers', () async {
       final outcome = await _radio('''
@@ -174,9 +185,10 @@ RadioGroup<String>(
       _expectDeferred(outcome);
     });
 
-    test('a non-RadioListTile leaf (a bare Radio) defers the whole group',
-        () async {
-      final outcome = await _radio('''
+    test(
+      'a non-RadioListTile leaf (a bare Radio) defers the whole group',
+      () async {
+        final outcome = await _radio('''
 RadioGroup<String>(
   groupValue: sel,
   onChanged: onSel,
@@ -186,8 +198,9 @@ RadioGroup<String>(
   ]),
 )
 ''');
-      _expectDeferred(outcome);
-    });
+        _expectDeferred(outcome);
+      },
+    );
 
     test('a RadioListTile with a non-literal-Text title defers', () async {
       final outcome = await _radio('''
@@ -202,9 +215,10 @@ RadioGroup<String>(
       _expectDeferred(outcome);
     });
 
-    test('a RadioListTile with a Text.rich title defers (no flat label)',
-        () async {
-      final outcome = await _radio('''
+    test(
+      'a RadioListTile with a Text.rich title defers (no flat label)',
+      () async {
+        final outcome = await _radio('''
 RadioGroup<String>(
   groupValue: sel,
   onChanged: onSel,
@@ -213,8 +227,9 @@ RadioGroup<String>(
   ]),
 )
 ''');
-      _expectDeferred(outcome);
-    });
+        _expectDeferred(outcome);
+      },
+    );
 
     test('a RadioListTile missing its value defers', () async {
       final outcome = await _radio('''
@@ -255,9 +270,10 @@ RadioGroup<String>(
       _expectDeferred(outcome);
     });
 
-    test('a duplicate static option value defers (never a wrong group)',
-        () async {
-      final outcome = await _radio('''
+    test(
+      'a duplicate static option value defers (never a wrong group)',
+      () async {
+        final outcome = await _radio('''
 RadioGroup<String>(
   groupValue: sel,
   onChanged: onSel,
@@ -267,8 +283,9 @@ RadioGroup<String>(
   ]),
 )
 ''');
-      _expectDeferred(outcome, reasonContains: 'duplicate');
-    });
+        _expectDeferred(outcome, reasonContains: 'duplicate');
+      },
+    );
 
     test('an empty option set defers (at least one option required)', () async {
       final outcome = await _radio('''
@@ -318,9 +335,10 @@ RadioGroup<String>(
   });
 
   group('recogniseDropdown — the canonical lower-able form', () {
-    test('extracts {value, label} pairs in source order + selected + onChanged',
-        () async {
-      final outcome = await _dropdown('''
+    test(
+      'extracts {value, label} pairs in source order + selected + onChanged',
+      () async {
+        final outcome = await _dropdown('''
 DropdownButton<String>(
   value: chosen,
   onChanged: (String? v) => onPick(v),
@@ -332,15 +350,16 @@ DropdownButton<String>(
 )
 ''');
 
-      final recognised = _expectRecognised(outcome);
-      expect(recognised.options, hasLength(3));
-      expect(_value(recognised.options[0]), "'usd'");
-      expect(_label(recognised.options[0]), "'US Dollar'");
-      expect(_value(recognised.options[2]), "'gbp'");
-      expect(_label(recognised.options[2]), "'Pound'");
-      expect(recognised.selected?.toSource(), 'chosen');
-      expect(recognised.onChanged, isNotNull);
-    });
+        final recognised = _expectRecognised(outcome);
+        expect(recognised.options, hasLength(3));
+        expect(_value(recognised.options[0]), "'usd'");
+        expect(_label(recognised.options[0]), "'US Dollar'");
+        expect(_value(recognised.options[2]), "'gbp'");
+        expect(_label(recognised.options[2]), "'Pound'");
+        expect(recognised.selected?.toSource(), 'chosen');
+        expect(recognised.onChanged, isNotNull);
+      },
+    );
 
     test('a DropdownMenuItem with a behavioral arg (enabled) defers', () async {
       // `enabled: false` on a DropdownMenuItem makes that option un-selectable;
@@ -492,12 +511,13 @@ DropdownButton<String>(
   });
 
   group('type-argument gate — only the String-keyed widget lowers', () {
-    test('a resolved RadioGroup<int> defers loud (String-keyed only)',
-        () async {
-      // The compiled `RestageRadioGroupString` reads each option value as a
-      // String; a `<int>` group would have its values silently mis-keyed or
-      // dropped. The type-argument gate defers the whole widget loud.
-      final outcome = await _radio('''
+    test(
+      'a resolved RadioGroup<int> defers loud (String-keyed only)',
+      () async {
+        // The compiled `RestageRadioGroupString` reads each option value as a
+        // String; a `<int>` group would have its values silently mis-keyed or
+        // dropped. The type-argument gate defers the whole widget loud.
+        final outcome = await _radio('''
 RadioGroup<int>(
   groupValue: 1,
   onChanged: (int? v) {},
@@ -506,8 +526,9 @@ RadioGroup<int>(
   ]),
 )
 ''');
-      _expectDeferred(outcome, reasonContains: 'int');
-    });
+        _expectDeferred(outcome, reasonContains: 'int');
+      },
+    );
 
     test('a resolved DropdownButton<int> defers loud', () async {
       final outcome = await _dropdown('''
@@ -552,8 +573,7 @@ RadioGroup<String>(
       expect(recognised.options, hasLength(1));
     });
 
-    test('an INFERRED DropdownButton<int> (no written <T>) defers loud',
-        () async {
+    test('an INFERRED DropdownButton<int> (no written <T>) defers loud', () async {
       // No syntactic `<int>` is written, but the analyzer infers
       // `DropdownButton<int>` from the int `value` / item values. A gate keyed
       // on the syntactic type-argument list would see no `<T>`, name-fall-back,
@@ -589,15 +609,16 @@ RadioGroup(
       _expectDeferred(outcome, reasonContains: 'int');
     });
 
-    test('a DropdownButton<PlanId> (String-aliased typedef) recognises',
-        () async {
-      // `PlanId` is a typedef for `String`; the analyzer resolves the
-      // specialization to `DropdownButton<String>`, so the resolved-type gate
-      // recognises (the values are real Strings the compiled widget carries
-      // faithfully). The gate must see THROUGH the alias, not reject it on the
-      // syntactic lexeme `PlanId`.
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'a DropdownButton<PlanId> (String-aliased typedef) recognises',
+      () async {
+        // `PlanId` is a typedef for `String`; the analyzer resolves the
+        // specialization to `DropdownButton<String>`, so the resolved-type gate
+        // recognises (the values are real Strings the compiled widget carries
+        // faithfully). The gate must see THROUGH the alias, not reject it on the
+        // syntactic lexeme `PlanId`.
+        final expr = await parseExpressionFromSourceForTest(
+          '''
 import 'package:flutter/material.dart';
 
 typedef PlanId = String;
@@ -611,12 +632,13 @@ Object x() => DropdownButton<PlanId>(
   ],
 );
 ''',
-        rootPackage: 'apps_examples',
-      );
-      final outcome = recogniseDropdown(expr as InstanceCreationExpression);
-      final recognised = _expectRecognised(outcome);
-      expect(recognised.options, hasLength(2));
-    });
+          rootPackage: 'apps_examples',
+        );
+        final outcome = recogniseDropdown(expr as InstanceCreationExpression);
+        final recognised = _expectRecognised(outcome);
+        expect(recognised.options, hasLength(2));
+      },
+    );
   });
 
   group('framework-identity leaf gate (resolved input)', () {
@@ -635,15 +657,16 @@ RadioGroup<String>(
       expect(recognised.options, hasLength(2));
     });
 
-    test('a custom look-alike RadioListTile leaf defers (element gate)',
-        () async {
-      // Custom classes named RadioGroup / RadioListTile / Column / Text that
-      // resolve to a non-flutter library: the leaf gate withholds recognition
-      // (a coincidental name is not the framework carrier), deferring the whole
-      // group rather than carrying a look-alike leaf as a real option. The
-      // outer-widget framework gate lives in the dispatch arm; here we prove
-      // recogniser's own leaf gate defers on a resolved non-flutter carrier.
-      final expr = await parseExpressionFromSourceForTest('''
+    test(
+      'a custom look-alike RadioListTile leaf defers (element gate)',
+      () async {
+        // Custom classes named RadioGroup / RadioListTile / Column / Text that
+        // resolve to a non-flutter library: the leaf gate withholds recognition
+        // (a coincidental name is not the framework carrier), deferring the whole
+        // group rather than carrying a look-alike leaf as a real option. The
+        // outer-widget framework gate lives in the dispatch arm; here we prove
+        // recogniser's own leaf gate defers on a resolved non-flutter carrier.
+        final expr = await parseExpressionFromSourceForTest('''
 class RadioGroup<T> {
   const RadioGroup({this.groupValue, this.onChanged, this.child});
   final T? groupValue;
@@ -675,20 +698,22 @@ Object x() => RadioGroup<String>(
   ]),
 );
 ''');
-      final outcome = recogniseRadioGroup(expr as InstanceCreationExpression);
-      _expectDeferred(outcome);
-    });
+        final outcome = recogniseRadioGroup(expr as InstanceCreationExpression);
+        _expectDeferred(outcome);
+      },
+    );
 
-    test('a custom Column look-alike wrapper defers (wrapper element gate)',
-        () async {
-      // The leaves are the REAL Flutter RadioListTile / Text, but the children
-      // are wrapped in a CUSTOM class named `Column` (resolving to a
-      // non-flutter library) that could reorder / filter / inject rows. The
-      // wrapper element gate withholds recognition — treating a look-alike
-      // container as a static Flutter container would silently lower a
-      // reordered or dropped option set. The whole group defers loud.
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'a custom Column look-alike wrapper defers (wrapper element gate)',
+      () async {
+        // The leaves are the REAL Flutter RadioListTile / Text, but the children
+        // are wrapped in a CUSTOM class named `Column` (resolving to a
+        // non-flutter library) that could reorder / filter / inject rows. The
+        // wrapper element gate withholds recognition — treating a look-alike
+        // container as a static Flutter container would silently lower a
+        // reordered or dropped option set. The whole group defers loud.
+        final expr = await parseExpressionFromSourceForTest(
+          '''
 import 'package:flutter/material.dart' as m;
 
 // A custom container literally named `Column`, resolving to THIS library
@@ -706,11 +731,12 @@ m.Widget x() => m.RadioGroup<String>(
   ]),
 );
 ''',
-        rootPackage: 'apps_examples',
-      );
-      final outcome = recogniseRadioGroup(expr as InstanceCreationExpression);
-      _expectDeferred(outcome);
-    });
+          rootPackage: 'apps_examples',
+        );
+        final outcome = recogniseRadioGroup(expr as InstanceCreationExpression);
+        _expectDeferred(outcome);
+      },
+    );
 
     test('a real Flutter Column wrapper with real leaves recognises', () async {
       // The positive control for the wrapper gate: the same shape with the REAL

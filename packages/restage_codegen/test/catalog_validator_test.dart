@@ -118,74 +118,76 @@ void main() {
     });
   });
 
-  group('validateModelAgainstCatalog — required widget/widgetList presence',
-      () {
-    test('rejects an omitted required widget slot', () {
-      // A required `widget` slot left out decodes to a runtime cast error
-      // rather than a build-time diagnostic; surface it at build time.
-      const dsl = '''
+  group(
+    'validateModelAgainstCatalog — required widget/widgetList presence',
+    () {
+      test('rejects an omitted required widget slot', () {
+        // A required `widget` slot left out decodes to a runtime cast error
+        // rather than a build-time diagnostic; surface it at build time.
+        const dsl = '''
         import restage.core;
         widget Paywall = Frame(rows: [Text(text: "a")]);
       ''';
-      final library = parseLibraryFile(dsl, sourceIdentifier: 'test');
-      final issues = validateModelAgainstCatalog(library, catalog);
-      expect(
-        issues.map((i) => i.code),
-        contains(IssueCode.missingRequiredSlot),
-      );
-      expect(
-        issues
-            .firstWhere((i) => i.code == IssueCode.missingRequiredSlot)
-            .message,
-        contains('child'),
-      );
-    });
+        final library = parseLibraryFile(dsl, sourceIdentifier: 'test');
+        final issues = validateModelAgainstCatalog(library, catalog);
+        expect(
+          issues.map((i) => i.code),
+          contains(IssueCode.missingRequiredSlot),
+        );
+        expect(
+          issues
+              .firstWhere((i) => i.code == IssueCode.missingRequiredSlot)
+              .message,
+          contains('child'),
+        );
+      });
 
-    test('rejects an omitted required widgetList slot', () {
-      // A required `widgetList` slot left out silently decodes to an empty
-      // list (no runtime error at all) — the genuine silent-loss case.
-      const dsl = '''
+      test('rejects an omitted required widgetList slot', () {
+        // A required `widgetList` slot left out silently decodes to an empty
+        // list (no runtime error at all) — the genuine silent-loss case.
+        const dsl = '''
         import restage.core;
         widget Paywall = Frame(child: Text(text: "a"));
       ''';
-      final library = parseLibraryFile(dsl, sourceIdentifier: 'test');
-      final issues = validateModelAgainstCatalog(library, catalog);
-      expect(
-        issues.map((i) => i.code),
-        contains(IssueCode.missingRequiredSlot),
-      );
-      expect(
-        issues
-            .firstWhere((i) => i.code == IssueCode.missingRequiredSlot)
-            .message,
-        contains('rows'),
-      );
-    });
+        final library = parseLibraryFile(dsl, sourceIdentifier: 'test');
+        final issues = validateModelAgainstCatalog(library, catalog);
+        expect(
+          issues.map((i) => i.code),
+          contains(IssueCode.missingRequiredSlot),
+        );
+        expect(
+          issues
+              .firstWhere((i) => i.code == IssueCode.missingRequiredSlot)
+              .message,
+          contains('rows'),
+        );
+      });
 
-    test('passes when both required slots are present', () {
-      const dsl = '''
+      test('passes when both required slots are present', () {
+        const dsl = '''
         import restage.core;
         widget Paywall = Frame(child: Text(text: "a"), rows: [Text(text: "b")]);
       ''';
-      final library = parseLibraryFile(dsl, sourceIdentifier: 'test');
-      final issues = validateModelAgainstCatalog(library, catalog);
-      expect(issues, isEmpty);
-    });
+        final library = parseLibraryFile(dsl, sourceIdentifier: 'test');
+        final issues = validateModelAgainstCatalog(library, catalog);
+        expect(issues, isEmpty);
+      });
 
-    test('does not flag an omitted non-required widget slot', () {
-      // `optionalAside` is a non-required widget slot; omitting it is valid.
-      const dsl = '''
+      test('does not flag an omitted non-required widget slot', () {
+        // `optionalAside` is a non-required widget slot; omitting it is valid.
+        const dsl = '''
         import restage.core;
         widget Paywall = Frame(child: Text(text: "a"), rows: [Text(text: "b")]);
       ''';
-      final library = parseLibraryFile(dsl, sourceIdentifier: 'test');
-      final issues = validateModelAgainstCatalog(library, catalog);
-      expect(
-        issues.map((i) => i.code),
-        isNot(contains(IssueCode.missingRequiredSlot)),
-      );
-    });
-  });
+        final library = parseLibraryFile(dsl, sourceIdentifier: 'test');
+        final issues = validateModelAgainstCatalog(library, catalog);
+        expect(
+          issues.map((i) => i.code),
+          isNot(contains(IssueCode.missingRequiredSlot)),
+        );
+      });
+    },
+  );
 
   group('validateModelAgainstCatalog — library-local definitions', () {
     test('a reference to a library-local widget definition is valid', () {
@@ -199,8 +201,7 @@ void main() {
       expect(issues, isEmpty);
     });
 
-    test(
-        'a library-local reference does not validate its args as catalog '
+    test('a library-local reference does not validate its args as catalog '
         'properties', () {
       const dsl = '''
         import restage.core;

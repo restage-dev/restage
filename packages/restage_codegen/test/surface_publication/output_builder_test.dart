@@ -16,26 +16,30 @@ import '../helpers.dart';
 
 void main() {
   test('exports the cached custom catalog for a widget-only package', () async {
-    final catalog = encodeCatalog(Catalog(
-      schemaVersion: kSupportedSchemaVersion,
-      generatedAt: '2026-01-01T00:00:00Z',
-      libraries: {
-        WidgetLibrary.custom('fixture.widgets'):
-            const LibraryInfo(version: '1.0.0')
-      },
-      widgets: [],
-    ));
+    final catalog = encodeCatalog(
+      Catalog(
+        schemaVersion: kSupportedSchemaVersion,
+        generatedAt: '2026-01-01T00:00:00Z',
+        libraries: {
+          WidgetLibrary.custom('fixture.widgets'): const LibraryInfo(
+            version: '1.0.0',
+          ),
+        },
+        widgets: [],
+      ),
+    );
     final bundle = RestageSurfacePublicationBundle.valid(
       manifest: SurfacePublicationManifest(publications: []),
       artifacts: {},
     );
     final result = await testBuilder(
       RestageOutputsBuilder(
-          const BuilderOptions({'output_root': 'tool/restage'})),
+        const BuilderOptions({'output_root': 'tool/restage'}),
+      ),
       {
         'fixture|lib/src/widget_catalog/catalog.json': catalog,
-        'fixture|$kRestageSurfacePublicationCompilerBundlePath':
-            bundle.encodeCanonicalJson(),
+        'fixture|$kRestageSurfacePublicationCompilerBundlePath': bundle
+            .encodeCanonicalJson(),
       },
       rootPackage: 'fixture',
       outputs: {
@@ -50,8 +54,7 @@ void main() {
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
   });
 
-  test(
-      'materializes one deterministic bundle per authored library plus the '
+  test('materializes one deterministic bundle per authored library plus the '
       'package-wide index and publication manifest', () async {
     const screen = '''
 import 'package:flutter/material.dart';
@@ -195,7 +198,9 @@ const launch = FlowDefinition(
     // Package-wide publication manifest and physical output index.
     final manifestJson = readerWriter.testing.readString(
       AssetId(
-          'apps_examples', '.restage/build/metadata/restage.publication.json'),
+        'apps_examples',
+        '.restage/build/metadata/restage.publication.json',
+      ),
     );
     final manifest = SurfacePublicationManifestV1Codec.decode(
       jsonDecode(manifestJson),
@@ -226,21 +231,29 @@ const launch = FlowDefinition(
       <String>['lib/features/announcement.dart', 'lib/journeys/launch.dart'],
     );
 
-    final indexJson = jsonDecode(
-      readerWriter.testing.readString(
-        AssetId(
-            'apps_examples', '.restage/build/metadata/restage.outputs.json'),
-      ),
-    ) as Map<String, Object?>;
+    final indexJson =
+        jsonDecode(
+              readerWriter.testing.readString(
+                AssetId(
+                  'apps_examples',
+                  '.restage/build/metadata/restage.outputs.json',
+                ),
+              ),
+            )
+            as Map<String, Object?>;
     expect(indexJson['package'], 'apps_examples');
     expect(indexJson['physicalRoot'], '.restage/build');
     // The capture plan is bound to this build by the index's fingerprint.
-    final capturePlan = jsonDecode(
-      readerWriter.testing.readString(
-        AssetId(
-            'apps_examples', '.restage/build/metadata/restage.capture.json'),
-      ),
-    ) as Map<String, Object?>;
+    final capturePlan =
+        jsonDecode(
+              readerWriter.testing.readString(
+                AssetId(
+                  'apps_examples',
+                  '.restage/build/metadata/restage.capture.json',
+                ),
+              ),
+            )
+            as Map<String, Object?>;
     expect(capturePlan['version'], 1);
     expect(
       capturePlan['generationFingerprint'],
@@ -302,8 +315,7 @@ const launch = FlowDefinition(
     expect(materializedControl.encodeJson(), compilerControl.encodeJson());
   });
 
-  test(
-      'inspection report text matches the bundle entry byte-for-byte '
+  test('inspection report text matches the bundle entry byte-for-byte '
       'after UTF-8 decoding', () async {
     const screen = '''
 import 'package:flutter/material.dart';
@@ -391,7 +403,8 @@ final class FeatureAnnouncement extends StatelessWidget {
         expect(
           reportText,
           contains('```text\n$decoded\n```'),
-          reason: 'Report text for ${entry.logicalPath} must equal the '
+          reason:
+              'Report text for ${entry.logicalPath} must equal the '
               'bundle entry byte-for-byte after UTF-8 decoding.',
         );
       } else if (entry.logicalPath.endsWith('.json')) {
@@ -400,7 +413,8 @@ final class FeatureAnnouncement extends StatelessWidget {
         expect(
           reportText,
           contains('```json\n$decoded\n```'),
-          reason: 'Report text for ${entry.logicalPath} must equal the '
+          reason:
+              'Report text for ${entry.logicalPath} must equal the '
               'bundle entry byte-for-byte after UTF-8 decoding.',
         );
       } else if (entry.logicalPath.endsWith('.rfw')) {
@@ -423,8 +437,7 @@ final class FeatureAnnouncement extends StatelessWidget {
     );
   });
 
-  test(
-      'bundled_runtime emits a locator whose hashes and lengths are '
+  test('bundled_runtime emits a locator whose hashes and lengths are '
       'byte-equal to the decoded bundle entries', () async {
     const screen = '''
 import 'package:flutter/material.dart';
@@ -493,7 +506,8 @@ final class FeatureAnnouncement extends StatelessWidget {
 
     // bundled_runtime routes ONLY the bundle into assets/; the generated
     // Dart part's own placement is unaffected.
-    const bundleAssetKey = 'assets/restage/bundles/lib/features/announcement'
+    const bundleAssetKey =
+        'assets/restage/bundles/lib/features/announcement'
         '.rsbundle';
     final bundleBytes = readerWriter.testing.readBytes(
       AssetId('apps_examples', bundleAssetKey),
@@ -653,8 +667,10 @@ final class FeatureAnnouncement extends StatelessWidget {
     final manifest = SurfacePublicationManifestV1Codec.decode(
       jsonDecode(
         readerWriter.testing.readString(
-          AssetId('apps_examples',
-              '.restage/build/metadata/restage.publication.json'),
+          AssetId(
+            'apps_examples',
+            '.restage/build/metadata/restage.publication.json',
+          ),
         ),
       ),
     );
@@ -701,58 +717,62 @@ final class FeatureAnnouncement extends StatelessWidget {
     _expectNoPackageOutputs(build.readerWriter);
   });
 
-  test('rejects package-mismatched existing label control before any outputs',
-      () async {
-    final build = await _buildPackageOutputsWithControl(
-      controlJson: AnalyticsIdControlOutputV1(
-        packageName: 'stale_package',
-        publications: const <AnalyticsIdControlPublication>[],
-      ).encodeJson(),
-    );
-
-    expect(build.result.succeeded, isFalse);
-    expect(build.result.errors.join('\n'), contains('stale_package'));
-    _expectNoPackageOutputs(build.readerWriter);
-  });
-
-  test('materializes empty label metadata for valid and absent control',
-      () async {
-    final valid = AnalyticsIdControlOutputV1(
-      packageName: 'apps_examples',
-      publications: const <AnalyticsIdControlPublication>[],
-    ).encodeJson();
-
-    for (final controlJson in <String?>[null, valid]) {
+  test(
+    'rejects package-mismatched existing label control before any outputs',
+    () async {
       final build = await _buildPackageOutputsWithControl(
-        controlJson: controlJson,
+        controlJson: AnalyticsIdControlOutputV1(
+          packageName: 'stale_package',
+          publications: const <AnalyticsIdControlPublication>[],
+        ).encodeJson(),
       );
 
-      expect(
-        build.result.succeeded,
-        isTrue,
-        reason: build.result.errors.join('\n'),
-      );
-      for (final path in _packageOutputPaths) {
-        expect(
-          build.readerWriter.testing.exists(AssetId('apps_examples', path)),
-          isTrue,
-          reason: '${controlJson == null ? 'absent' : 'valid'}: $path',
+      expect(build.result.succeeded, isFalse);
+      expect(build.result.errors.join('\n'), contains('stale_package'));
+      _expectNoPackageOutputs(build.readerWriter);
+    },
+  );
+
+  test(
+    'materializes empty label metadata for valid and absent control',
+    () async {
+      final valid = AnalyticsIdControlOutputV1(
+        packageName: 'apps_examples',
+        publications: const <AnalyticsIdControlPublication>[],
+      ).encodeJson();
+
+      for (final controlJson in <String?>[null, valid]) {
+        final build = await _buildPackageOutputsWithControl(
+          controlJson: controlJson,
         );
-      }
-      final metadata = AnalyticsIdControlOutputV1.fromJson(
-        jsonDecode(
-          build.readerWriter.testing.readString(
-            AssetId(
-              'apps_examples',
-              '.restage/build/metadata/restage.analytics-id.metadata.json',
+
+        expect(
+          build.result.succeeded,
+          isTrue,
+          reason: build.result.errors.join('\n'),
+        );
+        for (final path in _packageOutputPaths) {
+          expect(
+            build.readerWriter.testing.exists(AssetId('apps_examples', path)),
+            isTrue,
+            reason: '${controlJson == null ? 'absent' : 'valid'}: $path',
+          );
+        }
+        final metadata = AnalyticsIdControlOutputV1.fromJson(
+          jsonDecode(
+            build.readerWriter.testing.readString(
+              AssetId(
+                'apps_examples',
+                '.restage/build/metadata/restage.analytics-id.metadata.json',
+              ),
             ),
           ),
-        ),
-      );
-      expect(metadata.packageName, 'apps_examples');
-      expect(metadata.publications, isEmpty);
-    }
-  });
+        );
+        expect(metadata.packageName, 'apps_examples');
+        expect(metadata.publications, isEmpty);
+      }
+    },
+  );
 }
 
 const _packageOutputPaths = <String>[
@@ -763,7 +783,7 @@ const _packageOutputPaths = <String>[
 ];
 
 Future<({TestBuilderResult result, TestReaderWriter readerWriter})>
-    _buildPackageOutputsWithControl({String? controlJson}) async {
+_buildPackageOutputsWithControl({String? controlJson}) async {
   final bundle = RestageSurfacePublicationBundle.valid(
     manifest: SurfacePublicationManifest(publications: const []),
     artifacts: const {},
@@ -799,12 +819,14 @@ void _expectNoPackageOutputs(TestReaderWriter readerWriter) {
 }
 
 Future<
-    ({
-      String metadata,
-      String manifest,
-      String outputIndex,
-      String measurementIndex
-    })> _materializeLabelMetadata(String analyticsId) async {
+  ({
+    String metadata,
+    String manifest,
+    String outputIndex,
+    String measurementIndex,
+  })
+>
+_materializeLabelMetadata(String analyticsId) async {
   final bundle = RestageSurfacePublicationBundle.valid(
     manifest: SurfacePublicationManifest(publications: const []),
     artifacts: const {},
@@ -826,8 +848,9 @@ Future<
     ),
   );
   final edge = ArtifactOccurrenceEdgeToken('edge.checkout');
-  final presentationReferenceId =
-      GeneratedPresentationReferenceId('reference.checkout');
+  final presentationReferenceId = GeneratedPresentationReferenceId(
+    'reference.checkout',
+  );
   final carrier = MeasurementPublicationRouteCarrierV1.derivePresentation(
     routeDraftClosureDigest: scope.routePlanClosureDigest,
     artifactOccurrenceEdgeToken: edge,
@@ -851,8 +874,8 @@ Future<
               presentationRouteCarrier: carrier,
               presentationRouteFingerprint:
                   OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(
-                carrier,
-              ).fingerprint,
+                    carrier,
+                  ).fingerprint,
             ),
           ),
         ],
@@ -887,14 +910,18 @@ Future<
     ),
     manifest: readerWriter.testing.readString(
       AssetId(
-          'apps_examples', '.restage/build/metadata/restage.publication.json'),
+        'apps_examples',
+        '.restage/build/metadata/restage.publication.json',
+      ),
     ),
     outputIndex: readerWriter.testing.readString(
       AssetId('apps_examples', '.restage/build/metadata/restage.outputs.json'),
     ),
     measurementIndex: readerWriter.testing.readString(
-      AssetId('apps_examples',
-          '.restage/build/metadata/restage.measurement.index.json'),
+      AssetId(
+        'apps_examples',
+        '.restage/build/metadata/restage.measurement.index.json',
+      ),
     ),
   );
 }

@@ -47,10 +47,12 @@ const _sealed = '''
 void main() {
   group('list-of-objects — real discovery', () {
     test(
-        'a data class with a List<ConcreteDataClass> field is RENDERABLE — its '
-        'widget is ADMITTED (RED until the un-drop lands)', () async {
-      final admission = await _admit({
-        'lib/card.dart': '''
+      'a data class with a List<ConcreteDataClass> field is RENDERABLE — its '
+      'widget is ADMITTED (RED until the un-drop lands)',
+      () async {
+        final admission = await _admit({
+          'lib/card.dart':
+              '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           $_leaf
           class Panel {
@@ -65,16 +67,19 @@ void main() {
             @RestageProperty(description: 'p') final Panel panel;
           }
         ''',
-      });
-      expect(admission.admitted.map((w) => w.name), contains('PanelCard'));
-      expect(admission.excluded, isEmpty);
-    });
+        });
+        expect(admission.admitted.map((w) => w.name), contains('PanelCard'));
+        expect(admission.excluded, isEmpty);
+      },
+    );
 
     test(
-        'a data class with a List<SealedUnion> field stays EXCLUDED-loud — the '
-        'list un-drop must not admit a List<union>', () async {
-      final admission = await _admit({
-        'lib/card.dart': '''
+      'a data class with a List<SealedUnion> field stays EXCLUDED-loud — the '
+      'list un-drop must not admit a List<union>',
+      () async {
+        final admission = await _admit({
+          'lib/card.dart':
+              '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           $_sealed
           class Panel {
@@ -89,11 +94,12 @@ void main() {
             @RestageProperty(description: 'p') final Panel panel;
           }
         ''',
-      });
-      expect(admission.admitted, isEmpty);
-      expect(admission.excluded, hasLength(1));
-      expect(admission.excluded.single.widget.name, 'PanelCard');
-    });
+        });
+        expect(admission.admitted, isEmpty);
+        expect(admission.excluded, hasLength(1));
+        expect(admission.excluded.single.widget.name, 'PanelCard');
+      },
+    );
 
     test('a data class with scalar-list fields is RENDERABLE', () async {
       final admission = await _admit({
@@ -124,10 +130,12 @@ void main() {
       expect(admission.admitted.map((w) => w.name), contains('StrokeCard'));
     });
 
-    test('a data class with a bare sealed-union field stays EXCLUDED-loud',
-        () async {
-      final admission = await _admit({
-        'lib/card.dart': '''
+    test(
+      'a data class with a bare sealed-union field stays EXCLUDED-loud',
+      () async {
+        final admission = await _admit({
+          'lib/card.dart':
+              '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           $_sealed
           class Panel {
@@ -142,10 +150,11 @@ void main() {
             @RestageProperty(description: 'p') final Panel panel;
           }
         ''',
-      });
-      expect(admission.admitted, isEmpty);
-      expect(admission.excluded, hasLength(1));
-      expect(admission.excluded.single.widget.name, 'PanelCard');
-    });
+        });
+        expect(admission.admitted, isEmpty);
+        expect(admission.excluded, hasLength(1));
+        expect(admission.excluded.single.widget.name, 'PanelCard');
+      },
+    );
   });
 }

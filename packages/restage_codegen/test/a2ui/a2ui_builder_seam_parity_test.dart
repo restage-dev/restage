@@ -43,64 +43,71 @@ const _richShapeFixtureImport = 'rich_shape_fixture.dart';
 /// The interactive proof widgets (mirrors the regen proof's table): the catalog
 /// name, the fixture class the emitter constructs, the value properties, and
 /// the callback (event) properties.
-const _interactiveWidgets = <({
-  String catalogName,
-  String widgetClass,
-  List<(String, PropertyType)> valueProps,
-  List<String> callbacks,
-})>[
-  (
-    catalogName: 'QuickCheck',
-    widgetClass: 'QuickCheckFixture',
-    valueProps: [('selected', PropertyType.integer)],
-    callbacks: ['onSelected'],
-  ),
-  (
-    catalogName: 'MultiSelect',
-    widgetClass: 'MultiSelectFixture',
-    valueProps: [('chosen', PropertyType.stringList)],
-    callbacks: ['onChosen'],
-  ),
-  (
-    catalogName: 'ActionButton',
-    widgetClass: 'ActionButtonFixture',
-    valueProps: [('label', PropertyType.string)],
-    callbacks: ['onPressed'],
-  ),
-  (
-    catalogName: 'Range',
-    widgetClass: 'RangeFixture',
-    valueProps: [('low', PropertyType.integer), ('high', PropertyType.integer)],
-    callbacks: ['onLow', 'onHigh'],
-  ),
-];
+const _interactiveWidgets =
+    <
+      ({
+        String catalogName,
+        String widgetClass,
+        List<(String, PropertyType)> valueProps,
+        List<String> callbacks,
+      })
+    >[
+      (
+        catalogName: 'QuickCheck',
+        widgetClass: 'QuickCheckFixture',
+        valueProps: [('selected', PropertyType.integer)],
+        callbacks: ['onSelected'],
+      ),
+      (
+        catalogName: 'MultiSelect',
+        widgetClass: 'MultiSelectFixture',
+        valueProps: [('chosen', PropertyType.stringList)],
+        callbacks: ['onChosen'],
+      ),
+      (
+        catalogName: 'ActionButton',
+        widgetClass: 'ActionButtonFixture',
+        valueProps: [('label', PropertyType.string)],
+        callbacks: ['onPressed'],
+      ),
+      (
+        catalogName: 'Range',
+        widgetClass: 'RangeFixture',
+        valueProps: [
+          ('low', PropertyType.integer),
+          ('high', PropertyType.integer),
+        ],
+        callbacks: ['onLow', 'onHigh'],
+      ),
+    ];
 
 /// The rich-shape proof widgets (mirrors the regen proof's table): the catalog
 /// name, the fixture class, and the single structured data property.
 const _richShapeWidgets =
     <({String catalogName, String widgetClass, String param})>[
-  (catalogName: 'PlanCard', widgetClass: 'PlanCardFixture', param: 'plan'),
-  (
-    catalogName: 'FeatureGrid',
-    widgetClass: 'FeatureGridFixture',
-    param: 'features',
-  ),
-  (catalogName: 'Glossary', widgetClass: 'GlossaryFixture', param: 'terms'),
-  (catalogName: 'MetaBar', widgetClass: 'MetaBarFixture', param: 'meta'),
-  (catalogName: 'LinkCard', widgetClass: 'LinkCardFixture', param: 'link'),
-  (
-    catalogName: 'CommentThread',
-    widgetClass: 'CommentThreadFixture',
-    param: 'root',
-  ),
-];
+      (catalogName: 'PlanCard', widgetClass: 'PlanCardFixture', param: 'plan'),
+      (
+        catalogName: 'FeatureGrid',
+        widgetClass: 'FeatureGridFixture',
+        param: 'features',
+      ),
+      (catalogName: 'Glossary', widgetClass: 'GlossaryFixture', param: 'terms'),
+      (catalogName: 'MetaBar', widgetClass: 'MetaBarFixture', param: 'meta'),
+      (catalogName: 'LinkCard', widgetClass: 'LinkCardFixture', param: 'link'),
+      (
+        catalogName: 'CommentThread',
+        widgetClass: 'CommentThreadFixture',
+        param: 'root',
+      ),
+    ];
 
 /// Resolves [fixturePath]'s source off a real `buildStep.resolver` (the
 /// production resolution path) by feeding it as an in-memory asset under
 /// `restage_codegen` and capturing the resolved library element.
 Future<LibraryElement> _resolveOffBuildResolver(String fixturePath) async {
-  final source =
-      File('${Directory.current.path}/$fixturePath').resolveSymbolicLinksSync();
+  final source = File(
+    '${Directory.current.path}/$fixturePath',
+  ).resolveSymbolicLinksSync();
   final content = File(source).readAsStringSync();
   // Mount under `apps_examples` so the resolved library URI
   // (`package:apps_examples/...`) sorts before `package:flutter/...` — matching
@@ -139,138 +146,144 @@ ClassElement _classFor(LibraryElement library, String name) =>
 
 void main() {
   group('proof (a) — seam-assembly byte-parity off the build resolver', () {
-    test('the interactive golden regenerates from the build-resolver seams',
-        () async {
-      final library = await _resolveOffBuildResolver(_interactiveFixturePath);
-      final fixtureUri = _classFor(
-        library,
-        _interactiveWidgets.first.widgetClass,
-      ).library.identifier;
+    test(
+      'the interactive golden regenerates from the build-resolver seams',
+      () async {
+        final library = await _resolveOffBuildResolver(_interactiveFixturePath);
+        final fixtureUri = _classFor(
+          library,
+          _interactiveWidgets.first.widgetClass,
+        ).library.identifier;
 
-      final widgets = <({WidgetEntry entry, ClassElement element})>[
-        for (final w in _interactiveWidgets)
-          (
-            entry: entry(
-              name: w.catalogName,
-              flutterType: '$fixtureUri#${w.widgetClass}',
-              properties: [
-                // Mirrors the regen proof's `_valuePropDescription` on
-                // QuickCheck's write-back value property — the committed
-                // golden carries this description, so byte-parity requires it
-                // here too.
-                for (final v in w.valueProps)
+        final widgets = <({WidgetEntry entry, ClassElement element})>[
+          for (final w in _interactiveWidgets)
+            (
+              entry: entry(
+                name: w.catalogName,
+                flutterType: '$fixtureUri#${w.widgetClass}',
+                properties: [
+                  // Mirrors the regen proof's `_valuePropDescription` on
+                  // QuickCheck's write-back value property — the committed
+                  // golden carries this description, so byte-parity requires it
+                  // here too.
+                  for (final v in w.valueProps)
+                    prop(
+                      v.$1,
+                      v.$2,
+                      required: true,
+                      description:
+                          w.catalogName == 'QuickCheck' && v.$1 == 'selected'
+                          ? 'The currently selected option index.'
+                          : '',
+                    ),
+                  for (final c in w.callbacks)
+                    prop(c, PropertyType.event, required: true),
+                ],
+              ),
+              element: _classFor(library, w.widgetClass),
+            ),
+        ];
+        final catalog = catalogWith([for (final w in widgets) w.entry]);
+        final seams = assembleA2uiSeams(
+          widgets,
+          writeBackValuesByWidget: const {
+            'Range': {'onLow': 'low', 'onHigh': 'high'},
+          },
+        );
+        final registration = emitA2uiCatalog(
+          catalog,
+          eventSeam: seams.eventSeam,
+          pairingSeam: seams.pairingSeam,
+          richShapes: seams.richShapes,
+        );
+
+        final emitted = emitA2uiCatalogDart(
+          catalog,
+          registration: registration,
+          eventSeam: seams.eventSeam,
+          pairingSeam: seams.pairingSeam,
+          richShapes: seams.richShapes,
+        );
+        final normalized = formatGeneratedDart(
+          emitted.replaceAll(fixtureUri, _interactiveFixtureImport),
+        ).trimRight();
+
+        expect(
+          normalized,
+          File(_interactiveGoldenPath).readAsStringSync().trimRight(),
+          reason:
+              'the build-resolver seam assembly must reproduce the committed '
+              'interactive golden byte-for-byte (condition #3, production path)',
+        );
+      },
+    );
+
+    test(
+      'the rich-shape golden regenerates from the build-resolver seams',
+      () async {
+        final library = await _resolveOffBuildResolver(_richShapeFixturePath);
+        final fixtureUri = _classFor(
+          library,
+          _richShapeWidgets.first.widgetClass,
+        ).library.identifier;
+
+        // Mirrors the regen proof's `_propertyDescriptions` — the committed
+        // golden carries these descriptions, so byte-parity requires them here
+        // too.
+        const propertyDescriptions = <String, String>{
+          'PlanCard': 'The plan tier this card presents.',
+          'CommentThread': 'The root comment of a recursive reply thread.',
+        };
+        // Mirrors the regen proof's `_widgetRootDescription` — a component-root
+        // `@RestageWidget(...)` description on a widget that has no property
+        // description, so both description kinds are byte-pinned here too.
+        const widgetRootDescriptions = <String, String>{
+          'FeatureGrid': 'A grid of plan features with inclusion flags.',
+        };
+        final widgets = <({WidgetEntry entry, ClassElement element})>[
+          for (final w in _richShapeWidgets)
+            (
+              entry: entry(
+                name: w.catalogName,
+                flutterType: '$fixtureUri#${w.widgetClass}',
+                description: widgetRootDescriptions[w.catalogName] ?? '',
+                properties: [
                   prop(
-                    v.$1,
-                    v.$2,
+                    w.param,
+                    PropertyType.structured,
                     required: true,
-                    description:
-                        w.catalogName == 'QuickCheck' && v.$1 == 'selected'
-                            ? 'The currently selected option index.'
-                            : '',
+                    description: propertyDescriptions[w.catalogName] ?? '',
                   ),
-                for (final c in w.callbacks)
-                  prop(c, PropertyType.event, required: true),
-              ],
+                ],
+              ),
+              element: _classFor(library, w.widgetClass),
             ),
-            element: _classFor(library, w.widgetClass),
-          ),
-      ];
-      final catalog = catalogWith([for (final w in widgets) w.entry]);
-      final seams = assembleA2uiSeams(
-        widgets,
-        writeBackValuesByWidget: const {
-          'Range': {'onLow': 'low', 'onHigh': 'high'},
-        },
-      );
-      final registration = emitA2uiCatalog(
-        catalog,
-        eventSeam: seams.eventSeam,
-        pairingSeam: seams.pairingSeam,
-        richShapes: seams.richShapes,
-      );
+        ];
+        final catalog = catalogWith([for (final w in widgets) w.entry]);
+        final seams = assembleA2uiSeams(widgets);
+        final registration = emitA2uiCatalog(
+          catalog,
+          richShapes: seams.richShapes,
+        );
 
-      final emitted = emitA2uiCatalogDart(
-        catalog,
-        registration: registration,
-        eventSeam: seams.eventSeam,
-        pairingSeam: seams.pairingSeam,
-        richShapes: seams.richShapes,
-      );
-      final normalized = formatGeneratedDart(
-        emitted.replaceAll(fixtureUri, _interactiveFixtureImport),
-      ).trimRight();
+        final emitted = emitA2uiCatalogDart(
+          catalog,
+          registration: registration,
+          richShapes: seams.richShapes,
+        );
+        final normalized = formatGeneratedDart(
+          emitted.replaceAll(fixtureUri, _richShapeFixtureImport),
+        ).trimRight();
 
-      expect(
-        normalized,
-        File(_interactiveGoldenPath).readAsStringSync().trimRight(),
-        reason: 'the build-resolver seam assembly must reproduce the committed '
-            'interactive golden byte-for-byte (condition #3, production path)',
-      );
-    });
-
-    test('the rich-shape golden regenerates from the build-resolver seams',
-        () async {
-      final library = await _resolveOffBuildResolver(_richShapeFixturePath);
-      final fixtureUri = _classFor(
-        library,
-        _richShapeWidgets.first.widgetClass,
-      ).library.identifier;
-
-      // Mirrors the regen proof's `_propertyDescriptions` — the committed
-      // golden carries these descriptions, so byte-parity requires them here
-      // too.
-      const propertyDescriptions = <String, String>{
-        'PlanCard': 'The plan tier this card presents.',
-        'CommentThread': 'The root comment of a recursive reply thread.',
-      };
-      // Mirrors the regen proof's `_widgetRootDescription` — a component-root
-      // `@RestageWidget(...)` description on a widget that has no property
-      // description, so both description kinds are byte-pinned here too.
-      const widgetRootDescriptions = <String, String>{
-        'FeatureGrid': 'A grid of plan features with inclusion flags.',
-      };
-      final widgets = <({WidgetEntry entry, ClassElement element})>[
-        for (final w in _richShapeWidgets)
-          (
-            entry: entry(
-              name: w.catalogName,
-              flutterType: '$fixtureUri#${w.widgetClass}',
-              description: widgetRootDescriptions[w.catalogName] ?? '',
-              properties: [
-                prop(
-                  w.param,
-                  PropertyType.structured,
-                  required: true,
-                  description: propertyDescriptions[w.catalogName] ?? '',
-                ),
-              ],
-            ),
-            element: _classFor(library, w.widgetClass),
-          ),
-      ];
-      final catalog = catalogWith([for (final w in widgets) w.entry]);
-      final seams = assembleA2uiSeams(widgets);
-      final registration = emitA2uiCatalog(
-        catalog,
-        richShapes: seams.richShapes,
-      );
-
-      final emitted = emitA2uiCatalogDart(
-        catalog,
-        registration: registration,
-        richShapes: seams.richShapes,
-      );
-      final normalized = formatGeneratedDart(
-        emitted.replaceAll(fixtureUri, _richShapeFixtureImport),
-      ).trimRight();
-
-      expect(
-        normalized,
-        File(_richShapeGoldenPath).readAsStringSync().trimRight(),
-        reason: 'the build-resolver seam assembly must reproduce the committed '
-            'rich-shape golden byte-for-byte (condition #3, production path)',
-      );
-    });
+        expect(
+          normalized,
+          File(_richShapeGoldenPath).readAsStringSync().trimRight(),
+          reason:
+              'the build-resolver seam assembly must reproduce the committed '
+              'rich-shape golden byte-for-byte (condition #3, production path)',
+        );
+      },
+    );
   });
 }
 
@@ -284,8 +297,8 @@ class _LibraryCapture implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.a2uiseamproof'],
-      };
+    '.dart': ['.a2uiseamproof'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {

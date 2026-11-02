@@ -50,18 +50,19 @@ final blocked = FlowDefinition(
       }
     });
 
-    test('a source extending the host widget is told which class it wanted',
-        () async {
-      // `RestageFlowGraph` mounts a flow; `RestageFlow` is what a flow source
-      // extends, and the two sit next to each other in a completion list.
-      //
-      // The analyzer already rejects this (the widget is a `final class`), so
-      // this test is really asking whether the build ALSO reaches the case and
-      // says which of the pair was wanted. If build_runner stopped at the
-      // semantic error the branch would be unreachable and the diagnostic
-      // would be dead code.
-      final result = await _inspect({
-        'lib/onboarding/flows/mixed_up.dart': """
+    test(
+      'a source extending the host widget is told which class it wanted',
+      () async {
+        // `RestageFlowGraph` mounts a flow; `RestageFlow` is what a flow source
+        // extends, and the two sit next to each other in a completion list.
+        //
+        // The analyzer already rejects this (the widget is a `final class`), so
+        // this test is really asking whether the build ALSO reaches the case and
+        // says which of the pair was wanted. If build_runner stopped at the
+        // semantic error the branch would be unreachable and the diagnostic
+        // would be dead code.
+        final result = await _inspect({
+          'lib/onboarding/flows/mixed_up.dart': """
 import 'package:restage/restage.dart';
 
 @FlowGraph(id: 'mixed_up', surface: Surface.onboarding)
@@ -72,28 +73,31 @@ final class MixedUpFlow extends RestageFlowGraph {
   FlowDef buildFlow() => flow(initial: null, states: const []);
 }
 """,
-      });
+        });
 
-      expect(result.flows, isEmpty);
-      expect(
-        result.issues.map((i) => i.code),
-        contains(IssueCode.unsupportedBaseClass),
-      );
-      expect(
-        result.issues.map((i) => i.message).join('\n'),
-        allOf(
-          contains('RestageFlowGraph is the host widget'),
-          contains('extends RestageFlow'),
-        ),
-        reason: 'the message must name the class the author wanted, not just '
-            'restate that the base class is unsupported',
-      );
-    });
+        expect(result.flows, isEmpty);
+        expect(
+          result.issues.map((i) => i.code),
+          contains(IssueCode.unsupportedBaseClass),
+        );
+        expect(
+          result.issues.map((i) => i.message).join('\n'),
+          allOf(
+            contains('RestageFlowGraph is the host widget'),
+            contains('extends RestageFlow'),
+          ),
+          reason:
+              'the message must name the class the author wanted, not just '
+              'restate that the base class is unsupported',
+        );
+      },
+    );
 
-    test('normalizes a legacy class flow into the shared source model',
-        () async {
-      final result = await _inspect({
-        'lib/onboarding/flows/welcome.dart': '''
+    test(
+      'normalizes a legacy class flow into the shared source model',
+      () async {
+        final result = await _inspect({
+          'lib/onboarding/flows/welcome.dart': '''
 import 'package:restage/restage.dart';
 
 @FlowSource(id: 'welcome')
@@ -112,21 +116,23 @@ final class WelcomeFlow extends RestageFlow {
       );
 }
 ''',
-      });
+        });
 
-      expect(result.issues, isEmpty);
-      expect(result.flows, hasLength(1));
-      final flow = result.flows.single;
-      expect(flow.id, 'welcome');
-      expect(flow.isCanonical, isFalse);
-      expect(flow.surface, Surface.onboarding);
-      expect(flow.declaration, isA<ClassElement>());
-    });
+        expect(result.issues, isEmpty);
+        expect(result.flows, hasLength(1));
+        final flow = result.flows.single;
+        expect(flow.id, 'welcome');
+        expect(flow.isCanonical, isFalse);
+        expect(flow.surface, Surface.onboarding);
+        expect(flow.declaration, isA<ClassElement>());
+      },
+    );
 
-    test('recognizes the canonical annotation on an advanced flow class',
-        () async {
-      final result = await _inspect({
-        'lib/onboarding/flows/advanced_flow.dart': '''
+    test(
+      'recognizes the canonical annotation on an advanced flow class',
+      () async {
+        final result = await _inspect({
+          'lib/onboarding/flows/advanced_flow.dart': '''
 import 'package:restage/restage.dart';
 
 @FlowGraph(surface: Surface.onboarding)
@@ -145,14 +151,15 @@ final class AdvancedFlow extends RestageFlow {
       );
 }
 ''',
-      });
+        });
 
-      expect(result.issues, isEmpty, reason: result.issues.toString());
-      expect(result.flows.single.id, 'advanced_flow');
-      expect(result.flows.single.hasExplicitId, isFalse);
-      expect(result.flows.single.isCanonical, isTrue);
-      expect(result.flows.single.graph, isNull);
-    });
+        expect(result.issues, isEmpty, reason: result.issues.toString());
+        expect(result.flows.single.id, 'advanced_flow');
+        expect(result.flows.single.hasExplicitId, isFalse);
+        expect(result.flows.single.isCanonical, isTrue);
+        expect(result.flows.single.graph, isNull);
+      },
+    );
 
     test('does not admit a local FlowSource lookalike', () async {
       final result = await _inspect({
@@ -259,11 +266,12 @@ const duplicateState = FlowDefinition(
       );
     });
 
-    test('rejects repeated state keys across regular and seedable refs',
-        () async {
-      final result = await _inspect({
-        'lib/onboarding/screens/start.dart': _screenSource('StartScreen', ''),
-        'lib/onboarding/flows/duplicate_seedable_state.dart': '''
+    test(
+      'rejects repeated state keys across regular and seedable refs',
+      () async {
+        final result = await _inspect({
+          'lib/onboarding/screens/start.dart': _screenSource('StartScreen', ''),
+          'lib/onboarding/flows/duplicate_seedable_state.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/start.dart';
 
@@ -277,20 +285,22 @@ const duplicateSeedableState = FlowDefinition(
   transitions: [],
 );
 ''',
-      });
+        });
 
-      expect(result.flows, isEmpty);
-      expect(
-        result.issues.map((issue) => issue.message).join('\n'),
-        contains('Flow-state key "answer" is declared more than once.'),
-      );
-    });
+        expect(result.flows, isEmpty);
+        expect(
+          result.issues.map((issue) => issue.message).join('\n'),
+          contains('Flow-state key "answer" is declared more than once.'),
+        );
+      },
+    );
 
-    test('requires state declarations to have reusable analyzer elements',
-        () async {
-      final result = await _inspect({
-        'lib/onboarding/screens/start.dart': _screenSource('StartScreen', ''),
-        'lib/onboarding/flows/inline_state.dart': '''
+    test(
+      'requires state declarations to have reusable analyzer elements',
+      () async {
+        final result = await _inspect({
+          'lib/onboarding/screens/start.dart': _screenSource('StartScreen', ''),
+          'lib/onboarding/flows/inline_state.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/start.dart';
 
@@ -301,17 +311,18 @@ final inlineState = FlowDefinition(
   transitions: [],
 );
 ''',
-      });
+        });
 
-      expect(result.flows, isEmpty);
-      expect(
-        result.issues.map((issue) => issue.message).join('\n'),
-        contains(
-          'FlowDefinition.state entries must reference analyzer-resolved '
-          'FlowStateRef declarations.',
-        ),
-      );
-    });
+        expect(result.flows, isEmpty);
+        expect(
+          result.issues.map((issue) => issue.message).join('\n'),
+          contains(
+            'FlowDefinition.state entries must reference analyzer-resolved '
+            'FlowStateRef declarations.',
+          ),
+        );
+      },
+    );
 
     test('rejects same-key aliases in every parent state-ref use', () async {
       final result = await _inspect({
@@ -479,14 +490,15 @@ final aliasSubflowInput = FlowDefinition(
       );
     });
 
-    test('accepts the deprecated OnboardingEvent typedef by resolved element',
-        () async {
-      final result = await _inspect({
-        'lib/onboarding/screens/welcome.dart': _screenSource(
-          'WelcomeScreen',
-          "static const finish = OnboardingEvent<void>('finish');",
-        ),
-        'lib/onboarding/flows/welcome_flow.dart': '''
+    test(
+      'accepts the deprecated OnboardingEvent typedef by resolved element',
+      () async {
+        final result = await _inspect({
+          'lib/onboarding/screens/welcome.dart': _screenSource(
+            'WelcomeScreen',
+            "static const finish = OnboardingEvent<void>('finish');",
+          ),
+          'lib/onboarding/flows/welcome_flow.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/welcome.dart';
 
@@ -496,28 +508,30 @@ const welcomeFlow = FlowDefinition(
   transitions: [Transition.complete(WelcomeScreen.finish)],
 );
 ''',
-      });
+        });
 
-      expect(result.issues, isEmpty, reason: result.issues.toString());
-      expect(result.flows.single.graph!.states['done'], isA<EndFlowState>());
-    });
+        expect(result.issues, isEmpty, reason: result.issues.toString());
+        expect(result.flows.single.graph!.states['done'], isA<EndFlowState>());
+      },
+    );
 
-    test('lowers typed state, decision branches, writes, and outbound policy',
-        () async {
-      final result = await _inspect({
-        'lib/survey/screens/question.dart': _screenSource(
-          'QuestionScreen',
-          "static const answer = SurfaceEvent<String>('answer');",
-        ),
-        'lib/survey/screens/guided.dart': _screenSource(
-          'GuidedScreen',
-          "static const finish = SurfaceEvent<void>('finish');",
-        ),
-        'lib/survey/screens/explore.dart': _screenSource(
-          'ExploreScreen',
-          "static const finish = SurfaceEvent<void>('finish');",
-        ),
-        'lib/survey/flows/setup_survey.dart': '''
+    test(
+      'lowers typed state, decision branches, writes, and outbound policy',
+      () async {
+        final result = await _inspect({
+          'lib/survey/screens/question.dart': _screenSource(
+            'QuestionScreen',
+            "static const answer = SurfaceEvent<String>('answer');",
+          ),
+          'lib/survey/screens/guided.dart': _screenSource(
+            'GuidedScreen',
+            "static const finish = SurfaceEvent<void>('finish');",
+          ),
+          'lib/survey/screens/explore.dart': _screenSource(
+            'ExploreScreen',
+            "static const finish = SurfaceEvent<void>('finish');",
+          ),
+          'lib/survey/flows/setup_survey.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/explore.dart';
 import '../screens/guided.dart';
@@ -556,43 +570,48 @@ final setupSurvey = FlowDefinition(
   ),
 );
 ''',
-      });
+        });
 
-      expect(result.issues, isEmpty, reason: result.issues.toString());
-      final graph = result.flows.single.graph!;
-      expect(graph.measurementAnswers['answer']!.outcomeKey,
-          'survey.setup.answer');
-      expect(graph.measurementAnswers['answer']!.categoryLabels,
-          {'guided': 'Guided setup', 'explore': 'Explore freely'});
-      expect(
-        graph.flowState['answer']!.classification,
-        FlowStateClassification.exportable,
-      );
-      expect(graph.states['route'], isA<DecisionFlowState>());
-      final question = graph.states['question']! as ScreenFlowState;
-      final transition = question.on['answer']! as GotoFlowTransition;
-      expect(transition.target, 'route');
-      expect(
-        transition.stateWrites['answer']!.value,
-        isA<EventFlowValueSource>(),
-      );
-      expect(
-        graph.outbound.surveyAnswers.fields['answer']!.ref,
-        isA<StateFlowOutboundRef>(),
-      );
-      final document = graph.toDocument({
-        for (final screenId in ['question', 'guided', 'explore'])
-          screenId: ScreenArtifact(
-            path: '$screenId.rfw',
-            version: 1,
-            schemaVersion: 1,
-            minClient: 3,
-            contentHash: FlowContentHash.compute(Uint8List(0)),
-          ),
-      });
-      expect(document.schemaVersion, 2);
-      expect(document.surveyQuestionOrder, ['answer']);
-    });
+        expect(result.issues, isEmpty, reason: result.issues.toString());
+        final graph = result.flows.single.graph!;
+        expect(
+          graph.measurementAnswers['answer']!.outcomeKey,
+          'survey.setup.answer',
+        );
+        expect(graph.measurementAnswers['answer']!.categoryLabels, {
+          'guided': 'Guided setup',
+          'explore': 'Explore freely',
+        });
+        expect(
+          graph.flowState['answer']!.classification,
+          FlowStateClassification.exportable,
+        );
+        expect(graph.states['route'], isA<DecisionFlowState>());
+        final question = graph.states['question']! as ScreenFlowState;
+        final transition = question.on['answer']! as GotoFlowTransition;
+        expect(transition.target, 'route');
+        expect(
+          transition.stateWrites['answer']!.value,
+          isA<EventFlowValueSource>(),
+        );
+        expect(
+          graph.outbound.surveyAnswers.fields['answer']!.ref,
+          isA<StateFlowOutboundRef>(),
+        );
+        final document = graph.toDocument({
+          for (final screenId in ['question', 'guided', 'explore'])
+            screenId: ScreenArtifact(
+              path: '$screenId.rfw',
+              version: 1,
+              schemaVersion: 1,
+              minClient: 3,
+              contentHash: FlowContentHash.compute(Uint8List(0)),
+            ),
+        });
+        expect(document.schemaVersion, 2);
+        expect(document.surveyQuestionOrder, ['answer']);
+      },
+    );
 
     test('lowers a subflow and preserves typed child input identity', () async {
       final result = await _inspect(
@@ -719,19 +738,20 @@ final accountSetup = FlowDefinition(
       );
     });
 
-    test('rejects a child flow whose resolved surface differs from its parent',
-        () async {
-      final result = await _inspect(
-        {
-          'lib/onboarding/screens/account.dart': _screenSource(
-            'AccountScreen',
-            "static const open = SurfaceEvent<void>('open');",
-          ),
-          'lib/onboarding/screens/error.dart': _screenSource(
-            'ErrorScreen',
-            '',
-          ),
-          'lib/onboarding/flows/account_setup.dart': '''
+    test(
+      'rejects a child flow whose resolved surface differs from its parent',
+      () async {
+        final result = await _inspect(
+          {
+            'lib/onboarding/screens/account.dart': _screenSource(
+              'AccountScreen',
+              "static const open = SurfaceEvent<void>('open');",
+            ),
+            'lib/onboarding/screens/error.dart': _screenSource(
+              'ErrorScreen',
+              '',
+            ),
+            'lib/onboarding/flows/account_setup.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/account.dart';
 import '../screens/error.dart';
@@ -759,29 +779,31 @@ final accountSetup = FlowDefinition(
   transitions: [Transition(AccountScreen.open, to: childStep)],
 );
 ''',
-        },
-        preferredFlowPath: 'account_setup.dart',
-      );
+          },
+          preferredFlowPath: 'account_setup.dart',
+        );
 
-      expect(result.issues, isNotEmpty);
-      expect(
-        result.issues.map((issue) => issue.message).join('\n'),
-        contains('cannot be included in a onboarding flow'),
-      );
-    });
+        expect(result.issues, isNotEmpty);
+        expect(
+          result.issues.map((issue) => issue.message).join('\n'),
+          contains('cannot be included in a onboarding flow'),
+        );
+      },
+    );
 
-    test('keeps equal child slugs distinct across surface identities',
-        () async {
-      final sources = {
-        'lib/onboarding/screens/start.dart': _screenSource(
-          'OnboardingStartScreen',
-          "static const open = SurfaceEvent<void>('open');",
-        ),
-        'lib/message/screens/start.dart': _screenSource(
-          'MessageStartScreen',
-          "static const open = SurfaceEvent<void>('open');",
-        ),
-        'lib/onboarding/flows/parent.dart': '''
+    test(
+      'keeps equal child slugs distinct across surface identities',
+      () async {
+        final sources = {
+          'lib/onboarding/screens/start.dart': _screenSource(
+            'OnboardingStartScreen',
+            "static const open = SurfaceEvent<void>('open');",
+          ),
+          'lib/message/screens/start.dart': _screenSource(
+            'MessageStartScreen',
+            "static const open = SurfaceEvent<void>('open');",
+          ),
+          'lib/onboarding/flows/parent.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/start.dart';
 
@@ -807,7 +829,7 @@ final onboardingParent = FlowDefinition(
   transitions: [Transition(OnboardingStartScreen.open, to: childStep)],
 );
 ''',
-        'lib/message/flows/parent.dart': '''
+          'lib/message/flows/parent.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/start.dart';
 
@@ -833,34 +855,39 @@ final messageParent = FlowDefinition(
   transitions: [Transition(MessageStartScreen.open, to: childStep)],
 );
 ''',
-      };
+        };
 
-      final onboarding = await _inspect(
-        sources,
-        preferredFlowPath: 'lib/onboarding/flows/parent.dart',
-      );
-      final message = await _inspect(
-        sources,
-        preferredFlowPath: 'lib/message/flows/parent.dart',
-      );
+        final onboarding = await _inspect(
+          sources,
+          preferredFlowPath: 'lib/onboarding/flows/parent.dart',
+        );
+        final message = await _inspect(
+          sources,
+          preferredFlowPath: 'lib/message/flows/parent.dart',
+        );
 
-      expect(onboarding.issues, isEmpty, reason: onboarding.issues.toString());
-      expect(message.issues, isEmpty, reason: message.issues.toString());
-      expect(
-        onboarding.flows.single.graph!.childFlows.keys.single,
-        const NormalizedFlowIdentity(
-          surface: Surface.onboarding,
-          id: 'shared_child',
-        ),
-      );
-      expect(
-        message.flows.single.graph!.childFlows.keys.single,
-        const NormalizedFlowIdentity(
-          surface: Surface.message,
-          id: 'shared_child',
-        ),
-      );
-    });
+        expect(
+          onboarding.issues,
+          isEmpty,
+          reason: onboarding.issues.toString(),
+        );
+        expect(message.issues, isEmpty, reason: message.issues.toString());
+        expect(
+          onboarding.flows.single.graph!.childFlows.keys.single,
+          const NormalizedFlowIdentity(
+            surface: Surface.onboarding,
+            id: 'shared_child',
+          ),
+        );
+        expect(
+          message.flows.single.graph!.childFlows.keys.single,
+          const NormalizedFlowIdentity(
+            surface: Surface.message,
+            id: 'shared_child',
+          ),
+        );
+      },
+    );
 
     group('child reference import routes', () {
       void check(
@@ -896,8 +923,9 @@ final messageParent = FlowDefinition(
             );
           } else {
             expect(result.issues, isEmpty, reason: result.issues.toString());
-            final parent =
-                result.flows.singleWhere((flow) => flow.id == 'parent');
+            final parent = result.flows.singleWhere(
+              (flow) => flow.id == 'parent',
+            );
             final child = parent.graph!.childFlows.values.single;
             final qualifier = target.contains('.')
                 ? '${target.substring(0, target.lastIndexOf('.'))}.'
@@ -1187,15 +1215,16 @@ export 'child.dart' show AdvancedChild, advancedChildRef show AdvancedChild;
       }
     });
 
-    test('accepts a resolved advanced FlowGraph class as a subflow target',
-        () async {
-      final result = await _inspect(
-        {
-          'lib/onboarding/screens/account.dart': _screenSource(
-            'AccountScreen',
-            "static const open = SurfaceEvent<void>('open');",
-          ),
-          'lib/onboarding/flows/account_setup.dart': '''
+    test(
+      'accepts a resolved advanced FlowGraph class as a subflow target',
+      () async {
+        final result = await _inspect(
+          {
+            'lib/onboarding/screens/account.dart': _screenSource(
+              'AccountScreen',
+              "static const open = SurfaceEvent<void>('open');",
+            ),
+            'lib/onboarding/flows/account_setup.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/account.dart';
 
@@ -1228,17 +1257,18 @@ final accountSetup = FlowDefinition(
   transitions: [Transition(AccountScreen.open, to: childStep)],
 );
 ''',
-        },
-        preferredFlowPath: 'account_setup.dart',
-      );
+          },
+          preferredFlowPath: 'account_setup.dart',
+        );
 
-      expect(result.issues, isEmpty, reason: result.issues.toString());
-      final parent = result.flows.singleWhere((flow) => flow.graph != null);
-      final reference = parent.graph!.childFlows.values.single;
-      expect(reference.identity.id, 'advanced_child');
-      expect(reference.identity.surface, Surface.onboarding);
-      expect(reference.declarationIdentity, contains('#AdvancedChild'));
-    });
+        expect(result.issues, isEmpty, reason: result.issues.toString());
+        final parent = result.flows.singleWhere((flow) => flow.graph != null);
+        final reference = parent.graph!.childFlows.values.single;
+        expect(reference.identity.id, 'advanced_child');
+        expect(reference.identity.surface, Surface.onboarding);
+        expect(reference.declarationIdentity, contains('#AdvancedChild'));
+      },
+    );
 
     test('rejects an unannotated advanced-flow lookalike target', () async {
       final result = await _inspect(
@@ -1290,11 +1320,12 @@ final accountSetup = FlowDefinition(
       );
     });
 
-    test('rejects distinct decisions and subflows with the same node id',
-        () async {
-      final result = await _inspect({
-        'lib/onboarding/screens/start.dart': _screenSource('StartScreen', ''),
-        'lib/onboarding/flows/duplicate_nodes.dart': '''
+    test(
+      'rejects distinct decisions and subflows with the same node id',
+      () async {
+        final result = await _inspect({
+          'lib/onboarding/screens/start.dart': _screenSource('StartScreen', ''),
+          'lib/onboarding/flows/duplicate_nodes.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/start.dart';
 
@@ -1329,25 +1360,27 @@ final duplicateNodes = FlowDefinition(
   transitions: [],
 );
 ''',
-      });
+        });
 
-      expect(result.flows, isEmpty);
-      expect(
-        result.issues.map((issue) => issue.message).join('\n'),
-        contains(
-          'Flow node id "shared" resolves to distinct analyzer declarations',
-        ),
-      );
-    });
+        expect(result.flows, isEmpty);
+        expect(
+          result.issues.map((issue) => issue.message).join('\n'),
+          contains(
+            'Flow node id "shared" resolves to distinct analyzer declarations',
+          ),
+        );
+      },
+    );
 
-    test('rejects a direct node target that collides with a screen id',
-        () async {
-      final result = await _inspect({
-        'lib/onboarding/screens/start.dart': _screenSource(
-          'StartScreen',
-          "static const open = SurfaceEvent<void>('open');",
-        ),
-        'lib/onboarding/flows/colliding_node.dart': '''
+    test(
+      'rejects a direct node target that collides with a screen id',
+      () async {
+        final result = await _inspect({
+          'lib/onboarding/screens/start.dart': _screenSource(
+            'StartScreen',
+            "static const open = SurfaceEvent<void>('open');",
+          ),
+          'lib/onboarding/flows/colliding_node.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/start.dart';
 
@@ -1367,14 +1400,17 @@ final collidingNode = FlowDefinition(
   transitions: [Transition(StartScreen.open, to: route)],
 );
 ''',
-      });
+        });
 
-      expect(result.flows, isEmpty);
-      expect(
-        result.issues.map((issue) => issue.message).join('\n'),
-        contains('Flow node id "start" collides with screen identity "start"'),
-      );
-    });
+        expect(result.flows, isEmpty);
+        expect(
+          result.issues.map((issue) => issue.message).join('\n'),
+          contains(
+            'Flow node id "start" collides with screen identity "start"',
+          ),
+        );
+      },
+    );
 
     test('allows equivalent Transition.complete terminal references', () async {
       final result = await _inspect({
@@ -1418,14 +1454,15 @@ final equivalentCompletion = FlowDefinition(
       expect(terminal.result, {'status': 'ok'});
     });
 
-    test('rejects Transition.complete IDs colliding with every node kind',
-        () async {
-      final screenCollision = await _inspect({
-        'lib/onboarding/screens/done.dart': _screenSource(
-          'DoneScreen',
-          "static const finish = SurfaceEvent<void>('finish');",
-        ),
-        'lib/onboarding/flows/screen_terminal_collision.dart': '''
+    test(
+      'rejects Transition.complete IDs colliding with every node kind',
+      () async {
+        final screenCollision = await _inspect({
+          'lib/onboarding/screens/done.dart': _screenSource(
+            'DoneScreen',
+            "static const finish = SurfaceEvent<void>('finish');",
+          ),
+          'lib/onboarding/flows/screen_terminal_collision.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/done.dart';
 
@@ -1435,19 +1472,19 @@ final screenTerminalCollision = FlowDefinition(
   transitions: [Transition.complete(DoneScreen.finish)],
 );
 ''',
-      });
-      expect(screenCollision.flows, isEmpty);
-      expect(
-        screenCollision.issues.map((issue) => issue.message).join('\n'),
-        contains('Flow node id "done" collides with screen identity "done"'),
-      );
+        });
+        expect(screenCollision.flows, isEmpty);
+        expect(
+          screenCollision.issues.map((issue) => issue.message).join('\n'),
+          contains('Flow node id "done" collides with screen identity "done"'),
+        );
 
-      final decisionCollision = await _inspect({
-        'lib/onboarding/screens/start.dart': _screenSource(
-          'StartScreen',
-          "static const finish = SurfaceEvent<void>('finish');",
-        ),
-        'lib/onboarding/flows/decision_terminal_collision.dart': '''
+        final decisionCollision = await _inspect({
+          'lib/onboarding/screens/start.dart': _screenSource(
+            'StartScreen',
+            "static const finish = SurfaceEvent<void>('finish');",
+          ),
+          'lib/onboarding/flows/decision_terminal_collision.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/start.dart';
 
@@ -1468,19 +1505,19 @@ final decisionTerminalCollision = FlowDefinition(
   transitions: [Transition.complete(StartScreen.finish)],
 );
 ''',
-      });
-      expect(decisionCollision.flows, isEmpty);
-      expect(
-        decisionCollision.issues.map((issue) => issue.message).join('\n'),
-        contains('Flow node id "done" resolves to distinct analyzer'),
-      );
+        });
+        expect(decisionCollision.flows, isEmpty);
+        expect(
+          decisionCollision.issues.map((issue) => issue.message).join('\n'),
+          contains('Flow node id "done" resolves to distinct analyzer'),
+        );
 
-      final subflowCollision = await _inspect({
-        'lib/onboarding/screens/start.dart': _screenSource(
-          'StartScreen',
-          "static const finish = SurfaceEvent<void>('finish');",
-        ),
-        'lib/onboarding/flows/subflow_terminal_collision.dart': '''
+        final subflowCollision = await _inspect({
+          'lib/onboarding/screens/start.dart': _screenSource(
+            'StartScreen',
+            "static const finish = SurfaceEvent<void>('finish');",
+          ),
+          'lib/onboarding/flows/subflow_terminal_collision.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/start.dart';
 
@@ -1507,19 +1544,19 @@ final subflowTerminalCollision = FlowDefinition(
   transitions: [Transition.complete(StartScreen.finish)],
 );
 ''',
-      });
-      expect(subflowCollision.flows, isEmpty);
-      expect(
-        subflowCollision.issues.map((issue) => issue.message).join('\n'),
-        contains('Flow node id "done" resolves to distinct analyzer'),
-      );
+        });
+        expect(subflowCollision.flows, isEmpty);
+        expect(
+          subflowCollision.issues.map((issue) => issue.message).join('\n'),
+          contains('Flow node id "done" resolves to distinct analyzer'),
+        );
 
-      final explicitCompletionCollision = await _inspect({
-        'lib/onboarding/screens/start.dart': _screenSource(
-          'StartScreen',
-          "static const finish = SurfaceEvent<void>('finish');",
-        ),
-        'lib/onboarding/flows/explicit_terminal_collision.dart': '''
+        final explicitCompletionCollision = await _inspect({
+          'lib/onboarding/screens/start.dart': _screenSource(
+            'StartScreen',
+            "static const finish = SurfaceEvent<void>('finish');",
+          ),
+          'lib/onboarding/flows/explicit_terminal_collision.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/start.dart';
 
@@ -1540,15 +1577,16 @@ final explicitTerminalCollision = FlowDefinition(
   ],
 );
 ''',
-      });
-      expect(explicitCompletionCollision.flows, isEmpty);
-      expect(
-        explicitCompletionCollision.issues
-            .map((issue) => issue.message)
-            .join('\n'),
-        contains('Flow node id "done" resolves to distinct analyzer'),
-      );
-    });
+        });
+        expect(explicitCompletionCollision.flows, isEmpty);
+        expect(
+          explicitCompletionCollision.issues
+              .map((issue) => issue.message)
+              .join('\n'),
+          contains('Flow node id "done" resolves to distinct analyzer'),
+        );
+      },
+    );
 
     test('lowers a resolved host-action transition gate', () async {
       final result = await _inspect({
@@ -1643,19 +1681,20 @@ final permissionFlow = FlowDefinition(
       );
     });
 
-    test('rejects conflicting duplicate host-action ids before overwrite',
-        () async {
-      final result = await _inspect({
-        'lib/onboarding/screens/start.dart': _screenSource(
-          'StartScreen',
-          "static const first = SurfaceEvent<void>('first'); "
-              "static const second = SurfaceEvent<void>('second');",
-        ),
-        'lib/onboarding/screens/ready.dart': _screenSource(
-          'ReadyScreen',
-          "static const finish = SurfaceEvent<void>('finish');",
-        ),
-        'lib/onboarding/flows/action_flow.dart': '''
+    test(
+      'rejects conflicting duplicate host-action ids before overwrite',
+      () async {
+        final result = await _inspect({
+          'lib/onboarding/screens/start.dart': _screenSource(
+            'StartScreen',
+            "static const first = SurfaceEvent<void>('first'); "
+                "static const second = SurfaceEvent<void>('second');",
+          ),
+          'lib/onboarding/screens/ready.dart': _screenSource(
+            'ReadyScreen',
+            "static const finish = SurfaceEvent<void>('finish');",
+          ),
+          'lib/onboarding/flows/action_flow.dart': '''
 import 'package:restage/restage.dart';
 import '../screens/ready.dart';
 import '../screens/start.dart';
@@ -1681,23 +1720,25 @@ final actionFlow = FlowDefinition(
   ],
 );
 ''',
-      });
+        });
 
-      expect(result.flows, isEmpty);
-      expect(
-        result.issues.map((issue) => issue.message).join('\n'),
-        contains('Host action id "same_action" is declared by both'),
-      );
-    });
+        expect(result.flows, isEmpty);
+        expect(
+          result.issues.map((issue) => issue.message).join('\n'),
+          contains('Host action id "same_action" is declared by both'),
+        );
+      },
+    );
   });
 
   group('measured answers', () {
     Map<String, String> sources(String surface, {String delivery = ''}) => {
-          'lib/$surface/screens/question.dart': _screenSource(
-            'QuestionScreen',
-            "static const answer = SurfaceEvent<String>('answer');",
-          ),
-          'lib/$surface/flows/goal_flow.dart': """
+      'lib/$surface/screens/question.dart': _screenSource(
+        'QuestionScreen',
+        "static const answer = SurfaceEvent<String>('answer');",
+      ),
+      'lib/$surface/flows/goal_flow.dart':
+          """
 import 'package:restage/restage.dart';
 import '../screens/question.dart';
 
@@ -1725,7 +1766,7 @@ final goalFlow = FlowDefinition(
   ),
 );
 """,
-        };
+    };
 
     test('raise a typed onboarding flow to the feature client floor', () async {
       final result = await _inspect(sources('onboarding'));
@@ -1760,7 +1801,8 @@ final goalFlow = FlowDefinition(
   });
 }
 
-String _screenSource(String className, String event) => '''
+String _screenSource(String className, String event) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1815,12 +1857,12 @@ final class _ProbeBuilder implements Builder {
   _ProbeBuilder(this.onLibrary);
 
   final Future<void> Function(LibraryElement library, AssetId assetId)
-      onLibrary;
+  onLibrary;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.flow_frontend_probe'],
-      };
+    '.dart': ['.flow_frontend_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -1872,7 +1914,8 @@ const advancedChildRef = SurfaceFlowRef<void>(
         "static const open = SurfaceEvent<void>('open');",
       ),
       if (!sameLibrary)
-        'lib/onboarding/flows/child.dart': '''
+        'lib/onboarding/flows/child.dart':
+            '''
 import 'package:restage/restage.dart';
 import '../screens/account.dart';
 $child
@@ -1880,7 +1923,8 @@ ${generatedHandle ? handleSource : ''}
 ''',
       for (final entry in extraSources.entries)
         'lib/onboarding/flows/${entry.key}': entry.value,
-      'lib/onboarding/flows/parent.dart': '''
+      'lib/onboarding/flows/parent.dart':
+          '''
 import 'package:restage/restage.dart';
 import '../screens/account.dart';
 $imports

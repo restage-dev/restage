@@ -47,8 +47,11 @@ void main() {
   });
 
   test('no dynamic surface compiles unmeasured', () {
-    expect(compiled.output.valid, isTrue,
-        reason: compiled.output.errors.join('\n'));
+    expect(
+      compiled.output.valid,
+      isTrue,
+      reason: compiled.output.errors.join('\n'),
+    );
     expect(
       compiled.log
           .split('\n')
@@ -56,8 +59,9 @@ void main() {
       everyElement(contains('combined_condition')),
     );
     expect(
-      compiled.output.publications
-          .map((publication) => publication.selector.slug),
+      compiled.output.publications.map(
+        (publication) => publication.selector.slug,
+      ),
       unorderedEquals(<String>[
         'conditional_plan',
         'tear_off_plan',
@@ -70,14 +74,16 @@ void main() {
     );
   });
 
-  test('a callback under a combined condition leaves the surface unmeasured',
-      () {
-    expect(
-      compiled.log,
-      contains('Measurement is unavailable for paywall/combined_condition: '),
-    );
-    expect(compiled.log, contains('combined with && or ||'));
-  });
+  test(
+    'a callback under a combined condition leaves the surface unmeasured',
+    () {
+      expect(
+        compiled.log,
+        contains('Measurement is unavailable for paywall/combined_condition: '),
+      );
+      expect(compiled.log, contains('combined with && or ||'));
+    },
+  );
 
   test('each branch of a conditional child is its own occurrence', () {
     const source =
@@ -113,7 +119,8 @@ void main() {
   test('a custom widget spreading under a run-time collection-if inlines', () {
     const source =
         'package:apps_examples/surfaces/pinned_header.dart#PinnedHeaderScreen';
-    const header = 'package:apps_examples/widgets/dynamic_widgets.dart'
+    const header =
+        'package:apps_examples/widgets/dynamic_widgets.dart'
         '#PinnedHeader';
     expect(
       compiled.routedKeys(source),
@@ -149,8 +156,10 @@ void main() {
     final handlers = compiled.eventHandlers('lib/paywalls/tear_off_plan.dart');
     final taps = handlers
         .whereType<fmt.EventHandler>()
-        .where((handler) =>
-            handler.eventName == kMeasurementPublicationTapEventNameV1)
+        .where(
+          (handler) =>
+              handler.eventName == kMeasurementPublicationTapEventNameV1,
+        )
         .toList();
     expect(taps, hasLength(1));
     expect(
@@ -164,8 +173,7 @@ void main() {
     ('badge_card', 'BadgeCardScreen', 'BadgeCard'),
     ('label_table', 'LabelTableScreen', 'LabelTable'),
   ]) {
-    test(
-        'a custom widget with run-time collection flow in $widget is one '
+    test('a custom widget with run-time collection flow in $widget is one '
         'opaque occurrence', () {
       final source = 'package:apps_examples/surfaces/$slug.dart#$className';
       final custom =
@@ -197,13 +205,13 @@ final class _Compiled {
       .map((node) => node.structuralOccurrenceKey);
 
   Set<String> routedKeys(String source) => {
-        for (final node in output.ledgerNodes)
-          if (node.structuralOccurrenceKey.startsWith('$source|'))
-            for (final event in node.events)
-              if (event.active)
-                '${node.structuralOccurrenceKey}\u0000'
-                    '${event.sourceEventIdentity.value}',
-      };
+    for (final node in output.ledgerNodes)
+      if (node.structuralOccurrenceKey.startsWith('$source|'))
+        for (final event in node.events)
+          if (event.active)
+            '${node.structuralOccurrenceKey}\u0000'
+                '${event.sourceEventIdentity.value}',
+  };
 
   int routeCount(String slug) => output.publications
       .singleWhere((publication) => publication.selector.slug == slug)
@@ -286,8 +294,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -299,13 +308,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');

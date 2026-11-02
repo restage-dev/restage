@@ -112,20 +112,22 @@ const _materialCatalogWithShadow = '''
 
 void main() {
   group('loadMergedCatalog', () {
-    test('preserves full native graph sections from canonical catalogs',
-        () async {
-      final catalog = await _runLoaderWith({
-        'restage_core': encodeCatalog(_fullGraphCoreCatalog()),
-      });
+    test(
+      'preserves full native graph sections from canonical catalogs',
+      () async {
+        final catalog = await _runLoaderWith({
+          'restage_core': encodeCatalog(_fullGraphCoreCatalog()),
+        });
 
-      expect(catalog.schemaVersion, kSupportedSchemaVersion);
-      expect(catalog.structuredTypes.map((e) => e.name), ['CoreValue']);
-      expect(catalog.unions.map((e) => e.name), ['CoreValueUnion']);
-      expect(catalog.designTokens.map((e) => e.name), ['brand.primary']);
-      expect(catalog.compatRules, hasLength(1));
-      expect(catalog.compatRules!.single.note, 'native test rule');
-      expect(catalog.flutterVersion, '9.9.9');
-    });
+        expect(catalog.schemaVersion, kSupportedSchemaVersion);
+        expect(catalog.structuredTypes.map((e) => e.name), ['CoreValue']);
+        expect(catalog.unions.map((e) => e.name), ['CoreValueUnion']);
+        expect(catalog.designTokens.map((e) => e.name), ['brand.primary']);
+        expect(catalog.compatRules, hasLength(1));
+        expect(catalog.compatRules!.single.note, 'native test rule');
+        expect(catalog.flutterVersion, '9.9.9');
+      },
+    );
 
     test('merges per-package catalog.json files in priority order', () async {
       final catalog = await _runLoaderWith({
@@ -190,24 +192,27 @@ void main() {
       expect(catalog.widgets, isEmpty);
     });
 
-    test('loads only declared dependencies including transitive publishers',
-        () async {
-      final custom = encodeCatalog(_customCatalog());
-      final catalog = await _runLoaderWith(
-        {
-          'acme': custom,
-          'unrelated': custom
-              .replaceAll('acme.', 'unrelated.')
-              .replaceAll('AcmeBanner', 'UnrelatedBanner'),
-        },
-        pubspecs: {
-          'restage_codegen': 'dependencies:\n  bridge: any\n',
-          'bridge': 'dependencies:\n  acme: any\n'
-              'dev_dependencies:\n  unrelated: any\n',
-        },
-      );
-      expect(catalog.widgets.map((widget) => widget.name), ['AcmeBanner']);
-    });
+    test(
+      'loads only declared dependencies including transitive publishers',
+      () async {
+        final custom = encodeCatalog(_customCatalog());
+        final catalog = await _runLoaderWith(
+          {
+            'acme': custom,
+            'unrelated': custom
+                .replaceAll('acme.', 'unrelated.')
+                .replaceAll('AcmeBanner', 'UnrelatedBanner'),
+          },
+          pubspecs: {
+            'restage_codegen': 'dependencies:\n  bridge: any\n',
+            'bridge':
+                'dependencies:\n  acme: any\n'
+                'dev_dependencies:\n  unrelated: any\n',
+          },
+        );
+        expect(catalog.widgets.map((widget) => widget.name), ['AcmeBanner']);
+      },
+    );
 
     test('rejects two packages owning the same custom library', () async {
       final custom = encodeCatalog(_customCatalog());
@@ -226,7 +231,9 @@ void main() {
             (error) => error.toString(),
             'message',
             allOf(
-                contains('acme.widgets'), contains('acme and restage_codegen')),
+              contains('acme.widgets'),
+              contains('acme and restage_codegen'),
+            ),
           ),
         ),
       );
@@ -248,51 +255,53 @@ void main() {
       );
     });
 
-    test('rejects a built-in reference the merged built-ins do not carry',
-        () async {
-      final custom = _customCatalog();
-      final dangling = Catalog(
-        schemaVersion: custom.schemaVersion,
-        generatedAt: custom.generatedAt,
-        libraries: custom.libraries,
-        widgets: [
-          WidgetEntry(
-            wireId: WireId('w0001'),
-            name: 'AcmeLabel',
-            library: const WidgetLibrary.custom('acme.widgets'),
-            category: WidgetCategory.layout,
-            description: 'A custom label.',
-            flutterType: 'package:acme/label.dart#AcmeLabel',
-            childrenSlot: ChildrenSlot.none,
-            properties: [
-              PropertyEntry(
-                wireId: WireId('p0001'),
-                name: 'style',
-                type: PropertyType.structured,
-                description: 'Text style.',
-                structuredRef: WireIdRef(
-                  library: 'restage.core',
-                  wireId: WireId('s0099'),
+    test(
+      'rejects a built-in reference the merged built-ins do not carry',
+      () async {
+        final custom = _customCatalog();
+        final dangling = Catalog(
+          schemaVersion: custom.schemaVersion,
+          generatedAt: custom.generatedAt,
+          libraries: custom.libraries,
+          widgets: [
+            WidgetEntry(
+              wireId: WireId('w0001'),
+              name: 'AcmeLabel',
+              library: const WidgetLibrary.custom('acme.widgets'),
+              category: WidgetCategory.layout,
+              description: 'A custom label.',
+              flutterType: 'package:acme/label.dart#AcmeLabel',
+              childrenSlot: ChildrenSlot.none,
+              properties: [
+                PropertyEntry(
+                  wireId: WireId('p0001'),
+                  name: 'style',
+                  type: PropertyType.structured,
+                  description: 'Text style.',
+                  structuredRef: WireIdRef(
+                    library: 'restage.core',
+                    wireId: WireId('s0099'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ],
+        );
+        await expectLater(
+          _runLoaderWith({
+            'restage_core': encodeCatalog(_fullGraphCoreCatalog()),
+            'restage_codegen': encodeCatalog(dangling),
+          }),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.toString(),
+              'message',
+              contains('missing structured entry'),
+            ),
           ),
-        ],
-      );
-      await expectLater(
-        _runLoaderWith({
-          'restage_core': encodeCatalog(_fullGraphCoreCatalog()),
-          'restage_codegen': encodeCatalog(dangling),
-        }),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.toString(),
-            'message',
-            contains('missing structured entry'),
-          ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('merges the custom catalog from the input package', () async {
       // The app's own generated catalog (custom @RestageLibrary widgets)
@@ -332,19 +341,21 @@ void main() {
       expect(findWidgetsByName(catalog, 'NoSuchWidget'), isEmpty);
     });
 
-    test('returns multiple entries when a name shadows across libraries',
-        () async {
-      final catalog = await _runLoaderWith({
-        'restage_core': _coreCatalog,
-        'restage_material': _materialCatalogWithShadow,
-      });
-      final matches = findWidgetsByName(catalog, 'Center');
-      expect(matches, hasLength(2));
-      expect(
-        matches.map((w) => w.library.namespace),
-        containsAll(<String>['restage.core', 'restage.material']),
-      );
-    });
+    test(
+      'returns multiple entries when a name shadows across libraries',
+      () async {
+        final catalog = await _runLoaderWith({
+          'restage_core': _coreCatalog,
+          'restage_material': _materialCatalogWithShadow,
+        });
+        final matches = findWidgetsByName(catalog, 'Center');
+        expect(matches, hasLength(2));
+        expect(
+          matches.map((w) => w.library.namespace),
+          containsAll(<String>['restage.core', 'restage.material']),
+        );
+      },
+    );
   });
 }
 
@@ -367,8 +378,10 @@ Future<Catalog> _runLoaderWith(
   );
 
   for (final entry in pubspecs.entries) {
-    readerWriter.testing
-        .writeString(AssetId(entry.key, 'pubspec.yaml'), entry.value);
+    readerWriter.testing.writeString(
+      AssetId(entry.key, 'pubspec.yaml'),
+      entry.value,
+    );
   }
   for (final entry in fixtures.entries) {
     readerWriter.testing.writeString(
@@ -533,25 +546,27 @@ Catalog _fullGraphCoreCatalog() {
 /// version, with one widget — the shape an app's generated
 /// `lib/src/widget_catalog/catalog.json` takes.
 Catalog _customCatalog() => Catalog(
-      schemaVersion: kSupportedSchemaVersion,
-      generatedAt: '2026-06-19T00:00:00Z',
-      libraries: {
-        const WidgetLibrary.custom('acme.widgets'):
-            const LibraryInfo(version: '0.0.0', capabilityVersion: 2),
-      },
-      widgets: [
-        WidgetEntry(
-          wireId: WireId('w0001'),
-          name: 'AcmeBanner',
-          library: const WidgetLibrary.custom('acme.widgets'),
-          category: WidgetCategory.layout,
-          description: 'A custom banner.',
-          flutterType: 'package:acme/banner.dart#AcmeBanner',
-          childrenSlot: ChildrenSlot.none,
-          properties: const [],
-        ),
-      ],
-    );
+  schemaVersion: kSupportedSchemaVersion,
+  generatedAt: '2026-06-19T00:00:00Z',
+  libraries: {
+    const WidgetLibrary.custom('acme.widgets'): const LibraryInfo(
+      version: '0.0.0',
+      capabilityVersion: 2,
+    ),
+  },
+  widgets: [
+    WidgetEntry(
+      wireId: WireId('w0001'),
+      name: 'AcmeBanner',
+      library: const WidgetLibrary.custom('acme.widgets'),
+      category: WidgetCategory.layout,
+      description: 'A custom banner.',
+      flutterType: 'package:acme/banner.dart#AcmeBanner',
+      childrenSlot: ChildrenSlot.none,
+      properties: const [],
+    ),
+  ],
+);
 
 class _LoaderProbeBuilder implements Builder {
   _LoaderProbeBuilder({required this.onCatalog, required this.probeAsset});
@@ -561,8 +576,8 @@ class _LoaderProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.noop'],
-      };
+    '.dart': ['.noop'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {

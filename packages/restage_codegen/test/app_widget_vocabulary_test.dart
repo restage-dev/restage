@@ -17,21 +17,19 @@ const String _fixtureId = 'apps_examples|lib/app_vocabulary_fixture.dart';
 Future<T> _withResolvedFixture<T>(
   String source,
   T Function(ResolvedLibraryResult library) derive,
-) =>
-    resolveWorkspaceSources(
-      {_fixtureId: source},
-      (resolver) async {
-        final library = await resolver.libraryFor(AssetId.parse(_fixtureId));
-        final resolved =
-            await library.session.getResolvedLibraryByElement(library);
-        if (resolved is! ResolvedLibraryResult) {
-          throw StateError('The app vocabulary fixture did not resolve.');
-        }
-        return derive(resolved);
-      },
-      resolverFor: _fixtureId,
-      rootPackage: 'apps_examples',
-    );
+) => resolveWorkspaceSources(
+  {_fixtureId: source},
+  (resolver) async {
+    final library = await resolver.libraryFor(AssetId.parse(_fixtureId));
+    final resolved = await library.session.getResolvedLibraryByElement(library);
+    if (resolved is! ResolvedLibraryResult) {
+      throw StateError('The app vocabulary fixture did not resolve.');
+    }
+    return derive(resolved);
+  },
+  resolverFor: _fixtureId,
+  rootPackage: 'apps_examples',
+);
 
 Future<WidgetVocabulary> _vocabularyOf(String source, Catalog catalog) =>
     _withResolvedFixture(
@@ -162,18 +160,20 @@ void main() {
       ]);
     });
 
-    test('a construction naming a member names the entry keyed on it',
-        () async {
-      const source = '''
+    test(
+      'a construction naming a member names the entry keyed on it',
+      () async {
+        const source = '''
         import 'package:flutter/material.dart';
 
         Widget hero() => Image.network('https://example.com/a.png');
       ''';
 
-      final vocabulary = await _vocabularyOf(source, imageCatalog);
+        final vocabulary = await _vocabularyOf(source, imageCatalog);
 
-      expect(vocabulary.widgetNames.toList(), ['restage.core:Image']);
-    });
+        expect(vocabulary.widgetNames.toList(), ['restage.core:Image']);
+      },
+    );
 
     test('a bare construction names no entry keyed on a member', () async {
       const source = '''
@@ -188,30 +188,32 @@ void main() {
       expect(vocabulary.widgetNames, isEmpty);
     });
 
-    test('a construction naming a member keeps its bare class entry too',
-        () async {
-      const cardType = 'package:flutter/src/material/card.dart#Card';
-      final cardCatalog = catalogWith([
-        entry(name: 'Card', properties: const [], flutterType: cardType),
-        entry(
-          name: 'CardFilled',
-          properties: const [],
-          flutterType: '$cardType.filled',
-        ),
-      ]);
-      const source = '''
+    test(
+      'a construction naming a member keeps its bare class entry too',
+      () async {
+        const cardType = 'package:flutter/src/material/card.dart#Card';
+        final cardCatalog = catalogWith([
+          entry(name: 'Card', properties: const [], flutterType: cardType),
+          entry(
+            name: 'CardFilled',
+            properties: const [],
+            flutterType: '$cardType.filled',
+          ),
+        ]);
+        const source = '''
         import 'package:flutter/material.dart';
 
         Widget promo() => const Card.filled();
       ''';
 
-      final vocabulary = await _vocabularyOf(source, cardCatalog);
+        final vocabulary = await _vocabularyOf(source, cardCatalog);
 
-      expect(vocabulary.widgetNames.toList(), [
-        'restage.core:Card',
-        'restage.core:CardFilled',
-      ]);
-    });
+        expect(vocabulary.widgetNames.toList(), [
+          'restage.core:Card',
+          'restage.core:CardFilled',
+        ]);
+      },
+    );
   });
 
   group('resolved constructor spelling', () {
@@ -254,10 +256,11 @@ ${prefix}Widget render(String value) => ${prefix}Text('label \$value');
           {'restage.core:Text', 'restage.core:TextRich'},
         );
       });
-      test('${prefix}named constructors keep their resolved identities',
-          () async {
-        final vocabulary = await _vocabularyOf(
-          '''
+      test(
+        '${prefix}named constructors keep their resolved identities',
+        () async {
+          final vocabulary = await _vocabularyOf(
+            '''
 import 'package:flutter/material.dart'$import;
 final widgets = [
   const ${prefix}Text.rich(${prefix}TextSpan(text: 'rich')),
@@ -266,16 +269,17 @@ final widgets = [
   const ${prefix}Card.filled(),
 ];
 ''',
-          loweringCatalog,
-        );
-        expect(vocabulary.widgetNames, {
-          'restage.core:Text',
-          'restage.core:TextRich',
-          'restage.core:Image',
-          'restage.core:ImageAsset',
-          'restage.core:CardFilled',
-        });
-      });
+            loweringCatalog,
+          );
+          expect(vocabulary.widgetNames, {
+            'restage.core:Text',
+            'restage.core:TextRich',
+            'restage.core:Image',
+            'restage.core:ImageAsset',
+            'restage.core:CardFilled',
+          });
+        },
+      );
       for (final constructor in ['', '.builder']) {
         test('${prefix}PageView$constructor retains pager headroom', () async {
           final arguments = constructor.isEmpty
@@ -292,18 +296,20 @@ final pages = ${prefix}PageView$constructor($arguments);
         });
       }
     }
-    test('resolved app lookalikes never receive Flutter lowering headroom',
-        () async {
-      final vocabulary = await _vocabularyOf(
-        r'''
+    test(
+      'resolved app lookalikes never receive Flutter lowering headroom',
+      () async {
+        final vocabulary = await _vocabularyOf(
+          r'''
 class Text { Text(String value); Text.rich(Object value); }
 class PageView { PageView(); PageView.builder(); }
 Object render(String value) => [Text('label $value'), Text.rich('x'), PageView(), PageView.builder()];
 ''',
-        loweringCatalog,
-      );
-      expect(vocabulary.widgetNames, isEmpty);
-    });
+          loweringCatalog,
+        );
+        expect(vocabulary.widgetNames, isEmpty);
+      },
+    );
   });
 
   group('deriveAppWidgetVocabulary — icons', () {

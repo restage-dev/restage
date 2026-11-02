@@ -36,11 +36,11 @@ final class UserCatalogJsonBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': [
-          'src/widget_catalog/catalog.json',
-          'src/widget_catalog/app_widget_factories.json',
-        ],
-      };
+    r'$lib$': [
+      'src/widget_catalog/catalog.json',
+      'src/widget_catalog/app_widget_factories.json',
+    ],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -76,8 +76,10 @@ final class UserCatalogJsonBuilder implements Builder {
       write: false,
       buildStep: buildStep,
       requireTracked: !options.isRoot,
-      enumMembers:
-          await resolveEnumMembers(buildStep.resolver, allocation.catalog),
+      enumMembers: await resolveEnumMembers(
+        buildStep.resolver,
+        allocation.catalog,
+      ),
     );
 
     // Emit only — never append to the event log. The runtime-catalog builder

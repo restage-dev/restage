@@ -45,35 +45,37 @@ void main() {
   const renamedBundlePath =
       '.restage/build/bundles/lib/journeys/alpha.rsbundle';
 
-  test('cold build from empty state materializes the expected bundle',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final alpha = flowFixture(
-      slug: 'alpha',
-      libraryPath: 'lib/features/alpha.dart',
-      screenBytes: const [1, 2, 3],
-    );
-    final result = await _run(
-      {'lib/features/alpha.dart': '// authored\n'},
-      [alpha],
-      readerWriter,
-    );
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    expect(_bundleExists(readerWriter, alphaBundlePath), isTrue);
-    final bundle = RestageBundleCodec.decode(
-      _bundleBytes(readerWriter, alphaBundlePath),
-    );
-    expect(bundle.authoredLibraryPath, 'lib/features/alpha.dart');
-    // flowDocument, screenBlob, capabilitySidecar, and the screen blob's
-    // canonical .rfwtxt sibling.
-    expect(bundle.entries, hasLength(4));
-    expect(
-      bundle.entries.map((entry) => entry.role),
-      contains(RestageBundleEntryRole.rfwText),
-    );
-  });
+  test(
+    'cold build from empty state materializes the expected bundle',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final alpha = flowFixture(
+        slug: 'alpha',
+        libraryPath: 'lib/features/alpha.dart',
+        screenBytes: const [1, 2, 3],
+      );
+      final result = await _run(
+        {'lib/features/alpha.dart': '// authored\n'},
+        [alpha],
+        readerWriter,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      expect(_bundleExists(readerWriter, alphaBundlePath), isTrue);
+      final bundle = RestageBundleCodec.decode(
+        _bundleBytes(readerWriter, alphaBundlePath),
+      );
+      expect(bundle.authoredLibraryPath, 'lib/features/alpha.dart');
+      // flowDocument, screenBlob, capabilitySidecar, and the screen blob's
+      // canonical .rfwtxt sibling.
+      expect(bundle.entries, hasLength(4));
+      expect(
+        bundle.entries.map((entry) => entry.role),
+        contains(RestageBundleEntryRole.rfwText),
+      );
+    },
+  );
 
   test('warm no-change rebuild is byte-identical', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
@@ -97,8 +99,7 @@ void main() {
     expect(secondBytes, orderedEquals(firstBytes));
   });
 
-  test(
-      'adding an authored library adds its bundle without disturbing '
+  test('adding an authored library adds its bundle without disturbing '
       'the existing one', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
@@ -136,7 +137,8 @@ void main() {
     expect(
       _bundleBytes(readerWriter, alphaBundlePath),
       orderedEquals(alphaBytesBefore),
-      reason: 'Adding a sibling library must not perturb an unrelated '
+      reason:
+          'Adding a sibling library must not perturb an unrelated '
           "library's bundle.",
     );
   });
@@ -232,7 +234,8 @@ void main() {
     expect(
       after.outputs,
       isNot(contains(AssetId('apps_examples', betaBundlePath))),
-      reason: 'A build round that no longer admits beta must not (re)write '
+      reason:
+          'A build round that no longer admits beta must not (re)write '
           "beta's bundle.",
     );
     expect(
@@ -241,57 +244,59 @@ void main() {
     );
   });
 
-  test('renaming an authored library produces its bundle at the new path',
-      () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final alpha = flowFixture(
-      slug: 'alpha',
-      libraryPath: 'lib/features/alpha.dart',
-      screenBytes: const [1, 2, 3],
-    );
-    final before = await _run(
-      {'lib/features/alpha.dart': '// authored\n'},
-      [alpha],
-      readerWriter,
-    );
-    expect(before.succeeded, isTrue, reason: before.errors.join('\n'));
-    expect(_bundleExists(readerWriter, alphaBundlePath), isTrue);
-
-    readerWriter.testing.delete(
-      AssetId('apps_examples', 'lib/features/alpha.dart'),
-    );
-    final moved = flowFixture(
-      slug: 'alpha',
-      libraryPath: 'lib/journeys/alpha.dart',
-      screenBytes: const [1, 2, 3],
-    );
-    final after = await _run(
-      {'lib/journeys/alpha.dart': '// authored\n'},
-      [moved],
-      readerWriter,
-    );
-    expect(after.succeeded, isTrue, reason: after.errors.join('\n'));
-
-    expect(
-      after.outputs,
-      isNot(contains(AssetId('apps_examples', alphaBundlePath))),
-      reason: 'A build round rooted at the new library path must not '
-          "(re)write the old path's bundle.",
-    );
-    expect(
-      after.outputs,
-      contains(AssetId('apps_examples', renamedBundlePath)),
-    );
-    final movedBundle = RestageBundleCodec.decode(
-      _bundleBytes(readerWriter, renamedBundlePath),
-    );
-    expect(movedBundle.authoredLibraryPath, 'lib/journeys/alpha.dart');
-  });
-
   test(
-      'restage.outputs.json sorts by UTF-8 path-byte order, not UTF-16 '
+    'renaming an authored library produces its bundle at the new path',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final alpha = flowFixture(
+        slug: 'alpha',
+        libraryPath: 'lib/features/alpha.dart',
+        screenBytes: const [1, 2, 3],
+      );
+      final before = await _run(
+        {'lib/features/alpha.dart': '// authored\n'},
+        [alpha],
+        readerWriter,
+      );
+      expect(before.succeeded, isTrue, reason: before.errors.join('\n'));
+      expect(_bundleExists(readerWriter, alphaBundlePath), isTrue);
+
+      readerWriter.testing.delete(
+        AssetId('apps_examples', 'lib/features/alpha.dart'),
+      );
+      final moved = flowFixture(
+        slug: 'alpha',
+        libraryPath: 'lib/journeys/alpha.dart',
+        screenBytes: const [1, 2, 3],
+      );
+      final after = await _run(
+        {'lib/journeys/alpha.dart': '// authored\n'},
+        [moved],
+        readerWriter,
+      );
+      expect(after.succeeded, isTrue, reason: after.errors.join('\n'));
+
+      expect(
+        after.outputs,
+        isNot(contains(AssetId('apps_examples', alphaBundlePath))),
+        reason:
+            'A build round rooted at the new library path must not '
+            "(re)write the old path's bundle.",
+      );
+      expect(
+        after.outputs,
+        contains(AssetId('apps_examples', renamedBundlePath)),
+      );
+      final movedBundle = RestageBundleCodec.decode(
+        _bundleBytes(readerWriter, renamedBundlePath),
+      );
+      expect(movedBundle.authoredLibraryPath, 'lib/journeys/alpha.dart');
+    },
+  );
+
+  test('restage.outputs.json sorts by UTF-8 path-byte order, not UTF-16 '
       'code-unit order', () async {
     // U+E000 (a lone BMP character above the surrogate range) and U+1F600
     // (an astral character requiring a UTF-16 surrogate pair) order
@@ -324,7 +329,8 @@ void main() {
     expect(
       bmpPath.compareTo(astralPath) > 0,
       isTrue,
-      reason: 'Fixture must place the BMP path after the astral path under '
+      reason:
+          'Fixture must place the BMP path after the astral path under '
           'UTF-16 code-unit order for this regression to be meaningful.',
     );
 
@@ -338,30 +344,35 @@ void main() {
     );
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
 
-    final indexJson = jsonDecode(
-      readerWriter.testing.readString(
-        AssetId(
-            'apps_examples', '.restage/build/metadata/restage.outputs.json'),
-      ),
-    ) as Map<String, Object?>;
+    final indexJson =
+        jsonDecode(
+              readerWriter.testing.readString(
+                AssetId(
+                  'apps_examples',
+                  '.restage/build/metadata/restage.outputs.json',
+                ),
+              ),
+            )
+            as Map<String, Object?>;
     final paths = [
-      for (final entry in (indexJson['entries']! as List<Object?>)
-          .cast<Map<String, Object?>>())
+      for (final entry
+          in (indexJson['entries']! as List<Object?>)
+              .cast<Map<String, Object?>>())
         entry['path']! as String,
     ];
 
     expect(
       paths.indexOf(bmpPath) < paths.indexOf(astralPath),
       isTrue,
-      reason: 'restage.outputs.json must sort by UTF-8 path-byte order '
+      reason:
+          'restage.outputs.json must sort by UTF-8 path-byte order '
           '(bmp before astral), matching the .rsbundle codec — not by Dart '
           "String.compareTo's UTF-16 code-unit order (which would place "
           'astral before bmp).',
     );
   });
 
-  test(
-      'fails loudly on a generated text the compiler never attributed to '
+  test('fails loudly on a generated text the compiler never attributed to '
       'an authored library', () async {
     // Every output file's attribution comes directly from the compiler's
     // own write choke point (package_surface_compiler.dart's _putFile) —
@@ -406,8 +417,7 @@ void main() {
     expect(result.errors.join('\n'), contains(orphanTextPath));
   });
 
-  test(
-      'attributes a navigation-paywall generated text with no stem-sibling '
+  test('attributes a navigation-paywall generated text with no stem-sibling '
       'blob', () async {
     // A navigation paywall's canonical text lives at assets/paywalls/<id>
     // .rfwtxt, but its screen artifacts live under a differently-named
@@ -474,15 +484,20 @@ void main() {
       isTrue,
       reason: packageResult.errors.join('\n'),
     );
-    final indexJson = jsonDecode(
-      readerWriter.testing.readString(
-        AssetId(
-            'apps_examples', '.restage/build/metadata/restage.outputs.json'),
-      ),
-    ) as Map<String, Object?>;
+    final indexJson =
+        jsonDecode(
+              readerWriter.testing.readString(
+                AssetId(
+                  'apps_examples',
+                  '.restage/build/metadata/restage.outputs.json',
+                ),
+              ),
+            )
+            as Map<String, Object?>;
     final indexedPaths = [
-      for (final entry in (indexJson['entries']! as List<Object?>)
-          .cast<Map<String, Object?>>())
+      for (final entry
+          in (indexJson['entries']! as List<Object?>)
+              .cast<Map<String, Object?>>())
         entry['path']! as String,
     ];
     // The index is an exact bijection with the manifest's own artifact
@@ -503,8 +518,7 @@ void main() {
     );
   });
 
-  test(
-      'an unattributed text in the package never fails an unrelated '
+  test('an unattributed text in the package never fails an unrelated '
       "library's own build step", () async {
     // The single-owner failure fix: a generated text this build genuinely
     // cannot attribute must fail the package-wide step (which needs every
@@ -562,7 +576,8 @@ void main() {
         ),
       ),
       isTrue,
-      reason: "known.dart's own build step must succeed and write its "
+      reason:
+          "known.dart's own build step must succeed and write its "
           "bundle independently of the package-wide step's failure over "
           'an unrelated orphan text.',
     );
@@ -577,7 +592,8 @@ void main() {
     expect(
       knownBundle.entries.map((entry) => entry.logicalPath),
       isNot(contains(orphanTextPath)),
-      reason: 'The orphan belongs to no library, so it must never appear '
+      reason:
+          'The orphan belongs to no library, so it must never appear '
           "in known's bundle either.",
     );
   });

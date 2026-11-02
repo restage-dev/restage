@@ -15,26 +15,28 @@ void main() {
     // three-line pass-through; this smoke test verifies the wiring (the
     // visitor runs as part of the builder's pipeline and leaves
     // `state.widgetEntries` empty when no annotated classes are present).
-    test('leaves state.widgetEntries empty when no @RestageWidget classes',
-        () async {
-      final after = _StateCaptureVisitor();
+    test(
+      'leaves state.widgetEntries empty when no @RestageWidget classes',
+      () async {
+        final after = _StateCaptureVisitor();
 
-      await testBuilder(
-        RestageCodegenBuilder(
-          BuilderOptions.empty,
-          visitors: [const RestageWidgetVisitor(), after],
-        ),
-        {
-          'pkg|lib/paywalls/plain.dart': '''
+        await testBuilder(
+          RestageCodegenBuilder(
+            BuilderOptions.empty,
+            visitors: [const RestageWidgetVisitor(), after],
+          ),
+          {
+            'pkg|lib/paywalls/plain.dart': '''
             class Plain { const Plain(); }
           ''',
-        },
-        rootPackage: 'pkg',
-        outputs: const {},
-      );
+          },
+          rootPackage: 'pkg',
+          outputs: const {},
+        );
 
-      expect(after.observed, isEmpty);
-    });
+        expect(after.observed, isEmpty);
+      },
+    );
   });
 }
 

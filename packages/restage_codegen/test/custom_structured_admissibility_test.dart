@@ -18,24 +18,24 @@ const _sentinelRef = WireIdRef(
 );
 
 StructuredField _scalarField(String name, PropertyType type) => StructuredField(
-      wireId: WireId.unallocatedProperty,
-      name: name,
-      type: type,
-      description: '',
-      valueShape: ScalarShape(propertyType: type),
-    );
+  wireId: WireId.unallocatedProperty,
+  name: name,
+  type: type,
+  description: '',
+  valueShape: ScalarShape(propertyType: type),
+);
 
 StructuredField _structuredField(String name) => StructuredField(
-      wireId: WireId.unallocatedProperty,
-      name: name,
-      type: PropertyType.structured,
-      description: '',
-      structuredRef: _sentinelRef,
-      valueShape: const StructuredShape(
-        propertyType: PropertyType.structured,
-        structuredRef: _sentinelRef,
-      ),
-    );
+  wireId: WireId.unallocatedProperty,
+  name: name,
+  type: PropertyType.structured,
+  description: '',
+  structuredRef: _sentinelRef,
+  valueShape: const StructuredShape(
+    propertyType: PropertyType.structured,
+    structuredRef: _sentinelRef,
+  ),
+);
 
 /// A canonical unnamed ctor variant whose required named parameters mirror the
 /// fields 1:1 (param name == field name) — the shape a real data class lowers
@@ -62,32 +62,30 @@ StructuredEntry _structured(
   String sourceType,
   List<StructuredField> fields, {
   List<FactoryVariant>? variants,
-}) =>
-    StructuredEntry(
-      wireId: WireId.unallocatedStructured,
-      name: name,
-      library: _library,
-      description: '',
-      sourceType: sourceType,
-      fields: fields,
-      variants: variants ?? [_canonicalVariant(fields)],
-    );
+}) => StructuredEntry(
+  wireId: WireId.unallocatedStructured,
+  name: name,
+  library: _library,
+  description: '',
+  sourceType: sourceType,
+  fields: fields,
+  variants: variants ?? [_canonicalVariant(fields)],
+);
 
 WidgetEntry _widget(
   String name,
   String flutterType,
   List<PropertyEntry> props,
-) =>
-    WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: name,
-      library: _library,
-      category: WidgetCategory.decoration,
-      description: '',
-      flutterType: flutterType,
-      childrenSlot: ChildrenSlot.none,
-      properties: props,
-    );
+) => WidgetEntry(
+  wireId: WireId.unallocatedWidget,
+  name: name,
+  library: _library,
+  category: WidgetCategory.decoration,
+  description: '',
+  flutterType: flutterType,
+  childrenSlot: ChildrenSlot.none,
+  properties: props,
+);
 
 PropertyEntry _structuredProp(String name, {bool required = true}) =>
     PropertyEntry(
@@ -111,17 +109,18 @@ final StructuredEntry _outer = _structured('Outer', _outerFqn, [
   _scalarField('title', PropertyType.string),
   _structuredField('inner'),
 ]);
-final WidgetEntry _card =
-    _widget('OuterCard', _cardFqn, [_structuredProp('config')]);
+final WidgetEntry _card = _widget('OuterCard', _cardFqn, [
+  _structuredProp('config'),
+]);
 
 Map<String, StructuredEntry> get _bySourceType => {
-      _innerFqn: _inner,
-      _outerFqn: _outer,
-    };
+  _innerFqn: _inner,
+  _outerFqn: _outer,
+};
 Map<String, String> get _slotTargets => {
-      '$_outerFqn.inner': _innerFqn,
-      '$_cardFqn.config': _outerFqn,
-    };
+  '$_outerFqn.inner': _innerFqn,
+  '$_cardFqn.config': _outerFqn,
+};
 
 void main() {
   group('isRenderableStructuredType', () {
@@ -137,8 +136,7 @@ void main() {
       );
     });
 
-    test(
-        'a type whose nested target has a dropped inner field is NOT '
+    test('a type whose nested target has a dropped inner field is NOT '
         'renderable (recursion sees the target localUnrenderable)', () {
       expect(
         isRenderableStructuredType(
@@ -163,8 +161,7 @@ void main() {
       );
     });
 
-    test(
-        'a non-canonical shape — a required ctor param that name-matches no '
+    test('a non-canonical shape — a required ctor param that name-matches no '
         'field — is NOT renderable (reconstructor-soundness invariant)', () {
       // Badge(int c) : count = c — the ctor param `c` has no field named `c`,
       // so the by-name reconstructor could not source it. Exclude, never
@@ -202,8 +199,7 @@ void main() {
       );
     });
 
-    test(
-        'a data class with no constructor variant (const-value-only) is NOT '
+    test('a data class with no constructor variant (const-value-only) is NOT '
         'renderable (nothing to reconstruct with)', () {
       const fqn = 'package:acme/foo.dart#Token';
       final token = _structured(
@@ -223,8 +219,7 @@ void main() {
       );
     });
 
-    test(
-        'a self-referential (cyclic) data class is NOT renderable (a cycle '
+    test('a self-referential (cyclic) data class is NOT renderable (a cycle '
         'cannot be finitely reconstructed by inline emission)', () {
       // The check terminates (cycle-safe via the visiting set), but a cyclic
       // type is excluded-loud: the inline reconstructor would expand
@@ -248,8 +243,7 @@ void main() {
   });
 
   group('computeAdmission', () {
-    test(
-        'admits a widget whose closure is fully renderable, and returns the '
+    test('admits a widget whose closure is fully renderable, and returns the '
         'reachable structured closure', () {
       final admission = computeAdmission(
         widgets: [_card],
@@ -262,8 +256,7 @@ void main() {
       expect(admission.admittedSourceTypes, {_outerFqn, _innerFqn});
     });
 
-    test(
-        'excludes-loud a widget whose closure contains an unsupported inner '
+    test('excludes-loud a widget whose closure contains an unsupported inner '
         'field, naming the offending target', () {
       final admission = computeAdmission(
         widgets: [_card],
@@ -282,8 +275,7 @@ void main() {
       );
     });
 
-    test(
-        'excludes-loud a widget whose structured property target is absent '
+    test('excludes-loud a widget whose structured property target is absent '
         '(dangling ref)', () {
       final admission = computeAdmission(
         widgets: [_card],
@@ -318,8 +310,7 @@ void main() {
       expect(admission.dropped.single.reason, contains('Missing'));
     });
 
-    test(
-        'excludes-loud when whole-widget factory admission rejects an '
+    test('excludes-loud when whole-widget factory admission rejects an '
         'otherwise renderable structured widget', () {
       final admission = computeAdmission(
         widgets: [_card],

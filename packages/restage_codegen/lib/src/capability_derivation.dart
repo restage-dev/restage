@@ -88,7 +88,8 @@ CapabilityDerivationResult deriveCapabilityManifest(
         for (final name in derivation.ambiguousNames)
           Issue(
             code: IssueCode.ambiguousWidgetName,
-            message: "The widget name '$name' resolves to more than one "
+            message:
+                "The widget name '$name' resolves to more than one "
                 'library (${_librariesForName(catalog, name).join(', ')}), so '
                 'its capability floor cannot be derived. Rename the custom '
                 'widget so it does not shadow a built-in (or another library).',
@@ -104,7 +105,8 @@ CapabilityDerivationResult deriveCapabilityManifest(
         for (final library in derivation.unversionedLibraries)
           Issue(
             code: IssueCode.customLibraryMissingCapabilityVersion,
-            message: 'The surface references a widget from custom library '
+            message:
+                'The surface references a widget from custom library '
                 "'${library.namespace}', but that library declares no "
                 'capability version. Add `capabilityVersion:` to its '
                 '@RestageLibrary so the delivery-time capability floor can be '
@@ -127,8 +129,7 @@ CapabilityDerivationResult deriveCapabilityManifest(
 /// The sorted, de-duplicated namespaces a widget [name] resolves to in
 /// [catalog] — used to name the colliding libraries in an ambiguity diagnostic.
 List<String> _librariesForName(Catalog catalog, String name) =>
-    findWidgetsByName(catalog, name)
-        .map((w) => w.library.namespace)
-        .toSet()
-        .toList()
-      ..sort();
+    findWidgetsByName(
+      catalog,
+      name,
+    ).map((w) => w.library.namespace).toSet().toList()..sort();

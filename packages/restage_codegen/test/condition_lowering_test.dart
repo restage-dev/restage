@@ -13,40 +13,40 @@ import 'helpers.dart';
 
 void main() {
   ExpressionTranslator translator() => ExpressionTranslator(
-        catalog: catalogWith([
-          entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
-          entry(name: 'SizedBox', properties: []),
-          entry(
-            name: 'Column',
-            childrenSlot: ChildrenSlot.list,
-            properties: [prop('children', PropertyType.widgetList)],
-          ),
-          entry(
-            name: 'Wrap',
-            childrenSlot: ChildrenSlot.list,
-            properties: [prop('children', PropertyType.widgetList)],
-          ),
-          entry(
-            name: 'AppBar',
-            properties: [
-              prop('title', PropertyType.widget),
-              prop('actions', PropertyType.widgetList),
-            ],
-          ),
-          entry(
-            name: 'Visibility',
-            properties: [
-              prop('visible', PropertyType.boolean),
-              prop('child', PropertyType.widget),
-            ],
-          ),
-          entry(
-            name: 'Switch',
-            properties: [prop('value', PropertyType.boolean)],
-          ),
-        ]),
-        helpers: HelperRegistry(),
-      );
+    catalog: catalogWith([
+      entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
+      entry(name: 'SizedBox', properties: []),
+      entry(
+        name: 'Column',
+        childrenSlot: ChildrenSlot.list,
+        properties: [prop('children', PropertyType.widgetList)],
+      ),
+      entry(
+        name: 'Wrap',
+        childrenSlot: ChildrenSlot.list,
+        properties: [prop('children', PropertyType.widgetList)],
+      ),
+      entry(
+        name: 'AppBar',
+        properties: [
+          prop('title', PropertyType.widget),
+          prop('actions', PropertyType.widgetList),
+        ],
+      ),
+      entry(
+        name: 'Visibility',
+        properties: [
+          prop('visible', PropertyType.boolean),
+          prop('child', PropertyType.widget),
+        ],
+      ),
+      entry(
+        name: 'Switch',
+        properties: [prop('value', PropertyType.boolean)],
+      ),
+    ]),
+    helpers: HelperRegistry(),
+  );
 
   const isPro = CustomWidgetStateField(
     name: 'isPro',
@@ -123,8 +123,9 @@ void main() {
     });
 
     test('`!(a && b)` swaps the arms of the whole composition', () async {
-      final result =
-          await lower("Text(text: !(isPro && trialUsed) ? 'A' : 'B')");
+      final result = await lower(
+        "Text(text: !(isPro && trialUsed) ? 'A' : 'B')",
+      );
       expect(
         parsed(result),
         contains(
@@ -249,17 +250,19 @@ void main() {
   });
 
   group('run-time collection-`if`', () {
-    test('an else-less `if` becomes a switch with an empty false arm',
-        () async {
-      final result = await lower(
-        "Column(children: [Text(text: 'a'), if (isPro) Text(text: 'b')])",
-      );
-      expect(
-        parsed(result),
-        'Column(children: [Text(text: "a"), ...for presence in '
-        'switch state.isPro { true: [0], false: [] }: Text(text: "b")])',
-      );
-    });
+    test(
+      'an else-less `if` becomes a switch with an empty false arm',
+      () async {
+        final result = await lower(
+          "Column(children: [Text(text: 'a'), if (isPro) Text(text: 'b')])",
+        );
+        expect(
+          parsed(result),
+          'Column(children: [Text(text: "a"), ...for presence in '
+          'switch state.isPro { true: [0], false: [] }: Text(text: "b")])',
+        );
+      },
+    );
 
     test('an `if … else` puts each branch on its own arm', () async {
       final result = await lower(
@@ -667,19 +670,21 @@ void main() {
       );
     });
 
-    test('a language subtag gates a collection-`if` through a composition',
-        () async {
-      final result = await lower(
-        'Column(children: [if '
-        "(Localizations.localeOf(context).languageCode == 'fr' || isPro) "
-        "Text(text: 'a')])",
-      );
-      expect(
-        parsed(result),
-        'Column(children: [...for presence in switch data.device.languageCode '
-        '{ "fr": [0], default: switch state.isPro '
-        '{ true: [0], false: [] } }: Text(text: "a")])',
-      );
-    });
+    test(
+      'a language subtag gates a collection-`if` through a composition',
+      () async {
+        final result = await lower(
+          'Column(children: [if '
+          "(Localizations.localeOf(context).languageCode == 'fr' || isPro) "
+          "Text(text: 'a')])",
+        );
+        expect(
+          parsed(result),
+          'Column(children: [...for presence in switch data.device.languageCode '
+          '{ "fr": [0], default: switch state.isPro '
+          '{ true: [0], false: [] } }: Text(text: "a")])',
+        );
+      },
+    );
   });
 }

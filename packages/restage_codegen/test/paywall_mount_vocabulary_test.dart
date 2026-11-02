@@ -8,8 +8,9 @@ import 'package:test/test.dart';
 import 'helpers.dart';
 
 Future<String> _generatedPart(String source) async {
-  final readerWriter =
-      await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
   final result = await testBuilder(
     const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
     {'apps_examples|lib/entry.dart': source},

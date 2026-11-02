@@ -253,11 +253,11 @@ bool _needsOwnGraph(WidgetEntry widget, PropertyEntry property) {
   final namespace = widget.library.namespace;
   bool own(WireIdRef? ref) => ref != null && ref.library == namespace;
   bool shapeNeeds(CatalogValueShape? shape) => switch (shape) {
-        null || ScalarShape() || EnumShape() => false,
-        StructuredShape(:final structuredRef) => own(structuredRef),
-        UnionShape(:final unionRef) => own(unionRef),
-        ListShape(:final itemShape) => shapeNeeds(itemShape),
-      };
+    null || ScalarShape() || EnumShape() => false,
+    StructuredShape(:final structuredRef) => own(structuredRef),
+    UnionShape(:final unionRef) => own(unionRef),
+    ListShape(:final itemShape) => shapeNeeds(itemShape),
+  };
   return own(property.structuredRef) || shapeNeeds(property.valueShape);
 }
 
@@ -347,11 +347,13 @@ void _writePropertyEntry(
   }
   if (p.builderContract case final contract?) {
     buf.writeln(
-        '${indent}  builderContract: WidgetBuilderContract(parameters: [${contract.parameters.map((p) => "WidgetBuilderParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),');
+      '${indent}  builderContract: WidgetBuilderContract(parameters: [${contract.parameters.map((p) => "WidgetBuilderParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),',
+    );
   }
   if (p.scalarContract case final contract?) {
     buf.writeln(
-        '${indent}  scalarContract: ScalarCallbackContract(parameters: [${contract.parameters.map((p) => "ScalarCallbackParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),');
+      '${indent}  scalarContract: ScalarCallbackContract(parameters: [${contract.parameters.map((p) => "ScalarCallbackParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),',
+    );
   }
   if (p.callbackSignature != null) {
     buf.writeln(
@@ -505,11 +507,13 @@ void _writeStructuredField(
     ..writeln('$indent  description: ${_escapeDart(field.description)},');
   if (field.builderContract case final contract?) {
     buf.writeln(
-        '${indent}  builderContract: WidgetBuilderContract(parameters: [${contract.parameters.map((p) => "WidgetBuilderParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),');
+      '${indent}  builderContract: WidgetBuilderContract(parameters: [${contract.parameters.map((p) => "WidgetBuilderParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),',
+    );
   }
   if (field.scalarContract case final contract?) {
     buf.writeln(
-        '${indent}  scalarContract: ScalarCallbackContract(parameters: [${contract.parameters.map((p) => "ScalarCallbackParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),');
+      '${indent}  scalarContract: ScalarCallbackContract(parameters: [${contract.parameters.map((p) => "ScalarCallbackParameter.${p.name}").join(", ")}], nullableResult: ${contract.nullableResult}),',
+    );
   }
   if (field.required) buf.writeln('$indent  required: true,');
   if (field.defaultSource != null) {
@@ -560,10 +564,10 @@ void _writeFactoryVariant(
     ..writeln('$indent  wireId: ${_wireIdLiteral(variant.wireId)},');
   switch (variant) {
     case ConstructorVariant(
-        :final namedConstructor,
-        :final argMappings,
-        :final parameters,
-      ):
+      :final namedConstructor,
+      :final argMappings,
+      :final parameters,
+    ):
       if (namedConstructor != null) {
         buf.writeln(
           '$indent  namedConstructor: ${_escapeDart(namedConstructor)},',
@@ -572,10 +576,10 @@ void _writeFactoryVariant(
       _writeArgMappings(buf, argMappings, indent: indent);
       _writeVariantParameters(buf, parameters, indent: indent);
     case StaticMethodVariant(
-        :final staticAccessor,
-        :final argMappings,
-        :final parameters,
-      ):
+      :final staticAccessor,
+      :final argMappings,
+      :final parameters,
+    ):
       buf.writeln('$indent  staticAccessor: ${_escapeDart(staticAccessor)},');
       _writeArgMappings(buf, argMappings, indent: indent);
       _writeVariantParameters(buf, parameters, indent: indent);
@@ -896,21 +900,21 @@ String _valueShapeLiteral(CatalogValueShape shape) {
 
   return switch (shape) {
     ScalarShape(:final dartTypeRef) => build('ScalarShape', [
-        if (dartTypeRef != null)
-          'dartTypeRef: ${_dartTypeRefLiteral(dartTypeRef)}',
-      ]),
+      if (dartTypeRef != null)
+        'dartTypeRef: ${_dartTypeRefLiteral(dartTypeRef)}',
+    ]),
     EnumShape(:final enumRef) => build('EnumShape', [
-        'enumRef: ${_dartTypeRefLiteral(enumRef)}',
-      ]),
+      'enumRef: ${_dartTypeRefLiteral(enumRef)}',
+    ]),
     StructuredShape(:final structuredRef) => build('StructuredShape', [
-        'structuredRef: ${_wireIdRefLiteral(structuredRef)}',
-      ]),
+      'structuredRef: ${_wireIdRefLiteral(structuredRef)}',
+    ]),
     UnionShape(:final unionRef) => build('UnionShape', [
-        'unionRef: ${_wireIdRefLiteral(unionRef)}',
-      ]),
+      'unionRef: ${_wireIdRefLiteral(unionRef)}',
+    ]),
     ListShape(:final itemShape) => build('ListShape', [
-        'itemShape: ${_valueShapeLiteral(itemShape)}',
-      ]),
+      'itemShape: ${_valueShapeLiteral(itemShape)}',
+    ]),
   };
 }
 
@@ -920,13 +924,14 @@ String _dartTypeRefLiteral(DartTypeRef ref) {
 }
 
 String _dartConstTypeLiteral(DartTypeIdentity type) => switch (type) {
-      DartNamedTypeIdentity() => _dartNamedTypeLiteral(type),
-      DartRecordTypeIdentity() => _dartRecordTypeLiteral(type),
-    };
+  DartNamedTypeIdentity() => _dartNamedTypeLiteral(type),
+  DartRecordTypeIdentity() => _dartRecordTypeLiteral(type),
+};
 
 String _dartNamedTypeLiteral(DartNamedTypeIdentity type) {
-  final typeArguments =
-      type.typeArguments.map(_dartConstTypeLiteral).join(', ');
+  final typeArguments = type.typeArguments
+      .map(_dartConstTypeLiteral)
+      .join(', ');
   return 'DartTypeIdentity(${[
     'libraryUri: ${_escapeDart(type.libraryUri)}',
     'symbolName: ${_escapeDart(type.symbolName)}',
@@ -951,28 +956,28 @@ String _dartRecordTypeNamedFieldLiteral(DartRecordTypeNamedField field) =>
 
 /// Emits a catalog constant value as a Dart schema constructor expression.
 String emitDartConstValue(DartConstValue value) => switch (value) {
-      DartConstNull() => 'DartConstNull()',
-      DartConstScalar(:final value) =>
-        'DartConstScalar(${_dartLiteral(value)})',
-      DartConstReference(:final libraryUri, :final owner, :final member) =>
-        'DartConstReference('
-            'libraryUri: ${_escapeDart(libraryUri)}, '
-            '${owner == null ? '' : 'owner: ${_escapeDart(owner)}, '}'
-            'member: ${_escapeDart(member)})',
-      DartConstInvocation() => _dartConstInvocationLiteral(value),
-      DartConstList(:final values, :final type) =>
-        'DartConstList([${values.map(emitDartConstValue).join(', ')}]'
-            '${_dartConstCollectionTypeLiteral(type)})',
-      DartConstSet(:final values, :final type) =>
-        'DartConstSet([${values.map(emitDartConstValue).join(', ')}]'
-            '${_dartConstCollectionTypeLiteral(type)})',
-      DartConstMap(:final entries, :final type) =>
-        'DartConstMap([${entries.map(_dartConstMapEntryLiteral).join(', ')}]'
-            '${_dartConstCollectionTypeLiteral(type)})',
-      DartConstRecord(:final positional, :final named) => 'DartConstRecord('
-          'positional: [${positional.map(emitDartConstValue).join(', ')}], '
-          'named: [${named.map(_dartConstNamedLiteral).join(', ')}])',
-    };
+  DartConstNull() => 'DartConstNull()',
+  DartConstScalar(:final value) => 'DartConstScalar(${_dartLiteral(value)})',
+  DartConstReference(:final libraryUri, :final owner, :final member) =>
+    'DartConstReference('
+        'libraryUri: ${_escapeDart(libraryUri)}, '
+        '${owner == null ? '' : 'owner: ${_escapeDart(owner)}, '}'
+        'member: ${_escapeDart(member)})',
+  DartConstInvocation() => _dartConstInvocationLiteral(value),
+  DartConstList(:final values, :final type) =>
+    'DartConstList([${values.map(emitDartConstValue).join(', ')}]'
+        '${_dartConstCollectionTypeLiteral(type)})',
+  DartConstSet(:final values, :final type) =>
+    'DartConstSet([${values.map(emitDartConstValue).join(', ')}]'
+        '${_dartConstCollectionTypeLiteral(type)})',
+  DartConstMap(:final entries, :final type) =>
+    'DartConstMap([${entries.map(_dartConstMapEntryLiteral).join(', ')}]'
+        '${_dartConstCollectionTypeLiteral(type)})',
+  DartConstRecord(:final positional, :final named) =>
+    'DartConstRecord('
+        'positional: [${positional.map(emitDartConstValue).join(', ')}], '
+        'named: [${named.map(_dartConstNamedLiteral).join(', ')}])',
+};
 
 String _dartConstCollectionTypeLiteral(DartTypeIdentity? type) =>
     type == null ? '' : ', type: ${_dartConstTypeLiteral(type)}';
@@ -1044,8 +1049,9 @@ String _valueTransformLiteral(DecompositionValueTransform transform) {
     ProjectListTransform(:final itemTransform) =>
       'ProjectListTransform(itemTransform: '
           '${_valueTransformLiteral(itemTransform)})',
-    CoerceScalarTransform(:final scalarCoercion) => 'CoerceScalarTransform('
-        'scalarCoercion: ${_escapeDart(scalarCoercion)})',
+    CoerceScalarTransform(:final scalarCoercion) =>
+      'CoerceScalarTransform('
+          'scalarCoercion: ${_escapeDart(scalarCoercion)})',
   };
 }
 
@@ -1063,8 +1069,9 @@ String _argumentBindingLiteral(TransformArgumentBinding binding) {
   return switch (binding) {
     PropertyValueArgumentBinding() =>
       'PropertyValueArgumentBinding(${base.join(', ')})',
-    LiteralArgumentBinding(:final literal) => 'LiteralArgumentBinding('
-        'literal: ${_dartLiteral(literal)}, ${base.join(', ')})',
+    LiteralArgumentBinding(:final literal) =>
+      'LiteralArgumentBinding('
+          'literal: ${_dartLiteral(literal)}, ${base.join(', ')})',
     NestedTransformArgumentBinding(:final nestedTransform) =>
       'NestedTransformArgumentBinding('
           'nestedTransform: ${_valueTransformLiteral(nestedTransform)}, '

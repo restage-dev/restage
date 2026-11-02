@@ -37,8 +37,10 @@ void main() {
     entry(name: 'SizedBox', properties: [prop('width', PropertyType.real)]),
   ]);
 
-  final translator =
-      ExpressionTranslator(catalog: catalog, helpers: HelperRegistry());
+  final translator = ExpressionTranslator(
+    catalog: catalog,
+    helpers: HelperRegistry(),
+  );
 
   Future<({String dsl, List<Issue> issues})> translateUnresolved(
     String source,
@@ -64,10 +66,11 @@ void main() {
       expect(r.dsl, contains('offset: {x: 0.0, y: 0.0}'));
     });
 
-    test('a real-Flutter Offset(x, y) at the slot lowers when fully resolved',
-        () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'a real-Flutter Offset(x, y) at the slot lowers when fully resolved',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/material.dart' show AnimatedSlide, SizedBox;
         import 'dart:ui' show Offset;
         Object x() => AnimatedSlide(
@@ -75,17 +78,17 @@ void main() {
           child: SizedBox(),
         );
         ''',
-        rootPackage: 'apps_examples',
-      );
-      final r = translator.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('offset: {x: 0.0, y: 1.0}'));
-    });
+          rootPackage: 'apps_examples',
+        );
+        final r = translator.translate(expr);
+        expect(r.issues, isEmpty);
+        expect(r.dsl, contains('offset: {x: 0.0, y: 1.0}'));
+      },
+    );
   });
 
   group('offset slot diagnoses what it cannot provably lower', () {
-    test(
-        'a resolved custom Offset ctor look-alike DEFERS at the slot — '
+    test('a resolved custom Offset ctor look-alike DEFERS at the slot — '
         'no {x, y} substitution', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -109,8 +112,7 @@ void main() {
       expect(r.dsl, isNot(contains('x: 0.5')));
     });
 
-    test(
-        'a resolved custom Offset.zero look-alike DEFERS at the slot — '
+    test('a resolved custom Offset.zero look-alike DEFERS at the slot — '
         'no {x, y} substitution, no bare member string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''

@@ -74,8 +74,7 @@ final String _appPackageGraph = nativeScreenPackageGraph(
 
 void main() {
   group('UserA2uiCatalogBuilder — classifier coverage fails loud', () {
-    test(
-        'a required callback with an unsupported signature fails loud naming '
+    test('a required callback with an unsupported signature fails loud naming '
         'the widget, the callback, and the reason — never a silent drop from '
         'both outputs', () async {
       // A three-argument callback has no declarative lowering. Marked required
@@ -109,9 +108,10 @@ void main() {
       expect(logs, contains('callback signature has no declarative lowering'));
     });
 
-    test('a dropped ScreenSource diagnostic retains the native source kind',
-        () async {
-      const source = '''
+    test(
+      'a dropped ScreenSource diagnostic retains the native source kind',
+      () async {
+        const source = '''
         import 'package:flutter/widgets.dart';
         import 'package:restage/restage.dart' as restage;
 
@@ -129,20 +129,22 @@ void main() {
         }
       ''';
 
-      final (succeeded, logs) = await _runBuilder({
-        'lib/onboarding/screens/dropped_screen.dart': source,
-      });
+        final (succeeded, logs) = await _runBuilder({
+          'lib/onboarding/screens/dropped_screen.dart': source,
+        });
 
-      expect(succeeded, isFalse);
-      expect(logs, contains("The @ScreenSource 'dropped_screen'"));
-      expect(logs, contains("'onScrub'"));
-      expect(logs, contains('would be silently dropped'));
-      expect(logs, isNot(contains("The @RestageWidget 'dropped_screen'")));
-    });
+        expect(succeeded, isFalse);
+        expect(logs, contains("The @ScreenSource 'dropped_screen'"));
+        expect(logs, contains("'onScrub'"));
+        expect(logs, contains('would be silently dropped'));
+        expect(logs, isNot(contains("The @RestageWidget 'dropped_screen'")));
+      },
+    );
 
-    test('a dropped canonical Screen diagnostic uses the canonical source kind',
-        () async {
-      const source = '''
+    test(
+      'a dropped canonical Screen diagnostic uses the canonical source kind',
+      () async {
+        const source = '''
         import 'package:flutter/widgets.dart';
         import 'package:restage/restage.dart' as restage;
 
@@ -163,20 +165,20 @@ void main() {
         }
       ''';
 
-      final (succeeded, logs) = await _runBuilder({
-        'lib/features/dropped_canonical_screen.dart': source,
-      });
+        final (succeeded, logs) = await _runBuilder({
+          'lib/features/dropped_canonical_screen.dart': source,
+        });
 
-      expect(succeeded, isFalse);
-      expect(logs, contains("The @Screen 'dropped_canonical_screen'"));
-      expect(
-        logs,
-        isNot(contains("The @ScreenSource 'dropped_canonical_screen'")),
-      );
-    });
+        expect(succeeded, isFalse);
+        expect(logs, contains("The @Screen 'dropped_canonical_screen'"));
+        expect(
+          logs,
+          isNot(contains("The @ScreenSource 'dropped_canonical_screen'")),
+        );
+      },
+    );
 
-    test(
-        'an optional unsupported ScreenSource property warns with the native '
+    test('an optional unsupported ScreenSource property warns with the native '
         'source kind', () async {
       const source = '''
         import 'package:flutter/widgets.dart';
@@ -229,10 +231,10 @@ void main() {
       };
 
       for (final sourceShape in sourceShapes.entries) {
-        test(
-            "custom field '$fieldName' is exact beneath props for "
+        test("custom field '$fieldName' is exact beneath props for "
             '${sourceShape.key} admission', () async {
-          final source = '''
+          final source =
+              '''
             import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
             ${sourceShape.value.declarations}
             @RestageWidget(
@@ -254,14 +256,14 @@ void main() {
           });
 
           expect(succeeded, isTrue, reason: logs);
-          expect(logs, isNot(contains('GenUI component envelope')));
-          expect(logs, isNot(contains('rename the property')));
         });
       }
 
-      test("optional custom field '$fieldName' remains legal beneath props",
-          () async {
-        final source = '''
+      test(
+        "optional custom field '$fieldName' remains legal beneath props",
+        () async {
+          final source =
+              '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           @RestageWidget(
             name: 'OptionalEnvelopeCollision',
@@ -276,15 +278,15 @@ void main() {
           }
         ''';
 
-        final (succeeded, logs) = await _runBuilder({
-          'lib/lib.dart': _libraryDeclaration,
-          'lib/optional_envelope_collision.dart': source,
-        });
+          final (succeeded, logs) = await _runBuilder({
+            'lib/lib.dart': _libraryDeclaration,
+            'lib/optional_envelope_collision.dart': source,
+          });
 
-        expect(succeeded, isTrue, reason: logs);
-        expect(logs, isNot(contains('GenUI component envelope')));
-        expect(logs, isNot(contains('WARNING')));
-      });
+          expect(succeeded, isTrue, reason: logs);
+          expect(logs, isNot(contains('WARNING')));
+        },
+      );
     }
 
     test('nested rich-data id and component members remain legal', () async {
@@ -314,11 +316,9 @@ void main() {
       });
 
       expect(succeeded, isTrue, reason: logs);
-      expect(logs, isNot(contains('GenUI component envelope')));
     });
 
-    test(
-        'two unannotated write-back callbacks the constructor requires fail '
+    test('two unannotated write-back callbacks the constructor requires fail '
         'loud as an ambiguous pairing (never an emit missing required '
         'constructor arguments)', () async {
       // Two value-callbacks over the same value type cannot be auto-paired to
@@ -360,8 +360,7 @@ void main() {
       expect(logs, contains('writeBackValue'));
     });
 
-    test(
-        'the A2UI target derives a required non-nullable child from its '
+    test('the A2UI target derives a required non-nullable child from its '
         'constructor even without annotation duplication', () async {
       // The named A2UI visitor target marks this constructor-required child as
       // schema-required and the emitter therefore null-asserts the child
@@ -393,14 +392,14 @@ void main() {
     });
 
     test(
-        'an omitted OPTIONAL property builds green with a WARNING naming the '
-        'widget, the field, and the reason (contract-narrowing, not fatal)',
-        () async {
-      // `Curve` is a catalog property type with no A2UI data lowering. The
-      // constructor parameter is optional, so the widget still compiles and
-      // renders without it — the build stays green but must say what was
-      // narrowed out of the advertised contract.
-      const source = '''
+      'an omitted OPTIONAL property builds green with a WARNING naming the '
+      'widget, the field, and the reason (contract-narrowing, not fatal)',
+      () async {
+        // `Curve` is a catalog property type with no A2UI data lowering. The
+        // constructor parameter is optional, so the widget still compiles and
+        // renders without it — the build stays green but must say what was
+        // narrowed out of the advertised contract.
+        const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
         import 'package:flutter/widgets.dart';
         @RestageWidget(
@@ -418,16 +417,17 @@ void main() {
         }
       ''';
 
-      final (succeeded, logs) = await _runBuilder({
-        'lib/lib.dart': _libraryDeclaration,
-        'lib/fader.dart': source,
-      });
+        final (succeeded, logs) = await _runBuilder({
+          'lib/lib.dart': _libraryDeclaration,
+          'lib/fader.dart': source,
+        });
 
-      expect(succeeded, isTrue);
-      expect(logs, contains('WARNING'));
-      expect(logs, contains('Fader'));
-      expect(logs, contains("'easing'"));
-      expect(logs, contains('omitted from the A2UI catalog'));
-    });
+        expect(succeeded, isTrue);
+        expect(logs, contains('WARNING'));
+        expect(logs, contains('Fader'));
+        expect(logs, contains("'easing'"));
+        expect(logs, contains('omitted from the A2UI catalog'));
+      },
+    );
   });
 }

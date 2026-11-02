@@ -17,33 +17,45 @@ import 'package:test/test.dart';
 import '../helpers.dart';
 import '../shared_resolvers.dart';
 
-const _emptyEventHash = 'sha256:'
+const _emptyEventHash =
+    'sha256:'
     'de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5';
-const _multiEventHash = 'sha256:'
+const _multiEventHash =
+    'sha256:'
     'e8e6e96e91b1fa3ebab975bf91b75ddb201b88da6d5d3bb2baab4437546be450';
-const _zeroEventHash = 'sha256:'
+const _zeroEventHash =
+    'sha256:'
     '0000000000000000000000000000000000000000000000000000000000000000';
-const _oneEventHash = 'sha256:'
+const _oneEventHash =
+    'sha256:'
     '1111111111111111111111111111111111111111111111111111111111111111';
-const _emptyContractFingerprint = 'sha256:'
+const _emptyContractFingerprint =
+    'sha256:'
     '005037b32bb08a0a055114c6af93c430b99ee4508806aedb1b163fdcd69dbb7b';
-const _multiContractFingerprint = 'sha256:'
+const _multiContractFingerprint =
+    'sha256:'
     '18d0b8a332b67fb830a934913e410d0906904347e30a9dfba1036156bc8a5b60';
 
 void main() {
   group('standalone screen contract/reference emitter', () {
     test(
-        'installs prefixed typed native adapters without evaluating their body',
-        () async {
-      final expression = await parseExpressionFromSourceForTest('''
+      'installs prefixed typed native adapters without evaluating their body',
+      () async {
+        final expression = await parseExpressionFromSourceForTest(
+          '''
 import 'package:flutter/material.dart' as f;
 f.MaterialColor x() => f.MaterialColor(0xff102030, <int, f.Color>{500: const f.Color(0xff102030)});
-''', rootPackage: 'apps_examples', libraryPath: 'lib/maintenance_notice.dart');
-      final plan = planInstalledNativeCall(expression,
+''',
+          rootPackage: 'apps_examples',
+          libraryPath: 'lib/maintenance_notice.dart',
+        );
+        final plan = planInstalledNativeCall(
+          expression,
           resultType: const ValueType.native('flutter.Color'),
           captureFor: (_) => null,
-          inputFor: (_) => null);
-      const source = '''
+          inputFor: (_) => null,
+        );
+        const source = '''
 import 'package:flutter/material.dart' as f;
 import 'package:restage/restage.dart' as r;
 part 'restage.generated/maintenance_notice.restage.g.dart';
@@ -54,18 +66,19 @@ class MaintenanceNotice extends f.StatelessWidget {
   f.Widget build(f.BuildContext context) => const f.SizedBox();
 }
 ''';
-      final inspection = await _inspect(source, hoisted: [plan.binding]);
-      expect(inspection.issues, isEmpty);
-      expect(inspection.contract!.mountOmissionMessage, isNull);
-      final emitted = inspection.contract!.emitReferenceDart();
-      expect(emitted, contains('r.NativeCallAdapter _restage'));
-      expect(emitted, contains('value: _restage'));
-      expect(emitted, isNot(contains('value: r.NativeCallAdapter(')));
-      expect(emitted, contains('final f.MaterialColor _restageResult'));
-      expect(emitted, contains('<String, Object?>{}'));
-      expect(emitted, isNot(contains('value: f.MaterialColor(')));
-      await _assertGeneratedPartAnalyzes(source, emitted);
-    });
+        final inspection = await _inspect(source, hoisted: [plan.binding]);
+        expect(inspection.issues, isEmpty);
+        expect(inspection.contract!.mountOmissionMessage, isNull);
+        final emitted = inspection.contract!.emitReferenceDart();
+        expect(emitted, contains('r.NativeCallAdapter _restage'));
+        expect(emitted, contains('value: _restage'));
+        expect(emitted, isNot(contains('value: r.NativeCallAdapter(')));
+        expect(emitted, contains('final f.MaterialColor _restageResult'));
+        expect(emitted, contains('<String, Object?>{}'));
+        expect(emitted, isNot(contains('value: f.MaterialColor(')));
+        await _assertGeneratedPartAnalyzes(source, emitted);
+      },
+    );
     test('pins the shared event-hash and fingerprint vectors', () {
       final empty = SurfaceScreenEventSchema(events: const []);
       expect(
@@ -132,119 +145,132 @@ class MaintenanceNotice extends f.StatelessWidget {
       );
     });
 
-    test('emits canonical typed event source from resolved SDK declarations',
-        () async {
-      final inspection = await _inspect(
-        _screenSource(
-          className: 'MaintenanceNotice',
-          annotation: "@Screen(id: 'maintenance_notice', "
-              'surface: Surface.general, version: 2)',
-          events: r'''
+    test(
+      'emits canonical typed event source from resolved SDK declarations',
+      () async {
+        final inspection = await _inspect(
+          _screenSource(
+            className: 'MaintenanceNotice',
+            annotation:
+                "@Screen(id: 'maintenance_notice', "
+                'surface: Surface.general, version: 2)',
+            events: r'''
   static const submit = SurfaceEvent<Map<String, Object?>>('submit');
   static const event = SurfaceEvent<int>('évent');
   static const dismiss = SurfaceEvent<void>('dismiss\n');
 ''',
-        ),
-        contractVersion: 2,
-      );
+          ),
+          contractVersion: 2,
+        );
 
-      expect(inspection.issues, isEmpty);
-      final contract = inspection.contract!;
-      expect(
-        contract.eventSchema.events.map((event) => event.id),
-        ['dismiss\n', 'submit', 'évent'],
-      );
-      expect(
-        contract.eventContractHash,
-        _multiEventHash,
-      );
-      expect(
-        contract.contractFingerprint,
-        SurfaceScreenContractFingerprint.hash(
-          sourceKind: SurfaceSourceKind.screen,
-          payloadKind: SurfacePayloadKind.blob,
-          capabilities: _capabilities(),
-          eventContractHash: contract.eventContractHash,
-        ),
-      );
+        expect(inspection.issues, isEmpty);
+        final contract = inspection.contract!;
+        expect(
+          contract.eventSchema.events.map((event) => event.id),
+          ['dismiss\n', 'submit', 'évent'],
+        );
+        expect(
+          contract.eventContractHash,
+          _multiEventHash,
+        );
+        expect(
+          contract.contractFingerprint,
+          SurfaceScreenContractFingerprint.hash(
+            sourceKind: SurfaceSourceKind.screen,
+            payloadKind: SurfacePayloadKind.blob,
+            capabilities: _capabilities(),
+            eventContractHash: contract.eventContractHash,
+          ),
+        );
 
-      final emitted = contract.emitReferenceDart();
-      expect(parseString(content: emitted).errors, isEmpty, reason: emitted);
-      await _assertGeneratedPartAnalyzes(
-        _screenSource(
-          className: 'MaintenanceNotice',
-          annotation: "@Screen(id: 'maintenance_notice', "
-              'surface: Surface.general, version: 2)',
-          events: r'''
+        final emitted = contract.emitReferenceDart();
+        expect(parseString(content: emitted).errors, isEmpty, reason: emitted);
+        await _assertGeneratedPartAnalyzes(
+          _screenSource(
+            className: 'MaintenanceNotice',
+            annotation:
+                "@Screen(id: 'maintenance_notice', "
+                'surface: Surface.general, version: 2)',
+            events: r'''
   static const submit = SurfaceEvent<Map<String, Object?>>('submit');
   static const event = SurfaceEvent<int>('évent');
   static const dismiss = SurfaceEvent<void>('dismiss\n');
 ''',
-          part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
-        ),
-        emitted,
-      );
-      expect(emitted, contains('sealed class MaintenanceNoticeSurfaceEvent'));
-      expect(emitted, contains('MaintenanceNoticeSurfaceDismissEvent'));
-      expect(
-        emitted,
-        contains('SurfaceScreenRef<MaintenanceNoticeSurfaceEvent>'),
-      );
-      expect(emitted, contains('Map<String, Object?> arguments'));
-      expect(emitted, isNot(contains('artifactPath')));
-      expect(emitted, isNot(contains('.validate')));
+            part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
+          ),
+          emitted,
+        );
+        expect(emitted, contains('sealed class MaintenanceNoticeSurfaceEvent'));
+        expect(emitted, contains('MaintenanceNoticeSurfaceDismissEvent'));
+        expect(
+          emitted,
+          contains('SurfaceScreenRef<MaintenanceNoticeSurfaceEvent>'),
+        );
+        expect(emitted, contains('Map<String, Object?> arguments'));
+        expect(emitted, isNot(contains('artifactPath')));
+        expect(emitted, isNot(contains('.validate')));
 
-      // The reference takes its identity and contract from provenance, and
-      // the schema travels as canonical JSON so the runtime hashes the exact
-      // value this build hashed.
-      expect(emitted, contains('SurfaceScreenRuntimeProvenance.generated('));
-      expect(emitted, contains('provenance: _maintenanceNoticeProvenance'));
-      expect(emitted, contains('eventSchemaJson:'));
-      expect(emitted, contains("'" '{"schemaVersion":1,"events":['));
-      // The fingerprint and event hash are derived at runtime, never
-      // restated here. A generated constant repeating what this build
-      // computed could only ever agree with itself, so emitting one would
-      // silently disarm the encoder-agreement check on the reference.
-      expect(emitted, isNot(contains('contractFingerprint:')));
-      expect(emitted, isNot(contains(contract.contractFingerprint)));
-      expect(
-        sha256.convert(utf8.encode(emitted)).toString(),
-        '846ad69b9aad955915a5d941b942edc75a77cfec94645a8df190e2b7d61069d4',
-        reason: emitted,
-      );
-    });
+        // The reference takes its identity and contract from provenance, and
+        // the schema travels as canonical JSON so the runtime hashes the exact
+        // value this build hashed.
+        expect(emitted, contains('SurfaceScreenRuntimeProvenance.generated('));
+        expect(emitted, contains('provenance: _maintenanceNoticeProvenance'));
+        expect(emitted, contains('eventSchemaJson:'));
+        expect(
+          emitted,
+          contains(
+            "'"
+            '{"schemaVersion":1,"events":[',
+          ),
+        );
+        // The fingerprint and event hash are derived at runtime, never
+        // restated here. A generated constant repeating what this build
+        // computed could only ever agree with itself, so emitting one would
+        // silently disarm the encoder-agreement check on the reference.
+        expect(emitted, isNot(contains('contractFingerprint:')));
+        expect(emitted, isNot(contains(contract.contractFingerprint)));
+        expect(
+          sha256.convert(utf8.encode(emitted)).toString(),
+          '846ad69b9aad955915a5d941b942edc75a77cfec94645a8df190e2b7d61069d4',
+          reason: emitted,
+        );
+      },
+    );
 
-    test('emits Never and a reject-all contract for event-free screens',
-        () async {
-      final inspection = await _inspect(
-        _screenSource(
+    test(
+      'emits Never and a reject-all contract for event-free screens',
+      () async {
+        final inspection = await _inspect(
+          _screenSource(
+            className: 'ServiceStatus',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+          ),
           className: 'ServiceStatus',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-        ),
-        className: 'ServiceStatus',
-      );
+        );
 
-      expect(inspection.issues, isEmpty);
-      final emitted = inspection.contract!.emitReferenceDart();
-      expect(parseString(content: emitted).errors, isEmpty, reason: emitted);
-      expect(emitted, contains('SurfaceScreenEventContract<Never>.none'));
-      expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
-      expect(
-        emitted,
-        isNot(contains('sealed class ServiceStatusSurfaceEvent')),
-      );
-      expect(emitted, isNot(contains('decodeValidated')));
-    });
+        expect(inspection.issues, isEmpty);
+        final emitted = inspection.contract!.emitReferenceDart();
+        expect(parseString(content: emitted).errors, isEmpty, reason: emitted);
+        expect(emitted, contains('SurfaceScreenEventContract<Never>.none'));
+        expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
+        expect(
+          emitted,
+          isNot(contains('sealed class ServiceStatusSurfaceEvent')),
+        );
+        expect(emitted, isNot(contains('decodeValidated')));
+      },
+    );
 
-    test('maps the complete closed payload algebra through the shared schema',
-        () async {
-      final inspection = await _inspect(
-        _screenSource(
-          className: 'TypedNotice',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-          events: '''
+    test(
+      'maps the complete closed payload algebra through the shared schema',
+      () async {
+        final inspection = await _inspect(
+          _screenSource(
+            className: 'TypedNotice',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+            events: '''
   static const boolean = SurfaceEvent<bool>('boolean');
   static const nullableInteger = SurfaceEvent<int?>('nullable-integer');
   static const json = SurfaceEvent<Object?>('json');
@@ -252,103 +278,105 @@ class MaintenanceNotice extends f.StatelessWidget {
   static const object = SurfaceEvent<Map<String, List<Object?>?>>('object');
   static const nullableMap = SurfaceEvent<Map<String, String>?>('nullable-map');
 ''',
-        ),
-        className: 'TypedNotice',
-      );
+          ),
+          className: 'TypedNotice',
+        );
 
-      expect(inspection.issues, isEmpty);
-      final contract = inspection.contract!;
-      expect(
-        SurfaceScreenEventSchemaV1Codec.encode(contract.eventSchema),
-        {
-          'schemaVersion': 1,
-          'events': [
-            {
-              'id': 'boolean',
-              'arguments': {
-                'encoding': 'value',
-                'shape': {'kind': 'bool'},
+        expect(inspection.issues, isEmpty);
+        final contract = inspection.contract!;
+        expect(
+          SurfaceScreenEventSchemaV1Codec.encode(contract.eventSchema),
+          {
+            'schemaVersion': 1,
+            'events': [
+              {
+                'id': 'boolean',
+                'arguments': {
+                  'encoding': 'value',
+                  'shape': {'kind': 'bool'},
+                },
               },
-            },
-            {
-              'id': 'json',
-              'arguments': {
-                'encoding': 'value',
-                'shape': {'kind': 'jsonValue'},
+              {
+                'id': 'json',
+                'arguments': {
+                  'encoding': 'value',
+                  'shape': {'kind': 'jsonValue'},
+                },
               },
-            },
-            {
-              'id': 'list',
-              'arguments': {
-                'encoding': 'value',
-                'shape': {
-                  'kind': 'list',
-                  'items': {
-                    'kind': 'nullable',
-                    'value': {
-                      'kind': 'map',
-                      'values': {
-                        'kind': 'nullable',
-                        'value': {'kind': 'int'},
+              {
+                'id': 'list',
+                'arguments': {
+                  'encoding': 'value',
+                  'shape': {
+                    'kind': 'list',
+                    'items': {
+                      'kind': 'nullable',
+                      'value': {
+                        'kind': 'map',
+                        'values': {
+                          'kind': 'nullable',
+                          'value': {'kind': 'int'},
+                        },
                       },
                     },
                   },
                 },
               },
-            },
-            {
-              'id': 'nullable-integer',
-              'arguments': {
-                'encoding': 'value',
-                'shape': {
-                  'kind': 'nullable',
-                  'value': {'kind': 'int'},
-                },
-              },
-            },
-            {
-              'id': 'nullable-map',
-              'arguments': {
-                'encoding': 'value',
-                'shape': {
-                  'kind': 'nullable',
-                  'value': {
-                    'kind': 'map',
-                    'values': {'kind': 'string'},
+              {
+                'id': 'nullable-integer',
+                'arguments': {
+                  'encoding': 'value',
+                  'shape': {
+                    'kind': 'nullable',
+                    'value': {'kind': 'int'},
                   },
                 },
               },
-            },
-            {
-              'id': 'object',
-              'arguments': {
-                'encoding': 'object',
-                'shape': {
-                  'kind': 'map',
-                  'values': {
+              {
+                'id': 'nullable-map',
+                'arguments': {
+                  'encoding': 'value',
+                  'shape': {
                     'kind': 'nullable',
                     'value': {
-                      'kind': 'list',
-                      'items': {'kind': 'jsonValue'},
+                      'kind': 'map',
+                      'values': {'kind': 'string'},
                     },
                   },
                 },
               },
-            },
-          ],
-        },
-      );
-      final emitted = contract.emitReferenceDart();
-      expect(emitted, contains('List<Map<String, int?>?> value'));
-      expect(emitted, contains('Map<String, List<Object?>?> arguments'));
-      expect(emitted, contains('Map<String, String>? value'));
-    });
+              {
+                'id': 'object',
+                'arguments': {
+                  'encoding': 'object',
+                  'shape': {
+                    'kind': 'map',
+                    'values': {
+                      'kind': 'nullable',
+                      'value': {
+                        'kind': 'list',
+                        'items': {'kind': 'jsonValue'},
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        );
+        final emitted = contract.emitReferenceDart();
+        expect(emitted, contains('List<Map<String, int?>?> value'));
+        expect(emitted, contains('Map<String, List<Object?>?> arguments'));
+        expect(emitted, contains('Map<String, String>? value'));
+      },
+    );
 
     test('uses the source library Restage prefix in emitted Dart', () async {
       final inspection = await _inspect(
         _screenSource(
           className: 'AliasedNotice',
-          annotation: "@rs.Screen(id: 'maintenance_notice', "
+          annotation:
+              "@rs.Screen(id: 'maintenance_notice', "
               'surface: rs.Surface.general)',
           import: "import 'package:restage/restage.dart' as rs;",
           events: "  static const dismiss = rs.SurfaceEvent<void>('dismiss');",
@@ -366,9 +394,10 @@ class MaintenanceNotice extends f.StatelessWidget {
       expect(emitted, contains('rs.Surface.general'));
     });
 
-    test('emits a typed mount with nested host values and exact fallback',
-        () async {
-      const source = '''
+    test(
+      'emits a typed mount with nested host values and exact fallback',
+      () async {
+        const source = '''
 import 'package:flutter/widgets.dart' as fw;
 import 'package:restage/restage.dart' as rs;
 import 'support.dart' as support;
@@ -396,26 +425,26 @@ final class TypedNotice extends fw.StatelessWidget {
   fw.Widget build(fw.BuildContext context) => const fw.SizedBox.shrink();
 }
 ''';
-      const supportSource = '''
+        const supportSource = '''
 final class Controller {
   const Controller();
 }
 ''';
-      final inspection = await _inspect(
-        source,
-        className: 'TypedNotice',
-        additionalSources: const {
-          'apps_examples|lib/support.dart': supportSource,
-        },
-      );
+        final inspection = await _inspect(
+          source,
+          className: 'TypedNotice',
+          additionalSources: const {
+            'apps_examples|lib/support.dart': supportSource,
+          },
+        );
 
-      expect(inspection.issues, isEmpty);
-      expect(inspection.contract!.mountOmissionMessage, isNull);
-      final emitted = inspection.contract!.emitReferenceDart();
-      expect(parseString(content: emitted).errors, isEmpty, reason: emitted);
-      expect(
-        emitted,
-        contains('''
+        expect(inspection.issues, isEmpty);
+        expect(inspection.contract!.mountOmissionMessage, isNull);
+        final emitted = inspection.contract!.emitReferenceDart();
+        expect(parseString(content: emitted).errors, isEmpty, reason: emitted);
+        expect(
+          emitted,
+          contains('''
 final class TypedNoticeSurface extends fw.StatelessWidget {
   /// Mounts this surface at its implicit placement by default.
   ///
@@ -438,25 +467,25 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
         _restageArgument3 = controller,
         _restagePlacementName = placement;
 '''),
-      );
-      expect(
-        emitted.replaceAll(RegExp(r'\s+'), ' '),
-        contains(
-          'const support.Controller _typedNoticeMountDefault3 = '
-          'const support.Controller();',
-        ),
-      );
-      expect(
-        emitted,
-        contains('final support.Controller _restageArgument3;'),
-      );
-      expect(emitted, contains("'count': _restageArgument0,"));
-      expect(emitted, contains("'groups': _restageArgument1,"));
-      expect(emitted, contains("'message': _restageArgument2,"));
-      expect(emitted, isNot(contains("'controller':")));
-      expect(
-        emitted,
-        contains('''
+        );
+        expect(
+          emitted.replaceAll(RegExp(r'\s+'), ' '),
+          contains(
+            'const support.Controller _typedNoticeMountDefault3 = '
+            'const support.Controller();',
+          ),
+        );
+        expect(
+          emitted,
+          contains('final support.Controller _restageArgument3;'),
+        );
+        expect(emitted, contains("'count': _restageArgument0,"));
+        expect(emitted, contains("'groups': _restageArgument1,"));
+        expect(emitted, contains("'message': _restageArgument2,"));
+        expect(emitted, isNot(contains("'controller':")));
+        expect(
+          emitted,
+          contains('''
             builder: (context, error) => TypedNotice(
               _restageArgument0,
               groups: _restageArgument1,
@@ -464,30 +493,35 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
               controller: _restageArgument3,
             ),
 '''),
-      );
-      expect(
-        emitted,
-        contains('rs.SurfaceScreenUnavailablePolicy.fallback('),
-      );
-      expect(emitted, contains('this.unavailable'));
-      expect(
-        emitted,
-        contains('final fw.WidgetBuilder? loadingBuilder;\n\n'
-            '  final rs.SurfaceScreenUnavailablePolicy? unavailable;'),
-      );
-      expect(
-        emitted.replaceAll(RegExp(r'\s+'), ' '),
-        contains('unavailable: unavailable ?? '
-            'rs.SurfaceScreenUnavailablePolicy.fallback('),
-      );
-      await _assertGeneratedPartAnalyzes(
-        source,
-        emitted,
-        additionalSources: const {
-          'apps_examples|lib/support.dart': supportSource,
-        },
-      );
-    });
+        );
+        expect(
+          emitted,
+          contains('rs.SurfaceScreenUnavailablePolicy.fallback('),
+        );
+        expect(emitted, contains('this.unavailable'));
+        expect(
+          emitted,
+          contains(
+            'final fw.WidgetBuilder? loadingBuilder;\n\n'
+            '  final rs.SurfaceScreenUnavailablePolicy? unavailable;',
+          ),
+        );
+        expect(
+          emitted.replaceAll(RegExp(r'\s+'), ' '),
+          contains(
+            'unavailable: unavailable ?? '
+            'rs.SurfaceScreenUnavailablePolicy.fallback(',
+          ),
+        );
+        await _assertGeneratedPartAnalyzes(
+          source,
+          emitted,
+          additionalSources: const {
+            'apps_examples|lib/support.dart': supportSource,
+          },
+        );
+      },
+    );
 
     test('encodes plain mount data from the shared field shape', () async {
       const source = '''
@@ -614,29 +648,31 @@ final class HabitNotice extends StatelessWidget {
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
 
-    test('mirrors optional positional arguments for an event-free mount',
-        () async {
-      final source = _screenSource(
-        className: 'PositionalNotice',
-        annotation:
-            "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-        constructor: '  const PositionalNotice(this.title, [this.count = 2]);',
-        fields: '''
+    test(
+      'mirrors optional positional arguments for an event-free mount',
+      () async {
+        final source = _screenSource(
+          className: 'PositionalNotice',
+          annotation:
+              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+          constructor:
+              '  const PositionalNotice(this.title, [this.count = 2]);',
+          fields: '''
   final String title;
   final int count;
 ''',
-        part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
-      );
-      final inspection = await _inspect(
-        source,
-        className: 'PositionalNotice',
-      );
+          part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
+        );
+        final inspection = await _inspect(
+          source,
+          className: 'PositionalNotice',
+        );
 
-      expect(inspection.issues, isEmpty);
-      final emitted = inspection.contract!.emitReferenceDart();
-      expect(
-        emitted,
-        contains('''
+        expect(inspection.issues, isEmpty);
+        final emitted = inspection.contract!.emitReferenceDart();
+        expect(
+          emitted,
+          contains('''
   const PositionalNoticeSurface(
     String title, [
     int count = _positionalNoticeMountDefault1,
@@ -651,23 +687,23 @@ final class HabitNotice extends StatelessWidget {
         _restagePlacementName = null,
         super(key: key);
 '''),
-      );
-      expect(
-        emitted,
-        contains('const int _positionalNoticeMountDefault1 = 2;'),
-      );
-      expect(emitted, contains('ValueChanged<Never>? onEvent;'));
-      expect(
-        emitted,
-        contains('''
+        );
+        expect(
+          emitted,
+          contains('const int _positionalNoticeMountDefault1 = 2;'),
+        );
+        expect(emitted, contains('ValueChanged<Never>? onEvent;'));
+        expect(
+          emitted,
+          contains('''
             builder: (context, error) => PositionalNotice(
               _restageArgument0,
               _restageArgument1,
             ),
 '''),
-      );
-      await _assertGeneratedPartAnalyzes(
-        '''
+        );
+        await _assertGeneratedPartAnalyzes(
+          '''
 $source
 const originalCall = PositionalNoticeSurface('original', 3);
 const defaultCall = PositionalNoticeSurface('default');
@@ -677,49 +713,58 @@ const hiddenCall = PositionalNoticeSurface('hidden', 5, null, null, null, null,
 const hiddenPlacement = PositionalNoticeSurface.atPlacement('settings_card',
   'hidden', 5, null, null, null, null, null, SurfaceScreenUnavailablePolicy.hide());
 ''',
-        emitted,
-        constantFields: const {
-          'originalCall': {
-            '_restageArgument0': 'original',
-            '_restageArgument1': 3,
-            '_restagePlacementName': null,
+          emitted,
+          constantFields: const {
+            'originalCall': {
+              '_restageArgument0': 'original',
+              '_restageArgument1': 3,
+              '_restagePlacementName': null,
+            },
+            'defaultCall': {'_restageArgument1': 2},
+            'namedCall': {
+              '_restageArgument0': 'named',
+              '_restageArgument1': 4,
+              '_restagePlacementName': 'settings_card',
+            },
           },
-          'defaultCall': {'_restageArgument1': 2},
-          'namedCall': {
-            '_restageArgument0': 'named',
-            '_restageArgument1': 4,
-            '_restagePlacementName': 'settings_card',
-          },
-        },
-      );
-    });
+        );
+      },
+    );
 
-    test('placement preserves named inputs callbacks and const calls',
-        () async {
-      final source = _screenSource(
-        className: 'NamedNotice',
-        annotation:
-            "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-        constructor: '  const NamedNotice(this.title, '
-            '{required this.count, this.subtitle = "details", super.key});',
-        fields: '  final String title;\n  final int count;\n'
-            '  final String subtitle;\n',
-        events: "  static const dismiss = SurfaceEvent<void>('dismiss');",
-        part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
-      );
-      final inspection = await _inspect(source, className: 'NamedNotice');
-      expect(inspection.issues, isEmpty);
-      final emitted = inspection.contract!.emitReferenceDart();
-      expect(emitted, contains('RestageScreen.generatedPlacementBinding('));
-      expect(emitted, contains('definition: namedNoticePlacementDefinition,'));
-      expect(
+    test(
+      'placement preserves named inputs callbacks and const calls',
+      () async {
+        final source = _screenSource(
+          className: 'NamedNotice',
+          annotation:
+              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+          constructor:
+              '  const NamedNotice(this.title, '
+              '{required this.count, this.subtitle = "details", super.key});',
+          fields:
+              '  final String title;\n  final int count;\n'
+              '  final String subtitle;\n',
+          events: "  static const dismiss = SurfaceEvent<void>('dismiss');",
+          part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
+        );
+        final inspection = await _inspect(source, className: 'NamedNotice');
+        expect(inspection.issues, isEmpty);
+        final emitted = inspection.contract!.emitReferenceDart();
+        expect(emitted, contains('RestageScreen.generatedPlacementBinding('));
+        expect(
+          emitted,
+          contains('definition: namedNoticePlacementDefinition,'),
+        );
+        expect(
           emitted,
           contains(
-              'placementBinding: RestageScreen.generatedPlacementBinding('));
-      expect(emitted, isNot(contains("'placement':")));
-      expect(emitted, contains("'contractVersion': 1"));
-      await _assertGeneratedPartAnalyzes(
-        '''
+            'placementBinding: RestageScreen.generatedPlacementBinding(',
+          ),
+        );
+        expect(emitted, isNot(contains("'placement':")));
+        expect(emitted, contains("'contractVersion': 1"));
+        await _assertGeneratedPartAnalyzes(
+          '''
 $source
 void handleNotice(NamedNoticeSurfaceEvent event) {}
 const originalCall = NamedNoticeSurface('original', count: 3,
@@ -730,23 +775,24 @@ const universalCall = NamedNoticeSurface.atPlacement('profile_card', 'universal'
   count: 5, subtitle: 'more', key: ValueKey('universal'), onEvent: handleNotice,
   unavailable: SurfaceScreenUnavailablePolicy.hide());
 ''',
-        emitted,
-        constantFields: const {
-          'originalCall': {
-            '_restagePlacementName': null,
-            '_restageArgument1': 3,
+          emitted,
+          constantFields: const {
+            'originalCall': {
+              '_restagePlacementName': null,
+              '_restageArgument1': 3,
+            },
+            'namedCall': {
+              '_restagePlacementName': 'settings_card',
+              '_restageArgument2': 'details',
+            },
+            'universalCall': {
+              '_restagePlacementName': 'profile_card',
+              '_restageArgument2': 'more',
+            },
           },
-          'namedCall': {
-            '_restagePlacementName': 'settings_card',
-            '_restageArgument2': 'details',
-          },
-          'universalCall': {
-            '_restagePlacementName': 'profile_card',
-            '_restageArgument2': 'more',
-          },
-        },
-      );
-    });
+        );
+      },
+    );
 
     for (final named in [false, true]) {
       test('placement keeps both authored collision names ($named)', () async {
@@ -756,11 +802,12 @@ const universalCall = NamedNoticeSurface.atPlacement('profile_card', 'universal'
               "@Screen(id: 'maintenance_notice', surface: Surface.general)",
           constructor: named
               ? '  const CampaignNotice({required this.placement, '
-                  'required this.restagePlacementId, super.key});'
+                    'required this.restagePlacementId, super.key});'
               : '  const CampaignNotice(this.placement, '
-                  'this.restagePlacementId, '
-                  '{super.key});',
-          fields: '  final String placement;\n'
+                    'this.restagePlacementId, '
+                    '{super.key});',
+          fields:
+              '  final String placement;\n'
               '  final String restagePlacementId;\n',
           part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
         );
@@ -804,7 +851,8 @@ const namedCall = CampaignNoticeSurface.atPlacement('settings_card', $arguments)
         'loadingBuilder',
         'unavailable',
       ]) {
-        final source = '''
+        final source =
+            '''
 import 'package:flutter/widgets.dart' as fw;
 import 'package:restage/restage.dart' as $control;
 
@@ -831,61 +879,63 @@ final class PrefixNotice extends fw.StatelessWidget {
       }
     });
 
-    test('qualifies class-owned defaults without changing library defaults',
-        () async {
-      final source = _screenSource(
-        className: 'DefaultedNotice',
-        annotation:
-            "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-        constructor: '''
+    test(
+      'qualifies class-owned defaults without changing library defaults',
+      () async {
+        final source = _screenSource(
+          className: 'DefaultedNotice',
+          annotation:
+              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+          constructor: '''
   const DefaultedNotice({
     this.count = initialCount,
     this.limit = topLevelLimit,
     super.key,
   });
 ''',
-        fields: '''
+          fields: '''
   final int count;
   final int limit;
 ''',
-        events: '  static const initialCount = 2;',
-        extraDeclarations: '''
+          events: '  static const initialCount = 2;',
+          extraDeclarations: '''
 const initialCount = 91;
 const topLevelLimit = 7;
 ''',
-        part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
-      );
-      final inspection = await _inspect(
-        source,
-        className: 'DefaultedNotice',
-      );
+          part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
+        );
+        final inspection = await _inspect(
+          source,
+          className: 'DefaultedNotice',
+        );
 
-      expect(inspection.issues, isEmpty);
-      final emitted = inspection.contract!.emitReferenceDart();
-      expect(
-        emitted,
-        contains(
-          'const int _defaultedNoticeMountDefault0 = '
-          'DefaultedNotice.initialCount;',
-        ),
-      );
-      expect(
-        emitted,
-        contains(
-          'const int _defaultedNoticeMountDefault1 = topLevelLimit;',
-        ),
-      );
-      expect(
-        emitted,
-        contains('int count = _defaultedNoticeMountDefault0,'),
-      );
-      expect(
-        emitted,
-        contains('int limit = _defaultedNoticeMountDefault1,'),
-      );
-      expect(emitted, isNot(contains('int count = initialCount')));
-      await _assertGeneratedPartAnalyzes(source, emitted);
-    });
+        expect(inspection.issues, isEmpty);
+        final emitted = inspection.contract!.emitReferenceDart();
+        expect(
+          emitted,
+          contains(
+            'const int _defaultedNoticeMountDefault0 = '
+            'DefaultedNotice.initialCount;',
+          ),
+        );
+        expect(
+          emitted,
+          contains(
+            'const int _defaultedNoticeMountDefault1 = topLevelLimit;',
+          ),
+        );
+        expect(
+          emitted,
+          contains('int count = _defaultedNoticeMountDefault0,'),
+        );
+        expect(
+          emitted,
+          contains('int limit = _defaultedNoticeMountDefault1,'),
+        );
+        expect(emitted, isNot(contains('int count = initialCount')));
+        await _assertGeneratedPartAnalyzes(source, emitted);
+      },
+    );
 
     test('qualifies inherited defaults from their declaring class', () async {
       const source = '''
@@ -1000,470 +1050,522 @@ abstract class ImportedDefaultNoticeBase extends StatelessWidget {
       );
     });
 
-    test('resolves default expressions through visible element identities',
-        () async {
-      final scenarios = <({
-        String name,
-        String source,
-        Map<String, String> additionalSources,
-        String expected,
-        String? absent,
-      })>[
-        (
-          name: 'literal',
-          source: _directDefaultSource(
-            expression: '2 + 3',
-          ),
-          additionalSources: const {},
-          expected: 'const int _defaultRouteNoticeMountDefault0 = 2 + 3;',
-          absent: null,
-        ),
-        (
-          name: 'core type and constant',
-          source: _directDefaultSource(
-            expression: '.zero',
-            type: 'Duration',
-          ),
-          additionalSources: const {},
-          expected: 'const Duration _defaultRouteNoticeMountDefault0 = '
-              'Duration.zero;',
-          absent: '= .zero;',
-        ),
-        (
-          name: 'core constructor shorthand',
-          source: _directDefaultSource(
-            expression: 'const .new(seconds: 1)',
-            type: 'Duration',
-          ),
-          additionalSources: const {},
-          expected: 'const Duration _defaultRouteNoticeMountDefault0 = '
-              'const Duration(seconds: 1);',
-          absent: '.new(',
-        ),
-        (
-          name: 'redirecting factory shorthand',
-          source: _directDefaultSource(
-            expression: 'const .xy(1, 0)',
-            type: 'AlignmentGeometry',
-          ),
-          additionalSources: const {},
-          expected:
-              'const AlignmentGeometry _defaultRouteNoticeMountDefault0 = '
-                  'const Alignment(1, 0);',
-          absent: '.xy(',
-        ),
-        (
-          name: 'same library top level',
-          source: _directDefaultSource(
-            expression: 'localDefault + 1',
-            declarations: 'const localDefault = 2;',
-          ),
-          additionalSources: const {},
-          expected: 'const int _defaultRouteNoticeMountDefault0 = '
-              'localDefault + 1;',
-          absent: null,
-        ),
-        (
-          name: 'imported top level',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-            declarations: 'const sharedDefault = 91;',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'sharedDefault',
-              declarations: 'const sharedDefault = 2;',
-            ),
-          },
-          expected: 'const int _defaultRouteNoticeMountDefault0 = '
-              'base.sharedDefault;',
-          absent: '= sharedDefault;',
-        ),
-        (
-          name: 'static member',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'DefaultRouteBase.staticDefault',
-              members: 'static const staticDefault = 2;',
-            ),
-          },
-          expected: 'const int _defaultRouteNoticeMountDefault0 = '
-              'base.DefaultRouteBase.staticDefault;',
-          absent: '= DefaultRouteBase.staticDefault;',
-        ),
-        (
-          name: 'enum member',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'RouteTone.calm',
-              type: 'RouteTone',
-              declarations: 'enum RouteTone { calm, urgent }',
-            ),
-          },
-          expected: 'const base.RouteTone '
-              '_defaultRouteNoticeMountDefault0 = base.RouteTone.calm;',
-          absent: '= RouteTone.calm;',
-        ),
-        (
-          name: 'dot shorthand through a visible alias',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: '.calm',
-              type: 'Tone',
-              declarations: '''
+    test(
+      'resolves default expressions through visible element identities',
+      () async {
+        final scenarios =
+            <
+              ({
+                String name,
+                String source,
+                Map<String, String> additionalSources,
+                String expected,
+                String? absent,
+              })
+            >[
+              (
+                name: 'literal',
+                source: _directDefaultSource(
+                  expression: '2 + 3',
+                ),
+                additionalSources: const {},
+                expected: 'const int _defaultRouteNoticeMountDefault0 = 2 + 3;',
+                absent: null,
+              ),
+              (
+                name: 'core type and constant',
+                source: _directDefaultSource(
+                  expression: '.zero',
+                  type: 'Duration',
+                ),
+                additionalSources: const {},
+                expected:
+                    'const Duration _defaultRouteNoticeMountDefault0 = '
+                    'Duration.zero;',
+                absent: '= .zero;',
+              ),
+              (
+                name: 'core constructor shorthand',
+                source: _directDefaultSource(
+                  expression: 'const .new(seconds: 1)',
+                  type: 'Duration',
+                ),
+                additionalSources: const {},
+                expected:
+                    'const Duration _defaultRouteNoticeMountDefault0 = '
+                    'const Duration(seconds: 1);',
+                absent: '.new(',
+              ),
+              (
+                name: 'redirecting factory shorthand',
+                source: _directDefaultSource(
+                  expression: 'const .xy(1, 0)',
+                  type: 'AlignmentGeometry',
+                ),
+                additionalSources: const {},
+                expected:
+                    'const AlignmentGeometry _defaultRouteNoticeMountDefault0 = '
+                    'const Alignment(1, 0);',
+                absent: '.xy(',
+              ),
+              (
+                name: 'same library top level',
+                source: _directDefaultSource(
+                  expression: 'localDefault + 1',
+                  declarations: 'const localDefault = 2;',
+                ),
+                additionalSources: const {},
+                expected:
+                    'const int _defaultRouteNoticeMountDefault0 = '
+                    'localDefault + 1;',
+                absent: null,
+              ),
+              (
+                name: 'imported top level',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_route_base.dart' as base;",
+                  baseType: 'base.DefaultRouteBase',
+                  declarations: 'const sharedDefault = 91;',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: 'sharedDefault',
+                        declarations: 'const sharedDefault = 2;',
+                      ),
+                },
+                expected:
+                    'const int _defaultRouteNoticeMountDefault0 = '
+                    'base.sharedDefault;',
+                absent: '= sharedDefault;',
+              ),
+              (
+                name: 'static member',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_route_base.dart' as base;",
+                  baseType: 'base.DefaultRouteBase',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: 'DefaultRouteBase.staticDefault',
+                        members: 'static const staticDefault = 2;',
+                      ),
+                },
+                expected:
+                    'const int _defaultRouteNoticeMountDefault0 = '
+                    'base.DefaultRouteBase.staticDefault;',
+                absent: '= DefaultRouteBase.staticDefault;',
+              ),
+              (
+                name: 'enum member',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_route_base.dart' as base;",
+                  baseType: 'base.DefaultRouteBase',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: 'RouteTone.calm',
+                        type: 'RouteTone',
+                        declarations: 'enum RouteTone { calm, urgent }',
+                      ),
+                },
+                expected:
+                    'const base.RouteTone '
+                    '_defaultRouteNoticeMountDefault0 = base.RouteTone.calm;',
+                absent: '= RouteTone.calm;',
+              ),
+              (
+                name: 'dot shorthand through a visible alias',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_route_base.dart' as base;",
+                  baseType: 'base.DefaultRouteBase',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: '.calm',
+                        type: 'Tone',
+                        declarations: '''
 enum _Tone { calm }
 typedef Tone = _Tone;
 ''',
-            ),
-          },
-          expected: 'const base.Tone '
-              '_defaultRouteNoticeMountDefault0 = base.Tone.calm;',
-          absent: '= .calm;',
-        ),
-        (
-          name: 'constructor',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'const RouteToken(2)',
-              type: 'RouteToken',
-              declarations: '''
+                      ),
+                },
+                expected:
+                    'const base.Tone '
+                    '_defaultRouteNoticeMountDefault0 = base.Tone.calm;',
+                absent: '= .calm;',
+              ),
+              (
+                name: 'constructor',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_route_base.dart' as base;",
+                  baseType: 'base.DefaultRouteBase',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: 'const RouteToken(2)',
+                        type: 'RouteToken',
+                        declarations: '''
 final class RouteToken {
   const RouteToken(this.value);
 
   final int value;
 }
 ''',
-            ),
-          },
-          expected: 'const base.RouteToken '
-              '_defaultRouteNoticeMountDefault0 = '
-              'const base.RouteToken(2);',
-          absent: 'const RouteToken(2)',
-        ),
-        (
-          name: 'declaring prefix',
-          source: _inheritedDefaultSource(
-            imports: '''
+                      ),
+                },
+                expected:
+                    'const base.RouteToken '
+                    '_defaultRouteNoticeMountDefault0 = '
+                    'const base.RouteToken(2);',
+                absent: 'const RouteToken(2)',
+              ),
+              (
+                name: 'declaring prefix',
+                source: _inheritedDefaultSource(
+                  imports: '''
 import 'default_route_base.dart' as base;
 import 'default_values.dart' as visible;
 ''',
-            baseType: 'base.DefaultRouteBase',
-            declarations: 'const sharedDefault = 91;',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'authored.sharedDefault',
-              imports: "import 'default_values.dart' as authored;",
-            ),
-            'apps_examples|lib/default_values.dart': 'const sharedDefault = 2;',
-          },
-          expected: 'const int _defaultRouteNoticeMountDefault0 = '
-              'visible.sharedDefault;',
-          absent: 'authored.sharedDefault',
-        ),
-        (
-          name: 'application barrel',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_barrel.dart' as app;",
-            baseType: 'app.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'authored.sharedDefault',
-              imports: "import 'default_values.dart' as authored;",
-            ),
-            'apps_examples|lib/default_values.dart': 'const sharedDefault = 2;',
-            'apps_examples|lib/default_barrel.dart': '''
+                  baseType: 'base.DefaultRouteBase',
+                  declarations: 'const sharedDefault = 91;',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: 'authored.sharedDefault',
+                        imports: "import 'default_values.dart' as authored;",
+                      ),
+                  'apps_examples|lib/default_values.dart':
+                      'const sharedDefault = 2;',
+                },
+                expected:
+                    'const int _defaultRouteNoticeMountDefault0 = '
+                    'visible.sharedDefault;',
+                absent: 'authored.sharedDefault',
+              ),
+              (
+                name: 'application barrel',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_barrel.dart' as app;",
+                  baseType: 'app.DefaultRouteBase',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: 'authored.sharedDefault',
+                        imports: "import 'default_values.dart' as authored;",
+                      ),
+                  'apps_examples|lib/default_values.dart':
+                      'const sharedDefault = 2;',
+                  'apps_examples|lib/default_barrel.dart': '''
 export 'default_route_base.dart' show DefaultRouteBase;
 export 'default_values.dart' show sharedDefault;
 ''',
-          },
-          expected: 'const int _defaultRouteNoticeMountDefault0 = '
-              'app.sharedDefault;',
-          absent: 'authored.sharedDefault',
-        ),
-        (
-          name: 'nested expression',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'sharedDefault + DefaultRouteBase.staticDefault * 2',
-              declarations: 'const sharedDefault = 2;',
-              members: 'static const staticDefault = 3;',
-            ),
-          },
-          expected: 'const int _defaultRouteNoticeMountDefault0 = '
-              'base.sharedDefault + '
-              'base.DefaultRouteBase.staticDefault * 2;',
-          absent: '= sharedDefault +',
-        ),
-      ];
+                },
+                expected:
+                    'const int _defaultRouteNoticeMountDefault0 = '
+                    'app.sharedDefault;',
+                absent: 'authored.sharedDefault',
+              ),
+              (
+                name: 'nested expression',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_route_base.dart' as base;",
+                  baseType: 'base.DefaultRouteBase',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression:
+                            'sharedDefault + DefaultRouteBase.staticDefault * 2',
+                        declarations: 'const sharedDefault = 2;',
+                        members: 'static const staticDefault = 3;',
+                      ),
+                },
+                expected:
+                    'const int _defaultRouteNoticeMountDefault0 = '
+                    'base.sharedDefault + '
+                    'base.DefaultRouteBase.staticDefault * 2;',
+                absent: '= sharedDefault +',
+              ),
+            ];
 
-      for (final scenario in scenarios) {
-        final inspection = await _inspect(
-          scenario.source,
-          className: 'DefaultRouteNotice',
-          additionalSources: scenario.additionalSources,
-        );
-        final emitted = inspection.contract!.emitReferenceDart();
-        final defaultProblem = inspection
-            .contract!.input.constructorParams.first.mountDefaultProblem;
-        final normalizedEmitted = emitted.replaceAll(RegExp(r'\s+'), ' ');
+        for (final scenario in scenarios) {
+          final inspection = await _inspect(
+            scenario.source,
+            className: 'DefaultRouteNotice',
+            additionalSources: scenario.additionalSources,
+          );
+          final emitted = inspection.contract!.emitReferenceDart();
+          final defaultProblem = inspection
+              .contract!
+              .input
+              .constructorParams
+              .first
+              .mountDefaultProblem;
+          final normalizedEmitted = emitted.replaceAll(RegExp(r'\s+'), ' ');
 
-        expect(inspection.issues, isEmpty, reason: scenario.name);
-        expect(
-          inspection.contract!.mountOmissionMessage,
-          isNull,
-          reason: '${scenario.name}: $defaultProblem',
-        );
-        expect(
-          emitted,
-          contains('value = _defaultRouteNoticeMountDefault0,'),
-          reason: scenario.name,
-        );
-        expect(
-          normalizedEmitted,
-          contains(scenario.expected.replaceAll(RegExp(r'\s+'), ' ')),
-          reason: scenario.name,
-        );
-        if (scenario.absent case final absent?) {
+          expect(inspection.issues, isEmpty, reason: scenario.name);
           expect(
-            normalizedEmitted,
-            isNot(contains(absent.replaceAll(RegExp(r'\s+'), ' '))),
+            inspection.contract!.mountOmissionMessage,
+            isNull,
+            reason: '${scenario.name}: $defaultProblem',
+          );
+          expect(
+            emitted,
+            contains('value = _defaultRouteNoticeMountDefault0,'),
             reason: scenario.name,
           );
+          expect(
+            normalizedEmitted,
+            contains(scenario.expected.replaceAll(RegExp(r'\s+'), ' ')),
+            reason: scenario.name,
+          );
+          if (scenario.absent case final absent?) {
+            expect(
+              normalizedEmitted,
+              isNot(contains(absent.replaceAll(RegExp(r'\s+'), ' '))),
+              reason: scenario.name,
+            );
+          }
+          await _assertGeneratedPartAnalyzes(
+            scenario.source,
+            emitted,
+            additionalSources: scenario.additionalSources,
+          );
         }
-        await _assertGeneratedPartAnalyzes(
-          scenario.source,
-          emitted,
-          additionalSources: scenario.additionalSources,
-        );
-      }
-    });
+      },
+    );
 
-    test('resolves static defaults through exact receiver identities',
-        () async {
-      final aliasedDefaults = <({
-        String name,
-        String type,
-        String expression,
-      })>[
-        (
-          name: 'classValue',
-          type: 'int',
-          expression: '_ClassValues.constant',
-        ),
-        (
-          name: 'classCall',
-          type: 'String Function(String)',
-          expression: '_ClassValues.convert',
-        ),
-        (
-          name: 'enumValue',
-          type: 'int',
-          expression: '_EnumValues.constant',
-        ),
-        (
-          name: 'enumCall',
-          type: 'String Function(String)',
-          expression: '_EnumValues.convert',
-        ),
-        (
-          name: 'mixinValue',
-          type: 'int',
-          expression: '_MixinValues.constant',
-        ),
-        (
-          name: 'mixinCall',
-          type: 'String Function(String)',
-          expression: '_MixinValues.convert',
-        ),
-        (
-          name: 'extensionTypeValue',
-          type: 'int',
-          expression: '_ExtensionTypeValues.constant',
-        ),
-      ];
-      final directDefaults = [
-        for (final value in aliasedDefaults)
-          (
-            name: value.name,
-            type: value.type,
-            expression: value.expression.substring(1),
-          ),
-      ];
-      final tokenDefaults = <({
-        String name,
-        String type,
-        String expression,
-      })>[
-        (name: 'token', type: 'Token', expression: 'const Token(2)'),
-        (
-          name: 'maker',
-          type: 'Token Function(int)',
-          expression: 'Token.new',
-        ),
-      ];
-      final scenarios = <({
-        String name,
-        String source,
-        String className,
-        Map<String, String> additionalSources,
-        List<String> expected,
-      })>[
-        (
-          name: 'direct named extension',
-          source: _directDefaultSource(
-            expression: 'Values.constant',
-            declarations: '''
-extension Values on Object {
-  static const constant = 2;
-}
-''',
-          ),
-          className: 'DefaultRouteNotice',
-          additionalSources: const {},
-          expected: const [
-            '_defaultRouteNoticeMountDefault0 = Values.constant;',
-          ],
-        ),
-        (
-          name: 'prefixed named extension',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          className: 'DefaultRouteNotice',
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'Values.constant',
-              declarations: '''
-extension Values on Object {
-  static const constant = 2;
-}
-''',
+    test(
+      'resolves static defaults through exact receiver identities',
+      () async {
+        final aliasedDefaults =
+            <
+              ({
+                String name,
+                String type,
+                String expression,
+              })
+            >[
+              (
+                name: 'classValue',
+                type: 'int',
+                expression: '_ClassValues.constant',
+              ),
+              (
+                name: 'classCall',
+                type: 'String Function(String)',
+                expression: '_ClassValues.convert',
+              ),
+              (
+                name: 'enumValue',
+                type: 'int',
+                expression: '_EnumValues.constant',
+              ),
+              (
+                name: 'enumCall',
+                type: 'String Function(String)',
+                expression: '_EnumValues.convert',
+              ),
+              (
+                name: 'mixinValue',
+                type: 'int',
+                expression: '_MixinValues.constant',
+              ),
+              (
+                name: 'mixinCall',
+                type: 'String Function(String)',
+                expression: '_MixinValues.convert',
+              ),
+              (
+                name: 'extensionTypeValue',
+                type: 'int',
+                expression: '_ExtensionTypeValues.constant',
+              ),
+            ];
+        final directDefaults = [
+          for (final value in aliasedDefaults)
+            (
+              name: value.name,
+              type: value.type,
+              expression: value.expression.substring(1),
             ),
-          },
-          expected: const [
-            '_defaultRouteNoticeMountDefault0 = base.Values.constant;',
-          ],
-        ),
-        (
-          name: 'barrel named extension',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_barrel.dart' as app;",
-            baseType: 'app.DefaultRouteBase',
-          ),
-          className: 'DefaultRouteNotice',
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'Values.constant',
-              declarations: '''
+        ];
+        final tokenDefaults =
+            <
+              ({
+                String name,
+                String type,
+                String expression,
+              })
+            >[
+              (name: 'token', type: 'Token', expression: 'const Token(2)'),
+              (
+                name: 'maker',
+                type: 'Token Function(int)',
+                expression: 'Token.new',
+              ),
+            ];
+        final scenarios =
+            <
+              ({
+                String name,
+                String source,
+                String className,
+                Map<String, String> additionalSources,
+                List<String> expected,
+              })
+            >[
+              (
+                name: 'direct named extension',
+                source: _directDefaultSource(
+                  expression: 'Values.constant',
+                  declarations: '''
 extension Values on Object {
   static const constant = 2;
 }
 ''',
-            ),
-            'apps_examples|lib/default_barrel.dart': '''
+                ),
+                className: 'DefaultRouteNotice',
+                additionalSources: const {},
+                expected: const [
+                  '_defaultRouteNoticeMountDefault0 = Values.constant;',
+                ],
+              ),
+              (
+                name: 'prefixed named extension',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_route_base.dart' as base;",
+                  baseType: 'base.DefaultRouteBase',
+                ),
+                className: 'DefaultRouteNotice',
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: 'Values.constant',
+                        declarations: '''
+extension Values on Object {
+  static const constant = 2;
+}
+''',
+                      ),
+                },
+                expected: const [
+                  '_defaultRouteNoticeMountDefault0 = base.Values.constant;',
+                ],
+              ),
+              (
+                name: 'barrel named extension',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_barrel.dart' as app;",
+                  baseType: 'app.DefaultRouteBase',
+                ),
+                className: 'DefaultRouteNotice',
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: 'Values.constant',
+                        declarations: '''
+extension Values on Object {
+  static const constant = 2;
+}
+''',
+                      ),
+                  'apps_examples|lib/default_barrel.dart': '''
 export 'default_route_base.dart' show DefaultRouteBase, Values;
 ''',
-          },
-          expected: const [
-            '_defaultRouteNoticeMountDefault0 = app.Values.constant;',
-          ],
-        ),
-        (
-          name: 'same library private extension and member',
-          source: _directDefaultSource(
-            expression: '_Values._constant',
-            declarations: '''
+                },
+                expected: const [
+                  '_defaultRouteNoticeMountDefault0 = app.Values.constant;',
+                ],
+              ),
+              (
+                name: 'same library private extension and member',
+                source: _directDefaultSource(
+                  expression: '_Values._constant',
+                  declarations: '''
 extension _Values on Object {
   static const _constant = 2;
 }
 ''',
-          ),
-          className: 'DefaultRouteNotice',
-          additionalSources: const {},
-          expected: const [
-            '_defaultRouteNoticeMountDefault0 = _Values._constant;',
-          ],
-        ),
-        (
-          name: 'visible aliases to private interface owners',
-          source: _receiverScreenSource(
-            imports: "import 'static_receiver_base.dart' as base;",
-            baseType: 'base.StaticReceiverBase',
-            parameterNames: [for (final value in aliasedDefaults) value.name],
-          ),
-          className: 'StaticReceiverNotice',
-          additionalSources: {
-            'apps_examples|lib/static_receiver_base.dart': _receiverBaseSource(
-              defaults: aliasedDefaults,
-              declarations: _privateReceiverDeclarations,
-            ),
-          },
-          expected: [
-            for (var index = 0; index < aliasedDefaults.length; index++)
-              _staticReceiverExpectation(
-                index,
-                aliasedDefaults[index].expression.substring(1),
+                ),
+                className: 'DefaultRouteNotice',
+                additionalSources: const {},
+                expected: const [
+                  '_defaultRouteNoticeMountDefault0 = _Values._constant;',
+                ],
               ),
-          ],
-        ),
-        (
-          name: 'direct interface owners',
-          source: _receiverScreenSource(
-            imports: "import 'static_receiver_base.dart' as base;",
-            baseType: 'base.StaticReceiverBase',
-            parameterNames: [for (final value in directDefaults) value.name],
-          ),
-          className: 'StaticReceiverNotice',
-          additionalSources: {
-            'apps_examples|lib/static_receiver_base.dart': _receiverBaseSource(
-              defaults: directDefaults,
-              declarations: _publicReceiverDeclarations,
-            ),
-          },
-          expected: [
-            for (var index = 0; index < directDefaults.length; index++)
-              _staticReceiverExpectation(
-                index,
-                directDefaults[index].expression,
+              (
+                name: 'visible aliases to private interface owners',
+                source: _receiverScreenSource(
+                  imports: "import 'static_receiver_base.dart' as base;",
+                  baseType: 'base.StaticReceiverBase',
+                  parameterNames: [
+                    for (final value in aliasedDefaults) value.name,
+                  ],
+                ),
+                className: 'StaticReceiverNotice',
+                additionalSources: {
+                  'apps_examples|lib/static_receiver_base.dart':
+                      _receiverBaseSource(
+                        defaults: aliasedDefaults,
+                        declarations: _privateReceiverDeclarations,
+                      ),
+                },
+                expected: [
+                  for (var index = 0; index < aliasedDefaults.length; index++)
+                    _staticReceiverExpectation(
+                      index,
+                      aliasedDefaults[index].expression.substring(1),
+                    ),
+                ],
               ),
-          ],
-        ),
-        (
-          name: 'authored constructor alias',
-          source: _receiverScreenSource(
-            imports: "import 'static_receiver_base.dart' as base;",
-            baseType: 'base.StaticReceiverBase',
-            parameterNames: [for (final value in tokenDefaults) value.name],
-          ),
-          className: 'StaticReceiverNotice',
-          additionalSources: {
-            'apps_examples|lib/static_receiver_base.dart': _receiverBaseSource(
-              defaults: tokenDefaults,
-              declarations: '''
+              (
+                name: 'direct interface owners',
+                source: _receiverScreenSource(
+                  imports: "import 'static_receiver_base.dart' as base;",
+                  baseType: 'base.StaticReceiverBase',
+                  parameterNames: [
+                    for (final value in directDefaults) value.name,
+                  ],
+                ),
+                className: 'StaticReceiverNotice',
+                additionalSources: {
+                  'apps_examples|lib/static_receiver_base.dart':
+                      _receiverBaseSource(
+                        defaults: directDefaults,
+                        declarations: _publicReceiverDeclarations,
+                      ),
+                },
+                expected: [
+                  for (var index = 0; index < directDefaults.length; index++)
+                    _staticReceiverExpectation(
+                      index,
+                      directDefaults[index].expression,
+                    ),
+                ],
+              ),
+              (
+                name: 'authored constructor alias',
+                source: _receiverScreenSource(
+                  imports: "import 'static_receiver_base.dart' as base;",
+                  baseType: 'base.StaticReceiverBase',
+                  parameterNames: [
+                    for (final value in tokenDefaults) value.name,
+                  ],
+                ),
+                className: 'StaticReceiverNotice',
+                additionalSources: {
+                  'apps_examples|lib/static_receiver_base.dart':
+                      _receiverBaseSource(
+                        defaults: tokenDefaults,
+                        declarations: '''
 final class _Token {
   const _Token(this.value);
 
@@ -1471,182 +1573,192 @@ final class _Token {
 }
 typedef Token = _Token;
 ''',
-            ),
-          },
-          expected: const [
-            '_staticReceiverNoticeMountDefault0 = const base.Token(2);',
-            '_staticReceiverNoticeMountDefault1 = base.Token.new;',
-          ],
-        ),
-        (
-          name: 'exact dot shorthand owner',
-          source: _directDefaultSource(
-            expression: '.zero',
-            type: 'Duration',
-          ),
-          className: 'DefaultRouteNotice',
-          additionalSources: const {},
-          expected: const [
-            '_defaultRouteNoticeMountDefault0 = Duration.zero;',
-          ],
-        ),
-      ];
+                      ),
+                },
+                expected: const [
+                  '_staticReceiverNoticeMountDefault0 = const base.Token(2);',
+                  '_staticReceiverNoticeMountDefault1 = base.Token.new;',
+                ],
+              ),
+              (
+                name: 'exact dot shorthand owner',
+                source: _directDefaultSource(
+                  expression: '.zero',
+                  type: 'Duration',
+                ),
+                className: 'DefaultRouteNotice',
+                additionalSources: const {},
+                expected: const [
+                  '_defaultRouteNoticeMountDefault0 = Duration.zero;',
+                ],
+              ),
+            ];
 
-      final omitted = <String>[];
-      for (final scenario in scenarios) {
-        final inspection = await _inspect(
-          scenario.source,
-          className: scenario.className,
-          additionalSources: scenario.additionalSources,
-        );
-        final emitted = inspection.contract!.emitReferenceDart();
-        final normalizedEmitted = emitted.replaceAll(RegExp(r'\s+'), ' ');
+        final omitted = <String>[];
+        for (final scenario in scenarios) {
+          final inspection = await _inspect(
+            scenario.source,
+            className: scenario.className,
+            additionalSources: scenario.additionalSources,
+          );
+          final emitted = inspection.contract!.emitReferenceDart();
+          final normalizedEmitted = emitted.replaceAll(RegExp(r'\s+'), ' ');
 
-        expect(inspection.issues, isEmpty, reason: scenario.name);
-        if (inspection.contract!.mountOmissionMessage case final problem?) {
-          omitted.add('${scenario.name}: $problem');
-          continue;
+          expect(inspection.issues, isEmpty, reason: scenario.name);
+          if (inspection.contract!.mountOmissionMessage case final problem?) {
+            omitted.add('${scenario.name}: $problem');
+            continue;
+          }
+          for (final expected in scenario.expected) {
+            expect(
+              normalizedEmitted,
+              contains(expected),
+              reason: scenario.name,
+            );
+          }
+          await _assertGeneratedPartAnalyzes(
+            scenario.source,
+            emitted,
+            additionalSources: scenario.additionalSources,
+          );
         }
-        for (final expected in scenario.expected) {
-          expect(normalizedEmitted, contains(expected), reason: scenario.name);
-        }
-        await _assertGeneratedPartAnalyzes(
-          scenario.source,
-          emitted,
-          additionalSources: scenario.additionalSources,
-        );
-      }
-      expect(omitted, isEmpty);
-    });
+        expect(omitted, isEmpty);
+      },
+    );
 
     test('refuses static defaults without exact receiver identities', () async {
-      final scenarios = <({
-        String name,
-        String source,
-        Map<String, String> additionalSources,
-      })>[
-        (
-          name: 'hidden named extension',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' show DefaultRouteBase;",
-            baseType: 'DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'Values.constant',
-              declarations: '''
+      final scenarios =
+          <
+            ({
+              String name,
+              String source,
+              Map<String, String> additionalSources,
+            })
+          >[
+            (
+              name: 'hidden named extension',
+              source: _inheritedDefaultSource(
+                imports:
+                    "import 'default_route_base.dart' show DefaultRouteBase;",
+                baseType: 'DefaultRouteBase',
+              ),
+              additionalSources: {
+                'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
+                  expression: 'Values.constant',
+                  declarations: '''
 extension Values on Object {
   static const constant = 2;
 }
 ''',
+                ),
+              },
             ),
-          },
-        ),
-        (
-          name: 'hidden alias',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' show DefaultRouteBase;",
-            baseType: 'DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: '_Values.constant',
-              declarations: '''
+            (
+              name: 'hidden alias',
+              source: _inheritedDefaultSource(
+                imports:
+                    "import 'default_route_base.dart' show DefaultRouteBase;",
+                baseType: 'DefaultRouteBase',
+              ),
+              additionalSources: {
+                'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
+                  expression: '_Values.constant',
+                  declarations: '''
 class _Values {
   static const constant = 2;
 }
 typedef Values = _Values;
 ''',
+                ),
+              },
             ),
-          },
-        ),
-        (
-          name: 'deferred alias',
-          source: _inheritedDefaultSource(
-            imports: '''
+            (
+              name: 'deferred alias',
+              source: _inheritedDefaultSource(
+                imports: '''
 import 'default_route_base.dart' show DefaultRouteBase;
 import 'default_route_base.dart' deferred as delayed show Values;
 ''',
-            baseType: 'DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: '_Values.constant',
-              declarations: '''
+                baseType: 'DefaultRouteBase',
+              ),
+              additionalSources: {
+                'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
+                  expression: '_Values.constant',
+                  declarations: '''
 class _Values {
   static const constant = 2;
 }
 typedef Values = _Values;
 ''',
+                ),
+              },
             ),
-          },
-        ),
-        (
-          name: 'external private member',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'Values._constant',
-              declarations: '''
+            (
+              name: 'external private member',
+              source: _inheritedDefaultSource(
+                imports: "import 'default_route_base.dart' as base;",
+                baseType: 'base.DefaultRouteBase',
+              ),
+              additionalSources: {
+                'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
+                  expression: 'Values._constant',
+                  declarations: '''
 class Values {
   static const _constant = 2;
 }
 ''',
+                ),
+              },
             ),
-          },
-        ),
-        (
-          name: 'wrong alias owner',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: '_Wanted.constant',
-              declarations: '''
+            (
+              name: 'wrong alias owner',
+              source: _inheritedDefaultSource(
+                imports: "import 'default_route_base.dart' as base;",
+                baseType: 'base.DefaultRouteBase',
+              ),
+              additionalSources: {
+                'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
+                  expression: '_Wanted.constant',
+                  declarations: '''
 class _Wanted {
   static const constant = 2;
 }
 class Other {}
 typedef Values = Other;
 ''',
+                ),
+              },
             ),
-          },
-        ),
-        (
-          name: 'local alias shadow',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart';",
-            baseType: 'DefaultRouteBase',
-            declarations: 'class Values {}',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: '_Values.constant',
-              declarations: '''
+            (
+              name: 'local alias shadow',
+              source: _inheritedDefaultSource(
+                imports: "import 'default_route_base.dart';",
+                baseType: 'DefaultRouteBase',
+                declarations: 'class Values {}',
+              ),
+              additionalSources: {
+                'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
+                  expression: '_Values.constant',
+                  declarations: '''
 class _Values {
   static const constant = 2;
 }
 typedef Values = _Values;
 ''',
+                ),
+              },
             ),
-          },
-        ),
-        (
-          name: 'private authored constructor owner',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'const _Token(2)',
-              type: 'Token',
-              declarations: '''
+            (
+              name: 'private authored constructor owner',
+              source: _inheritedDefaultSource(
+                imports: "import 'default_route_base.dart' as base;",
+                baseType: 'base.DefaultRouteBase',
+              ),
+              additionalSources: {
+                'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
+                  expression: 'const _Token(2)',
+                  type: 'Token',
+                  declarations: '''
 final class _Token {
   const _Token(this.value);
 
@@ -1654,10 +1766,10 @@ final class _Token {
 }
 typedef Token = _Token;
 ''',
+                ),
+              },
             ),
-          },
-        ),
-      ];
+          ];
 
       for (final scenario in scenarios) {
         final inspection = await _inspect(
@@ -1697,8 +1809,9 @@ extension on Object {
       await testBuilder(
         _ScreenContractProbeBuilder((library, _) async {
           final member = library.extensions.single.getField('constant')!;
-          anonymousSpelling =
-              OwningLibraryNamespace(library).staticMemberName(member);
+          anonymousSpelling = OwningLibraryNamespace(
+            library,
+          ).staticMemberName(member);
         }),
         const {
           'apps_examples|lib/maintenance_notice.dart': anonymousSource,
@@ -1710,8 +1823,7 @@ extension on Object {
       expect(anonymousSpelling, isNull);
     });
 
-    test('spells inherited mount types through exact visible aliases',
-        () async {
+    test('spells inherited mount types through exact visible aliases', () async {
       const baseId = 'apps_examples|lib/alias_type_base.dart';
       const baseSource = '''
 import 'package:flutter/widgets.dart';
@@ -1729,40 +1841,43 @@ abstract class AliasTypeBase extends StatelessWidget {
   final _Defaults value;
 }
 ''';
-      final routeScenarios = <({
-        String name,
-        String imports,
-        String baseType,
-        String prefix,
-        Map<String, String> sources,
-      })>[
-        (
-          name: 'unprefixed',
-          imports:
-              "import 'alias_type_base.dart' show AliasTypeBase, Defaults;",
-          baseType: 'AliasTypeBase',
-          prefix: '',
-          sources: const {baseId: baseSource},
-        ),
-        (
-          name: 'prefixed',
-          imports: "import 'alias_type_base.dart' as base;",
-          baseType: 'base.AliasTypeBase',
-          prefix: 'base.',
-          sources: const {baseId: baseSource},
-        ),
-        (
-          name: 'barrel',
-          imports: "import 'alias_type_barrel.dart' as app;",
-          baseType: 'app.AliasTypeBase',
-          prefix: 'app.',
-          sources: const {
-            baseId: baseSource,
-            'apps_examples|lib/alias_type_barrel.dart':
-                "export 'alias_type_base.dart' show AliasTypeBase, Defaults;",
-          },
-        ),
-      ];
+      final routeScenarios =
+          <
+            ({
+              String name,
+              String imports,
+              String baseType,
+              String prefix,
+              Map<String, String> sources,
+            })
+          >[
+            (
+              name: 'unprefixed',
+              imports:
+                  "import 'alias_type_base.dart' show AliasTypeBase, Defaults;",
+              baseType: 'AliasTypeBase',
+              prefix: '',
+              sources: const {baseId: baseSource},
+            ),
+            (
+              name: 'prefixed',
+              imports: "import 'alias_type_base.dart' as base;",
+              baseType: 'base.AliasTypeBase',
+              prefix: 'base.',
+              sources: const {baseId: baseSource},
+            ),
+            (
+              name: 'barrel',
+              imports: "import 'alias_type_barrel.dart' as app;",
+              baseType: 'app.AliasTypeBase',
+              prefix: 'app.',
+              sources: const {
+                baseId: baseSource,
+                'apps_examples|lib/alias_type_barrel.dart':
+                    "export 'alias_type_base.dart' show AliasTypeBase, Defaults;",
+              },
+            ),
+          ];
 
       final omissions = <String>[];
       for (final scenario in routeScenarios) {
@@ -1973,112 +2088,115 @@ super.key
       );
     });
 
-    test('refuses inherited mount types without an exact alias proof',
-        () async {
+    test('refuses inherited mount types without an exact alias proof', () async {
       const baseId = 'apps_examples|lib/alias_refusal_base.dart';
-      final scenarios = <({
-        String name,
-        String imports,
-        String baseType,
-        String declarations,
-        String type,
-        String localDeclarations,
-      })>[
-        (
-          name: 'hidden',
-          imports:
-              "import 'alias_refusal_base.dart' as base show AliasRefusalBase;",
-          baseType: 'base.AliasRefusalBase',
-          declarations: '''
+      final scenarios =
+          <
+            ({
+              String name,
+              String imports,
+              String baseType,
+              String declarations,
+              String type,
+              String localDeclarations,
+            })
+          >[
+            (
+              name: 'hidden',
+              imports:
+                  "import 'alias_refusal_base.dart' as base show AliasRefusalBase;",
+              baseType: 'base.AliasRefusalBase',
+              declarations: '''
 class _Hidden {}
 typedef Visible = _Hidden;
 ''',
-          type: '_Hidden',
-          localDeclarations: '',
-        ),
-        (
-          name: 'deferred',
-          imports: '''
+              type: '_Hidden',
+              localDeclarations: '',
+            ),
+            (
+              name: 'deferred',
+              imports: '''
 import 'alias_refusal_base.dart' show AliasRefusalBase;
 import 'alias_refusal_base.dart' deferred as delayed show Visible;
 ''',
-          baseType: 'AliasRefusalBase',
-          declarations: '''
+              baseType: 'AliasRefusalBase',
+              declarations: '''
 class _Hidden {}
 typedef Visible = _Hidden;
 ''',
-          type: '_Hidden',
-          localDeclarations: '',
-        ),
-        (
-          name: 'shadowed',
-          imports: "import 'alias_refusal_base.dart' "
-              'show AliasRefusalBase, Visible;',
-          baseType: 'AliasRefusalBase',
-          declarations: '''
+              type: '_Hidden',
+              localDeclarations: '',
+            ),
+            (
+              name: 'shadowed',
+              imports:
+                  "import 'alias_refusal_base.dart' "
+                  'show AliasRefusalBase, Visible;',
+              baseType: 'AliasRefusalBase',
+              declarations: '''
 class _Hidden {}
 typedef Visible = _Hidden;
 ''',
-          type: '_Hidden',
-          localDeclarations: 'class Visible {}',
-        ),
-        (
-          name: 'wrong target',
-          imports: "import 'alias_refusal_base.dart' as base;",
-          baseType: 'base.AliasRefusalBase',
-          declarations: '''
+              type: '_Hidden',
+              localDeclarations: 'class Visible {}',
+            ),
+            (
+              name: 'wrong target',
+              imports: "import 'alias_refusal_base.dart' as base;",
+              baseType: 'base.AliasRefusalBase',
+              declarations: '''
 class _Hidden {}
 class Other {}
 typedef Visible = Other;
 ''',
-          type: '_Hidden',
-          localDeclarations: '',
-        ),
-        (
-          name: 'dependent bound',
-          imports: "import 'alias_refusal_base.dart' as base;",
-          baseType: 'base.AliasRefusalBase',
-          declarations: '''
+              type: '_Hidden',
+              localDeclarations: '',
+            ),
+            (
+              name: 'dependent bound',
+              imports: "import 'alias_refusal_base.dart' as base;",
+              baseType: 'base.AliasRefusalBase',
+              declarations: '''
 class _Bounded<T> {}
 typedef Visible<T extends num> = _Bounded<T>;
 ''',
-          type: '_Bounded<String>',
-          localDeclarations: '',
-        ),
-        (
-          name: 'nullable preimage',
-          imports: "import 'alias_refusal_base.dart' as base;",
-          baseType: 'base.AliasRefusalBase',
-          declarations: '''
+              type: '_Bounded<String>',
+              localDeclarations: '',
+            ),
+            (
+              name: 'nullable preimage',
+              imports: "import 'alias_refusal_base.dart' as base;",
+              baseType: 'base.AliasRefusalBase',
+              declarations: '''
 class _Nullable<T> {}
 typedef Visible<T> = _Nullable<T?>;
 ''',
-          type: '_Nullable<int?>',
-          localDeclarations: '',
-        ),
-        (
-          name: 'generic binder',
-          imports: "import 'alias_refusal_base.dart' as base;",
-          baseType: 'base.AliasRefusalBase',
-          declarations: '''
+              type: '_Nullable<int?>',
+              localDeclarations: '',
+            ),
+            (
+              name: 'generic binder',
+              imports: "import 'alias_refusal_base.dart' as base;",
+              baseType: 'base.AliasRefusalBase',
+              declarations: '''
 class _BinderValue {}
 typedef Visible<T> = T Function<U>(U, _BinderValue);
 ''',
-          type: 'int Function<V>(V, _BinderValue)',
-          localDeclarations: '',
-        ),
-        (
-          name: 'repeated mismatch',
-          imports: "import 'alias_refusal_base.dart' as base;",
-          baseType: 'base.AliasRefusalBase',
-          declarations: '''
+              type: 'int Function<V>(V, _BinderValue)',
+              localDeclarations: '',
+            ),
+            (
+              name: 'repeated mismatch',
+              imports: "import 'alias_refusal_base.dart' as base;",
+              baseType: 'base.AliasRefusalBase',
+              declarations: '''
 class _Pair<A, B> {}
 typedef Visible<T> = _Pair<T, T>;
 ''',
-          type: '_Pair<int, String>',
-          localDeclarations: '',
-        ),
-      ];
+              type: '_Pair<int, String>',
+              localDeclarations: '',
+            ),
+          ];
 
       for (final scenario in scenarios) {
         final baseSource = _aliasRefusalBaseSource(
@@ -2119,86 +2237,95 @@ typedef Visible<T> = _Pair<T, T>;
       }
     });
 
-    test('omits mounts when default references have no visible spelling',
-        () async {
-      final scenarios = <({
-        String name,
-        String source,
-        Map<String, String> additionalSources,
-      })>[
-        (
-          name: 'private top level',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: '_hiddenDefault',
-              declarations: 'const _hiddenDefault = 2;',
-            ),
-          },
-        ),
-        (
-          name: 'hidden top level',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base "
-                'show DefaultRouteBase;',
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'hiddenDefault',
-              declarations: 'const hiddenDefault = 2;',
-            ),
-          },
-        ),
-        (
-          name: 'private static member',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: 'DefaultRouteBase._hiddenDefault',
-              members: 'static const _hiddenDefault = 2;',
-            ),
-          },
-        ),
-      ];
+    test(
+      'omits mounts when default references have no visible spelling',
+      () async {
+        final scenarios =
+            <
+              ({
+                String name,
+                String source,
+                Map<String, String> additionalSources,
+              })
+            >[
+              (
+                name: 'private top level',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_route_base.dart' as base;",
+                  baseType: 'base.DefaultRouteBase',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: '_hiddenDefault',
+                        declarations: 'const _hiddenDefault = 2;',
+                      ),
+                },
+              ),
+              (
+                name: 'hidden top level',
+                source: _inheritedDefaultSource(
+                  imports:
+                      "import 'default_route_base.dart' as base "
+                      'show DefaultRouteBase;',
+                  baseType: 'base.DefaultRouteBase',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: 'hiddenDefault',
+                        declarations: 'const hiddenDefault = 2;',
+                      ),
+                },
+              ),
+              (
+                name: 'private static member',
+                source: _inheritedDefaultSource(
+                  imports: "import 'default_route_base.dart' as base;",
+                  baseType: 'base.DefaultRouteBase',
+                ),
+                additionalSources: {
+                  'apps_examples|lib/default_route_base.dart':
+                      _defaultBaseSource(
+                        expression: 'DefaultRouteBase._hiddenDefault',
+                        members: 'static const _hiddenDefault = 2;',
+                      ),
+                },
+              ),
+            ];
 
-      for (final scenario in scenarios) {
-        final inspection = await _inspect(
-          scenario.source,
-          className: 'DefaultRouteNotice',
-          additionalSources: scenario.additionalSources,
-        );
-        final emitted = inspection.contract!.emitReferenceDart();
+        for (final scenario in scenarios) {
+          final inspection = await _inspect(
+            scenario.source,
+            className: 'DefaultRouteNotice',
+            additionalSources: scenario.additionalSources,
+          );
+          final emitted = inspection.contract!.emitReferenceDart();
 
-        expect(inspection.issues, isEmpty, reason: scenario.name);
-        expect(
-          inspection.contract!.mountOmissionMessage,
-          contains("default for 'value' has no visible spelling"),
-          reason: scenario.name,
-        );
-        expect(
-          emitted,
-          isNot(contains('class DefaultRouteNoticeSurface')),
-          reason: scenario.name,
-        );
-        expect(
-          emitted,
-          contains('SurfaceScreenRef<Never>.generated'),
-          reason: scenario.name,
-        );
-        await _assertGeneratedPartAnalyzes(
-          scenario.source,
-          emitted,
-          additionalSources: scenario.additionalSources,
-        );
-      }
-    });
+          expect(inspection.issues, isEmpty, reason: scenario.name);
+          expect(
+            inspection.contract!.mountOmissionMessage,
+            contains("default for 'value' has no visible spelling"),
+            reason: scenario.name,
+          );
+          expect(
+            emitted,
+            isNot(contains('class DefaultRouteNoticeSurface')),
+            reason: scenario.name,
+          );
+          expect(
+            emitted,
+            contains('SurfaceScreenRef<Never>.generated'),
+            reason: scenario.name,
+          );
+          await _assertGeneratedPartAnalyzes(
+            scenario.source,
+            emitted,
+            additionalSources: scenario.additionalSources,
+          );
+        }
+      },
+    );
 
     test('binds top-level defaults outside generated mount scopes', () async {
       for (final name in const [
@@ -2319,9 +2446,11 @@ final class TypedDefaultNotice extends StatelessWidget {
         'loadingBuilder',
         for (final parameter in inspection.contract!.input.constructorParams)
           parameter.name,
-        for (var index = 0;
-            index < inspection.contract!.input.constructorParams.length;
-            index++)
+        for (
+          var index = 0;
+          index < inspection.contract!.input.constructorParams.length;
+          index++
+        )
           '_restageArgument$index',
       };
       expect(bindingNames, everyElement(startsWith('_')));
@@ -2346,72 +2475,75 @@ final class TypedDefaultNotice extends StatelessWidget {
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
 
-    test('refuses occupied binding names and replaces exact warm bindings',
-        () async {
-      final collisionSource = _screenSource(
-        className: 'BindingCollisionNotice',
-        annotation:
-            "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-        constructor:
-            '  const BindingCollisionNotice({this.value = 1, super.key});',
-        fields: '  final int value;',
-        extraDeclarations: 'const _bindingCollisionNoticeMountDefault0 = 9;',
-        part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
-      );
-      final collision = await _inspect(
-        collisionSource,
-        className: 'BindingCollisionNotice',
-      );
-      final collisionOutput = collision.contract!.emitReferenceDart();
+    test(
+      'refuses occupied binding names and replaces exact warm bindings',
+      () async {
+        final collisionSource = _screenSource(
+          className: 'BindingCollisionNotice',
+          annotation:
+              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+          constructor:
+              '  const BindingCollisionNotice({this.value = 1, super.key});',
+          fields: '  final int value;',
+          extraDeclarations: 'const _bindingCollisionNoticeMountDefault0 = 9;',
+          part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
+        );
+        final collision = await _inspect(
+          collisionSource,
+          className: 'BindingCollisionNotice',
+        );
+        final collisionOutput = collision.contract!.emitReferenceDart();
 
-      expect(collision.issues, isEmpty);
-      expect(
-        collision.contract!.mountOmissionMessage,
-        contains('_bindingCollisionNoticeMountDefault0 is already visible'),
-      );
-      expect(
-        collisionOutput,
-        isNot(contains('class BindingCollisionNoticeSurface')),
-      );
+        expect(collision.issues, isEmpty);
+        expect(
+          collision.contract!.mountOmissionMessage,
+          contains('_bindingCollisionNoticeMountDefault0 is already visible'),
+        );
+        expect(
+          collisionOutput,
+          isNot(contains('class BindingCollisionNoticeSurface')),
+        );
 
-      final warmSource = _screenSource(
-        className: 'WarmBindingNotice',
-        annotation: "@Screen(id: 'warm_binding', surface: Surface.general)",
-        constructor: '  const WarmBindingNotice({this.value = 1, super.key});',
-        fields: '  final int value;',
-        part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
-      );
-      final warm = await _inspect(
-        warmSource,
-        className: 'WarmBindingNotice',
-        slug: 'warm_binding',
-        additionalSources: const {
-          'apps_examples|lib/restage.generated/maintenance_notice.restage.g.dart':
-              '''
+        final warmSource = _screenSource(
+          className: 'WarmBindingNotice',
+          annotation: "@Screen(id: 'warm_binding', surface: Surface.general)",
+          constructor:
+              '  const WarmBindingNotice({this.value = 1, super.key});',
+          fields: '  final int value;',
+          part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
+        );
+        final warm = await _inspect(
+          warmSource,
+          className: 'WarmBindingNotice',
+          slug: 'warm_binding',
+          additionalSources: const {
+            'apps_examples|lib/restage.generated/maintenance_notice.restage.g.dart':
+                '''
 part of '../maintenance_notice.dart';
 
 const int _warmBindingNoticeMountDefault0 = 1;
 final class WarmBindingNoticeSurface {}
 ''',
-        },
-      );
-      final warmOutput = warm.contract!.emitReferenceDart();
+          },
+        );
+        final warmOutput = warm.contract!.emitReferenceDart();
 
-      expect(warm.issues, isEmpty);
-      expect(warm.contract!.mountOmissionMessage, isNull);
-      expect(
-        warm.contract!.generatedTopLevelSymbols,
-        containsAll({
-          '_warmBindingNoticeMountDefault0',
-          'WarmBindingNoticeSurface',
-        }),
-      );
-      expect(
-        warmOutput,
-        contains('const int _warmBindingNoticeMountDefault0 = 1;'),
-      );
-      await _assertGeneratedPartAnalyzes(warmSource, warmOutput);
-    });
+        expect(warm.issues, isEmpty);
+        expect(warm.contract!.mountOmissionMessage, isNull);
+        expect(
+          warm.contract!.generatedTopLevelSymbols,
+          containsAll({
+            '_warmBindingNoticeMountDefault0',
+            'WarmBindingNoticeSurface',
+          }),
+        );
+        expect(
+          warmOutput,
+          contains('const int _warmBindingNoticeMountDefault0 = 1;'),
+        );
+        await _assertGeneratedPartAnalyzes(warmSource, warmOutput);
+      },
+    );
 
     test('refuses the mount for a required non-nullable typed key', () async {
       final source = _screenSource(
@@ -2432,31 +2564,33 @@ final class WarmBindingNoticeSurface {}
       );
     });
 
-    test('names the host data a screen keeps when its mount is omitted',
-        () async {
-      final source = _screenSource(
-        className: 'HabitBoard',
-        annotation:
-            "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-        constructor: '''
+    test(
+      'names the host data a screen keeps when its mount is omitted',
+      () async {
+        final source = _screenSource(
+          className: 'HabitBoard',
+          annotation:
+              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+          constructor: '''
   const HabitBoard({required this.rows, super.key});
 ''',
-        fields: '  final List<String> rows;',
-        extraDeclarations: 'final class HabitBoardSurface {}',
-        part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
-      );
-      final inspection = await _inspect(source, className: 'HabitBoard');
+          fields: '  final List<String> rows;',
+          extraDeclarations: 'final class HabitBoardSurface {}',
+          part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
+        );
+        final inspection = await _inspect(source, className: 'HabitBoard');
 
-      expect(inspection.issues, isEmpty);
-      expect(
-        inspection.contract!.mountOmissionMessage,
-        contains('declares host-supplied inputs'),
-      );
-      expect(
-        inspection.contract!.mountOmissionMessage,
-        contains('already exists'),
-      );
-    });
+        expect(inspection.issues, isEmpty);
+        expect(
+          inspection.contract!.mountOmissionMessage,
+          contains('declares host-supplied inputs'),
+        );
+        expect(
+          inspection.contract!.mountOmissionMessage,
+          contains('already exists'),
+        );
+      },
+    );
 
     test('preserves key requiredness on the generated mount', () async {
       final requiredSource = _screenSource(
@@ -2527,7 +2661,8 @@ final class WarmBindingNoticeSurface {}
         className: 'RequiredKeyNotice',
         annotation:
             "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-        constructor: '  const RequiredKeyNotice({required super.key, '
+        constructor:
+            '  const RequiredKeyNotice({required super.key, '
             'required this.label});',
         fields: '  final String label;',
         part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
@@ -2547,9 +2682,10 @@ final class WarmBindingNoticeSurface {}
       await _assertGeneratedPartAnalyzes(requiredSource, requiredOutput);
     });
 
-    test('passes a positional key position as absent to the fallback widget',
-        () async {
-      const source = '''
+    test(
+      'passes a positional key position as absent to the fallback widget',
+      () async {
+        const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -2565,28 +2701,30 @@ final class PositionalKeyNotice extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-      final inspection = await _inspect(
-        source,
-        className: 'PositionalKeyNotice',
-      );
-      final emitted = inspection.contract!.emitReferenceDart();
+        final inspection = await _inspect(
+          source,
+          className: 'PositionalKeyNotice',
+        );
+        final emitted = inspection.contract!.emitReferenceDart();
 
-      expect(inspection.issues, isEmpty);
-      expect(
-        emitted,
-        contains('''
+        expect(inspection.issues, isEmpty);
+        expect(
+          emitted,
+          contains('''
             builder: (context, error) => PositionalKeyNotice(
               _restageArgument0,
               null,
             ),
 '''),
-      );
-      await _assertGeneratedPartAnalyzes(source, emitted);
-    });
+        );
+        await _assertGeneratedPartAnalyzes(source, emitted);
+      },
+    );
 
-    test('routes a required concrete key to the fallback widget alone',
-        () async {
-      const source = '''
+    test(
+      'routes a required concrete key to the fallback widget alone',
+      () async {
+        const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -2600,18 +2738,22 @@ final class ConcreteKeyNotice extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-      final inspection = await _inspect(source, className: 'ConcreteKeyNotice');
-      final emitted = inspection.contract!.emitReferenceDart();
+        final inspection = await _inspect(
+          source,
+          className: 'ConcreteKeyNotice',
+        );
+        final emitted = inspection.contract!.emitReferenceDart();
 
-      expect(inspection.issues, isEmpty);
-      expect(inspection.contract!.mountOmissionMessage, isNull);
-      expect(emitted, contains('required ValueKey<String> key,'));
-      expect(emitted, contains('key: key,'));
-      // The authored key identifies the screen, so the mount does not also
-      // take it: one Key on two live elements breaks a GlobalKey.
-      expect(emitted, isNot(contains('super(key:')));
-      await _assertGeneratedPartAnalyzes(source, emitted);
-    });
+        expect(inspection.issues, isEmpty);
+        expect(inspection.contract!.mountOmissionMessage, isNull);
+        expect(emitted, contains('required ValueKey<String> key,'));
+        expect(emitted, contains('key: key,'));
+        // The authored key identifies the screen, so the mount does not also
+        // take it: one Key on two live elements breaks a GlobalKey.
+        expect(emitted, isNot(contains('super(key:')));
+        await _assertGeneratedPartAnalyzes(source, emitted);
+      },
+    );
 
     test('stores legal member-shaped arguments in private slots', () async {
       const source = '''
@@ -2695,8 +2837,7 @@ final class MemberNameNotice extends StatelessWidget {
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
 
-    test('treats import prefixes and warm declarations as mount names',
-        () async {
+    test('treats import prefixes and warm declarations as mount names', () async {
       final prefixSource = _screenSource(
         className: 'PrefixReserved',
         annotation:
@@ -2802,8 +2943,8 @@ final class RestageScreen {
 
       expect(unavailableInspection.issues, isEmpty);
       expect(unavailableInspection.contract!.mountOmissionMessage, isNotNull);
-      final unavailableOutput =
-          unavailableInspection.contract!.emitReferenceDart();
+      final unavailableOutput = unavailableInspection.contract!
+          .emitReferenceDart();
       expect(unavailableOutput, contains('SurfaceScreenRef<Never>.generated'));
       expect(unavailableOutput, isNot(contains('ShadowedSdkNoticeSurface')));
       await _assertGeneratedPartAnalyzes(unavailableSource, unavailableOutput);
@@ -3244,141 +3385,144 @@ final class RecordKeyRoute extends StatelessWidget {
 }
 ''';
       final inspections = await _inspectAll(source);
-      final cases = <({
-        String className,
-        bool admitted,
-        List<String> includes,
-        List<String> excludes,
-      })>[
-        (
-          className: 'DirectNamedKeyRoute',
-          admitted: true,
-          includes: const [
-            'super(key: widgetKey)',
-            'DirectNamedKeyRoute(),',
-          ],
-          excludes: const ['_restageArgument0'],
-        ),
-        (
-          className: 'DirectPositionalKeyRoute',
-          admitted: true,
-          includes: const [
-            'super(key: widgetKey)',
-            'DirectPositionalKeyRoute(\n              null,',
-          ],
-          excludes: const ['_restageArgument0'],
-        ),
-        (
-          className: 'FieldFormalKeyRoute',
-          admitted: true,
-          includes: const [
-            'super(key: widgetKey)',
-            'FieldFormalKeyRoute(\n              null,',
-          ],
-          excludes: const ['_restageArgument0'],
-        ),
-        (
-          className: 'SuperFormalKeyRoute',
-          admitted: true,
-          includes: const ['super.key,'],
-          excludes: const ['_restageArgument0', 'key: key,'],
-        ),
-        (
-          className: 'ParenthesizedKeyRoute',
-          admitted: true,
-          includes: const [
-            'super(key: widgetKey)',
-          ],
-          excludes: const ['_restageArgument0'],
-        ),
-        (
-          className: 'FactoryKeyRoute',
-          admitted: true,
-          includes: const [
-            'super(key: widgetKey)',
-          ],
-          excludes: const ['_restageArgument0'],
-        ),
-        (
-          className: 'MultiHopKeyRoute',
-          admitted: true,
-          includes: const [
-            'super(key: second)',
-            '_restageArgument0,\n              null,',
-          ],
-          excludes: const ['super(key: first)'],
-        ),
-        (
-          className: 'DualUseKeyRoute',
-          admitted: true,
-          includes: const [
-            'super(key: widgetKey)',
-          ],
-          excludes: const ['_restageArgument0'],
-        ),
-        (
-          className: 'ImplicitNullKeyRoute',
-          admitted: true,
-          includes: const ['super.key,', 'ImplicitNullKeyRoute()'],
-          excludes: const [],
-        ),
-        (
-          className: 'ExplicitNullKeyRoute',
-          admitted: true,
-          includes: const ['super.key,', 'ExplicitNullKeyRoute()'],
-          excludes: const [],
-        ),
-        (
-          className: 'DefaultNullKeyRoute',
-          admitted: true,
-          includes: const ['super.key,', 'DefaultNullKeyRoute()'],
-          excludes: const [],
-        ),
-        (
-          className: 'InheritedNullKeyRoute',
-          admitted: true,
-          includes: const ['super.key,', 'InheritedNullKeyRoute()'],
-          excludes: const [],
-        ),
-        (
-          className: 'InheritedNonNullKeyRoute',
-          admitted: false,
-          includes: const [],
-          excludes: const [],
-        ),
-        (
-          className: 'NullOverrideKeyRoute',
-          admitted: true,
-          includes: const ['super.key,', 'NullOverrideKeyRoute()'],
-          excludes: const [],
-        ),
-        (
-          className: 'NonNullOverrideKeyRoute',
-          admitted: false,
-          includes: const [],
-          excludes: const [],
-        ),
-        for (final className in const [
-          'TransformedKeyRoute',
-          'MultipleOriginKeyRoute',
-          'RepeatedOriginKeyRoute',
-          'FixedKeyRoute',
-          'DefaultNonNullKeyRoute',
-          'CastKeyRoute',
-          'AssertedKeyRoute',
-          'CallKeyRoute',
-          'PropertyKeyRoute',
-          'IndexKeyRoute',
-          'ConditionalKeyRoute',
-          'RecordKeyRoute',
-        ])
-          (
-            className: className,
-            admitted: false,
-            includes: const [],
-            excludes: const [],
-          ),
-      ];
+      final cases =
+          <
+            ({
+              String className,
+              bool admitted,
+              List<String> includes,
+              List<String> excludes,
+            })
+          >[
+            (
+              className: 'DirectNamedKeyRoute',
+              admitted: true,
+              includes: const [
+                'super(key: widgetKey)',
+                'DirectNamedKeyRoute(),',
+              ],
+              excludes: const ['_restageArgument0'],
+            ),
+            (
+              className: 'DirectPositionalKeyRoute',
+              admitted: true,
+              includes: const [
+                'super(key: widgetKey)',
+                'DirectPositionalKeyRoute(\n              null,',
+              ],
+              excludes: const ['_restageArgument0'],
+            ),
+            (
+              className: 'FieldFormalKeyRoute',
+              admitted: true,
+              includes: const [
+                'super(key: widgetKey)',
+                'FieldFormalKeyRoute(\n              null,',
+              ],
+              excludes: const ['_restageArgument0'],
+            ),
+            (
+              className: 'SuperFormalKeyRoute',
+              admitted: true,
+              includes: const ['super.key,'],
+              excludes: const ['_restageArgument0', 'key: key,'],
+            ),
+            (
+              className: 'ParenthesizedKeyRoute',
+              admitted: true,
+              includes: const [
+                'super(key: widgetKey)',
+              ],
+              excludes: const ['_restageArgument0'],
+            ),
+            (
+              className: 'FactoryKeyRoute',
+              admitted: true,
+              includes: const [
+                'super(key: widgetKey)',
+              ],
+              excludes: const ['_restageArgument0'],
+            ),
+            (
+              className: 'MultiHopKeyRoute',
+              admitted: true,
+              includes: const [
+                'super(key: second)',
+                '_restageArgument0,\n              null,',
+              ],
+              excludes: const ['super(key: first)'],
+            ),
+            (
+              className: 'DualUseKeyRoute',
+              admitted: true,
+              includes: const [
+                'super(key: widgetKey)',
+              ],
+              excludes: const ['_restageArgument0'],
+            ),
+            (
+              className: 'ImplicitNullKeyRoute',
+              admitted: true,
+              includes: const ['super.key,', 'ImplicitNullKeyRoute()'],
+              excludes: const [],
+            ),
+            (
+              className: 'ExplicitNullKeyRoute',
+              admitted: true,
+              includes: const ['super.key,', 'ExplicitNullKeyRoute()'],
+              excludes: const [],
+            ),
+            (
+              className: 'DefaultNullKeyRoute',
+              admitted: true,
+              includes: const ['super.key,', 'DefaultNullKeyRoute()'],
+              excludes: const [],
+            ),
+            (
+              className: 'InheritedNullKeyRoute',
+              admitted: true,
+              includes: const ['super.key,', 'InheritedNullKeyRoute()'],
+              excludes: const [],
+            ),
+            (
+              className: 'InheritedNonNullKeyRoute',
+              admitted: false,
+              includes: const [],
+              excludes: const [],
+            ),
+            (
+              className: 'NullOverrideKeyRoute',
+              admitted: true,
+              includes: const ['super.key,', 'NullOverrideKeyRoute()'],
+              excludes: const [],
+            ),
+            (
+              className: 'NonNullOverrideKeyRoute',
+              admitted: false,
+              includes: const [],
+              excludes: const [],
+            ),
+            for (final className in const [
+              'TransformedKeyRoute',
+              'MultipleOriginKeyRoute',
+              'RepeatedOriginKeyRoute',
+              'FixedKeyRoute',
+              'DefaultNonNullKeyRoute',
+              'CastKeyRoute',
+              'AssertedKeyRoute',
+              'CallKeyRoute',
+              'PropertyKeyRoute',
+              'IndexKeyRoute',
+              'ConditionalKeyRoute',
+              'RecordKeyRoute',
+            ])
+              (
+                className: className,
+                admitted: false,
+                includes: const [],
+                excludes: const [],
+              ),
+          ];
 
       const inheritedDefaultClasses = {
         'InheritedNullKeyRoute',
@@ -3389,8 +3533,9 @@ final class RecordKeyRoute extends StatelessWidget {
       final generatedBodies = <String>[];
       final inheritedDefaultValues = <String>[];
       final refusedValues = <String>[];
-      expect(
-          inspections.keys.toSet(), {for (final item in cases) item.className});
+      expect(inspections.keys.toSet(), {
+        for (final item in cases) item.className,
+      });
       for (final item in cases) {
         final inspection = inspections[item.className]!;
         final output = inspection.contract!.emitReferenceDart();
@@ -3399,10 +3544,10 @@ final class RecordKeyRoute extends StatelessWidget {
           final expectedMessage = item.admitted
               ? null
               : 'Generated screen mount ${item.className}Surface was omitted '
-                  'because its constructor key value cannot be preserved.';
+                    'because its constructor key value cannot be preserved.';
           final outputMatches = item.admitted
               ? item.includes.every(output.contains) &&
-                  item.excludes.every((snippet) => !output.contains(snippet))
+                    item.excludes.every((snippet) => !output.contains(snippet))
               : output.contains('SurfaceScreenRef<Never>.generated');
           final omission = inspection.contract!.mountOmissionMessage;
           final messageMatches = expectedMessage == null
@@ -3479,9 +3624,10 @@ final class RecordKeyRoute extends StatelessWidget {
       );
     });
 
-    test('routes reordered generative arguments by resolved destination',
-        () async {
-      const positionalSource = '''
+    test(
+      'routes reordered generative arguments by resolved destination',
+      () async {
+        const positionalSource = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -3499,38 +3645,38 @@ final class PositionalRedirectNotice extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-      final positional = await _inspect(
-        positionalSource,
-        className: 'PositionalRedirectNotice',
-      );
+        final positional = await _inspect(
+          positionalSource,
+          className: 'PositionalRedirectNotice',
+        );
 
-      expect(positional.issues, isEmpty);
-      expect(positional.contract!.mountOmissionMessage, isNull);
-      final positionalOutput = positional.contract!.emitReferenceDart();
-      expect(
-        positionalOutput,
-        contains('''
+        expect(positional.issues, isEmpty);
+        expect(positional.contract!.mountOmissionMessage, isNull);
+        final positionalOutput = positional.contract!.emitReferenceDart();
+        expect(
+          positionalOutput,
+          contains('''
   })  : _restageArgument0 = first,
         _restagePlacementName = placement,
         super(key: second);
 '''),
-      );
-      expect(
-        positionalOutput,
-        contains('''
+        );
+        expect(
+          positionalOutput,
+          contains('''
             builder: (context, error) => PositionalRedirectNotice(
               _restageArgument0,
               null,
             ),
 '''),
-      );
-      expect(positionalOutput, isNot(contains('super(key: first)')));
-      await _assertGeneratedPartAnalyzes(
-        positionalSource,
-        positionalOutput,
-      );
+        );
+        expect(positionalOutput, isNot(contains('super(key: first)')));
+        await _assertGeneratedPartAnalyzes(
+          positionalSource,
+          positionalOutput,
+        );
 
-      const namedSource = '''
+        const namedSource = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -3548,24 +3694,24 @@ final class NamedRedirectNotice extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-      final named = await _inspect(
-        namedSource,
-        className: 'NamedRedirectNotice',
-      );
+        final named = await _inspect(
+          namedSource,
+          className: 'NamedRedirectNotice',
+        );
 
-      expect(named.issues, isEmpty);
-      expect(named.contract!.mountOmissionMessage, isNull);
-      final namedOutput = named.contract!.emitReferenceDart();
-      expect(namedOutput, contains('super(key: second)'));
-      expect(namedOutput, isNot(contains('super.key,')));
-      expect(
-        namedOutput,
-        contains(RegExp(r'first: _restageArgument\d+,')),
-      );
-      expect(namedOutput, isNot(contains('second:')));
-      await _assertGeneratedPartAnalyzes(namedSource, namedOutput);
+        expect(named.issues, isEmpty);
+        expect(named.contract!.mountOmissionMessage, isNull);
+        final namedOutput = named.contract!.emitReferenceDart();
+        expect(namedOutput, contains('super(key: second)'));
+        expect(namedOutput, isNot(contains('super.key,')));
+        expect(
+          namedOutput,
+          contains(RegExp(r'first: _restageArgument\d+,')),
+        );
+        expect(namedOutput, isNot(contains('second:')));
+        await _assertGeneratedPartAnalyzes(namedSource, namedOutput);
 
-      const multiHopSource = '''
+        const multiHopSource = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -3586,27 +3732,27 @@ final class MultiHopRedirectNotice extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-      final multiHop = await _inspect(
-        multiHopSource,
-        className: 'MultiHopRedirectNotice',
-      );
+        final multiHop = await _inspect(
+          multiHopSource,
+          className: 'MultiHopRedirectNotice',
+        );
 
-      expect(multiHop.issues, isEmpty);
-      expect(multiHop.contract!.mountOmissionMessage, isNull);
-      final multiHopOutput = multiHop.contract!.emitReferenceDart();
-      expect(multiHopOutput, contains('super(key: second)'));
-      expect(multiHopOutput, isNot(contains('super(key: first)')));
-      expect(
-        multiHopOutput,
-        contains(
-          RegExp(r'MultiHopRedirectNotice\(\s*_restageArgument0,'),
-        ),
-      );
-      expect(multiHopOutput, contains('null,'));
-      expect(multiHopOutput, isNot(contains('_restageArgument1,')));
-      await _assertGeneratedPartAnalyzes(multiHopSource, multiHopOutput);
+        expect(multiHop.issues, isEmpty);
+        expect(multiHop.contract!.mountOmissionMessage, isNull);
+        final multiHopOutput = multiHop.contract!.emitReferenceDart();
+        expect(multiHopOutput, contains('super(key: second)'));
+        expect(multiHopOutput, isNot(contains('super(key: first)')));
+        expect(
+          multiHopOutput,
+          contains(
+            RegExp(r'MultiHopRedirectNotice\(\s*_restageArgument0,'),
+          ),
+        );
+        expect(multiHopOutput, contains('null,'));
+        expect(multiHopOutput, isNot(contains('_restageArgument1,')));
+        await _assertGeneratedPartAnalyzes(multiHopSource, multiHopOutput);
 
-      const unchangedSource = '''
+        const unchangedSource = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -3627,25 +3773,26 @@ final class UnchangedRedirectNotice extends StatelessWidget {
   Widget build(BuildContext context) => Text(_label);
 }
 ''';
-      final unchanged = await _inspect(
-        unchangedSource,
-        className: 'UnchangedRedirectNotice',
-      );
+        final unchanged = await _inspect(
+          unchangedSource,
+          className: 'UnchangedRedirectNotice',
+        );
 
-      expect(unchanged.issues, isEmpty);
-      expect(unchanged.contract!.mountOmissionMessage, isNull);
-      final unchangedOutput = unchanged.contract!.emitReferenceDart();
-      expect(unchangedOutput, contains('super(key: widgetKey)'));
-      expect(
-        unchangedOutput,
-        contains(RegExp(r"'label': _restageArgument\d+,")),
-      );
-      expect(
-        unchangedOutput,
-        contains(RegExp(r'UnchangedRedirectNotice\(\s*null,')),
-      );
-      await _assertGeneratedPartAnalyzes(unchangedSource, unchangedOutput);
-    });
+        expect(unchanged.issues, isEmpty);
+        expect(unchanged.contract!.mountOmissionMessage, isNull);
+        final unchangedOutput = unchanged.contract!.emitReferenceDart();
+        expect(unchangedOutput, contains('super(key: widgetKey)'));
+        expect(
+          unchangedOutput,
+          contains(RegExp(r"'label': _restageArgument\d+,")),
+        );
+        expect(
+          unchangedOutput,
+          contains(RegExp(r'UnchangedRedirectNotice\(\s*null,')),
+        );
+        await _assertGeneratedPartAnalyzes(unchangedSource, unchangedOutput);
+      },
+    );
 
     test('mirrors concrete Flutter key types', () async {
       const source = '''
@@ -3796,9 +3943,10 @@ final class RenamedNamedKeyNotice extends NamedKeyBase {
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
 
-    test('lowers renamed inherited positional keys as ordinary formals',
-        () async {
-      const source = '''
+    test(
+      'lowers renamed inherited positional keys as ordinary formals',
+      () async {
+        const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -3816,25 +3964,26 @@ final class RenamedPositionalKeyNotice extends PositionalKeyBase {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-      final inspection = await _inspect(
-        source,
-        className: 'RenamedPositionalKeyNotice',
-      );
+        final inspection = await _inspect(
+          source,
+          className: 'RenamedPositionalKeyNotice',
+        );
 
-      expect(inspection.issues, isEmpty);
-      expect(inspection.contract!.mountOmissionMessage, isNull);
-      final emitted = inspection.contract!.emitReferenceDart();
-      expect(emitted, contains('Key widgetKey,'));
-      expect(emitted, isNot(contains('super.widgetKey')));
-      expect(emitted, isNot(contains('super(key:')));
-      expect(
-        emitted,
-        contains(
-          RegExp(r'RenamedPositionalKeyNotice\(\s*_restageArgument'),
-        ),
-      );
-      await _assertGeneratedPartAnalyzes(source, emitted);
-    });
+        expect(inspection.issues, isEmpty);
+        expect(inspection.contract!.mountOmissionMessage, isNull);
+        final emitted = inspection.contract!.emitReferenceDart();
+        expect(emitted, contains('Key widgetKey,'));
+        expect(emitted, isNot(contains('super.widgetKey')));
+        expect(emitted, isNot(contains('super(key:')));
+        expect(
+          emitted,
+          contains(
+            RegExp(r'RenamedPositionalKeyNotice\(\s*_restageArgument'),
+          ),
+        );
+        await _assertGeneratedPartAnalyzes(source, emitted);
+      },
+    );
 
     test('routes a field-formal key to the fallback widget alone', () async {
       const source = '''
@@ -3921,7 +4070,8 @@ final class StoredKeyNotice extends StatelessWidget {
           className: 'ReservedKeyNotice',
           annotation:
               "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-          constructor: '''
+          constructor:
+              '''
   const ReservedKeyNotice({required Key $control}) : super(key: $control);
 ''',
           part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
@@ -3948,8 +4098,7 @@ final class StoredKeyNotice extends StatelessWidget {
       }
     });
 
-    test('omits generic mounts when a key type depends on the screen',
-        () async {
+    test('omits generic mounts when a key type depends on the screen', () async {
       const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
@@ -3980,9 +4129,10 @@ final class GenericKeyNotice<T extends Key> extends StatelessWidget {
       expect(emitted, isNot(contains('class GenericKeyNoticeSurface')));
     });
 
-    test('omits generic screens whose formals do not mention the type',
-        () async {
-      const source = '''
+    test(
+      'omits generic screens whose formals do not mention the type',
+      () async {
+        const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -3996,25 +4146,26 @@ final class GenericShapeNotice<T> extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-      final inspection = await _inspect(
-        source,
-        className: 'GenericShapeNotice',
-      );
-      final emitted = inspection.contract!.emitReferenceDart();
-      const expectedMessage =
-          'Generated screen mount GenericShapeNoticeSurface was omitted '
-          "because GenericShapeNotice declares the screen type parameter 'T'.";
+        final inspection = await _inspect(
+          source,
+          className: 'GenericShapeNotice',
+        );
+        final emitted = inspection.contract!.emitReferenceDart();
+        const expectedMessage =
+            'Generated screen mount GenericShapeNoticeSurface was omitted '
+            "because GenericShapeNotice declares the screen type parameter 'T'.";
 
-      expect(inspection.issues, isEmpty);
-      expect(
-        [
-          inspection.contract!.mountOmissionMessage,
-          emitted.contains('class GenericShapeNoticeSurface'),
-        ],
-        [expectedMessage, false],
-      );
-      expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
-    });
+        expect(inspection.issues, isEmpty);
+        expect(
+          [
+            inspection.contract!.mountOmissionMessage,
+            emitted.contains('class GenericShapeNoticeSurface'),
+          ],
+          [expectedMessage, false],
+        );
+        expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
+      },
+    );
 
     test('infers inherited super-parameter types', () async {
       const source = '''
@@ -4491,81 +4642,85 @@ final class SurfaceScreenUnavailablePolicy {}
 final class SurfaceScreenResolver {}
 final class SurfaceScreenUnavailableError {}
 ''';
-      final scenarios = <({
-        String name,
-        String imports,
-        String declarations,
-        Map<String, String> additionalSources,
-        String? prefix,
-        bool analyzeGenerated,
-      })>[
-        (
-          name: 'direct restricted',
-          imports: _directMountImport('app'),
-          declarations: '',
-          additionalSources: const {},
-          prefix: 'app.',
-          analyzeGenerated: true,
-        ),
-        (
-          name: 'barrel',
-          imports: "import 'mount_symbols.dart' as app;",
-          declarations: '',
-          additionalSources: const {
-            'apps_examples|lib/mount_symbols.dart': exactBarrel,
-          },
-          prefix: 'app.',
-          analyzeGenerated: true,
-        ),
-        (
-          name: 'split restricted',
-          imports: '''
+      final scenarios =
+          <
+            ({
+              String name,
+              String imports,
+              String declarations,
+              Map<String, String> additionalSources,
+              String? prefix,
+              bool analyzeGenerated,
+            })
+          >[
+            (
+              name: 'direct restricted',
+              imports: _directMountImport('app'),
+              declarations: '',
+              additionalSources: const {},
+              prefix: 'app.',
+              analyzeGenerated: true,
+            ),
+            (
+              name: 'barrel',
+              imports: "import 'mount_symbols.dart' as app;",
+              declarations: '',
+              additionalSources: const {
+                'apps_examples|lib/mount_symbols.dart': exactBarrel,
+              },
+              prefix: 'app.',
+              analyzeGenerated: true,
+            ),
+            (
+              name: 'split restricted',
+              imports: '''
 import 'package:restage/restage.dart' as app
     show RestageScreen, SurfaceScreenUnavailablePolicy;
 import 'package:restage/restage.dart' as app
     show SurfaceScreenResolver, SurfaceScreenUnavailableError;
 ''',
-          declarations: '',
-          additionalSources: const {},
-          prefix: 'app.',
-          analyzeGenerated: true,
-        ),
-        (
-          name: 'unprefixed barrel',
-          imports: "import 'mount_symbols.dart';",
-          declarations: '',
-          additionalSources: const {
-            'apps_examples|lib/mount_symbols.dart': exactBarrel,
-          },
-          prefix: '',
-          analyzeGenerated: true,
-        ),
-        (
-          name: 'deferred alternative',
-          imports: '''
+              declarations: '',
+              additionalSources: const {},
+              prefix: 'app.',
+              analyzeGenerated: true,
+            ),
+            (
+              name: 'unprefixed barrel',
+              imports: "import 'mount_symbols.dart';",
+              declarations: '',
+              additionalSources: const {
+                'apps_examples|lib/mount_symbols.dart': exactBarrel,
+              },
+              prefix: '',
+              analyzeGenerated: true,
+            ),
+            (
+              name: 'deferred alternative',
+              imports:
+                  '''
 import 'mount_symbols.dart' deferred as lazy;
 ${_directMountImport('app')}
 ''',
-          declarations: '',
-          additionalSources: const {
-            'apps_examples|lib/mount_symbols.dart': exactBarrel,
-          },
-          prefix: 'app.',
-          analyzeGenerated: true,
-        ),
-        (
-          name: 'deferred only',
-          imports: "import 'mount_symbols.dart' deferred as app;",
-          declarations: '',
-          additionalSources: const {
-            'apps_examples|lib/mount_symbols.dart': exactBarrel,
-          },
-          prefix: null,
-          analyzeGenerated: true,
-        ),
-        (
-          name: 'mixed prefix missing non-deferred symbol',
-          imports: '''
+              declarations: '',
+              additionalSources: const {
+                'apps_examples|lib/mount_symbols.dart': exactBarrel,
+              },
+              prefix: 'app.',
+              analyzeGenerated: true,
+            ),
+            (
+              name: 'deferred only',
+              imports: "import 'mount_symbols.dart' deferred as app;",
+              declarations: '',
+              additionalSources: const {
+                'apps_examples|lib/mount_symbols.dart': exactBarrel,
+              },
+              prefix: null,
+              analyzeGenerated: true,
+            ),
+            (
+              name: 'mixed prefix missing non-deferred symbol',
+              imports: '''
 import 'package:restage/restage.dart' deferred as app
     show RestageScreen;
 import 'package:restage/restage.dart' as app
@@ -4574,55 +4729,57 @@ import 'package:restage/restage.dart' as app
         SurfaceScreenResolver,
         SurfaceScreenUnavailableError;
 ''',
-          declarations: '',
-          additionalSources: const {},
-          prefix: null,
-          analyzeGenerated: false,
-        ),
-        (
-          name: 'mixed prefix with complete non-deferred routes',
-          imports: '''
+              declarations: '',
+              additionalSources: const {},
+              prefix: null,
+              analyzeGenerated: false,
+            ),
+            (
+              name: 'mixed prefix with complete non-deferred routes',
+              imports:
+                  '''
 import 'package:restage/restage.dart' deferred as app
     show RestageScreen;
 ${_directMountImport('app')}
 ''',
-          declarations: '',
-          additionalSources: const {},
-          prefix: 'app.',
-          analyzeGenerated: false,
-        ),
-        (
-          name: 'hidden symbol',
-          imports: "import 'mount_symbols.dart' as app "
-              'hide SurfaceScreenResolver;',
-          declarations: '',
-          additionalSources: const {
-            'apps_examples|lib/mount_symbols.dart': exactBarrel,
-          },
-          prefix: null,
-          analyzeGenerated: true,
-        ),
-        (
-          name: 'local shadow',
-          imports: "import 'mount_symbols.dart';",
-          declarations: 'final class RestageScreen {}',
-          additionalSources: const {
-            'apps_examples|lib/mount_symbols.dart': exactBarrel,
-          },
-          prefix: null,
-          analyzeGenerated: true,
-        ),
-        (
-          name: 'wrong origin',
-          imports: "import 'wrong_mount_symbols.dart' as app;",
-          declarations: '',
-          additionalSources: const {
-            'apps_examples|lib/wrong_mount_symbols.dart': wrongOrigin,
-          },
-          prefix: null,
-          analyzeGenerated: true,
-        ),
-      ];
+              declarations: '',
+              additionalSources: const {},
+              prefix: 'app.',
+              analyzeGenerated: false,
+            ),
+            (
+              name: 'hidden symbol',
+              imports:
+                  "import 'mount_symbols.dart' as app "
+                  'hide SurfaceScreenResolver;',
+              declarations: '',
+              additionalSources: const {
+                'apps_examples|lib/mount_symbols.dart': exactBarrel,
+              },
+              prefix: null,
+              analyzeGenerated: true,
+            ),
+            (
+              name: 'local shadow',
+              imports: "import 'mount_symbols.dart';",
+              declarations: 'final class RestageScreen {}',
+              additionalSources: const {
+                'apps_examples|lib/mount_symbols.dart': exactBarrel,
+              },
+              prefix: null,
+              analyzeGenerated: true,
+            ),
+            (
+              name: 'wrong origin',
+              imports: "import 'wrong_mount_symbols.dart' as app;",
+              declarations: '',
+              additionalSources: const {
+                'apps_examples|lib/wrong_mount_symbols.dart': wrongOrigin,
+              },
+              prefix: null,
+              analyzeGenerated: true,
+            ),
+          ];
 
       for (final scenario in scenarios) {
         final source = _mountQualifierSource(
@@ -4670,55 +4827,59 @@ ${_directMountImport('app')}
       }
     });
 
-    test('omits only mounts with local constructor or name conflicts',
-        () async {
-      final nameCollision = await _inspect(
-        _screenSource(
+    test(
+      'omits only mounts with local constructor or name conflicts',
+      () async {
+        final nameCollision = await _inspect(
+          _screenSource(
+            className: 'NameCollision',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+            extraDeclarations: 'final class NameCollisionSurface {}',
+          ),
           className: 'NameCollision',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-          extraDeclarations: 'final class NameCollisionSurface {}',
-        ),
-        className: 'NameCollision',
-      );
-      final controlCollision = await _inspect(
-        _screenSource(
+        );
+        final controlCollision = await _inspect(
+          _screenSource(
+            className: 'ControlCollision',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+            constructor: '  const ControlCollision({this.onEvent, super.key});',
+            fields: '  final Object? onEvent;',
+          ),
           className: 'ControlCollision',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-          constructor: '  const ControlCollision({this.onEvent, super.key});',
-          fields: '  final Object? onEvent;',
-        ),
-        className: 'ControlCollision',
-      );
-      final namedOnly = await _inspect(
-        _screenSource(
+        );
+        final namedOnly = await _inspect(
+          _screenSource(
+            className: 'NamedOnly',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+            constructor: '  const NamedOnly.named({super.key});',
+          ),
           className: 'NamedOnly',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-          constructor: '  const NamedOnly.named({super.key});',
-        ),
-        className: 'NamedOnly',
-      );
+        );
 
-      for (final inspection in [nameCollision, controlCollision, namedOnly]) {
-        expect(inspection.issues, isEmpty);
-        expect(inspection.contract, isNotNull);
-        expect(inspection.contract!.mountOmissionMessage, isNotNull);
-        final emitted = inspection.contract!.emitReferenceDart();
-        expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
-        expect(emitted, isNot(contains('extends StatelessWidget')));
-      }
-    });
+        for (final inspection in [nameCollision, controlCollision, namedOnly]) {
+          expect(inspection.issues, isEmpty);
+          expect(inspection.contract, isNotNull);
+          expect(inspection.contract!.mountOmissionMessage, isNotNull);
+          final emitted = inspection.contract!.emitReferenceDart();
+          expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
+          expect(emitted, isNot(contains('extends StatelessWidget')));
+        }
+      },
+    );
 
     test('keeps references with restricted mount-only imports', () async {
       final source = _screenSource(
         className: 'RestrictedNotice',
         annotation:
             "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-        flutterImport: "import 'package:flutter/widgets.dart' "
+        flutterImport:
+            "import 'package:flutter/widgets.dart' "
             'show StatelessWidget, Widget, BuildContext, SizedBox;',
-        import: "import 'package:restage/restage.dart' "
+        import:
+            "import 'package:restage/restage.dart' "
             'show Screen, Surface, SurfaceScreenRef, '
             'SurfaceScreenEventContract, SurfaceScreenRuntimeProvenance, '
             'CapabilityManifest, LibraryRequirement;',
@@ -4743,7 +4904,8 @@ ${_directMountImport('app')}
         className: 'RestrictedFlutterNotice',
         annotation:
             "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-        flutterImport: "import 'package:flutter/widgets.dart' "
+        flutterImport:
+            "import 'package:flutter/widgets.dart' "
             'show StatelessWidget, Widget, BuildContext, SizedBox;',
         part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
       );
@@ -4800,7 +4962,8 @@ ${_directMountImport('app')}
       final nonPositiveVersion = await _inspect(
         _screenSource(
           className: 'ZeroVersionNotice',
-          annotation: "@Screen(id: 'maintenance_notice', "
+          annotation:
+              "@Screen(id: 'maintenance_notice', "
               'surface: Surface.general, version: 0)',
         ),
         className: 'ZeroVersionNotice',
@@ -4813,65 +4976,68 @@ ${_directMountImport('app')}
       );
     });
 
-    test('event and capability mutations produce the expected hash changes',
-        () async {
-      final original = await _inspect(
-        _screenSource(
+    test(
+      'event and capability mutations produce the expected hash changes',
+      () async {
+        final original = await _inspect(
+          _screenSource(
+            className: 'MutableNotice',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+            events: "  static const dismiss = SurfaceEvent<void>('dismiss');",
+          ),
           className: 'MutableNotice',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-          events: "  static const dismiss = SurfaceEvent<void>('dismiss');",
-        ),
-        className: 'MutableNotice',
-      );
-      final eventMutation = await _inspect(
-        _screenSource(
+        );
+        final eventMutation = await _inspect(
+          _screenSource(
+            className: 'MutableNotice',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+            events: "  static const dismiss = SurfaceEvent<void>('close');",
+          ),
           className: 'MutableNotice',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-          events: "  static const dismiss = SurfaceEvent<void>('close');",
-        ),
-        className: 'MutableNotice',
-      );
-      final capabilityMutation = await _inspect(
-        _screenSource(
+        );
+        final capabilityMutation = await _inspect(
+          _screenSource(
+            className: 'MutableNotice',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+            events: "  static const dismiss = SurfaceEvent<void>('dismiss');",
+          ),
           className: 'MutableNotice',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-          events: "  static const dismiss = SurfaceEvent<void>('dismiss');",
-        ),
-        className: 'MutableNotice',
-        capabilities: CapabilityManifest(
-          builtInFloor: 2,
-          requiredLibraries: const [],
-        ),
-      );
+          capabilities: CapabilityManifest(
+            builtInFloor: 2,
+            requiredLibraries: const [],
+          ),
+        );
 
-      expect(original.issues, isEmpty);
-      expect(eventMutation.issues, isEmpty);
-      expect(capabilityMutation.issues, isEmpty);
-      expect(
-        eventMutation.contract!.eventContractHash,
-        isNot(original.contract!.eventContractHash),
-      );
-      expect(
-        eventMutation.contract!.contractFingerprint,
-        isNot(original.contract!.contractFingerprint),
-      );
-      expect(
-        capabilityMutation.contract!.eventContractHash,
-        original.contract!.eventContractHash,
-      );
-      expect(
-        capabilityMutation.contract!.contractFingerprint,
-        isNot(original.contract!.contractFingerprint),
-      );
-    });
+        expect(original.issues, isEmpty);
+        expect(eventMutation.issues, isEmpty);
+        expect(capabilityMutation.issues, isEmpty);
+        expect(
+          eventMutation.contract!.eventContractHash,
+          isNot(original.contract!.eventContractHash),
+        );
+        expect(
+          eventMutation.contract!.contractFingerprint,
+          isNot(original.contract!.contractFingerprint),
+        );
+        expect(
+          capabilityMutation.contract!.eventContractHash,
+          original.contract!.eventContractHash,
+        );
+        expect(
+          capabilityMutation.contract!.contractFingerprint,
+          isNot(original.contract!.contractFingerprint),
+        );
+      },
+    );
 
-    test('rejects lookalikes, unstable IDs, and every unsupported type family',
-        () async {
-      final lookalike = await _inspect(
-        '''
+    test(
+      'rejects lookalikes, unstable IDs, and every unsupported type family',
+      () async {
+        final lookalike = await _inspect(
+          '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -4888,20 +5054,20 @@ final class LookalikeNotice extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''',
-        className: 'LookalikeNotice',
-      );
-      expect(lookalike.contract, isNull);
-      expect(
-        lookalike.issues.map((issue) => issue.message).join('\n'),
-        contains('does not resolve to package:restage'),
-      );
+          className: 'LookalikeNotice',
+        );
+        expect(lookalike.contract, isNull);
+        expect(
+          lookalike.issues.map((issue) => issue.message).join('\n'),
+          contains('does not resolve to package:restage'),
+        );
 
-      final invalid = await _inspect(
-        _screenSource(
-          className: 'InvalidEvents',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-          events: '''
+        final invalid = await _inspect(
+          _screenSource(
+            className: 'InvalidEvents',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+            events: '''
   static const empty = SurfaceEvent<void>('');
   static const first = SurfaceEvent<void>('same');
   static const second = SurfaceEvent<void>('same');
@@ -4913,24 +5079,26 @@ final class LookalikeNotice extends StatelessWidget {
   static const custom = SurfaceEvent<DateTime>('custom');
   static const unsupported = SurfaceEvent<Set<int>>('unsupported');
 ''',
-        ),
-        className: 'InvalidEvents',
-      );
-      expect(invalid.contract, isNull);
-      final messages = invalid.issues.map((issue) => issue.message).join('\n');
-      expect(messages, contains('non-empty const ID'));
-      expect(messages, contains('Duplicate standalone SurfaceEvent ID'));
-      expect(messages, contains('must be const'));
-      expect(messages, contains('dynamic is not part'));
-      expect(
-        messages,
-        contains('Map keys must be exactly non-nullable String'),
-      );
-      expect(messages, contains('custom and unsupported collection types'));
-    });
+          ),
+          className: 'InvalidEvents',
+        );
+        expect(invalid.contract, isNull);
+        final messages = invalid.issues
+            .map((issue) => issue.message)
+            .join('\n');
+        expect(messages, contains('non-empty const ID'));
+        expect(messages, contains('Duplicate standalone SurfaceEvent ID'));
+        expect(messages, contains('must be const'));
+        expect(messages, contains('dynamic is not part'));
+        expect(
+          messages,
+          contains('Map keys must be exactly non-nullable String'),
+        );
+        expect(messages, contains('custom and unsupported collection types'));
+      },
+    );
 
-    test('accepts symbols from the exact warm generated sibling part',
-        () async {
+    test('accepts symbols from the exact warm generated sibling part', () async {
       final inspection = await _inspect(
         _screenSource(
           className: 'WarmNotice',
@@ -4958,63 +5126,65 @@ final WarmNoticeSurfaceFinishEvent = Object();
       expect(inspection.contract, isNotNull);
     });
 
-    test('rejects authored and foreign lookalike generated collisions',
-        () async {
-      final neutral = await _inspect(
-        _screenSource(
+    test(
+      'rejects authored and foreign lookalike generated collisions',
+      () async {
+        final neutral = await _inspect(
+          _screenSource(
+            className: 'NeutralNotice',
+            annotation: '@Screen()',
+          ),
           className: 'NeutralNotice',
-          annotation: '@Screen()',
-        ),
-        className: 'NeutralNotice',
-      );
-      expect(neutral.contract, isNull);
-      expect(
-        neutral.issues.map((issue) => issue.message).join('\n'),
-        contains('require a resolved surface'),
-      );
+        );
+        expect(neutral.contract, isNull);
+        expect(
+          neutral.issues.map((issue) => issue.message).join('\n'),
+          contains('require a resolved surface'),
+        );
 
-      final mismatch = await _inspect(
-        _screenSource(
+        final mismatch = await _inspect(
+          _screenSource(
+            className: 'MismatchNotice',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.message)",
+          ),
           className: 'MismatchNotice',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.message)",
-        ),
-        className: 'MismatchNotice',
-      );
-      expect(mismatch.contract, isNull);
-      expect(
-        mismatch.issues.map((issue) => issue.message).join('\n'),
-        contains('does not match the normalized publication surface'),
-      );
+        );
+        expect(mismatch.contract, isNull);
+        expect(
+          mismatch.issues.map((issue) => issue.message).join('\n'),
+          contains('does not match the normalized publication surface'),
+        );
 
-      final collision = await _inspect(
-        _screenSource(
-          className: 'CollisionNotice',
-          annotation:
-              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
-          extraDeclarations: '''
+        final collision = await _inspect(
+          _screenSource(
+            className: 'CollisionNotice',
+            annotation:
+                "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+            extraDeclarations: '''
 final collisionNoticeRef = Object();
 ''',
-        ),
-        className: 'CollisionNotice',
-      );
-      expect(collision.contract, isNull);
-      expect(
-        collision.issues.map((issue) => issue.message).join('\n'),
-        contains('Generated standalone screen symbol collisionNoticeRef'),
-      );
+          ),
+          className: 'CollisionNotice',
+        );
+        expect(collision.contract, isNull);
+        expect(
+          collision.issues.map((issue) => issue.message).join('\n'),
+          contains('Generated standalone screen symbol collisionNoticeRef'),
+        );
 
-      final foreign = await _inspect(
-        _screenSource(
+        final foreign = await _inspect(
+          _screenSource(
+            className: 'ForeignNotice',
+            annotation:
+                "@Screen(id: 'foreign_notice', surface: Surface.general)",
+            events: "  static const finish = SurfaceEvent<void>('finish');",
+            part: "part 'restage.generated/lookalike.restage.g.dart';",
+          ),
           className: 'ForeignNotice',
-          annotation: "@Screen(id: 'foreign_notice', surface: Surface.general)",
-          events: "  static const finish = SurfaceEvent<void>('finish');",
-          part: "part 'restage.generated/lookalike.restage.g.dart';",
-        ),
-        className: 'ForeignNotice',
-        slug: 'foreign_notice',
-        additionalSources: {
-          'apps_examples|lib/restage.generated/lookalike.restage.g.dart': '''
+          slug: 'foreign_notice',
+          additionalSources: {
+            'apps_examples|lib/restage.generated/lookalike.restage.g.dart': '''
 part of '../maintenance_notice.dart';
 
 final foreignNoticeRef = Object();
@@ -5023,14 +5193,15 @@ final _decodeValidatedForeignNoticeSurfaceEvent = Object();
 final ForeignNoticeSurfaceEvent = Object();
 final ForeignNoticeSurfaceFinishEvent = Object();
 ''',
-        },
-      );
-      expect(foreign.contract, isNull);
-      expect(
-        foreign.issues.map((issue) => issue.message).join('\n'),
-        contains('Generated standalone screen symbol foreignNoticeRef'),
-      );
-    });
+          },
+        );
+        expect(foreign.contract, isNull);
+        expect(
+          foreign.issues.map((issue) => issue.message).join('\n'),
+          contains('Generated standalone screen symbol foreignNoticeRef'),
+        );
+      },
+    );
   });
 }
 
@@ -5241,7 +5412,8 @@ ${defaults.map((value) => '  final ${value.type} ${value.name};').join('\n')}
 String _staticReceiverExpectation(int index, String expression) =>
     '_staticReceiverNoticeMountDefault$index = base.$expression;';
 
-String _directMountImport(String prefix) => '''
+String _directMountImport(String prefix) =>
+    '''
 import 'package:restage/restage.dart' as $prefix
     show
         RestageScreen,
@@ -5281,9 +5453,9 @@ $declarations
 ''';
 
 CapabilityManifest _capabilities() => CapabilityManifest(
-      builtInFloor: 1,
-      requiredLibraries: const [],
-    );
+  builtInFloor: 1,
+  requiredLibraries: const [],
+);
 
 Future<StandaloneScreenContractInspection> _inspect(
   String source, {
@@ -5314,9 +5486,7 @@ Future<StandaloneScreenContractInspection> _inspect(
       final screenInput = (await inspectCanonicalScreenDeclarations(
         library,
         resolvedAssetId,
-      ))
-          .screens
-          .singleWhere((candidate) => candidate.declaration == screen);
+      )).screens.singleWhere((candidate) => candidate.declaration == screen);
       inspection = inspectStandaloneScreenContract(
         ResolvedStandaloneScreenContractInput(
           assetId: resolvedAssetId,
@@ -5423,12 +5593,12 @@ final class _ScreenContractProbeBuilder implements Builder {
   _ScreenContractProbeBuilder(this.onLibrary);
 
   final Future<void> Function(LibraryElement library, AssetId assetId)
-      onLibrary;
+  onLibrary;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.screen_contract_probe'],
-      };
+    '.dart': ['.screen_contract_probe'],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -5483,8 +5653,9 @@ Future<List<String>> _generatedPartErrors(
     (resolver) async {
       for (final id in sourceIds) {
         final library = await resolver.libraryFor(AssetId.parse(id));
-        final resolved =
-            await library.session.getResolvedLibraryByElement(library);
+        final resolved = await library.session.getResolvedLibraryByElement(
+          library,
+        );
         if (resolved is! ResolvedLibraryResult) {
           throw StateError(
             'Generated standalone-screen fixture did not resolve.',

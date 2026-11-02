@@ -19,8 +19,7 @@ import 'helpers.dart';
 /// this widget must not ship.
 void main() {
   group('recogniseToggleButtons — the canonical lower-able form', () {
-    test('extracts children + isSelected in source order + onPressed',
-        () async {
+    test('extracts children + isSelected in source order + onPressed', () async {
       final outcome = await _toggle('''
 ToggleButtons(
   isSelected: [true, false, true],
@@ -40,31 +39,35 @@ ToggleButtons(
       expect(recognised.onPressed, isNotNull);
     });
 
-    test('a missing onPressed (display-only) recognises with null onPressed',
-        () async {
-      final outcome = await _toggle('''
+    test(
+      'a missing onPressed (display-only) recognises with null onPressed',
+      () async {
+        final outcome = await _toggle('''
 ToggleButtons(
   isSelected: [true, false],
   children: [Text('A'), Text('B')],
 )
 ''');
-      final recognised = _expectRecognised(outcome);
-      expect(recognised.children.toSource(), "[Text('A'), Text('B')]");
-      expect(recognised.onPressed, isNull);
-    });
+        final recognised = _expectRecognised(outcome);
+        expect(recognised.children.toSource(), "[Text('A'), Text('B')]");
+        expect(recognised.onPressed, isNull);
+      },
+    );
   });
 
   group('recogniseToggleButtons — layer-(a) defer-loud', () {
-    test('a LITERAL length mismatch defers loud (the load-bearing guard)',
-        () async {
-      final outcome = await _toggle('''
+    test(
+      'a LITERAL length mismatch defers loud (the load-bearing guard)',
+      () async {
+        final outcome = await _toggle('''
 ToggleButtons(
   isSelected: [true, false],
   children: [Text('A'), Text('B'), Text('C')],
 )
 ''');
-      _expectDeferred(outcome, reasonContains: 'length');
-    });
+        _expectDeferred(outcome, reasonContains: 'length');
+      },
+    );
 
     test('a non-bool isSelected entry defers loud', () async {
       final outcome = await _toggle('''

@@ -88,80 +88,75 @@ Future<SurfaceVocabularyReferences> _referencesOf(
   String source,
   Catalog catalog, {
   Map<String, String> extras = const {},
-}) =>
-    resolveWorkspaceSources(
-      {...extras, _fixtureId: source},
-      (resolver) async {
-        final library = await resolver.libraryFor(AssetId.parse(_fixtureId));
-        final resolved =
-            await library.session.getResolvedLibraryByElement(library);
-        if (resolved is! ResolvedLibraryResult) {
-          throw StateError('The surface vocabulary fixture did not resolve.');
-        }
-        return deriveAppVocabulary([resolved], catalog).references;
-      },
-      resolverFor: _fixtureId,
-      rootPackage: 'apps_examples',
-    );
+}) => resolveWorkspaceSources(
+  {...extras, _fixtureId: source},
+  (resolver) async {
+    final library = await resolver.libraryFor(AssetId.parse(_fixtureId));
+    final resolved = await library.session.getResolvedLibraryByElement(library);
+    if (resolved is! ResolvedLibraryResult) {
+      throw StateError('The surface vocabulary fixture did not resolve.');
+    }
+    return deriveAppVocabulary([resolved], catalog).references;
+  },
+  resolverFor: _fixtureId,
+  rootPackage: 'apps_examples',
+);
 
 /// The resolved const value of each top-level variable in [source].
 Future<Map<String, DartObject>> _constantsOf(
   String source, {
   Map<String, String> extras = const {},
-}) =>
-    resolveWorkspaceSources(
-      {...extras, _fixtureId: source},
-      (resolver) async {
-        final library = await resolver.libraryFor(AssetId.parse(_fixtureId));
-        return <String, DartObject>{
-          for (final variable in library.topLevelVariables)
-            if (variable.name case final name?)
-              if (variable.computeConstantValue() case final value?)
-                name: value,
-        };
-      },
-      resolverFor: _fixtureId,
-      rootPackage: 'apps_examples',
-    );
+}) => resolveWorkspaceSources(
+  {...extras, _fixtureId: source},
+  (resolver) async {
+    final library = await resolver.libraryFor(AssetId.parse(_fixtureId));
+    return <String, DartObject>{
+      for (final variable in library.topLevelVariables)
+        if (variable.name case final name?)
+          if (variable.computeConstantValue() case final value?) name: value,
+    };
+  },
+  resolverFor: _fixtureId,
+  rootPackage: 'apps_examples',
+);
 
 /// The resolved expression `x()` returns in [source].
 Future<Expression> _expressionOf(
   String source, {
   Map<String, String> extras = const {},
-}) =>
-    resolveWorkspaceSources(
-      {...extras, _fixtureId: source},
-      (resolver) async {
-        final library = await resolver.libraryFor(AssetId.parse(_fixtureId));
-        final resolved =
-            await library.session.getResolvedLibraryByElement(library);
-        if (resolved is! ResolvedLibraryResult) {
-          throw StateError('The expression fixture did not resolve.');
-        }
-        final function =
-            library.topLevelFunctions.firstWhere((each) => each.name == 'x');
-        final node =
-            resolved.getFragmentDeclaration(function.firstFragment)?.node;
-        if (node is! FunctionDeclaration) {
-          throw StateError('The expression fixture declares no `x()`.');
-        }
-        final body = node.functionExpression.body;
-        if (body is! ExpressionFunctionBody) {
-          throw StateError('`x()` must be expression-bodied.');
-        }
-        return body.expression;
-      },
-      resolverFor: _fixtureId,
-      rootPackage: 'apps_examples',
+}) => resolveWorkspaceSources(
+  {...extras, _fixtureId: source},
+  (resolver) async {
+    final library = await resolver.libraryFor(AssetId.parse(_fixtureId));
+    final resolved = await library.session.getResolvedLibraryByElement(library);
+    if (resolved is! ResolvedLibraryResult) {
+      throw StateError('The expression fixture did not resolve.');
+    }
+    final function = library.topLevelFunctions.firstWhere(
+      (each) => each.name == 'x',
     );
+    final node = resolved.getFragmentDeclaration(function.firstFragment)?.node;
+    if (node is! FunctionDeclaration) {
+      throw StateError('The expression fixture declares no `x()`.');
+    }
+    final body = node.functionExpression.body;
+    if (body is! ExpressionFunctionBody) {
+      throw StateError('`x()` must be expression-bodied.');
+    }
+    return body.expression;
+  },
+  resolverFor: _fixtureId,
+  rootPackage: 'apps_examples',
+);
 
 /// The translation of the expression `x()` returns in [source].
 Future<TranslationResult> _translationOf(
   String source, {
   Map<String, String> extras = const {},
-}) async =>
-    ExpressionTranslator(catalog: kEmptyCatalog, helpers: HelperRegistry())
-        .translate(await _expressionOf(source, extras: extras));
+}) async => ExpressionTranslator(
+  catalog: kEmptyCatalog,
+  helpers: HelperRegistry(),
+).translate(await _expressionOf(source, extras: extras));
 
 void main() {
   const textType = 'package:flutter/src/widgets/text.dart#Text';
@@ -343,15 +338,17 @@ void main() {
       expect(translation.dsl, isEmpty);
     });
 
-    test('the walk censuses what it can carry and passes the rest over',
-        () async {
-      // The walk derives an app's over-the-air headroom. A family-less icon
-      // is not part of that vocabulary, and app code that never reaches a
-      // delivered surface must not fail the whole build.
-      final references = await _referencesOf(familylessSource, kEmptyCatalog);
+    test(
+      'the walk censuses what it can carry and passes the rest over',
+      () async {
+        // The walk derives an app's over-the-air headroom. A family-less icon
+        // is not part of that vocabulary, and app code that never reaches a
+        // delivered surface must not fail the whole build.
+        final references = await _referencesOf(familylessSource, kEmptyCatalog);
 
-      expect(references.icons, isEmpty);
-    });
+        expect(references.icons, isEmpty);
+      },
+    );
   });
 
   group('icon capture', () {
@@ -553,34 +550,36 @@ void main() {
       );
     });
 
-    test('a union folds to one canonical set whichever side it starts',
-        () async {
-      final left = SurfaceVocabularyReferences(
-        widgetNames: const ['restage.core:Text'],
-        icons: const [
-          IconDataReference(
-            codePoint: 0xe156,
-            fontFamily: 'MaterialIcons',
-          ),
-        ],
-      );
-      final right = SurfaceVocabularyReferences(
-        widgetNames: const ['restage.material:Chip'],
-      );
+    test(
+      'a union folds to one canonical set whichever side it starts',
+      () async {
+        final left = SurfaceVocabularyReferences(
+          widgetNames: const ['restage.core:Text'],
+          icons: const [
+            IconDataReference(
+              codePoint: 0xe156,
+              fontFamily: 'MaterialIcons',
+            ),
+          ],
+        );
+        final right = SurfaceVocabularyReferences(
+          widgetNames: const ['restage.material:Chip'],
+        );
 
-      expect(
-        emitSurfaceVocabulary(left.union(right)),
-        emitSurfaceVocabulary(right.union(left)),
-      );
-      expect(
-        emitSurfaceVocabulary(left.union(right)),
-        contains("core: {'Text': buildText,}"),
-      );
-      expect(
-        emitSurfaceVocabulary(left.union(right)),
-        contains("material: {'Chip': buildChip,}"),
-      );
-    });
+        expect(
+          emitSurfaceVocabulary(left.union(right)),
+          emitSurfaceVocabulary(right.union(left)),
+        );
+        expect(
+          emitSurfaceVocabulary(left.union(right)),
+          contains("core: {'Text': buildText,}"),
+        );
+        expect(
+          emitSurfaceVocabulary(left.union(right)),
+          contains("material: {'Chip': buildChip,}"),
+        );
+      },
+    );
 
     test('one code point named twice folds to one entry', () {
       const check = IconDataReference(
@@ -659,8 +658,9 @@ void main() {
     });
 
     test('a union carries both halves', () {
-      final union = SurfaceVocabularyReferences(icons: const [bare])
-          .union(SurfaceVocabularyReferences(icons: const [mirrored]));
+      final union = SurfaceVocabularyReferences(
+        icons: const [bare],
+      ).union(SurfaceVocabularyReferences(icons: const [mirrored]));
 
       expect(union.icons['MaterialIcons']!.keys, [0xe156]);
       expect(union.mirroredIcons['MaterialIcons']!.keys, [0xe156]);
@@ -747,8 +747,9 @@ void main() {
 
     test('a union that disagrees on one code point fails too', () {
       expect(
-        () => SurfaceVocabularyReferences(icons: const [packaged])
-            .union(SurfaceVocabularyReferences(icons: const [bundled])),
+        () => SurfaceVocabularyReferences(
+          icons: const [packaged],
+        ).union(SurfaceVocabularyReferences(icons: const [bundled])),
         throwsA(isA<IconCodePointCollision>()),
       );
     });
@@ -766,8 +767,10 @@ void main() {
     ''';
 
     test('the walk carries both, one in each half', () async {
-      final references =
-          await _referencesOf(sharedCodePointPair, kEmptyCatalog);
+      final references = await _referencesOf(
+        sharedCodePointPair,
+        kEmptyCatalog,
+      );
 
       expect(
         references.icons['CupertinoIcons']![0xf3cf]!.matchTextDirection,

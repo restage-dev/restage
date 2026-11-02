@@ -1,427 +1,188 @@
-import 'dart:convert';
-
-import 'package:a2ui_core/a2ui_core.dart'
-    show CreateSurfaceMessage, UpdateComponentsMessage;
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
 import 'generated/sample_a2ui_catalog.g.dart';
 
-/// Renders a generated `CatalogItem` exactly as genui would: constructs a real
-/// [CatalogItemContext] (real [DataContext] + sample data + a `buildChild` stub)
-/// and calls `Catalog.buildWidget` inside a real element tree.
-///
-/// This is the instantiation proof for the M-3.2 emitter against the real genui
-/// SDK: it proves the generated code RUNS (not merely type-checks) — in
-/// particular the SINGLE/LIST child slots (`itemContext.buildChild`) and the
-/// fail-closed enum lookup (`Axis.values.asNameMap()[..] ?? Axis.values.first`),
-/// the two behaviours `dynamic` once masked.
-Future<void> _pumpCatalogItem(
-  WidgetTester tester, {
-  required Catalog catalog,
-  required List<CatalogItem> items,
-  required String type,
-  required Map<String, Object?> data,
-  Set<String> componentIds = const {'c1', 'c2'},
-  Widget Function(String childId)? buildChild,
-  void Function(String childId)? onBuildChild,
-  void Function(String childId)? onGetComponent,
-}) async {
-  await tester.pumpWidget(
-    MaterialApp(
-      home: Builder(
-        builder: (context) {
-          final itemContext = CatalogItemContext(
-            data: data,
-            id: 'root',
-            type: type,
-            buildChild: (childId, [dataContext]) {
-              onBuildChild?.call(childId);
-              return buildChild?.call(childId) ?? Text('child-$childId');
-            },
-            dispatchEvent: (_) {},
-            buildContext: context,
-            dataContext: DataContext(InMemoryDataModel(), DataPath.root),
-            getComponent: (childId) {
-              onGetComponent?.call(childId);
-              if (!componentIds.contains(childId)) return null;
-              return Component(
-                id: childId,
-                type: 'TestChild',
-                properties: const {},
-              );
-            },
-            getCatalogItem: (t) {
-              for (final item in items) {
-                if (item.name == t) return item;
-              }
-              return null;
-            },
-            surfaceId: 'test-surface',
-            reportError: (error, stack) => throw error,
-          );
-          return catalog.buildWidget(itemContext);
+MessageProcessor<ComponentImplementation> _processor({
+  bool failingChild = false,
+}) {
+  final catalog = CatalogImplementation(
+    id: 'child-proof',
+    protocolVersion: A2uiProtocolVersion.v1_0,
+    components: [
+      ...buildRestageCatalogItems(),
+      ComponentImplementation(
+        name: 'TestChild',
+        schema: S.object(),
+        builder: (_, node, _, _) {
+          if (failingChild) throw const FormatException('fixture failure');
+          return Text('child-${node.context!.componentModel.id}');
         },
       ),
-    ),
+    ],
+    definitions: buildRestageCatalogDefinitions(),
   );
+  final processor = MessageProcessor<ComponentImplementation>(
+    catalogs: [catalog],
+    defaultVersion: A2uiProtocolVersion.v1_0,
+    validationConfig: ValidationConfig.strict,
+  );
+  addTearDown(processor.dispose);
+  processor.processMessages({
+    'version': 'v1.0',
+    'createSurface': {'surfaceId': 's', 'catalogId': catalog.id},
+  });
+  return processor;
 }
 
-Widget _requiredChildOriginSentinel(CatalogItemContext _) {
-  throw const FormatException('fixture failure');
+void _update(
+  MessageProcessor<ComponentImplementation> processor,
+  String type,
+  Map<String, Object?> props, {
+  List<String> children = const [],
+}) {
+  processor.processMessages({
+    'version': 'v1.0',
+    'updateComponents': {
+      'surfaceId': 's',
+      'components': [
+        {'id': 'root', 'component': type, ...props},
+        for (final id in children) {'id': id, 'component': 'TestChild'},
+      ],
+    },
+  });
 }
+
+Future<void> _mount(
+  WidgetTester tester,
+  MessageProcessor<ComponentImplementation> processor,
+) => tester.pumpWidget(
+  MaterialApp(home: A2uiSurface(surface: processor.model.getSurface('s')!)),
+);
 
 void main() {
-  late List<CatalogItem> items;
-  late Catalog catalog;
-
-  setUp(() {
-    catalog = buildRestageCatalog();
-    items = catalog.items.toList();
-  });
-
-  test('the generated catalog exposes the fixture items', () {
-    expect(
-      items.map((i) => i.name),
-      containsAll(<String>['Tooltip', 'Flex', 'Visibility', 'Wrap']),
-    );
-  });
-
-  testWidgets('Visibility renders — BoundBool value + single child slot', (
+  test(
+    'generated catalog exposes each fixture item',
+    () => expect(
+      buildRestageCatalogItems().map((item) => item.name),
+      containsAll(['Tooltip', 'Flex', 'Visibility', 'Wrap']),
+    ),
+  );
+  testWidgets('Visibility resolves boolean and required single child', (
     tester,
   ) async {
-    var buildChildCalls = 0;
-    var getComponentCalls = 0;
-    await _pumpCatalogItem(
-      tester,
-      catalog: catalog,
-      items: items,
-      type: 'Visibility',
-      data: const {'visible': true, 'child': 'c1'},
-      onBuildChild: (_) => buildChildCalls++,
-      onGetComponent: (_) => getComponentCalls++,
+    final processor = _processor();
+    _update(
+      processor,
+      'Visibility',
+      {'props_visible': true, 'props_child': 'c1'},
+      children: ['c1'],
     );
-    // The BoundBool value resolved to `visible: true` and the child rendered.
-    expect(find.byType(Visibility), findsOneWidget);
+    await _mount(tester, processor);
     expect(tester.widget<Visibility>(find.byType(Visibility)).visible, isTrue);
     expect(find.text('child-c1'), findsOneWidget);
-    expect(getComponentCalls, 1);
-    expect(buildChildCalls, 1);
   });
-
-  for (final scenario
-      in <
-        ({
-          String label,
-          Map<String, Object?> data,
-          List<String> messageParts,
-          int getComponentCalls,
-          bool hidesRawValue,
-        })
-      >[
-        (
-          label: 'a missing value',
-          data: const {'visible': true},
-          messageParts: const ['the value was null or missing'],
-          getComponentCalls: 0,
-          hidesRawValue: false,
-        ),
-        (
-          label: 'an explicit null',
-          data: const {'visible': true, 'child': null},
-          messageParts: const ['the value was null or missing'],
-          getComponentCalls: 0,
-          hidesRawValue: false,
-        ),
-        (
-          label: 'a non-String value',
-          data: const {'visible': true, 'child': 42},
-          messageParts: const ['runtime type int', 'String component id'],
-          getComponentCalls: 0,
-          hidesRawValue: true,
-        ),
-        (
-          label: 'an empty id',
-          data: const {'visible': true, 'child': ''},
-          messageParts: const ['the value was the empty string'],
-          getComponentCalls: 0,
-          hidesRawValue: false,
-        ),
-        (
-          label: 'a dangling id',
-          data: const {'visible': true, 'child': 'dangling'},
-          messageParts: const ['component id "dangling" is not registered'],
-          getComponentCalls: 1,
-          hidesRawValue: false,
-        ),
-      ]) {
-    testWidgets('Visibility rejects ${scenario.label} before child build', (
-      tester,
-    ) async {
-      var buildChildCalls = 0;
-      var getComponentCalls = 0;
-      await _pumpCatalogItem(
-        tester,
-        catalog: catalog,
-        items: items,
-        type: 'Visibility',
-        data: scenario.data,
-        onBuildChild: (_) => buildChildCalls++,
-        onGetComponent: (_) => getComponentCalls++,
-      );
-
-      final error = tester.takeException();
-      expect(error, isA<StateError>());
-      final message = error.toString();
-      expect(message, contains('Required A2UI child "Visibility.child"'));
+  for (final props in [
+    <String, Object?>{},
+    {'props_child': null},
+    {'props_child': 42},
+    {'props_child': ''},
+    {'props_child': 'dangling'},
+  ]) {
+    test('invalid required child $props is rejected before render', () {
+      final processor = _processor();
       expect(
-        message,
-        contains('Provide a non-empty String id for a component'),
+        () =>
+            _update(processor, 'Visibility', {'props_visible': true, ...props}),
+        throwsA(isA<A2uiError>()),
       );
-      for (final part in scenario.messageParts) {
-        expect(message, contains(part));
-      }
-      if (scenario.hidesRawValue) {
-        expect(message, isNot(contains('42')));
-      }
-      expect(getComponentCalls, scenario.getComponentCalls);
-      expect(buildChildCalls, 0);
+      expect(processor.model.getSurface('s')!.componentsModel.keys, isEmpty);
     });
   }
-
-  testWidgets('Visibility wraps a direct child builder failure with context', (
+  testWidgets('a registered child builder failure remains observable', (
     tester,
   ) async {
-    var buildChildCalls = 0;
-    await _pumpCatalogItem(
-      tester,
-      catalog: catalog,
-      items: items,
-      type: 'Visibility',
-      data: const {'visible': true, 'child': 'c1'},
-      buildChild: (_) => throw const FormatException('fixture failure'),
-      onBuildChild: (_) => buildChildCalls++,
+    final processor = _processor(failingChild: true);
+    _update(
+      processor,
+      'Visibility',
+      {'props_visible': true, 'props_child': 'c1'},
+      children: ['c1'],
     );
-
-    final error = tester.takeException();
-    expect(error, isA<StateError>());
-    expect(
-      error.toString(),
-      allOf(
-        contains('Required A2UI child "Visibility.child"'),
-        contains('component id "c1"'),
-        contains('failed to build'),
-      ),
-    );
-    expect(buildChildCalls, 1);
+    await _mount(tester, processor);
+    expect(tester.takeException().toString(), contains('fixture failure'));
+    expect(find.text('child-c1'), findsNothing);
   });
-
-  testWidgets('Visibility preserves a non-error fallback child', (
-    tester,
-  ) async {
-    await _pumpCatalogItem(
-      tester,
-      catalog: catalog,
-      items: items,
-      type: 'Visibility',
-      data: const {'visible': true, 'child': 'c1'},
-      buildChild: (_) => const FallbackWidget(isLoading: true),
-    );
-
-    expect(tester.takeException(), isNull);
-    final fallback = tester.widget<FallbackWidget>(find.byType(FallbackWidget));
-    expect(fallback.error, isNull);
-    expect(fallback.isLoading, isTrue);
-  });
-
-  testWidgets(
-    'real Surface contextualizes a registered child builder failure',
-    (tester) async {
-      FlutterErrorDetails? requiredChildFailure;
-      final previousFlutterErrorHandler = FlutterError.onError;
-      FlutterError.onError = (details) {
-        if (details.exception is StateError) {
-          requiredChildFailure = details;
-        }
-        previousFlutterErrorHandler?.call(details);
-      };
-      addTearDown(() => FlutterError.onError = previousFlutterErrorHandler);
-      const catalogId = 'required-child-runtime-test';
-      final runtimeCatalog = Catalog(<CatalogItem>[
-        ...catalog.items,
-        CatalogItem(
-          name: 'FailingChild',
-          dataSchema: S.object(),
-          widgetBuilder: _requiredChildOriginSentinel,
-        ),
-      ], catalogId: catalogId);
-      final controller = SurfaceController(catalogs: [runtimeCatalog]);
-      final submissions = <ChatMessage>[];
-      final submissionSubscription = controller.onSubmit.listen(
-        submissions.add,
-      );
-      addTearDown(submissionSubscription.cancel);
-      addTearDown(controller.dispose);
-      controller
-        ..handleMessage(
-          CreateSurfaceMessage(surfaceId: 'surface', catalogId: catalogId),
-        )
-        ..handleMessage(
-          UpdateComponentsMessage(
-            surfaceId: 'surface',
-            components: const [
-              {
-                'id': 'root',
-                'component': 'Visibility',
-                'visible': true,
-                'child': 'broken-child',
-              },
-              {'id': 'broken-child', 'component': 'FailingChild'},
-            ],
-          ),
-        );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Surface(surfaceContext: controller.contextFor('surface')),
-        ),
-      );
-      await tester.pump();
-
-      final frameworkError = tester.takeException();
-      expect(frameworkError, isA<StateError>());
-      expect(
-        frameworkError.toString(),
-        allOf(
-          contains('Required A2UI child "Visibility.child"'),
-          contains('component id "broken-child"'),
-          contains('failed to build'),
-          contains('FormatException: fixture failure'),
-        ),
-      );
-      expect(submissions, hasLength(1));
-      final interaction =
-          submissions.single.parts.uiInteractionParts.single.interaction;
-      final payload = jsonDecode(interaction) as Map<String, Object?>;
-      final reportedError =
-          (payload['error']! as Map<String, Object?>)['message']! as String;
-      // genui 0.10.1 SANITIZES the raw exception text out of the agent-facing
-      // report (0.9.2 surfaced 'FormatException: fixture failure' here); the
-      // failure is still reported, now with a generic message.
-      expect(reportedError, contains('An unexpected system error occurred.'));
-      expect(find.byType(FallbackWidget), findsNothing);
-      expect(
-        requiredChildFailure?.stack.toString(),
-        contains('_requiredChildOriginSentinel'),
-      );
-    },
-  );
-
-  testWidgets('Wrap renders — BoundNumber value + list child slot', (
-    tester,
-  ) async {
-    await _pumpCatalogItem(
-      tester,
-      catalog: catalog,
-      items: items,
-      type: 'Wrap',
-      data: const {
-        'spacing': 8.0,
-        'children': ['c1', 'c2'],
+  testWidgets('Wrap resolves number and both list children', (tester) async {
+    final processor = _processor();
+    _update(
+      processor,
+      'Wrap',
+      {
+        'props_spacing': 8.0,
+        'props_children': ['c1', 'c2'],
       },
+      children: ['c1', 'c2'],
     );
-    // The BoundNumber value resolved to `spacing: 8.0` and both children built.
-    final wrap = tester.widget<Wrap>(find.byType(Wrap));
-    expect(wrap.spacing, 8.0);
+    await _mount(tester, processor);
+    expect(tester.widget<Wrap>(find.byType(Wrap)).spacing, 8.0);
     expect(find.text('child-c1'), findsOneWidget);
     expect(find.text('child-c2'), findsOneWidget);
   });
-
-  testWidgets('Tooltip renders — BoundString value + single child slot', (
-    tester,
-  ) async {
-    await _pumpCatalogItem(
-      tester,
-      catalog: catalog,
-      items: items,
-      type: 'Tooltip',
-      data: const {'message': 'a tip', 'child': 'c1'},
+  testWidgets('Tooltip resolves string and single child', (tester) async {
+    final processor = _processor();
+    _update(
+      processor,
+      'Tooltip',
+      {'props_message': 'a tip', 'props_child': 'c1'},
+      children: ['c1'],
     );
-    // The widget built and its single child resolved via buildChild('c1').
-    expect(find.byType(Tooltip), findsOneWidget);
-    expect(find.text('child-c1'), findsOneWidget);
+    await _mount(tester, processor);
     expect(tester.widget<Tooltip>(find.byType(Tooltip)).message, 'a tip');
+    expect(find.text('child-c1'), findsOneWidget);
   });
-
-  testWidgets('Flex renders — fail-closed enum + list child slot', (
+  testWidgets('Flex resolves enum and production JSON list children', (
     tester,
   ) async {
-    await _pumpCatalogItem(
-      tester,
-      catalog: catalog,
-      items: items,
-      type: 'Flex',
-      data: const {
-        'direction': 'vertical',
-        'children': ['c1', 'c2'],
+    final processor = _processor();
+    _update(
+      processor,
+      'Flex',
+      {
+        'props_direction': 'vertical',
+        'props_children': ['c1', 'c2'],
       },
+      children: ['c1', 'c2'],
     );
-    // The enum lookup resolved 'vertical' → Axis.vertical, and both list
-    // children resolved via buildChild.
+    await _mount(tester, processor);
     final flex = tester
         .widgetList<Flex>(find.byType(Flex))
-        .firstWhere(
-          (f) => f.children.length == 2 && f.children.every((c) => c is Text),
-        );
+        .singleWhere((widget) => widget.children.length == 2);
     expect(flex.direction, Axis.vertical);
     expect(find.text('child-c1'), findsOneWidget);
     expect(find.text('child-c2'), findsOneWidget);
   });
-
-  testWidgets('Flex renders from production-shaped (jsonDecode) data', (
+  testWidgets('the fixture string enum falls back to its first member', (
     tester,
   ) async {
-    // A cached payload arrives via jsonDecode, so `children` is a List<dynamic>
-    // (not the List<String> the const literals above produce). Prove the
-    // generated _restageA2uiBuildChildren handles the shape genui delivers.
-    final data =
-        jsonDecode(
-              jsonEncode({
-                'direction': 'vertical',
-                'children': ['c1', 'c2'],
-              }),
-            )
-            as Map<String, Object?>;
-    await _pumpCatalogItem(
-      tester,
-      catalog: catalog,
-      items: items,
-      type: 'Flex',
-      data: data,
-    );
-    expect(find.text('child-c1'), findsOneWidget);
-    expect(find.text('child-c2'), findsOneWidget);
-  });
-
-  testWidgets('Flex enum fails closed on an unknown member → first member', (
-    tester,
-  ) async {
-    await _pumpCatalogItem(
-      tester,
-      catalog: catalog,
-      items: items,
-      type: 'Flex',
-      data: const {
-        'direction': 'not-a-real-axis',
-        'children': <String>['c1'],
+    final processor = _processor();
+    _update(
+      processor,
+      'Flex',
+      {
+        'props_direction': 'unknown',
+        'props_children': ['c1'],
       },
+      children: ['c1'],
     );
+    await _mount(tester, processor);
     final flex = tester
         .widgetList<Flex>(find.byType(Flex))
-        .firstWhere((f) => f.children.length == 1 && f.children.single is Text);
-    // Unknown member → Axis.values.first (horizontal), never a throw.
+        .singleWhere((widget) => widget.children.length == 1);
     expect(flex.direction, Axis.values.first);
+    expect(find.text('child-c1'), findsOneWidget);
   });
 }

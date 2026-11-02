@@ -171,29 +171,38 @@ void main() {
       final source = emitFactoryFunction(entry);
       expect(source, isNotNull);
       expect(
-          source,
-          contains(
-              'source = RestageValueBinding.dataSource(source, context);'));
-      expect(
-          source,
-          contains(
-              "RestageValueBinding.read<bool>(source, const <Object>['flag'], context)"));
-      expect(
-          source,
-          contains(
-              "RestageValueBinding.read<int>(source, const <Object>['count'], context)"));
-      expect(
-          source,
-          contains(
-              "RestageValueBinding.read<double>(source, const <Object>['ratio'], context)"));
-      expect(
-          source,
-          contains(
-              "RestageValueBinding.read<double>(source, const <Object>['size'], context)"));
+        source,
+        contains('source = RestageValueBinding.dataSource(source, context);'),
+      );
       expect(
         source,
         contains(
-            "RestageDecoders.string(source, <Object>['label'], context: context)"),
+          "RestageValueBinding.read<bool>(source, const <Object>['flag'], context)",
+        ),
+      );
+      expect(
+        source,
+        contains(
+          "RestageValueBinding.read<int>(source, const <Object>['count'], context)",
+        ),
+      );
+      expect(
+        source,
+        contains(
+          "RestageValueBinding.read<double>(source, const <Object>['ratio'], context)",
+        ),
+      );
+      expect(
+        source,
+        contains(
+          "RestageValueBinding.read<double>(source, const <Object>['size'], context)",
+        ),
+      );
+      expect(
+        source,
+        contains(
+          "RestageDecoders.string(source, <Object>['label'], context: context)",
+        ),
       );
       expect(
         source,
@@ -234,8 +243,7 @@ void main() {
       );
     });
 
-    test('a string-list slot decodes through the fail-safe stringList decoder',
-        () {
+    test('a string-list slot decodes through the fail-safe stringList decoder', () {
       // A `stringList` slot lowers to the tolerant `RestageDecoders.stringList`
       // — a present-but-degenerate list (a non-string element on a corrupt /
       // tamper wire) DROPS the bad element rather than throwing and crashing
@@ -299,7 +307,8 @@ void main() {
       expect(
         source,
         contains(
-            "RestageDecoders.string(source, <Object>['label'], context: context)"),
+          "RestageDecoders.string(source, <Object>['label'], context: context)",
+        ),
       );
       expect(source, isNot(contains('analyticsId:')));
       expect(source, isNot(contains("['analyticsId']")));
@@ -382,8 +391,7 @@ void main() {
       );
     });
 
-    test(
-        'a shapeBorder property without a default is not special-cased '
+    test('a shapeBorder property without a default is not special-cased '
         'by name', () {
       const entry = WidgetEntry(
         wireId: WireId.unallocatedWidget,
@@ -524,8 +532,7 @@ void main() {
       );
     });
 
-    test('emits a non-canonical list slot alongside the canonical children',
-        () {
+    test('emits a non-canonical list slot alongside the canonical children', () {
       // A curated entry may carry a second widget list under its own name.
       // The nullable no-default shape keeps an absent slot null rather than
       // collapsing it to an empty list; the canonical slot reads directly.
@@ -573,8 +580,7 @@ void main() {
       );
     });
 
-    test('a required non-canonical list slot reads the child list directly',
-        () {
+    test('a required non-canonical list slot reads the child list directly', () {
       const entry = WidgetEntry(
         wireId: WireId.unallocatedWidget,
         name: 'RequiredBarLike',
@@ -605,8 +611,7 @@ void main() {
       expect(source, isNot(contains('isList')));
     });
 
-    test(
-        'emits entries with non-canonical widget properties '
+    test('emits entries with non-canonical widget properties '
         '(Scaffold-shaped: childrenSlot.none + body/appBar widgets)', () {
       // body emits as a plain `optionalChild` slot; appBar carries
       // `widgetType: 'PreferredSizeWidget'` so it routes through the
@@ -652,8 +657,7 @@ void main() {
       );
     });
 
-    test(
-        'emits entries with extra widget properties beyond the canonical '
+    test('emits entries with extra widget properties beyond the canonical '
         "child (CupertinoPageScaffold-shaped: 'child' + 'navigationBar')", () {
       // The canonical 'child' slot still emits last (per
       // sort_child_properties_last); 'navigationBar' joins the
@@ -700,35 +704,36 @@ void main() {
     });
 
     test(
-        'skips ChildrenSlot.single entries lacking a canonical child '
-        'property (single slot whose widget property is not named `child`)',
-        () {
-      // Catalog convention: the canonical child slot is always named
-      // `child`. A `ChildrenSlot.single` entry whose widget property
-      // is named differently (e.g. `home`) doesn't match Flutter's
-      // ctor param shape and isn't safe for the mechanical emitter.
-      // (Forward guard — the live MaterialApp entry uses
-      // `ChildrenSlot.none`; no current built-in entry trips this
-      // particular path.)
-      const entry = WidgetEntry(
-        wireId: WireId.unallocatedWidget,
-        name: 'NonCanonicalSingle',
-        library: WidgetLibrary.material,
-        category: WidgetCategory.layout,
-        description: '',
-        flutterType: 'package:test_pkg/w.dart#NonCanonicalSingle',
-        childrenSlot: ChildrenSlot.single,
-        properties: [
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'home',
-            type: PropertyType.widget,
-            description: '',
-          ),
-        ],
-      );
-      expect(emitFactoryFunction(entry), isNull);
-    });
+      'skips ChildrenSlot.single entries lacking a canonical child '
+      'property (single slot whose widget property is not named `child`)',
+      () {
+        // Catalog convention: the canonical child slot is always named
+        // `child`. A `ChildrenSlot.single` entry whose widget property
+        // is named differently (e.g. `home`) doesn't match Flutter's
+        // ctor param shape and isn't safe for the mechanical emitter.
+        // (Forward guard — the live MaterialApp entry uses
+        // `ChildrenSlot.none`; no current built-in entry trips this
+        // particular path.)
+        const entry = WidgetEntry(
+          wireId: WireId.unallocatedWidget,
+          name: 'NonCanonicalSingle',
+          library: WidgetLibrary.material,
+          category: WidgetCategory.layout,
+          description: '',
+          flutterType: 'package:test_pkg/w.dart#NonCanonicalSingle',
+          childrenSlot: ChildrenSlot.single,
+          properties: [
+            PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'home',
+              type: PropertyType.widget,
+              description: '',
+            ),
+          ],
+        );
+        expect(emitFactoryFunction(entry), isNull);
+      },
+    );
 
     test('emits source.voidHandler for an onPressed event', () {
       const entry = WidgetEntry(
@@ -1685,9 +1690,11 @@ void main() {
         final source = emitFactoryFunction(entry);
         expect(source, isNotNull);
         final positionalIndex = source!.indexOf(
-            "RestageDecoders.string(source, <Object>['src'], context: context) ??");
+          "RestageDecoders.string(source, <Object>['src'], context: context) ??",
+        );
         final namedIndex = source.indexOf(
-            "extent: RestageValueBinding.read<double>(source, const <Object>['extent'], context)");
+          "extent: RestageValueBinding.read<double>(source, const <Object>['extent'], context)",
+        );
         expect(positionalIndex, greaterThanOrEqualTo(0));
         expect(namedIndex, greaterThan(positionalIndex));
       },
@@ -1825,8 +1832,7 @@ void main() {
       },
     );
 
-    test(
-        'renders string defaultValue on alignment as '
+    test('renders string defaultValue on alignment as '
         'AlignmentDirectional.<value>', () {
       const entry = WidgetEntry(
         wireId: WireId.unallocatedWidget,
@@ -1851,8 +1857,7 @@ void main() {
       expect(source, contains('?? AlignmentDirectional.topStart'));
     });
 
-    test(
-        'renders string defaultValue on alignmentXY as '
+    test('renders string defaultValue on alignmentXY as '
         'Alignment.<value>', () {
       const entry = WidgetEntry(
         wireId: WireId.unallocatedWidget,
@@ -2494,7 +2499,8 @@ void main() {
       expect(
         source,
         contains(
-            "RestageDecoders.string(source, <Object>['url'], context: context)"),
+          "RestageDecoders.string(source, <Object>['url'], context: context)",
+        ),
       );
     });
 
@@ -2559,8 +2565,7 @@ void main() {
       );
     });
 
-    test(
-        'required: false scalar without a defaultValue does NOT inject a '
+    test('required: false scalar without a defaultValue does NOT inject a '
         'zero fallback (the optional Flutter param accepts null)', () {
       const entry = WidgetEntry(
         wireId: WireId.unallocatedWidget,
@@ -2584,7 +2589,8 @@ void main() {
       expect(
         source,
         contains(
-            "RestageDecoders.string(source, <Object>['label'], context: context)"),
+          "RestageDecoders.string(source, <Object>['label'], context: context)",
+        ),
       );
       expect(source, isNot(contains('?? ')));
     });
@@ -2653,8 +2659,7 @@ void main() {
   });
 
   group('theme-binding defaults', () {
-    test(
-        'emits a runtime-resolver call as the ?? fallback for a '
+    test('emits a runtime-resolver call as the ?? fallback for a '
         'ThemeBindingDefault color property', () {
       // A `color`-typed property whose default resolves against the
       // active Flutter theme at render time. The emitter routes the
@@ -2692,8 +2697,7 @@ void main() {
       );
     });
 
-    test(
-        'a FlutterCtorDefault property with no legacy defaultValue emits '
+    test('a FlutterCtorDefault property with no legacy defaultValue emits '
         'no ?? fallback', () {
       // `FlutterCtorDefault` explicitly delegates to Flutter's own ctor
       // default — codegen omits the `??` fallback entirely so the
@@ -2995,8 +2999,7 @@ void main() {
         );
       });
 
-      test(
-          'constructVariant nestedTransform that is not a constructVariant '
+      test('constructVariant nestedTransform that is not a constructVariant '
           'fails with a diagnostic naming the actual transform kind', () {
         // A NestedTransformArgumentBinding whose nested transform is an
         // IdentityTransform (not the constructVariant the emitter requires)
@@ -3272,8 +3275,9 @@ void main() {
                     name: 'fontSize',
                     type: PropertyType.length,
                     description: '',
-                    valueShape:
-                        const ScalarShape(propertyType: PropertyType.length),
+                    valueShape: const ScalarShape(
+                      propertyType: PropertyType.length,
+                    ),
                   ),
                 ],
                 variants: [
@@ -3536,8 +3540,9 @@ void main() {
               name: 'padding',
               type: PropertyType.edgeInsets,
               description: '',
-              valueShape:
-                  const ScalarShape(propertyType: PropertyType.edgeInsets),
+              valueShape: const ScalarShape(
+                propertyType: PropertyType.edgeInsets,
+              ),
             ),
           ],
           decomposes: [
@@ -4019,16 +4024,18 @@ void main() {
                 name: 'inherit',
                 type: PropertyType.boolean,
                 description: '',
-                valueShape:
-                    const ScalarShape(propertyType: PropertyType.boolean),
+                valueShape: const ScalarShape(
+                  propertyType: PropertyType.boolean,
+                ),
               ),
               PropertyEntry(
                 wireId: fontPackageProp,
                 name: 'fontPackage',
                 type: PropertyType.string,
                 description: '',
-                valueShape:
-                    const ScalarShape(propertyType: PropertyType.string),
+                valueShape: const ScalarShape(
+                  propertyType: PropertyType.string,
+                ),
               ),
             ],
             decomposes: [
@@ -4143,89 +4150,86 @@ StructuredEntry _textStyleStructured({
   WireId? packageParam,
   bool includeColorArgMapping = true,
   bool includeColorParameter = true,
-}) =>
-    StructuredEntry(
-      wireId: textStyleRef.wireId,
-      name: 'TextStyle',
-      library: WidgetLibrary.fromNamespace(textStyleRef.library),
+}) => StructuredEntry(
+  wireId: textStyleRef.wireId,
+  name: 'TextStyle',
+  library: WidgetLibrary.fromNamespace(textStyleRef.library),
+  description: '',
+  sourceType: 'package:flutter/painting.dart#TextStyle',
+  fields: [
+    if (fontSizeField != null)
+      StructuredField(
+        wireId: fontSizeField,
+        name: 'fontSize',
+        type: PropertyType.length,
+        description: '',
+        valueShape: const ScalarShape(propertyType: PropertyType.length),
+      ),
+    if (inheritField != null)
+      StructuredField(
+        wireId: inheritField,
+        name: 'inherit',
+        type: PropertyType.boolean,
+        description: '',
+        valueShape: const ScalarShape(propertyType: PropertyType.boolean),
+      ),
+    StructuredField(
+      wireId: colorField,
+      name: 'color',
+      type: PropertyType.color,
       description: '',
-      sourceType: 'package:flutter/painting.dart#TextStyle',
-      fields: [
+      valueShape: const ScalarShape(propertyType: PropertyType.color),
+    ),
+  ],
+  variants: [
+    ConstructorVariant(
+      wireId: textStyleCtorRef.wireId,
+      argMappings: {
         if (fontSizeField != null)
-          StructuredField(
-            wireId: fontSizeField,
-            name: 'fontSize',
-            type: PropertyType.length,
-            description: '',
-            valueShape: const ScalarShape(propertyType: PropertyType.length),
-          ),
+          'fontSize': ArgMapping(targetFields: [fontSizeField]),
         if (inheritField != null)
-          StructuredField(
-            wireId: inheritField,
+          'inherit': ArgMapping(targetFields: [inheritField]),
+        if (includeColorArgMapping)
+          'color': ArgMapping(targetFields: [colorField]),
+      },
+      parameters: [
+        if (fontSizeField != null)
+          _namedParam(
+            wireId: WireId('a0001'),
+            name: 'fontSize',
+            propertyType: PropertyType.length,
+          ),
+        if (inheritParam != null)
+          FactoryParameter(
+            wireId: inheritParam,
             name: 'inherit',
-            type: PropertyType.boolean,
-            description: '',
+            kind: FactoryParameterKind.named,
+            required: false,
+            nullable: false,
+            defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
+            defaultValue: const LiteralParameterDefault(true),
             valueShape: const ScalarShape(propertyType: PropertyType.boolean),
           ),
-        StructuredField(
-          wireId: colorField,
-          name: 'color',
-          type: PropertyType.color,
-          description: '',
-          valueShape: const ScalarShape(propertyType: PropertyType.color),
-        ),
+        if (packageParam != null)
+          FactoryParameter(
+            wireId: packageParam,
+            name: 'package',
+            kind: FactoryParameterKind.named,
+            required: false,
+            nullable: true,
+            defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
+            valueShape: const ScalarShape(propertyType: PropertyType.string),
+          ),
+        if (includeColorParameter)
+          _namedParam(
+            wireId: WireId('a0002'),
+            name: 'color',
+            propertyType: PropertyType.color,
+          ),
       ],
-      variants: [
-        ConstructorVariant(
-          wireId: textStyleCtorRef.wireId,
-          argMappings: {
-            if (fontSizeField != null)
-              'fontSize': ArgMapping(targetFields: [fontSizeField]),
-            if (inheritField != null)
-              'inherit': ArgMapping(targetFields: [inheritField]),
-            if (includeColorArgMapping)
-              'color': ArgMapping(targetFields: [colorField]),
-          },
-          parameters: [
-            if (fontSizeField != null)
-              _namedParam(
-                wireId: WireId('a0001'),
-                name: 'fontSize',
-                propertyType: PropertyType.length,
-              ),
-            if (inheritParam != null)
-              FactoryParameter(
-                wireId: inheritParam,
-                name: 'inherit',
-                kind: FactoryParameterKind.named,
-                required: false,
-                nullable: false,
-                defaultPolicy: FactoryParameterDefaultPolicy.useFlutterDefault,
-                defaultValue: const LiteralParameterDefault(true),
-                valueShape:
-                    const ScalarShape(propertyType: PropertyType.boolean),
-              ),
-            if (packageParam != null)
-              FactoryParameter(
-                wireId: packageParam,
-                name: 'package',
-                kind: FactoryParameterKind.named,
-                required: false,
-                nullable: true,
-                defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
-                valueShape:
-                    const ScalarShape(propertyType: PropertyType.string),
-              ),
-            if (includeColorParameter)
-              _namedParam(
-                wireId: WireId('a0002'),
-                name: 'color',
-                propertyType: PropertyType.color,
-              ),
-          ],
-        ),
-      ],
-    );
+    ),
+  ],
+);
 
 StructuredEntry _buttonStyleStructured({
   required WireIdRef buttonStyleRef,
@@ -4234,71 +4238,71 @@ StructuredEntry _buttonStyleStructured({
   required WireId paddingField,
   WireId? shapeField,
   CatalogValueShape? shapeValueShape,
-}) =>
-    StructuredEntry(
-      wireId: buttonStyleRef.wireId,
-      name: 'ButtonStyle',
-      library: WidgetLibrary.fromNamespace(buttonStyleRef.library),
+}) => StructuredEntry(
+  wireId: buttonStyleRef.wireId,
+  name: 'ButtonStyle',
+  library: WidgetLibrary.fromNamespace(buttonStyleRef.library),
+  description: '',
+  sourceType: 'package:flutter/material.dart#ButtonStyle',
+  fields: [
+    StructuredField(
+      wireId: backgroundColorField,
+      name: 'backgroundColor',
+      type: PropertyType.color,
       description: '',
-      sourceType: 'package:flutter/material.dart#ButtonStyle',
-      fields: [
-        StructuredField(
-          wireId: backgroundColorField,
+      valueShape: const ScalarShape(propertyType: PropertyType.color),
+    ),
+    StructuredField(
+      wireId: paddingField,
+      name: 'padding',
+      type: PropertyType.edgeInsets,
+      description: '',
+      valueShape: const ScalarShape(propertyType: PropertyType.edgeInsets),
+    ),
+    if (shapeField != null)
+      StructuredField(
+        wireId: shapeField,
+        name: 'shape',
+        type: PropertyType.shapeBorder,
+        description: '',
+        valueShape:
+            shapeValueShape ??
+            const ScalarShape(propertyType: PropertyType.shapeBorder),
+      ),
+  ],
+  variants: [
+    StaticMethodVariant(
+      wireId: styleFromRef.wireId,
+      staticAccessor: 'styleFrom',
+      argMappings: {
+        'backgroundColor': ArgMapping(targetFields: [backgroundColorField]),
+        'padding': ArgMapping(targetFields: [paddingField]),
+        if (shapeField != null) 'shape': ArgMapping(targetFields: [shapeField]),
+      },
+      parameters: [
+        _namedParam(
+          wireId: WireId('a0003'),
           name: 'backgroundColor',
-          type: PropertyType.color,
-          description: '',
-          valueShape: const ScalarShape(propertyType: PropertyType.color),
+          propertyType: PropertyType.color,
         ),
-        StructuredField(
-          wireId: paddingField,
+        _namedParam(
+          wireId: WireId('a0004'),
           name: 'padding',
-          type: PropertyType.edgeInsets,
-          description: '',
-          valueShape: const ScalarShape(propertyType: PropertyType.edgeInsets),
+          propertyType: PropertyType.edgeInsets,
         ),
         if (shapeField != null)
-          StructuredField(
-            wireId: shapeField,
+          _namedParam(
+            wireId: WireId('a0005'),
             name: 'shape',
-            type: PropertyType.shapeBorder,
-            description: '',
-            valueShape: shapeValueShape ??
+            propertyType: PropertyType.shapeBorder,
+            valueShape:
+                shapeValueShape ??
                 const ScalarShape(propertyType: PropertyType.shapeBorder),
           ),
       ],
-      variants: [
-        StaticMethodVariant(
-          wireId: styleFromRef.wireId,
-          staticAccessor: 'styleFrom',
-          argMappings: {
-            'backgroundColor': ArgMapping(targetFields: [backgroundColorField]),
-            'padding': ArgMapping(targetFields: [paddingField]),
-            if (shapeField != null)
-              'shape': ArgMapping(targetFields: [shapeField]),
-          },
-          parameters: [
-            _namedParam(
-              wireId: WireId('a0003'),
-              name: 'backgroundColor',
-              propertyType: PropertyType.color,
-            ),
-            _namedParam(
-              wireId: WireId('a0004'),
-              name: 'padding',
-              propertyType: PropertyType.edgeInsets,
-            ),
-            if (shapeField != null)
-              _namedParam(
-                wireId: WireId('a0005'),
-                name: 'shape',
-                propertyType: PropertyType.shapeBorder,
-                valueShape: shapeValueShape ??
-                    const ScalarShape(propertyType: PropertyType.shapeBorder),
-              ),
-          ],
-        ),
-      ],
-    );
+    ),
+  ],
+);
 
 StructuredEntry _boxDecorationStructured({
   required WireIdRef boxRef,
@@ -4312,30 +4316,100 @@ StructuredEntry _boxDecorationStructured({
   required WireId borderField,
   required WireIdRef gradientUnionRef,
   required WireIdRef borderUnionRef,
-}) =>
-    StructuredEntry(
-      wireId: boxRef.wireId,
-      name: 'BoxDecoration',
-      library: WidgetLibrary.fromNamespace(boxRef.library),
+}) => StructuredEntry(
+  wireId: boxRef.wireId,
+  name: 'BoxDecoration',
+  library: WidgetLibrary.fromNamespace(boxRef.library),
+  description: '',
+  sourceType: 'package:flutter/painting.dart#BoxDecoration',
+  fields: [
+    StructuredField(
+      wireId: radiusField,
+      name: 'borderRadius',
+      type: PropertyType.structured,
       description: '',
-      sourceType: 'package:flutter/painting.dart#BoxDecoration',
-      fields: [
-        StructuredField(
-          wireId: radiusField,
+      structuredRef: borderRadiusRef,
+      valueShape: StructuredShape(
+        propertyType: PropertyType.structured,
+        structuredRef: borderRadiusRef,
+      ),
+    ),
+    StructuredField(
+      wireId: shapeField,
+      name: 'shape',
+      type: PropertyType.enumValue,
+      description: '',
+      valueShape: const EnumShape(
+        propertyType: PropertyType.enumValue,
+        enumRef: DartTypeRef(
+          libraryUri: 'package:flutter/painting.dart',
+          symbolName: 'BoxShape',
+        ),
+      ),
+    ),
+    StructuredField(
+      wireId: boxShadowField,
+      name: 'boxShadow',
+      type: PropertyType.boxShadowList,
+      description: '',
+      valueShape: ListShape(
+        propertyType: PropertyType.boxShadowList,
+        itemShape: StructuredShape(
+          propertyType: PropertyType.structured,
+          structuredRef: boxShadowRef,
+        ),
+        wireCodec: CatalogWireCodec.rfwBoxShadowList,
+      ),
+    ),
+    StructuredField(
+      wireId: gradientField,
+      name: 'gradient',
+      type: PropertyType.gradient,
+      description: '',
+      unionRef: gradientUnionRef,
+      valueShape: UnionShape(
+        propertyType: PropertyType.gradient,
+        unionRef: gradientUnionRef,
+        wireCodec: CatalogWireCodec.rfwGradient,
+      ),
+    ),
+    StructuredField(
+      wireId: borderField,
+      name: 'border',
+      type: PropertyType.border,
+      description: '',
+      unionRef: borderUnionRef,
+      valueShape: UnionShape(
+        propertyType: PropertyType.border,
+        unionRef: borderUnionRef,
+        wireCodec: CatalogWireCodec.rfwBorder,
+      ),
+    ),
+  ],
+  variants: [
+    ConstructorVariant(
+      wireId: boxCtorRef.wireId,
+      argMappings: {
+        'borderRadius': ArgMapping(targetFields: [radiusField]),
+        'shape': ArgMapping(targetFields: [shapeField]),
+        'boxShadow': ArgMapping(targetFields: [boxShadowField]),
+        'gradient': ArgMapping(targetFields: [gradientField]),
+        'border': ArgMapping(targetFields: [borderField]),
+      },
+      parameters: [
+        _namedParam(
+          wireId: WireId('a0005'),
           name: 'borderRadius',
-          type: PropertyType.structured,
-          description: '',
-          structuredRef: borderRadiusRef,
+          propertyType: PropertyType.structured,
           valueShape: StructuredShape(
             propertyType: PropertyType.structured,
             structuredRef: borderRadiusRef,
           ),
         ),
-        StructuredField(
-          wireId: shapeField,
+        _namedParam(
+          wireId: WireId('a0007'),
           name: 'shape',
-          type: PropertyType.enumValue,
-          description: '',
+          propertyType: PropertyType.enumValue,
           valueShape: const EnumShape(
             propertyType: PropertyType.enumValue,
             enumRef: DartTypeRef(
@@ -4344,11 +4418,10 @@ StructuredEntry _boxDecorationStructured({
             ),
           ),
         ),
-        StructuredField(
-          wireId: boxShadowField,
+        _namedParam(
+          wireId: WireId('a0008'),
           name: 'boxShadow',
-          type: PropertyType.boxShadowList,
-          description: '',
+          propertyType: PropertyType.boxShadowList,
           valueShape: ListShape(
             propertyType: PropertyType.boxShadowList,
             itemShape: StructuredShape(
@@ -4358,24 +4431,20 @@ StructuredEntry _boxDecorationStructured({
             wireCodec: CatalogWireCodec.rfwBoxShadowList,
           ),
         ),
-        StructuredField(
-          wireId: gradientField,
+        _namedParam(
+          wireId: WireId('a0009'),
           name: 'gradient',
-          type: PropertyType.gradient,
-          description: '',
-          unionRef: gradientUnionRef,
+          propertyType: PropertyType.gradient,
           valueShape: UnionShape(
             propertyType: PropertyType.gradient,
             unionRef: gradientUnionRef,
             wireCodec: CatalogWireCodec.rfwGradient,
           ),
         ),
-        StructuredField(
-          wireId: borderField,
+        _namedParam(
+          wireId: WireId('a0010'),
           name: 'border',
-          type: PropertyType.border,
-          description: '',
-          unionRef: borderUnionRef,
+          propertyType: PropertyType.border,
           valueShape: UnionShape(
             propertyType: PropertyType.border,
             unionRef: borderUnionRef,
@@ -4383,185 +4452,116 @@ StructuredEntry _boxDecorationStructured({
           ),
         ),
       ],
-      variants: [
-        ConstructorVariant(
-          wireId: boxCtorRef.wireId,
-          argMappings: {
-            'borderRadius': ArgMapping(targetFields: [radiusField]),
-            'shape': ArgMapping(targetFields: [shapeField]),
-            'boxShadow': ArgMapping(targetFields: [boxShadowField]),
-            'gradient': ArgMapping(targetFields: [gradientField]),
-            'border': ArgMapping(targetFields: [borderField]),
-          },
-          parameters: [
-            _namedParam(
-              wireId: WireId('a0005'),
-              name: 'borderRadius',
-              propertyType: PropertyType.structured,
-              valueShape: StructuredShape(
-                propertyType: PropertyType.structured,
-                structuredRef: borderRadiusRef,
-              ),
-            ),
-            _namedParam(
-              wireId: WireId('a0007'),
-              name: 'shape',
-              propertyType: PropertyType.enumValue,
-              valueShape: const EnumShape(
-                propertyType: PropertyType.enumValue,
-                enumRef: DartTypeRef(
-                  libraryUri: 'package:flutter/painting.dart',
-                  symbolName: 'BoxShape',
-                ),
-              ),
-            ),
-            _namedParam(
-              wireId: WireId('a0008'),
-              name: 'boxShadow',
-              propertyType: PropertyType.boxShadowList,
-              valueShape: ListShape(
-                propertyType: PropertyType.boxShadowList,
-                itemShape: StructuredShape(
-                  propertyType: PropertyType.structured,
-                  structuredRef: boxShadowRef,
-                ),
-                wireCodec: CatalogWireCodec.rfwBoxShadowList,
-              ),
-            ),
-            _namedParam(
-              wireId: WireId('a0009'),
-              name: 'gradient',
-              propertyType: PropertyType.gradient,
-              valueShape: UnionShape(
-                propertyType: PropertyType.gradient,
-                unionRef: gradientUnionRef,
-                wireCodec: CatalogWireCodec.rfwGradient,
-              ),
-            ),
-            _namedParam(
-              wireId: WireId('a0010'),
-              name: 'border',
-              propertyType: PropertyType.border,
-              valueShape: UnionShape(
-                propertyType: PropertyType.border,
-                unionRef: borderUnionRef,
-                wireCodec: CatalogWireCodec.rfwBorder,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+    ),
+  ],
+);
 
 StructuredEntry _boxDecorationSingleRadius({
   required WireIdRef boxRef,
   required WireIdRef boxCtorRef,
   required WireIdRef borderRadiusRef,
   required WireId radiusField,
-}) =>
-    StructuredEntry(
-      wireId: boxRef.wireId,
-      name: 'BoxDecoration',
-      library: WidgetLibrary.fromNamespace(boxRef.library),
+}) => StructuredEntry(
+  wireId: boxRef.wireId,
+  name: 'BoxDecoration',
+  library: WidgetLibrary.fromNamespace(boxRef.library),
+  description: '',
+  sourceType: 'package:flutter/painting.dart#BoxDecoration',
+  fields: [
+    StructuredField(
+      wireId: radiusField,
+      name: 'borderRadius',
+      type: PropertyType.structured,
       description: '',
-      sourceType: 'package:flutter/painting.dart#BoxDecoration',
-      fields: [
-        StructuredField(
-          wireId: radiusField,
+      structuredRef: borderRadiusRef,
+      valueShape: StructuredShape(
+        propertyType: PropertyType.structured,
+        structuredRef: borderRadiusRef,
+      ),
+    ),
+  ],
+  variants: [
+    ConstructorVariant(
+      wireId: boxCtorRef.wireId,
+      argMappings: {
+        'borderRadius': ArgMapping(targetFields: [radiusField]),
+      },
+      parameters: [
+        FactoryParameter(
+          wireId: WireId('a0010'),
           name: 'borderRadius',
-          type: PropertyType.structured,
-          description: '',
-          structuredRef: borderRadiusRef,
+          kind: FactoryParameterKind.named,
+          required: false,
+          nullable: true,
+          defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
           valueShape: StructuredShape(
             propertyType: PropertyType.structured,
             structuredRef: borderRadiusRef,
           ),
         ),
       ],
-      variants: [
-        ConstructorVariant(
-          wireId: boxCtorRef.wireId,
-          argMappings: {
-            'borderRadius': ArgMapping(targetFields: [radiusField]),
-          },
-          parameters: [
-            FactoryParameter(
-              wireId: WireId('a0010'),
-              name: 'borderRadius',
-              kind: FactoryParameterKind.named,
-              required: false,
-              nullable: true,
-              defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
-              valueShape: StructuredShape(
-                propertyType: PropertyType.structured,
-                structuredRef: borderRadiusRef,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+    ),
+  ],
+);
 
 StructuredEntry _borderRadiusStructured({
   required WireIdRef borderRadiusRef,
   required WireIdRef circularCtorRef,
   required WireId circularRadiusParam,
-}) =>
-    StructuredEntry(
-      wireId: borderRadiusRef.wireId,
-      name: 'BorderRadius',
-      library: WidgetLibrary.fromNamespace(borderRadiusRef.library),
+}) => StructuredEntry(
+  wireId: borderRadiusRef.wireId,
+  name: 'BorderRadius',
+  library: WidgetLibrary.fromNamespace(borderRadiusRef.library),
+  description: '',
+  sourceType: 'package:flutter/painting.dart#BorderRadius',
+  fields: [
+    StructuredField(
+      wireId: WireId('p0012'),
+      name: 'radius',
+      type: PropertyType.real,
       description: '',
-      sourceType: 'package:flutter/painting.dart#BorderRadius',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0012'),
-          name: 'radius',
-          type: PropertyType.real,
-          description: '',
+      valueShape: const ScalarShape(propertyType: PropertyType.real),
+    ),
+  ],
+  variants: [
+    ConstructorVariant(
+      wireId: circularCtorRef.wireId,
+      namedConstructor: 'circular',
+      argMappings: {
+        '': ArgMapping(targetFields: [WireId('p0012')]),
+      },
+      parameters: [
+        FactoryParameter(
+          wireId: circularRadiusParam,
+          position: 0,
+          kind: FactoryParameterKind.positional,
+          required: true,
+          nullable: false,
+          defaultPolicy: FactoryParameterDefaultPolicy.requiredValue,
           valueShape: const ScalarShape(propertyType: PropertyType.real),
         ),
       ],
-      variants: [
-        ConstructorVariant(
-          wireId: circularCtorRef.wireId,
-          namedConstructor: 'circular',
-          argMappings: {
-            '': ArgMapping(targetFields: [WireId('p0012')]),
-          },
-          parameters: [
-            FactoryParameter(
-              wireId: circularRadiusParam,
-              position: 0,
-              kind: FactoryParameterKind.positional,
-              required: true,
-              nullable: false,
-              defaultPolicy: FactoryParameterDefaultPolicy.requiredValue,
-              valueShape: const ScalarShape(propertyType: PropertyType.real),
-            ),
-          ],
-        ),
-      ],
-    );
+    ),
+  ],
+);
 
 StructuredEntry _emptyStructured({
   required WireIdRef ref,
   required String name,
   required String sourceType,
-}) =>
-    StructuredEntry(
-      wireId: ref.wireId,
-      name: name,
-      library: WidgetLibrary.fromNamespace(ref.library),
-      description: '',
-      sourceType: sourceType,
-      fields: const [],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v${ref.wireId.value.substring(1)}'),
-        ),
-      ],
-    );
+}) => StructuredEntry(
+  wireId: ref.wireId,
+  name: name,
+  library: WidgetLibrary.fromNamespace(ref.library),
+  description: '',
+  sourceType: sourceType,
+  fields: const [],
+  variants: [
+    ConstructorVariant(
+      wireId: WireId('v${ref.wireId.value.substring(1)}'),
+    ),
+  ],
+);
 
 UnionEntry _union({
   required WireIdRef ref,
@@ -4569,30 +4569,28 @@ UnionEntry _union({
   required String sourceType,
   required WireIdRef memberRef,
   required String memberSourceType,
-}) =>
-    UnionEntry(
-      wireId: ref.wireId,
-      name: name,
-      library: WidgetLibrary.fromNamespace(ref.library),
-      description: '',
-      sourceType: sourceType,
-      memberSourceTypes: [memberSourceType],
-      discriminator: DiscriminatorSpec(field: 'kind', values: [memberRef]),
-      members: [memberRef],
-    );
+}) => UnionEntry(
+  wireId: ref.wireId,
+  name: name,
+  library: WidgetLibrary.fromNamespace(ref.library),
+  description: '',
+  sourceType: sourceType,
+  memberSourceTypes: [memberSourceType],
+  discriminator: DiscriminatorSpec(field: 'kind', values: [memberRef]),
+  members: [memberRef],
+);
 
 FactoryParameter _namedParam({
   required WireId wireId,
   required String name,
   required PropertyType propertyType,
   CatalogValueShape? valueShape,
-}) =>
-    FactoryParameter(
-      wireId: wireId,
-      name: name,
-      kind: FactoryParameterKind.named,
-      required: false,
-      nullable: true,
-      defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
-      valueShape: valueShape ?? ScalarShape(propertyType: propertyType),
-    );
+}) => FactoryParameter(
+  wireId: wireId,
+  name: name,
+  kind: FactoryParameterKind.named,
+  required: false,
+  nullable: true,
+  defaultPolicy: FactoryParameterDefaultPolicy.omitWhenNull,
+  valueShape: valueShape ?? ScalarShape(propertyType: propertyType),
+);

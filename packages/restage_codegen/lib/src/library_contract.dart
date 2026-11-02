@@ -41,7 +41,10 @@ final class LibraryContractSnapshot {
       :namespace,
       :capabilityVersion,
       :compatibleSince,
-    ) = LibraryContractHeader.fromJson(decoded, source);
+    ) = LibraryContractHeader.fromJson(
+      decoded,
+      source,
+    );
     final json = decoded! as Map<String, Object?>;
     final enums = json['enumMembers'];
     if (enums != null && enums is! Map<String, Object?>) {
@@ -154,12 +157,12 @@ final class LibraryContractSnapshot {
       ..remove('compatRules')
       ..remove('exclusions');
     return '${const JsonEncoder.withIndent('  ').convert({
-          'namespace': library.namespace,
-          'capabilityVersion': capabilityVersion,
-          'compatibleSince': compatibleSince,
-          if (enumMembers.isNotEmpty) 'enumMembers': enumMembers,
-          ...entries,
-        })}\n';
+      'namespace': library.namespace,
+      'capabilityVersion': capabilityVersion,
+      'compatibleSince': compatibleSince,
+      if (enumMembers.isNotEmpty) 'enumMembers': enumMembers,
+      ...entries,
+    })}\n';
   }
 }
 
@@ -226,13 +229,13 @@ LibraryContractOutcome evaluateLibraryContract(
     for (final change in changes)
       if (switch (classifyCatalogChange(change)) {
         CompatClassification.breaking ||
-        CompatClassification.forwarding =>
-          true,
+        CompatClassification.forwarding => true,
         CompatClassification.free || CompatClassification.additive => false,
       })
         change,
   ];
-  final additive = changes.any(
+  final additive =
+      changes.any(
         (change) =>
             classifyCatalogChange(change) == CompatClassification.additive,
       ) ||
@@ -272,24 +275,23 @@ LibraryContractOutcome evaluateLibraryContract(
 // Editor metadata and token resolution do not change what an installed app
 // accepts.
 bool _isContractBearing(CatalogChange change) => switch (change) {
-      PropertyMetadataChanged() ||
-      TokenResolverChanged() ||
-      TokenFallbackChanged() =>
-        false,
-      _ => true,
-    };
+  PropertyMetadataChanged() ||
+  TokenResolverChanged() ||
+  TokenFallbackChanged() => false,
+  _ => true,
+};
 
 // The SDK adds these to every widget of a generation, never depending on the
 // widget's own shape, and generated-code floors must gate their use.
 Set<WireIdRef> _synthesizedProperties(Catalog catalog) => {
-      for (final widget in catalog.widgets)
-        for (final property in widget.properties)
-          if (property.synthetic != null)
-            WireIdRef(
-              library: widget.library.namespace,
-              wireId: property.wireId,
-            ),
-    };
+  for (final widget in catalog.widgets)
+    for (final property in widget.properties)
+      if (property.synthetic != null)
+        WireIdRef(
+          library: widget.library.namespace,
+          wireId: property.wireId,
+        ),
+};
 
 /// A removed or renamed enum member breaks every property that uses the enum.
 List<CatalogChange> _enumMemberChanges(
@@ -350,8 +352,8 @@ Iterable<String> _enumRefsOf(CatalogValueShape? shape) sync* {
 }
 
 Set<String> _enumRefs(Catalog catalog) => {
-      for (final (_, shape) in _propertyShapes(catalog)) ..._enumRefsOf(shape),
-    };
+  for (final (_, shape) in _propertyShapes(catalog)) ..._enumRefsOf(shape),
+};
 
 /// Resolves the members of every enum [catalog]'s entries use.
 Future<Map<String, List<String>>> resolveEnumMembers(
@@ -398,8 +400,9 @@ Map<String, String> _readLibraryContractContents(
       if (contents.containsKey(path)) continue;
       if (requireTrackedForPackage != null) {
         throw StateError(
-            '$requireTrackedForPackage must expose $path as a build input. '
-            '$kUntrackedDurableStateAdvice');
+          '$requireTrackedForPackage must expose $path as a build input. '
+          '$kUntrackedDurableStateAdvice',
+        );
       }
       contents[path] = file.readAsStringSync();
     }
@@ -415,8 +418,9 @@ Map<int, LibraryContractSnapshot> _decodeLibraryContractSnapshots(
   final snapshots = <int, LibraryContractSnapshot>{};
   for (final entry in contents.entries) {
     if (!entry.key.startsWith(prefix)) continue;
-    final version =
-        libraryContractSnapshotVersion(entry.key.substring(prefix.length));
+    final version = libraryContractSnapshotVersion(
+      entry.key.substring(prefix.length),
+    );
     if (version == null) continue;
     final snapshot = LibraryContractSnapshot.decode(entry.value, entry.key);
     if (snapshot.library != library || snapshot.capabilityVersion != version) {
@@ -443,8 +447,9 @@ void writeLibraryContractDraft(
   );
   if (directory.existsSync()) directory.deleteSync(recursive: true);
   directory.createSync(recursive: true);
-  File.fromUri(directory.uri.resolve('v${snapshot.capabilityVersion}.json'))
-      .writeAsStringSync(snapshot.encode());
+  File.fromUri(
+    directory.uri.resolve('v${snapshot.capabilityVersion}.json'),
+  ).writeAsStringSync(snapshot.encode());
 }
 
 /// Checks every versioned custom library in [catalog] against the snapshots
@@ -460,8 +465,10 @@ List<LibraryContractSnapshot> enforceLibraryContracts(
 }) {
   return _enforceLibraryContracts(
     catalog,
-    contents:
-        _readLibraryContractContents(root, _versionedCustomLibraries(catalog)),
+    contents: _readLibraryContractContents(
+      root,
+      _versionedCustomLibraries(catalog),
+    ),
     root: root,
     write: write,
     enumMembers: enumMembers,
@@ -469,9 +476,11 @@ List<LibraryContractSnapshot> enforceLibraryContracts(
 }
 
 Iterable<WidgetLibrary> _versionedCustomLibraries(Catalog catalog) =>
-    catalog.libraries.keys.where((library) =>
-        WidgetLibrary.builtInByNamespace(library.namespace) == null &&
-        catalog.libraries[library]!.capabilityVersion != null);
+    catalog.libraries.keys.where(
+      (library) =>
+          WidgetLibrary.builtInByNamespace(library.namespace) == null &&
+          catalog.libraries[library]!.capabilityVersion != null,
+    );
 
 List<LibraryContractSnapshot> _enforceLibraryContracts(
   Catalog catalog, {
@@ -573,8 +582,9 @@ final class LibraryContractException implements Exception {
 
 Directory _snapshotDirectory(Directory root, WidgetLibrary library) =>
     Directory.fromUri(
-      root.uri
-          .resolve('$libraryContractSnapshotDirectory/${library.namespace}/'),
+      root.uri.resolve(
+        '$libraryContractSnapshotDirectory/${library.namespace}/',
+      ),
     );
 
 /// Names catalog entries the way the developer wrote them.
@@ -588,33 +598,32 @@ final class _EntryLabels {
       _label(before, ref) ?? _label(after, ref) ?? '$ref';
 
   String describe(CatalogChange change) => switch (change) {
-        EntryRemoved() => 'was removed',
-        EntryRenamed() => 'was renamed to `${_label(after, change.affected)}`',
-        EntryReplaced() => 'was replaced',
-        PropertyTypeChanged(:final from, :final to) =>
-          'changed type from ${from.name} to ${to.name}',
-        PropertyShapeChanged(fields: ['enumMembers']) =>
-          'lost or renamed an enum value',
-        PropertyShapeChanged(:final fields) => 'changed ${fields.join(', ')}',
-        RequiredFlagChanged() => 'became required',
-        SyntheticStrategyChanged() => 'changed how it is generated',
-        WidgetChildrenSlotChanged(:final from, :final to) =>
-          'changed its children from ${from.name} to ${to.name}',
-        UnionMemberRemoved(:final member) => 'lost member `${of(member)}`',
-        UnionDiscriminatorChanged() => 'changed its discriminator',
-        VariantArgumentsChanged() => 'changed its arguments',
-        TokenTypeChanged(:final from, :final to) =>
-          'changed type from ${from.name} to ${to.name}',
-        EntryAdded() ||
-        EntrySourceMoved() ||
-        EntryDeprecated() ||
-        PropertyDefaultChanged() ||
-        PropertyMetadataChanged() ||
-        UnionMemberAdded() ||
-        TokenResolverChanged() ||
-        TokenFallbackChanged() =>
-          'changed',
-      };
+    EntryRemoved() => 'was removed',
+    EntryRenamed() => 'was renamed to `${_label(after, change.affected)}`',
+    EntryReplaced() => 'was replaced',
+    PropertyTypeChanged(:final from, :final to) =>
+      'changed type from ${from.name} to ${to.name}',
+    PropertyShapeChanged(fields: ['enumMembers']) =>
+      'lost or renamed an enum value',
+    PropertyShapeChanged(:final fields) => 'changed ${fields.join(', ')}',
+    RequiredFlagChanged() => 'became required',
+    SyntheticStrategyChanged() => 'changed how it is generated',
+    WidgetChildrenSlotChanged(:final from, :final to) =>
+      'changed its children from ${from.name} to ${to.name}',
+    UnionMemberRemoved(:final member) => 'lost member `${of(member)}`',
+    UnionDiscriminatorChanged() => 'changed its discriminator',
+    VariantArgumentsChanged() => 'changed its arguments',
+    TokenTypeChanged(:final from, :final to) =>
+      'changed type from ${from.name} to ${to.name}',
+    EntryAdded() ||
+    EntrySourceMoved() ||
+    EntryDeprecated() ||
+    PropertyDefaultChanged() ||
+    PropertyMetadataChanged() ||
+    UnionMemberAdded() ||
+    TokenResolverChanged() ||
+    TokenFallbackChanged() => 'changed',
+  };
 
   static String? _label(Catalog catalog, WireIdRef ref) {
     for (final widget in catalog.widgets) {
@@ -640,8 +649,7 @@ final class _EntryLabels {
             ConstructorVariant(:final namedConstructor) => namedConstructor,
             StaticMethodVariant(:final staticAccessor) ||
             StaticGetterVariant(:final staticAccessor) ||
-            ConstValueVariant(:final staticAccessor) =>
-              staticAccessor,
+            ConstValueVariant(:final staticAccessor) => staticAccessor,
           };
           return accessor == null || accessor.isEmpty
               ? '${structured.name}()'

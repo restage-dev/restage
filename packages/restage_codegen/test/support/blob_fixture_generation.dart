@@ -104,8 +104,9 @@ Future<TestReaderWriter> _seedRealCorpus(List<String> paywallIds) async {
     final bytes = await reader.readAsBytes(id);
     // The example package is re-homed under the synthetic mount package so its
     // relative imports resolve; every other package keeps its real id.
-    final target =
-        id.package == _examplePackage ? AssetId(_mountPackage, id.path) : id;
+    final target = id.package == _examplePackage
+        ? AssetId(_mountPackage, id.path)
+        : id;
     rw.testing.writeBytes(target, bytes);
     if (!id.path.endsWith('.dart')) continue;
     _directiveDeps(id, utf8.decode(bytes)).forEach(queue.add);

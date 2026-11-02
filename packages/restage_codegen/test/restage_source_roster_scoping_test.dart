@@ -45,15 +45,16 @@ class Order {
       expect(ids, contains('welcome'));
     });
 
-    test('admits a screen annotated with an alias declared elsewhere',
-        () async {
-      final ids = await _rosterSourceIds({
-        'lib/screen_annotations.dart': '''
+    test(
+      'admits a screen annotated with an alias declared elsewhere',
+      () async {
+        final ids = await _rosterSourceIds({
+          'lib/screen_annotations.dart': '''
 import 'package:restage/restage.dart';
 
 const welcomeScreen = Screen(id: 'welcome');
 ''',
-        'lib/screens/welcome.dart': '''
+          'lib/screens/welcome.dart': '''
 import 'package:flutter/widgets.dart';
 
 import '../screen_annotations.dart';
@@ -68,17 +69,19 @@ class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''',
-      });
+        });
 
-      expect(ids, contains('welcome'));
-    });
+        expect(ids, contains('welcome'));
+      },
+    );
 
-    test('admits a screen declared inside a part of an unannotated library',
-        () async {
-      final ids = await _rosterSourceIds({
-        // Nothing in this library spells a Restage identifier. Its declaration
-        // is entirely in the part below.
-        'lib/screens/host.dart': '''
+    test(
+      'admits a screen declared inside a part of an unannotated library',
+      () async {
+        final ids = await _rosterSourceIds({
+          // Nothing in this library spells a Restage identifier. Its declaration
+          // is entirely in the part below.
+          'lib/screens/host.dart': '''
 library acme_host;
 
 import 'package:flutter/widgets.dart';
@@ -87,7 +90,7 @@ import 'package:restage/restage.dart' as rs;
 part 'restage.generated/host.restage.g.dart';
 part 'greeting_part.dart';
 ''',
-        'lib/screens/greeting_part.dart': '''
+          'lib/screens/greeting_part.dart': '''
 part of 'host.dart';
 
 @rs.Screen(id: 'greeting')
@@ -98,10 +101,11 @@ class GreetingScreen extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''',
-      });
+        });
 
-      expect(ids, contains('greeting'));
-    });
+        expect(ids, contains('greeting'));
+      },
+    );
 
     test('admits a screen declared inside a generated part', () async {
       // The surface lane never resolves a `.g.dart` — it is not an authored
@@ -155,11 +159,13 @@ Future<List<String>> _rosterSourceIds(Map<String, String> sources) async {
   );
   expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
 
-  final index = jsonDecode(
-    readerWriter.testing.readString(
-      AssetId('apps_examples', 'assets/restage/source-index.json'),
-    ),
-  ) as Map<String, Object?>;
+  final index =
+      jsonDecode(
+            readerWriter.testing.readString(
+              AssetId('apps_examples', 'assets/restage/source-index.json'),
+            ),
+          )
+          as Map<String, Object?>;
   return [
     for (final source in index['sources']! as List<Object?>)
       (source! as Map<String, Object?>)['id']! as String,

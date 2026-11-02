@@ -32,316 +32,334 @@ const _screenPath = 'lib/welcome.dart';
 const _widgetsPath = 'lib/widgets.dart';
 const _libraryPath = 'lib/acme_design_system.dart';
 
-String _fixture(String name) =>
-    File('test/fixtures/design_system_packages/$name.dart.txt')
-        .readAsStringSync();
+String _fixture(String name) => File(
+  'test/fixtures/design_system_packages/$name.dart.txt',
+).readAsStringSync();
 
 void main() {
-  test('dependency widgets and helpers compile and rebuild through the graph',
-      () async {
-    final build = await _DesignSystemBuild.create();
-    addTearDown(build.close);
-    await build.run();
-    final first = build.bundle;
-    final text = utf8
-        .decode(first.ownedOutputs['assets/general/screens/welcome.rfwtxt']!);
-    expect(text, contains('Shared badge'));
-    expect(text, contains('Welcome'));
-    expect(text, contains('FilledButton('));
-    expect(text, contains('AcmeMark('));
-    final registration = build.readerWriter.testing.readString(
-      AssetId(_app, 'lib/user_factories.g.dart'),
-    );
-    expect(registration, contains('acme.widgets'));
-    expect(registration, contains('AcmeMark('));
-    expect(registration, isNot(contains('RestageWidgetLibraries.builtIn(')));
-    expect(
-      first.ownedOutputs.entries
-          .where((entry) => entry.key.endsWith('.restage.g.dart'))
-          .map((entry) => utf8.decode(entry.value))
-          .join(),
-      contains('AcmeMark('),
-    );
-    await resolveWorkspaceSources(
-      {
-        '$_app|$_screenPath': _fixture('screen'),
-        '$_design|$_widgetsPath': _fixture('widgets'),
-        '$_design|$_libraryPath': _fixture('library'),
-        '$_app|lib/user_factories.g.dart': registration,
-        // The registration declares the package's generated surface list.
-        '$_app|lib/restage_surfaces.g.dart': build.readerWriter.testing
-            .readString(AssetId(_app, 'lib/restage_surfaces.g.dart')),
-        for (final entry in first.ownedOutputs.entries)
-          if (entry.key.endsWith('.dart'))
-            '$_app|${entry.key}': utf8.decode(entry.value),
-      },
-      (resolver) async {
-        for (final path in [_screenPath, 'lib/user_factories.g.dart']) {
-          final library = await resolver.libraryFor(AssetId(_app, path));
-          final resolved =
-              await library.session.getResolvedLibraryByElement(library);
-          if (resolved is! ResolvedLibraryResult) {
-            throw StateError(
-              'Generated dependency consumer $path did not resolve.',
-            );
-          }
-          final errors = [
-            for (final unit in resolved.units)
-              for (final diagnostic in unit.diagnostics)
-                if (diagnostic.severity == Severity.error)
-                  diagnostic.problemMessage.messageText(includeUrl: false),
-          ];
-          expect(errors, isEmpty, reason: path);
-        }
-      },
-      resolverFor: '$_app|$_screenPath',
-      rootPackage: _app,
-    );
-    final measurement = build.measurement;
-    expect(measurement.publications, hasLength(1));
-    expect(measurement.publications.single.routePlan.routes, isNotEmpty);
-
-    final edited =
-        _fixture('widgets').replaceAll('Shared badge', 'Updated badge');
-    final result = await build.run(
-      changes: {
-        AssetId(_design, _widgetsPath): edited,
-      },
-    );
-    expect(
-      result.outputs,
-      contains(AssetId(_app, kRestageSurfacePublicationCompilerBundlePath)),
-    );
-    final updated = utf8.decode(
-      build.bundle.ownedOutputs['assets/general/screens/welcome.rfwtxt']!,
-    );
-    expect(updated, contains('Updated badge'));
-    expect(updated, isNot(contains('Shared badge')));
-    expect(
-      build.measurement.ledgerNodes.map((node) => node.toJson()),
-      measurement.ledgerNodes.map((node) => node.toJson()),
-    );
-    final upgraded = edited.replaceAll("Text('Continue')", "Text('Proceed')");
-    await build.run(
-      changes: {
-        AssetId(_design, _widgetsPath): upgraded,
-        AssetId(_design, _libraryPath): _fixture('library')
-            .replaceAll('capabilityVersion: 1', 'capabilityVersion: 2'),
-        AssetId(_design, 'pubspec.yaml'):
-            'name: $_design\nversion: 2.0.0\ndependencies:\n'
-                '  flutter:\n    sdk: flutter\n  restage: any\n',
-      },
-    );
-    final catalog = jsonDecode(
-      utf8.decode(
-        build.cachedBytes(
-          'lib/src/widget_catalog/catalog.json',
-          package: _design,
-        ),
-      ),
-    ) as Map<String, Object?>;
-    expect(
-      ((catalog['libraries']! as Map<String, Object?>)['acme.widgets']!
-          as Map<String, Object?>)['capabilityVersion'],
-      2,
-    );
-    final registrationAfterUpgrade = build.readerWriter.testing.readString(
-      AssetId(_app, 'lib/user_factories.g.dart'),
-    );
-    expect(registrationAfterUpgrade, contains('capabilityVersion: 2'));
-    expect(
-      utf8.decode(
-        build.bundle.ownedOutputs['assets/general/screens/welcome.rfwtxt']!,
-      ),
-      contains('Proceed'),
-    );
-    expect(
-      build.measurement.ledgerNodes.map((node) => node.toJson()),
-      measurement.ledgerNodes.map((node) => node.toJson()),
-    );
-  });
-
-  for (final workspace in [false, true]) {
-    final mode = workspace ? 'workspace' : 'single-package';
-    test('widget-ID state alone rebuilds a $mode dependency consumer',
-        () async {
-      const path = '.restage/wire-ids.events.jsonl';
-      final build = await _DesignSystemBuild.create(
-        measured: false,
-        workspace: workspace,
-        state: {path: ''},
-      );
+  test(
+    'dependency widgets and helpers compile and rebuild through the graph',
+    () async {
+      final build = await _DesignSystemBuild.create();
       addTearDown(build.close);
       await build.run();
-      final before = build.bundle;
-      final catalog = decodeCatalog(
-        utf8.decode(
-          build.cachedBytes(
-            'lib/src/widget_catalog/catalog.json',
-            package: _design,
-          ),
-        ),
+      final first = build.bundle;
+      final text = utf8.decode(
+        first.ownedOutputs['assets/general/screens/welcome.rfwtxt']!,
       );
-      final allocator = WireIdAllocator(
-        library: _design,
-        at: '2026-10-09T00:00:00Z',
-        by: 'design-system-test',
+      expect(text, contains('Shared badge'));
+      expect(text, contains('Welcome'));
+      expect(text, contains('FilledButton('));
+      expect(text, contains('AcmeMark('));
+      final registration = build.readerWriter.testing.readString(
+        AssetId(_app, 'lib/user_factories.g.dart'),
       );
-      final ids = <String, WireId>{};
-      for (final widget in catalog.widgets.reversed) {
-        final event = allocator.allocate(
-          WireIdAllocationCandidate.widget(
-            name: widget.name,
-            source: widget.flutterType,
-          ),
-        );
-        ids[widget.name] = event.id;
-        for (final property in widget.properties) {
-          allocator.allocate(
-            WireIdAllocationCandidate.property(
-              owner: event.id,
-              name: property.name,
-              source: '${widget.flutterType}.${property.name}',
-            ),
-          );
-        }
-      }
+      expect(registration, contains('acme.widgets'));
+      expect(registration, contains('AcmeMark('));
+      expect(registration, isNot(contains('RestageWidgetLibraries.builtIn(')));
+      expect(
+        first.ownedOutputs.entries
+            .where((entry) => entry.key.endsWith('.restage.g.dart'))
+            .map((entry) => utf8.decode(entry.value))
+            .join(),
+        contains('AcmeMark('),
+      );
+      await resolveWorkspaceSources(
+        {
+          '$_app|$_screenPath': _fixture('screen'),
+          '$_design|$_widgetsPath': _fixture('widgets'),
+          '$_design|$_libraryPath': _fixture('library'),
+          '$_app|lib/user_factories.g.dart': registration,
+          // The registration declares the package's generated surface list.
+          '$_app|lib/restage_surfaces.g.dart': build.readerWriter.testing
+              .readString(AssetId(_app, 'lib/restage_surfaces.g.dart')),
+          for (final entry in first.ownedOutputs.entries)
+            if (entry.key.endsWith('.dart'))
+              '$_app|${entry.key}': utf8.decode(entry.value),
+        },
+        (resolver) async {
+          for (final path in [_screenPath, 'lib/user_factories.g.dart']) {
+            final library = await resolver.libraryFor(AssetId(_app, path));
+            final resolved = await library.session.getResolvedLibraryByElement(
+              library,
+            );
+            if (resolved is! ResolvedLibraryResult) {
+              throw StateError(
+                'Generated dependency consumer $path did not resolve.',
+              );
+            }
+            final errors = [
+              for (final unit in resolved.units)
+                for (final diagnostic in unit.diagnostics)
+                  if (diagnostic.severity == Severity.error)
+                    diagnostic.problemMessage.messageText(includeUrl: false),
+            ];
+            expect(errors, isEmpty, reason: path);
+          }
+        },
+        resolverFor: '$_app|$_screenPath',
+        rootPackage: _app,
+      );
+      final measurement = build.measurement;
+      expect(measurement.publications, hasLength(1));
+      expect(measurement.publications.single.routePlan.routes, isNotEmpty);
+
+      final edited = _fixture(
+        'widgets',
+      ).replaceAll('Shared badge', 'Updated badge');
       final result = await build.run(
         changes: {
-          AssetId(_design, path): encodeWireIdEventsJsonl(allocator.events),
+          AssetId(_design, _widgetsPath): edited,
         },
       );
       expect(
         result.outputs,
         contains(AssetId(_app, kRestageSurfacePublicationCompilerBundlePath)),
       );
-      final after = decodeCatalog(
-        utf8.decode(
-          build.cachedBytes(
-            'lib/src/widget_catalog/catalog.json',
-            package: _design,
-          ),
-        ),
+      final updated = utf8.decode(
+        build.bundle.ownedOutputs['assets/general/screens/welcome.rfwtxt']!,
       );
+      expect(updated, contains('Updated badge'));
+      expect(updated, isNot(contains('Shared badge')));
       expect(
-        after.widgets.map((widget) => widget.wireId),
-        after.widgets.map((widget) => ids[widget.name]),
+        build.measurement.ledgerNodes.map((node) => node.toJson()),
+        measurement.ledgerNodes.map((node) => node.toJson()),
       );
-      expect(
-        after.widgets.map((widget) => widget.wireId),
-        isNot(equals(catalog.widgets.map((widget) => widget.wireId))),
-      );
-      WireId installedMark(RestageSurfacePublicationBundle bundle) {
-        final publication = bundle.manifest!.publications.single.publication;
-        final contract = publication.compiledScreenContracts.values.single;
-        return contract.catalog.widgets
-            .singleWhere((widget) => widget.name == 'AcmeMark')
-            .wireId;
-      }
-
-      expect(installedMark(build.bundle), ids['AcmeMark']);
-      expect(installedMark(build.bundle), isNot(installedMark(before)));
-      expect(build.bundle.artifacts, equals(before.artifacts));
-    });
-
-    test(
-        'library contract state alone invalidates the $mode dependency catalog',
-        () async {
-      const path = '.restage/library-contracts/acme.widgets/v1.json';
-      final build = await _DesignSystemBuild.create(workspace: workspace);
-      addTearDown(build.close);
-      await build.run();
-      final catalog = decodeCatalog(
-        utf8.decode(
-          build.cachedBytes(
-            'lib/src/widget_catalog/catalog.json',
-            package: _design,
-          ),
-        ),
-      );
-      final snapshot = LibraryContractSnapshot.of(
-        catalog,
-        const WidgetLibrary.custom('acme.widgets'),
-      )!;
-      await build.run(changes: {AssetId(_design, path): snapshot.encode()});
-      final recorded = jsonDecode(snapshot.encode()) as Map<String, Object?>;
-      (recorded['widgets']! as List<Object?>).removeLast();
-      final changed =
-          LibraryContractSnapshot.decode(jsonEncode(recorded), path);
-      final result = await build.run(
-        changes: {AssetId(_design, path): changed.encode()},
-        expectSuccess: false,
-      );
-      expect(result.status, runner.BuildStatus.failure);
-      expect(result.errors.join('\n'), contains('acme.widgets'));
-      expect(
-          result.errors.join('\n'), contains('Raise capabilityVersion to 2'));
-      await build.run(changes: {AssetId(_design, path): snapshot.encode()});
-    });
-  }
-
-  test('measured dependency routes survive persisted ledger rebuilds',
-      () async {
-    final build = await _DesignSystemBuild.create();
-    addTearDown(build.close);
-    await build.run();
-    final first = build.measurement.publications.single.draft;
-    final artifacts = build.bundle.artifacts;
-    expect(
-      build.measurement.ledgerNodes
-          .where(
-            (node) => node.structuralOccurrenceKey.contains(
-              'package:$_design/widgets.dart',
-            ),
-          )
-          .expand((node) => node.events)
-          .where((event) => event.active),
-      isNotEmpty,
-    );
-    expect(first.routes, isNotEmpty);
-    expect(first.presentationRoutes, isNotEmpty);
-    expect(
-      first.lineageIntents.map((intent) => intent.operation),
-      everyElement(LineageOperation.continueLineage),
-    );
-
-    for (var rebuild = 0; rebuild < 2; rebuild += 1) {
-      final result = await build.run(
+      final upgraded = edited.replaceAll("Text('Continue')", "Text('Proceed')");
+      await build.run(
         changes: {
-          // Whitespace forces compilation when ledger content is stable.
-          AssetId(_app, kRestageMeasurementCompilerLedgerSourcePath):
-              '${build.measurement.encodeCanonicalJson()}'
-                  '${' ' * (rebuild + 1)}',
+          AssetId(_design, _widgetsPath): upgraded,
+          AssetId(_design, _libraryPath): _fixture(
+            'library',
+          ).replaceAll('capabilityVersion: 1', 'capabilityVersion: 2'),
+          AssetId(_design, 'pubspec.yaml'):
+              'name: $_design\nversion: 2.0.0\ndependencies:\n'
+              '  flutter:\n    sdk: flutter\n  restage: any\n',
         },
       );
+      final catalog =
+          jsonDecode(
+                utf8.decode(
+                  build.cachedBytes(
+                    'lib/src/widget_catalog/catalog.json',
+                    package: _design,
+                  ),
+                ),
+              )
+              as Map<String, Object?>;
       expect(
-        result.outputs,
-        containsAll([
-          AssetId(_app, kRestageMeasurementCompilerOutputPath),
-          AssetId(_app, kRestageSurfacePublicationCompilerBundlePath),
-        ]),
-        reason: 'Each ledger update must execute the publication compiler',
+        ((catalog['libraries']! as Map<String, Object?>)['acme.widgets']!
+            as Map<String, Object?>)['capabilityVersion'],
+        2,
       );
-      final repeated = build.measurement.publications.single.draft;
+      final registrationAfterUpgrade = build.readerWriter.testing.readString(
+        AssetId(_app, 'lib/user_factories.g.dart'),
+      );
+      expect(registrationAfterUpgrade, contains('capabilityVersion: 2'));
       expect(
-        repeated.lineageIntents.map((intent) => intent.operation),
+        utf8.decode(
+          build.bundle.ownedOutputs['assets/general/screens/welcome.rfwtxt']!,
+        ),
+        contains('Proceed'),
+      );
+      expect(
+        build.measurement.ledgerNodes.map((node) => node.toJson()),
+        measurement.ledgerNodes.map((node) => node.toJson()),
+      );
+    },
+  );
+
+  for (final workspace in [false, true]) {
+    final mode = workspace ? 'workspace' : 'single-package';
+    test(
+      'widget-ID state alone rebuilds a $mode dependency consumer',
+      () async {
+        const path = '.restage/wire-ids.events.jsonl';
+        final build = await _DesignSystemBuild.create(
+          measured: false,
+          workspace: workspace,
+          state: {path: ''},
+        );
+        addTearDown(build.close);
+        await build.run();
+        final before = build.bundle;
+        final catalog = decodeCatalog(
+          utf8.decode(
+            build.cachedBytes(
+              'lib/src/widget_catalog/catalog.json',
+              package: _design,
+            ),
+          ),
+        );
+        final allocator = WireIdAllocator(
+          library: _design,
+          at: '2026-10-09T00:00:00Z',
+          by: 'design-system-test',
+        );
+        final ids = <String, WireId>{};
+        for (final widget in catalog.widgets.reversed) {
+          final event = allocator.allocate(
+            WireIdAllocationCandidate.widget(
+              name: widget.name,
+              source: widget.flutterType,
+            ),
+          );
+          ids[widget.name] = event.id;
+          for (final property in widget.properties) {
+            allocator.allocate(
+              WireIdAllocationCandidate.property(
+                owner: event.id,
+                name: property.name,
+                source: '${widget.flutterType}.${property.name}',
+              ),
+            );
+          }
+        }
+        final result = await build.run(
+          changes: {
+            AssetId(_design, path): encodeWireIdEventsJsonl(allocator.events),
+          },
+        );
+        expect(
+          result.outputs,
+          contains(AssetId(_app, kRestageSurfacePublicationCompilerBundlePath)),
+        );
+        final after = decodeCatalog(
+          utf8.decode(
+            build.cachedBytes(
+              'lib/src/widget_catalog/catalog.json',
+              package: _design,
+            ),
+          ),
+        );
+        expect(
+          after.widgets.map((widget) => widget.wireId),
+          after.widgets.map((widget) => ids[widget.name]),
+        );
+        expect(
+          after.widgets.map((widget) => widget.wireId),
+          isNot(equals(catalog.widgets.map((widget) => widget.wireId))),
+        );
+        WireId installedMark(RestageSurfacePublicationBundle bundle) {
+          final publication = bundle.manifest!.publications.single.publication;
+          final contract = publication.compiledScreenContracts.values.single;
+          return contract.catalog.widgets
+              .singleWhere((widget) => widget.name == 'AcmeMark')
+              .wireId;
+        }
+
+        expect(installedMark(build.bundle), ids['AcmeMark']);
+        expect(installedMark(build.bundle), isNot(installedMark(before)));
+        expect(build.bundle.artifacts, equals(before.artifacts));
+      },
+    );
+
+    test(
+      'library contract state alone invalidates the $mode dependency catalog',
+      () async {
+        const path = '.restage/library-contracts/acme.widgets/v1.json';
+        final build = await _DesignSystemBuild.create(workspace: workspace);
+        addTearDown(build.close);
+        await build.run();
+        final catalog = decodeCatalog(
+          utf8.decode(
+            build.cachedBytes(
+              'lib/src/widget_catalog/catalog.json',
+              package: _design,
+            ),
+          ),
+        );
+        final snapshot = LibraryContractSnapshot.of(
+          catalog,
+          const WidgetLibrary.custom('acme.widgets'),
+        )!;
+        await build.run(changes: {AssetId(_design, path): snapshot.encode()});
+        final recorded = jsonDecode(snapshot.encode()) as Map<String, Object?>;
+        (recorded['widgets']! as List<Object?>).removeLast();
+        final changed = LibraryContractSnapshot.decode(
+          jsonEncode(recorded),
+          path,
+        );
+        final result = await build.run(
+          changes: {AssetId(_design, path): changed.encode()},
+          expectSuccess: false,
+        );
+        expect(result.status, runner.BuildStatus.failure);
+        expect(result.errors.join('\n'), contains('acme.widgets'));
+        expect(
+          result.errors.join('\n'),
+          contains('Raise capabilityVersion to 2'),
+        );
+        await build.run(changes: {AssetId(_design, path): snapshot.encode()});
+      },
+    );
+  }
+
+  test(
+    'measured dependency routes survive persisted ledger rebuilds',
+    () async {
+      final build = await _DesignSystemBuild.create();
+      addTearDown(build.close);
+      await build.run();
+      final first = build.measurement.publications.single.draft;
+      final artifacts = build.bundle.artifacts;
+      expect(
+        build.measurement.ledgerNodes
+            .where(
+              (node) => node.structuralOccurrenceKey.contains(
+                'package:$_design/widgets.dart',
+              ),
+            )
+            .expand((node) => node.events)
+            .where((event) => event.active),
+        isNotEmpty,
+      );
+      expect(first.routes, isNotEmpty);
+      expect(first.presentationRoutes, isNotEmpty);
+      expect(
+        first.lineageIntents.map((intent) => intent.operation),
         everyElement(LineageOperation.continueLineage),
       );
-      expect(repeated.routeDraftClosureDigest, first.routeDraftClosureDigest);
-      expect(repeated.routes, orderedEquals(first.routes));
-      expect(
-        repeated.presentationRoutes,
-        orderedEquals(first.presentationRoutes),
-      );
-      expect(repeated.artifacts, orderedEquals(first.artifacts));
-      expect(build.bundle.artifacts, equals(artifacts));
-    }
-  });
+
+      for (var rebuild = 0; rebuild < 2; rebuild += 1) {
+        final result = await build.run(
+          changes: {
+            // Whitespace forces compilation when ledger content is stable.
+            AssetId(_app, kRestageMeasurementCompilerLedgerSourcePath):
+                '${build.measurement.encodeCanonicalJson()}'
+                '${' ' * (rebuild + 1)}',
+          },
+        );
+        expect(
+          result.outputs,
+          containsAll([
+            AssetId(_app, kRestageMeasurementCompilerOutputPath),
+            AssetId(_app, kRestageSurfacePublicationCompilerBundlePath),
+          ]),
+          reason: 'Each ledger update must execute the publication compiler',
+        );
+        final repeated = build.measurement.publications.single.draft;
+        expect(
+          repeated.lineageIntents.map((intent) => intent.operation),
+          everyElement(LineageOperation.continueLineage),
+        );
+        expect(repeated.routeDraftClosureDigest, first.routeDraftClosureDigest);
+        expect(repeated.routes, orderedEquals(first.routes));
+        expect(
+          repeated.presentationRoutes,
+          orderedEquals(first.presentationRoutes),
+        );
+        expect(repeated.artifacts, orderedEquals(first.artifacts));
+        expect(build.bundle.artifacts, equals(artifacts));
+      }
+    },
+  );
 
   test('dependency helper errors retain their declaring file', () async {
     final build = await _DesignSystemBuild.create(
-      widgetsSource: _fixture('widgets')
-          .replaceAll('Text(title);', 'CustomPaint(child: Text(title));'),
+      widgetsSource: _fixture(
+        'widgets',
+      ).replaceAll('Text(title);', 'CustomPaint(child: Text(title));'),
     );
     addTearDown(build.close);
     final result = await build.run(expectSuccess: false);
@@ -349,7 +367,10 @@ void main() {
     final errors = result.errors.join('\n');
     expect(errors, contains('acme_design_system'));
     expect(errors, contains('widgets.dart'));
-    final helperLine = _fixture('widgets').split('\n').indexWhere(
+    final helperLine =
+        _fixture('widgets')
+            .split('\n')
+            .indexWhere(
               (line) => line.startsWith('Widget acmeTitle'),
             ) +
         1;
@@ -360,111 +381,125 @@ void main() {
     expect(errors, isNot(contains('lib/welcome.dart:')));
   });
 
-  test('copied local definitions preserve artifacts and catalog provenance',
-      () async {
-    final dependency = await _DesignSystemBuild.create(measured: false);
-    final local =
-        await _DesignSystemBuild.create(copiedLocal: true, measured: false);
-    addTearDown(dependency.close);
-    addTearDown(local.close);
-    await dependency.run();
-    await local.run();
-    expect(dependency.bundle.artifacts, equals(local.bundle.artifacts));
-    final dependencyManifest = jsonEncode(dependency.bundle.manifest!.toJson());
-    final localManifest = jsonEncode(local.bundle.manifest!.toJson());
-    expect(
-      dependencyManifest,
-      contains('package:acme_design_system/widgets.dart'),
-    );
-    expect(localManifest, contains('package:apps_examples/widgets.dart'));
-    expect(
-      dependencyManifest.replaceAll(
-        'package:acme_design_system/widgets.dart',
-        'package:apps_examples/widgets.dart',
-      ),
-      localManifest,
-    );
-    expect(
-      dependency.bundle.ownedOutputs['assets/general/screens/welcome.rfwtxt'],
-      equals(
-        local.bundle.ownedOutputs['assets/general/screens/welcome.rfwtxt'],
-      ),
-    );
-  });
-
-  test('moving declarations preserves event semantics and changes origin',
-      () async {
-    final dependency = await _DesignSystemBuild.create();
-    final local = await _DesignSystemBuild.create(copiedLocal: true);
-    addTearDown(dependency.close);
-    addTearDown(local.close);
-    await dependency.run();
-    await local.run();
-    final dependencyNodes = dependency.measurement.ledgerNodes;
-    final localNodes = local.measurement.ledgerNodes;
-    expect(dependencyNodes, hasLength(localNodes.length));
-    expect(
-      dependencyNodes.map((node) => node.structuralOccurrenceKey),
-      isNot(equals(localNodes.map((node) => node.structuralOccurrenceKey))),
-    );
-    Map<String, Object?> eventSemantics(_DesignSystemBuild build) {
-      final plan = build.measurement.publications.single.routePlan;
-      expect(plan.events, isNotEmpty);
-      expect(plan.routes, hasLength(plan.events.length));
-      final events = <Map<String, Object?>>[];
-      final rendered = fmt
-          .decodeLibraryBlob(
-            Uint8List.fromList(
-              build.bundle.artifacts['assets/general/screens/welcome.rfw']!,
-            ),
-          )
-          .toString();
-      for (final event in plan.events) {
-        final route = plan.routes.singleWhere(
-          (route) => route.generatedReferenceId == event.generatedReferenceId,
-        );
-        final node = plan.nodes.singleWhere(
-          (node) => node.codeIdentityId == event.nodeCodeIdentityId,
-        );
-        expect(
-          route.artifactOccurrenceEdgeToken,
-          node.artifactOccurrenceEdgeToken,
-        );
-        if (route.orderedCaptureV1?.lifecycleChannel == null) {
-          expect(rendered, contains(route.carrier));
-        }
-        final ledger = build.measurement.ledgerNodes.singleWhere(
-          (node) => node.codeIdentityId == event.nodeCodeIdentityId,
-        );
-        final ledgerEvent = ledger.events.singleWhere(
-          (candidate) =>
-              candidate.generatedReferenceId == route.generatedReferenceId,
-        );
-        events.add({
-          'kind': event.normalizedInteractionKind.wireName,
-          'privacy': event.privacyClass.wireName,
-          'value': event.semanticValueClass.wireName,
-          'collection': event.collectionClass.wireName,
-          'sourceEvent': event.sourceEventIdentity.value,
-          'eventLocator': ledgerEvent.resolvedEventLocator,
-          'owner': ledger.structuralOccurrenceKey.replaceAll(
-            'package:acme_design_system/widgets.dart',
-            'package:apps_examples/widgets.dart',
-          ),
-          'orderedCapture': route.orderedCaptureV1?.toJson(),
-        });
-      }
-      events.sort((a, b) => jsonEncode(a).compareTo(jsonEncode(b)));
-      return {
-        'events': events,
-        'eventContract': SurfaceScreenEventSchemaV1Codec.encode(
-          build.bundle.manifest!.publications.single.publication.eventContract!,
+  test(
+    'copied local definitions preserve artifacts and catalog provenance',
+    () async {
+      final dependency = await _DesignSystemBuild.create(measured: false);
+      final local = await _DesignSystemBuild.create(
+        copiedLocal: true,
+        measured: false,
+      );
+      addTearDown(dependency.close);
+      addTearDown(local.close);
+      await dependency.run();
+      await local.run();
+      expect(dependency.bundle.artifacts, equals(local.bundle.artifacts));
+      final dependencyManifest = jsonEncode(
+        dependency.bundle.manifest!.toJson(),
+      );
+      final localManifest = jsonEncode(local.bundle.manifest!.toJson());
+      expect(
+        dependencyManifest,
+        contains('package:acme_design_system/widgets.dart'),
+      );
+      expect(localManifest, contains('package:apps_examples/widgets.dart'));
+      expect(
+        dependencyManifest.replaceAll(
+          'package:acme_design_system/widgets.dart',
+          'package:apps_examples/widgets.dart',
         ),
-      };
-    }
+        localManifest,
+      );
+      expect(
+        dependency.bundle.ownedOutputs['assets/general/screens/welcome.rfwtxt'],
+        equals(
+          local.bundle.ownedOutputs['assets/general/screens/welcome.rfwtxt'],
+        ),
+      );
+    },
+  );
 
-    expect(eventSemantics(dependency), equals(eventSemantics(local)));
-  });
+  test(
+    'moving declarations preserves event semantics and changes origin',
+    () async {
+      final dependency = await _DesignSystemBuild.create();
+      final local = await _DesignSystemBuild.create(copiedLocal: true);
+      addTearDown(dependency.close);
+      addTearDown(local.close);
+      await dependency.run();
+      await local.run();
+      final dependencyNodes = dependency.measurement.ledgerNodes;
+      final localNodes = local.measurement.ledgerNodes;
+      expect(dependencyNodes, hasLength(localNodes.length));
+      expect(
+        dependencyNodes.map((node) => node.structuralOccurrenceKey),
+        isNot(equals(localNodes.map((node) => node.structuralOccurrenceKey))),
+      );
+      Map<String, Object?> eventSemantics(_DesignSystemBuild build) {
+        final plan = build.measurement.publications.single.routePlan;
+        expect(plan.events, isNotEmpty);
+        expect(plan.routes, hasLength(plan.events.length));
+        final events = <Map<String, Object?>>[];
+        final rendered = fmt
+            .decodeLibraryBlob(
+              Uint8List.fromList(
+                build.bundle.artifacts['assets/general/screens/welcome.rfw']!,
+              ),
+            )
+            .toString();
+        for (final event in plan.events) {
+          final route = plan.routes.singleWhere(
+            (route) => route.generatedReferenceId == event.generatedReferenceId,
+          );
+          final node = plan.nodes.singleWhere(
+            (node) => node.codeIdentityId == event.nodeCodeIdentityId,
+          );
+          expect(
+            route.artifactOccurrenceEdgeToken,
+            node.artifactOccurrenceEdgeToken,
+          );
+          if (route.orderedCaptureV1?.lifecycleChannel == null) {
+            expect(rendered, contains(route.carrier));
+          }
+          final ledger = build.measurement.ledgerNodes.singleWhere(
+            (node) => node.codeIdentityId == event.nodeCodeIdentityId,
+          );
+          final ledgerEvent = ledger.events.singleWhere(
+            (candidate) =>
+                candidate.generatedReferenceId == route.generatedReferenceId,
+          );
+          events.add({
+            'kind': event.normalizedInteractionKind.wireName,
+            'privacy': event.privacyClass.wireName,
+            'value': event.semanticValueClass.wireName,
+            'collection': event.collectionClass.wireName,
+            'sourceEvent': event.sourceEventIdentity.value,
+            'eventLocator': ledgerEvent.resolvedEventLocator,
+            'owner': ledger.structuralOccurrenceKey.replaceAll(
+              'package:acme_design_system/widgets.dart',
+              'package:apps_examples/widgets.dart',
+            ),
+            'orderedCapture': route.orderedCaptureV1?.toJson(),
+          });
+        }
+        events.sort((a, b) => jsonEncode(a).compareTo(jsonEncode(b)));
+        return {
+          'events': events,
+          'eventContract': SurfaceScreenEventSchemaV1Codec.encode(
+            build
+                .bundle
+                .manifest!
+                .publications
+                .single
+                .publication
+                .eventContract!,
+          ),
+        };
+      }
+
+      expect(eventSemantics(dependency), equals(eventSemantics(local)));
+    },
+  );
 }
 
 final class _DesignSystemBuild {
@@ -476,8 +511,10 @@ final class _DesignSystemBuild {
 
   List<int> cachedBytes(String path, {String package = _app}) =>
       readerWriter.filesystem.readAsBytesSync(
-        readerWriter.assetPathProvider
-            .pathFor(AssetId(package, path), inArtifactTree: true),
+        readerWriter.assetPathProvider.pathFor(
+          AssetId(package, path),
+          inArtifactTree: true,
+        ),
       );
 
   RestageSurfacePublicationBundle get bundle =>
@@ -501,9 +538,11 @@ final class _DesignSystemBuild {
     String? widgetsSource,
     Map<String, String> state = const {},
   }) async {
-    final readerWriter = (await readerWriterWithFilesystemSources(
-      rootPackage: _app,
-    )) as InternalTestReaderWriter;
+    final readerWriter =
+        (await readerWriterWithFilesystemSources(
+              rootPackage: _app,
+            ))
+            as InternalTestReaderWriter;
     readerWriter.testing.writeString(
       AssetId(_app, _screenPath),
       copiedLocal
@@ -547,8 +586,10 @@ dependencies:
   restage: any
 ''');
     for (final entry in state.entries) {
-      readerWriter.testing
-          .writeString(AssetId(_design, entry.key), entry.value);
+      readerWriter.testing.writeString(
+        AssetId(_design, entry.key),
+        entry.value,
+      );
     }
     final dependencies = readerWriter.testing.assets
         .map((asset) => asset.package)
@@ -578,8 +619,10 @@ dependencies:
           )
         : runner.BuildPackages.singlePackageBuild(_app, members);
     expect(packages.singleOutputPackage, workspace ? isNull : _app);
-    expect(packages.outputPackages,
-        workspace ? containsAll([_app, _design]) : [_app]);
+    expect(
+      packages.outputPackages,
+      workspace ? containsAll([_app, _design]) : [_app],
+    );
     final production = config.BuildConfig.parse(
       'restage_codegen',
       const [],
@@ -590,7 +633,7 @@ dependencies:
         _catalogKey,
         _compilerKey,
         _factoriesKey,
-        _surfacesKey
+        _surfacesKey,
       ])
         runner.BuilderDefinition.fromConfig(
           production.builderDefinitions[key]!,
@@ -632,9 +675,9 @@ dependencies:
           _catalogKey: [userCatalogJsonBuilder],
           _compilerKey: [
             (options) => PackageSurfaceCompilerBuilder(
-                  options,
-                  ledgerWriter: ({required package, required output}) async {},
-                ),
+              options,
+              ledgerWriter: ({required package, required output}) async {},
+            ),
           ],
           _factoriesKey: [userFactoryBuilder],
           _surfacesKey: [restageSurfaceListBuilder],
@@ -670,10 +713,16 @@ dependencies:
         '.restage/library-contracts/acme.widgets/v1.json',
       ]) {
         final asset = AssetId(package, path);
-        expect(plan.buildSpec.buildConfigs.isPublicAsset(asset), isTrue,
-            reason: '$asset must be exposed to consumers.');
-        expect(plan.buildSpec.buildConfigs.anyMatchesAsset(asset), isTrue,
-            reason: '$asset must be included in target sources.');
+        expect(
+          plan.buildSpec.buildConfigs.isPublicAsset(asset),
+          isTrue,
+          reason: '$asset must be exposed to consumers.',
+        );
+        expect(
+          plan.buildSpec.buildConfigs.anyMatchesAsset(asset),
+          isTrue,
+          reason: '$asset must be included in target sources.',
+        );
       }
     }
     return _DesignSystemBuild(readerWriter, runner.BuildSeries(plan));
@@ -686,8 +735,10 @@ dependencies:
     for (final entry in changes.entries) {
       readerWriter.testing.writeString(entry.key, entry.value);
     }
-    final result =
-        await series.run(changes.keys.toSet(), recentlyBootstrapped: first);
+    final result = await series.run(
+      changes.keys.toSet(),
+      recentlyBootstrapped: first,
+    );
     first = false;
     if (expectSuccess) {
       expect(

@@ -13,7 +13,7 @@ import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 final class RestageGeneratedDartBuilder implements Builder {
   /// Creates the builder, resolving and validating output location options once.
   RestageGeneratedDartBuilder(BuilderOptions options)
-      : plan = RestageOutputLocationPlan.fromBuilderOptions(options);
+    : plan = RestageOutputLocationPlan.fromBuilderOptions(options);
 
   /// The resolved output location authority for this builder invocation.
   final RestageOutputLocationPlan plan;
@@ -63,14 +63,15 @@ final class RestageGeneratedDartBuilder implements Builder {
     RestageSurfacePublicationBundle bundle, {
     required String libraryPath,
   }) {
-    final elsewhere = bundle.ownedOutputs.keys
-        .where(
-          (path) =>
-              path.endsWith(kNeutralGeneratedPartSuffix) &&
-              bundle.artifactLibraryPaths[path] == libraryPath,
-        )
-        .toList()
-      ..sort();
+    final elsewhere =
+        bundle.ownedOutputs.keys
+            .where(
+              (path) =>
+                  path.endsWith(kNeutralGeneratedPartSuffix) &&
+                  bundle.artifactLibraryPaths[path] == libraryPath,
+            )
+            .toList()
+          ..sort();
     if (elsewhere.isEmpty) return;
     throw StateError(
       'Placement options divergence between Restage builder targets: the '

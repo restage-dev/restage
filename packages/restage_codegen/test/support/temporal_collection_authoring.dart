@@ -105,8 +105,9 @@ Widget x() => LayoutBuilder(builder: (context, constraints) {
 Future<String> compileTemporalCollectionFixture() async {
   final cases = <String, String>{};
   for (final entry in temporalCollectionSources.entries) {
-    final (source, _) =
-        await compileCollectionAuthoring(authoredSource: entry.value);
+    final (source, _) = await compileCollectionAuthoring(
+      authoredSource: entry.value,
+    );
     cases[entry.key] = source;
   }
   return '${const JsonEncoder.withIndent('  ').convert(cases)}\n';
@@ -116,8 +117,9 @@ Future<void> main(List<String> arguments) async {
   if (arguments.length != 1)
     throw ArgumentError('Expected temporal collection fixture output path');
   try {
-    File(arguments.single)
-        .writeAsStringSync(await compileTemporalCollectionFixture());
+    File(
+      arguments.single,
+    ).writeAsStringSync(await compileTemporalCollectionFixture());
   } finally {
     sharedResolvers.reset();
   }

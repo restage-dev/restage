@@ -14,7 +14,7 @@ typedef _VariantParameterKey = (String, WireId, WireId);
 final class NativeCatalogIndex {
   /// Builds an index over [catalog] after validating the native boundary.
   NativeCatalogIndex(Catalog catalog)
-      : catalog = requireNativeCatalog(catalog) {
+    : catalog = requireNativeCatalog(catalog) {
     for (final widget in this.catalog.widgets) {
       final widgetKey = (widget.library.namespace, widget.wireId);
       _widgetsByRef[widgetKey] = widget;
@@ -25,10 +25,11 @@ final class NativeCatalogIndex {
       }
       for (final property in widget.properties) {
         _widgetProperties[(
-          widget.library.namespace,
-          widget.wireId,
-          property.wireId,
-        )] = property;
+              widget.library.namespace,
+              widget.wireId,
+              property.wireId,
+            )] =
+            property;
       }
     }
 
@@ -41,10 +42,11 @@ final class NativeCatalogIndex {
       }
       for (final field in structured.fields) {
         _structuredFields[(
-          structured.library.namespace,
-          structured.wireId,
-          field.wireId,
-        )] = field;
+              structured.library.namespace,
+              structured.wireId,
+              field.wireId,
+            )] =
+            field;
       }
       for (final variant in structured.variants) {
         final variantRef = WireIdRef(
@@ -57,17 +59,20 @@ final class NativeCatalogIndex {
           wireId: structured.wireId,
         );
         _variantsByStructured[(
-          structured.library.namespace,
-          structured.wireId,
-          variant.wireId,
-        )] = variant;
-        for (final parameter
-            in factoryVariantCallableFields(variant).parameters) {
+              structured.library.namespace,
+              structured.wireId,
+              variant.wireId,
+            )] =
+            variant;
+        for (final parameter in factoryVariantCallableFields(
+          variant,
+        ).parameters) {
           _variantParameters[(
-            variantRef.library,
-            variantRef.wireId,
-            parameter.wireId,
-          )] = parameter;
+                variantRef.library,
+                variantRef.wireId,
+                parameter.wireId,
+              )] =
+              parameter;
         }
       }
     }
@@ -79,11 +84,12 @@ final class NativeCatalogIndex {
         final structured = structuredByRef(member);
         if (structured == null) continue;
         _unionMembers[(
-          union.library.namespace,
-          union.wireId,
-          member.library,
-          member.wireId,
-        )] = structured;
+              union.library.namespace,
+              union.wireId,
+              member.library,
+              member.wireId,
+            )] =
+            structured;
       }
     }
   }

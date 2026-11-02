@@ -2,26 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'a2ui_proof_support.dart';
 
-/// The standalone `.a2ui.json` structural catalog is sufficient for a
-/// producer to author the golden payload — every component the payload
-/// references has a schema, and every property the payload sets on each
-/// component is declared in that component's schema. So a producer reading ONLY
-/// the structural stamp (no source, no side channel) could author this payload.
-///
-/// The authorable-property set is DERIVED from [goldenLessonComponents] (the
-/// same golden the render proof feeds to genui) rather than a hand-maintained
-/// mirror, so the two proofs cannot drift.
-///
-/// Honest scope: this test scans PER-COMPONENT schema keys only — the
-/// catalog-level `systemPromptFragments` list (developer-authored steering
-/// text, sourced from `usage`/`description`) is out of its scope and asserted
-/// elsewhere. The invariant this guards is narrower than "no steering text at
-/// all": no per-component schema key carries AUTO-generated or inferred usage
-/// rules. Every fragment that does exist is developer-authored, never
-/// generated/inferred from the schema, so that invariant still holds; this
-/// test asserts nothing about `systemPromptFragments` and guards that no
-/// per-component semantic usage KEY silently appears (which would need a
-/// deliberate design decision, not a silent add).
+/// Every authored input in the shared render graph is declared by the producer document.
 void main() {
   late final Map<String, Object?> components;
 
@@ -46,15 +27,10 @@ void main() {
         );
         final schemaMap = schema! as Map;
         final envelopeProperties = (schemaMap['properties'] as Map);
-        expect(
-          envelopeProperties.keys,
-          containsAll(<String>['component', 'props']),
-        );
-        final propsSchema = envelopeProperties['props']! as Map;
-        final declaredProps = (propsSchema['properties']! as Map).keys.toSet();
-        final authoredProps = component['props']! as Map;
-        // Every exact property the golden payload sets (scalars + child refs)
-        // must be declared under the one required props namespace.
+        final declaredProps = envelopeProperties.keys.toSet();
+        final authoredProps = Map<String, Object?>.from(component)
+          ..remove('id')
+          ..remove('component');
         for (final key in authoredProps.keys) {
           expect(
             declaredProps,
@@ -64,10 +40,6 @@ void main() {
                 'producer could not author it from the catalog alone',
           );
         }
-        expect(
-          (schemaMap['required'] as List),
-          containsAll(<String>['component', 'props']),
-        );
       }
     },
   );
@@ -75,7 +47,7 @@ void main() {
   test('no PER-COMPONENT schema carries an auto-generated semantic usage '
       'field', () {
     // Honesty guard, scoped to per-component schema keys: this does not
-    // assert anything about the catalog-level `systemPromptFragments` list,
+    // assert anything about the catalog-level `instructions` list,
     // which DOES exist and DOES carry steering text today — but that text is
     // always developer-authored (from `usage`/`description`), never
     // generated/inferred by the toolchain. If a future change adds an

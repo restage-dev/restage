@@ -13,65 +13,54 @@ const stampPath = 'lib/generated/restage_a2ui_catalog.a2ui.json';
 Map<String, Object?> readStamp() =>
     jsonDecode(File(stampPath).readAsStringSync()) as Map<String, Object?>;
 
-/// Wraps a flat [components] list in the two-message A2UI envelope the render
-/// proofs feed to genui — an `updateComponents` carrying the components, then a
-/// `createSurface` — in genui's v0.9 wire shape.
+/// Complete v1 bundle, with inline components on createSurface.
 List<Object?> sidecarMessages(
   String surfaceId,
   String catalogId,
   List<Map<String, Object?>> components,
 ) => [
   {
-    'version': 'v0.9',
-    'updateComponents': {'surfaceId': surfaceId, 'components': components},
-  },
-  {
-    'version': 'v0.9',
-    'createSurface': {'surfaceId': surfaceId, 'catalogId': catalogId},
+    'version': 'v1.0',
+    'createSurface': {
+      'surfaceId': surfaceId,
+      'catalogId': catalogId,
+      'components': components,
+    },
   },
 ];
 
-/// The golden happy-path component graph the full-surface render proof renders.
-/// Every component keeps protocol-owned `id`/`component` at the envelope and
-/// nests its exact constructor inputs under the required `props` object. The
-/// `ComparisonPanel` exercises three independently named child-bearing inputs;
-/// `Callout.detail` proves the same rule on another component. The structural-
-/// sufficiency proof derives its authorable-property set from THIS list, so the
-/// two proofs cannot drift.
+/// The shared graph exercises arbitrary single and list child inputs.
 const goldenLessonComponents = <Map<String, Object?>>[
   {
     'id': 'root',
     'component': 'ComparisonPanel',
-    'props': {
-      'heading': 'Grammar showcase',
-      'introduction': 'header',
-      'examples': ['callout', 'quiz'],
-      'conclusion': 'summary',
-    },
+
+    'props_heading': 'Grammar showcase',
+    'props_introduction': 'header',
+    'props_examples': ['callout', 'quiz'],
+    'props_conclusion': 'summary',
   },
   {
     'id': 'header',
     'component': 'SectionHeader',
-    'props': {'title': 'Present tense'},
+    'props_title': 'Present tense',
   },
   {
     'id': 'callout',
     'component': 'Callout',
-    'props': {'message': 'Watch the ending', 'detail': 'callout-body'},
+    'props_message': 'Watch the ending',
+    'props_detail': 'callout_body',
   },
   {
-    'id': 'callout-body',
+    'id': 'callout_body',
     'component': 'SectionHeader',
-    'props': {'title': 'Details'},
+    'props_title': 'Details',
   },
   {
     'id': 'quiz',
     'component': 'QuizCheck',
-    'props': {'prompt': 'Is this right?', 'selected': false},
+    'props_prompt': 'Is this right?',
+    'props_selected': false,
   },
-  {
-    'id': 'summary',
-    'component': 'SectionHeader',
-    'props': {'title': 'Summary'},
-  },
+  {'id': 'summary', 'component': 'SectionHeader', 'props_title': 'Summary'},
 ];

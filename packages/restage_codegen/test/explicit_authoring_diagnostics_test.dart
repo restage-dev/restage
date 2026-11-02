@@ -61,71 +61,76 @@ class Upgrade extends StatelessWidget {
     });
 
     test('rejects ambiguous implicit flow IDs in one library', () async {
-      final result =
-          await _compileScenario('negative/duplicate_implicit_flow.dart');
+      final result = await _compileScenario(
+        'negative/duplicate_implicit_flow.dart',
+      );
       _expectDiagnostic(result, 'implicit');
     });
 
-    test('rejects categorized screen mismatch and divergent terminals',
-        () async {
-      final categories = await _compileScenario('categories/new');
-      _expectDiagnostic(categories, 'surface message');
-
-      final terminals = await _compileScenario('negative/two_terminals');
-      _expectDiagnostic(terminals, 'one terminal identity');
-    });
-  });
-
-  test('emits precise migration warnings for deprecated source frontends',
+    test(
+      'rejects categorized screen mismatch and divergent terminals',
       () async {
-    final sources = <String, String>{
-      ..._loadScenario('paywall/old'),
-      'apps_examples|lib/onboarding/flows/upgraded.dart':
-          _nonDefaultLegacyFlowSource,
-    };
-    final writer = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final logs = <LogRecord>[];
-    final result = await testBuilder(
-      restageSourceRosterBuilder(BuilderOptions.forRoot),
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: writer,
-      onLog: logs.add,
-    );
+        final categories = await _compileScenario('categories/new');
+        _expectDiagnostic(categories, 'surface message');
 
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    _expectMigrationWarning(
-      logs,
-      sourcePath: 'lib/onboarding/screens/offer_intro.dart',
-      deprecated: '@ScreenSource',
-      replacement: '@Screen(id: "offer_intro", surface: Surface.onboarding)',
-    );
-    _expectMigrationWarning(
-      logs,
-      sourcePath: 'lib/onboarding/flows/first_run_flow.dart',
-      deprecated: '@FlowSource',
-      replacement:
-          '@FlowGraph(id: "first_run_flow", surface: Surface.onboarding)',
-    );
-    _expectMigrationWarning(
-      logs,
-      sourcePath: 'lib/paywalls/premium.dart',
-      deprecated: '@PaywallSource',
-      replacement: '@Paywall(id: "premium")',
-    );
-    _expectMigrationWarning(
-      logs,
-      sourcePath: 'lib/onboarding/flows/upgraded.dart',
-      deprecated: '@FlowSource',
-      replacement: '@FlowGraph(id: "upgraded", surface: Surface.onboarding, '
-          'version: 4, minClient: 7, delivery: FlowDeliveryMode.general)',
+        final terminals = await _compileScenario('negative/two_terminals');
+        _expectDiagnostic(terminals, 'one terminal identity');
+      },
     );
   });
 
   test(
-      'compiles general screens, general flows, explicit IDs, and '
+    'emits precise migration warnings for deprecated source frontends',
+    () async {
+      final sources = <String, String>{
+        ..._loadScenario('paywall/old'),
+        'apps_examples|lib/onboarding/flows/upgraded.dart':
+            _nonDefaultLegacyFlowSource,
+      };
+      final writer = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final logs = <LogRecord>[];
+      final result = await testBuilder(
+        restageSourceRosterBuilder(BuilderOptions.forRoot),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: writer,
+        onLog: logs.add,
+      );
+
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      _expectMigrationWarning(
+        logs,
+        sourcePath: 'lib/onboarding/screens/offer_intro.dart',
+        deprecated: '@ScreenSource',
+        replacement: '@Screen(id: "offer_intro", surface: Surface.onboarding)',
+      );
+      _expectMigrationWarning(
+        logs,
+        sourcePath: 'lib/onboarding/flows/first_run_flow.dart',
+        deprecated: '@FlowSource',
+        replacement:
+            '@FlowGraph(id: "first_run_flow", surface: Surface.onboarding)',
+      );
+      _expectMigrationWarning(
+        logs,
+        sourcePath: 'lib/paywalls/premium.dart',
+        deprecated: '@PaywallSource',
+        replacement: '@Paywall(id: "premium")',
+      );
+      _expectMigrationWarning(
+        logs,
+        sourcePath: 'lib/onboarding/flows/upgraded.dart',
+        deprecated: '@FlowSource',
+        replacement:
+            '@FlowGraph(id: "upgraded", surface: Surface.onboarding, '
+            'version: 4, minClient: 7, delivery: FlowDeliveryMode.general)',
+      );
+    },
+  );
+
+  test('compiles general screens, general flows, explicit IDs, and '
       'colocated sources', () async {
     final result = await _compileScenario('identity/new');
     expect(
@@ -157,8 +162,10 @@ class Upgrade extends StatelessWidget {
     // The aggregate owns them instead — packed into its own containers, so
     // the index is where their existence is visible.
     final measurementIndex = result.readerWriter.testing.readString(
-      AssetId('apps_examples',
-          '.restage/build/metadata/restage.measurement.index.json'),
+      AssetId(
+        'apps_examples',
+        '.restage/build/metadata/restage.measurement.index.json',
+      ),
     );
     for (final id in ['derived_notice', 'stable_notice']) {
       expect(
@@ -190,42 +197,46 @@ class Upgrade extends StatelessWidget {
     );
   });
 
-  test('composes a paywall into a general flow without a category fence',
-      () async {
-    final result = await _compileScenario('paywall_cross_category');
-    expect(
-      result.succeeded,
-      isTrue,
-      reason: 'paywall_cross_category failed:\n'
-          '${_logs[result] ?? '<no build log>'}',
-    );
+  test(
+    'composes a paywall into a general flow without a category fence',
+    () async {
+      final result = await _compileScenario('paywall_cross_category');
+      expect(
+        result.succeeded,
+        isTrue,
+        reason:
+            'paywall_cross_category failed:\n'
+            '${_logs[result] ?? '<no build log>'}',
+      );
 
-    final outputs = await _outputs(result);
-    expect(
-      outputs.keys.any((path) => path.endsWith('.flow.json')),
-      isTrue,
-      reason: 'paywall_cross_category emitted no canonical flow artifact',
-    );
+      final outputs = await _outputs(result);
+      expect(
+        outputs.keys.any((path) => path.endsWith('.flow.json')),
+        isTrue,
+        reason: 'paywall_cross_category emitted no canonical flow artifact',
+      );
 
-    // A surface-typed paywall owns no generated part of its own — composing it
-    // into a flow is the FLOW's business, so that is where the composition has
-    // to be visible. Asserting it on the paywall's own descriptor would be
-    // asserting a file the approved design does not produce.
-    final flowArtifacts = outputs.entries
-        .where(
-          (entry) =>
-              entry.key.endsWith('.flow.json') ||
-              entry.key.endsWith(kNeutralGeneratedPartSuffix),
-        )
-        .map(_decodeOutput)
-        .join('\n');
-    expect(
-      flowArtifacts,
-      contains('general_premium'),
-      reason: 'the general flow must embed the paywall across the category '
-          'boundary; emitted flow artifacts were:\n$flowArtifacts',
-    );
-  });
+      // A surface-typed paywall owns no generated part of its own — composing it
+      // into a flow is the FLOW's business, so that is where the composition has
+      // to be visible. Asserting it on the paywall's own descriptor would be
+      // asserting a file the approved design does not produce.
+      final flowArtifacts = outputs.entries
+          .where(
+            (entry) =>
+                entry.key.endsWith('.flow.json') ||
+                entry.key.endsWith(kNeutralGeneratedPartSuffix),
+          )
+          .map(_decodeOutput)
+          .join('\n');
+      expect(
+        flowArtifacts,
+        contains('general_premium'),
+        reason:
+            'the general flow must embed the paywall across the category '
+            'boundary; emitted flow artifacts were:\n$flowArtifacts',
+      );
+    },
+  );
 }
 
 final _logs = <TestBuilderResult, String>{};
@@ -275,8 +286,8 @@ Map<String, String> _loadScenario(String scenario) {
   final singleFile = File(scenarioPath);
   if (singleFile.existsSync()) {
     return <String, String>{
-      'apps_examples|lib/${p.basename(singleFile.path)}':
-          singleFile.readAsStringSync(),
+      'apps_examples|lib/${p.basename(singleFile.path)}': singleFile
+          .readAsStringSync(),
     };
   }
   final scenarioRoot = Directory(scenarioPath);
@@ -324,7 +335,8 @@ void _expectMigrationWarning(
   expect(
     warnings,
     hasLength(1),
-    reason: 'expected one migration warning for $deprecated; logs: '
+    reason:
+        'expected one migration warning for $deprecated; logs: '
         '${logs.map((record) => '${record.level}: ${record.message}').join('\n')}',
   );
   expect(
@@ -335,19 +347,21 @@ void _expectMigrationWarning(
 
 Future<Map<String, String>> _outputs(TestBuilderResult result) async {
   final outputs = <String, String>{};
-  final assets = result.readerWriter.testing.assets
-      .where((id) => id.package == 'apps_examples')
-      .where((id) => Glob('assets/**').matches(id.path))
-      .toList()
-    ..sort((left, right) => left.path.compareTo(right.path));
+  final assets =
+      result.readerWriter.testing.assets
+          .where((id) => id.package == 'apps_examples')
+          .where((id) => Glob('assets/**').matches(id.path))
+          .toList()
+        ..sort((left, right) => left.path.compareTo(right.path));
   for (final id in assets) {
     outputs[id.path] = base64Encode(result.readerWriter.testing.readBytes(id));
   }
-  final generated = result.readerWriter.testing.assets
-      .where((id) => id.package == 'apps_examples')
-      .where((id) => Glob('lib/**/*.g.dart').matches(id.path))
-      .toList()
-    ..sort((left, right) => left.path.compareTo(right.path));
+  final generated =
+      result.readerWriter.testing.assets
+          .where((id) => id.package == 'apps_examples')
+          .where((id) => Glob('lib/**/*.g.dart').matches(id.path))
+          .toList()
+        ..sort((left, right) => left.path.compareTo(right.path));
   for (final id in generated) {
     outputs[id.path] = result.readerWriter.testing.readString(id);
   }

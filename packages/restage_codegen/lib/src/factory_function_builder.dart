@@ -33,8 +33,8 @@ final class FactoryFunctionBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        _catalogAsset: [_outputAsset],
-      };
+    _catalogAsset: [_outputAsset],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -140,8 +140,10 @@ String _emitRegistrationFile({
     emittedEntries.add(entry);
   }
   if (library == WidgetLibrary.core) {
-    mapEntries.add("  '$kBuilderContinuationWidgetName': "
-        'buildRestageBuilderContinuation,');
+    mapEntries.add(
+      "  '$kBuilderContinuationWidgetName': "
+      'buildRestageBuilderContinuation,',
+    );
   }
 
   final buf = StringBuffer();
@@ -177,25 +179,29 @@ String _emitRegistrationFile({
   // Import non-Flutter widget and enum libraries by sorted, deduplicated
   // source URI. Add the core barrel only when emitted factories use its
   // runtime helpers.
-  final referencesCoreRuntime = library == WidgetLibrary.core ||
-      factoryDefinitions.any((d) =>
-          d.contains('RestageDecoders.') ||
-          d.contains('RestageGridValues.') ||
-          d.contains('RestageGridChildren.') ||
-          d.contains('RestageBuilderBinding') ||
-          d.contains('RestageValueBinding') ||
-          d.contains('RestageRfwConstructorPresence.') ||
-          d.contains('resolveThemeBinding(') ||
-          d.contains('restageIcon('));
+  final referencesCoreRuntime =
+      library == WidgetLibrary.core ||
+      factoryDefinitions.any(
+        (d) =>
+            d.contains('RestageDecoders.') ||
+            d.contains('RestageGridValues.') ||
+            d.contains('RestageGridChildren.') ||
+            d.contains('RestageBuilderBinding') ||
+            d.contains('RestageValueBinding') ||
+            d.contains('RestageRfwConstructorPresence.') ||
+            d.contains('resolveThemeBinding(') ||
+            d.contains('restageIcon('),
+      );
   final primaryFlutterImport = _flutterImportFor(library);
-  final extraWidgetImports = <String>{
-    for (final entry in emittedEntries)
-      entry.flutterType.substring(0, entry.flutterType.indexOf('#')),
-    for (final ref in emittedEntries.expand(_enumRefs))
-      if (!_isSdkLibrary(ref.libraryUri)) ref.libraryUri,
-  }
-    ..removeWhere((uri) => uri == primaryFlutterImport)
-    ..removeWhere((uri) => uri.startsWith('package:flutter/'));
+  final extraWidgetImports =
+      <String>{
+          for (final entry in emittedEntries)
+            entry.flutterType.substring(0, entry.flutterType.indexOf('#')),
+          for (final ref in emittedEntries.expand(_enumRefs))
+            if (!_isSdkLibrary(ref.libraryUri)) ref.libraryUri,
+        }
+        ..removeWhere((uri) => uri == primaryFlutterImport)
+        ..removeWhere((uri) => uri.startsWith('package:flutter/'));
   // When the `restage_core` barrel is emitted it re-exports the core
   // library's own public widgets, so a direct import of a first-party core
   // widget source is redundant under it (`unnecessary_import`). Drop those;
@@ -220,15 +226,18 @@ String _emitRegistrationFile({
           property.type == PropertyType.scalarCallback,
     ),
   )) {
-    buf.writeln("import 'package:rfw_catalog_schema/rfw_catalog_schema.dart' "
-        'show WidgetBuilderContract, WidgetBuilderParameter, ScalarCallbackContract, ScalarCallbackParameter;');
+    buf.writeln(
+      "import 'package:rfw_catalog_schema/rfw_catalog_schema.dart' "
+      'show WidgetBuilderContract, WidgetBuilderParameter, ScalarCallbackContract, ScalarCallbackParameter;',
+    );
   }
   // `ImageFilter` is in `dart:ui`; `package:flutter/widgets.dart`
   // doesn't re-export it. Conditional import keeps libraries that
   // don't curate `BackdropFilter` (or other ImageFilter-consuming
   // widgets) free of an unused-import warning.
-  final referencesImageFilter =
-      factoryDefinitions.any((d) => d.contains('ImageFilter.'));
+  final referencesImageFilter = factoryDefinitions.any(
+    (d) => d.contains('ImageFilter.'),
+  );
   if (referencesImageFilter) {
     buf.writeln("import 'dart:ui' show ImageFilter;");
   }

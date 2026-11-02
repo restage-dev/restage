@@ -1,6 +1,7 @@
 /// The canonical RFW DSL import preamble shared by every emitted library —
 /// the three built-in catalog namespaces, in fixed order.
-const String kRfwImportPreamble = 'import restage.core;\n'
+const String kRfwImportPreamble =
+    'import restage.core;\n'
     'import restage.material;\n'
     'import restage.cupertino;\n';
 
@@ -70,9 +71,9 @@ String emitRemoteWidgetLibrary(
   // A referenced custom widget resolves against its imported library — the
   // built-in preamble alone does not cover custom widgets. Emit one import
   // per referenced custom library, sorted + deduped for a deterministic blob.
-  final customImports = ({...customLibraryImports}.toList()..sort())
-      .map((namespace) => 'import $namespace;\n')
-      .join();
+  final customImports = ({
+    ...customLibraryImports,
+  }.toList()..sort()).map((namespace) => 'import $namespace;\n').join();
   final rootStateBlock = _stateBlock(rootWidgetState);
   return '$kRfwImportPreamble$customImports\n'
       '${definitions}widget $rootWidgetName$rootStateBlock = $fragment;\n';

@@ -30,8 +30,9 @@ final class Steps extends StatelessWidget {
 
 void main() {
   test('a conditional at the root compiles measured', () async {
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: _package);
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: _package,
+    );
     final result = await testBuilders(
       [
         restageSourceRosterBuilder(BuilderOptions.forRoot),
@@ -51,8 +52,9 @@ void main() {
       ),
     );
     expect(output.valid, isTrue, reason: output.errors.join('\n'));
-    final routes = output.publications.single.routePlan.routes
-        .where((route) => route.orderedCaptureV1?.lifecycleChannel == null);
+    final routes = output.publications.single.routePlan.routes.where(
+      (route) => route.orderedCaptureV1?.lifecycleChannel == null,
+    );
     expect(routes, hasLength(1));
   });
 }

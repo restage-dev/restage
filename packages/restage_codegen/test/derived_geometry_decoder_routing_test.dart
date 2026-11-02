@@ -234,8 +234,10 @@ void main() {
         );
         expect(
           _emissionFor('AppBar', property, PropertyType.real),
-          contains("$property: RestageValueBinding.read<double>("
-              "source, const <Object>['$property'], context)"),
+          contains(
+            "$property: RestageValueBinding.read<double>("
+            "source, const <Object>['$property'], context)",
+          ),
         );
       }
     });
@@ -277,7 +279,8 @@ void main() {
       const requiredDecoder = 'RestageDecoders.requiredLayoutScalar';
       const itemExtentPath = "<Object>['itemExtent']";
       const itemExtentSlot = "slot: 'CupertinoPicker.itemExtent'";
-      const requiredItemExtent = '$requiredDecoder(source, $itemExtentPath, '
+      const requiredItemExtent =
+          '$requiredDecoder(source, $itemExtentPath, '
           '$itemExtentSlot, mustBePositive: true)';
       const magnificationPath = "<Object>['magnification']";
       const positiveMagnification =
@@ -325,8 +328,10 @@ void main() {
       )!;
       expect(
         appBar,
-        contains('toolbarHeight: RestageValueBinding.read<double>('
-            "source, const <Object>['toolbarHeight'], context)"),
+        contains(
+          'toolbarHeight: RestageValueBinding.read<double>('
+          "source, const <Object>['toolbarHeight'], context)",
+        ),
       );
       expect(appBar, isNot(contains('RestageDecoders.layoutFactor')));
 
@@ -339,8 +344,10 @@ void main() {
       )!;
       expect(
         activity,
-        contains('radius: RestageValueBinding.read<double>('
-            "source, const <Object>['radius'], context) ?? 10.0,"),
+        contains(
+          'radius: RestageValueBinding.read<double>('
+          "source, const <Object>['radius'], context) ?? 10.0,",
+        ),
       );
       expect(activity, isNot(contains('safeActivityIndicatorRadius')));
 
@@ -473,7 +480,8 @@ void main() {
           slot.type,
           required: true,
         );
-        final call = 'RestageDecoders.requiredLayoutScalar('
+        final call =
+            'RestageDecoders.requiredLayoutScalar('
             "source, <Object>['${slot.property}'], "
             "slot: '${slot.widget}.${slot.property}', "
             'mustBePositive: ${slot.positive})';
@@ -490,44 +498,46 @@ void main() {
       }
     });
 
-    test('leaves a same-named application AspectRatio on the plain decoder',
-        () {
-      const applicationUri = 'package:acme/widgets.dart';
-      const entry = WidgetEntry(
-        wireId: WireId.unallocatedWidget,
-        name: 'AspectRatio',
-        library: WidgetLibrary.custom('acme.widgets'),
-        category: WidgetCategory.layout,
-        description: 'Application scalar routing fixture.',
-        flutterType: '$applicationUri#AspectRatio',
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'aspectRatio',
-            type: PropertyType.real,
-            description: 'Optional application-defined aspect ratio.',
-          ),
-        ],
-      );
-      final source = emitFactoryFunction(
-        entry,
-        aliases: const {applicationUri: 's0'},
-      )!;
+    test(
+      'leaves a same-named application AspectRatio on the plain decoder',
+      () {
+        const applicationUri = 'package:acme/widgets.dart';
+        const entry = WidgetEntry(
+          wireId: WireId.unallocatedWidget,
+          name: 'AspectRatio',
+          library: WidgetLibrary.custom('acme.widgets'),
+          category: WidgetCategory.layout,
+          description: 'Application scalar routing fixture.',
+          flutterType: '$applicationUri#AspectRatio',
+          childrenSlot: ChildrenSlot.none,
+          properties: [
+            PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'aspectRatio',
+              type: PropertyType.real,
+              description: 'Optional application-defined aspect ratio.',
+            ),
+          ],
+        );
+        final source = emitFactoryFunction(
+          entry,
+          aliases: const {applicationUri: 's0'},
+        )!;
 
-      expect(source, contains('return s0.AspectRatio('));
-      expect(
-        source,
-        contains(
-          'aspectRatio: RestageValueBinding.read<double>('
-          "source, const <Object>['aspectRatio'], context),",
-        ),
-      );
-      expect(
-        source,
-        isNot(contains('RestageDecoders.requiredLayoutScalar')),
-      );
-    });
+        expect(source, contains('return s0.AspectRatio('));
+        expect(
+          source,
+          contains(
+            'aspectRatio: RestageValueBinding.read<double>('
+            "source, const <Object>['aspectRatio'], context),",
+          ),
+        );
+        expect(
+          source,
+          isNot(contains('RestageDecoders.requiredLayoutScalar')),
+        );
+      },
+    );
 
     test('keeps the built-in AspectRatio on the required scalar decoder', () {
       final source = _emissionFor(
@@ -670,7 +680,8 @@ void main() {
         expect(
           source,
           contains(
-              "spacing: RestageValueBinding.read<double>(source, const <Object>['spacing'], context) ?? 0.0,"),
+            "spacing: RestageValueBinding.read<double>(source, const <Object>['spacing'], context) ?? 0.0,",
+          ),
           reason: library.namespace,
         );
         expect(
@@ -771,7 +782,8 @@ void main() {
       expect(
         elevation,
         contains(
-            "RestageValueBinding.read<double>(source, const <Object>['elevation'], context)"),
+          "RestageValueBinding.read<double>(source, const <Object>['elevation'], context)",
+        ),
       );
       expect(elevation, isNot(contains('RestageDecoders.constraintScalar')));
       expect(elevation, isNot(contains('RestageDecoders.layoutFactor')));
@@ -795,7 +807,8 @@ void main() {
           expect(
             source,
             contains(
-                "RestageValueBinding.read<double>(source, const <Object>['$propertyName'], context)"),
+              "RestageValueBinding.read<double>(source, const <Object>['$propertyName'], context)",
+            ),
             reason: '$widgetName.$propertyName',
           );
           expect(
@@ -864,8 +877,9 @@ String _spacingEmissionFor(
   Map<String, String> aliases = const {},
   double spacingDefault = 0.0,
 }) {
-  final spacingType =
-      widgetName == 'Wrap' ? PropertyType.length : PropertyType.real;
+  final spacingType = widgetName == 'Wrap'
+      ? PropertyType.length
+      : PropertyType.real;
   final entry = WidgetEntry(
     wireId: WireId.unallocatedWidget,
     name: widgetName,
@@ -927,56 +941,54 @@ WidgetEntry _activityIndicatorEntry({
   WidgetLibrary library = WidgetLibrary.cupertino,
   String flutterType =
       'package:flutter/src/cupertino/activity_indicator.dart#CupertinoActivityIndicator',
-}) =>
-    WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: 'CupertinoActivityIndicator',
-      library: library,
-      category: WidgetCategory.decoration,
-      description: 'Activity indicator product fixture.',
-      flutterType: flutterType,
-      childrenSlot: ChildrenSlot.none,
-      properties: const [
-        PropertyEntry(
-          wireId: WireId.unallocatedProperty,
-          name: 'radius',
-          type: PropertyType.length,
-          description: 'Indicator radius.',
-          defaultSource: LiteralDefault(10.0),
-        ),
-      ],
-    );
+}) => WidgetEntry(
+  wireId: WireId.unallocatedWidget,
+  name: 'CupertinoActivityIndicator',
+  library: library,
+  category: WidgetCategory.decoration,
+  description: 'Activity indicator product fixture.',
+  flutterType: flutterType,
+  childrenSlot: ChildrenSlot.none,
+  properties: const [
+    PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: 'radius',
+      type: PropertyType.length,
+      description: 'Indicator radius.',
+      defaultSource: LiteralDefault(10.0),
+    ),
+  ],
+);
 
 WidgetEntry _pickerEntry({
   WidgetLibrary library = WidgetLibrary.cupertino,
   String flutterType =
       'package:flutter/src/cupertino/picker.dart#CupertinoPicker',
-}) =>
-    WidgetEntry(
-      wireId: WireId.unallocatedWidget,
-      name: 'CupertinoPicker',
-      library: library,
-      category: WidgetCategory.input,
-      description: 'Picker product fixture.',
-      flutterType: flutterType,
-      childrenSlot: ChildrenSlot.none,
-      properties: const [
-        PropertyEntry(
-          wireId: WireId.unallocatedProperty,
-          name: 'magnification',
-          type: PropertyType.real,
-          description: 'Picker magnification.',
-          defaultSource: LiteralDefault(1.0),
-        ),
-        PropertyEntry(
-          wireId: WireId.unallocatedProperty,
-          name: 'itemExtent',
-          type: PropertyType.real,
-          description: 'Picker item extent.',
-          required: true,
-        ),
-      ],
-    );
+}) => WidgetEntry(
+  wireId: WireId.unallocatedWidget,
+  name: 'CupertinoPicker',
+  library: library,
+  category: WidgetCategory.input,
+  description: 'Picker product fixture.',
+  flutterType: flutterType,
+  childrenSlot: ChildrenSlot.none,
+  properties: const [
+    PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: 'magnification',
+      type: PropertyType.real,
+      description: 'Picker magnification.',
+      defaultSource: LiteralDefault(1.0),
+    ),
+    PropertyEntry(
+      wireId: WireId.unallocatedProperty,
+      name: 'itemExtent',
+      type: PropertyType.real,
+      description: 'Picker item extent.',
+      required: true,
+    ),
+  ],
+);
 
 int _occurrences(String source, String pattern) =>
     RegExp(RegExp.escape(pattern)).allMatches(source).length;

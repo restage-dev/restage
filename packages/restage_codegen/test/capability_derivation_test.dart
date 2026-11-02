@@ -31,42 +31,49 @@ Catalog _committedCatalog(String package) {
 
 void main() {
   test(
-      'interactive spans require capability 22 while static rich text keeps its floor',
-      () {
-    final catalog = _committedCatalog('restage_core');
-    int floor(String span) => deriveCapabilityManifest(
-            parseLibraryFile(
-                'import restage.core; widget Surface = TextRich(textSpan: $span);'),
-            catalog)
-        .manifest!
-        .builtInFloor;
-    expect(floor('{text: "static"}'), lessThan(22));
-    expect(floor('{text: "null", recognizer: null}'), lessThan(22));
-    expect(
-        floor(
-            '{children: [{text: "link", recognizer: {kind: "tap", onTap: event "go" {}}}]}'),
-        22);
-    // The span slot predates interactive recognizers; actual use supplies 22.
-    final span = catalog.widgets
-        .singleWhere((widget) => widget.name == 'TextRich')
-        .properties
-        .singleWhere((property) => property.name == 'textSpan');
-    expect(span.sinceVersion, kBaselineCatalogVersion);
-    final required = deriveCapabilityManifest(
-            parseLibraryFile(
-                'import restage.core; widget Surface = TextRich(textSpan: {recognizer: {kind: "tap"}});'),
-            catalog)
-        .manifest!;
-    for (final (version, accepted) in [(21, false), (22, true)]) {
+    'interactive spans require capability 22 while static rich text keeps its floor',
+    () {
+      final catalog = _committedCatalog('restage_core');
+      int floor(String span) => deriveCapabilityManifest(
+        parseLibraryFile(
+          'import restage.core; widget Surface = TextRich(textSpan: $span);',
+        ),
+        catalog,
+      ).manifest!.builtInFloor;
+      expect(floor('{text: "static"}'), lessThan(22));
+      expect(floor('{text: "null", recognizer: null}'), lessThan(22));
       expect(
+        floor(
+          '{children: [{text: "link", recognizer: {kind: "tap", onTap: event "go" {}}}]}',
+        ),
+        22,
+      );
+      // The span slot predates interactive recognizers; actual use supplies 22.
+      final span = catalog.widgets
+          .singleWhere((widget) => widget.name == 'TextRich')
+          .properties
+          .singleWhere((property) => property.name == 'textSpan');
+      expect(span.sinceVersion, kBaselineCatalogVersion);
+      final required = deriveCapabilityManifest(
+        parseLibraryFile(
+          'import restage.core; widget Surface = TextRich(textSpan: {recognizer: {kind: "tap"}});',
+        ),
+        catalog,
+      ).manifest!;
+      for (final (version, accepted) in [(21, false), (22, true)]) {
+        expect(
           BlobRenderCapabilityGate.evaluate(
-              required: required,
-              installed: InstalledCapability(
-                  builtInCatalogVersion: version,
-                  installedLibraries: const [])).accepted,
-          accepted);
-    }
-  });
+            required: required,
+            installed: InstalledCapability(
+              builtInCatalogVersion: version,
+              installedLibraries: const [],
+            ),
+          ).accepted,
+          accepted,
+        );
+      }
+    },
+  );
 
   group('interactive span selectors and forwarding', () {
     for (final source in [
@@ -78,21 +85,27 @@ void main() {
       'widget Link = TextRich(textSpan: {recognizer: args.recognizer}); widget Surface = Link(recognizer: {kind: "tap"});',
       'widget Link = switch data.done {true: TextRich(textSpan: args.span), default: Link(span: args.next)}; widget Surface = Link(span: {text: "plain"}, next: {recognizer: {kind: "tap"}});',
     ]) {
-      test('selected or forwarded descriptor requires capability 22: $source',
-          () {
-        final result = deriveCapabilityManifest(
+      test(
+        'selected or forwarded descriptor requires capability 22: $source',
+        () {
+          final result = deriveCapabilityManifest(
             parseLibraryFile('import restage.core; $source'),
-            _committedCatalog('restage_core'));
-        expect(result.issues, isEmpty);
-        expect(result.manifest!.builtInFloor, 22);
-        expect(
+            _committedCatalog('restage_core'),
+          );
+          expect(result.issues, isEmpty);
+          expect(result.manifest!.builtInFloor, 22);
+          expect(
             BlobRenderCapabilityGate.evaluate(
-                required: result.manifest!,
-                installed: InstalledCapability(
-                    builtInCatalogVersion: 21,
-                    installedLibraries: const [])).accepted,
-            isFalse);
-      });
+              required: result.manifest!,
+              installed: InstalledCapability(
+                builtInCatalogVersion: 21,
+                installedLibraries: const [],
+              ),
+            ).accepted,
+            isFalse,
+          );
+        },
+      );
     }
     for (final source in [
       'widget Link = TextRich(textSpan: args.span); widget Surface = Link(span: {text: "plain"});',
@@ -107,8 +120,9 @@ void main() {
     ]) {
       test('static or unrelated maps keep their floor: $source', () {
         final result = deriveCapabilityManifest(
-            parseLibraryFile('import restage.core; $source'),
-            _committedCatalog('restage_core'));
+          parseLibraryFile('import restage.core; $source'),
+          _committedCatalog('restage_core'),
+        );
         expect(result.issues, isEmpty);
         expect(result.manifest!.builtInFloor, lessThan(22));
       });
@@ -126,30 +140,36 @@ void main() {
       test('finite recursive static literal keeps its old floor: $span', () {
         final catalog = _committedCatalog('restage_core');
         final direct = deriveCapabilityManifest(
-                parseLibraryFile(
-                    'import restage.core; widget Surface = TextRich(textSpan: $span);'),
-                catalog)
-            .manifest!;
-        final recursive = deriveCapabilityManifest(parseLibraryFile('''
+          parseLibraryFile(
+            'import restage.core; widget Surface = TextRich(textSpan: $span);',
+          ),
+          catalog,
+        ).manifest!;
+        final recursive = deriveCapabilityManifest(
+          parseLibraryFile('''
 import restage.core;
 widget Link = switch args.more {
   false: TextRich(textSpan: $span),
   default: Link(more: args.next.more, next: args.next.next)
 };
 widget Surface = Link(more: true, next: {more: false});
-'''), catalog);
+'''),
+          catalog,
+        );
         expect(recursive.issues, isEmpty);
-        expect((
-          recursive.manifest!.builtInFloor,
-          BlobRenderCapabilityGate.evaluate(
+        expect(
+          (
+            recursive.manifest!.builtInFloor,
+            BlobRenderCapabilityGate.evaluate(
               required: recursive.manifest!,
               installed: InstalledCapability(
-                  builtInCatalogVersion: 21,
-                  installedLibraries: const [])).accepted
-        ), (
-          direct.builtInFloor,
-          true
-        ));
+                builtInCatalogVersion: 21,
+                installedLibraries: const [],
+              ),
+            ).accepted,
+          ),
+          (direct.builtInFloor, true),
+        );
         expect(recursive.manifest!.builtInFloor, lessThan(22));
       });
     }
@@ -161,17 +181,21 @@ widget Surface = Link(more: true, next: {more: false});
         'widget Surface = Layer13();',
       ];
       final result = deriveCapabilityManifest(
-          parseLibraryFile('import restage.core; ${declarations.join('\n')}'),
-          _committedCatalog('restage_core'));
+        parseLibraryFile('import restage.core; ${declarations.join('\n')}'),
+        _committedCatalog('restage_core'),
+      );
       expect(result.issues, isEmpty);
       expect(result.manifest!.builtInFloor, lessThan(22));
       expect(
-          BlobRenderCapabilityGate.evaluate(
-              required: result.manifest!,
-              installed: InstalledCapability(
-                  builtInCatalogVersion: 21,
-                  installedLibraries: const [])).accepted,
-          isTrue);
+        BlobRenderCapabilityGate.evaluate(
+          required: result.manifest!,
+          installed: InstalledCapability(
+            builtInCatalogVersion: 21,
+            installedLibraries: const [],
+          ),
+        ).accepted,
+        isTrue,
+      );
     });
   });
 
@@ -284,10 +308,11 @@ widget Surface = Link(more: true, next: {more: false});
       );
     });
 
-    test('a grouped loop raises the floor above older widget-list decoders',
-        () {
-      expect(
-        floorOf('''
+    test(
+      'a grouped loop raises the floor above older widget-list decoders',
+      () {
+        expect(
+          floorOf('''
           import restage.core;
           widget Paywall = Column(children: [
             ...for item in data.items: [
@@ -296,9 +321,10 @@ widget Surface = Link(more: true, next: {more: false});
             ],
           ]);
         '''),
-        kGroupedWidgetListClientFloor,
-      );
-    });
+          kGroupedWidgetListClientFloor,
+        );
+      },
+    );
 
     test('a String slot joined from parts raises the floor', () {
       expect(
@@ -405,25 +431,27 @@ widget Surface = Link(more: true, next: {more: false});
       expect(result.manifest!.builtInFloor, 3);
     });
 
-    test('the core version-5 landing stays above its historical global ceiling',
-        () {
-      // ColoredBox landed at version 5 when Material's version 4 was the
-      // global ceiling. Later catalog additions must not move that historical
-      // comparison: expanded Icon now legitimately advances Material to 6.
-      const oldGlobalCeiling = 4;
-      final core = _committedCatalog('restage_core');
-      final surface = parseLibraryFile(
-        '''
+    test(
+      'the core version-5 landing stays above its historical global ceiling',
+      () {
+        // ColoredBox landed at version 5 when Material's version 4 was the
+        // global ceiling. Later catalog additions must not move that historical
+        // comparison: expanded Icon now legitimately advances Material to 6.
+        const oldGlobalCeiling = 4;
+        final core = _committedCatalog('restage_core');
+        final surface = parseLibraryFile(
+          '''
 import restage.core;
 widget Paywall = ColoredBox(color: 0xFF000000);
 ''',
-        sourceIdentifier: 'test',
-      );
-      final result = deriveCapabilityManifest(surface, core);
-      expect(result.issues, isEmpty);
-      expect(result.manifest!.builtInFloor, 5);
-      expect(result.manifest!.builtInFloor, greaterThan(oldGlobalCeiling));
-    });
+          sourceIdentifier: 'test',
+        );
+        final result = deriveCapabilityManifest(surface, core);
+        expect(result.issues, isEmpty);
+        expect(result.manifest!.builtInFloor, 5);
+        expect(result.manifest!.builtInFloor, greaterThan(oldGlobalCeiling));
+      },
+    );
 
     for (final widget in ['Row', 'Column']) {
       test('the committed $widget capability requires the new decoder', () {
@@ -534,28 +562,28 @@ widget Paywall = ColoredBox(color: 0xFF000000);
   // A mixed catalog: built-in `restage.core` widgets plus a custom library.
   const customLib = WidgetLibrary.custom('acme.widgets');
   Catalog mixedCatalog({int? customCapabilityVersion}) => Catalog(
-        schemaVersion: kSupportedSchemaVersion,
-        generatedAt: '1970-01-01T00:00:00Z',
-        libraries: {
-          WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
-          customLib: LibraryInfo(
-            version: '1.0.0',
-            capabilityVersion: customCapabilityVersion,
-          ),
-        },
-        widgets: [
-          entry(
-            name: 'Text',
-            properties: [prop('text', PropertyType.string, required: true)],
-          ),
-          entry(name: 'Banner', properties: const [], sinceVersion: 2),
-          entry(
-            name: 'AcmeButton',
-            properties: const [],
-            library: customLib,
-          ),
-        ],
-      );
+    schemaVersion: kSupportedSchemaVersion,
+    generatedAt: '1970-01-01T00:00:00Z',
+    libraries: {
+      WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
+      customLib: LibraryInfo(
+        version: '1.0.0',
+        capabilityVersion: customCapabilityVersion,
+      ),
+    },
+    widgets: [
+      entry(
+        name: 'Text',
+        properties: [prop('text', PropertyType.string, required: true)],
+      ),
+      entry(name: 'Banner', properties: const [], sinceVersion: 2),
+      entry(
+        name: 'AcmeButton',
+        properties: const [],
+        library: customLib,
+      ),
+    ],
+  );
 
   group('deriveCapabilityManifest — requiredLibraries (custom)', () {
     test('a custom-only grouped list still requires the runtime decoder', () {
@@ -588,8 +616,10 @@ widget Paywall = ColoredBox(color: 0xFF000000);
           schemaVersion: kSupportedSchemaVersion,
           generatedAt: '1970-01-01T00:00:00Z',
           libraries: {
-            customLib:
-                const LibraryInfo(version: '1.0.0', capabilityVersion: 3),
+            customLib: const LibraryInfo(
+              version: '1.0.0',
+              capabilityVersion: 3,
+            ),
           },
           widgets: [
             entry(
@@ -649,8 +679,7 @@ widget Paywall = ColoredBox(color: 0xFF000000);
       ]);
     });
 
-    test(
-        'fail-when-referenced: a referenced custom library with no '
+    test('fail-when-referenced: a referenced custom library with no '
         'capabilityVersion fails the build', () {
       const dsl = '''
         import restage.core;
@@ -674,8 +703,7 @@ widget Paywall = ColoredBox(color: 0xFF000000);
       expect(issue.message, contains('capabilityVersion'));
     });
 
-    test(
-        'an UNREFERENCED custom library that omits its version does not '
+    test('an UNREFERENCED custom library that omits its version does not '
         'fail the build', () {
       // The catalog carries `acme.widgets` with no capabilityVersion, but the
       // surface references only built-ins — fail-when-REFERENCED, so this is
@@ -698,31 +726,29 @@ widget Paywall = ColoredBox(color: 0xFF000000);
     const zeta = WidgetLibrary.custom('zeta.widgets');
     const alpha = WidgetLibrary.custom('alpha.widgets');
     Catalog twoCustomCatalog({int? zetaVersion, int? alphaVersion}) => Catalog(
-          schemaVersion: kSupportedSchemaVersion,
-          generatedAt: '1970-01-01T00:00:00Z',
-          libraries: {
-            WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
-            zeta: LibraryInfo(version: '1.0.0', capabilityVersion: zetaVersion),
-            alpha:
-                LibraryInfo(version: '1.0.0', capabilityVersion: alphaVersion),
-          },
-          widgets: [
-            entry(
-              name: 'Column',
-              childrenSlot: ChildrenSlot.list,
-              properties: [prop('children', PropertyType.widgetList)],
-            ),
-            entry(name: 'ZetaCard', properties: const [], library: zeta),
-            entry(name: 'AlphaCard', properties: const [], library: alpha),
-          ],
-        );
+      schemaVersion: kSupportedSchemaVersion,
+      generatedAt: '1970-01-01T00:00:00Z',
+      libraries: {
+        WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
+        zeta: LibraryInfo(version: '1.0.0', capabilityVersion: zetaVersion),
+        alpha: LibraryInfo(version: '1.0.0', capabilityVersion: alphaVersion),
+      },
+      widgets: [
+        entry(
+          name: 'Column',
+          childrenSlot: ChildrenSlot.list,
+          properties: [prop('children', PropertyType.widgetList)],
+        ),
+        entry(name: 'ZetaCard', properties: const [], library: zeta),
+        entry(name: 'AlphaCard', properties: const [], library: alpha),
+      ],
+    );
     const reverseOrderDsl = '''
       import restage.core;
       widget Paywall = Column(children: [ZetaCard(), AlphaCard()]);
     ''';
 
-    test(
-        'requiredLibraries is canonical (sorted by namespace) regardless of '
+    test('requiredLibraries is canonical (sorted by namespace) regardless of '
         'reference order', () {
       final surface = parseLibraryFile(reverseOrderDsl, sourceIdentifier: 't');
       final result = deriveCapabilityManifest(
@@ -736,19 +762,24 @@ widget Paywall = ColoredBox(color: 0xFF000000);
       ]);
     });
 
-    test('fail-when-referenced diagnostics are deterministic (namespace order)',
-        () {
-      // Both referenced custom libs omit capabilityVersion; referenced
-      // zeta-before-alpha, the issues still come out namespace-sorted — the
-      // diagnostic order does not depend on authoring order.
-      final surface = parseLibraryFile(reverseOrderDsl, sourceIdentifier: 't');
-      final result = deriveCapabilityManifest(surface, twoCustomCatalog());
-      expect(result.manifest, isNull);
-      expect(
-        result.issues.map((i) => i.location).toList(),
-        ['alpha.widgets', 'zeta.widgets'],
-      );
-    });
+    test(
+      'fail-when-referenced diagnostics are deterministic (namespace order)',
+      () {
+        // Both referenced custom libs omit capabilityVersion; referenced
+        // zeta-before-alpha, the issues still come out namespace-sorted — the
+        // diagnostic order does not depend on authoring order.
+        final surface = parseLibraryFile(
+          reverseOrderDsl,
+          sourceIdentifier: 't',
+        );
+        final result = deriveCapabilityManifest(surface, twoCustomCatalog());
+        expect(result.manifest, isNull);
+        expect(
+          result.issues.map((i) => i.location).toList(),
+          ['alpha.widgets', 'zeta.widgets'],
+        );
+      },
+    );
   });
 
   group('deriveCapabilityManifest — name shadow (ambiguity fails closed)', () {
@@ -759,17 +790,17 @@ widget Paywall = ColoredBox(color: 0xFF000000);
     // cannot be stamped: the runtime resolves by import order, the derivation
     // by catalog priority, so a wrong-library stamp could fail open.
     Catalog shadowCatalog() => Catalog(
-          schemaVersion: kSupportedSchemaVersion,
-          generatedAt: '1970-01-01T00:00:00Z',
-          libraries: {
-            WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
-            customLib: customInfo,
-          },
-          widgets: [
-            entry(name: 'Banner', properties: const [], sinceVersion: 2),
-            entry(name: 'Banner', properties: const [], library: customLib),
-          ],
-        );
+      schemaVersion: kSupportedSchemaVersion,
+      generatedAt: '1970-01-01T00:00:00Z',
+      libraries: {
+        WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
+        customLib: customInfo,
+      },
+      widgets: [
+        entry(name: 'Banner', properties: const [], sinceVersion: 2),
+        entry(name: 'Banner', properties: const [], library: customLib),
+      ],
+    );
 
     test('a custom library shadowing a built-in name fails closed', () {
       const dsl = '''
@@ -841,27 +872,28 @@ widget Paywall = ColoredBox(color: 0xFF000000);
       );
     });
 
-    test('two libraries with DISTINCT names do not trip the ambiguity guard',
-        () {
-      // A custom library whose widget name is unique resolves cleanly — the
-      // guard is for cross-library NAME collisions only, not for the mere
-      // presence of a custom library.
-      const dsl = '''
+    test(
+      'two libraries with DISTINCT names do not trip the ambiguity guard',
+      () {
+        // A custom library whose widget name is unique resolves cleanly — the
+        // guard is for cross-library NAME collisions only, not for the mere
+        // presence of a custom library.
+        const dsl = '''
         import restage.core;
         widget Paywall = AcmeButton();
       ''';
-      final result = deriveCapabilityManifest(
-        parseLibraryFile(dsl, sourceIdentifier: 'test'),
-        mixedCatalog(customCapabilityVersion: 5),
-      );
-      expect(result.issues, isEmpty);
-      expect(result.manifest, isNotNull);
-    });
+        final result = deriveCapabilityManifest(
+          parseLibraryFile(dsl, sourceIdentifier: 'test'),
+          mixedCatalog(customCapabilityVersion: 5),
+        );
+        expect(result.issues, isEmpty);
+        expect(result.manifest, isNotNull);
+      },
+    );
   });
 
   group('deriveCapabilityManifest — cumulative render-support', () {
-    test(
-        'a DEPRECATED built-in still contributes to the floor '
+    test('a DEPRECATED built-in still contributes to the floor '
         '(deprecated != removed)', () {
       // A catalog version is a cumulative render-support set — a
       // deprecated widget is still supported, so the derivation must not skip
@@ -888,9 +920,9 @@ widget Paywall = ColoredBox(color: 0xFF000000);
 
   group('deriveCapabilityManifest — referencedWidgets', () {
     List<String> qualifiedNames(CapabilityDerivationResult result) => [
-          for (final entry in result.referencedWidgets)
-            WidgetVocabulary.qualifiedName(entry.library.namespace, entry.name),
-        ];
+      for (final entry in result.referencedWidgets)
+        WidgetVocabulary.qualifiedName(entry.library.namespace, entry.name),
+    ];
 
     // The same three widgets — two built-ins and a custom — referenced in two
     // different orders, so the canonical order is testable against both.

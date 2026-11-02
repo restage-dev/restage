@@ -12,9 +12,9 @@ import 'package:restage_codegen/src/widgetbook/widgetbook_story_plan.dart';
 final _formatters = <Version, DartFormatter>{};
 
 DartFormatter _formatterFor(Version languageVersion) => _formatters.putIfAbsent(
-      languageVersion,
-      () => DartFormatter(languageVersion: languageVersion),
-    );
+  languageVersion,
+  () => DartFormatter(languageVersion: languageVersion),
+);
 
 const _restageRuntimeUri = 'package:restage/restage.dart';
 const _restageRuntimePrefix = 'restage_runtime';
@@ -47,8 +47,9 @@ String renderWidgetbookStorySource({
   required String sourcePath,
   Version? languageVersion,
 }) {
-  final formatter =
-      _formatterFor(languageVersion ?? DartFormatter.latestLanguageVersion);
+  final formatter = _formatterFor(
+    languageVersion ?? DartFormatter.latestLanguageVersion,
+  );
   final widget = plan.widget.entry;
   final className = plan.widget.className;
   final storyStem = _snakeCase(className);
@@ -115,7 +116,8 @@ String renderWidgetbookStorySource({
         if (!variant.isDefault)
           DartBareSymbolReservation(
             symbol: '\$${variant.name}',
-            source: 'generated Widgetbook story declaration for '
+            source:
+                'generated Widgetbook story declaration for '
                 '${variant.name}',
           ),
     ],
@@ -133,8 +135,7 @@ String renderWidgetbookStorySource({
     "import 'package:widgetbook/widgetbook.dart' as widgetbook;",
     "import '$sourceUri' show $className;",
     ...renderer.importDirectives,
-  }.toList()
-    ..sort(_importOrder);
+  }.toList()..sort(_importOrder);
 
   final out = StringBuffer()
     ..write(widgetbookStoryOwnershipPrefix)
@@ -268,8 +269,9 @@ String renderWidgetbookStorySource({
     ..writeln();
 
   for (final variant in plan.variants) {
-    final declaration =
-        variant.isDefault ? r'$RestageCatalog' : '\$${variant.name}';
+    final declaration = variant.isDefault
+        ? r'$RestageCatalog'
+        : '\$${variant.name}';
     out
       ..writeln('final $declaration = _Story(')
       ..writeln('  args: _Args(')
@@ -376,16 +378,16 @@ String _inputType(
   WidgetbookStoryPropertyPlan property,
   Map<String, _RenderedPropertyNames> names,
   WidgetbookNativeDartRenderer renderer,
-) =>
-    switch (property) {
-      WidgetbookStoryEventPropertyPlan() => 'bool',
-      WidgetbookStoryChoicePropertyPlan() =>
-        names[property.property.name]!.choiceType,
-      WidgetbookStoryNativePropertyPlan() =>
-        names[property.property.name]!.wrapperType,
-      WidgetbookStoryEditablePropertyPlan() =>
-        renderer.renderType(property.dartType),
-    };
+) => switch (property) {
+  WidgetbookStoryEventPropertyPlan() => 'bool',
+  WidgetbookStoryChoicePropertyPlan() =>
+    names[property.property.name]!.choiceType,
+  WidgetbookStoryNativePropertyPlan() =>
+    names[property.property.name]!.wrapperType,
+  WidgetbookStoryEditablePropertyPlan() => renderer.renderType(
+    property.dartType,
+  ),
+};
 
 String _hostValue(
   WidgetbookStoryPropertyPlan property,
@@ -397,20 +399,22 @@ String _hostValue(
     case WidgetbookStoryEventPropertyPlan(:final callback):
       final closure = callback.parameterCount == 0 ? '() {}' : '(_) {}';
       final defaultValue = callback.constructorDefault;
-      final active =
-          defaultValue == null ? closure : renderer.renderValue(defaultValue);
+      final active = defaultValue == null
+          ? closure
+          : renderer.renderValue(defaultValue);
       if (callback.nullable) return 'args.$name ? $active : null';
       return active;
     case WidgetbookStoryChoicePropertyPlan(:final choices):
       final choice = names[name]!.choiceType;
       return 'switch (args.$name) { '
           '${choices.indexed.map(
-                (entry) => '$choice.value${entry.$1} => '
-                    '${renderer.renderValue(entry.$2)}',
-              ).join(', ')} }';
+            (entry) => '$choice.value${entry.$1} => '
+                '${renderer.renderValue(entry.$2)}',
+          ).join(', ')} }';
     case WidgetbookStoryNativePropertyPlan(:final seed):
-      final present =
-          property.dartType.nullable ? 'args.$name.value' : 'args.$name.value!';
+      final present = property.dartType.nullable
+          ? 'args.$name.value'
+          : 'args.$name.value!';
       return 'args.$name.hasValue ? $present : '
           '${renderer.renderValue(seed)}';
     case WidgetbookStoryEditablePropertyPlan():
@@ -431,11 +435,12 @@ String _arg(
       '${callback.initiallyActive}',
     WidgetbookStoryEditablePropertyPlan(:final seed) ||
     WidgetbookStoryChoicePropertyPlan(:final seed) ||
-    WidgetbookStoryNativePropertyPlan(:final seed) =>
-      renderer.renderValue(variantValue ?? seed),
+    WidgetbookStoryNativePropertyPlan(
+      :final seed,
+    ) => renderer.renderValue(variantValue ?? seed),
     WidgetbookStoryEventPropertyPlan() => throw StateError(
-        "Widgetbook event '${property.property.name}' cannot be a story axis.",
-      ),
+      "Widgetbook event '${property.property.name}' cannot be a story axis.",
+    ),
   };
   final nullable = property.dartType.nullable;
   return switch (property) {
@@ -483,9 +488,9 @@ String _arg(
           'values: ${names[property.property.name]!.choiceType}.values, '
           'labelBuilder: (value) => switch (value) { '
           '${choiceLabels.indexed.map(
-                (entry) => '${names[property.property.name]!.choiceType}.'
-                    'value${entry.$1} => ${_literal(entry.$2)}',
-              ).join(', ')} }, '
+            (entry) => '${names[property.property.name]!.choiceType}.'
+                'value${entry.$1} => ${_literal(entry.$2)}',
+          ).join(', ')} }, '
           'description: $description)',
     WidgetbookStoryNativePropertyPlan() =>
       '_RestageConstArg<${names[property.property.name]!.wrapperType}>('
@@ -776,8 +781,8 @@ int _importOrder(String left, String right) {
   int rank(String value) => value.contains('package:widgetbook/')
       ? 0
       : value.contains('package:flutter/')
-          ? 1
-          : 2;
+      ? 1
+      : 2;
   final byRank = rank(left).compareTo(rank(right));
   return byRank != 0 ? byRank : left.compareTo(right);
 }

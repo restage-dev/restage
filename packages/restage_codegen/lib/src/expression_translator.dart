@@ -243,18 +243,18 @@ final class TranslationResult {
     this.completesSurface = false,
     Iterable<DslEmissionSource> emissionSources = const [],
     Iterable<HoistedValue> hoisted = const [],
-  })  : issues = List.unmodifiable(issues),
-        emissionSources = List.unmodifiable(emissionSources),
-        hoisted = List.unmodifiable(hoisted),
-        localSeeds = Map.unmodifiable(localSeeds),
-        iconReferences = List.unmodifiable(iconReferences),
-        widgetDefinitions = Map.unmodifiable(widgetDefinitions),
-        widgetDefinitionStates = Map.unmodifiable(widgetDefinitionStates),
-        rootWidgetState = Map.unmodifiable(rootWidgetState),
-        referencedCustomLibraries = Set.unmodifiable(referencedCustomLibraries),
-        rfwCatalogConstructorOrigins = List.unmodifiable(
-          rfwCatalogConstructorOrigins,
-        );
+  }) : issues = List.unmodifiable(issues),
+       emissionSources = List.unmodifiable(emissionSources),
+       hoisted = List.unmodifiable(hoisted),
+       localSeeds = Map.unmodifiable(localSeeds),
+       iconReferences = List.unmodifiable(iconReferences),
+       widgetDefinitions = Map.unmodifiable(widgetDefinitions),
+       widgetDefinitionStates = Map.unmodifiable(widgetDefinitionStates),
+       rootWidgetState = Map.unmodifiable(rootWidgetState),
+       referencedCustomLibraries = Set.unmodifiable(referencedCustomLibraries),
+       rfwCatalogConstructorOrigins = List.unmodifiable(
+         rfwCatalogConstructorOrigins,
+       );
 
   /// The DSL fragment, e.g. `"42"` or `'event "name" {}'`. Empty string if
   /// translation failed and one or more [issues] were collected.
@@ -393,12 +393,12 @@ final class NavigationLowering {
 
   /// Stable JSON representation for the private `.navplan` sidecar.
   Map<String, Object?> toJson() => {
-        'entryId': entryId,
-        'transitions': [
-          for (final transition in transitions) transition.toJson(),
-        ],
-        'terminatingEvent': terminatingEvent,
-      };
+    'entryId': entryId,
+    'transitions': [
+      for (final transition in transitions) transition.toJson(),
+    ],
+    'terminatingEvent': terminatingEvent,
+  };
 }
 
 /// One synthetic navigation transition emitted into a `.navplan` artifact.
@@ -415,9 +415,9 @@ final class NavigationTransition {
 
   /// Stable JSON representation for one `.navplan` transition.
   Map<String, Object?> toJson() => {
-        'event': event,
-        'pushedId': pushedId,
-      };
+    'event': event,
+    'pushedId': pushedId,
+  };
 }
 
 typedef _CustomWidgetEmissionIdentity = ({
@@ -576,8 +576,9 @@ final class ExpressionTranslator {
   /// Merged widget catalog the translator validates against.
   final Catalog catalog;
 
-  late final Set<String> _admittedHelperPackages =
-      artifactHelperPackages(catalog);
+  late final Set<String> _admittedHelperPackages = artifactHelperPackages(
+    catalog,
+  );
 
   /// The catalog `Text` entry, resolved once. A `TextSpan.style` reuses the
   /// flat-`Text` style decomposition so nested span styles share the exact
@@ -585,9 +586,9 @@ final class ExpressionTranslator {
   /// walk from re-scanning the catalog per styled node.
   late final WidgetEntry? _textStyleCatalogEntry =
       catalog.widgets.firstWhereOrNull((w) => w.name == 'Text') ??
-          catalog.widgets.firstWhereOrNull(
-            (w) => w.flutterType.endsWith('#Text'),
-          );
+      catalog.widgets.firstWhereOrNull(
+        (w) => w.flutterType.endsWith('#Text'),
+      );
 
   /// Registry of recognized helper calls.
   final HelperRegistry helpers;
@@ -651,14 +652,14 @@ final class ExpressionTranslator {
   // translation. The aggregate compiler reuses these selections to bind the
   // parsed calls without resolving their names again.
   Map<String, fmt.RfwCatalogConstructorProvenance>?
-      _currentRfwCatalogConstructorOrigins;
+  _currentRfwCatalogConstructorOrigins;
 
   Set<_CustomWidgetEmissionIdentity>? _currentCustomWidgetInlineClaims;
   Set<_CustomWidgetEmissionIdentity>? _currentCustomWidgetReferences;
   Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>?
-      _currentCustomWidgetFactoryRoutes;
+  _currentCustomWidgetFactoryRoutes;
   Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>
-      _forcedCustomWidgetFactoryRoutes = const {};
+  _forcedCustomWidgetFactoryRoutes = const {};
 
   // Closure-wrapped event notices, reported only when the translation succeeds.
   List<Issue>? _currentEventClosureNotices;
@@ -739,8 +740,9 @@ final class ExpressionTranslator {
   /// Native catalog lookups are needed only for structured decomposition.
   /// Keep construction lazy so translator tests with synthetic catalog
   /// fragments do not pay native validation unless they exercise recipes.
-  late final NativeCatalogIndex _nativeCatalogIndex =
-      NativeCatalogIndex(catalog);
+  late final NativeCatalogIndex _nativeCatalogIndex = NativeCatalogIndex(
+    catalog,
+  );
 
   /// Custom structured types keyed by resolved Dart type, derived directly
   /// from the merged catalog's `structuredTypes` (a plain source-type parse —
@@ -761,13 +763,13 @@ final class ExpressionTranslator {
   /// `this`.
   late final CustomStructuredValueEmitter _customStructuredValue =
       CustomStructuredValueEmitter(
-    structuredValueFor: (expr) {
-      final ref = _dartTypeRefOfInstanceCreation(expr);
-      return ref == null ? null : _customStructuredByDartType[ref];
-    },
-    dispatch: _recipeDispatcher.emit,
-    locationOf: _locationOf,
-  );
+        structuredValueFor: (expr) {
+          final ref = _dartTypeRefOfInstanceCreation(expr);
+          return ref == null ? null : _customStructuredByDartType[ref];
+        },
+        dispatch: _recipeDispatcher.emit,
+        locationOf: _locationOf,
+      );
 
   /// Translates a single Dart [expr] into a DSL fragment.
   ///
@@ -830,7 +832,8 @@ final class ExpressionTranslator {
     Set<_CustomWidgetEmissionIdentity> inlineClaims,
     Set<_CustomWidgetEmissionIdentity> references,
     Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute> factoryRoutes,
-  }) _translateArtifact(
+  })
+  _translateArtifact(
     Expression expr, {
     required String? sourcePath,
     required LineInfo? lineInfo,
@@ -844,7 +847,7 @@ final class ExpressionTranslator {
     required bool hoistInMount,
     required List<FormalParameterElement> rootBuildArguments,
     required Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>
-        forcedCustomWidgetFactoryRoutes,
+    forcedCustomWidgetFactoryRoutes,
   }) {
     final saved = _walk;
     _builderScopeCounter = 0;
@@ -860,9 +863,11 @@ final class ExpressionTranslator {
               rootContext: buildContextParameter,
               isStateWidget: _isStateWidgetGetter,
               rootParamFor: _rootParamForElement,
-              isDeclaredCallable: (reference) => _borrowedNativeRoot(
-                      _resolveBoundIdentifier(_stripParens(reference)))
-                  ?.type is FunctionType,
+              isDeclaredCallable: (reference) =>
+                  _borrowedNativeRoot(
+                        _resolveBoundIdentifier(_stripParens(reference)),
+                      )?.type
+                      is FunctionType,
               bindingFor: (element) =>
                   _walk.paramBindings[element] ??
                   _walk.inlined.localBindings[element],
@@ -1104,15 +1109,14 @@ final class ExpressionTranslator {
         hoisted: hoist == null
             ? const []
             : (hoist.values.values.toList()
-              ..sort((left, right) => left.key.compareTo(right.key))),
+                ..sort((left, right) => left.key.compareTo(right.key))),
         localSeeds: localSeeds,
         usesLocalValues: localFields.isNotEmpty,
         rfwCatalogConstructorOrigins:
-            rfwCatalogConstructorOrigins.values.toList()
-              ..sort(
-                (left, right) =>
-                    left.constructorName.compareTo(right.constructorName),
-              ),
+            rfwCatalogConstructorOrigins.values.toList()..sort(
+              (left, right) =>
+                  left.constructorName.compareTo(right.constructorName),
+            ),
       ),
       inlineClaims: Set.unmodifiable(customWidgetInlineClaims),
       references: Set.unmodifiable(customWidgetReferences),
@@ -1182,11 +1186,11 @@ final class ExpressionTranslator {
     final definitionStates = <String, Map<String, String>>{};
 
     TranslationResult resultWith(List<Issue> reported) => TranslationResult(
-          dsl: '',
-          issues: reported,
-          widgetDefinitions: definitions,
-          widgetDefinitionStates: definitionStates,
-        );
+      dsl: '',
+      issues: reported,
+      widgetDefinitions: definitions,
+      widgetDefinitionStates: definitionStates,
+    );
 
     // Only a ComposableWidget whose required mechanisms are all implemented
     // can inline; anything else has no definition to emit (→ not confirmed).
@@ -1211,8 +1215,10 @@ final class ExpressionTranslator {
     // State-shape validation (non-foldable initialiser / unrecognised
     // setState body) — surfaced before body translation, as the inline path
     // does.
-    final shapeIssue =
-        _validateStateShape(blueprint, blueprint.buildExpression);
+    final shapeIssue = _validateStateShape(
+      blueprint,
+      blueprint.buildExpression,
+    );
     if (shapeIssue != null) {
       issues.add(shapeIssue);
       return resultWith(issues);
@@ -1269,7 +1275,8 @@ final class ExpressionTranslator {
 
   String _translate(Expression expr, List<Issue> issues) {
     final before = issues.length;
-    final dsl = (_activeWidgetBuilder == null
+    final dsl =
+        (_activeWidgetBuilder == null
             ? _hoisted(
                 expr,
                 issues,
@@ -1341,8 +1348,11 @@ final class ExpressionTranslator {
     if (hoist == null || hoist.speculating) return null;
     final stripped = _stripParens(expr);
     if (stripped is Literal) return null;
-    if (containsInstalledIntlTranslation(stripped,
-        helpers: _walk.inlined.helpers)) return null;
+    if (containsInstalledIntlTranslation(
+      stripped,
+      helpers: _walk.inlined.helpers,
+    ))
+      return null;
     final verdict = classifyHoistType(stripped.staticType);
     if (verdict is! HoistCrosses) return null;
     if (verdict.kind == HoistValueKind.color) {
@@ -1351,14 +1361,20 @@ final class ExpressionTranslator {
       if (borrowed != null) return borrowed;
       if (_installedColorExpression(source) case final installed?) {
         try {
-          final native =
-              _tryNativeCallValue(installed, issues, type: 'flutter.Color');
+          final native = _tryNativeCallValue(
+            installed,
+            issues,
+            type: 'flutter.Color',
+          );
           if (native != null) return native;
         } on BuilderLoweringException catch (error) {
-          issues.add(Issue(
+          issues.add(
+            Issue(
               code: IssueCode.propertyValueTypeMismatch,
               message: error.reason,
-              location: _locationOf(error.node)));
+              location: _locationOf(error.node),
+            ),
+          );
           return '';
         }
       }
@@ -1375,8 +1391,11 @@ final class ExpressionTranslator {
     }
     if (verdict.kind == HoistValueKind.scalar &&
         _readsKeyboardOrAccessibility(stripped)) {
-      return _hoistedRead(hoist.add(
-          analysis.value(verdict, stripped.staticType!, expression: stripped)));
+      return _hoistedRead(
+        hoist.add(
+          analysis.value(verdict, stripped.staticType!, expression: stripped),
+        ),
+      );
     }
     final scratch = <Issue>[];
     final String dsl;
@@ -1394,19 +1413,28 @@ final class ExpressionTranslator {
     if (verdict.kind == HoistValueKind.color) {
       if (isInstalledNativeConstant(stripped)) {
         try {
-          final native =
-              _tryNativeCallValue(stripped, issues, type: 'flutter.Color');
+          final native = _tryNativeCallValue(
+            stripped,
+            issues,
+            type: 'flutter.Color',
+          );
           if (native != null) return native;
         } on BuilderLoweringException catch (error) {
-          issues.add(Issue(
+          issues.add(
+            Issue(
               code: IssueCode.propertyValueTypeMismatch,
               message: error.reason,
-              location: _locationOf(error.node)));
+              location: _locationOf(error.node),
+            ),
+          );
           return '';
         }
       }
-      final native =
-          _nativeBindingRead(stripped, type: 'flutter.Color', computed: true);
+      final native = _nativeBindingRead(
+        stripped,
+        type: 'flutter.Color',
+        computed: true,
+      );
       if (native != null) return native;
       issues.addAll(scratch);
       return '';
@@ -1430,8 +1458,9 @@ final class ExpressionTranslator {
       if (!identical(resolved, node)) {
         return _readsKeyboardOrAccessibility(resolved, seen);
       }
-      if (_kKeyboardAndAccessibilityPaths
-          .contains(_recognizeDeviceRead(node)?.path)) {
+      if (_kKeyboardAndAccessibilityPaths.contains(
+        _recognizeDeviceRead(node)?.path,
+      )) {
         return true;
       }
       if (node is MethodInvocation) {
@@ -1456,8 +1485,8 @@ final class ExpressionTranslator {
       }
     }
     return node.childEntities.whereType<AstNode>().any(
-          (child) => _readsKeyboardOrAccessibility(child, seen),
-        );
+      (child) => _readsKeyboardOrAccessibility(child, seen),
+    );
   }
 
   RootContextParam? _borrowedNativeRoot(Expression expression) {
@@ -1468,26 +1497,33 @@ final class ExpressionTranslator {
         field.isLate ||
         !field.isOriginDeclaration ||
         field.isAbstract ||
-        field.isExternal) return null;
+        field.isExternal)
+      return null;
     return root;
   }
 
-  bool _isInertNativeSelection(Expression expression) =>
-      isInertNativeSelection(expression,
-          isBorrowedRead: (value) => _borrowedNativeRoot(value) != null);
+  bool _isInertNativeSelection(Expression expression) => isInertNativeSelection(
+    expression,
+    isBorrowedRead: (value) => _borrowedNativeRoot(value) != null,
+  );
 
   /// Binds an exact constructor input, or with [computed] a value the mount
   /// evaluates; expressions with invocation timing stay local.
-  String? _nativeBindingRead(Expression expression,
-      {required String type, bool computed = false}) {
+  String? _nativeBindingRead(
+    Expression expression, {
+    required String type,
+    bool computed = false,
+  }) {
     final hoist = _hoist;
     if (hoist == null || hoist.speculating) return null;
     final expr = _resolveBoundIdentifier(_stripParens(expression));
     final root = _borrowedNativeRoot(expr);
     if (root == null &&
         (!computed ||
-            (_InstalledNativeConstruction(_resolveBoundIdentifier)..visit(expr))
-                .found)) return null;
+            (_InstalledNativeConstruction(
+              _resolveBoundIdentifier,
+            )..visit(expr)).found))
+      return null;
     final analysis = hoist.analyzer.analyze(expr);
     // A computed value read per list item binds once per item.
     if (analysis is! HoistEvaluable || (analysis.item != null && !computed)) {
@@ -1498,14 +1534,20 @@ final class ExpressionTranslator {
       type: type,
       nullable: valueType.nullabilitySuffix == NullabilitySuffix.question,
     );
-    return _hoistedRead(hoist.add(analysis.value(
-      HoistCrosses(HoistValueKind.nativeBinding,
-          SurfaceScreenHostDataNativeBindingShapeV1(contract)),
-      valueType,
-      expression: expr,
-      nativeContract: contract,
-      computed: root == null,
-    )));
+    return _hoistedRead(
+      hoist.add(
+        analysis.value(
+          HoistCrosses(
+            HoistValueKind.nativeBinding,
+            SurfaceScreenHostDataNativeBindingShapeV1(contract),
+          ),
+          valueType,
+          expression: expr,
+          nativeContract: contract,
+          computed: root == null,
+        ),
+      ),
+    );
   }
 
   PropertyEntry? _nativeKeyProperty(WidgetEntry entry) =>
@@ -1513,36 +1555,48 @@ final class ExpressionTranslator {
         if (property.name != 'key' || property.type != PropertyType.structured)
           return false;
         final shape = property.valueShape;
-        final ref = property.structuredRef ??
+        final ref =
+            property.structuredRef ??
             (shape is StructuredShape ? shape.structuredRef : null);
-        final structured =
-            ref == null ? null : _nativeCatalogIndex.structuredByRef(ref);
+        final structured = ref == null
+            ? null
+            : _nativeCatalogIndex.structuredByRef(ref);
         return structured != null &&
             nativeBindingRoute(structured.sourceType)?.contractType ==
                 'flutter.Key';
       });
 
   String? _catalogNativeKey(
-      WidgetEntry entry, Expression expression, List<Issue> issues) {
+    WidgetEntry entry,
+    Expression expression,
+    List<Issue> issues,
+  ) {
     final property = _nativeKeyProperty(entry);
     final resolved = _resolveBoundIdentifier(expression);
-    final isNull = resolved is NullLiteral ||
+    final isNull =
+        resolved is NullLiteral ||
         installedNativeConstantValue(resolved)?.isNull == true;
     final legacy = isNull || isLegacyScalarWidgetKey(resolved);
     if (runtimeRealizationFor(entry) != null && !legacy) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message:
               'A native key requires the original ${entry.name} owner; its guarded runtime replacement cannot retain that owner.',
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return null;
     }
     if (property == null && !legacy) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message:
               'A native key requires the original widget constructor key slot in the catalog.',
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return null;
     }
     if (isNull) {
@@ -1558,11 +1612,14 @@ final class ExpressionTranslator {
         (!legacy ||
             property != null &&
                 RfwConstructorPresenceProtocol.appliesTo(property))) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message:
               'This key requires an installed native Key binding; omitting it cannot preserve its owner or constructor default.',
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
     }
     return reference == null || property == null
         ? reference
@@ -1582,35 +1639,51 @@ final class ExpressionTranslator {
         !hoist.speculating &&
         installedNativeConstantType(resolved) == 'flutter.Key') {
       try {
-        return _hoistedRead(hoist.add(installedNativeConstant(resolved,
-            type: 'flutter.Key',
-            emissionLibrary: hoist.analyzer.namespace.library)));
+        return _hoistedRead(
+          hoist.add(
+            installedNativeConstant(
+              resolved,
+              type: 'flutter.Key',
+              emissionLibrary: hoist.analyzer.namespace.library,
+            ),
+          ),
+        );
       } on BuilderLoweringException catch (error) {
-        issues.add(Issue(
+        issues.add(
+          Issue(
             code: IssueCode.propertyValueTypeMismatch,
             message: error.toString(),
-            location: _locationOf(error.node)));
+            location: _locationOf(error.node),
+          ),
+        );
         return null;
       }
     }
     final constant = installedNativeConstantValue(resolved);
-    final scalarValueKey = resolved is InstanceCreationExpression &&
+    final scalarValueKey =
+        resolved is InstanceCreationExpression &&
         resolved.constructorName.element?.enclosingElement.name == 'ValueKey' &&
         resolved.constructorName.element?.enclosingElement.library.identifier ==
             'package:flutter/src/foundation/key.dart';
     if (constant != null && !constant.isNull && !scalarValueKey) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: 'This constant Key family has no installed native route.',
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return null;
     }
     if (installedNativeConstructorType(resolved) != 'flutter.Key') return null;
-    issues.add(Issue(
+    issues.add(
+      Issue(
         code: IssueCode.propertyValueTypeMismatch,
         message:
             'A fresh native key requires an explicit callback or helper prelude initializer.',
-        location: _locationOf(expression)));
+        location: _locationOf(expression),
+      ),
+    );
     return null;
   }
 
@@ -1618,8 +1691,9 @@ final class ExpressionTranslator {
   String _hoistedRead(HoistedValue value) {
     final item = value.item;
     if (item == null) return 'data.context${_rfwPathPart(value.key)}';
-    final loop =
-        _walk.runtimeLoops.lastWhere((loop) => loop.root?.name == item);
+    final loop = _walk.runtimeLoops.lastWhere(
+      (loop) => loop.root?.name == item,
+    );
     return '${loop.identifier}${_rfwPathPart(value.key)}';
   }
 
@@ -1643,9 +1717,12 @@ final class ExpressionTranslator {
   Map<String, ValueOperation> get _installedValueOperations =>
       installedNativeCallOperations(_hoist?.values.values ?? const []);
 
-  int _lowerNativeCall(Expression value, BuilderExpressionLowering lowering,
-      {required ValueType resultType,
-      Map<Expression, String?> constantStrings = const {}}) {
+  int _lowerNativeCall(
+    Expression value,
+    BuilderExpressionLowering lowering, {
+    required ValueType resultType,
+    Map<Expression, String?> constantStrings = const {},
+  }) {
     while (value is ParenthesizedExpression) {
       value = value.expression;
     }
@@ -1653,65 +1730,86 @@ final class ExpressionTranslator {
     if (value is! FunctionExpression &&
         (active == null || active.isProjectingBody) &&
         !_isInertNativeSelection(value)) {
-      throw BuilderLoweringException(value,
-          'Native evaluation requires an explicit callback or helper prelude initializer');
+      throw BuilderLoweringException(
+        value,
+        'Native evaluation requires an explicit callback or helper prelude initializer',
+      );
     }
     final hoist = _hoist;
     if (hoist == null || hoist.speculating) {
       throw BuilderLoweringException(
-          value, 'Native calls require an installed source declaration');
+        value,
+        'Native calls require an installed source declaration',
+      );
     }
-    return lowering.lowerInstalledNativeCall(value,
-        resultType: resultType,
-        constantStrings: constantStrings,
-        isBorrowedCallable: (reference) {
-          final expr = _resolveBoundIdentifier(_stripParens(reference));
-          final root = _borrowedNativeRoot(expr);
-          if (root?.type is! FunctionType) return false;
-          final analysis = hoist.analyzer.analyze(expr);
-          return analysis is HoistEvaluable && analysis.item == null;
-        },
-        emissionLibrary: hoist.analyzer.namespace.library,
-        borrow: (identifier) {
-          final root = _rootParamRead(identifier);
-          if (root == null) return null;
-          final String nominalType;
-          try {
-            nominalType = installedNativeTypeId(root.type);
-          } on ArgumentError {
-            throw BuilderLoweringException(identifier,
-                'The native input type cannot be declared in this frame');
-          }
-          final type = ValueType.native(nominalType,
-              nullable:
-                  root.type.nullabilitySuffix == NullabilitySuffix.question);
-          final dsl = _nativeBindingRead(identifier, type: type.nativeType!);
-          if (dsl == null) return null;
-          final name = 'c${lowering.captureTypes.length}';
-          lowering.captureTypes[name] = type;
-          lowering.captureDsl[name] = dsl;
-          return InstalledNativeInput(
-              lowering.add(ValueNode('capture', type, name: name)), type);
-        },
-        install: (plan) => hoist.add(plan.binding));
+    return lowering.lowerInstalledNativeCall(
+      value,
+      resultType: resultType,
+      constantStrings: constantStrings,
+      isBorrowedCallable: (reference) {
+        final expr = _resolveBoundIdentifier(_stripParens(reference));
+        final root = _borrowedNativeRoot(expr);
+        if (root?.type is! FunctionType) return false;
+        final analysis = hoist.analyzer.analyze(expr);
+        return analysis is HoistEvaluable && analysis.item == null;
+      },
+      emissionLibrary: hoist.analyzer.namespace.library,
+      borrow: (identifier) {
+        final root = _rootParamRead(identifier);
+        if (root == null) return null;
+        final String nominalType;
+        try {
+          nominalType = installedNativeTypeId(root.type);
+        } on ArgumentError {
+          throw BuilderLoweringException(
+            identifier,
+            'The native input type cannot be declared in this frame',
+          );
+        }
+        final type = ValueType.native(
+          nominalType,
+          nullable: root.type.nullabilitySuffix == NullabilitySuffix.question,
+        );
+        final dsl = _nativeBindingRead(identifier, type: type.nativeType!);
+        if (dsl == null) return null;
+        final name = 'c${lowering.captureTypes.length}';
+        lowering.captureTypes[name] = type;
+        lowering.captureDsl[name] = dsl;
+        return InstalledNativeInput(
+          lowering.add(ValueNode('capture', type, name: name)),
+          type,
+        );
+      },
+      install: (plan) => hoist.add(plan.binding),
+    );
   }
 
-  String? _tryNativeCallValue(Expression expression, List<Issue> issues,
-      {required String type}) {
+  String? _tryNativeCallValue(
+    Expression expression,
+    List<Issue> issues, {
+    required String type,
+  }) {
     if (_hoist == null || _hoist!.speculating) return null;
     while (expression is ParenthesizedExpression) {
       expression = expression.expression;
     }
     final active = _activeWidgetBuilder;
     if (isInstalledNativeConstant(expression)) {
-      final value = _hoist!.add(installedNativeConstant(expression,
-          type: type, emissionLibrary: _hoist!.analyzer.namespace.library));
+      final value = _hoist!.add(
+        installedNativeConstant(
+          expression,
+          type: type,
+          emissionLibrary: _hoist!.analyzer.namespace.library,
+        ),
+      );
       final reference = _hoistedRead(value);
       if (active == null) return reference;
       return active.nativeValue(expression, (_, lowering) {
         final name = 'c${lowering.captureTypes.length}';
-        final shape =
-            ValueType.native(type, nullable: value.nativeContract!.nullable);
+        final shape = ValueType.native(
+          type,
+          nullable: value.nativeContract!.nullable,
+        );
         lowering.captureTypes[name] = shape;
         lowering.captureDsl[name] = reference;
         return lowering.add(ValueNode('capture', shape, name: name));
@@ -1719,30 +1817,48 @@ final class ExpressionTranslator {
     }
     if (active != null) {
       return active.nativeValue(
-          expression,
-          (value, lowering) => _lowerNativeCall(value, lowering,
-              resultType: ValueType.native(type,
-                  nullable: value.staticType?.nullabilitySuffix ==
-                      NullabilitySuffix.question)));
+        expression,
+        (value, lowering) => _lowerNativeCall(
+          value,
+          lowering,
+          resultType: ValueType.native(
+            type,
+            nullable:
+                value.staticType?.nullabilitySuffix ==
+                NullabilitySuffix.question,
+          ),
+        ),
+      );
     }
     if (expression is! FunctionExpression &&
         !_isInertNativeSelection(expression)) {
-      throw BuilderLoweringException(expression,
-          'Native evaluation requires an explicit callback or helper prelude initializer');
+      throw BuilderLoweringException(
+        expression,
+        'Native evaluation requires an explicit callback or helper prelude initializer',
+      );
     }
     // Root native inputs retain only proven borrowed constructor fields.
     final values = BuilderExpressionLowering(
-        operations: _installedValueOperations,
-        capture: (value) => _translate(value, issues));
-    final root = _lowerNativeCall(expression, values,
-        resultType: ValueType.native(type,
-            nullable: expression.staticType?.nullabilitySuffix ==
-                NullabilitySuffix.question));
+      operations: _installedValueOperations,
+      capture: (value) => _translate(value, issues),
+    );
+    final root = _lowerNativeCall(
+      expression,
+      values,
+      resultType: ValueType.native(
+        type,
+        nullable:
+            expression.staticType?.nullabilitySuffix ==
+            NullabilitySuffix.question,
+      ),
+    );
     return _encodeScalarValueProgram(values, root);
   }
 
   int? _lowerInstalledValue(
-      Expression value, BuilderExpressionLowering lowering) {
+    Expression value,
+    BuilderExpressionLowering lowering,
+  ) {
     if (isInstalledIntlTranslation(value)) {
       return _lowerNativeCall(value, lowering, resultType: ValueType.string);
     }
@@ -1753,16 +1869,24 @@ final class ExpressionTranslator {
         final type = lowering.nodes[node].type;
         if (type.kind == 'native' && type.nativeType == optional) return node;
         throw BuilderLoweringException(
-            value, 'A native SVG alias requires its original installed value');
+          value,
+          'A native SVG alias requires its original installed value',
+        );
       }
     }
     final native = optional ?? installedNativeConstructorType(value);
     if (native != null) {
-      return _lowerNativeCall(value, lowering,
-          resultType: ValueType.native(native,
-              nullable: value.staticType?.nullabilitySuffix ==
-                      NullabilitySuffix.question ||
-                  value.staticType?.isDartCoreNull == true));
+      return _lowerNativeCall(
+        value,
+        lowering,
+        resultType: ValueType.native(
+          native,
+          nullable:
+              value.staticType?.nullabilitySuffix ==
+                  NullabilitySuffix.question ||
+              value.staticType?.isDartCoreNull == true,
+        ),
+      );
     }
     return lowerIntlValue(value, lowering, resolve: _resolveBoundIdentifier);
   }
@@ -1771,19 +1895,26 @@ final class ExpressionTranslator {
     if (isNativeIntlFormatterType(value.staticType) ||
         _containsIntlFormatting(bound)) {
       throw BuilderLoweringException(
-          value, 'A captured formatter requires a native prelude binding');
+        value,
+        'A captured formatter requires a native prelude binding',
+      );
     }
   }
 
   String? _tryIntlFormattingValue(Expression expression, List<Issue> issues) {
     final resolved = _resolveBoundIdentifier(expression);
     if (resolved.staticType?.isDartCoreString != true ||
-        !_containsIntlFormatting(resolved)) return null;
+        !_containsIntlFormatting(resolved))
+      return null;
     return _tryScalarValueProgram(expression, issues);
   }
 
-  String? _tryScalarValueProgram(Expression expression, List<Issue> issues,
-      {bool asDouble = false, WidgetBuilderLowering? parentBuilder}) {
+  String? _tryScalarValueProgram(
+    Expression expression,
+    List<Issue> issues, {
+    bool asDouble = false,
+    WidgetBuilderLowering? parentBuilder,
+  }) {
     final resolved = _resolveBoundIdentifier(expression);
     final type = resolved.staticType;
     if (type == null ||
@@ -1791,15 +1922,19 @@ final class ExpressionTranslator {
             type.isDartCoreBool ||
             type.isDartCoreInt ||
             type.isDartCoreDouble ||
-            type.isDartCoreNum)) return null;
+            type.isDartCoreNum))
+      return null;
     if (!identical(resolved, expression) &&
         expression is SimpleIdentifier &&
         _walk.inlined.localBindings.containsKey(expression.element)) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.unrecognizedMethodCall,
           message:
               'An eagerly computed local requires a native prelude binding',
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return '';
     }
     late final BuilderExpressionLowering values;
@@ -1836,7 +1971,8 @@ final class ExpressionTranslator {
           return lowering.add(ValueNode('capture', type, name: name));
         }
         if (value is MethodInvocation) {
-          final helper = _walk.inlined.helpers[value.methodName.element] ??
+          final helper =
+              _walk.inlined.helpers[value.methodName.element] ??
               pureBuilderHelperFor(value, value.methodName.element);
           if (helper != null) {
             return lowering.lowerHelper(helper, value);
@@ -1860,21 +1996,28 @@ final class ExpressionTranslator {
         );
       }
       if (asDouble && values.nodes[root].type.kind == 'int') {
-        root =
-            values.add(ValueNode('toDouble', ValueType.real, inputs: [root]));
+        root = values.add(
+          ValueNode('toDouble', ValueType.real, inputs: [root]),
+        );
       }
       return _encodeScalarValueProgram(values, root);
     } on BuilderLoweringException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.unrecognizedMethodCall,
           message: error.reason,
-          location: _locationOf(error.node)));
+          location: _locationOf(error.node),
+        ),
+      );
       return '';
     } on FormatException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.unrecognizedMethodCall,
           message: error.message,
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return '';
     }
   }
@@ -1890,8 +2033,11 @@ final class ExpressionTranslator {
   bool _inSpanCollection = false;
   bool _inSpanRecognizerCallback = false;
 
-  String _spanCollectionBuilderValue(Expression expression, List<Issue> issues,
-      {bool asDouble = false}) {
+  String _spanCollectionBuilderValue(
+    Expression expression,
+    List<Issue> issues, {
+    bool asDouble = false,
+  }) {
     final resolved = _resolveBoundIdentifier(expression);
     final reference = _runtimeLoopReference(resolved);
     if (reference != null &&
@@ -1902,20 +2048,28 @@ final class ExpressionTranslator {
     var usesLoop = false;
     for (final loop in _walk.runtimeLoops) {
       resolved.accept(
-          _ElementReferenceVisitor(loop.element, () => usesLoop = true));
+        _ElementReferenceVisitor(loop.element, () => usesLoop = true),
+      );
     }
     if (!usesLoop)
       return _activeWidgetBuilder!.value(expression, asDouble: asDouble);
     if (_inSpanRecognizerCallback) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.unrecognizedMethodCall,
           message:
               'A computed loop event argument requires an installed native callback binding.',
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return '';
     }
-    return _tryScalarValueProgram(expression, issues,
-            asDouble: asDouble, parentBuilder: _activeWidgetBuilder) ??
+    return _tryScalarValueProgram(
+          expression,
+          issues,
+          asDouble: asDouble,
+          parentBuilder: _activeWidgetBuilder,
+        ) ??
         '';
   }
 
@@ -1935,38 +2089,55 @@ final class ExpressionTranslator {
   final Set<HelperDef> _activeBuilderHelpers = {};
   int _nativePhysicsDepth = 0;
 
-  String _translateScalarCallback(Expression expression,
-      ScalarCallbackContract contract, List<Issue> issues) {
+  String _translateScalarCallback(
+    Expression expression,
+    ScalarCallbackContract contract,
+    List<Issue> issues,
+  ) {
     if (contract.parameters.singleOrNull == ScalarCallbackParameter.valueKey &&
         contract.nullableResult) {
-      final borrowed =
-          _nativeBindingRead(expression, type: 'flutter.ChildIndexGetter');
+      final borrowed = _nativeBindingRead(
+        expression,
+        type: 'flutter.ChildIndexGetter',
+      );
       if (borrowed != null) {
-        return _nativeKeyIndexReference(borrowed,
-            nullable: expression.staticType?.nullabilitySuffix ==
-                NullabilitySuffix.question);
+        return _nativeKeyIndexReference(
+          borrowed,
+          nullable:
+              expression.staticType?.nullabilitySuffix ==
+              NullabilitySuffix.question,
+        );
       }
     }
     final scalarIssues = <Issue>[];
-    final scalar =
-        _translatePureScalarCallback(expression, contract, scalarIssues);
+    final scalar = _translatePureScalarCallback(
+      expression,
+      contract,
+      scalarIssues,
+    );
     if (scalarIssues.isEmpty) return scalar;
     final resolved = _resolveBoundIdentifier(expression);
     if (contract.parameters.singleOrNull == ScalarCallbackParameter.valueKey &&
         contract.nullableResult &&
         resolved is FunctionExpression) {
       try {
-        final native = _tryNativeCallValue(resolved, issues,
-            type: 'flutter.ChildIndexGetter');
+        final native = _tryNativeCallValue(
+          resolved,
+          issues,
+          type: 'flutter.ChildIndexGetter',
+        );
         if (native != null)
           return _activeWidgetBuilder == null
               ? '{nativeKeyIndex: $native}'
               : _nativeKeyIndexReference(native);
       } on BuilderLoweringException catch (error) {
-        issues.add(Issue(
+        issues.add(
+          Issue(
             code: IssueCode.propertyValueTypeMismatch,
             message: error.toString(),
-            location: _locationOf(error.node)));
+            location: _locationOf(error.node),
+          ),
+        );
         return '';
       }
     }
@@ -1976,95 +2147,119 @@ final class ExpressionTranslator {
 
   String _nativeKeyIndexReference(String reference, {bool nullable = false}) {
     final values = BuilderExpressionLowering(
-        operations: _installedValueOperations, capture: (_) => reference);
-    final type =
-        ValueType.native('flutter.ChildIndexGetter', nullable: nullable);
+      operations: _installedValueOperations,
+      capture: (_) => reference,
+    );
+    final type = ValueType.native(
+      'flutter.ChildIndexGetter',
+      nullable: nullable,
+    );
     values.captureTypes['c0'] = type;
     values.captureDsl['c0'] = reference;
     final root = values.add(ValueNode('capture', type, name: 'c0'));
     return '{nativeKeyIndex: ${_encodeScalarValueProgram(values, root)}}';
   }
 
-  String _translatePureScalarCallback(Expression expression,
-      ScalarCallbackContract contract, List<Issue> issues) {
+  String _translatePureScalarCallback(
+    Expression expression,
+    ScalarCallbackContract contract,
+    List<Issue> issues,
+  ) {
     final callback = _resolveBoundIdentifier(expression);
     final definition = callback is SimpleIdentifier
         ? pureBuilderCallbackFor(callback, callback.element)
         : null;
     final helper = callback is SimpleIdentifier
         ? _walk.inlined.helpers[callback.element] ??
-            pureBuilderHelperFor(callback, callback.element)
+              pureBuilderHelperFor(callback, callback.element)
         : null;
     if (callback is! FunctionExpression &&
         definition == null &&
         helper == null) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: 'A scalar callback requires an analyzed pure closure.',
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return '';
     }
     final previous = _activeWidgetBuilder;
     late final ScalarCallbackLowering lowering;
     try {
       lowering = ScalarCallbackLowering(
-          parent: previous?.expressions,
-          operations: _installedValueOperations,
-          valueExtension: _lowerInstalledValue,
-          capture: (value) {
-            final outer = lowering.expressions.referencesOuter(value);
-            _activeWidgetBuilder = outer ? previous : null;
-            try {
-              return outer && previous != null
-                  ? previous.captureValue(value)
-                  : _translate(_resolveBoundIdentifier(value), issues);
-            } finally {
-              _activeWidgetBuilder = previous;
-            }
-          },
-          resolve: _resolveBoundIdentifier,
-          contract: contract,
-          helperFor: (call) =>
-              _walk.inlined.helpers[call.methodName.element] ??
-              pureBuilderHelperFor(call, call.methodName.element));
+        parent: previous?.expressions,
+        operations: _installedValueOperations,
+        valueExtension: _lowerInstalledValue,
+        capture: (value) {
+          final outer = lowering.expressions.referencesOuter(value);
+          _activeWidgetBuilder = outer ? previous : null;
+          try {
+            return outer && previous != null
+                ? previous.captureValue(value)
+                : _translate(_resolveBoundIdentifier(value), issues);
+          } finally {
+            _activeWidgetBuilder = previous;
+          }
+        },
+        resolve: _resolveBoundIdentifier,
+        contract: contract,
+        helperFor: (call) =>
+            _walk.inlined.helpers[call.methodName.element] ??
+            pureBuilderHelperFor(call, call.methodName.element),
+      );
       return definition != null
           ? lowering.lowerBody(definition.body, definition.parameters)
           : callback is FunctionExpression
-              ? lowering.lower(callback)
-              : lowering.lowerDefinition(helper!);
+          ? lowering.lower(callback)
+          : lowering.lowerDefinition(helper!);
     } on BuilderLoweringException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: error.toString(),
-          location: _locationOf(error.node)));
+          location: _locationOf(error.node),
+        ),
+      );
       return '';
     } on FormatException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: error.message,
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return '';
     } finally {
       _activeWidgetBuilder = previous;
     }
   }
 
-  HelperDef? _admittedBuilderHelper(MethodInvocation call,
-          {bool allowDynamicReturn = false}) =>
-      isArtifactHelperInvocation(call,
-              admittedHelperPackages: _admittedHelperPackages,
-              allowDynamicReturn: allowDynamicReturn)
-          ? _walk.inlined.helpers[call.methodName.element] ??
-              pureBuilderHelperFor(call, call.methodName.element)
-          : null;
+  HelperDef? _admittedBuilderHelper(
+    MethodInvocation call, {
+    bool allowDynamicReturn = false,
+  }) =>
+      isArtifactHelperInvocation(
+        call,
+        admittedHelperPackages: _admittedHelperPackages,
+        allowDynamicReturn: allowDynamicReturn,
+      )
+      ? _walk.inlined.helpers[call.methodName.element] ??
+            pureBuilderHelperFor(call, call.methodName.element)
+      : null;
 
   String _translateWidgetBuilder(
-      Expression expression, PropertyEntry property, List<Issue> issues) {
+    Expression expression,
+    PropertyEntry property,
+    List<Issue> issues,
+  ) {
     final resolved = _resolveBoundIdentifier(expression);
     final contract = property.builderContract;
     final definition = resolved is SimpleIdentifier
         ? (_walk.inlined.helpers[resolved.element] ??
-            pureBuilderHelperFor(resolved, resolved.element))
+              pureBuilderHelperFor(resolved, resolved.element))
         : null;
     final callback = resolved is SimpleIdentifier
         ? pureBuilderCallbackFor(resolved, resolved.element)
@@ -2074,79 +2269,98 @@ final class ExpressionTranslator {
             definition == null &&
             callback == null) ||
         contract == null) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: 'A widget builder requires an analyzed pure closure.',
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return '';
     }
     final previous = _activeWidgetBuilder;
     late final WidgetBuilderLowering current;
     late final BuilderExpressionLowering values;
     values = BuilderExpressionLowering(
-        operations: _installedValueOperations,
-        parent: previous?.expressions,
-        extension: (value, lowering) {
-          if (value is SimpleIdentifier &&
-              !lowering.bindings.containsKey(value.element)) {
-            final resolved = _resolveBoundIdentifier(value);
-            if (!identical(resolved, value)) {
-              if (isNativeIntlFormatterType(value.staticType) ||
-                  _containsIntlFormatting(resolved)) {
-                throw BuilderLoweringException(value,
-                    'A captured formatter requires a native prelude binding');
-              }
-              return lowering.lower(resolved);
+      operations: _installedValueOperations,
+      parent: previous?.expressions,
+      extension: (value, lowering) {
+        if (value is SimpleIdentifier &&
+            !lowering.bindings.containsKey(value.element)) {
+          final resolved = _resolveBoundIdentifier(value);
+          if (!identical(resolved, value)) {
+            if (isNativeIntlFormatterType(value.staticType) ||
+                _containsIntlFormatting(resolved)) {
+              throw BuilderLoweringException(
+                value,
+                'A captured formatter requires a native prelude binding',
+              );
             }
+            return lowering.lower(resolved);
           }
-          if (value is MethodInvocation) {
-            final helper =
-                _admittedBuilderHelper(value, allowDynamicReturn: true);
-            if (helper != null) return lowering.lowerHelper(helper, value);
-          }
-          return _lowerInstalledValue(value, lowering);
-        },
-        capture: (value) {
-          final isOuter = values.referencesOuter(value);
-          _activeWidgetBuilder = isOuter ? previous : null;
-          try {
-            return isOuter && previous != null
-                ? previous.captureValue(value)
-                : _translate(_resolveBoundIdentifier(value), issues);
-          } finally {
-            _activeWidgetBuilder = current;
-          }
-        });
+        }
+        if (value is MethodInvocation) {
+          final helper = _admittedBuilderHelper(
+            value,
+            allowDynamicReturn: true,
+          );
+          if (helper != null) return lowering.lowerHelper(helper, value);
+        }
+        return _lowerInstalledValue(value, lowering);
+      },
+      capture: (value) {
+        final isOuter = values.referencesOuter(value);
+        _activeWidgetBuilder = isOuter ? previous : null;
+        try {
+          return isOuter && previous != null
+              ? previous.captureValue(value)
+              : _translate(_resolveBoundIdentifier(value), issues);
+        } finally {
+          _activeWidgetBuilder = current;
+        }
+      },
+    );
     current = WidgetBuilderLowering(
-        expressions: values,
-        resolve: _resolveBoundIdentifier,
-        withConditionalBranch: _inConditionalBranch,
-        withHelperBody: (helper, call, lower) => _inHelperBody(
-            helper, call, issues, (_) => lower(),
-            refused: const BuilderResult.nullResult()),
-        nativeKey: (expression) => _nativeKeyReference(expression, issues),
-        contract: contract,
-        scope: 'builder${_builderScopeCounter++}',
-        translateBody: (body) => _translate(body, issues),
-        helperFor: _admittedBuilderHelper);
+      expressions: values,
+      resolve: _resolveBoundIdentifier,
+      withConditionalBranch: _inConditionalBranch,
+      withHelperBody: (helper, call, lower) => _inHelperBody(
+        helper,
+        call,
+        issues,
+        (_) => lower(),
+        refused: const BuilderResult.nullResult(),
+      ),
+      nativeKey: (expression) => _nativeKeyReference(expression, issues),
+      contract: contract,
+      scope: 'builder${_builderScopeCounter++}',
+      translateBody: (body) => _translate(body, issues),
+      helperFor: _admittedBuilderHelper,
+    );
     _activeWidgetBuilder = current;
     try {
       return callback != null
           ? current.lowerCallbackBody(callback.body, callback.parameters)
           : definition != null
-              ? current.lowerDefinition(definition)
-              : current.lower(resolved as FunctionExpression);
+          ? current.lowerDefinition(definition)
+          : current.lower(resolved as FunctionExpression);
     } on BuilderLoweringException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: error.toString(),
-          location: _locationOf(error.node)));
+          location: _locationOf(error.node),
+        ),
+      );
       return '';
     } on FormatException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: error.message,
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return '';
     } finally {
       _activeWidgetBuilder = previous;
@@ -2167,8 +2381,10 @@ final class ExpressionTranslator {
           if (!identical(resolved, value)) return lowering.lower(resolved);
         }
         if (value is MethodInvocation) {
-          final helper =
-              _admittedBuilderHelper(value, allowDynamicReturn: true);
+          final helper = _admittedBuilderHelper(
+            value,
+            allowDynamicReturn: true,
+          );
           if (helper != null) return lowering.lowerHelper(helper, value);
         }
         return _lowerInstalledValue(value, lowering);
@@ -2186,61 +2402,85 @@ final class ExpressionTranslator {
       },
     );
     current = WidgetBuilderLowering(
-        expressions: values,
-        resolve: _resolveBoundIdentifier,
-        withConditionalBranch: _inConditionalBranch,
-        withHelperBody: (helper, call, lower) => _inHelperBody(
-            helper, call, issues, (_) => lower(),
-            refused: const BuilderResult.nullResult()),
-        nativeKey: (expression) => _nativeKeyReference(expression, issues),
-        contract: const WidgetBuilderContract(
-            parameters: [WidgetBuilderParameter.buildContext]),
-        scope: 'builder${_builderScopeCounter++}',
-        translateBody: (body) => _translate(body, issues),
-        helperFor: _admittedBuilderHelper);
+      expressions: values,
+      resolve: _resolveBoundIdentifier,
+      withConditionalBranch: _inConditionalBranch,
+      withHelperBody: (helper, call, lower) => _inHelperBody(
+        helper,
+        call,
+        issues,
+        (_) => lower(),
+        refused: const BuilderResult.nullResult(),
+      ),
+      nativeKey: (expression) => _nativeKeyReference(expression, issues),
+      contract: const WidgetBuilderContract(
+        parameters: [WidgetBuilderParameter.buildContext],
+      ),
+      scope: 'builder${_builderScopeCounter++}',
+      translateBody: (body) => _translate(body, issues),
+      helperFor: _admittedBuilderHelper,
+    );
     _activeWidgetBuilder = current;
     try {
       final semantics = _collectionSemanticProbe();
       final budget = CollectionUnrollBudget();
       final result = WidgetCollectionLowering(
-          expressions: values,
-          resultFor: current.resultFor,
-          withResolvedSpread: (source, lower) {
-            final resolved = semantics.resolve(
-                _resolveBoundIdentifier(source), const {}, budget,
-                stopAtConditionals: true, preserveHelpers: true);
-            if (resolved.workLimitExceeded || resolved.cycleDetected) {
-              throw BuilderLoweringException(source,
-                  'Widget spread resolution is recursive or exceeds its work limit');
-            }
-            return _translateWithBindings(
-                resolved.expression, resolved.bindings, issues,
-                (expression, _) {
+        expressions: values,
+        resultFor: current.resultFor,
+        withResolvedSpread: (source, lower) {
+          final resolved = semantics.resolve(
+            _resolveBoundIdentifier(source),
+            const {},
+            budget,
+            stopAtConditionals: true,
+            preserveHelpers: true,
+          );
+          if (resolved.workLimitExceeded || resolved.cycleDetected) {
+            throw BuilderLoweringException(
+              source,
+              'Widget spread resolution is recursive or exceeds its work limit',
+            );
+          }
+          return _translateWithBindings(
+            resolved.expression,
+            resolved.bindings,
+            issues,
+            (expression, _) {
               if (expression is MethodInvocation &&
-                  isArtifactHelperInvocation(expression,
-                      admittedHelperPackages: _admittedHelperPackages)) {
+                  isArtifactHelperInvocation(
+                    expression,
+                    admittedHelperPackages: _admittedHelperPackages,
+                  )) {
                 final helper =
                     _walk.inlined.helpers[expression.methodName.element] ??
-                        _collectionHelpers[expression.methodName.element];
+                    _collectionHelpers[expression.methodName.element];
                 if (helper != null) {
                   return current.withHelperResult(helper, expression, lower);
                 }
               }
               return lower(expression);
-            });
-          }).lowerSource(list);
+            },
+          );
+        },
+      ).lowerSource(list);
       return current.encodeResult(result, collection: true);
     } on BuilderLoweringException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: error.toString(),
-          location: _locationOf(error.node)));
+          location: _locationOf(error.node),
+        ),
+      );
       return '';
     } on FormatException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: error.message,
-          location: _locationOf(list)));
+          location: _locationOf(list),
+        ),
+      );
       return '';
     } finally {
       _activeWidgetBuilder = previous;
@@ -2252,9 +2492,11 @@ final class ExpressionTranslator {
     if (builder != null && expr is MethodInvocation) {
       final type = expr.staticType;
       if (type is InterfaceType &&
-          [type, ...type.allSupertypes].any((type) =>
-              type.element.name == 'Widget' &&
-              type.element.library.identifier.startsWith('package:flutter/'))) {
+          [type, ...type.allSupertypes].any(
+            (type) =>
+                type.element.name == 'Widget' &&
+                type.element.library.identifier.startsWith('package:flutter/'),
+          )) {
         final helper = _admittedBuilderHelper(expr);
         if (helper != null) return builder.translateHelper(helper, expr);
       }
@@ -2262,8 +2504,10 @@ final class ExpressionTranslator {
     if (builder != null &&
         (themeReadSegments(expr) != null ||
             _recognizeDeviceRead(expr) != null)) {
-      return builder.value(expr,
-          requireNativeBaseType: _customNativeValueBoundary);
+      return builder.value(
+        expr,
+        requireNativeBaseType: _customNativeValueBoundary,
+      );
     }
     final primitive = expr.staticType;
     if (builder != null &&
@@ -2277,13 +2521,18 @@ final class ExpressionTranslator {
         if (_inSpanCollection && _walk.runtimeLoops.isNotEmpty) {
           return _spanCollectionBuilderValue(expr, issues);
         }
-        return builder.value(expr,
-            requireNativeBaseType: _customNativeValueBoundary);
+        return builder.value(
+          expr,
+          requireNativeBaseType: _customNativeValueBoundary,
+        );
       } on BuilderLoweringException catch (error) {
-        issues.add(Issue(
+        issues.add(
+          Issue(
             code: IssueCode.propertyValueTypeMismatch,
             message: error.toString(),
-            location: _locationOf(error.node)));
+            location: _locationOf(error.node),
+          ),
+        );
         return '';
       }
     }
@@ -2294,13 +2543,19 @@ final class ExpressionTranslator {
       final helper = _walk.inlined.helpers[expr.methodName.element];
       if (helper != null &&
           (helper.roots.any(_containsIntlFormatting) ||
-              expr.argumentList.arguments.any((a) => _containsIntlFormatting(
-                  _resolveBoundIdentifier(a.argumentExpression))))) {
-        issues.add(Issue(
+              expr.argumentList.arguments.any(
+                (a) => _containsIntlFormatting(
+                  _resolveBoundIdentifier(a.argumentExpression),
+                ),
+              ))) {
+        issues.add(
+          Issue(
             code: IssueCode.unrecognizedMethodCall,
             message:
                 'A widget helper that evaluates formatting requires an installed native widget binding',
-            location: _locationOf(expr)));
+            location: _locationOf(expr),
+          ),
+        );
         return '';
       }
     }
@@ -2351,9 +2606,9 @@ final class ExpressionTranslator {
             code: IssueCode.unsupportedCollectionFlow,
             message: loopReference.indexed
                 ? 'A run-time loop value cannot be read by index. Read the '
-                    'value itself or one of its named members.'
+                      'value itself or one of its named members.'
                 : 'A run-time loop value can only read exact stored members '
-                    'from its derived host-data shape.',
+                      'from its derived host-data shape.',
             location: _locationOf(expr),
           ),
         );
@@ -2425,7 +2680,7 @@ final class ExpressionTranslator {
             final eventName = navigation.eventFor(recognised);
             if (eventName != null) return 'event "$eventName" {}';
           case NavigationResultDropped(:final reason) ||
-                NavigationFormUnsupported(:final reason):
+              NavigationFormUnsupported(:final reason):
             issues.add(_navigationUnsupportedIssue(reason, expr));
             return '';
           case NavigationNotRecognised():
@@ -2704,7 +2959,8 @@ final class ExpressionTranslator {
             Issue(
               code: IssueCode.unrecognizedMethodCall,
               capabilityGapSubject: 'expression:${_nodeKind(expr)}',
-              message: 'Unsupported expression: ${_nodeKind(expr)} `$expr`. '
+              message:
+                  'Unsupported expression: ${_nodeKind(expr)} `$expr`. '
                   'See the supported expression subset.',
               location: _locationOf(expr),
             ),
@@ -2794,38 +3050,39 @@ final class ExpressionTranslator {
     Expression expr,
     String owner,
     IssueCode code,
-  ) =>
-      Issue(
-        code: code,
-        message: "'$owner' is the name of a framework value type, so "
-            "'${expr.toSource()}' is not lowered to this class's own value. "
-            'Rename the class, or inline the value at the use site.',
-        location: _locationOf(expr),
-      );
+  ) => Issue(
+    code: code,
+    message:
+        "'$owner' is the name of a framework value type, so "
+        "'${expr.toSource()}' is not lowered to this class's own value. "
+        'Rename the class, or inline the value at the use site.',
+    location: _locationOf(expr),
+  );
 
   Issue _constIdentifierCycleIssue(Expression expr, IssueCode code) => Issue(
-        code: code,
-        capabilityGapSubject: 'constDeclarationCycle',
-        message: "The const declaration '${expr.toSource()}' is cyclic and "
-            'cannot be lowered. Break the declaration cycle.',
-        location: _locationOf(expr),
-      );
+    code: code,
+    capabilityGapSubject: 'constDeclarationCycle',
+    message:
+        "The const declaration '${expr.toSource()}' is cyclic and "
+        'cannot be lowered. Break the declaration cycle.',
+    location: _locationOf(expr),
+  );
 
   /// Creates the diagnostic for an unsupported cross-file const reference.
   Issue _constIdentifierUnresolvedIssue(
     Expression expr,
     IssueCode code, {
     String? capabilityGapSubject,
-  }) =>
-      Issue(
-        code: code,
-        capabilityGapSubject: capabilityGapSubject,
-        message: "Cannot fold the const reference '${expr.toSource()}' to a "
-            'value: it is declared in another file and is not a scalar this '
-            'codegen can evaluate. Inline the value at the use site, or move '
-            'the const into the same file.',
-        location: _locationOf(expr),
-      );
+  }) => Issue(
+    code: code,
+    capabilityGapSubject: capabilityGapSubject,
+    message:
+        "Cannot fold the const reference '${expr.toSource()}' to a "
+        'value: it is declared in another file and is not a scalar this '
+        'codegen can evaluate. Inline the value at the use site, or move '
+        'the const into the same file.',
+    location: _locationOf(expr),
+  );
 
   /// Renders a folded constant — an [int], [double], [bool], or [String] —
   /// as an RFW DSL literal fragment.
@@ -2842,15 +3099,16 @@ final class ExpressionTranslator {
   /// by the `_translate` hook and the slot-value path so both defer with the
   /// same actionable message — never the silent field-name emit.
   Issue _constObjectFieldUnresolvedIssue(Expression expr) => Issue(
-        code: IssueCode.constObjectFieldUnresolved,
-        message: 'Cannot fold the const-object field reference '
-            "'${expr.toSource()}' to a value: it is not a same-file stored "
-            'const field this codegen can substitute (it may be a cross-file '
-            'non-scalar value, or a computed getter rather than a stored '
-            'const field). Inline the value at the use site, or make it a '
-            'stored const field in the same file.',
-        location: _locationOf(expr),
-      );
+    code: IssueCode.constObjectFieldUnresolved,
+    message:
+        'Cannot fold the const-object field reference '
+        "'${expr.toSource()}' to a value: it is not a same-file stored "
+        'const field this codegen can substitute (it may be a cross-file '
+        'non-scalar value, or a computed getter rather than a stored '
+        'const field). Inline the value at the use site, or make it a '
+        'stored const field in the same file.',
+    location: _locationOf(expr),
+  );
 
   String _stringLiteral(String value) {
     final escaped = value
@@ -2868,8 +3126,9 @@ final class ExpressionTranslator {
   /// Shared refusal text for stateless and stateful host-data reads.
   String _hostDataRefusal(String subject, RootContextParam param) {
     final problem = param.hostDataProblem;
-    final reason =
-        problem == null ? '' : " At '${problem.path}': ${problem.detail}.";
+    final reason = problem == null
+        ? ''
+        : " At '${problem.path}': ${problem.detail}.";
     return 'Cannot read $subject: it is declared '
         "'${param.type.getDisplayString()}', and Restage does "
         'not support that type as host data. Host data parameters must be a '
@@ -2886,43 +3145,43 @@ final class ExpressionTranslator {
 
   /// Rejects a non-host-data parameter read in a stateless root.
   Issue _hostDataTypeIssue(RootContextParam param, AstNode node) => Issue(
-        code: IssueCode.unrecognizedMethodCall,
-        capabilityGapSubject: 'hostDataType:${param.type.getDisplayString()}',
-        message: _hostDataRefusal("the parameter '${param.name}'", param),
-        location: _locationOf(node),
-      );
+    code: IssueCode.unrecognizedMethodCall,
+    capabilityGapSubject: 'hostDataType:${param.type.getDisplayString()}',
+    message: _hostDataRefusal("the parameter '${param.name}'", param),
+    location: _locationOf(node),
+  );
 
   /// Rejects the same read through a stateful root's widget.
   Issue _hostDataStateShapeIssue(RootContextParam param, AstNode node) => Issue(
-        code: IssueCode.stateShapeUnsupported,
-        message: _hostDataRefusal('widget.${param.name}', param),
-        location: _locationOf(node),
-      );
+    code: IssueCode.stateShapeUnsupported,
+    message: _hostDataRefusal('widget.${param.name}', param),
+    location: _locationOf(node),
+  );
 
   Issue _hostDataMemberIssue(RootContextParam param, Expression node) => Issue(
-        code: IssueCode.unrecognizedMethodCall,
-        message: "Cannot read '${node.toSource()}': Restage does not support "
-            "reading a member of the host data parameter '${param.name}'. "
-            'Supply the value itself, or declare a separate parameter for it.',
-        location: _locationOf(node),
-      );
+    code: IssueCode.unrecognizedMethodCall,
+    message:
+        "Cannot read '${node.toSource()}': Restage does not support "
+        "reading a member of the host data parameter '${param.name}'. "
+        'Supply the value itself, or declare a separate parameter for it.',
+    location: _locationOf(node),
+  );
 
   Issue _hostDataDefaultIssue(
     RootContextParam param,
     AstNode node, {
     required bool stateful,
-  }) =>
-      Issue(
-        code: stateful
-            ? IssueCode.stateShapeUnsupported
-            : IssueCode.unrecognizedMethodCall,
-        capabilityGapSubject: stateful ? null : 'hostDataDefault:${param.name}',
-        message: _hostDataDefaultRefusal(
-          stateful ? 'widget.${param.name}' : "the parameter '${param.name}'",
-          param,
-        ),
-        location: _locationOf(node),
-      );
+  }) => Issue(
+    code: stateful
+        ? IssueCode.stateShapeUnsupported
+        : IssueCode.unrecognizedMethodCall,
+    capabilityGapSubject: stateful ? null : 'hostDataDefault:${param.name}',
+    message: _hostDataDefaultRefusal(
+      stateful ? 'widget.${param.name}' : "the parameter '${param.name}'",
+      param,
+    ),
+    location: _locationOf(node),
+  );
 
   /// Returns the root field identity at the base of [source], if any.
   _RootParamAccess? _rootParamAccess(Expression source) {
@@ -2947,15 +3206,17 @@ final class ExpressionTranslator {
     if (expr is PropertyAccess) {
       final target = expr.target;
       if (target is ThisExpression && !_walk.rootStateContext) {
-        final param =
-            _rootParamForElement(identifierElement(expr.propertyName));
+        final param = _rootParamForElement(
+          identifierElement(expr.propertyName),
+        );
         return param == null
             ? null
             : _RootParamAccess.root(param: param, stateful: false);
       }
       if (target != null) {
-        return _rootParamAccess(target)
-            ?.append(identifierElement(expr.propertyName));
+        return _rootParamAccess(
+          target,
+        )?.append(identifierElement(expr.propertyName));
       }
     }
     if (expr is MethodInvocation) {
@@ -3019,7 +3280,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unsupportedInterpolation,
-        message: 'A string that joins text and values works as the text of '
+        message:
+            'A string that joins text and values works as the text of '
             'a Text and as a String property of a built-in widget or of a '
             'custom widget your app renders. Here, pass the finished string '
             'in as one value. Found: ${expr.toSource()}.',
@@ -3053,8 +3315,10 @@ final class ExpressionTranslator {
               text.write(element.value);
             } else if (element is InterpolationExpression) {
               flushText();
-              final dsl =
-                  _stringInterpolationExpression(element.expression, issues);
+              final dsl = _stringInterpolationExpression(
+                element.expression,
+                issues,
+              );
               if (dsl != null) parts.add(dsl);
             }
           }
@@ -3063,8 +3327,9 @@ final class ExpressionTranslator {
 
     collect(expr);
     flushText();
-    final refused =
-        issues.skip(issueStart).any((issue) => !issue.code.isBuildNotice);
+    final refused = issues
+        .skip(issueStart)
+        .any((issue) => !issue.code.isBuildNotice);
     return refused ? null : parts;
   }
 
@@ -3234,7 +3499,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unsupportedInterpolation,
-            message: 'Could not resolve the interpolated expression '
+            message:
+                'Could not resolve the interpolated expression '
                 '${inner.toSource()} to a recognized helper. Ensure the '
                 'helper is imported from the SDK.',
             location: _locationOf(inner),
@@ -3246,7 +3512,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unsupportedHelperPosition,
-            message: 'Only helpers that return a String value may appear '
+            message:
+                'Only helpers that return a String value may appear '
                 'inside string interpolation; ${helper.name} returns '
                 '${helper.returnCategory.name}.',
             location: _locationOf(inner),
@@ -3295,14 +3562,13 @@ final class ExpressionTranslator {
       }
     }
     final reference = _shapedReference(resolved);
-    if (reference
-        case (
-          :final dsl,
-          shape: HostDataScalarShape(
-            kind: HostDataScalarKind.string,
-            :final type,
-          ),
-        ) when type.nullabilitySuffix == NullabilitySuffix.none) {
+    if (reference case (
+      :final dsl,
+      shape: HostDataScalarShape(
+        kind: HostDataScalarKind.string,
+        :final type,
+      ),
+    ) when type.nullabilitySuffix == NullabilitySuffix.none) {
       return dsl;
     }
 
@@ -3321,7 +3587,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unsupportedInterpolation,
-        message: 'An interpolated value must be a non-null String the '
+        message:
+            'An interpolated value must be a non-null String the '
             'surface can read: host data, a State field, a build() local, a '
             'condition over them, or a String helper. Found: '
             '${_nodeKind(inner)} ${inner.toSource()}.',
@@ -3464,8 +3731,10 @@ final class ExpressionTranslator {
     String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     final conditionIssues = <Issue>[];
-    final lowering = _withTranslationBindings(candidate.bindings,
-        () => _lowerCondition(candidate.condition, conditionIssues));
+    final lowering = _withTranslationBindings(
+      candidate.bindings,
+      () => _lowerCondition(candidate.condition, conditionIssues),
+    );
     if (lowering == null) return true;
     issues.addAll(conditionIssues);
     final thenGuard = _ConditionLowering(
@@ -3524,11 +3793,19 @@ final class ExpressionTranslator {
           _recordCollectionRefusal(refusal, issues);
           return true;
         }
-        final loop = _emitRuntimeLoop(candidate, refusal, issues,
-            ordinal: ordinal, itemType: itemType, emitLeaf: emitLeaf);
+        final loop = _emitRuntimeLoop(
+          candidate,
+          refusal,
+          issues,
+          ordinal: ordinal,
+          itemType: itemType,
+          emitLeaf: emitLeaf,
+        );
         if (loop == null) return true;
-        elements.add('...for ${_absentLoopIdentifier()} in '
-            '${guard(_kPresentSelector, _kAbsentSelector)}: [$loop]');
+        elements.add(
+          '...for ${_absentLoopIdentifier()} in '
+          '${guard(_kPresentSelector, _kAbsentSelector)}: [$loop]',
+        );
         return false;
       case CollectionRuntimeGroup(:final members):
         for (final member in members) {
@@ -3570,8 +3847,10 @@ final class ExpressionTranslator {
     String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     final conditionIssues = <Issue>[];
-    final lowering = _withTranslationBindings(candidate.bindings,
-        () => _lowerCondition(candidate.condition, conditionIssues));
+    final lowering = _withTranslationBindings(
+      candidate.bindings,
+      () => _lowerCondition(candidate.condition, conditionIssues),
+    );
     if (lowering == null) return null;
     issues.addAll(conditionIssues);
     final thenDsl = _emitRuntimeIfBranch(
@@ -3682,11 +3961,17 @@ final class ExpressionTranslator {
     required int ordinal,
     PropertyType? itemType,
     String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
-  }) =>
-      _withTranslationBindings(
-          candidate.bindings,
-          () => _emitBoundRuntimeLoop(candidate, refusal, issues,
-              ordinal: ordinal, itemType: itemType, emitLeaf: emitLeaf));
+  }) => _withTranslationBindings(
+    candidate.bindings,
+    () => _emitBoundRuntimeLoop(
+      candidate,
+      refusal,
+      issues,
+      ordinal: ordinal,
+      itemType: itemType,
+      emitLeaf: emitLeaf,
+    ),
+  );
 
   String? _emitBoundRuntimeLoop(
     CollectionRuntimeLoopCandidate candidate,
@@ -3702,7 +3987,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unsupportedCollectionFlow,
-          message: "The collection-for name '$identifier' cannot be used in "
+          message:
+              "The collection-for name '$identifier' cannot be used in "
               'an RFW loop. Choose a non-reserved name containing only '
               'letters, digits, and underscores.',
           location: _locationOf(refusal.location),
@@ -3763,7 +4049,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unsupportedCollectionFlow,
-          message: "The collection-for name '$identifier' conflicts with an "
+          message:
+              "The collection-for name '$identifier' conflicts with an "
               'RFW constructor used by its template. Rename the loop value.',
           location: _locationOf(refusal.location),
         ),
@@ -3774,7 +4061,7 @@ final class ExpressionTranslator {
   }
 
   ({String dsl, HostDataShape elementShape, RootContextParam? root})?
-      _runtimeLoopInput(
+  _runtimeLoopInput(
     CollectionRuntimeLoopCandidate candidate,
     CollectionUnrollRefused refusal,
     List<Issue> issues,
@@ -3843,8 +4130,8 @@ final class ExpressionTranslator {
       final after = cursor == dsl.length ? null : dsl.codeUnitAt(cursor);
       if ((before == null || !_isRfwIdentifierUnit(before)) &&
           (after == null || !_isRfwIdentifierUnit(after))) {
-        while (
-            cursor < dsl.length && _isRfwWhitespace(dsl.codeUnitAt(cursor))) {
+        while (cursor < dsl.length &&
+            _isRfwWhitespace(dsl.codeUnitAt(cursor))) {
           cursor++;
         }
         if (cursor < dsl.length && dsl.codeUnitAt(cursor) == 0x28) return true;
@@ -3944,33 +4231,34 @@ final class ExpressionTranslator {
   }
 
   CollectionSemanticProbe _collectionSemanticProbe() => CollectionSemanticProbe(
-        bindingFor: (identifier) {
-          final element = identifier.element;
-          if (element == null) return null;
-          return _walk.paramBindings[element] ??
-              _walk.inlined.localBindings[element];
-        },
-        helperFor: (invocation) {
-          if (!isArtifactHelperInvocation(
-            invocation,
-            admittedHelperPackages: _admittedHelperPackages,
-          )) {
-            return null;
-          }
-          final helper = _walk.inlined.helpers[invocation.methodName.element] ??
-              _collectionHelpers[invocation.methodName.element];
-          if (helper == null) return null;
-          final bindings = bindHelperArguments(
-            helper.params,
-            invocation.argumentList.arguments.toList(),
-          );
-          if (bindings == null) return null;
-          return CollectionResolvedHelper(
-            body: helper.body,
-            parameterBindings: bindings,
-          );
-        },
+    bindingFor: (identifier) {
+      final element = identifier.element;
+      if (element == null) return null;
+      return _walk.paramBindings[element] ??
+          _walk.inlined.localBindings[element];
+    },
+    helperFor: (invocation) {
+      if (!isArtifactHelperInvocation(
+        invocation,
+        admittedHelperPackages: _admittedHelperPackages,
+      )) {
+        return null;
+      }
+      final helper =
+          _walk.inlined.helpers[invocation.methodName.element] ??
+          _collectionHelpers[invocation.methodName.element];
+      if (helper == null) return null;
+      final bindings = bindHelperArguments(
+        helper.params,
+        invocation.argumentList.arguments.toList(),
       );
+      if (bindings == null) return null;
+      return CollectionResolvedHelper(
+        body: helper.body,
+        parameterBindings: bindings,
+      );
+    },
+  );
 
   Map<Element, HelperDef> _collectionHelperDefinitions(
     Expression expression,
@@ -4020,13 +4308,12 @@ final class ExpressionTranslator {
     Expression expression,
     Map<Element, Expression> bindings,
     List<Issue> issues,
-  ) =>
-      _translateWithBindings(
-        expression,
-        bindings,
-        issues,
-        _translateDoubleScalar,
-      );
+  ) => _translateWithBindings(
+    expression,
+    bindings,
+    issues,
+    _translateDoubleScalar,
+  );
 
   String _translateSlotElement(
     Expression expression,
@@ -4034,14 +4321,13 @@ final class ExpressionTranslator {
     PropertyType type,
     List<Issue> issues, {
     MeasurementOccurrenceScope? measurementScope,
-  }) =>
-      _translateWithBindings(
-        expression,
-        bindings,
-        issues,
-        (bound, sink) => _translateSlotValue(bound, type, sink),
-        measurementScope: measurementScope,
-      );
+  }) => _translateWithBindings(
+    expression,
+    bindings,
+    issues,
+    (bound, sink) => _translateSlotValue(bound, type, sink),
+    measurementScope: measurementScope,
+  );
 
   T _translateWithBindings<T>(
     Expression expression,
@@ -4049,9 +4335,11 @@ final class ExpressionTranslator {
     List<Issue> issues,
     T Function(Expression, List<Issue>) translate, {
     MeasurementOccurrenceScope? measurementScope,
-  }) =>
-      _withTranslationBindings(bindings, () => translate(expression, issues),
-          measurementScope: measurementScope);
+  }) => _withTranslationBindings(
+    bindings,
+    () => translate(expression, issues),
+    measurementScope: measurementScope,
+  );
 
   T _withTranslationBindings<T>(
     Map<Element, Expression> bindings,
@@ -4069,10 +4357,12 @@ final class ExpressionTranslator {
         helpers: _walk.inlined.helpers,
       ),
       measurementScope: measurementScope ?? _walk.measurementScope,
-      measurementWidget:
-          !entersMeasurementScope ? _walk.measurementWidget : null,
-      measurementWidgetList:
-          !entersMeasurementScope ? _walk.measurementWidgetList : null,
+      measurementWidget: !entersMeasurementScope
+          ? _walk.measurementWidget
+          : null,
+      measurementWidgetList: !entersMeasurementScope
+          ? _walk.measurementWidgetList
+          : null,
     );
     try {
       return translate();
@@ -4093,7 +4383,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unsupportedCollectionFlow,
-          message: 'Set literals, spreads, collection-if, and collection-for '
+          message:
+              'Set literals, spreads, collection-if, and collection-for '
               'are not supported in map literals. Use a static string-keyed '
               'map.',
           location: _locationOf(expr),
@@ -4224,7 +4515,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.stateShapeUnsupported,
-          message: 'Root source State.build() cannot read widget.$identifier. '
+          message:
+              'Root source State.build() cannot read widget.$identifier. '
               'Root sources are not called by another RFW widget, so there is '
               'no args.$identifier binding to emit. Move the value into a '
               'constant, host data, or an explicit supported State field.',
@@ -4257,7 +4549,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unresolvedIdentifier,
-          message: "Unsupported Material color 'Colors.$identifier'. "
+          message:
+              "Unsupported Material color 'Colors.$identifier'. "
               'Supported colors: ${_kMaterialColors.keys.join(", ")}.',
           location: _locationOf(expr),
         ),
@@ -4354,7 +4647,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unresolvedIdentifier,
-            message: "Couldn't resolve 'FontWeight.$identifier' to a canonical "
+            message:
+                "Couldn't resolve 'FontWeight.$identifier' to a canonical "
                 'font weight (w100-w900). Use a standard FontWeight value.',
             location: _locationOf(expr),
           ),
@@ -4493,7 +4787,8 @@ final class ExpressionTranslator {
           _replaceable(
             Issue(
               code: IssueCode.unresolvedIdentifier,
-              message: "'${expr.toSource()}' is not a resolved enum constant "
+              message:
+                  "'${expr.toSource()}' is not a resolved enum constant "
                   'or portable const value.',
               location: _locationOf(expr),
             ),
@@ -4512,12 +4807,16 @@ final class ExpressionTranslator {
   /// use their resolved value.
   bool _isNonFiniteDoubleConstant(PrefixedIdentifier expr) {
     if (expr.prefix.name == 'double' &&
-        const {'infinity', 'negativeInfinity', 'nan'}
-            .contains(expr.identifier.name)) {
+        const {
+          'infinity',
+          'negativeInfinity',
+          'nan',
+        }.contains(expr.identifier.name)) {
       return true;
     }
-    final variable =
-        _unwrapPropertyAccessor(identifierElement(expr.identifier));
+    final variable = _unwrapPropertyAccessor(
+      identifierElement(expr.identifier),
+    );
     if (variable is FieldElement && variable.isStatic && variable.isConst) {
       final value = variable.computeConstantValue()?.toDoubleValue();
       if (value != null) return !value.isFinite;
@@ -4528,14 +4827,15 @@ final class ExpressionTranslator {
   /// A loud diagnostic for the non-finite numeric value at [node] — its source
   /// text (e.g. `double.infinity`, `1e400`) names the offending value.
   Issue _nonFiniteNumericIssue(AstNode node) => Issue(
-        code: IssueCode.nonFiniteNumericValue,
-        message: 'A non-finite double (`${node.toSource()}`) has no '
-            'representable value in the RFW format and is silently dropped by '
-            'the runtime decode. Use a finite number. For a full-width layout, '
-            'size the widget with a finite width or an expanding/fractional '
-            'layout widget instead of `double.infinity`.',
-        location: _locationOf(node),
-      );
+    code: IssueCode.nonFiniteNumericValue,
+    message:
+        'A non-finite double (`${node.toSource()}`) has no '
+        'representable value in the RFW format and is silently dropped by '
+        'the runtime decode. Use a finite number. For a full-width layout, '
+        'size the widget with a finite width or an expanding/fractional '
+        'layout widget instead of `double.infinity`.',
+    location: _locationOf(node),
+  );
 
   /// The canonical `wN` decoder name for a resolved `FontWeight.<member>`
   /// reference, or `null` when the member's const cannot be resolved to a
@@ -4592,7 +4892,8 @@ final class ExpressionTranslator {
                 code: failure is IconCodePointCollision
                     ? IssueCode.collidingIconCodePoints
                     : IssueCode.unreconstructableIconData,
-                message: 'This surface renders '
+                message:
+                    'This surface renders '
                     '${expr.prefix.name}.${expr.identifier.name}, but '
                     '${failure.reason}.',
                 location: _locationOf(expr),
@@ -4607,7 +4908,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unresolvedIdentifier,
-        message: "Couldn't resolve '${expr.prefix.name}.${expr.identifier.name}"
+        message:
+            "Couldn't resolve '${expr.prefix.name}.${expr.identifier.name}"
             "' to a const IconData with an integer 'codePoint' field. "
             'Confirm the icon package is in pubspec.yaml and the identifier '
             'is spelled correctly.',
@@ -4686,7 +4988,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
-            message: 'Duration accepts only named unit arguments '
+            message:
+                'Duration accepts only named unit arguments '
                 '(days / hours / minutes / seconds / milliseconds / '
                 'microseconds).',
             location: loc,
@@ -4713,7 +5016,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unresolvedIdentifier,
-            message: "Duration '$unit' must be a const integer to lower to a "
+            message:
+                "Duration '$unit' must be a const integer to lower to a "
                 'milliseconds value.',
             location: loc,
           ),
@@ -4727,7 +5031,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'Sub-millisecond Duration values cannot be represented; the '
+          message:
+              'Sub-millisecond Duration values cannot be represented; the '
               'duration property is millisecond-granular.',
           location: loc,
         ),
@@ -4743,7 +5048,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'Duration value is out of range; its millisecond total does '
+          message:
+              'Duration value is out of range; its millisecond total does '
               'not fit a 64-bit integer.',
           location: loc,
         ),
@@ -4784,7 +5090,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unresolvedIdentifier,
-        message: "'${expr.toSource()}' does not resolve to package:flutter's "
+        message:
+            "'${expr.toSource()}' does not resolve to package:flutter's "
             '$typeName; a constructor named $typeName that is not the '
             'framework one cannot be inlined here. Reference its value '
             'directly.',
@@ -4820,7 +5127,8 @@ final class ExpressionTranslator {
     }
     if (member == null ||
         !libraryIsFlutter(member) ||
-        member.enclosingElement?.name != 'TextScaler') return null;
+        member.enclosingElement?.name != 'TextScaler')
+      return null;
     if (name == 'noScaling' && arguments == null) return '{kind: "none"}';
     if (name == 'linear' &&
         arguments != null &&
@@ -4919,14 +5227,24 @@ final class ExpressionTranslator {
       case 'EdgeInsetsDirectional':
         return variant == null
             ? null
-            : _structured.edgeInsets(variant, args.toList(), issues, loc,
-                directional: type == 'EdgeInsetsDirectional');
+            : _structured.edgeInsets(
+                variant,
+                args.toList(),
+                issues,
+                loc,
+                directional: type == 'EdgeInsetsDirectional',
+              );
       case 'BorderRadius':
       case 'BorderRadiusDirectional':
         return variant == null
             ? null
-            : _structured.borderRadius(variant, args.toList(), issues, loc,
-                directional: type == 'BorderRadiusDirectional');
+            : _structured.borderRadius(
+                variant,
+                args.toList(),
+                issues,
+                loc,
+                directional: type == 'BorderRadiusDirectional',
+              );
       case 'Size':
         // Only the height factory lowers here; `Size(width, height)` is a
         // structured value handled by its own recipe.
@@ -4988,14 +5306,18 @@ final class ExpressionTranslator {
   }
 
   String? _nativeChildDelegate(
-      InstanceCreationExpression expression, List<Issue> issues) {
+    InstanceCreationExpression expression,
+    List<Issue> issues,
+  ) {
     final constructor = constructionConstructor(expression);
     final owner = constructor?.enclosingElement;
     if (owner?.library.identifier !=
-        'package:flutter/src/widgets/scroll_delegate.dart') return null;
+        'package:flutter/src/widgets/scroll_delegate.dart')
+      return null;
     final name = owner?.name;
     if (name != 'SliverChildBuilderDelegate' &&
-        name != 'SliverChildListDelegate') return null;
+        name != 'SliverChildListDelegate')
+      return null;
     final variant = constructor?.name;
     if (variant != 'new' &&
         !(name == 'SliverChildListDelegate' && variant == 'fixed')) {
@@ -5010,52 +5332,71 @@ final class ExpressionTranslator {
             ? _translateWidgetBuilder(
                 argument.argumentExpression,
                 const PropertyEntry(
-                    wireId: WireId.unallocatedProperty,
-                    name: 'builder',
-                    type: PropertyType.widgetBuilder,
-                    description: '',
-                    builderContract: WidgetBuilderContract(parameters: [
+                  wireId: WireId.unallocatedProperty,
+                  name: 'builder',
+                  type: PropertyType.widgetBuilder,
+                  description: '',
+                  builderContract: WidgetBuilderContract(
+                    parameters: [
                       WidgetBuilderParameter.buildContext,
-                      WidgetBuilderParameter.itemIndex
-                    ], nullableResult: true)),
-                issues)
+                      WidgetBuilderParameter.itemIndex,
+                    ],
+                    nullableResult: true,
+                  ),
+                ),
+                issues,
+              )
             : _translateSlotValue(
-                argument.argumentExpression, PropertyType.widgetList, issues);
+                argument.argumentExpression,
+                PropertyType.widgetList,
+                issues,
+              );
         values.add('${builder ? 'builder' : 'children'}: $value');
       } else {
         final name = argument.name.lexeme;
         final scalar = switch (name) {
-          'semanticIndexCallback' => const ScalarCallbackContract(parameters: [
+          'semanticIndexCallback' => const ScalarCallbackContract(
+            parameters: [
               ScalarCallbackParameter.widget,
-              ScalarCallbackParameter.itemIndex
-            ]),
+              ScalarCallbackParameter.itemIndex,
+            ],
+          ),
           'findChildIndexCallback' => const ScalarCallbackContract(
-              parameters: [ScalarCallbackParameter.valueKey]),
+            parameters: [ScalarCallbackParameter.valueKey],
+          ),
           _ => null,
         };
         final parameter = constructor!.formalParameters
             .where((p) => p.name == name)
             .firstOrNull;
-        final type =
-            parameter == null ? null : inferPropertyType(parameter.type);
+        final type = parameter == null
+            ? null
+            : inferPropertyType(parameter.type);
         if (parameter == null || type == null) {
-          issues.add(Issue(
+          issues.add(
+            Issue(
               code: IssueCode.propertyValueTypeMismatch,
               message: 'Unsupported native delegate argument: $name.',
-              location: _locationOf(argument)));
+              location: _locationOf(argument),
+            ),
+          );
           return '{}';
         }
         final property = PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: name,
-            type: type,
-            description: '',
-            scalarContract: scalar,
-            constructorNullable:
-                parameter.type.nullabilitySuffix == NullabilitySuffix.question);
+          wireId: WireId.unallocatedProperty,
+          name: name,
+          type: type,
+          description: '',
+          scalarContract: scalar,
+          constructorNullable:
+              parameter.type.nullabilitySuffix == NullabilitySuffix.question,
+        );
         final value = _translateSlotValue(
-            argument.argumentExpression, type, issues,
-            property: property);
+          argument.argumentExpression,
+          type,
+          issues,
+          property: property,
+        );
         values.add('$name: $value');
       }
     }
@@ -5063,36 +5404,45 @@ final class ExpressionTranslator {
   }
 
   String? _nativeGridValue(
-      InstanceCreationExpression expression, List<Issue> issues) {
+    InstanceCreationExpression expression,
+    List<Issue> issues,
+  ) {
     final constructor = constructionConstructor(expression);
     final name = constructor?.enclosingElement.name;
     if (!kGridValueRecipes.any((recipe) => recipe.typeName == name))
       return null;
     if (!isGridValueConstructor(constructor)) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message:
               'This native value requires its declared Flutter constructor.',
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return '{}';
     }
     final physics = name!.endsWith('ScrollPhysics');
     if (physics && _nativePhysicsDepth >= 64) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: 'Scroll physics parent chain exceeds its structural limit.',
-          location: _locationOf(expression)));
+          location: _locationOf(expression),
+        ),
+      );
       return '{}';
     }
     if (physics) _nativePhysicsDepth++;
     try {
       return _tryValueOrRecipe(
-          name,
-          constructor!.name == 'new' ? null : constructor.name,
-          expression.argumentList.arguments,
-          issues,
-          _locationOf(expression),
-          fromConstructor: true);
+        name,
+        constructor!.name == 'new' ? null : constructor.name,
+        expression.argumentList.arguments,
+        issues,
+        _locationOf(expression),
+        fromConstructor: true,
+      );
     } finally {
       if (physics) _nativePhysicsDepth--;
     }
@@ -5113,8 +5463,9 @@ final class ExpressionTranslator {
         continue;
       }
       if (current is ConditionalExpression) {
-        final selected =
-            installedNativeConstantValue(current.condition)?.toBoolValue();
+        final selected = installedNativeConstantValue(
+          current.condition,
+        )?.toBoolValue();
         if (selected != null) {
           current = selected ? current.thenExpression : current.elseExpression;
           continue;
@@ -5129,8 +5480,10 @@ final class ExpressionTranslator {
             target.element.library.identifier == 'dart:ui' &&
             (source.nullabilitySuffix != NullabilitySuffix.question ||
                 target.nullabilitySuffix == NullabilitySuffix.question) &&
-            [source, ...source.allSupertypes]
-                .any((type) => type.element == target.element)) {
+            [
+              source,
+              ...source.allSupertypes,
+            ].any((type) => type.element == target.element)) {
           current = current.expression;
           continue;
         }
@@ -5156,19 +5509,25 @@ final class ExpressionTranslator {
     }
     final type = resolved.staticType;
     if (type is! InterfaceType ||
-        ![type, ...type.allSupertypes].any((type) =>
-            type.element.name == 'Color' &&
-            type.element.library.identifier == 'dart:ui')) return null;
+        ![type, ...type.allSupertypes].any(
+          (type) =>
+              type.element.name == 'Color' &&
+              type.element.library.identifier == 'dart:ui',
+        ))
+      return null;
     if (!isInstalledNativeConstant(resolved) &&
-        _isInertNativeSelection(resolved)) return resolved;
+        _isInertNativeSelection(resolved))
+      return resolved;
     if (resolved is InstanceCreationExpression &&
         resolved.isConst &&
         !identical(source, resolved)) {
       return resolved;
     }
-    final accessor =
-        resolved is PropertyAccess ? resolved.propertyName.element : null;
-    final declaration = constDeclarationElement(resolved) ??
+    final accessor = resolved is PropertyAccess
+        ? resolved.propertyName.element
+        : null;
+    final declaration =
+        constDeclarationElement(resolved) ??
         (accessor is PropertyAccessorElement &&
                 accessor.isStatic &&
                 accessor.variable.isConst
@@ -5176,7 +5535,8 @@ final class ExpressionTranslator {
             : null);
     if (declaration == null ||
         declaration.library?.identifier ==
-            'package:flutter/src/material/colors.dart') return null;
+            'package:flutter/src/material/colors.dart')
+      return null;
     return resolved;
   }
 
@@ -5187,20 +5547,27 @@ final class ExpressionTranslator {
           value.staticType?.isDartCoreNull == true ||
           _isNullLiteral(_resolveBoundIdentifier(value))) {
         throw BuilderLoweringException(
-            value, 'This native Color destination requires a non-null value.');
+          value,
+          'This native Color destination requires a non-null value.',
+        );
       }
       final borrowed = _nativeBindingRead(value, type: 'flutter.Color');
       if (borrowed != null) return borrowed;
       if (_installedColorExpression(value) case final expression?) {
-        final native =
-            _tryNativeCallValue(expression, issues, type: 'flutter.Color');
+        final native = _tryNativeCallValue(
+          expression,
+          issues,
+          type: 'flutter.Color',
+        );
         if (native != null) return native;
       }
       if (_activeWidgetBuilder case final builder?) {
-        return builder.value(value,
-            requireNativeBaseType: true,
-            requireNonNull: true,
-            nativeDestination: 'Color');
+        return builder.value(
+          value,
+          requireNativeBaseType: true,
+          requireNonNull: true,
+          nativeDestination: 'Color',
+        );
       }
       if (constValueAnchor(value) != null &&
           value is InstanceCreationExpression) {
@@ -5212,31 +5579,39 @@ final class ExpressionTranslator {
         if ((owner?.name != 'Color' ||
                 owner?.library.identifier != 'dart:ui') &&
             (constant == null || exactColorConstant(constant) == null)) {
-          throw BuilderLoweringException(value,
-              'Color cannot cross a custom constructor boundary without proof of its native base runtime subtype.');
+          throw BuilderLoweringException(
+            value,
+            'Color cannot cross a custom constructor boundary without proof of its native base runtime subtype.',
+          );
         }
-        final encoded =
-            constant == null ? null : encodeFrameworkConst(constant);
+        final encoded = constant == null
+            ? null
+            : encodeFrameworkConst(constant);
         return encoded?.dsl ??
             _translateSlotValue(value, PropertyType.color, issues);
       }
       final values = BuilderExpressionLowering(
-          operations: _installedValueOperations,
-          capture: (expression) => _translate(expression, issues),
-          extension: (expression, lowering) {
-            final resolved = _resolveBoundIdentifier(expression);
-            return identical(resolved, expression)
-                ? null
-                : lowering.lower(resolved);
-          });
+        operations: _installedValueOperations,
+        capture: (expression) => _translate(expression, issues),
+        extension: (expression, lowering) {
+          final resolved = _resolveBoundIdentifier(expression);
+          return identical(resolved, expression)
+              ? null
+              : lowering.lower(resolved);
+        },
+      );
       final node = values.lower(value);
       if (!values.provesNativeBase(node, 'Color')) {
-        throw BuilderLoweringException(value,
-            'Color cannot cross a custom constructor boundary without proof of its native base runtime subtype.');
+        throw BuilderLoweringException(
+          value,
+          'Color cannot cross a custom constructor boundary without proof of its native base runtime subtype.',
+        );
       }
       if (values.nodes[node].type.nullable) {
         throw BuilderLoweringException(
-            value, 'This native Color destination requires a non-null value.');
+          value,
+          'This native Color destination requires a non-null value.',
+        );
       }
       final lowered = values.nodes[node];
       if (lowered.op == 'literal' && lowered.value is Map<String, Object?>) {
@@ -5249,75 +5624,95 @@ final class ExpressionTranslator {
       // The native Color graph is already proven. Project its exact fields
       // through the same scalar envelopes used by ordinary native arguments.
       return '{${colorValueType.fields.entries.map((field) {
-        final token =
-            field.key == 'material' ? values.materialColorToken(node) : null;
+        final token = field.key == 'material' ? values.materialColorToken(node) : null;
         if (token != null) return 'material: ${_stringLiteral(token)}';
-        final projection = values.add(
-            ValueNode('field', field.value, inputs: [node], name: field.key));
+        final projection = values.add(ValueNode('field', field.value, inputs: [node], name: field.key));
         return '${field.key}: ${_encodeScalarValueProgram(values, projection)}';
       }).join(', ')}}';
     } on BuilderLoweringException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: error.toString(),
-          location: _locationOf(error.node)));
+          location: _locationOf(error.node),
+        ),
+      );
       return '';
     }
   }
 
-  String? _optionalNativeValue(Expression expr, List<Issue> issues,
-      {String? expected}) {
+  String? _optionalNativeValue(
+    Expression expr,
+    List<Issue> issues, {
+    String? expected,
+  }) {
     final before = issues.length;
     try {
-      final value = emitOptionalNativeValue(expr,
-          translateBinding: (value, type) {
-            if (_hoist == null || _hoist!.speculating) return null;
-            if (constValueAnchor(value) != null) return null;
-            final borrowed = _nativeBindingRead(value, type: type);
-            if (borrowed != null) return borrowed;
-            final expression = _stripParens(value);
-            final active = _activeWidgetBuilder;
-            if (active != null && expression is SimpleIdentifier) {
-              var native = active.expressions.localFor(expression.element)?.$2;
-              for (BuilderExpressionLowering? scope = active.expressions;
-                  native == null && scope != null;
-                  scope = scope.lexicalParent ?? scope.parent) {
-                final node = scope.bindings[expression.element];
-                if (node != null) native = scope.nodes[node].type;
-              }
-              if (native?.kind == 'native' && native?.nativeType == type) {
-                return active.nativeValue(
-                    expression, (value, lowering) => lowering.lower(value));
-              }
+      final value = emitOptionalNativeValue(
+        expr,
+        translateBinding: (value, type) {
+          if (_hoist == null || _hoist!.speculating) return null;
+          if (constValueAnchor(value) != null) return null;
+          final borrowed = _nativeBindingRead(value, type: type);
+          if (borrowed != null) return borrowed;
+          final expression = _stripParens(value);
+          final active = _activeWidgetBuilder;
+          if (active != null && expression is SimpleIdentifier) {
+            var native = active.expressions.localFor(expression.element)?.$2;
+            for (
+              BuilderExpressionLowering? scope = active.expressions;
+              native == null && scope != null;
+              scope = scope.lexicalParent ?? scope.parent
+            ) {
+              final node = scope.bindings[expression.element];
+              if (node != null) native = scope.nodes[node].type;
             }
-            if (active != null && !active.isProjectingBody ||
-                expression is FunctionExpression ||
-                isInstalledNativeConstant(expression) ||
-                _isInertNativeSelection(expression)) {
-              return _tryNativeCallValue(expression, issues, type: type);
+            if (native?.kind == 'native' && native?.nativeType == type) {
+              return active.nativeValue(
+                expression,
+                (value, lowering) => lowering.lower(value),
+              );
             }
-            return null;
-          },
-          translate: (value) => _translate(value, issues),
-          translateColor: (value) => _optionalNativeColor(value, issues),
-          resolve: _resolveBoundIdentifier,
-          translateConstant: (value, lower) => _translateConstIdentifier(
-              value, issues, IssueCode.unrecognizedMethodCall, lower),
-          expected: expected);
+          }
+          if (active != null && !active.isProjectingBody ||
+              expression is FunctionExpression ||
+              isInstalledNativeConstant(expression) ||
+              _isInertNativeSelection(expression)) {
+            return _tryNativeCallValue(expression, issues, type: type);
+          }
+          return null;
+        },
+        translate: (value) => _translate(value, issues),
+        translateColor: (value) => _optionalNativeColor(value, issues),
+        resolve: _resolveBoundIdentifier,
+        translateConstant: (value, lower) => _translateConstIdentifier(
+          value,
+          issues,
+          IssueCode.unrecognizedMethodCall,
+          lower,
+        ),
+        expected: expected,
+      );
       return issues.skip(before).any((issue) => !issue.code.isInformational)
           ? ''
           : value;
     } on BuilderLoweringException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.propertyValueTypeMismatch,
           message: error.toString(),
-          location: _locationOf(error.node)));
+          location: _locationOf(error.node),
+        ),
+      );
       return '';
     } on FormatException catch (error) {
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.unrecognizedMethodCall,
           message: error.message,
-          location: _locationOf(expr)));
+          location: _locationOf(expr),
+        ),
+      );
       return '';
     }
   }
@@ -5362,8 +5757,8 @@ final class ExpressionTranslator {
         expr.argumentList.arguments.firstOrNull?.argumentExpression;
     final substituted =
         formattedText != null && _containsIntlFormatting(formattedText)
-            ? null
-            : _tryNumberFormatSubstitution(expr, issues);
+        ? null
+        : _tryNumberFormatSubstitution(expr, issues);
     if (substituted != null) return substituted;
 
     // Value-substitution gate. The framework-value recognition below (the
@@ -5460,7 +5855,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'Unsupported ShapeBorder/OutlinedBorder value: '
+          message:
+              'Unsupported ShapeBorder/OutlinedBorder value: '
               '${expr.toSource()}. Supported: RoundedRectangleBorder, '
               'RoundedSuperellipseBorder, CircleBorder, StadiumBorder, '
               'ContinuousRectangleBorder, BeveledRectangleBorder, '
@@ -5698,8 +6094,12 @@ final class ExpressionTranslator {
       final name = a.name.lexeme;
       // `style` decomposes through the entry's native recipe (TextStyle ->
       // flat props), exactly as a hand-authored substitute would.
-      final decomposed =
-          _tryDecompose(entry, name, a.argumentExpression, scratch);
+      final decomposed = _tryDecompose(
+        entry,
+        name,
+        a.argumentExpression,
+        scratch,
+      );
       if (decomposed != null) {
         emitted.addAll(decomposed);
         continue;
@@ -5724,7 +6124,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.idiomAutoSubstituted,
-        message: 'Auto-adopted the `$adoptTarget` catalog widget for a '
+        message:
+            'Auto-adopted the `$adoptTarget` catalog widget for a '
             'Text(NumberFormat.${ctorName ?? ''}(...).format(...)) number '
             'formatting idiom — the substitute runs the same formatting, so '
             'the rendered output is identical. The emitted blob references '
@@ -5748,7 +6149,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
-        message: 'Could not auto-adopt the `$adoptTarget` catalog widget for '
+        message:
+            'Could not auto-adopt the `$adoptTarget` catalog widget for '
             'this number-formatting idiom because $reason. '
             '${numberFormatDeferMessage(adoptTarget)}',
         location: _locationOf(anchor),
@@ -5796,7 +6198,8 @@ final class ExpressionTranslator {
     final target = expr.target;
     if (target is! SimpleIdentifier || !isTextRichInvocation(expr)) return null;
 
-    final cls = _classOfMethodInvocation(expr) ??
+    final cls =
+        _classOfMethodInvocation(expr) ??
         (target.element is ClassElement
             ? target.element! as ClassElement
             : null);
@@ -5832,17 +6235,19 @@ final class ExpressionTranslator {
     if (scope != null && !occurrenceScoped && widgetClass != null) {
       final saved = _walk;
       _walk = _walk.copyWith(
-          measurementScope: null,
-          measurementWidget: scope.widget(widgetClass),
-          measurementWidgetList: null);
+        measurementScope: null,
+        measurementWidget: scope.widget(widgetClass),
+        measurementWidgetList: null,
+      );
       try {
         return _textRich(
-            args: args,
-            anchor: anchor,
-            flutterType: flutterType,
-            issues: issues,
-            widgetClass: widgetClass,
-            occurrenceScoped: true);
+          args: args,
+          anchor: anchor,
+          flutterType: flutterType,
+          issues: issues,
+          widgetClass: widgetClass,
+          occurrenceScoped: true,
+        );
       } finally {
         _walk = saved;
       }
@@ -5852,7 +6257,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unknownWidget,
-          message: "Widget 'Text.rich' is not a known catalog widget. Add a "
+          message:
+              "Widget 'Text.rich' is not a known catalog widget. Add a "
               'catalog entry with a PropertyType.inlineSpan textSpan slot '
               'before lowering Text.rich.',
           location: _locationOf(anchor),
@@ -5868,7 +6274,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unknownProperty,
-          message: "Catalog widget '${entry.name}' must declare a "
+          message:
+              "Catalog widget '${entry.name}' must declare a "
               "'textSpan' PropertyType.inlineSpan slot for Text.rich.",
           location: _locationOf(anchor),
         ),
@@ -5907,8 +6314,12 @@ final class ExpressionTranslator {
       }
 
       final before = issues.length;
-      final decomposed =
-          _tryDecompose(entry, name, arg.argumentExpression, issues);
+      final decomposed = _tryDecompose(
+        entry,
+        name,
+        arg.argumentExpression,
+        issues,
+      );
       if (issues.length > before) return '';
       if (decomposed != null) {
         emitted.addAll(decomposed);
@@ -5949,8 +6360,9 @@ final class ExpressionTranslator {
 
   WidgetEntry? _textRichEntry(String? flutterType) {
     if (flutterType != null) {
-      final resolved =
-          catalog.widgets.firstWhereOrNull((w) => w.flutterType == flutterType);
+      final resolved = catalog.widgets.firstWhereOrNull(
+        (w) => w.flutterType == flutterType,
+      );
       if (resolved != null) return resolved;
     }
     return kTextRichLowering.resolve(catalog).firstOrNull;
@@ -5970,7 +6382,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'TextSpan tree exceeds kMaxInlineSpanDepth '
+          message:
+              'TextSpan tree exceeds kMaxInlineSpanDepth '
               '($kMaxInlineSpanDepth). Split the rich text into shallower '
               'Text.rich nodes; codegen never emits a tree that relies on '
               'runtime depth truncation.',
@@ -5983,7 +6396,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'Whole TextSpan conditionals are not supported by this '
+          message:
+              'Whole TextSpan conditionals are not supported by this '
               'transpiler increment. Put the conditional on a carried span '
               'value, such as text: condition ? a : b.',
           location: _locationOf(stripped),
@@ -5998,14 +6412,15 @@ final class ExpressionTranslator {
     final spanClass = stripped is InstanceCreationExpression
         ? _classOfInstanceCreation(stripped)
         : stripped is MethodInvocation
-            ? _classOfMethodInvocation(stripped)
-            : null;
+        ? _classOfMethodInvocation(stripped)
+        : null;
     final parts = <String>[];
     for (final positional in spanArgs.whereType<Expression>()) {
       issues.add(
         Issue(
           code: IssueCode.unknownProperty,
-          message: 'TextSpan positional arguments are not carried by the '
+          message:
+              'TextSpan positional arguments are not carried by the '
               'inlineSpan emitter. Use named text:, style:, and children: '
               'arguments only.',
           location: _locationOf(positional),
@@ -6040,15 +6455,27 @@ final class ExpressionTranslator {
         case 'children':
           if (_resolveBoundIdentifier(arg.argumentExpression) is NullLiteral)
             continue;
-          final children = _textSpanChildren(arg.argumentExpression, issues,
-              depth, spanPath, recognizerSources, collectionOccurrences);
+          final children = _textSpanChildren(
+            arg.argumentExpression,
+            issues,
+            depth,
+            spanPath,
+            recognizerSources,
+            collectionOccurrences,
+          );
           if (children == null) return null;
           parts.add('children: $children');
         case 'recognizer':
           if (_resolveBoundIdentifier(arg.argumentExpression) is NullLiteral)
             continue;
-          final value = _textSpanRecognizerMap(arg.argumentExpression, issues,
-              spanPath, recognizerSources, spanClass, collectionOccurrences);
+          final value = _textSpanRecognizerMap(
+            arg.argumentExpression,
+            issues,
+            spanPath,
+            recognizerSources,
+            spanClass,
+            collectionOccurrences,
+          );
           if (value == null) return null;
           parts.add('recognizer: $value');
       }
@@ -6107,7 +6534,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unknownProperty,
-          message: "TextSpan.style requires the catalog's Text(style: "
+          message:
+              "TextSpan.style requires the catalog's Text(style: "
               'TextStyle(...)) native decomposition metadata so nested style '
               'fields use the same encoding as flat Text styles.',
           location: _locationOf(expr),
@@ -6123,7 +6551,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'TextSpan.style must be a TextStyle(...) value whose fields '
+          message:
+              'TextSpan.style must be a TextStyle(...) value whose fields '
               'can be decomposed by the Text style recipe.',
           location: _locationOf(expr),
         ),
@@ -6142,20 +6571,25 @@ final class ExpressionTranslator {
     List<CollectionSemanticOccurrence> collectionOccurrences,
   ) {
     final budget = CollectionUnrollBudget();
-    final resolution =
-        _collectionSemanticProbe().resolve(expr, const {}, budget);
+    final resolution = _collectionSemanticProbe().resolve(
+      expr,
+      const {},
+      budget,
+    );
     if (resolution.workLimitExceeded) {
       _recordCollectionRefusal(budget.workRefusal(expr), issues);
       return null;
     }
     if (resolution.expression is NullLiteral) return 'null';
     if (resolution.expression is! ListLiteral) {
-      issues.add(Issue(
-        code: IssueCode.unsupportedCollectionFlow,
-        message:
-            'TextSpan.children requires an admitted bounded list expression.',
-        location: _locationOf(expr),
-      ));
+      issues.add(
+        Issue(
+          code: IssueCode.unsupportedCollectionFlow,
+          message:
+              'TextSpan.children requires an admitted bounded list expression.',
+          location: _locationOf(expr),
+        ),
+      );
       return null;
     }
     final before = issues.length;
@@ -6195,34 +6629,37 @@ final class ExpressionTranslator {
   }
 
   String? _textSpanRecognizerMap(
-      Expression expression,
-      List<Issue> issues,
-      List<Object> spanPath,
-      Map<Expression, List<List<Object>>> recognizerSources,
-      InterfaceElement? spanClass,
-      List<CollectionSemanticOccurrence> collectionOccurrences) {
+    Expression expression,
+    List<Issue> issues,
+    List<Object> spanPath,
+    Map<Expression, List<List<Object>>> recognizerSources,
+    InterfaceElement? spanClass,
+    List<CollectionSemanticOccurrence> collectionOccurrences,
+  ) {
     try {
       final resolved = _resolveBoundIdentifier(expression);
       if (isBorrowedTextSpanRecognizer(resolved)) {
         final reference =
             _nativeBindingRead(expression, type: 'flutter.GestureRecognizer') ??
-                _tryNativeCallValue(
-                  resolved,
-                  issues,
-                  type: 'flutter.GestureRecognizer',
-                );
+            _tryNativeCallValue(
+              resolved,
+              issues,
+              type: 'flutter.GestureRecognizer',
+            );
         if (reference == null)
           throw ArgumentError(
             'A borrowed recognizer requires an installed binding.',
           );
         return '{ borrowed: $reference }';
       }
-      final recipe = readTextSpanRecognizer(expression,
-          resolve: _resolveBoundIdentifier,
-          bindings: [
-            ..._walk.paramBindings.values,
-            ..._walk.inlined.localBindings.values
-          ]);
+      final recipe = readTextSpanRecognizer(
+        expression,
+        resolve: _resolveBoundIdentifier,
+        bindings: [
+          ..._walk.paramBindings.values,
+          ..._walk.inlined.localBindings.values,
+        ],
+      );
       final evaluation = <Object>[
         for (final occurrence in collectionOccurrences) ...[
           for (final step in occurrence.structuralPath)
@@ -6231,10 +6668,13 @@ final class ExpressionTranslator {
             (step.source, step.kind),
         ],
       ];
-      final previous =
-          recognizerSources.putIfAbsent(recipe.constructor, () => []);
-      if (previous
-          .any((key) => const ListEquality<Object>().equals(key, evaluation))) {
+      final previous = recognizerSources.putIfAbsent(
+        recipe.constructor,
+        () => [],
+      );
+      if (previous.any(
+        (key) => const ListEquality<Object>().equals(key, evaluation),
+      )) {
         throw ArgumentError(
           'Sharing a recognizer between spans requires installed ownership.',
         );
@@ -6311,7 +6751,8 @@ final class ExpressionTranslator {
             kTextSpanRecognizerDetailCallbacks[recipe.kind]?[entry.key];
         if (detailType != null) {
           if (_resolveBoundIdentifier(entry.value) is NullLiteral) continue;
-          final callback = _nativeBindingRead(entry.value, type: detailType) ??
+          final callback =
+              _nativeBindingRead(entry.value, type: detailType) ??
               _tryNativeCallValue(entry.value, issues, type: detailType);
           if (callback == null)
             throw ArgumentError(
@@ -6319,8 +6760,12 @@ final class ExpressionTranslator {
             );
           parts.add('${entry.key}: $callback');
           if (marker != null) {
-            final measurement =
-                _measurementTapEvent(marker, occurrence!, entry.value, issues);
+            final measurement = _measurementTapEvent(
+              marker,
+              occurrence!,
+              entry.value,
+              issues,
+            );
             if (measurement.isEmpty) return null;
             parts.add('${entry.key}Measurement: $measurement');
           }
@@ -6388,7 +6833,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unknownProperty,
-        message: 'Text.rich inline-span emission carries only TextSpan '
+        message:
+            'Text.rich inline-span emission carries only TextSpan '
             'text, style, and children. TextSpan.$name would be dropped, so '
             'the whole Text.rich is deferred.$knownDeferred',
         location: _locationOf(arg),
@@ -6400,7 +6846,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
-        message: 'Text.rich requires its positional argument to be a '
+        message:
+            'Text.rich requires its positional argument to be a '
             'TextSpan(...) tree.',
         location: _locationOf(expr),
       ),
@@ -6411,7 +6858,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
-        message: "'${expr.toSource()}' does not resolve to package:flutter's "
+        message:
+            "'${expr.toSource()}' does not resolve to package:flutter's "
             'Text.rich. A custom class named Text is not emitted as the '
             'framework rich-text widget.',
         location: _locationOf(expr),
@@ -6423,7 +6871,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
-        message: "'${expr.toSource()}' does not resolve to package:flutter's "
+        message:
+            "'${expr.toSource()}' does not resolve to package:flutter's "
             'TextSpan. A custom class named TextSpan is not emitted as an '
             'inline-span map.',
         location: _locationOf(expr),
@@ -6437,10 +6886,9 @@ final class ExpressionTranslator {
   String? _flutterTypeOfClassOrNull(
     ClassElement? cls, {
     String? constructorName,
-  }) =>
-      cls == null
-          ? null
-          : _flutterTypeOfClass(cls, constructorName: constructorName);
+  }) => cls == null
+      ? null
+      : _flutterTypeOfClass(cls, constructorName: constructorName);
 
   /// Whether the `.format(<value>)` argument is safe to lower into the
   /// substitute's `double`-typed value slot. A numeric literal (including a
@@ -6489,8 +6937,10 @@ final class ExpressionTranslator {
     if (callable is MethodElement &&
         callable.isStatic &&
         owner is ClassElement) {
-      final identity =
-          _flutterTypeOfClass(owner, constructorName: callable.name);
+      final identity = _flutterTypeOfClass(
+        owner,
+        constructorName: callable.name,
+      );
       if (catalog.widgets.any((entry) => entry.flutterType == identity)) {
         return _catalogWidgetConstruction(
           widgetName: owner.name!,
@@ -6514,19 +6964,21 @@ final class ExpressionTranslator {
     // A helper refused for a named prelude shape reports that shape
     // rather than falling through as an unrecognised widget.
     final helperElement = expr.methodName.element;
-    final helperRefusal = isArtifactHelperInvocation(
-      expr,
-      admittedHelperPackages: _admittedHelperPackages,
-    )
+    final helperRefusal =
+        isArtifactHelperInvocation(
+          expr,
+          admittedHelperPackages: _admittedHelperPackages,
+        )
         ? refusedHelperDefinitionsIn(expr)[helperElement] ??
-            recordedHelperRefusal(helperElement!)
+              recordedHelperRefusal(helperElement!)
         : null;
     if (helperRefusal != null) {
       issues.add(
         Issue(
           code: IssueCode.customWidgetInliningDeferred,
           capabilityGapSubject: 'helper:${expr.methodName.name}',
-          message: "The helper '${_helperName(expr)}' cannot be inlined: "
+          message:
+              "The helper '${_helperName(expr)}' cannot be inlined: "
               '$helperRefusal.',
           location: _locationOf(expr),
         ),
@@ -6566,19 +7018,21 @@ final class ExpressionTranslator {
       // A static method is never a construction of its owner.
       if (expr.methodName.element case final MethodElement helper
           when helper.isStatic) {
-        final reason = isInArtifactHelperPackage(
-          expr,
-          helper,
-          admittedHelperPackages: _admittedHelperPackages,
-        )
+        final reason =
+            isInArtifactHelperPackage(
+              expr,
+              helper,
+              admittedHelperPackages: _admittedHelperPackages,
+            )
             ? 'a helper must return a widget or a value of a class type'
             : 'it is declared outside this package and the dependency '
-                'packages that publish custom Restage widgets';
+                  'packages that publish custom Restage widgets';
         issues.add(
           Issue(
             code: IssueCode.customWidgetInliningDeferred,
             capabilityGapSubject: 'helper:$method',
-            message: "The helper '${target.name}.$method' cannot be inlined: "
+            message:
+                "The helper '${target.name}.$method' cannot be inlined: "
                 '$reason.',
             location: _locationOf(expr),
           ),
@@ -6641,7 +7095,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'Unsupported Border factory: Border.$method. '
+          message:
+              'Unsupported Border factory: Border.$method. '
               'Supported: all, default Border(top:, right:, bottom:, left:).',
           location: _locationOf(expr),
         ),
@@ -6656,7 +7111,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'Unsupported Color factory: Color.$method. '
+          message:
+              'Unsupported Color factory: Color.$method. '
               'Supported: Color(0xAARRGGBB), Color.fromARGB, Color.fromRGBO.',
           location: _locationOf(expr),
         ),
@@ -6704,16 +7160,21 @@ final class ExpressionTranslator {
         // bug). Event (`voidCallback`) helpers take the pass-through below: the
         // switch sits in a value position there and is already valid.
         if (helper.returnCategory == HelperReturnCategory.string) {
-          final distributed =
-              _tryDistributeConditionalValueHelper(expr, helper, issues);
+          final distributed = _tryDistributeConditionalValueHelper(
+            expr,
+            helper,
+            issues,
+          );
           if (distributed != null) return distributed;
         }
         final positional = <String>[];
         final named = <String, String>{};
         for (final a in expr.argumentList.arguments) {
           if (a is NamedArgument) {
-            named[a.name.lexeme] =
-                _translateHelperArgument(a.argumentExpression, issues);
+            named[a.name.lexeme] = _translateHelperArgument(
+              a.argumentExpression,
+              issues,
+            );
           } else {
             positional.add(
               _translateHelperArgument(a.argumentExpression, issues),
@@ -6792,16 +7253,16 @@ final class ExpressionTranslator {
           code: IssueCode.themeReadOutOfContract,
           message: _wholeTextThemeStyleRead(segments)
               ? "The theme read '$path' reads a whole TextStyle. A slot that "
-                  'takes a TextStyle accepts it and binds each field; this '
-                  'one does not, so read the fields individually — '
-                  "'$path.{${kThemeContractTextThemeFieldKinds.keys.join(', ')}}'."
+                    'takes a TextStyle accepts it and binds each field; this '
+                    'one does not, so read the fields individually — '
+                    "'$path.{${kThemeContractTextThemeFieldKinds.keys.join(', ')}}'."
               : "The theme read '$path' is not part of the published "
-                  "'data.theme.*' contract. Supported reads cover the "
-                  "'colorScheme' colour roles, 'iconTheme.{color, size}', "
-                  "'defaultTextStyle.<field>', 'textTheme.<style>.<field>' "
-                  "where <field> is one of "
-                  "{${kThemeContractTextThemeFieldKinds.keys.join(', ')}}, "
-                  "and 'brightness'.",
+                    "'data.theme.*' contract. Supported reads cover the "
+                    "'colorScheme' colour roles, 'iconTheme.{color, size}', "
+                    "'defaultTextStyle.<field>', 'textTheme.<style>.<field>' "
+                    "where <field> is one of "
+                    "{${kThemeContractTextThemeFieldKinds.keys.join(', ')}}, "
+                    "and 'brightness'.",
           location: location,
         ),
       );
@@ -6838,7 +7299,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.themeReadOutOfContract,
-          message: "The device read '${expr.toSource()}' needs the screen's "
+          message:
+              "The device read '${expr.toSource()}' needs the screen's "
               'root context. Read it in the screen and pass the value down.',
           location: _locationOf(expr),
         ),
@@ -6873,32 +7335,34 @@ final class ExpressionTranslator {
   };
 
   Issue _deviceReadOutOfContractIssue(Expression expr) => Issue(
-        code: IssueCode.themeReadOutOfContract,
-        message: "The device read '${expr.toSource()}' is not part of the "
-            "published 'data.device.*' contract. Supported reads are "
-            '`MediaQuery.sizeOf(context).width|height|shortestSide|'
-            'longestSide`, '
-            '`MediaQuery.paddingOf(context).top|bottom|left|right`, '
-            '`MediaQuery.viewPaddingOf(context).top|bottom|left|right`, '
-            '`MediaQuery.viewInsetsOf(context).top|bottom|left|right`, '
-            'the accessibility flag helpers, '
-            '`MediaQuery.devicePixelRatioOf(context)`, '
-            '`MediaQuery.orientationOf(context)` (and the equivalent '
-            '`MediaQuery.of(context)` chains), '
-            '`Localizations.localeOf(context).languageCode|countryCode`, and '
-            '`defaultTargetPlatform`.',
-        location: _locationOf(expr),
-      );
+    code: IssueCode.themeReadOutOfContract,
+    message:
+        "The device read '${expr.toSource()}' is not part of the "
+        "published 'data.device.*' contract. Supported reads are "
+        '`MediaQuery.sizeOf(context).width|height|shortestSide|'
+        'longestSide`, '
+        '`MediaQuery.paddingOf(context).top|bottom|left|right`, '
+        '`MediaQuery.viewPaddingOf(context).top|bottom|left|right`, '
+        '`MediaQuery.viewInsetsOf(context).top|bottom|left|right`, '
+        'the accessibility flag helpers, '
+        '`MediaQuery.devicePixelRatioOf(context)`, '
+        '`MediaQuery.orientationOf(context)` (and the equivalent '
+        '`MediaQuery.of(context)` chains), '
+        '`Localizations.localeOf(context).languageCode|countryCode`, and '
+        '`defaultTargetPlatform`.',
+    location: _locationOf(expr),
+  );
 
   /// Refuses a condition using an operator the blob's data language lacks.
   Issue _deviceConditionIssue(Expression expr, String reason) => Issue(
-        code: IssueCode.themeReadOutOfContract,
-        message: "The condition '${expr.toSource()}' cannot be expressed in "
-            'the shipped blob: $reason. The blob matches device data by '
-            'equality only, on the platform identifier, the orientation, and '
-            'the locale subtags.',
-        location: _locationOf(expr),
-      );
+    code: IssueCode.themeReadOutOfContract,
+    message:
+        "The condition '${expr.toSource()}' cannot be expressed in "
+        'the shipped blob: $reason. The blob matches device data by '
+        'equality only, on the platform identifier, the orientation, and '
+        'the locale subtags.',
+    location: _locationOf(expr),
+  );
 
   String _translateHelperArgument(Expression expr, List<Issue> issues) {
     final descriptorId = _constDescriptorId(expr);
@@ -6907,14 +7371,14 @@ final class ExpressionTranslator {
   }
 
   Map<Element, Expression> get _scalarConstantBindings => <Element, Expression>{
-        ..._walk.inlined.localBindings,
-        ..._walk.paramBindings,
-      };
+    ..._walk.inlined.localBindings,
+    ..._walk.paramBindings,
+  };
 
   Object? _foldScalarConstant(Expression expression) => tryFoldScalarConstant(
-        expression,
-        localBindings: _scalarConstantBindings,
-      );
+    expression,
+    localBindings: _scalarConstantBindings,
+  );
 
   HelperCallArgs? _translatePaywallEventArgs(
     MethodInvocation expr,
@@ -6924,8 +7388,10 @@ final class ExpressionTranslator {
     final named = <String, String>{};
     for (final argument in expr.argumentList.arguments) {
       if (argument is NamedArgument) {
-        named[argument.name.lexeme] =
-            _translateHelperArgument(argument.argumentExpression, issues);
+        named[argument.name.lexeme] = _translateHelperArgument(
+          argument.argumentExpression,
+          issues,
+        );
         continue;
       }
       if (positional.isEmpty) {
@@ -6934,7 +7400,8 @@ final class ExpressionTranslator {
           issues.add(
             Issue(
               code: IssueCode.unrecognizedMethodCall,
-              message: 'paywallEvent requires a statically resolved String '
+              message:
+                  'paywallEvent requires a statically resolved String '
                   'name.',
               location: _locationOf(argument),
             ),
@@ -7033,7 +7500,8 @@ final class ExpressionTranslator {
           issues.add(
             Issue(
               code: IssueCode.unrecognizedMethodCall,
-              message: "'${helper.name}' has more than one conditional "
+              message:
+                  "'${helper.name}' has more than one conditional "
                   'argument; this transpiler increment distributes only a '
                   'single conditional argument over a value helper. Use one '
                   'conditional argument, or the inverted form (a conditional '
@@ -7102,18 +7570,22 @@ final class ExpressionTranslator {
     final named = <String, String>{};
     for (final arg in expr.argumentList.arguments) {
       if (arg is NamedArgument) {
-        named[arg.name.lexeme] =
-            _translateHelperArgument(arg.argumentExpression, issues);
+        named[arg.name.lexeme] = _translateHelperArgument(
+          arg.argumentExpression,
+          issues,
+        );
         continue;
       }
       if (positional.isEmpty) {
-        final descriptorId =
-            _onboardingEventDescriptorId(arg.argumentExpression);
+        final descriptorId = _onboardingEventDescriptorId(
+          arg.argumentExpression,
+        );
         if (descriptorId == null) {
           issues.add(
             Issue(
               code: IssueCode.unrecognizedMethodCall,
-              message: 'Expected a static OnboardingEvent field reference; '
+              message:
+                  'Expected a static OnboardingEvent field reference; '
                   'got ${arg.toSource()}.',
               location: _locationOf(arg),
             ),
@@ -7144,7 +7616,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.invalidEventConfiguration,
-            message: 'An event value that is a map becomes the event '
+            message:
+                'An event value that is a map becomes the event '
                 'arguments, so its keys must be Strings; got '
                 '${mapType.getDisplayString()}. Declare it as a '
                 'Map<String, ...>.',
@@ -7153,8 +7626,10 @@ final class ExpressionTranslator {
         );
         return null;
       }
-      final translated =
-          _translateHelperArgument(arg.argumentExpression, issues);
+      final translated = _translateHelperArgument(
+        arg.argumentExpression,
+        issues,
+      );
       positional.add(
         mapType != null
             ? translated
@@ -7405,8 +7880,9 @@ final class ExpressionTranslator {
     required List<Issue> issues,
   }) {
     final sheetEntries = kModalSheetLowering.resolve(catalog);
-    final sheetEntry = sheetEntries
-        .firstWhereOrNull((entry) => entry.library == WidgetLibrary.material);
+    final sheetEntry = sheetEntries.firstWhereOrNull(
+      (entry) => entry.library == WidgetLibrary.material,
+    );
     if (sheetEntry == null) {
       issues.add(
         _modalSheetUnsupportedIssue(
@@ -7662,8 +8138,9 @@ final class ExpressionTranslator {
     Expression expr,
     List<Issue> issues,
   ) {
-    final property = sheetEntry.properties
-        .firstWhereOrNull((candidate) => candidate.name == propName);
+    final property = sheetEntry.properties.firstWhereOrNull(
+      (candidate) => candidate.name == propName,
+    );
     if (property == null) {
       issues.add(
         _modalSheetUnsupportedIssue(
@@ -7711,16 +8188,21 @@ final class ExpressionTranslator {
     }
     final target = kShaderMaskLowering.resolve(catalog).firstOrNull;
     if (target == null) return null;
-    final (:arguments, :reason) =
-        recogniseShaderMask(anchor, resolve: _resolveBoundIdentifier);
+    final (:arguments, :reason) = recogniseShaderMask(
+      anchor,
+      resolve: _resolveBoundIdentifier,
+    );
     if (arguments == null) {
-      issues.add(Issue(
-        code: IssueCode.shaderMaskFormUnsupported,
-        capabilityGapSubject: 'widget:${widgetClass!.name}',
-        message: '${widgetClass.name}: $reason. Put this effect in a custom '
-            'widget annotated with @RestageWidget.',
-        location: _locationOf(anchor),
-      ));
+      issues.add(
+        Issue(
+          code: IssueCode.shaderMaskFormUnsupported,
+          capabilityGapSubject: 'widget:${widgetClass!.name}',
+          message:
+              '${widgetClass.name}: $reason. Put this effect in a custom '
+              'widget annotated with @RestageWidget.',
+          location: _locationOf(anchor),
+        ),
+      );
       return '';
     }
     final emitted = <String>[];
@@ -7732,8 +8214,9 @@ final class ExpressionTranslator {
       if (property.name == 'gradient' &&
           expression is InstanceCreationExpression) {
         final args = expression.argumentList.arguments
-            .where((arg) =>
-                arg is! NamedArgument || arg.name.lexeme != 'transform')
+            .where(
+              (arg) => arg is! NamedArgument || arg.name.lexeme != 'transform',
+            )
             .toList();
         final type = expression.constructorName.element!.enclosingElement.name!;
         value = type == 'LinearGradient'
@@ -7745,14 +8228,20 @@ final class ExpressionTranslator {
                 _locationOf(expression),
               )!;
       } else {
-        value = _translateSlotValue(expression, property.type, issues,
-            property: property);
+        value = _translateSlotValue(
+          expression,
+          property.type,
+          issues,
+          property: property,
+        );
       }
       if (issues.skip(before).any((issue) => !issue.code.isInformational)) {
         return '';
       }
-      emitted.add('${_rfwMapKey(property.name)}: '
-          '${RfwConstructorPresenceEncoder.encode(property, value)}');
+      emitted.add(
+        '${_rfwMapKey(property.name)}: '
+        '${RfwConstructorPresenceEncoder.encode(property, value)}',
+      );
     }
     return _catalogCall(target, emitted);
   }
@@ -7796,7 +8285,8 @@ final class ExpressionTranslator {
         Issue(
           code: IssueCode.pageViewFormUnsupported,
           capabilityGapSubject: subject ?? 'widget:PageView',
-          message: 'PageView could not be lowered to the declarative paged '
+          message:
+              'PageView could not be lowered to the declarative paged '
               'surface: $reason. Use a children-list PageView (optionally with '
               'a literal PageController(initialPage:, viewportFraction:)), or '
               'compose the paged surface directly.',
@@ -7848,9 +8338,11 @@ final class ExpressionTranslator {
           {
             final flat = _pageControllerFlatten(arg.argumentExpression);
             if (flat == null) {
-              defer("the 'controller' argument must be a literal "
-                  'PageController(initialPage:, viewportFraction:) with no '
-                  'other arguments');
+              defer(
+                "the 'controller' argument must be a literal "
+                'PageController(initialPage:, viewportFraction:) with no '
+                'other arguments',
+              );
               return '';
             }
             initialPageExpr = flat.$1;
@@ -7986,7 +8478,8 @@ final class ExpressionTranslator {
         Issue(
           code: IssueCode.draggableSheetFormUnsupported,
           capabilityGapSubject: subject,
-          message: 'DraggableScrollableSheet could not be lowered to the '
+          message:
+              'DraggableScrollableSheet could not be lowered to the '
               'declarative draggable surface: $reason.',
           location: loc,
         ),
@@ -7999,8 +8492,9 @@ final class ExpressionTranslator {
     // real author-bindable `controller` slot, "drop the controller" would mean
     // something different — fail loud rather than silently change it.
     final hasChild = sheet.properties.any((p) => p.name == 'child');
-    final hasControllerSlot =
-        sheet.properties.any((p) => p.name == 'controller');
+    final hasControllerSlot = sheet.properties.any(
+      (p) => p.name == 'controller',
+    );
     if (!hasChild || hasControllerSlot) {
       defer(
         'the catalog RestageDraggableSheet shape changed (the child slot is '
@@ -8169,7 +8663,8 @@ final class ExpressionTranslator {
         Issue(
           code: IssueCode.singleSelectFormUnsupported,
           capabilityGapSubject: 'widget:$widgetName',
-          message: '$widgetName could not be lowered to the declarative '
+          message:
+              '$widgetName could not be lowered to the declarative '
               'single-select surface: $reason.',
           location: loc,
         ),
@@ -8178,8 +8673,10 @@ final class ExpressionTranslator {
 
     // A named constructor (`.adaptive`, etc.) is not the carrier form.
     if (constructorName != null) {
-      defer("the named constructor '$widgetName.$constructorName' is not "
-          'supported (the unnamed constructor only)');
+      defer(
+        "the named constructor '$widgetName.$constructorName' is not "
+        'supported (the unnamed constructor only)',
+      );
       return '';
     }
 
@@ -8188,8 +8685,9 @@ final class ExpressionTranslator {
     // creation expression. The dispatch only reaches here for an
     // `InstanceCreationExpression` anchor.
     if (anchor is! InstanceCreationExpression) return null;
-    final outcome =
-        isRadio ? recogniseRadioGroup(anchor) : recogniseDropdown(anchor);
+    final outcome = isRadio
+        ? recogniseRadioGroup(anchor)
+        : recogniseDropdown(anchor);
     switch (outcome) {
       case SingleSelectDeferred(:final reason):
         defer(reason);
@@ -8241,7 +8739,8 @@ final class ExpressionTranslator {
           Issue(
             code: IssueCode.singleSelectFormUnsupported,
             capabilityGapSubject: 'widget:${target.name}',
-            message: 'two options emit the same value ($value) — each option '
+            message:
+                'two options emit the same value ($value) — each option '
                 'value must be unique, so the whole single-select defers '
                 'rather than silently drop the duplicate option.',
             location: _locationOf(option.value),
@@ -8271,7 +8770,8 @@ final class ExpressionTranslator {
           Issue(
             code: IssueCode.singleSelectFormUnsupported,
             capabilityGapSubject: 'catalog:${target.name}',
-            message: 'the catalog ${target.name} has no onChanged property; '
+            message:
+                'the catalog ${target.name} has no onChanged property; '
                 'regenerate the catalog',
             location: _locationOf(onChanged),
           ),
@@ -8327,7 +8827,8 @@ final class ExpressionTranslator {
         Issue(
           code: IssueCode.toggleButtonsFormUnsupported,
           capabilityGapSubject: 'widget:ToggleButtons',
-          message: 'ToggleButtons could not be lowered to the declarative '
+          message:
+              'ToggleButtons could not be lowered to the declarative '
               'multi-toggle surface: $reason.',
           location: loc,
         ),
@@ -8368,7 +8869,8 @@ final class ExpressionTranslator {
           Issue(
             code: IssueCode.toggleButtonsFormUnsupported,
             capabilityGapSubject: 'catalog:${target.name}',
-            message: 'the catalog ${target.name} has no $propName property; '
+            message:
+                'the catalog ${target.name} has no $propName property; '
                 'regenerate the catalog.',
             location: _locationOf(expr),
           ),
@@ -8433,7 +8935,8 @@ final class ExpressionTranslator {
         Issue(
           code: IssueCode.segmentedButtonFormUnsupported,
           capabilityGapSubject: 'widget:SegmentedButton',
-          message: 'SegmentedButton could not be lowered to the declarative '
+          message:
+              'SegmentedButton could not be lowered to the declarative '
               'segmented-button surface: $reason.',
           location: loc,
         ),
@@ -8502,7 +9005,8 @@ final class ExpressionTranslator {
           Issue(
             code: IssueCode.segmentedButtonFormUnsupported,
             capabilityGapSubject: 'widget:${target.name}',
-            message: 'two segments emit the same value ($value) — each segment '
+            message:
+                'two segments emit the same value ($value) — each segment '
                 'value must be unique, so the whole segmented button defers '
                 'rather than silently drop the duplicate segment.',
             location: _locationOf(segment.value),
@@ -8537,7 +9041,8 @@ final class ExpressionTranslator {
           Issue(
             code: IssueCode.segmentedButtonFormUnsupported,
             capabilityGapSubject: 'catalog:${target.name}',
-            message: 'the catalog ${target.name} has no onChanged property; '
+            message:
+                'the catalog ${target.name} has no onChanged property; '
                 'regenerate the catalog',
             location: _locationOf(onSelectionChanged),
           ),
@@ -8624,7 +9129,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.invalidEventConfiguration,
-            message: 'The callback value reaches the event automatically. '
+            message:
+                'The callback value reaches the event automatically. '
                 'Pass `$helper(...)` directly to the callback, without a '
                 'closure.',
             location: _locationOf(rawExpr),
@@ -8636,7 +9142,8 @@ final class ExpressionTranslator {
     _currentEventClosureNotices?.add(
       Issue(
         code: IssueCode.idiomAutoSubstituted,
-        message: 'Lowered a closure around `$helper(...)` to its event. '
+        message:
+            'Lowered a closure around `$helper(...)` to its event. '
             'Pass `$helper(...)` directly to the callback instead: the '
             'closure returns the callback without calling it, so the '
             "compiled widget never fires the event in your app's own build.",
@@ -8698,7 +9205,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.invalidEventConfiguration,
-            message: 'A measured widget occurrence must resolve to its exact '
+            message:
+                'A measured widget occurrence must resolve to its exact '
                 'class declaration.',
             location: _locationOf(anchor),
           ),
@@ -8766,7 +9274,8 @@ final class ExpressionTranslator {
           issues.add(
             Issue(
               code: IssueCode.designPackageIdentityDrift,
-              message: "'$widgetName' is declared in '$declaringLibrary', "
+              message:
+                  "'$widgetName' is declared in '$declaringLibrary', "
                   'which canonicalises to an identity no catalog entry '
                   'carries, while the name alone matches the catalog entry '
                   "'${named.library.namespace}.${named.name}'. Binding by name "
@@ -8829,7 +9338,7 @@ final class ExpressionTranslator {
                     anchor,
                   )
                 : 'Restage could not inline it: '
-                    '${_withoutFinalPeriod(inlineIssues.first.message)}',
+                      '${_withoutFinalPeriod(inlineIssues.first.message)}',
           );
         }
         // Not inlined (imperative, not yet supported, or an inline-attempt
@@ -8959,13 +9468,13 @@ final class ExpressionTranslator {
         capabilityGapSubject: 'widget:$widgetName',
         message: statePackage != null
             ? "'$widgetName' (package:$statePackage) builds from app "
-                'state. Read that state in the host widget and pass the '
-                'values to this surface as constructor inputs. See '
-                'https://docs.restage.dev/authoring/write-a-surface'
-                '#adopt-an-existing-widget'
+                  'state. Read that state in the host widget and pass the '
+                  'values to this surface as constructor inputs. See '
+                  'https://docs.restage.dev/authoring/write-a-surface'
+                  '#adopt-an-existing-widget'
             : "Widget '$widgetName' is not a known catalog widget. If "
-                'it is a custom widget, annotate its class with '
-                '@RestageWidget so Restage can recognize it.',
+                  'it is a custom widget, annotate its class with '
+                  '@RestageWidget so Restage can recognize it.',
         location: _locationOf(anchor),
       );
       issues.add(
@@ -8993,14 +9502,15 @@ final class ExpressionTranslator {
       // below can read them.)
       final refName = entry.name;
       final refFlutterType = entry.flutterType;
-      final conflict = (refName == paywallRootWidgetName ||
+      final conflict =
+          (refName == paywallRootWidgetName ||
               refName == onboardingScreenRootWidgetName)
           ? 'a reserved surface root widget name'
           : catalog.widgets.any(
               (w) => w.name == refName && w.flutterType != refFlutterType,
             )
-              ? 'another catalog widget with the same name'
-              : null;
+          ? 'another catalog widget with the same name'
+          : null;
       if (conflict != null) {
         issues.add(
           Issue(
@@ -9093,8 +9603,9 @@ final class ExpressionTranslator {
     final sourceParameters = _walk.measurementWidget == null
         ? const <Expression, FormalParameterElement>{}
         : _resolvedSourceParameters(anchor, args);
-    final positionalProps =
-        entry.properties.where((p) => p.positional).toList();
+    final positionalProps = entry.properties
+        .where((p) => p.positional)
+        .toList();
     for (var i = 0; i < positionals.length; i++) {
       if (i >= positionalProps.length) {
         issues.add(
@@ -9187,9 +9698,10 @@ final class ExpressionTranslator {
       // properties on the outer widget. Inner values route back through
       // `_translate`, so per-type value translators compose recursively.
       final decomposed = _withinNativeValueBoundary(
-          !entry.flutterType.startsWith('package:flutter/') &&
-              !entry.flutterType.startsWith('dart:ui#'),
-          () => _tryDecompose(entry!, name, a.argumentExpression, issues));
+        !entry.flutterType.startsWith('package:flutter/') &&
+            !entry.flutterType.startsWith('dart:ui#'),
+        () => _tryDecompose(entry!, name, a.argumentExpression, issues),
+      );
       if (decomposed != null) {
         emitted.addAll(decomposed);
         continue;
@@ -9198,7 +9710,11 @@ final class ExpressionTranslator {
       final prop = entry.properties.where((p) => p.name == name).firstOrNull;
       if (prop == null) {
         if (_reportUndecomposableArgument(
-            entry, name, a.argumentExpression, issues)) {
+          entry,
+          name,
+          a.argumentExpression,
+          issues,
+        )) {
           continue;
         }
         issues.add(
@@ -9214,30 +9730,35 @@ final class ExpressionTranslator {
       final isIconSlot = prop.synthetic == _kIconDataSynthetic;
       if (isIconSlot) _resetResolvedIcon();
       final value = _withinNativeValueBoundary(
-          !entry.flutterType.startsWith('package:flutter/') &&
-              !entry.flutterType.startsWith('dart:ui#') &&
-              !const {
-                PropertyType.widget,
-                PropertyType.widgetList,
-                PropertyType.widgetBuilder,
-                PropertyType.event
-              }.contains(prop.type),
-          () => _joinsStringParts(prop, a.argumentExpression)
-              ? _joinedStringValue(a.argumentExpression, issues)
-              : _translateSlotValue(
-                  a.argumentExpression,
-                  prop.type,
-                  issues,
-                  property: prop,
-                  sourceParameter: sourceParameters[a.argumentExpression],
-                ));
+        !entry.flutterType.startsWith('package:flutter/') &&
+            !entry.flutterType.startsWith('dart:ui#') &&
+            !const {
+              PropertyType.widget,
+              PropertyType.widgetList,
+              PropertyType.widgetBuilder,
+              PropertyType.event,
+            }.contains(prop.type),
+        () => _joinsStringParts(prop, a.argumentExpression)
+            ? _joinedStringValue(a.argumentExpression, issues)
+            : _translateSlotValue(
+                a.argumentExpression,
+                prop.type,
+                issues,
+                property: prop,
+                sourceParameter: sourceParameters[a.argumentExpression],
+              ),
+      );
       if (value.isEmpty && issues.length > before) return '';
       // An asymmetric `BorderRadius` value (a direct `borderRadius:` arg, e.g.
       // ClipRRect) fans out onto the per-corner slots instead of the uniform
       // one — never a single `borderRadius:` carrying the sentinel.
       final beforeSplice = issues.length;
-      final corners =
-          _spliceBorderRadiusCorners(entry, value, issues, _locationOf(a));
+      final corners = _spliceBorderRadiusCorners(
+        entry,
+        value,
+        issues,
+        _locationOf(a),
+      );
       if (corners != null) {
         if (issues.length > beforeSplice) return '';
         emitted.addAll(corners);
@@ -9265,7 +9786,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.missingRequiredSlot,
-          message: '${entry.name} aligns its children on their baselines but '
+          message:
+              '${entry.name} aligns its children on their baselines but '
               'sets no textBaseline, which Flutter requires. Add '
               'textBaseline: TextBaseline.alphabetic.',
           location: _locationOf(alignment),
@@ -9345,8 +9867,12 @@ final class ExpressionTranslator {
       );
       if (text != null) {
         final before = issues.length;
-        final lowered =
-            _translateSlotValue(value, text.type, issues, property: text);
+        final lowered = _translateSlotValue(
+          value,
+          text.type,
+          issues,
+          property: text,
+        );
         if (issues.length > before) return null;
         emitted.add('${_rfwMapKey(name)}: $lowered');
         continue;
@@ -9465,7 +9991,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unknownProperty,
-        message: 'notificationPredicate supports '
+        message:
+            'notificationPredicate supports '
             '`(notification) => notification.depth == <int>` and '
             "Flutter's defaultScrollNotificationPredicate.",
         location: _locationOf(source),
@@ -9506,13 +10033,13 @@ final class ExpressionTranslator {
       final read = _stripParens(side);
       final (target, property) = switch (read) {
         PrefixedIdentifier(:final prefix, :final identifier) => (
-            prefix,
-            identifier
-          ),
+          prefix,
+          identifier,
+        ),
         PropertyAccess(:final target?, :final propertyName) => (
-            _stripParens(target),
-            propertyName
-          ),
+          _stripParens(target),
+          propertyName,
+        ),
         _ => (null, null),
       };
       final getter = property?.element;
@@ -9561,7 +10088,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unknownProperty,
-        message: "keyboardType must be one of TextInputType's named keyboards: "
+        message:
+            "keyboardType must be one of TextInputType's named keyboards: "
             '${allowed.join(', ')}.',
         location: _locationOf(source),
       ),
@@ -9570,13 +10098,14 @@ final class ExpressionTranslator {
   }
 
   Issue _inputDecorationIssue(String name, AstNode anchor) => Issue(
-        code: IssueCode.unknownProperty,
-        message: "InputDecoration's $name is unsupported here. Supported: "
-            'hintText, labelText and helperText as text, border as '
-            'InputBorder.none, UnderlineInputBorder() or '
-            'OutlineInputBorder(), and prefixIcon as Icon(<icon>).',
-        location: _locationOf(anchor),
-      );
+    code: IssueCode.unknownProperty,
+    message:
+        "InputDecoration's $name is unsupported here. Supported: "
+        'hintText, labelText and helperText as text, border as '
+        'InputBorder.none, UnderlineInputBorder() or '
+        'OutlineInputBorder(), and prefixIcon as Icon(<icon>).',
+    location: _locationOf(anchor),
+  );
 
   /// Forgets what the last icon slot resolved to, before the next one runs.
   void _resetResolvedIcon() {
@@ -9630,9 +10159,9 @@ final class ExpressionTranslator {
           p.widgetType == kPreferredSizeWidgetType,
     );
     if (slot == null) return null;
-    final slotArg = args
-        .whereType<NamedArgument>()
-        .firstWhereOrNull((a) => a.name.lexeme == slot.name);
+    final slotArg = args.whereType<NamedArgument>().firstWhereOrNull(
+      (a) => a.name.lexeme == slot.name,
+    );
     if (slotArg == null) return null;
     final bottomHeightProp = entry.properties.firstWhereOrNull(
       (p) => p.synthetic == kAppBarBottomHeightSyntheticStrategy,
@@ -9652,13 +10181,17 @@ final class ExpressionTranslator {
             '${_rfwMapKey(bottomHeightProp.name)}: ${heights.bottom}';
       }
     }
-    final height =
-        _preferredHeightOf(slotArg.argumentExpression, heightProp, issues);
+    final height = _preferredHeightOf(
+      slotArg.argumentExpression,
+      heightProp,
+      issues,
+    );
     if (height == null) {
       issues.add(
         Issue(
           code: IssueCode.unknownProperty,
-          message: "The height of '${entry.name}.${slot.name}' cannot be read "
+          message:
+              "The height of '${entry.name}.${slot.name}' cannot be read "
               'from this widget, and the enclosing widget needs it before the '
               'slot lays out. Use an AppBar, a TabBar, or a PreferredSize '
               'stating its own height.',
@@ -9689,12 +10222,11 @@ final class ExpressionTranslator {
       var refused = false;
       ({String height, String toolbar, String bottom})? heightsFor(
         Expression branch,
-      ) =>
-          branches.putIfAbsent(branch, () {
-            final heights = _appBarSlotHeights(branch, heightProp, issues);
-            refused |= heights == null;
-            return heights;
-          });
+      ) => branches.putIfAbsent(branch, () {
+        final heights = _appBarSlotHeights(branch, heightProp, issues);
+        refused |= heights == null;
+        return heights;
+      });
 
       final heights = (
         height: _conditionalSwitch(
@@ -9727,8 +10259,8 @@ final class ExpressionTranslator {
       final bottom = _namedArgument(args, 'bottom');
       final bottomHeight =
           bottom == null || _resolveBoundIdentifier(bottom) is NullLiteral
-              ? (value: 0.0, dsl: '0.0')
-              : _preferredHeightOf(bottom, heightProp, issues);
+          ? (value: 0.0, dsl: '0.0')
+          : _preferredHeightOf(bottom, heightProp, issues);
       if (bottomHeight == null) return null;
       final toolbar = _namedArgument(args, 'toolbarHeight');
       final toolbarHeight = toolbar == null
@@ -9881,7 +10413,8 @@ final class ExpressionTranslator {
       return _realFragment(stated, heightProp, issues)?.value;
     }
     final hasIcon = _namedArgument(call.args, 'icon') != null;
-    final hasLabel = _namedArgument(call.args, 'text') != null ||
+    final hasLabel =
+        _namedArgument(call.args, 'text') != null ||
         _namedArgument(call.args, 'child') != null;
     return hasIcon && hasLabel ? kRestageTabWithIconHeight : kRestageTabHeight;
   }
@@ -9895,14 +10428,15 @@ final class ExpressionTranslator {
     return switch (expr) {
       InstanceCreationExpression(:final constructorName, :final argumentList) =>
         (
-          name: constructorName.element?.enclosingElement.name ??
+          name:
+              constructorName.element?.enclosingElement.name ??
               constructorName.type.name.lexeme,
           args: argumentList.arguments,
         ),
       MethodInvocation(:final methodName, :final argumentList) => (
-          name: methodName.name,
-          args: argumentList.arguments,
-        ),
+        name: methodName.name,
+        args: argumentList.arguments,
+      ),
       _ => null,
     };
   }
@@ -10004,7 +10538,8 @@ final class ExpressionTranslator {
         Issue(
           code: IssueCode.unknownWidget,
           capabilityGapSubject: 'widget:TextRich',
-          message: "Widget 'TextRich' is not a known catalog widget. Add "
+          message:
+              "Widget 'TextRich' is not a known catalog widget. Add "
               'the Text.rich catalog entry before lowering interpolated '
               'Text spans.',
           location: _locationOf(anchor),
@@ -10019,7 +10554,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unknownProperty,
-          message: "Catalog widget '${textRich.name}' must declare a "
+          message:
+              "Catalog widget '${textRich.name}' must declare a "
               "'textSpan' PropertyType.inlineSpan slot before lowering "
               'interpolated Text spans.',
           location: _locationOf(anchor),
@@ -10034,7 +10570,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
-            message: 'Interpolated Text could not identify emitted '
+            message:
+                'Interpolated Text could not identify emitted '
                 'property fragment `$property`; the whole interpolation is '
                 'deferred.',
             location: _locationOf(anchor),
@@ -10046,7 +10583,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unsupportedHelperPosition,
-            message: 'Text with multi-segment string interpolation can '
+            message:
+                'Text with multi-segment string interpolation can '
                 'lower to ${textRich.name} only when every authored Text '
                 'property is in the closed carry set. Text.$propName would '
                 'not be carried, so the whole interpolation is deferred.',
@@ -10059,7 +10597,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
-            message: "Catalog widget '${textRich.name}' does not declare "
+            message:
+                "Catalog widget '${textRich.name}' does not declare "
                 "carried Text property '$propName'; the whole interpolation "
                 'is deferred.',
             location: _locationOf(anchor),
@@ -10095,14 +10634,13 @@ final class ExpressionTranslator {
     MethodInvocation call,
     List<Issue> issues, {
     String Function(Expression)? translateBody,
-  }) =>
-      _inHelperBody(
-        helper,
-        call,
-        issues,
-        translateBody ?? (body) => _translate(body, issues),
-        refused: '',
-      );
+  }) => _inHelperBody(
+    helper,
+    call,
+    issues,
+    translateBody ?? (body) => _translate(body, issues),
+    refused: '',
+  );
 
   /// Runs [visit] on [helper]'s body with the call's arguments bound to its
   /// parameters; [refused] after a diagnostic when they do not bind 1:1.
@@ -10116,7 +10654,9 @@ final class ExpressionTranslator {
     final guardBuilder = _activeWidgetBuilder != null;
     if (guardBuilder && !_activeBuilderHelpers.add(helper)) {
       throw BuilderLoweringException(
-          call, 'Recursive helper is unsupported in a pure callback');
+        call,
+        'Recursive helper is unsupported in a pure callback',
+      );
     }
     final binding = bindHelperArguments(
       helper.params,
@@ -10126,13 +10666,16 @@ final class ExpressionTranslator {
       if (guardBuilder) {
         _activeBuilderHelpers.remove(helper);
         throw BuilderLoweringException(
-            call, 'Pure helper arguments must bind exactly');
+          call,
+          'Pure helper arguments must bind exactly',
+        );
       }
       issues.add(
         Issue(
           code: IssueCode.customWidgetInliningDeferred,
           capabilityGapSubject: 'helper:${call.methodName.name}',
-          message: "The helper '${call.methodName.name}' cannot be inlined: "
+          message:
+              "The helper '${call.methodName.name}' cannot be inlined: "
               'its arguments do not bind one-to-one to its parameters.',
           location: _locationOf(call),
         ),
@@ -10147,12 +10690,12 @@ final class ExpressionTranslator {
       paramBindings: {..._walk.paramBindings, ...binding},
       measurementScope:
           measurementScope != null && helperElement is ExecutableElement
-              ? measurementScope.enterHelper(helperElement)
-              : measurementScope,
+          ? measurementScope.enterHelper(helperElement)
+          : measurementScope,
       measurementWidgetList:
           measurementWidgetList != null && helperElement is ExecutableElement
-              ? measurementWidgetList.enterHelper(helperElement)
-              : measurementWidgetList,
+          ? measurementWidgetList.enterHelper(helperElement)
+          : measurementWidgetList,
     );
     try {
       return visit(helper.body);
@@ -10181,18 +10724,25 @@ final class ExpressionTranslator {
     WidgetEntry? catalogEntry,
   }) {
     if (classification is! ComposableWidget) return null;
-    if (args.any((argument) => _containsIntlFormatting(
-        _resolveBoundIdentifier(argument.argumentExpression)))) {
+    if (args.any(
+      (argument) => _containsIntlFormatting(
+        _resolveBoundIdentifier(argument.argumentExpression),
+      ),
+    )) {
       if (catalogEntry != null) return null;
-      issues.add(Issue(
+      issues.add(
+        Issue(
           code: IssueCode.customWidgetInliningDeferred,
           message:
               'Formatting constructor arguments require an installed native widget binding',
-          location: _locationOf(anchor)));
+          location: _locationOf(anchor),
+        ),
+      );
       return '';
     }
-    final unmet =
-        classification.requiredMechanisms.difference(_kImplementedMechanisms);
+    final unmet = classification.requiredMechanisms.difference(
+      _kImplementedMechanisms,
+    );
     if (unmet.isNotEmpty) return null;
     final blueprint = customWidgetBlueprints[key];
     final definitions = _currentWidgetDefinitions;
@@ -10328,8 +10878,9 @@ final class ExpressionTranslator {
         name == onboardingScreenRootWidgetName) {
       return 'a reserved surface root widget name';
     }
-    final shadowsOtherCatalogWidget =
-        catalog.widgets.any((w) => w.name == name && w.flutterType != classKey);
+    final shadowsOtherCatalogWidget = catalog.widgets.any(
+      (w) => w.name == name && w.flutterType != classKey,
+    );
     return shadowsOtherCatalogWidget ? 'the catalog widget' : null;
   }
 
@@ -10339,7 +10890,8 @@ final class ExpressionTranslator {
   Issue _nameCollisionIssue(String key, String name, String conflict) {
     return Issue(
       code: IssueCode.customWidgetNameCollision,
-      message: "The custom widget '$key' cannot be inlined: its RFW widget "
+      message:
+          "The custom widget '$key' cannot be inlined: its RFW widget "
           "name '$name' collides with $conflict. Rename one of the widget "
           'classes so every inlined widget has a unique name.',
       location: key,
@@ -10377,12 +10929,15 @@ final class ExpressionTranslator {
         final argName = arg.name.lexeme;
         if (isDiscardedWidgetKeyArgument(arg)) {
           if (!isLegacyScalarWidgetKey(arg.argumentExpression)) {
-            issues.add(Issue(
+            issues.add(
+              Issue(
                 code: IssueCode.customWidgetUnsupportedReducible,
                 message:
                     'A native key requires the original custom widget owner; '
                     'this widget has no matching native factory key slot.',
-                location: _locationOf(arg)));
+                location: _locationOf(arg),
+              ),
+            );
           }
           continue;
         }
@@ -10390,19 +10945,22 @@ final class ExpressionTranslator {
           issues.add(
             Issue(
               code: IssueCode.unknownProperty,
-              message: "Argument '$argName' is not declared by "
+              message:
+                  "Argument '$argName' is not declared by "
                   "'${blueprint.rfwName}'.",
               location: _locationOf(arg),
             ),
           );
           continue;
         }
-        param = resolvedParam ??
+        param =
+            resolvedParam ??
             blueprint.params.firstWhereOrNull(
               (candidate) => candidate.name == argName,
             );
       } else {
-        param = resolvedParam ??
+        param =
+            resolvedParam ??
             (positionalIndex < blueprint.params.length
                 ? blueprint.params[positionalIndex]
                 : null);
@@ -10421,7 +10979,8 @@ final class ExpressionTranslator {
           issues.add(
             Issue(
               code: IssueCode.customWidgetUnsupportedReducible,
-              message: "Argument '${param.name}' on "
+              message:
+                  "Argument '${param.name}' on "
                   "'${blueprint.rfwName}' has no exact catalog property "
                   'match.',
               location: _locationOf(arg),
@@ -10461,7 +11020,8 @@ final class ExpressionTranslator {
           issues.add(
             Issue(
               code: IssueCode.unsupportedCollectionFlow,
-              message: "The property '${param.name}' of "
+              message:
+                  "The property '${param.name}' of "
                   "'${blueprint.rfwName}' is a map, and a map passed to an "
                   'inlined custom widget cannot carry the shape its slot '
                   'decodes. Pass the map to the widget that declares the '
@@ -10499,7 +11059,8 @@ final class ExpressionTranslator {
             issues.add(
               Issue(
                 code: IssueCode.customWidgetUnsupportedReducible,
-                message: "The optional property '${param.name}' of "
+                message:
+                    "The optional property '${param.name}' of "
                     "'${blueprint.rfwName}' is completed with a `?? fallback` "
                     'default, but the value passed here can be missing at '
                     'runtime, so that default would be lost. Pass a value that '
@@ -10614,8 +11175,10 @@ final class ExpressionTranslator {
     PropertyEntry? property,
   }) {
     final stripped = _stripParens(expr);
-    final eventOccurrence =
-        switch ((_walk.measurementWidget, param.sourceParameter)) {
+    final eventOccurrence = switch ((
+      _walk.measurementWidget,
+      param.sourceParameter,
+    )) {
       (final widget?, final parameter?) => widget.event(parameter),
       _ => null,
     };
@@ -10644,8 +11207,9 @@ final class ExpressionTranslator {
     PropertyEntry? property,
   }) {
     late final String translated;
-    final paramSlot =
-        param.type == null ? null : inferPropertyType(param.type!);
+    final paramSlot = param.type == null
+        ? null
+        : inferPropertyType(param.type!);
     if (property != null) {
       translated = _translateSlotValue(
         stripped,
@@ -10654,7 +11218,8 @@ final class ExpressionTranslator {
         property: property,
         // A widget argument is measured where it is passed; an event's marker
         // is attached below.
-        sourceParameter: property.type == PropertyType.widget ||
+        sourceParameter:
+            property.type == PropertyType.widget ||
                 property.type == PropertyType.widgetList
             ? param.sourceParameter
             : null,
@@ -10670,17 +11235,18 @@ final class ExpressionTranslator {
       );
     } else {
       final paramType = param.type;
-      final declaredListItemType =
-          paramType == null ? null : _dartCoreListElementType(paramType);
+      final declaredListItemType = paramType == null
+          ? null
+          : _dartCoreListElementType(paramType);
       final listItemType = _listItemPropertyTypeForDartType(paramType);
       final rootParam = _rootParamRead(stripped);
       final type = param.isNumeric
           ? PropertyType.real
           : param.isVoidCallback
-              ? PropertyType.event
-              : _propertyTypeForParameter(paramType) ??
-                  _propertyTypeForParameter(rootParam?.type) ??
-                  PropertyType.unknown;
+          ? PropertyType.event
+          : _propertyTypeForParameter(paramType) ??
+                _propertyTypeForParameter(rootParam?.type) ??
+                PropertyType.unknown;
       translated = listItemType == null
           ? _translateSlotValue(stripped, type, issues)
           : _translateTypedListTerminal(
@@ -10707,7 +11273,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.invalidEventConfiguration,
-          message: 'The measured inlined custom-widget callback did not '
+          message:
+              'The measured inlined custom-widget callback did not '
               'lower to an RFW event handler.',
           location: _locationOf(expr),
         ),
@@ -10738,8 +11305,9 @@ final class ExpressionTranslator {
       if (tap.isEmpty) return '';
       return '${value.substring(0, value.length - 1)}, measurement: $tap}';
     }
-    final localSet =
-        handler.startsWith('event ${_stringLiteral(kLocalValueSetEventName)}');
+    final localSet = handler.startsWith(
+      'event ${_stringLiteral(kLocalValueSetEventName)}',
+    );
     if (handler.startsWith('event ') && !localSet) {
       return _attachMeasurementRouteMarker(
         value,
@@ -10753,7 +11321,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.invalidEventConfiguration,
-          message: 'The measured callback did not lower to an RFW event or '
+          message:
+              'The measured callback did not lower to an RFW event or '
               'state update, so its private Measurement route cannot be '
               'emitted.',
           location: _locationOf(expression),
@@ -10771,14 +11340,13 @@ final class ExpressionTranslator {
     MeasurementEventOccurrence occurrence,
     Expression expression,
     List<Issue> issues,
-  ) =>
-      _attachMeasurementRouteMarker(
-        'event ${_stringLiteral(kMeasurementPublicationTapEventNameV1)} {}',
-        marker,
-        expression,
-        issues,
-        item: _measurementItem(occurrence, expression),
-      );
+  ) => _attachMeasurementRouteMarker(
+    'event ${_stringLiteral(kMeasurementPublicationTapEventNameV1)} {}',
+    marker,
+    expression,
+    issues,
+    item: _measurementItem(occurrence, expression),
+  );
 
   Set<String> _localValueFields(
     Expression root,
@@ -10814,7 +11382,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.stateShapeUnsupported,
-            message: "'$written' is set by a value callback and by "
+            message:
+                "'$written' is set by a value callback and by "
                 "'${entry.key}'. Only literal values can also be set.",
             location: _locationOf(anchor),
           ),
@@ -10825,13 +11394,15 @@ final class ExpressionTranslator {
       if (!localFields.contains(field.name)) continue;
       final value = field.initialValue;
       if (value is String || value is bool || value is int || value is double) {
-        seeds[field.name] =
-            field.isNumeric && value is int ? value.toDouble() : value!;
+        seeds[field.name] = field.isNumeric && value is int
+            ? value.toDouble()
+            : value!;
       } else {
         issues.add(
           Issue(
             code: IssueCode.stateShapeUnsupported,
-            message: "'${field.name}' is set by a value callback, so it needs "
+            message:
+                "'${field.name}' is set by a value callback, so it needs "
                 'a string, number or bool initial value.',
             location: _locationOf(anchor),
           ),
@@ -10866,7 +11437,7 @@ final class ExpressionTranslator {
         code: IssueCode.interactionItemUnavailable,
         message: measured
             ? 'Taps in this loop share one count: no item because '
-                '${identity.reason}.'
+                  '${identity.reason}.'
             : 'Taps here are not measured: ${identity.reason}.',
         location: location,
         buildNoticeIdentity: 'interaction-item\u0000$location',
@@ -10995,7 +11566,8 @@ final class ExpressionTranslator {
       if (field.initialValue == null) {
         return Issue(
           code: IssueCode.stateShapeUnsupported,
-          message: 'State field "${field.name}" in "$className" has an '
+          message:
+              'State field "${field.name}" in "$className" has an '
               'initialiser this transpiler increment cannot yet fold to a '
               'literal. Use a const value like `${_dartTypeHint(field)} '
               '${field.name} = ${_dartDefaultHint(field)};`.',
@@ -11032,7 +11604,8 @@ final class ExpressionTranslator {
       if (field.initialValue == null) {
         return Issue(
           code: IssueCode.stateShapeUnsupported,
-          message: 'Root State field "${field.name}" has an initialiser this '
+          message:
+              'Root State field "${field.name}" has an initialiser this '
               'transpiler increment cannot fold to a literal. Use a const '
               'bool, num, String, or enum value.',
           location: _locationOf(anchor),
@@ -11083,8 +11656,9 @@ final class ExpressionTranslator {
       case SetStateLiteral(:final fieldName, :final value):
         final field = _walk.stateFields?[fieldName];
         final literal = _foldedLiteral(value);
-        final coerced =
-            field?.isNumeric == true ? asDoubleLiteral(literal) : literal;
+        final coerced = field?.isNumeric == true
+            ? asDoubleLiteral(literal)
+            : literal;
         return 'set state${_rfwPathPart(fieldName)} = $coerced';
       case SetStateBoolFlip(:final fieldName):
         final path = 'state${_rfwPathPart(fieldName)}';
@@ -11108,7 +11682,8 @@ final class ExpressionTranslator {
   ) {
     return Issue(
       code: IssueCode.stateShapeUnsupported,
-      message: 'State method "$methodName" is referenced as an event '
+      message:
+          'State method "$methodName" is referenced as an event '
           'handler but its body is not a recognised setState shape '
           '(a single `setState(() => <field> = <literal>);` or '
           '`setState(() => <field> = !<field>);`). Specifically: '
@@ -11127,8 +11702,7 @@ final class ExpressionTranslator {
   String _conditionalExpression(
     ConditionalExpression expr,
     List<Issue> issues,
-  ) =>
-      _conditionalSwitch(expr, issues, (branch) => _translate(branch, issues));
+  ) => _conditionalSwitch(expr, issues, (branch) => _translate(branch, issues));
 
   /// The single emission site for the conditional → `switch` lowering;
   /// [branch] renders each arm so slot-typed values can apply per-branch
@@ -11146,17 +11720,23 @@ final class ExpressionTranslator {
     String Function(Expression) translateBranch,
   ) {
     String branch(Expression value) => _inConditionalBranch(
-          expr,
-          value,
-          () => translateBranch(value),
-        );
+      expr,
+      value,
+      () => translateBranch(value),
+    );
     final builder = _activeWidgetBuilder;
     if (builder != null) {
       final condition = builder.value(expr.condition);
       final yes = builder.guarded(
-          expr.condition, true, () => branch(expr.thenExpression));
+        expr.condition,
+        true,
+        () => branch(expr.thenExpression),
+      );
       final no = builder.guarded(
-          expr.condition, false, () => branch(expr.elseExpression));
+        expr.condition,
+        false,
+        () => branch(expr.elseExpression),
+      );
       return _switchDsl(condition, [('true', yes), ('false', no)]);
     }
     final brightnessSwitch = _tryBrightnessSwitch(expr, issues, branch);
@@ -11282,7 +11862,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.themeReadOutOfContract,
-          message: 'A brightness read lowers only as an equality against '
+          message:
+              'A brightness read lowers only as an equality against '
               '`Brightness.light` or `Brightness.dark` '
               '(`Theme.of(context).brightness == Brightness.dark ? a : b`). '
               '${cond.toSource()} is not that shape.',
@@ -11345,7 +11926,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.intStateConditionUnsupported,
-            message: 'Only `== <intLiteral>` and `!= <intLiteral>` '
+            message:
+                'Only `== <intLiteral>` and `!= <intLiteral>` '
                 'comparisons on an integer state field or an integer '
                 'constructor parameter lower to a switch (with the reference '
                 'on the left and an integer literal on the right). `<`, `>`, '
@@ -11402,7 +11984,8 @@ final class ExpressionTranslator {
   /// condition produces, selecting `true` or `false`. `null` for a bare
   /// reference, which keeps the ordinary path.
   String? _booleanSlotCondition(Expression expr, List<Issue> issues) {
-    final shaped = _isComposedCondition(expr) ||
+    final shaped =
+        _isComposedCondition(expr) ||
         _distributedEquality(expr) != null ||
         (expr is BinaryExpression &&
             (_intStateComparison(expr) != null ||
@@ -11631,7 +12214,7 @@ final class ExpressionTranslator {
 
   /// An equality whose operand resolves to a conditional or a bound literal.
   ({Expression operand, Expression literal, bool negated})?
-      _distributedEquality(Expression cond) {
+  _distributedEquality(Expression cond) {
     if (cond is! BinaryExpression) return null;
     final op = cond.operator.lexeme;
     if (op != '==' && op != '!=') return null;
@@ -11652,11 +12235,11 @@ final class ExpressionTranslator {
   /// The value of a string, int, or bool literal, or `null` for any other
   /// expression.
   Object? _equalityLiteral(Expression expr) => switch (_stripParens(expr)) {
-        SimpleStringLiteral(:final value) => value,
-        IntegerLiteral(:final value) => value,
-        BooleanLiteral(:final value) => value,
-        _ => null,
-      };
+    SimpleStringLiteral(:final value) => value,
+    IntegerLiteral(:final value) => value,
+    BooleanLiteral(:final value) => value,
+    _ => null,
+  };
 
   /// Lowers `operand == literal` (or `!=`), pushing the comparison into each
   /// arm when [operand] resolves to a conditional.
@@ -11716,12 +12299,11 @@ final class ExpressionTranslator {
     String ref,
     String key, {
     required bool negated,
-  }) =>
-      _ConditionLowering(
-        (whenTrue, whenFalse) => negated
-            ? _switchDsl(ref, [(key, whenFalse)], defaultDsl: whenTrue)
-            : _switchDsl(ref, [(key, whenTrue)], defaultDsl: whenFalse),
-      );
+  }) => _ConditionLowering(
+    (whenTrue, whenFalse) => negated
+        ? _switchDsl(ref, [(key, whenFalse)], defaultDsl: whenTrue)
+        : _switchDsl(ref, [(key, whenTrue)], defaultDsl: whenFalse),
+  );
 
   /// The `(ref, key, negated)` of an `<intRef> == <intLiteral>` or `!=`
   /// comparison, or `null` for any other shape.
@@ -11794,11 +12376,10 @@ final class ExpressionTranslator {
     final root = _rootParamAccess(resolved);
     if (root != null && root.param.hasNonNullDefault) return null;
     final reference = _shapedReference(resolved);
-    if (reference
-        case (
-          :final dsl,
-          shape: HostDataScalarShape(kind: HostDataScalarKind.string)
-        )) {
+    if (reference case (
+      :final dsl,
+      shape: HostDataScalarShape(kind: HostDataScalarKind.string),
+    )) {
       return dsl;
     }
     return null;
@@ -12013,8 +12594,7 @@ final class ExpressionTranslator {
   String _normalizePresentDsl(
     List<Issue> issues,
     String Function() emit,
-  ) =>
-      unwrapDslEmission(normalizePresentChild(issues, emit));
+  ) => unwrapDslEmission(normalizePresentChild(issues, emit));
 
   String? _normalizeNullablePresentDsl(
     List<Issue> issues,
@@ -12046,8 +12626,9 @@ final class ExpressionTranslator {
         return _listLiteral(resolved, issues, itemType: itemType);
       }
       final sourceType = resolved.staticType;
-      final elementType =
-          sourceType == null ? null : _dartCoreListElementType(sourceType);
+      final elementType = sourceType == null
+          ? null
+          : _dartCoreListElementType(sourceType);
       if (elementType != null &&
           _typedListItemDecoderAcceptsDartType(
             itemType,
@@ -12060,7 +12641,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.propertyValueTypeMismatch,
-          message: "The list expression '${source.toSource()}' is declared "
+          message:
+              "The list expression '${source.toSource()}' is declared "
               "'${sourceType?.getDisplayString() ?? '<unresolved>'}' and its "
               "elements cannot be assigned to a '${itemType.name}' item "
               'decoder at this site.',
@@ -12084,7 +12666,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.propertyValueTypeMismatch,
-        message: "Host data list 'data.context.${param.name}' is declared "
+        message:
+            "Host data list 'data.context.${param.name}' is declared "
             "'${param.type.getDisplayString()}' and its elements cannot be "
             "assigned to a '${itemType.name}' item decoder at this site.",
         location: _locationOf(source),
@@ -12180,14 +12763,17 @@ final class ExpressionTranslator {
     FormalParameterElement? sourceParameter,
     bool coerce = true,
   }) {
-    final ref = property?.structuredRef ??
+    final ref =
+        property?.structuredRef ??
         (property?.valueShape is StructuredShape
             ? (property!.valueShape as StructuredShape).structuredRef
             : null);
-    final structured =
-        ref == null ? null : _nativeCatalogIndex.structuredByRef(ref);
-    final native =
-        structured == null ? null : nativeBindingRoute(structured.sourceType);
+    final structured = ref == null
+        ? null
+        : _nativeCatalogIndex.structuredByRef(ref);
+    final native = structured == null
+        ? null
+        : nativeBindingRoute(structured.sourceType);
     if (native != null) {
       final resolved = _resolveBoundIdentifier(_stripParens(expr));
       if (_isNullLiteral(resolved) && property?.constructorNullable == true)
@@ -12205,11 +12791,16 @@ final class ExpressionTranslator {
       return '';
     }
     if (structured != null &&
-        optionalNativeDecoder(structured.sourceType,
-                namespace: structured.library.namespace) !=
+        optionalNativeDecoder(
+              structured.sourceType,
+              namespace: structured.library.namespace,
+            ) !=
             null) {
-      return _optionalNativeValue(expr, issues,
-              expected: structured.sourceType) ??
+      return _optionalNativeValue(
+            expr,
+            issues,
+            expected: structured.sourceType,
+          ) ??
           '';
     }
     final before = issues.length;
@@ -12241,18 +12832,25 @@ final class ExpressionTranslator {
       final borrowed = _nativeBindingRead(expr, type: 'flutter.Color');
       if (borrowed != null) return borrowed;
     }
-    final colorExpression =
-        type == PropertyType.color ? _installedColorExpression(expr) : null;
+    final colorExpression = type == PropertyType.color
+        ? _installedColorExpression(expr)
+        : null;
     if (colorExpression != null) {
       try {
-        final native =
-            _tryNativeCallValue(colorExpression, issues, type: 'flutter.Color');
+        final native = _tryNativeCallValue(
+          colorExpression,
+          issues,
+          type: 'flutter.Color',
+        );
         if (native != null) return native;
       } on BuilderLoweringException catch (error) {
-        issues.add(Issue(
+        issues.add(
+          Issue(
             code: IssueCode.propertyValueTypeMismatch,
             message: error.reason,
-            location: _locationOf(error.node)));
+            location: _locationOf(error.node),
+          ),
+        );
         return '';
       }
     }
@@ -12266,18 +12864,21 @@ final class ExpressionTranslator {
         verdict.kind == HoistValueKind.scalar &&
         _readsKeyboardOrAccessibility(expr) &&
         !_propertyTypeAcceptsHostDataType(type, staticType)) {
-      issues.add(Issue(
-        code: IssueCode.propertyValueTypeMismatch,
-        message:
-            "The device expression '${expr.toSource()}' cannot be assigned "
-            "to a '${type.name}' property type at this site.",
-        location: _locationOf(expr),
-      ));
+      issues.add(
+        Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message:
+              "The device expression '${expr.toSource()}' cannot be assigned "
+              "to a '${type.name}' property type at this site.",
+          location: _locationOf(expr),
+        ),
+      );
       return '';
     }
     if (type == PropertyType.scalarCallback &&
         property?.constructorNullable == true &&
-        _isNullLiteral(_resolveBoundIdentifier(expr))) return 'null';
+        _isNullLiteral(_resolveBoundIdentifier(expr)))
+      return 'null';
     if (type == PropertyType.scalarCallback &&
         property?.scalarContract != null) {
       return _translateScalarCallback(expr, property!.scalarContract!, issues);
@@ -12297,11 +12898,14 @@ final class ExpressionTranslator {
     final keyBudget = CollectionUnrollBudget();
     final activeKeyNodes = <AstNode>{};
     var keySearchExhausted = false;
-    bool hasNativeKey(AstNode node,
-        [Map<Element, Expression> bindings = const {}]) {
+    bool hasNativeKey(
+      AstNode node, [
+      Map<Element, Expression> bindings = const {},
+    ]) {
       if (node is FunctionExpression ||
           keySearchExhausted ||
-          !activeKeyNodes.add(node)) return false;
+          !activeKeyNodes.add(node))
+        return false;
       try {
         if (!keyBudget.tryChargeWork()) {
           keySearchExhausted = true;
@@ -12309,8 +12913,12 @@ final class ExpressionTranslator {
           return false;
         }
         if (node is Expression) {
-          final resolved = keySemantics.resolve(node, bindings, keyBudget,
-              stopAtConditionals: true);
+          final resolved = keySemantics.resolve(
+            node,
+            bindings,
+            keyBudget,
+            stopAtConditionals: true,
+          );
           if (resolved.workLimitExceeded) {
             keySearchExhausted = true;
             _recordCollectionRefusal(keyBudget.workRefusal(node), issues);
@@ -12323,8 +12931,11 @@ final class ExpressionTranslator {
         }
         if (node is NamedArgument && isDiscardedWidgetKeyArgument(node)) {
           final resolved = keySemantics.resolve(
-              node.argumentExpression, bindings, keyBudget,
-              stopAtConditionals: true);
+            node.argumentExpression,
+            bindings,
+            keyBudget,
+            stopAtConditionals: true,
+          );
           if (resolved.workLimitExceeded) {
             keySearchExhausted = true;
             _recordCollectionRefusal(keyBudget.workRefusal(node), issues);
@@ -12334,9 +12945,9 @@ final class ExpressionTranslator {
           return _rootParamRead(key) != null ||
               installedNativeConstantType(key) == 'flutter.Key';
         }
-        return node.childEntities
-            .whereType<AstNode>()
-            .any((child) => hasNativeKey(child, bindings));
+        return node.childEntities.whereType<AstNode>().any(
+          (child) => hasNativeKey(child, bindings),
+        );
       } finally {
         activeKeyNodes.remove(node);
       }
@@ -12358,10 +12969,12 @@ final class ExpressionTranslator {
 
     final parameter = sourceParameter ?? resolvedParameter();
     final constructor = parameter?.enclosingElement;
-    final owner =
-        constructor is ConstructorElement ? constructor.enclosingElement : null;
+    final owner = constructor is ConstructorElement
+        ? constructor.enclosingElement
+        : null;
     // Borrowed keys and native delegates retain child identity through frames.
-    final nativeKeyedChildren = parameter?.name == 'children' &&
+    final nativeKeyedChildren =
+        parameter?.name == 'children' &&
         ((owner?.name == 'GridView' &&
                 owner?.library.identifier ==
                     'package:flutter/src/widgets/scroll_view.dart') ||
@@ -12384,7 +12997,7 @@ final class ExpressionTranslator {
           PropertyType.length,
           PropertyType.string,
           PropertyType.enumValue,
-          PropertyType.color
+          PropertyType.color,
         }.contains(type))) {
       try {
         final scalar = expr.staticType;
@@ -12396,31 +13009,40 @@ final class ExpressionTranslator {
                 scalar.isDartCoreNum ||
                 scalar.isDartCoreInt ||
                 scalar.isDartCoreDouble)) {
-          return _spanCollectionBuilderValue(expr, issues,
-              asDouble:
-                  type == PropertyType.real || type == PropertyType.length);
-        }
-        return _activeWidgetBuilder!.value(expr,
+          return _spanCollectionBuilderValue(
+            expr,
+            issues,
             asDouble: type == PropertyType.real || type == PropertyType.length,
-            requireNativeBaseType: _customNativeValueBoundary,
-            nativeDestination: switch (type) {
-              PropertyType.color => 'Color',
-              PropertyType.fontWeight => 'FontWeight',
-              _ => null,
-            });
+          );
+        }
+        return _activeWidgetBuilder!.value(
+          expr,
+          asDouble: type == PropertyType.real || type == PropertyType.length,
+          requireNativeBaseType: _customNativeValueBoundary,
+          nativeDestination: switch (type) {
+            PropertyType.color => 'Color',
+            PropertyType.fontWeight => 'FontWeight',
+            _ => null,
+          },
+        );
       } on BuilderLoweringException catch (error) {
-        issues.add(Issue(
+        issues.add(
+          Issue(
             code: IssueCode.propertyValueTypeMismatch,
             message: error.toString(),
-            location: _locationOf(error.node)));
+            location: _locationOf(error.node),
+          ),
+        );
         return '';
       }
     }
     if (_activeWidgetBuilder != null &&
         (themeReadSegments(expr) != null ||
             _recognizeDeviceRead(expr) != null)) {
-      return _activeWidgetBuilder!
-          .value(expr, requireNativeBaseType: _customNativeValueBoundary);
+      return _activeWidgetBuilder!.value(
+        expr,
+        requireNativeBaseType: _customNativeValueBoundary,
+      );
     }
     if (type != PropertyType.event && type != PropertyType.widget) {
       final hoisted = _hoisted(
@@ -12438,7 +13060,8 @@ final class ExpressionTranslator {
       if (hoisted != null) return hoisted;
     }
     final widgetOccurrence = _walk.measurementWidget;
-    final eventOccurrence = type == PropertyType.event &&
+    final eventOccurrence =
+        type == PropertyType.event &&
             widgetOccurrence != null &&
             sourceParameter != null
         ? widgetOccurrence.event(sourceParameter)
@@ -12472,7 +13095,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.invalidEventConfiguration,
-            message: 'A measured callback can run only one handler, but '
+            message:
+                'A measured callback can run only one handler, but '
                 'this conditional runs a different one in each arm. Keep '
                 'one handler and set the others to null, or give each arm '
                 'its own widget.',
@@ -12520,7 +13144,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.invalidEventConfiguration,
-            message: 'The measured callback produced no RFW event handler, '
+            message:
+                'The measured callback produced no RFW event handler, '
                 'so its private Measurement route cannot be emitted.',
             location: _locationOf(expr),
           ),
@@ -12555,8 +13180,12 @@ final class ExpressionTranslator {
   }
 
   String _translateSlotValueCore(
-      Expression rawExpr, PropertyType type, List<Issue> issues,
-      {PropertyEntry? property, bool coerce = true}) {
+    Expression rawExpr,
+    PropertyType type,
+    List<Issue> issues, {
+    PropertyEntry? property,
+    bool coerce = true,
+  }) {
     if (type == PropertyType.event && property?.callbackSignature == null) {
       final scratch = <Issue>[];
       final legacy = _translateSlotValueLegacy(
@@ -12570,7 +13199,8 @@ final class ExpressionTranslator {
       // Navigation refusals also retain their diagnostic and context boundary.
       if (!scratch.any((issue) => !issue.code.isBuildNotice) ||
           scratch.any(
-              (issue) => issue.code == IssueCode.navigationFormUnsupported)) {
+            (issue) => issue.code == IssueCode.navigationFormUnsupported,
+          )) {
         issues.addAll(scratch);
         return legacy;
       }
@@ -12580,13 +13210,13 @@ final class ExpressionTranslator {
         try {
           final reference =
               _nativeBindingRead(expression, type: kNativeVoidCallbackType) ??
-                  (expression is FunctionExpression
-                      ? _tryNativeCallValue(
-                          expression,
-                          issues,
-                          type: kNativeVoidCallbackType,
-                        )
-                      : null);
+              (expression is FunctionExpression
+                  ? _tryNativeCallValue(
+                      expression,
+                      issues,
+                      type: kNativeVoidCallbackType,
+                    )
+                  : null);
           if (reference != null) return '{nativeEvent: $reference}';
         } on BuilderLoweringException catch (error) {
           issues.add(
@@ -12608,9 +13238,11 @@ final class ExpressionTranslator {
           _isFrameworkValueType(_classOfInstanceCreation(owner));
     }
 
-    final nativeConstructor = nativeBoundary(rawExpr) &&
+    final nativeConstructor =
+        nativeBoundary(rawExpr) &&
         nativeBoundary(_resolveBoundIdentifier(rawExpr));
-    final eligible = nativeConstructor &&
+    final eligible =
+        nativeConstructor &&
         const {
           PropertyType.boolean,
           PropertyType.integer,
@@ -12618,19 +13250,32 @@ final class ExpressionTranslator {
           PropertyType.length,
         }.contains(type);
     if (!eligible)
-      return _translateSlotValueLegacy(rawExpr, type, issues,
-          property: property, coerce: coerce);
+      return _translateSlotValueLegacy(
+        rawExpr,
+        type,
+        issues,
+        property: property,
+        coerce: coerce,
+      );
     final scratch = <Issue>[];
-    final old = _translateSlotValueLegacy(rawExpr, type, scratch,
-        property: property, coerce: coerce);
+    final old = _translateSlotValueLegacy(
+      rawExpr,
+      type,
+      scratch,
+      property: property,
+      coerce: coerce,
+    );
     if (!scratch.any((issue) => !issue.code.isBuildNotice)) {
       issues.addAll(scratch);
       return old;
     }
     final programIssues = <Issue>[];
-    final program = _tryScalarValueProgram(rawExpr, programIssues,
-        asDouble: coerce &&
-            (type == PropertyType.real || type == PropertyType.length));
+    final program = _tryScalarValueProgram(
+      rawExpr,
+      programIssues,
+      asDouble:
+          coerce && (type == PropertyType.real || type == PropertyType.length),
+    );
     if (program != null &&
         program.isNotEmpty &&
         !programIssues.any((issue) => !issue.code.isBuildNotice)) {
@@ -12650,30 +13295,36 @@ final class ExpressionTranslator {
   }) {
     if (type == PropertyType.event && _containsIntlFormatting(rawExpr)) {
       final modalSheet = _walk.modalSheet;
-      final activeModalTrigger = modalSheet != null &&
+      final activeModalTrigger =
+          modalSheet != null &&
           switch (recogniseModalSheetTrigger(rawExpr)) {
             ModalSheetRecognised(:final sheet) =>
               identical(sheet.call, modalSheet.sheet.call) &&
-                  sheet.call.argumentList.arguments.every((argument) =>
-                      argument is NamedArgument &&
-                      switch (kModalSheetArgumentDispositions[sheet.function]
-                          ?[argument.name.lexeme]) {
-                        ModalSheetArgumentDisposition.animationStyle ||
-                        ModalSheetArgumentDisposition.builder ||
-                        ModalSheetArgumentDisposition.pageBuilder =>
-                          true,
-                        _ =>
-                          !_containsIntlFormatting(argument.argumentExpression),
-                      }),
+                  sheet.call.argumentList.arguments.every(
+                    (argument) =>
+                        argument is NamedArgument &&
+                        switch (kModalSheetArgumentDispositions[sheet
+                            .function]?[argument.name.lexeme]) {
+                          ModalSheetArgumentDisposition.animationStyle ||
+                          ModalSheetArgumentDisposition.builder ||
+                          ModalSheetArgumentDisposition.pageBuilder => true,
+                          _ => !_containsIntlFormatting(
+                            argument.argumentExpression,
+                          ),
+                        },
+                  ),
             _ => false,
           };
       // Sheet bodies and animation styles are validated when the sheet lowers.
       if (!activeModalTrigger) {
-        issues.add(Issue(
+        issues.add(
+          Issue(
             code: IssueCode.unrecognizedMethodCall,
             message:
                 'Formatting in an event callback requires an installed native callback binding',
-            location: _locationOf(rawExpr)));
+            location: _locationOf(rawExpr),
+          ),
+        );
         return '';
       }
     }
@@ -12725,7 +13376,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.propertyValueTypeMismatch,
-          message: "'${resolved.toSource()}' is "
+          message:
+              "'${resolved.toSource()}' is "
               '${frameworkConst.kind.label} and cannot be assigned to a '
               "'${type.name}' property type at this site.",
           location: _locationOf(resolved),
@@ -12800,11 +13452,11 @@ final class ExpressionTranslator {
         terminalItemType: inspectedItemType,
         translateTerminal: (source, itemType, issues) =>
             _translateTypedListTerminal(
-          source,
-          itemType,
-          issues,
-          listType: type,
-        ),
+              source,
+              itemType,
+              issues,
+              listType: type,
+            ),
       );
     }
     final traversedItemType = _traversedListItemPropertyType(type);
@@ -12855,10 +13507,12 @@ final class ExpressionTranslator {
     }
 
     final mapType = _dartCoreMapType(expr.staticType);
-    final keyShape =
-        mapType == null ? null : resolveValueShape(mapType.typeArguments[0]);
-    final valueShape =
-        mapType == null ? null : _customMapValueShape(mapType.typeArguments[1]);
+    final keyShape = mapType == null
+        ? null
+        : resolveValueShape(mapType.typeArguments[0]);
+    final valueShape = mapType == null
+        ? null
+        : _customMapValueShape(mapType.typeArguments[1]);
     final entries = <String>[];
 
     // Preserve authored entry order. The decoder reconstructs a Dart Map whose
@@ -12960,7 +13614,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unsupportedCollectionFlow,
-        message: 'Set literals, spreads, collection-if, and collection-for '
+        message:
+            'Set literals, spreads, collection-if, and collection-for '
             'are not supported in map literals. Use a static string-keyed '
             'map.',
         location: _locationOf(expr),
@@ -12993,7 +13648,8 @@ final class ExpressionTranslator {
     if (memberName == null) return null;
 
     final resolvedMember = _unwrapPropertyAccessor(_enumMemberElement(expr));
-    final memberOwner = resolvedMember is FieldElement &&
+    final memberOwner =
+        resolvedMember is FieldElement &&
             resolvedMember.isEnumConstant &&
             resolvedMember.enclosingElement is EnumElement
         ? resolvedMember.enclosingElement as EnumElement
@@ -13080,7 +13736,8 @@ final class ExpressionTranslator {
       if (receiver is SimpleIdentifier) {
         target = receiver.element;
       } else if (receiver is PrefixedIdentifier) {
-        target = identifierElement(receiver.identifier) ??
+        target =
+            identifierElement(receiver.identifier) ??
             identifierElement(receiver.prefix);
       } else if (receiver is PropertyAccess) {
         target = identifierElement(receiver.propertyName);
@@ -13140,13 +13797,16 @@ final class ExpressionTranslator {
         final element = current.element;
         if (element == null || !seen.add(element)) break;
         Expression? local;
-        for (var scope = _activeWidgetBuilder?.expressions;
-            scope != null;
-            scope = scope.parent) {
+        for (
+          var scope = _activeWidgetBuilder?.expressions;
+          scope != null;
+          scope = scope.parent
+        ) {
           local = scope.localInitializers[element];
           if (local != null) break;
         }
-        final bound = local ??
+        final bound =
+            local ??
             _walk.paramBindings[element] ??
             _walk.inlined.localBindings[element];
         if (bound == null) break;
@@ -13201,7 +13861,8 @@ final class ExpressionTranslator {
           issues.add(
             Issue(
               code: IssueCode.unrecognizedMethodCall,
-              message: 'SystemUiOverlayStyle.copyWith chains support at most '
+              message:
+                  'SystemUiOverlayStyle.copyWith chains support at most '
                   '$kMaxStructuredCopyWithLayers calls.',
               location: _locationOf(expr),
             ),
@@ -13218,8 +13879,9 @@ final class ExpressionTranslator {
 
     final entries = <String>[];
     final constant = frameworkStaticConst(expr);
-    final constantFields =
-        constant == null ? null : systemUiOverlayStyleFields(constant);
+    final constantFields = constant == null
+        ? null
+        : systemUiOverlayStyleFields(constant);
     if (constantFields != null) {
       for (final field in constantFields.entries) {
         if (!field.value.isNull) {
@@ -13295,7 +13957,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'IconThemeData values support at most '
+          message:
+              'IconThemeData values support at most '
               '$kMaxStructuredCopyWithLayers nested operations.',
           location: _locationOf(expr),
         ),
@@ -13397,7 +14060,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
-        message: 'Unsupported IconThemeData expression: ${expr.toSource()}. '
+        message:
+            'Unsupported IconThemeData expression: ${expr.toSource()}. '
             'Use its constructor, fallback, copyWith, or lerp.',
         location: _locationOf(expr),
       ),
@@ -13409,7 +14073,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
-        message: 'Unsupported SystemUiOverlayStyle expression: '
+        message:
+            'Unsupported SystemUiOverlayStyle expression: '
             '${expr.toSource()}. Use its constructor, constants, or copyWith.',
         location: _locationOf(expr),
       ),
@@ -13430,13 +14095,16 @@ final class ExpressionTranslator {
       if (current is SimpleIdentifier) {
         final element = current.element;
         Expression? local;
-        for (var scope = _activeWidgetBuilder?.expressions;
-            scope != null;
-            scope = scope.parent) {
+        for (
+          var scope = _activeWidgetBuilder?.expressions;
+          scope != null;
+          scope = scope.parent
+        ) {
           local = scope.localInitializers[element];
           if (local != null) break;
         }
-        final bound = local ??
+        final bound =
+            local ??
             _walk.paramBindings[element] ??
             _walk.inlined.localBindings[element];
         if (bound != null) {
@@ -13544,7 +14212,8 @@ final class ExpressionTranslator {
         Issue(
           code: IssueCode.customWidgetUnsupportedReducible,
           capabilityGapSubject: 'customWidgetPropertyFallback:${coalesce.name}',
-          message: "The optional property '${coalesce.name}' is coalesced "
+          message:
+              "The optional property '${coalesce.name}' is coalesced "
               '(`?? <fallback>`) in a value position this transpiler increment '
               'cannot validate the fallback against. Use the property in a '
               'catalog-widget slot, or set it via the constructor.',
@@ -13591,13 +14260,13 @@ final class ExpressionTranslator {
       }
       final (receiver, member) = switch (current) {
         PrefixedIdentifier(:final prefix, :final identifier) => (
-            prefix,
-            identifierElement(identifier),
-          ),
+          prefix,
+          identifierElement(identifier),
+        ),
         PropertyAccess(:final target, :final propertyName) => (
-            target,
-            propertyName.element,
-          ),
+          target,
+          propertyName.element,
+        ),
         SimpleIdentifier() => (null, current.element),
         _ => (null, null),
       };
@@ -13616,7 +14285,7 @@ final class ExpressionTranslator {
       }
       final bound = current is SimpleIdentifier
           ? _walk.paramBindings[current.element] ??
-              _walk.inlined.localBindings[current.element]
+                _walk.inlined.localBindings[current.element]
           : null;
       current = bound ?? receiver;
     }
@@ -13630,7 +14299,8 @@ final class ExpressionTranslator {
     if (hoist == null) return null;
     final stripped = _stripParens(expr);
     final verdict = classifyHoistType(stripped.staticType);
-    final lookup = stripped is MethodInvocation ||
+    final lookup =
+        stripped is MethodInvocation ||
         stripped is PropertyAccess ||
         stripped is PrefixedIdentifier ||
         stripped is IndexExpression ||
@@ -13638,7 +14308,7 @@ final class ExpressionTranslator {
     final analysis = hoist.analyzer.analyze(stripped);
     switch (analysis) {
       case HoistNeedsSurfaceValue(isBuildArgument: true) ||
-            HoistNeedsSurfaceValue(name: 'ref'):
+          HoistNeedsSurfaceValue(name: 'ref'):
         return "'ref' needs this screen to extend a widget whose build "
             'receives it, such as ConsumerWidget.';
       case HoistNeedsSurfaceValue(:final name) when verdict is HoistCrosses:
@@ -13747,7 +14417,8 @@ final class ExpressionTranslator {
     }
     return Issue(
       code: issue.code,
-      message: "${issue.message} This package's widget catalog did not "
+      message:
+          "${issue.message} This package's widget catalog did not "
           'build, so the widget has no entry yet: fix the widget catalog '
           'errors first.',
       location: issue.location,
@@ -13777,7 +14448,8 @@ final class ExpressionTranslator {
     return Issue(
       code: issue.code,
       capabilityGapSubject: issue.capabilityGapSubject,
-      message: "'$widgetName' is left out of the catalog: "
+      message:
+          "'$widgetName' is left out of the catalog: "
           '${reasonClause(exclusion.reason)}.',
       location: _locationOf(anchor),
     );
@@ -13788,8 +14460,7 @@ final class ExpressionTranslator {
     WidgetClassification classification,
     String widgetName,
     Expression anchor,
-  ) =>
-      _customWidgetGap(classification, widgetName, anchor).reason;
+  ) => _customWidgetGap(classification, widgetName, anchor).reason;
 
   /// The one table behind a custom widget's diagnostic and its factory reason.
   ({Issue issue, String reason}) _customWidgetGap(
@@ -13897,7 +14568,8 @@ final class ExpressionTranslator {
       for (final entry in ordered)
         Issue(
           code: IssueCode.customWidgetAppFactoryUsed,
-          message: "Custom widget '${entry.value.widgetName}' renders from "
+          message:
+              "Custom widget '${entry.value.widgetName}' renders from "
               "your app's compiled code because ${entry.value.reason}. That "
               'is fine: delivered surfaces still set its arguments, and '
               'changes to its build() or defaults ship with your next app '
@@ -13997,7 +14669,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
-            message: "A BorderRadius with different corners can't be chosen "
+            message:
+                "A BorderRadius with different corners can't be chosen "
                 'by a condition here. Put the condition inside each '
                 "corner's radius instead.",
             location: loc,
@@ -14010,14 +14683,17 @@ final class ExpressionTranslator {
     // Membership keyed on the `borderRadiusCorner` synthetic + the property
     // name — the same discovery the reconstruction side uses (factory_emitter
     // `_borderRadiusCornersOf`), so the two halves can't drift apart.
-    final directionalCorners = value.contains('topStart:') ||
+    final directionalCorners =
+        value.contains('topStart:') ||
         value.contains('topEnd:') ||
         value.contains('bottomStart:') ||
         value.contains('bottomEnd:');
     final hasAllCorners = _kBorderRadiusCornerProperty.entries
-        .where((e) =>
-            (e.key.endsWith('Start') || e.key.endsWith('End')) ==
-            directionalCorners)
+        .where(
+          (e) =>
+              (e.key.endsWith('Start') || e.key.endsWith('End')) ==
+              directionalCorners,
+        )
         .map((e) => e.value)
         .every(
           (name) => entry.properties.any(
@@ -14029,7 +14705,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'An asymmetric BorderRadius is not representable on '
+          message:
+              'An asymmetric BorderRadius is not representable on '
               "'${entry.name}' (it has no per-corner radius slots). Use "
               'BorderRadius.circular(...) for a uniform radius.',
           location: loc,
@@ -14136,7 +14813,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.propertyValueTypeMismatch,
-          message: "Device value 'data.device.$devicePath' cannot be "
+          message:
+              "Device value 'data.device.$devicePath' cannot be "
               "assigned to a '${type.name}' property type at this site.",
           location: _locationOf(current),
         ),
@@ -14158,7 +14836,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.propertyValueTypeMismatch,
-        message: "Theme value 'data.theme.${segments.join('.')}' cannot be "
+        message:
+            "Theme value 'data.theme.${segments.join('.')}' cannot be "
             "assigned to a '${type.name}' property type at this site.",
         location: _locationOf(current),
       ),
@@ -14179,7 +14858,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.propertyValueTypeMismatch,
-        message: "Host data value '${reference.dsl}' is declared "
+        message:
+            "Host data value '${reference.dsl}' is declared "
             "'$typeCode' and cannot be assigned to a "
             "'${type.name}' property type at this site.",
         location: _locationOf(source),
@@ -14209,9 +14889,9 @@ final class ExpressionTranslator {
 
   /// A helper call's name as written: `Owner.method` for a static.
   String _helperName(MethodInvocation expr) => switch (expr.target) {
-        SimpleIdentifier(:final name) => '$name.${expr.methodName.name}',
-        _ => expr.methodName.name,
-      };
+    SimpleIdentifier(:final name) => '$name.${expr.methodName.name}',
+    _ => expr.methodName.name,
+  };
 
   /// [unit]'s path as the surface's own path is spelled: package-relative
   /// within the surface's package, its full URI otherwise.
@@ -14253,20 +14933,20 @@ final class ExpressionTranslator {
   /// The class a resolved construction names, the element a resolved call
   /// targets otherwise, or `null` when the source did not resolve.
   Element? _resolvedCallee(Expression anchor) => switch (anchor) {
-        final InstanceCreationExpression creation =>
-          constructionConstructor(creation)?.enclosingElement ??
-              switch (creation.constructorName.type.element) {
-                final InterfaceElement type => type,
-                _ => null,
-              },
-        MethodInvocation(:final methodName, :final target) => switch (
-              methodName.element) {
-            ConstructorElement(:final enclosingElement) => enclosingElement,
-            final Element element => element,
-            null => target is SimpleIdentifier ? target.element : null,
+    final InstanceCreationExpression creation =>
+      constructionConstructor(creation)?.enclosingElement ??
+          switch (creation.constructorName.type.element) {
+            final InterfaceElement type => type,
+            _ => null,
           },
-        _ => null,
-      };
+    MethodInvocation(:final methodName, :final target) =>
+      switch (methodName.element) {
+        ConstructorElement(:final enclosingElement) => enclosingElement,
+        final Element element => element,
+        null => target is SimpleIdentifier ? target.element : null,
+      },
+    _ => null,
+  };
 
   /// The canonical `'<library URI>#<class name>'` of [cls].
   String _classIdentity(InterfaceElement cls) =>
@@ -14330,24 +15010,26 @@ final class ExpressionTranslator {
     Expression expr,
     List<Issue> issues,
   ) {
-    final recipes =
-        entry.decomposes.where((r) => r.targetArg == argName).toList();
+    final recipes = entry.decomposes
+        .where((r) => r.targetArg == argName)
+        .toList();
     if (recipes.isEmpty) return false;
     // The source-type fragment is the constructor name the author writes
     // (`TextStyle`, `BoxDecoration`), which is what the remedy must name;
     // the entry's display name is advisory and may differ.
-    final typeNames = recipes
-        .map(
-          (r) => _nativeCatalogIndex
-              .structuredByRef(r.structuredRef)
-              ?.sourceType
-              .split('#')
-              .last,
-        )
-        .whereType<String>()
-        .toSet()
-        .toList()
-      ..sort();
+    final typeNames =
+        recipes
+            .map(
+              (r) => _nativeCatalogIndex
+                  .structuredByRef(r.structuredRef)
+                  ?.sourceType
+                  .split('#')
+                  .last,
+            )
+            .whereType<String>()
+            .toSet()
+            .toList()
+          ..sort();
     final typeLabel = typeNames.isEmpty ? '' : '${typeNames.join(' or ')} ';
     final appOnly = _appOnlyValueIssue(expr, IssueCode.unrecognizedMethodCall);
     if (appOnly != null) {
@@ -14357,7 +15039,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
-        message: "Property '$argName' on '${entry.name}' takes a literal "
+        message:
+            "Property '$argName' on '${entry.name}' takes a literal "
             '${typeLabel}constructor. The compiler decomposes it into flat '
             'catalog properties at build time and cannot decompose this '
             'expression. Construct the value inline; values inside it, like '
@@ -14376,16 +15059,19 @@ final class ExpressionTranslator {
   ) {
     if (entry.decomposes.isEmpty) return null;
 
-    final relevantRecipes =
-        entry.decomposes.where((r) => r.targetArg == argName).toList();
+    final relevantRecipes = entry.decomposes
+        .where((r) => r.targetArg == argName)
+        .toList();
     if (relevantRecipes.isEmpty) return null;
-    final candidateRecipes =
-        relevantRecipes.where((r) => r.construction != null).toList();
+    final candidateRecipes = relevantRecipes
+        .where((r) => r.construction != null)
+        .toList();
     if (candidateRecipes.length != relevantRecipes.length) {
       issues.add(
         Issue(
           code: IssueCode.unknownProperty,
-          message: "Native decomposition for '${entry.name}.$argName' is "
+          message:
+              "Native decomposition for '${entry.name}.$argName' is "
               'missing native construction metadata.',
           location: _locationOf(expr),
         ),
@@ -14395,7 +15081,8 @@ final class ExpressionTranslator {
 
     final resolved = _resolveBoundIdentifier(expr);
     final declaration = constDeclarationElement(resolved);
-    final constantNull = declaration is VariableElement &&
+    final constantNull =
+        declaration is VariableElement &&
         !dependsOnBuildEnvironment(declaration) &&
         declaration.computeConstantValue()?.isNull == true;
     if (resolved is NullLiteral || constantNull) {
@@ -14444,8 +15131,10 @@ final class ExpressionTranslator {
       for (final mapping in recipe.fieldMappings) {
         var sourceExpr = match.fieldExpressions[mapping.fieldRef];
         if (sourceExpr == null) continue;
-        final destProp =
-            index.widgetProperty(_widgetRef(entry), mapping.propertyRef);
+        final destProp = index.widgetProperty(
+          _widgetRef(entry),
+          mapping.propertyRef,
+        );
         if (destProp == null) continue;
         if (destProp.synthetic == _kBorderRadiusCircularSynthetic) {
           sourceExpr = _resolveBoundIdentifier(sourceExpr);
@@ -14461,8 +15150,9 @@ final class ExpressionTranslator {
                     FrameworkConstKind.borderRadius)) {
           final before = issues.length;
           final translated = _translate(sourceExpr, issues);
-          final hadError =
-              issues.skip(before).any((i) => !i.code.isInformational);
+          final hadError = issues
+              .skip(before)
+              .any((i) => !i.code.isInformational);
           if (translated.isEmpty || hadError) continue;
           final corners = _spliceBorderRadiusCorners(
             entry,
@@ -14503,8 +15193,10 @@ final class ExpressionTranslator {
         if (parameter != null) {
           mappedArguments.add(_nativeParameterLabel(parameter));
         }
-        final destProp =
-            index.widgetProperty(_widgetRef(entry), mapping.propertyRef);
+        final destProp = index.widgetProperty(
+          _widgetRef(entry),
+          mapping.propertyRef,
+        );
         if (destProp == null) continue;
         final translated = _decompositionValue(
           mapping.transform,
@@ -14525,7 +15217,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
-            message: "Native decomposition field '$fieldName' on "
+            message:
+                "Native decomposition field '$fieldName' on "
                 "'${structured.name}' is not mapped to a flat property on "
                 "'${entry.name}'.",
             location: _locationOf(supplied.value),
@@ -14538,7 +15231,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
-            message: "Native decomposition argument '${unmapped.key}' on "
+            message:
+                "Native decomposition argument '${unmapped.key}' on "
                 "'${structured.name}' is not mapped to a structured field.",
             location: _locationOf(unmapped.value),
           ),
@@ -14596,13 +15290,15 @@ final class ExpressionTranslator {
     final fields = fromApp
         ? kHoistedTextStyleFields.keys
         : kThemeContractTextThemeFieldKinds.keys;
-    final unpublished =
-        overrides.keys.where((name) => !fields.contains(name)).toList();
+    final unpublished = overrides.keys
+        .where((name) => !fields.contains(name))
+        .toList();
     if (!fromApp && unpublished.isNotEmpty) {
       issues.add(
         Issue(
           code: IssueCode.themeReadOutOfContract,
-          message: "copyWith on a theme style cannot set '${unpublished.first}'"
+          message:
+              "copyWith on a theme style cannot set '${unpublished.first}'"
               '. A theme style carries ${fields.join(', ')}; build a literal '
               'TextStyle to set anything else.',
           location: _locationOf(expr),
@@ -14615,12 +15311,16 @@ final class ExpressionTranslator {
     final emitted = <String>[];
     final overridden = <String>{};
     for (final mapping in recipe.fieldMappings) {
-      final field =
-          index.structuredField(recipe.structuredRef, mapping.fieldRef);
+      final field = index.structuredField(
+        recipe.structuredRef,
+        mapping.fieldRef,
+      );
       final fieldName = field?.name;
       if (fieldName == null) continue;
-      final destination =
-          index.widgetProperty(_widgetRef(entry), mapping.propertyRef);
+      final destination = index.widgetProperty(
+        _widgetRef(entry),
+        mapping.propertyRef,
+      );
       if (destination == null) continue;
       final override = overrides[fieldName];
       if (override != null) {
@@ -14658,7 +15358,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.propertyValueTypeMismatch,
-            message: "Theme value '$path' cannot be assigned to "
+            message:
+                "Theme value '$path' cannot be assigned to "
                 "the '${destination.type.name}' property "
                 "'${entry.name}.${destination.name}' the style decomposes to.",
             location: _locationOf(expr),
@@ -14678,7 +15379,8 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unknownProperty,
-          message: "copyWith argument '${unmapped.first}' has no flat property "
+          message:
+              "copyWith argument '${unmapped.first}' has no flat property "
               "on '${entry.name}' to carry it.",
           location: _locationOf(expr),
         ),
@@ -14716,7 +15418,7 @@ final class ExpressionTranslator {
   /// arguments of a trailing `copyWith` to apply over it, or `null` when
   /// [expr] is not a constant construction.
   ({InstanceCreationExpression base, List<NamedArgument> overrides})?
-      _constantConstruction(Expression expr) {
+  _constantConstruction(Expression expr) {
     var current = _stripParens(expr);
     var overrides = const <NamedArgument>[];
     if (current is MethodInvocation &&
@@ -14728,7 +15430,7 @@ final class ExpressionTranslator {
       current = _stripParens(current.target!);
     }
     final seen = <Element>{};
-    for (var resolved = false;; resolved = true) {
+    for (var resolved = false; ; resolved = true) {
       if (current is InstanceCreationExpression) {
         return resolved || overrides.isNotEmpty
             ? (base: current, overrides: overrides)
@@ -14756,7 +15458,8 @@ final class ExpressionTranslator {
       final parameter = parameters.firstWhereOrNull(
         (p) => p.kind == FactoryParameterKind.named && p.name == name,
       );
-      final mapped = parameter != null &&
+      final mapped =
+          parameter != null &&
           _bindNativeParameter(
             variant,
             parameter,
@@ -14864,11 +15567,11 @@ final class ExpressionTranslator {
           code: IssueCode.unrecognizedMethodCall,
           message: invocation.memberName == null
               ? 'Native decomposition for ${destination.name} expected '
-                  "a '${structured.name}' value constructed through the "
-                  'catalog variant ${invocation.variantRef.wireId.value}.'
+                    "a '${structured.name}' value constructed through the "
+                    'catalog variant ${invocation.variantRef.wireId.value}.'
               : "'${destination.name}' expects a '${structured.name}' value "
-                  'written as '
-                  '${structured.name}.${invocation.memberName}(...).',
+                    'written as '
+                    '${structured.name}.${invocation.memberName}(...).',
           location: _locationOf(sourceExpr),
         ),
       );
@@ -14996,7 +15699,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
-            message: 'Native decomposition for ${destination.name} is missing '
+            message:
+                'Native decomposition for ${destination.name} is missing '
                 'required argument ${binding.parameterRef.value}.',
             location: _locationOf(sourceExpr),
           ),
@@ -15021,7 +15725,8 @@ final class ExpressionTranslator {
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
-            message: 'Native decomposition for ${destination.name} does not '
+            message:
+                'Native decomposition for ${destination.name} does not '
                 'allow null for argument ${binding.parameterRef.value}.',
             location: _locationOf(sourceExpr),
           ),
@@ -15328,16 +16033,16 @@ final class _NavigationEmitContext {
   }
 
   NavigationLowering toLowering() => NavigationLowering(
-        entryId: entryId,
-        transitions: [
-          for (final entry in entries)
-            NavigationTransition(
-              event: entry.event,
-              pushedId: entry.trigger.paywallSourceId,
-            ),
-        ],
-        terminatingEvent: 'skip',
-      );
+    entryId: entryId,
+    transitions: [
+      for (final entry in entries)
+        NavigationTransition(
+          event: entry.event,
+          pushedId: entry.trigger.paywallSourceId,
+        ),
+    ],
+    terminatingEvent: 'skip',
+  );
 }
 
 final class _NavigationTriggerEntry {
@@ -15405,7 +16110,7 @@ final class _RootNavigationTriggerScanner extends RecursiveAstVisitor<void> {
         case NavigationRecognised():
           resultDrop ??= kNavigationTriggerSlotUnsupportedReason;
         case NavigationResultDropped(:final reason) ||
-              NavigationFormUnsupported(:final reason):
+            NavigationFormUnsupported(:final reason):
           resultDrop ??= reason;
         case NavigationNotRecognised():
           break;
@@ -15422,7 +16127,7 @@ final class _RootNavigationTriggerScanner extends RecursiveAstVisitor<void> {
           resultDrop ??= kNavigationContextUnsupportedReason;
         }
       case NavigationResultDropped(:final reason) ||
-            NavigationFormUnsupported(:final reason):
+          NavigationFormUnsupported(:final reason):
         resultDrop ??= reason;
       case NavigationNotRecognised():
         break;
@@ -15464,8 +16169,8 @@ final class _PaywallEventNameScanner extends RecursiveAstVisitor<void> {
   _PaywallEventNameScanner(
     this.helpers, {
     required InlinedDefinitions inlined,
-  })  : _inlinedHelpers = inlined.helpers,
-        _bindings = Map<Element, Expression>.of(inlined.localBindings);
+  }) : _inlinedHelpers = inlined.helpers,
+       _bindings = Map<Element, Expression>.of(inlined.localBindings);
 
   final HelperRegistry helpers;
   final Map<Element, HelperDef> _inlinedHelpers;
@@ -15615,54 +16320,51 @@ bool propertyTypeAcceptsThemeKind(
   PropertyType type,
   ThemeContractValueKind kind, {
   PropertyEntry? property,
-}) =>
-    switch (type) {
-      PropertyType.color => kind == ThemeContractValueKind.color,
-      PropertyType.length ||
-      PropertyType.real =>
-        kind == ThemeContractValueKind.size,
-      PropertyType.fontWeight => kind == ThemeContractValueKind.fontWeight,
-      PropertyType.string => kind == ThemeContractValueKind.text,
-      PropertyType.stringList => kind == ThemeContractValueKind.textList,
-      PropertyType.textDecoration =>
-        kind == ThemeContractValueKind.textDecoration,
-      // `enumValue` spans every catalog enum, so an enum-valued token binds
-      // only where the slot's shape names that token's own enum.
-      PropertyType.enumValue => _kThemeKindEnumSymbols[kind] != null &&
-          _slotEnumSymbol(property) == _kThemeKindEnumSymbols[kind],
-      PropertyType.widget ||
-      PropertyType.widgetList ||
-      PropertyType.edgeInsets ||
-      PropertyType.alignment ||
-      PropertyType.alignmentXY ||
-      PropertyType.offset ||
-      PropertyType.duration ||
-      PropertyType.curve ||
-      PropertyType.boolean ||
-      PropertyType.integer ||
-      PropertyType.booleanList ||
-      PropertyType.integerList ||
-      PropertyType.realList ||
-      PropertyType.scalarCallback ||
-      PropertyType.widgetBuilder ||
-      PropertyType.event ||
-      PropertyType.dataReference ||
-      PropertyType.gradient ||
-      PropertyType.border ||
-      PropertyType.boxShadowList ||
-      PropertyType.locale ||
-      PropertyType.paint ||
-      PropertyType.shadowList ||
-      PropertyType.fontFeatureList ||
-      PropertyType.fontVariationList ||
-      PropertyType.shapeBorder ||
-      PropertyType.structured ||
-      PropertyType.inlineSpan ||
-      PropertyType.decorationImage ||
-      PropertyType.selectionOptionList ||
-      PropertyType.unknown =>
-        false,
-    };
+}) => switch (type) {
+  PropertyType.color => kind == ThemeContractValueKind.color,
+  PropertyType.length ||
+  PropertyType.real => kind == ThemeContractValueKind.size,
+  PropertyType.fontWeight => kind == ThemeContractValueKind.fontWeight,
+  PropertyType.string => kind == ThemeContractValueKind.text,
+  PropertyType.stringList => kind == ThemeContractValueKind.textList,
+  PropertyType.textDecoration => kind == ThemeContractValueKind.textDecoration,
+  // `enumValue` spans every catalog enum, so an enum-valued token binds
+  // only where the slot's shape names that token's own enum.
+  PropertyType.enumValue =>
+    _kThemeKindEnumSymbols[kind] != null &&
+        _slotEnumSymbol(property) == _kThemeKindEnumSymbols[kind],
+  PropertyType.widget ||
+  PropertyType.widgetList ||
+  PropertyType.edgeInsets ||
+  PropertyType.alignment ||
+  PropertyType.alignmentXY ||
+  PropertyType.offset ||
+  PropertyType.duration ||
+  PropertyType.curve ||
+  PropertyType.boolean ||
+  PropertyType.integer ||
+  PropertyType.booleanList ||
+  PropertyType.integerList ||
+  PropertyType.realList ||
+  PropertyType.scalarCallback ||
+  PropertyType.widgetBuilder ||
+  PropertyType.event ||
+  PropertyType.dataReference ||
+  PropertyType.gradient ||
+  PropertyType.border ||
+  PropertyType.boxShadowList ||
+  PropertyType.locale ||
+  PropertyType.paint ||
+  PropertyType.shadowList ||
+  PropertyType.fontFeatureList ||
+  PropertyType.fontVariationList ||
+  PropertyType.shapeBorder ||
+  PropertyType.structured ||
+  PropertyType.inlineSpan ||
+  PropertyType.decorationImage ||
+  PropertyType.selectionOptionList ||
+  PropertyType.unknown => false,
+};
 
 /// The enum each enum-valued theme kind names, so its token binds only where
 /// the slot's shape declares that same enum. A kind absent here is not an
@@ -15687,51 +16389,47 @@ String? _slotEnumSymbol(PropertyEntry? property) {
 bool propertyTypeAcceptsDeviceKind(
   PropertyType type,
   DeviceContractValueKind kind,
-) =>
-    switch (type) {
-      PropertyType.length ||
-      PropertyType.real =>
-        kind == DeviceContractValueKind.size,
-      PropertyType.string ||
-      PropertyType.enumValue =>
-        kind == DeviceContractValueKind.token,
-      PropertyType.boolean => kind == DeviceContractValueKind.boolean,
-      PropertyType.color ||
-      PropertyType.fontWeight ||
-      PropertyType.widget ||
-      PropertyType.widgetList ||
-      PropertyType.edgeInsets ||
-      PropertyType.alignment ||
-      PropertyType.alignmentXY ||
-      PropertyType.offset ||
-      PropertyType.duration ||
-      PropertyType.curve ||
-      PropertyType.integer ||
-      PropertyType.stringList ||
-      PropertyType.booleanList ||
-      PropertyType.integerList ||
-      PropertyType.realList ||
-      PropertyType.scalarCallback ||
-      PropertyType.widgetBuilder ||
-      PropertyType.event ||
-      PropertyType.dataReference ||
-      PropertyType.gradient ||
-      PropertyType.border ||
-      PropertyType.boxShadowList ||
-      PropertyType.locale ||
-      PropertyType.paint ||
-      PropertyType.shadowList ||
-      PropertyType.fontFeatureList ||
-      PropertyType.fontVariationList ||
-      PropertyType.textDecoration ||
-      PropertyType.shapeBorder ||
-      PropertyType.structured ||
-      PropertyType.inlineSpan ||
-      PropertyType.decorationImage ||
-      PropertyType.selectionOptionList ||
-      PropertyType.unknown =>
-        false,
-    };
+) => switch (type) {
+  PropertyType.length ||
+  PropertyType.real => kind == DeviceContractValueKind.size,
+  PropertyType.string ||
+  PropertyType.enumValue => kind == DeviceContractValueKind.token,
+  PropertyType.boolean => kind == DeviceContractValueKind.boolean,
+  PropertyType.color ||
+  PropertyType.fontWeight ||
+  PropertyType.widget ||
+  PropertyType.widgetList ||
+  PropertyType.edgeInsets ||
+  PropertyType.alignment ||
+  PropertyType.alignmentXY ||
+  PropertyType.offset ||
+  PropertyType.duration ||
+  PropertyType.curve ||
+  PropertyType.integer ||
+  PropertyType.stringList ||
+  PropertyType.booleanList ||
+  PropertyType.integerList ||
+  PropertyType.realList ||
+  PropertyType.scalarCallback ||
+  PropertyType.widgetBuilder ||
+  PropertyType.event ||
+  PropertyType.dataReference ||
+  PropertyType.gradient ||
+  PropertyType.border ||
+  PropertyType.boxShadowList ||
+  PropertyType.locale ||
+  PropertyType.paint ||
+  PropertyType.shadowList ||
+  PropertyType.fontFeatureList ||
+  PropertyType.fontVariationList ||
+  PropertyType.textDecoration ||
+  PropertyType.shapeBorder ||
+  PropertyType.structured ||
+  PropertyType.inlineSpan ||
+  PropertyType.decorationImage ||
+  PropertyType.selectionOptionList ||
+  PropertyType.unknown => false,
+};
 
 /// Whether [dartType] exactly matches [type]'s runtime decoder.
 bool _propertyTypeAcceptsHostDataType(PropertyType type, DartType dartType) {
@@ -15753,12 +16451,10 @@ bool _propertyTypeAcceptsHostDataShape(
   };
   return switch (type) {
     PropertyType.length ||
-    PropertyType.real =>
-      scalar == HostDataScalarKind.doubleValue,
+    PropertyType.real => scalar == HostDataScalarKind.doubleValue,
     PropertyType.color ||
     PropertyType.duration ||
-    PropertyType.integer =>
-      scalar == HostDataScalarKind.integer,
+    PropertyType.integer => scalar == HostDataScalarKind.integer,
     PropertyType.string => scalar == HostDataScalarKind.string,
     PropertyType.boolean => scalar == HostDataScalarKind.boolean,
     PropertyType.stringList => listElementScalar == HostDataScalarKind.string,
@@ -15781,8 +16477,7 @@ PropertyType? _inspectedListItemPropertyType(PropertyType type) =>
       PropertyType.shadowList ||
       PropertyType.fontFeatureList ||
       PropertyType.fontVariationList ||
-      PropertyType.selectionOptionList =>
-        PropertyType.unknown,
+      PropertyType.selectionOptionList => PropertyType.unknown,
       _ => null,
     };
 
@@ -15865,14 +16560,13 @@ final class _RootParamAccess {
   factory _RootParamAccess.root({
     required RootContextParam param,
     required bool stateful,
-  }) =>
-      _RootParamAccess._(
-        param: param,
-        stateful: stateful,
-        shape: param.hostDataShape,
-        parts: const [],
-        isRefused: false,
-      );
+  }) => _RootParamAccess._(
+    param: param,
+    stateful: stateful,
+    shape: param.hostDataShape,
+    parts: const [],
+    isRefused: false,
+  );
 
   final RootContextParam param;
   final bool stateful;
@@ -15884,8 +16578,9 @@ final class _RootParamAccess {
 
   _RootParamAccess append(Element? element) {
     final current = shape;
-    final field =
-        current is HostDataObjectShape ? current.fieldFor(element) : null;
+    final field = current is HostDataObjectShape
+        ? current.fieldFor(element)
+        : null;
     if (field == null) return refuse();
     return _RootParamAccess._(
       param: param,
@@ -15897,12 +16592,12 @@ final class _RootParamAccess {
   }
 
   _RootParamAccess refuse() => _RootParamAccess._(
-        param: param,
-        stateful: stateful,
-        shape: null,
-        parts: parts,
-        isRefused: true,
-      );
+    param: param,
+    stateful: stateful,
+    shape: null,
+    parts: parts,
+    isRefused: true,
+  );
 
   String dsl(String Function(String) pathPart) =>
       'data.context${pathPart(param.name)}${parts.map(pathPart).join()}';
@@ -15942,22 +16637,22 @@ final class _WalkContext {
   /// `const` because [validatedCoalesceParams] must be a fresh mutable set
   /// (it is mutated in place via `.add`).
   _WalkContext.initial()
-      : argNames = const {},
-        stateFields = null,
-        eventHandlers = const {},
-        rootStateContext = false,
-        inlined = const InlinedDefinitions.empty(),
-        params = const {},
-        rootParams = const {},
-        classKey = null,
-        paramBindings = const {},
-        runtimeLoops = const [],
-        modalSheet = null,
-        modalSheetCloseFlag = null,
-        validatedCoalesceParams = {},
-        measurementScope = null,
-        measurementWidget = null,
-        measurementWidgetList = null;
+    : argNames = const {},
+      stateFields = null,
+      eventHandlers = const {},
+      rootStateContext = false,
+      inlined = const InlinedDefinitions.empty(),
+      params = const {},
+      rootParams = const {},
+      classKey = null,
+      paramBindings = const {},
+      runtimeLoops = const [],
+      modalSheet = null,
+      modalSheetCloseFlag = null,
+      validatedCoalesceParams = {},
+      measurementScope = null,
+      measurementWidget = null,
+      measurementWidgetList = null;
 
   /// Constructor parameters keyed by fields read in a custom-widget body.
   /// Empty for root paywalls. Bare names lower to `args`; `widget.X` also lowers
@@ -16136,8 +16831,9 @@ final class _RuntimeLoopReference {
 
   _RuntimeLoopReference append(Element? element) {
     final current = shape;
-    final field =
-        current is HostDataObjectShape ? current.fieldFor(element) : null;
+    final field = current is HostDataObjectShape
+        ? current.fieldFor(element)
+        : null;
     return _RuntimeLoopReference(
       binding,
       field == null ? parts : [...parts, field.wireKey],
@@ -16147,11 +16843,11 @@ final class _RuntimeLoopReference {
   }
 
   _RuntimeLoopReference withIndex() => _RuntimeLoopReference(
-        binding,
-        parts,
-        shape: null,
-        indexed: true,
-      );
+    binding,
+    parts,
+    shape: null,
+    indexed: true,
+  );
 
   String dsl(String Function(String) pathPart) =>
       '${binding.identifier}${parts.map(pathPart).join()}';

@@ -9,23 +9,26 @@ import 'package:test/test.dart';
 import '../tool/generate_catalog_options_fixtures.dart';
 
 void main() {
-  test('runtime and release registration fixtures match their owning emitter',
-      () {
-    for (final entry in emitCatalogOptionsFixtures().entries) {
-      expect(
-        File('../../${entry.key}').readAsStringSync(),
-        entry.value,
-        reason: 'Regenerate with tool/generate_catalog_options_fixtures.dart.',
-      );
-      expect(entry.value, contains("'Text': buildText"));
-      expect(entry.value, contains("'Icon': buildIcon"));
-      expect(entry.value, contains('0xe5f9: IconData(0xe5f9,'));
-      expect(
-        entry.value.contains('0xf81f: IconData(0xf81f,'),
-        entry.key != releaseRegistrationFixturePath,
-      );
-    }
-  });
+  test(
+    'runtime and release registration fixtures match their owning emitter',
+    () {
+      for (final entry in emitCatalogOptionsFixtures().entries) {
+        expect(
+          File('../../${entry.key}').readAsStringSync(),
+          entry.value,
+          reason:
+              'Regenerate with tool/generate_catalog_options_fixtures.dart.',
+        );
+        expect(entry.value, contains("'Text': buildText"));
+        expect(entry.value, contains("'Icon': buildIcon"));
+        expect(entry.value, contains('0xe5f9: IconData(0xe5f9,'));
+        expect(
+          entry.value.contains('0xf81f: IconData(0xf81f,'),
+          entry.key != releaseRegistrationFixturePath,
+        );
+      }
+    },
+  );
 
   for (final full in [false, true]) {
     for (final custom in [false, true]) {
@@ -50,32 +53,40 @@ void main() {
         final compact = source.replaceAll(RegExp(r'\s+'), '');
         expect(
           compact,
-          contains('voidregisterRestageWidgets({'
-              'boolincludeMaterial=true,boolincludeCupertino=true,}){'
-              'kRestageWidgetRegistration('
-              'includeMaterial:includeMaterial,'
-              'includeCupertino:includeCupertino,);}'),
+          contains(
+            'voidregisterRestageWidgets({'
+            'boolincludeMaterial=true,boolincludeCupertino=true,}){'
+            'kRestageWidgetRegistration('
+            'includeMaterial:includeMaterial,'
+            'includeCupertino:includeCupertino,);}',
+          ),
         );
         expect(
           compact,
-          contains('constRestageWidgetRegistrationkRestageWidgetRegistration='
-              '_RestageWidgetRegistration();'),
+          contains(
+            'constRestageWidgetRegistrationkRestageWidgetRegistration='
+            '_RestageWidgetRegistration();',
+          ),
         );
         expect(
           compact,
-          contains('finalclass_RestageWidgetRegistration'
-              'implementsRestageWidgetRegistration{'
-              'const_RestageWidgetRegistration();'
-              '@overridevoidcall({'
-              'boolincludeMaterial=true,boolincludeCupertino=true,}){'),
+          contains(
+            'finalclass_RestageWidgetRegistration'
+            'implementsRestageWidgetRegistration{'
+            'const_RestageWidgetRegistration();'
+            '@overridevoidcall({'
+            'boolincludeMaterial=true,boolincludeCupertino=true,}){',
+          ),
         );
         for (final helper in [
           'RestageWidgetLibraries.builtIn',
           'builtInIconTable',
         ]) {
           expect(
-            compact.contains('$helper(includeMaterial:includeMaterial,'
-                'includeCupertino:includeCupertino,)'),
+            compact.contains(
+              '$helper(includeMaterial:includeMaterial,'
+              'includeCupertino:includeCupertino,)',
+            ),
             full,
           );
           expect(
@@ -86,8 +97,10 @@ void main() {
         }
         expect(
           compact,
-          contains('kRestageAppVocabulary.addToInstalled('
-              'explicitSelection:true);'),
+          contains(
+            'kRestageAppVocabulary.addToInstalled('
+            'explicitSelection:true);',
+          ),
         );
         expect(
           'kRestageAppVocabulary.addToInstalled'.allMatches(source).length,
@@ -107,8 +120,10 @@ void main() {
         }
         expect(
           compact,
-          contains('voidregisterRestageCustomerWidgets()=>'
-              'registerRestageWidgets();'),
+          contains(
+            'voidregisterRestageCustomerWidgets()=>'
+            'registerRestageWidgets();',
+          ),
         );
       });
     }

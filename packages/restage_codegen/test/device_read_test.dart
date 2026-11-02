@@ -386,8 +386,9 @@ void main() {
 
   group('WidgetClassifier — device reads inside a custom widget', () {
     Future<WidgetClassification> classify(String build) => classifyFixture(
-          {
-            'lib/plate.dart': """
+      {
+        'lib/plate.dart':
+            """
 $kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
@@ -410,20 +411,20 @@ class AcmePlate extends StatelessWidget {
   Widget build(BuildContext context) => $build;
 }
 """,
-          },
-          inputPath: 'lib/plate.dart',
-          widgetName: 'AcmePlate',
-          catalog: catalogWith([
-            entry(
-              name: 'Box',
-              flutterType: 'package:apps_examples/plate.dart#Box',
-              properties: [
-                prop('width', PropertyType.length),
-                prop('label', PropertyType.string),
-              ],
-            ),
-          ]),
-        );
+      },
+      inputPath: 'lib/plate.dart',
+      widgetName: 'AcmePlate',
+      catalog: catalogWith([
+        entry(
+          name: 'Box',
+          flutterType: 'package:apps_examples/plate.dart#Box',
+          properties: [
+            prop('width', PropertyType.length),
+            prop('label', PropertyType.string),
+          ],
+        ),
+      ]),
+    );
 
     test('a platform comparison as a ternary condition inlines', () async {
       final result = await classify(
@@ -454,8 +455,9 @@ class AcmePlate extends StatelessWidget {
     });
 
     test('a device value read inlines', () async {
-      final result =
-          await classify('Box(width: MediaQuery.sizeOf(context).width)');
+      final result = await classify(
+        'Box(width: MediaQuery.sizeOf(context).width)',
+      );
 
       expect(result, isA<ComposableWidget>());
     });

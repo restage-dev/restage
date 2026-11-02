@@ -132,7 +132,8 @@ final class IconCodePointCollision implements IconCarriageFailure {
       'carries nothing that tells those two apart, so render one of the two';
 
   @override
-  String toString() => 'IconCodePointCollision: two icons share code point '
+  String toString() =>
+      'IconCodePointCollision: two icons share code point '
       "0x${codePoint.toRadixString(16)} in font family '$fontFamily' and "
       'mirror alike, but rebuild differently — $firstSpelling and '
       '$secondSpelling.';
@@ -205,12 +206,12 @@ final class IconDataReference {
 
   @override
   int get hashCode => Object.hash(
-        codePoint,
-        fontFamily,
-        fontPackage,
-        matchTextDirection,
-        Object.hashAll(fontFamilyFallback ?? const <String>[]),
-      );
+    codePoint,
+    fontFamily,
+    fontPackage,
+    matchTextDirection,
+    Object.hashAll(fontFamilyFallback ?? const <String>[]),
+  );
 }
 
 bool _sameFallback(List<String>? left, List<String>? right) {
@@ -458,10 +459,10 @@ final class SurfaceVocabularyReferences {
   /// A set naming no widget and no icon.
   static const SurfaceVocabularyReferences empty =
       SurfaceVocabularyReferences._(
-    widgetNames: <String>{},
-    icons: <String, Map<int, IconDataReference>>{},
-    mirroredIcons: <String, Map<int, IconDataReference>>{},
-  );
+        widgetNames: <String>{},
+        icons: <String, Map<int, IconDataReference>>{},
+        mirroredIcons: <String, Map<int, IconDataReference>>{},
+      );
 
   /// Namespaced catalog widget names, sorted ascending.
   final Set<String> widgetNames;
@@ -493,12 +494,12 @@ final class SurfaceVocabularyReferences {
 
   /// Whether any widget here comes from an app's own widget library.
   bool get namesAppWidgets => widgetNames.any((qualified) {
-        final separator = qualified.indexOf(':');
-        return separator > 0 &&
-            !_kBuiltInNamespaceArguments.containsKey(
-              qualified.substring(0, separator),
-            );
-      });
+    final separator = qualified.indexOf(':');
+    return separator > 0 &&
+        !_kBuiltInNamespaceArguments.containsKey(
+          qualified.substring(0, separator),
+        );
+  });
 
   /// Every icon, the non-mirroring ones first, each half ordered by family and
   /// then by code point.
@@ -579,13 +580,12 @@ String _ownerKey(String fontFamily, int codePoint, bool matchTextDirection) =>
 /// The catalog widgets [entries] name, as a reference set.
 SurfaceVocabularyReferences referencesOfCatalogEntries(
   Iterable<WidgetEntry> entries,
-) =>
-    SurfaceVocabularyReferences(
-      widgetNames: [
-        for (final entry in entries)
-          WidgetVocabulary.qualifiedName(entry.library.namespace, entry.name),
-      ],
-    );
+) => SurfaceVocabularyReferences(
+  widgetNames: [
+    for (final entry in entries)
+      WidgetVocabulary.qualifiedName(entry.library.namespace, entry.name),
+  ],
+);
 
 /// The `SurfaceVocabulary(…)` expression naming [references], for a `const`
 /// context.
@@ -605,8 +605,9 @@ String emitSurfaceVocabulary(
     final argument =
         _kBuiltInNamespaceArguments[qualified.substring(0, separator)];
     if (argument == null) continue;
-    (buildersByArgument[argument] ??= <String>[])
-        .add(qualified.substring(separator + 1));
+    (buildersByArgument[argument] ??= <String>[]).add(
+      qualified.substring(separator + 1),
+    );
   }
   final hasWidgets = buildersByArgument.isNotEmpty;
   final hasMirroredIcons = references.mirroredIcons.isNotEmpty;

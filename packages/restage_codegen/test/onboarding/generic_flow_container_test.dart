@@ -12,57 +12,61 @@ import '../helpers.dart';
 /// + IR are already generic; this guards the authoring-annotation surface.
 void main() {
   group('generic flow container', () {
-    test('@FlowSource flow emits a descriptor and canonical flow JSON',
-        () async {
-      final sources = _twoScreenFlowSources(useGenericNames: true);
-      final readerWriter = await _readerWriterWith(sources);
-
-      final result = await testBuilders(
-        [
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-
-      final generated = result.readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
-        ),
-      );
-      expect(
-        generated,
-        allOf(
-          contains("part of '../first_run.dart';"),
-          contains('abstract final class FirstRunFlowDescriptor'),
-          contains('SurfaceFlowRef<FirstRunResult>'),
-        ),
-      );
-      final screenGenerated = result.readerWriter.testing.readString(
-        AssetId(
-          'apps_examples',
-          'lib/onboarding/screens/restage.generated/welcome.restage.g.dart',
-        ),
-      );
-      // A deprecated screen's descriptor is now emitted by the same
-      // compatibility emitter the canonical path uses, so both frontends
-      // produce a NeutralFlowScreenRef rather than two shapes.
-      expect(screenGenerated, contains('NeutralFlowScreenRef'));
-
-      final jsonBytes = result.readerWriter.testing.readBytes(
-        AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
-      );
-      expect(jsonBytes, isNotEmpty);
-    });
-
     test(
-        'deprecated @OnboardingFlow/@OnboardingSource aliases emit '
+      '@FlowSource flow emits a descriptor and canonical flow JSON',
+      () async {
+        final sources = _twoScreenFlowSources(useGenericNames: true);
+        final readerWriter = await _readerWriterWith(sources);
+
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+
+        final generated = result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+          ),
+        );
+        expect(
+          generated,
+          allOf(
+            contains("part of '../first_run.dart';"),
+            contains('abstract final class FirstRunFlowDescriptor'),
+            contains('SurfaceFlowRef<FirstRunResult>'),
+          ),
+        );
+        final screenGenerated = result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/screens/restage.generated/welcome.restage.g.dart',
+          ),
+        );
+        // A deprecated screen's descriptor is now emitted by the same
+        // compatibility emitter the canonical path uses, so both frontends
+        // produce a NeutralFlowScreenRef rather than two shapes.
+        expect(screenGenerated, contains('NeutralFlowScreenRef'));
+
+        final jsonBytes = result.readerWriter.testing.readBytes(
+          AssetId(
+            'apps_examples',
+            'assets/onboarding/flows/first_run.flow.json',
+          ),
+        );
+        expect(jsonBytes, isNotEmpty);
+      },
+    );
+
+    test('deprecated @OnboardingFlow/@OnboardingSource aliases emit '
         'byte-identical flow JSON', () async {
       final genericBytes = await _flowJsonFor(useGenericNames: true);
       final aliasBytes = await _flowJsonFor(useGenericNames: false);
@@ -110,15 +114,25 @@ Future<TestReaderWriter> _readerWriterWith(Map<String, String> sources) async {
 /// the emitted artifacts must be byte-identical regardless of which name family
 /// authored them (the annotation name never reaches the generated output).
 Map<String, String> _twoScreenFlowSources({required bool useGenericNames}) {
-  final screenAnnotation =
-      useGenericNames ? 'ScreenSource' : 'OnboardingSource';
+  final screenAnnotation = useGenericNames
+      ? 'ScreenSource'
+      : 'OnboardingSource';
   final flowAnnotation = useGenericNames ? 'FlowSource' : 'OnboardingFlow';
   return {
-    'apps_examples|lib/onboarding/screens/welcome.dart':
-        _screenSource('welcome', 'WelcomeScreen', 'next', screenAnnotation),
-    'apps_examples|lib/onboarding/screens/ready.dart':
-        _screenSource('ready', 'ReadyScreen', 'start', screenAnnotation),
-    'apps_examples|lib/onboarding/flows/first_run.dart': '''
+    'apps_examples|lib/onboarding/screens/welcome.dart': _screenSource(
+      'welcome',
+      'WelcomeScreen',
+      'next',
+      screenAnnotation,
+    ),
+    'apps_examples|lib/onboarding/screens/ready.dart': _screenSource(
+      'ready',
+      'ReadyScreen',
+      'start',
+      screenAnnotation,
+    ),
+    'apps_examples|lib/onboarding/flows/first_run.dart':
+        '''
 import 'package:restage/restage.dart';
 
 import '../screens/ready.dart';

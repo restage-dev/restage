@@ -139,8 +139,9 @@ void main() {
       });
       _expectSuccess(result);
       expect(
-        result.errors
-            .where((error) => error.contains('InvalidOutputException')),
+        result.errors.where(
+          (error) => error.contains('InvalidOutputException'),
+        ),
         isEmpty,
       );
       _expectFixedBundle(fixture, const ['alpha', 'gamma']);
@@ -205,15 +206,18 @@ void main() {
       // A failed build commits no output, so the bundle on the filesystem is
       // still the last successful one. That the invalid bundle was written
       // and read inside this build is what the trace below records.
-      final committedBundle = jsonDecode(
-        fixture.readerWriter.testing.readString(
-          AssetId(_package, _bundlePath),
-        ),
-      ) as Map<String, Object?>;
+      final committedBundle =
+          jsonDecode(
+                fixture.readerWriter.testing.readString(
+                  AssetId(_package, _bundlePath),
+                ),
+              )
+              as Map<String, Object?>;
       expect(committedBundle['valid'], isTrue);
       expect(
-        (committedBundle['entries']! as List<Object?>)
-            .map((entry) => (entry! as Map<String, Object?>)['sourcePath']),
+        (committedBundle['entries']! as List<Object?>).map(
+          (entry) => (entry! as Map<String, Object?>)['sourcePath'],
+        ),
         isNot(contains('lib/restage_dynamic/duplicate.source')),
       );
       expect(_allDynamicOutputs(fixture), isEmpty);
@@ -344,8 +348,8 @@ void _expectFixedBundle(
     reason: 'build trace: $_buildTrace',
   );
   for (final entry in entries) {
-    final artifacts =
-        (entry['artifacts']! as List<Object?>).cast<Map<String, Object?>>();
+    final artifacts = (entry['artifacts']! as List<Object?>)
+        .cast<Map<String, Object?>>();
     expect(
       artifacts.map((artifact) => artifact['path']),
       orderedEquals(
@@ -358,11 +362,13 @@ void _expectFixedBundle(
 List<Map<String, Object?>> _bundleEntries(
   _PersistentDynamicOutputBuild fixture,
 ) {
-  final bundle = jsonDecode(
-    fixture.readerWriter.testing.readString(
-      AssetId(_package, _bundlePath),
-    ),
-  ) as Map<String, Object?>;
+  final bundle =
+      jsonDecode(
+            fixture.readerWriter.testing.readString(
+              AssetId(_package, _bundlePath),
+            ),
+          )
+          as Map<String, Object?>;
   expect(bundle['valid'], isTrue);
   return (bundle['entries']! as List<Object?>).cast<Map<String, Object?>>();
 }
@@ -393,8 +399,9 @@ void _expectNoDynamicFamily(
     isFalse,
   );
   expect(
-    fixture.readerWriter.testing
-        .exists(AssetId(_package, '$base.capability.json')),
+    fixture.readerWriter.testing.exists(
+      AssetId(_package, '$base.capability.json'),
+    ),
     isFalse,
   );
 }
@@ -414,18 +421,17 @@ String _source({
   required String id,
   required String surface,
   required List<_Artifact> artifacts,
-}) =>
-    jsonEncode(<String, Object?>{
-      'deliveryId': id,
-      'surface': surface,
-      'artifacts': [
-        for (final artifact in artifacts)
-          <String, String>{
-            'path': artifact.path,
-            'content': artifact.content,
-          },
-      ],
-    });
+}) => jsonEncode(<String, Object?>{
+  'deliveryId': id,
+  'surface': surface,
+  'artifacts': [
+    for (final artifact in artifacts)
+      <String, String>{
+        'path': artifact.path,
+        'content': artifact.content,
+      },
+  ],
+});
 
 List<_Artifact> _family(
   String category,
@@ -460,8 +466,8 @@ final class _PersistentDynamicOutputBuild {
     required this.readerWriter,
     required build_runner_internal.BuildSeries buildSeries,
     required Map<String, String> sources,
-  })  : _buildSeries = buildSeries,
-        _sources = sources;
+  }) : _buildSeries = buildSeries,
+       _sources = sources;
 
   final InternalTestReaderWriter readerWriter;
   final build_runner_internal.BuildSeries _buildSeries;
@@ -486,27 +492,27 @@ final class _PersistentDynamicOutputBuild {
     );
     final buildPackages =
         build_runner_internal.BuildPackages.singlePackageBuild(_package, [
-      build_runner_internal.BuildPackage(
-        name: _package,
-        path: '/$_package',
-        watch: true,
-        isOutput: true,
-      ),
-    ]);
+          build_runner_internal.BuildPackage(
+            name: _package,
+            path: '/$_package',
+            watch: true,
+            isOutput: true,
+          ),
+        ]);
     final builderDefinitions =
         <build_runner_internal.AbstractBuilderDefinition>[
-      build_runner_internal.BuilderDefinition(
-        '$_package:aggregate',
-        package: _package,
-        autoApply: build_config.AutoApply.none,
-        outputsToArtifactTree: false,
-      ),
-      build_runner_internal.PostProcessBuilderDefinition(
-        '$_package:dynamic',
-        package: _package,
-        outputsToArtifactTree: false,
-      ),
-    ].build();
+          build_runner_internal.BuilderDefinition(
+            '$_package:aggregate',
+            package: _package,
+            autoApply: build_config.AutoApply.none,
+            outputsToArtifactTree: false,
+          ),
+          build_runner_internal.PostProcessBuilderDefinition(
+            '$_package:dynamic',
+            package: _package,
+            outputsToArtifactTree: false,
+          ),
+        ].build();
     final buildConfig = build_config.BuildConfig.fromMap(
       _package,
       const <String>[],
@@ -597,23 +603,25 @@ final class _DynamicAggregateBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$package$': [_bundlePath],
-      };
+    r'$package$': [_bundlePath],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
     _buildTrace.add('normal:aggregate');
-    final sources = await buildStep
-        .findAssets(Glob('lib/**'))
-        .where((asset) => asset.path.endsWith('.source'))
-        .toList()
-      ..sort((left, right) => left.path.compareTo(right.path));
+    final sources =
+        await buildStep
+              .findAssets(Glob('lib/**'))
+              .where((asset) => asset.path.endsWith('.source'))
+              .toList()
+          ..sort((left, right) => left.path.compareTo(right.path));
     final entries = <Map<String, Object?>>[];
     final owners = <String, AssetId>{};
     final errors = <String>[];
     for (final source in sources) {
-      final entry = jsonDecode(await buildStep.readAsString(source))
-          as Map<String, Object?>;
+      final entry =
+          jsonDecode(await buildStep.readAsString(source))
+              as Map<String, Object?>;
       final id = entry['deliveryId']! as String;
       final previous = owners[id];
       if (previous != null) {
@@ -624,8 +632,8 @@ final class _DynamicAggregateBuilder implements Builder {
         continue;
       }
       owners[id] = source;
-      final artifacts =
-          (entry['artifacts']! as List<Object?>).cast<Map<String, Object?>>();
+      final artifacts = (entry['artifacts']! as List<Object?>)
+          .cast<Map<String, Object?>>();
       final seenPaths = <String>{};
       if (artifacts.any((artifact) {
         final path = artifact['path']! as String;
@@ -688,8 +696,8 @@ final class _DynamicArtifactBuilder implements PostProcessBuilder {
       );
       throw StateError((bundle['errors']! as List<Object?>).join('; '));
     }
-    final entries =
-        (bundle['entries']! as List<Object?>).cast<Map<String, Object?>>();
+    final entries = (bundle['entries']! as List<Object?>)
+        .cast<Map<String, Object?>>();
     final artifacts = <Map<String, Object?>>[];
     for (final entry in entries) {
       artifacts.addAll(

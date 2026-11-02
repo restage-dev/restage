@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-typedef SpikeMeta = ({String label, int count});
+typedef CollisionMeta = ({String label, int count});
 
-final class SpikeNode {
-  const SpikeNode({required this.label, this.child});
+final class CollisionNode {
+  const CollisionNode({required this.label, this.child});
 
   final String label;
-  final SpikeNode? child;
+  final CollisionNode? child;
 }
 
 final class PropsNamespaceProbe extends StatelessWidget {
@@ -36,9 +36,9 @@ final class PropsNamespaceProbe extends StatelessWidget {
   final String literalValue;
   final String pathValue;
   final String callValue;
-  final SpikeNode node;
+  final CollisionNode node;
   final Map<String, int> counts;
-  final SpikeMeta meta;
+  final CollisionMeta meta;
   final Widget leading;
   final List<Widget> children;
   final bool enabled;
@@ -63,12 +63,12 @@ final class PropsNamespaceProbe extends StatelessWidget {
           ...children,
           Text('enabled:$enabled'),
           TextButton(
-            key: const ValueKey<String>('props-spike-action'),
+            key: const ValueKey<String>('collision-action'),
             onPressed: onAction,
             child: const Text('dispatch'),
           ),
           TextButton(
-            key: const ValueKey<String>('props-spike-writeback'),
+            key: const ValueKey<String>('collision-writeback'),
             onPressed: () => onEnabledChanged(!enabled),
             child: const Text('write back'),
           ),
@@ -85,4 +85,13 @@ final class PropsNamespaceLeaf extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text('leaf:$label');
+}
+
+final class PropsNamespaceChild extends StatelessWidget {
+  const PropsNamespaceChild({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
 }

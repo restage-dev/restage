@@ -67,54 +67,57 @@ void main() {
     expect(result.issues, isEmpty);
   });
 
-  test('only a resolved run-time for carries its template occurrence',
-      () async {
-    final expression = await parseExpressionFromSourceForTest('''
+  test(
+    'only a resolved run-time for carries its template occurrence',
+    () async {
+      final expression = await parseExpressionFromSourceForTest('''
       Object x(List<String> values, bool enabled) => [
         for (final value in values) value,
         ...values,
         if (enabled) 'enabled',
       ];
     ''');
-    final traversal = traverseCollectionList(expression as ListLiteral);
+      final traversal = traverseCollectionList(expression as ListLiteral);
 
-    expect(traversal.entries, hasLength(3));
-    final forRefusal = (traversal.entries[0] as CollectionListRefusal).refusal;
-    final spreadRefusal =
-        (traversal.entries[1] as CollectionListRefusal).refusal;
-    final ifRefusal = (traversal.entries[2] as CollectionListRefusal).refusal;
-    final candidate = forRefusal.runtimeLoop;
+      expect(traversal.entries, hasLength(3));
+      final forRefusal =
+          (traversal.entries[0] as CollectionListRefusal).refusal;
+      final spreadRefusal =
+          (traversal.entries[1] as CollectionListRefusal).refusal;
+      final ifRefusal = (traversal.entries[2] as CollectionListRefusal).refusal;
+      final candidate = forRefusal.runtimeLoop;
 
-    expect(forRefusal.reason, CollectionUnrollRefusal.runtimeValue);
-    expect(candidate, isNotNull);
-    expect(candidate!.iterable.toSource(), 'values');
-    expect(candidate.identifier, 'value');
-    final template = candidate.template.leafOccurrences.single;
-    expect(template.authoredExpression.toSource(), 'value');
-    expect(template.terminalExpression.toSource(), 'value');
-    expect(
-      identical(
-        candidate.binding,
-        (template.terminalExpression as SimpleIdentifier).element,
-      ),
-      isTrue,
-    );
-    expect(
-      template.structuralPath.map((step) => step.kind),
-      [
-        CollectionStructuralOccurrenceKind.listElement,
-        CollectionStructuralOccurrenceKind.loopTemplate,
-      ],
-    );
-    expect(
-      template.structuralPath.map((step) => step.ordinal),
-      [0, 0],
-    );
-    expect(spreadRefusal.reason, CollectionUnrollRefusal.runtimeValue);
-    expect(spreadRefusal.runtimeLoop, isNull);
-    expect(ifRefusal.reason, CollectionUnrollRefusal.runtimeValue);
-    expect(ifRefusal.runtimeLoop, isNull);
-  });
+      expect(forRefusal.reason, CollectionUnrollRefusal.runtimeValue);
+      expect(candidate, isNotNull);
+      expect(candidate!.iterable.toSource(), 'values');
+      expect(candidate.identifier, 'value');
+      final template = candidate.template.leafOccurrences.single;
+      expect(template.authoredExpression.toSource(), 'value');
+      expect(template.terminalExpression.toSource(), 'value');
+      expect(
+        identical(
+          candidate.binding,
+          (template.terminalExpression as SimpleIdentifier).element,
+        ),
+        isTrue,
+      );
+      expect(
+        template.structuralPath.map((step) => step.kind),
+        [
+          CollectionStructuralOccurrenceKind.listElement,
+          CollectionStructuralOccurrenceKind.loopTemplate,
+        ],
+      );
+      expect(
+        template.structuralPath.map((step) => step.ordinal),
+        [0, 0],
+      );
+      expect(spreadRefusal.reason, CollectionUnrollRefusal.runtimeValue);
+      expect(spreadRefusal.runtimeLoop, isNull);
+      expect(ifRefusal.reason, CollectionUnrollRefusal.runtimeValue);
+      expect(ifRefusal.runtimeLoop, isNull);
+    },
+  );
 
   test('a loop variable lowers inside a nested widget argument', () async {
     final expression = await parseExpressionFromSourceForTest('''
@@ -124,12 +127,12 @@ void main() {
         ],
       );
     ''');
-    final children = (expression as MethodInvocation)
-        .argumentList
-        .arguments
-        .whereType<NamedArgument>()
-        .single
-        .argumentExpression as ListLiteral;
+    final children =
+        (expression as MethodInvocation).argumentList.arguments
+                .whereType<NamedArgument>()
+                .single
+                .argumentExpression
+            as ListLiteral;
     expect(inspectTypedList(children), isA<CollectionTypedListElement>());
     final result = _widgetTranslator(HelperRegistry()).translate(expression);
 
@@ -159,9 +162,10 @@ void main() {
     );
   });
 
-  test('a callback in a collection-for body lowers once per iteration',
-      () async {
-    final expression = await parseExpressionFromSourceForTest('''
+  test(
+    'a callback in a collection-for body lowers once per iteration',
+    () async {
+      final expression = await parseExpressionFromSourceForTest('''
       void Function() paywallEvent(String name) => () {};
 
       Object x() => Column(
@@ -174,17 +178,19 @@ void main() {
         ],
       );
     ''');
-    final helpers = HelperRegistry()..registerAll([_eventHelper]);
-    final result = _widgetTranslator(helpers).translate(expression);
+      final helpers = HelperRegistry()..registerAll([_eventHelper]);
+      final result = _widgetTranslator(helpers).translate(expression);
 
-    expect(result.issues, isEmpty);
-    expect(result.dsl, contains('event "first"'));
-    expect(result.dsl, contains('event "second"'));
-  });
+      expect(result.issues, isEmpty);
+      expect(result.dsl, contains('event "first"'));
+      expect(result.dsl, contains('event "second"'));
+    },
+  );
 
-  test('a constant-false collection branch skips callback inspection',
-      () async {
-    final expression = await parseExpressionFromSourceForTest('''
+  test(
+    'a constant-false collection branch skips callback inspection',
+    () async {
+      final expression = await parseExpressionFromSourceForTest('''
       void Function() paywallEvent(String name) => () {};
 
       Object x() => Column(
@@ -198,13 +204,14 @@ void main() {
         ],
       );
     ''');
-    final helpers = HelperRegistry()..registerAll([_eventHelper]);
-    final result = _widgetTranslator(helpers).translate(expression);
+      final helpers = HelperRegistry()..registerAll([_eventHelper]);
+      final result = _widgetTranslator(helpers).translate(expression);
 
-    expect(result.issues, isEmpty);
-    expect(result.dsl, 'Column(children: [])');
-    expect(result.dsl, isNot(contains('event ')));
-  });
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'Column(children: [])');
+      expect(result.dsl, isNot(contains('event ')));
+    },
+  );
 
   test('a loop-bound false branch skips callback inspection', () async {
     final expression = await parseExpressionFromSourceForTest('''
@@ -299,9 +306,10 @@ void main() {
     expect(result.dsl, contains('event "second"'));
   });
 
-  test('an admitted leaf carries its resolved source and structural path',
-      () async {
-    final probe = await _parseResolvedProbeBuildForTest('''
+  test(
+    'an admitted leaf carries its resolved source and structural path',
+    () async {
+      final probe = await _parseResolvedProbeBuildForTest('''
 class BuildContext {}
 abstract class Widget { const Widget(); }
 class Text extends Widget {
@@ -329,42 +337,46 @@ class Probe extends Widget {
   }
 }
 ''');
-    final traversal = traverseCollectionList(
-      _childrenList(probe.expression),
-      semantics: _collectionSemanticsFor(probe),
-    );
+      final traversal = traverseCollectionList(
+        _childrenList(probe.expression),
+        semantics: _collectionSemanticsFor(probe),
+      );
 
-    expect(traversal.entries, hasLength(1));
-    final occurrence =
-        (traversal.entries.single as CollectionListElement).occurrence;
-    expect(occurrence.authoredExpression.toSource(), 'local');
-    expect(occurrence.terminalExpression.toSource(), "Text(text: 'resolved')");
-    expect(
-      occurrence.sourceProvenance.map((step) => step.kind),
-      [
-        CollectionSemanticSourceKind.binding,
-        CollectionSemanticSourceKind.helper,
-        CollectionSemanticSourceKind.binding,
-        CollectionSemanticSourceKind.receiver,
-        CollectionSemanticSourceKind.constDeclaration,
-        CollectionSemanticSourceKind.constObjectField,
-        CollectionSemanticSourceKind.constDeclaration,
-      ],
-    );
-    expect(
-      occurrence.identitySourceProvenance.map((step) => step.kind),
-      occurrence.sourceProvenance.map((step) => step.kind),
-    );
-    expect(occurrence.bindings, hasLength(2));
-    expect(
-      occurrence.structuralPath.map((step) => step.kind),
-      [
-        CollectionStructuralOccurrenceKind.listElement,
-        CollectionStructuralOccurrenceKind.selectedThen,
-      ],
-    );
-    expect(occurrence.structuralPath.map((step) => step.ordinal), [0, 0]);
-  });
+      expect(traversal.entries, hasLength(1));
+      final occurrence =
+          (traversal.entries.single as CollectionListElement).occurrence;
+      expect(occurrence.authoredExpression.toSource(), 'local');
+      expect(
+        occurrence.terminalExpression.toSource(),
+        "Text(text: 'resolved')",
+      );
+      expect(
+        occurrence.sourceProvenance.map((step) => step.kind),
+        [
+          CollectionSemanticSourceKind.binding,
+          CollectionSemanticSourceKind.helper,
+          CollectionSemanticSourceKind.binding,
+          CollectionSemanticSourceKind.receiver,
+          CollectionSemanticSourceKind.constDeclaration,
+          CollectionSemanticSourceKind.constObjectField,
+          CollectionSemanticSourceKind.constDeclaration,
+        ],
+      );
+      expect(
+        occurrence.identitySourceProvenance.map((step) => step.kind),
+        occurrence.sourceProvenance.map((step) => step.kind),
+      );
+      expect(occurrence.bindings, hasLength(2));
+      expect(
+        occurrence.structuralPath.map((step) => step.kind),
+        [
+          CollectionStructuralOccurrenceKind.listElement,
+          CollectionStructuralOccurrenceKind.selectedThen,
+        ],
+      );
+      expect(occurrence.structuralPath.map((step) => step.ordinal), [0, 0]);
+    },
+  );
 
   test('expanded direct sources keep only semantic entrances', () async {
     final probe = await _parseResolvedProbeBuildForTest('''
@@ -484,11 +496,13 @@ class Probe extends Widget {
       );
 }
 ''');
-    final occurrence = (traverseCollectionList(
-      _childrenList(probe.expression),
-      semantics: _collectionSemanticsFor(probe),
-    ).entries.first as CollectionListElement)
-        .occurrence;
+    final occurrence =
+        (traverseCollectionList(
+                  _childrenList(probe.expression),
+                  semantics: _collectionSemanticsFor(probe),
+                ).entries.first
+                as CollectionListElement)
+            .occurrence;
     final helper = occurrence.sourceProvenance.single.element;
     if (helper is! ExecutableElement) {
       throw StateError('The helper entrance did not resolve.');
@@ -504,8 +518,10 @@ class Probe extends Widget {
       'package:restage_codegen/_collection_probe.dart#Probe',
     );
     final plainLocator = root.widget(widget).structuralOccurrenceKey;
-    final helperLocator =
-        root.enterHelper(helper).widget(widget).structuralOccurrenceKey;
+    final helperLocator = root
+        .enterHelper(helper)
+        .widget(widget)
+        .structuralOccurrenceKey;
 
     for (final kind in CollectionSemanticSourceKind.values) {
       final direct = CollectionSemanticOccurrence(
@@ -517,8 +533,9 @@ class Probe extends Widget {
             kind: kind,
             source: occurrence.authoredExpression,
             target: occurrence.terminalExpression,
-            element:
-                kind == CollectionSemanticSourceKind.helper ? helper : null,
+            element: kind == CollectionSemanticSourceKind.helper
+                ? helper
+                : null,
           ),
         ],
         structuralPath: occurrence.structuralPath,
@@ -568,9 +585,10 @@ class Probe extends Widget {
     );
   });
 
-  test('a bound const-object receiver reaches its exact widget field',
-      () async {
-    final probe = await _parseResolvedProbeBuildForTest('''
+  test(
+    'a bound const-object receiver reaches its exact widget field',
+    () async {
+      final probe = await _parseResolvedProbeBuildForTest('''
 class BuildContext {}
 abstract class Widget { const Widget(); }
 class Text extends Widget {
@@ -595,32 +613,33 @@ class Probe extends Widget {
       Column(children: [...select(set)]);
 }
 ''');
-    final traversal = traverseCollectionList(
-      _childrenList(probe.expression),
-      semantics: _collectionSemanticsFor(probe),
-    );
-    final result = _widgetTranslator(HelperRegistry()).translate(
-      probe.expression,
-    );
+      final traversal = traverseCollectionList(
+        _childrenList(probe.expression),
+        semantics: _collectionSemanticsFor(probe),
+      );
+      final result = _widgetTranslator(HelperRegistry()).translate(
+        probe.expression,
+      );
 
-    expect(traversal.entries, hasLength(1));
-    final occurrence =
-        (traversal.entries.single as CollectionListElement).occurrence;
-    expect(
-      occurrence.terminalExpression.toSource(),
-      "Text(text: 'accepted')",
-    );
-    expect(
-      occurrence.sourceProvenance.map((step) => step.kind),
-      containsAllInOrder([
-        CollectionSemanticSourceKind.binding,
-        CollectionSemanticSourceKind.constDeclaration,
-        CollectionSemanticSourceKind.constObjectField,
-      ]),
-    );
-    expect(result.issues, isEmpty);
-    expect(result.dsl, contains('Text(text: "accepted")'));
-  });
+      expect(traversal.entries, hasLength(1));
+      final occurrence =
+          (traversal.entries.single as CollectionListElement).occurrence;
+      expect(
+        occurrence.terminalExpression.toSource(),
+        "Text(text: 'accepted')",
+      );
+      expect(
+        occurrence.sourceProvenance.map((step) => step.kind),
+        containsAllInOrder([
+          CollectionSemanticSourceKind.binding,
+          CollectionSemanticSourceKind.constDeclaration,
+          CollectionSemanticSourceKind.constObjectField,
+        ]),
+      );
+      expect(result.issues, isEmpty);
+      expect(result.dsl, contains('Text(text: "accepted")'));
+    },
+  );
 
   test('a targeted virtual helper stays unresolved', () async {
     final probe = await _parseResolvedProbeBuildForTest('''
@@ -659,9 +678,10 @@ class Probe extends Widget {
     expect(result.dsl, isNot(contains('"derived"')));
   });
 
-  test('own static and top-level helpers preserve their exact values',
-      () async {
-    final probe = await _parseResolvedProbeBuildForTest('''
+  test(
+    'own static and top-level helpers preserve their exact values',
+    () async {
+      final probe = await _parseResolvedProbeBuildForTest('''
 class BuildContext {}
 abstract class Widget { const Widget(); }
 class Text extends Widget {
@@ -690,21 +710,23 @@ class Probe extends Widget {
   );
 }
 ''');
-    final result = _widgetTranslator(HelperRegistry()).translate(
-      probe.expression,
-    );
+      final result = _widgetTranslator(HelperRegistry()).translate(
+        probe.expression,
+      );
 
-    expect(result.issues, isEmpty);
-    expect(
-      result.dsl,
-      'Column(children: [Text(text: "own"), Text(text: "static"), '
-      'Text(text: "top")])',
-    );
-  });
+      expect(result.issues, isEmpty);
+      expect(
+        result.dsl,
+        'Column(children: [Text(text: "own"), Text(text: "static"), '
+        'Text(text: "top")])',
+      );
+    },
+  );
 
-  test('an explicit new receiver does not substitute a mutable field',
-      () async {
-    final probe = await _parseResolvedProbeBuildForTest('''
+  test(
+    'an explicit new receiver does not substitute a mutable field',
+    () async {
+      final probe = await _parseResolvedProbeBuildForTest('''
 class BuildContext {}
 abstract class Widget { const Widget(); }
 class Text extends Widget {
@@ -731,21 +753,22 @@ class Probe extends Widget {
   );
 }
 ''');
-    final traversal = traverseCollectionList(
-      _childrenList(probe.expression),
-      semantics: _collectionSemanticsFor(probe),
-    );
-    final result = _widgetTranslator(HelperRegistry()).translate(
-      probe.expression,
-    );
+      final traversal = traverseCollectionList(
+        _childrenList(probe.expression),
+        semantics: _collectionSemanticsFor(probe),
+      );
+      final result = _widgetTranslator(HelperRegistry()).translate(
+        probe.expression,
+      );
 
-    expect(traversal.entries, hasLength(1));
-    final occurrence =
-        (traversal.entries.single as CollectionListElement).occurrence;
-    expect(occurrence.terminalExpression.toSource(), 'source.widget');
-    expect(result.issues, isNotEmpty);
-    expect(result.dsl, isNot(contains('"passed"')));
-  });
+      expect(traversal.entries, hasLength(1));
+      final occurrence =
+          (traversal.entries.single as CollectionListElement).occurrence;
+      expect(occurrence.terminalExpression.toSource(), 'source.widget');
+      expect(result.issues, isNotEmpty);
+      expect(result.dsl, isNot(contains('"passed"')));
+    },
+  );
 
   test('an implicit const receiver substitutes its exact field', () async {
     final probe = await _parseResolvedProbeBuildForTest('''
@@ -820,24 +843,27 @@ class Probe extends Widget {
     );
   });
 
-  test('a mixed receiver keeps callbacks from its runtime alternative',
-      () async {
-    final probe = await _mixedReceiverProbe();
-    final spread =
-        _childrenList(probe.expression).elements.single as SpreadElement;
+  test(
+    'a mixed receiver keeps callbacks from its runtime alternative',
+    () async {
+      final probe = await _mixedReceiverProbe();
+      final spread =
+          _childrenList(probe.expression).elements.single as SpreadElement;
 
-    expect(
-      _collectionSemanticsFor(probe).callbacksIn(
-        spread.expression,
-        budget: CollectionUnrollBudget(),
-      ),
-      CollectionCallbackProbeResult.present,
-    );
-  });
+      expect(
+        _collectionSemanticsFor(probe).callbacksIn(
+          spread.expression,
+          budget: CollectionUnrollBudget(),
+        ),
+        CollectionCallbackProbeResult.present,
+      );
+    },
+  );
 
-  test('receiver cycles and work exhaustion preserve the authored access',
-      () async {
-    final probe = await _parseResolvedProbeBuildForTest('''
+  test(
+    'receiver cycles and work exhaustion preserve the authored access',
+    () async {
+      final probe = await _parseResolvedProbeBuildForTest('''
 class BuildContext {}
 abstract class Widget { const Widget(); }
 class Column extends Widget {
@@ -859,26 +885,27 @@ class Probe extends Widget {
   );
 }
 ''');
-    final spread =
-        _childrenList(probe.expression).elements.single as SpreadElement;
-    final semantics = _collectionSemanticsFor(probe);
-    final cycled = semantics.resolve(
-      spread.expression,
-      const {},
-      CollectionUnrollBudget(),
-    );
-    final exhausted = semantics.resolve(
-      spread.expression,
-      const {},
-      CollectionUnrollBudget(workCeiling: 1),
-    );
+      final spread =
+          _childrenList(probe.expression).elements.single as SpreadElement;
+      final semantics = _collectionSemanticsFor(probe);
+      final cycled = semantics.resolve(
+        spread.expression,
+        const {},
+        CollectionUnrollBudget(),
+      );
+      final exhausted = semantics.resolve(
+        spread.expression,
+        const {},
+        CollectionUnrollBudget(workCeiling: 1),
+      );
 
-    expect(cycled.expression, same(spread.expression));
-    expect(cycled.cycleDetected, isTrue);
-    expect(cycled.workLimitExceeded, isFalse);
-    expect(exhausted.expression, same(spread.expression));
-    expect(exhausted.workLimitExceeded, isTrue);
-  });
+      expect(cycled.expression, same(spread.expression));
+      expect(cycled.cycleDetected, isTrue);
+      expect(cycled.workLimitExceeded, isFalse);
+      expect(exhausted.expression, same(spread.expression));
+      expect(exhausted.workLimitExceeded, isTrue);
+    },
+  );
 
   test('two const receiver alternatives remain ambiguous', () async {
     final probe = await _parseResolvedProbeBuildForTest('''
@@ -948,9 +975,10 @@ class Probe extends Widget {
     expect(result.widgetDefinitions['Probe'], contains('event "tap"'));
   });
 
-  test('converging callback alternatives remain one source occurrence',
-      () async {
-    final probe = await _parseResolvedProbeBuildForTest('''
+  test(
+    'converging callback alternatives remain one source occurrence',
+    () async {
+      final probe = await _parseResolvedProbeBuildForTest('''
 class BuildContext {}
 typedef VoidCallback = void Function();
 abstract class Widget { const Widget(); }
@@ -982,14 +1010,15 @@ class Probe extends Widget {
       Column(children: [...actions(() {})]);
 }
 ''');
-    final traversal = traverseCollectionList(
-      _childrenList(probe.expression),
-      semantics: _collectionSemanticsFor(probe),
-    );
+      final traversal = traverseCollectionList(
+        _childrenList(probe.expression),
+        semantics: _collectionSemanticsFor(probe),
+      );
 
-    expect(traversal.entries, hasLength(1));
-    expect(traversal.entries.single, isA<CollectionListElement>());
-  });
+      expect(traversal.entries, hasLength(1));
+      expect(traversal.entries.single, isA<CollectionListElement>());
+    },
+  );
 
   test('two callback slots sharing one source refuse at traversal', () async {
     final probe = await _parseResolvedProbeBuildForTest('''
@@ -1042,10 +1071,11 @@ class Probe extends Widget {
     expect(refusal.reason, CollectionUnrollRefusal.callbackSourceReused);
   });
 
-  test('ordinary widget entrances refuse one source bound to two slots',
-      () async {
-    final cases = <String, String>{
-      'direct root': '''
+  test(
+    'ordinary widget entrances refuse one source bound to two slots',
+    () async {
+      final cases = <String, String>{
+        'direct root': '''
   static void activate() {}
   static const void Function() callback = activate;
 
@@ -1055,7 +1085,7 @@ class Probe extends Widget {
     onDoubleTap: callback,
   );
 ''',
-      'scalar child': '''
+        'scalar child': '''
   static void activate() {}
   static const void Function() callback = activate;
 
@@ -1067,7 +1097,7 @@ class Probe extends Widget {
     ),
   );
 ''',
-      'helper root': '''
+        'helper root': '''
   Widget action(void Function() callback) => GestureDetector(
     child: const Text(text: 'tap'),
     onTap: callback,
@@ -1076,7 +1106,7 @@ class Probe extends Widget {
 
   Widget build(BuildContext context) => action(() {});
 ''',
-      'helper child': '''
+        'helper child': '''
   Widget action(void Function() callback) => GestureDetector(
     child: const Text(text: 'tap'),
     onTap: callback,
@@ -1087,37 +1117,39 @@ class Probe extends Widget {
     child: action(() {}),
   );
 ''',
-    };
+      };
 
-    for (final MapEntry(key: name, value: members) in cases.entries) {
-      final result = await _translateInlinedProbe(members);
+      for (final MapEntry(key: name, value: members) in cases.entries) {
+        final result = await _translateInlinedProbe(members);
 
-      expect(result.dsl, 'Probe', reason: name);
-      expect(result.widgetDefinitions, isEmpty, reason: name);
-      expect(result.issues, hasLength(1), reason: name);
-      expect(
-        result.issues.single.code,
-        IssueCode.unsupportedCollectionFlow,
-        reason: name,
-      );
-      expect(
-        result.issues.single.message,
-        contains('static collection source is reused'),
-        reason: name,
-      );
-    }
-  });
+        expect(result.dsl, 'Probe', reason: name);
+        expect(result.widgetDefinitions, isEmpty, reason: name);
+        expect(result.issues, hasLength(1), reason: name);
+        expect(
+          result.issues.single.code,
+          IssueCode.unsupportedCollectionFlow,
+          reason: name,
+        );
+        expect(
+          result.issues.single.message,
+          contains('static collection source is reused'),
+          reason: name,
+        );
+      }
+    },
+  );
 
-  test('ordinary widget entrances accept distinct and convergent callbacks',
-      () async {
-    final distinct = await _translateInlinedProbe('''
+  test(
+    'ordinary widget entrances accept distinct and convergent callbacks',
+    () async {
+      final distinct = await _translateInlinedProbe('''
   Widget build(BuildContext context) => GestureDetector(
     child: const Text(text: 'tap'),
     onTap: paywallEvent('tap'),
     onDoubleTap: paywallEvent('double'),
   );
 ''');
-    final convergent = await _translateInlinedProbe('''
+      final convergent = await _translateInlinedProbe('''
   Widget action(bool first, void Function() callback) => GestureDetector(
     child: const Text(text: 'tap'),
     onTap: first ? callback : callback,
@@ -1126,25 +1158,27 @@ class Probe extends Widget {
   Widget build(BuildContext context) => action(true, paywallEvent('tap'));
 ''');
 
-    expect(distinct.issues, isEmpty);
-    expect(distinct.widgetDefinitions['Probe'], contains('onTap: event '));
-    expect(
-      distinct.widgetDefinitions['Probe'],
-      contains('onDoubleTap: event '),
-    );
-    expect(convergent.issues, isEmpty);
-    expect(
-      convergent.widgetDefinitions['Probe'],
-      contains(
-        'onTap: switch true { true: event "tap" {}, '
-        'false: event "tap" {} }',
-      ),
-    );
-  });
+      expect(distinct.issues, isEmpty);
+      expect(distinct.widgetDefinitions['Probe'], contains('onTap: event '));
+      expect(
+        distinct.widgetDefinitions['Probe'],
+        contains('onDoubleTap: event '),
+      );
+      expect(convergent.issues, isEmpty);
+      expect(
+        convergent.widgetDefinitions['Probe'],
+        contains(
+          'onTap: switch true { true: event "tap" {}, '
+          'false: event "tap" {} }',
+        ),
+      );
+    },
+  );
 
-  test('a reused callback-bearing source refuses at shared traversal',
-      () async {
-    final result = await _translateInlinedProbe('''
+  test(
+    'a reused callback-bearing source refuses at shared traversal',
+    () async {
+      final result = await _translateInlinedProbe('''
   Widget tile(String name) => GestureDetector(
     child: Text(text: name),
     onTap: paywallEvent(name),
@@ -1158,14 +1192,15 @@ class Probe extends Widget {
   }
 ''');
 
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-    expect(
-      result.issues.single.message,
-      contains('static collection source is reused'),
-    );
-    expect(result.widgetDefinitions['Probe'], contains('event "tap"'));
-  });
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        result.issues.single.message,
+        contains('static collection source is reused'),
+      );
+      expect(result.widgetDefinitions['Probe'], contains('event "tap"'));
+    },
+  );
 
   test('callback identity spans expanded and ordinary sibling lists', () async {
     final result = await _translateInlinedProbe('''
@@ -1191,17 +1226,18 @@ class Probe extends Widget {
       contains('static collection source is reused'),
     );
     expect(
-      RegExp('event "tap"')
-          .allMatches(result.widgetDefinitions['Probe'] ?? '')
-          .length,
+      RegExp(
+        'event "tap"',
+      ).allMatches(result.widgetDefinitions['Probe'] ?? '').length,
       1,
     );
   });
 
-  test('each inline emission attempt owns an independent callback identity',
-      () async {
-    final results = await _attemptInlinedProbe(
-      '''
+  test(
+    'each inline emission attempt owns an independent callback identity',
+    () async {
+      final results = await _attemptInlinedProbe(
+        '''
   Widget action() => GestureDetector(
     child: const Text(text: 'tap'),
     onTap: paywallEvent('tap'),
@@ -1211,18 +1247,22 @@ class Probe extends Widget {
 
   Widget build(BuildContext context) => Column(children: [...actions()]);
 ''',
-      names: const ['FirstProbe', 'SecondProbe'],
-    );
+        names: const ['FirstProbe', 'SecondProbe'],
+      );
 
-    expect(results, hasLength(2));
-    expect(results[0].issues, isEmpty);
-    expect(results[1].issues, isEmpty);
-    expect(results[0].widgetDefinitions['FirstProbe'], contains('event "tap"'));
-    expect(
-      results[1].widgetDefinitions['SecondProbe'],
-      contains('event "tap"'),
-    );
-  });
+      expect(results, hasLength(2));
+      expect(results[0].issues, isEmpty);
+      expect(results[1].issues, isEmpty);
+      expect(
+        results[0].widgetDefinitions['FirstProbe'],
+        contains('event "tap"'),
+      );
+      expect(
+        results[1].widgetDefinitions['SecondProbe'],
+        contains('event "tap"'),
+      );
+    },
+  );
 
   test('invoked method selectors are not callback values', () async {
     final probe = await _parseResolvedProbeBuildForTest('''
@@ -1321,8 +1361,7 @@ class Probe extends Widget {
           "for (final name in const ['first', 'second']) tile(name),",
     ),
   ]) {
-    test(
-        'a callback reused inside and outside a static loop refuses '
+    test('a callback reused inside and outside a static loop refuses '
         '($order)', () async {
       final result = await _translateInlinedProbe('''
   Widget tile(String name) => GestureDetector(
@@ -1364,9 +1403,10 @@ class Probe extends Widget {
     expect((result as CollectionUnrollExpansion).occurrences, hasLength(2));
   });
 
-  test('a callback behind an inlined helper parameter repeats per iteration',
-      () async {
-    final result = await _translateInlinedProbe('''
+  test(
+    'a callback behind an inlined helper parameter repeats per iteration',
+    () async {
+      final result = await _translateInlinedProbe('''
   Widget identity(Widget child) => child;
 
   Widget build(BuildContext context) {
@@ -1382,8 +1422,9 @@ class Probe extends Widget {
   }
 ''');
 
-    _expectRepeatedCallback(result);
-  });
+      _expectRepeatedCallback(result);
+    },
+  );
 
   test('a callback behind a const source repeats per iteration', () async {
     final result = await _translateInlinedProbe('''
@@ -1401,9 +1442,10 @@ class Probe extends Widget {
     _expectNoCollectionRefusal(result);
   });
 
-  test('a callback behind a nested const source repeats per iteration',
-      () async {
-    final result = await _translateInlinedProbe('''
+  test(
+    'a callback behind a nested const source repeats per iteration',
+    () async {
+      final result = await _translateInlinedProbe('''
   static void handleTap() {}
   static const tiles = TileSet(
     GestureDetector(
@@ -1417,31 +1459,34 @@ class Probe extends Widget {
   );
 ''');
 
-    _expectNoCollectionRefusal(result);
-  });
+      _expectNoCollectionRefusal(result);
+    },
+  );
 
-  test('semantic callback resolution terminates through a binding cycle',
-      () async {
-    final first = await parseExpressionForTest('second');
-    final second = await parseExpressionForTest('true ? first : (() {})');
-    final expression = await parseExpressionFromSourceForTest('''
+  test(
+    'semantic callback resolution terminates through a binding cycle',
+    () async {
+      final first = await parseExpressionForTest('second');
+      final second = await parseExpressionForTest('true ? first : (() {})');
+      final expression = await parseExpressionFromSourceForTest('''
       Object x() => [for (final index in const [0, 1]) first];
     ''');
-    final semantics = CollectionSemanticProbe(
-      bindingFor: (identifier) => switch (identifier.name) {
-        'first' => first,
-        'second' => second,
-        _ => null,
-      },
-    );
-    final result = expandCollectionElement(
-      _singleCollectionElement(expression),
-      semantics: semantics,
-    );
+      final semantics = CollectionSemanticProbe(
+        bindingFor: (identifier) => switch (identifier.name) {
+          'first' => first,
+          'second' => second,
+          _ => null,
+        },
+      );
+      final result = expandCollectionElement(
+        _singleCollectionElement(expression),
+        semantics: semantics,
+      );
 
-    expect(result, isA<CollectionUnrollExpansion>());
-    expect((result as CollectionUnrollExpansion).occurrences, hasLength(2));
-  });
+      expect(result, isA<CollectionUnrollExpansion>());
+      expect((result as CollectionUnrollExpansion).occurrences, hasLength(2));
+    },
+  );
 
   test('numeric-list expansion follows a leading local alias', () async {
     final result = await _translateInlinedProbe('''
@@ -1506,9 +1551,10 @@ class Probe extends Widget {
   });
 
   for (final gradientName in ['LinearGradient', 'SweepGradient']) {
-    test('$gradientName helper results expand numeric collection elements',
-        () async {
-      final result = await _translateInlinedProbe('''
+    test(
+      '$gradientName helper results expand numeric collection elements',
+      () async {
+        final result = await _translateInlinedProbe('''
   static const stopSet = StopSet(<double>[
     if (true) 0,
     1,
@@ -1524,12 +1570,13 @@ class Probe extends Widget {
   );
 ''');
 
-      expect(
-        result.widgetDefinitions['Probe'],
-        contains('stops: [0.0, 1.0]'),
-      );
-      expect(result.issues, isEmpty);
-    });
+        expect(
+          result.widgetDefinitions['Probe'],
+          contains('stops: [0.0, 1.0]'),
+        );
+        expect(result.issues, isEmpty);
+      },
+    );
   }
 
   final gradientCases = <({String name, String type})>[
@@ -1539,8 +1586,7 @@ class Probe extends Widget {
   ];
 
   for (final gradient in gradientCases) {
-    test(
-        '${gradient.name} coerces mixed static collections '
+    test('${gradient.name} coerces mixed static collections '
         'with helper bindings', () async {
       final result = await _translateInlinedProbe('''
   List<double> stops(double first) => [
@@ -1696,9 +1742,10 @@ class Probe extends Widget {
     });
   }
 
-  test('a parameterized generic typed-list helper keeps authored translation',
-      () async {
-    final result = await _translateInlinedProbe('''
+  test(
+    'a parameterized generic typed-list helper keeps authored translation',
+    () async {
+      final result = await _translateInlinedProbe('''
   List<Color> colors(Color first) => [first, const Color(0xFFFFFFFF)];
 
   Widget build(BuildContext context) => GradientBox(
@@ -1709,13 +1756,14 @@ class Probe extends Widget {
   );
 ''');
 
-    expect(result.issues, isEmpty);
-    expect(
-      result.widgetDefinitions['Probe'],
-      'GradientBox(gradient: {type: "linear", '
-      'colors: [0xFF000000, 0xFFFFFFFF], stops: [0.0, 1.0]})',
-    );
-  });
+      expect(result.issues, isEmpty);
+      expect(
+        result.widgetDefinitions['Probe'],
+        'GradientBox(gradient: {type: "linear", '
+        'colors: [0xFF000000, 0xFFFFFFFF], stops: [0.0, 1.0]})',
+      );
+    },
+  );
 
   test('collection-if expands true, false, and const conditions', () async {
     final translator = _scalarTranslator();
@@ -1759,30 +1807,32 @@ Object x() => [if (kDebugMode) 1, 2];
     expect(result.dsl, isNot(contains('1')));
   });
 
-  test('a collection-if over a non-device build-mode constant refuses',
-      () async {
-    final translator = _scalarTranslator();
-    for (final name in ['kReleaseMode', 'kProfileMode']) {
-      final result = translator.translate(
-        await parseExpressionFromSourceForTest(
-          '''
+  test(
+    'a collection-if over a non-device build-mode constant refuses',
+    () async {
+      final translator = _scalarTranslator();
+      for (final name in ['kReleaseMode', 'kProfileMode']) {
+        final result = translator.translate(
+          await parseExpressionFromSourceForTest(
+            '''
 import 'package:flutter/foundation.dart';
 
 Object x() => [if ($name) 1, 2];
 ''',
-          rootPackage: 'apps_examples',
-        ),
-      );
+            rootPackage: 'apps_examples',
+          ),
+        );
 
-      expect(result.issues, hasLength(1), reason: name);
-      expect(
-        result.issues.single.code,
-        IssueCode.unsupportedCollectionFlow,
-        reason: name,
-      );
-      expect(result.dsl, '[2]', reason: name);
-    }
-  });
+        expect(result.issues, hasLength(1), reason: name);
+        expect(
+          result.issues.single.code,
+          IssueCode.unsupportedCollectionFlow,
+          reason: name,
+        );
+        expect(result.dsl, '[2]', reason: name);
+      }
+    },
+  );
 
   test('a collection-if over `kIsWeb` lowers to a guarded element', () async {
     final result = _scalarTranslator().translate(
@@ -1804,8 +1854,7 @@ Object x() => [if (kIsWeb) 1, 2];
     );
   });
 
-  test(
-      'a collection-if over a constant derived from the build environment '
+  test('a collection-if over a constant derived from the build environment '
       'refuses', () async {
     final result = _scalarTranslator().translate(
       await parseExpressionFromSourceForTest(
@@ -1834,9 +1883,10 @@ Object x() => [if (showExtras) 1, 2];
     expect(result.issues, isEmpty);
   });
 
-  test('collection controls follow helper bodies and argument bindings',
-      () async {
-    final result = await _translateInlinedProbe('''
+  test(
+    'collection controls follow helper bodies and argument bindings',
+    () async {
+      final result = await _translateInlinedProbe('''
   List<String> labels(String value) => [value];
   List<Widget> tiles(String value) => [Text(text: value)];
   bool include(bool value) => value;
@@ -1850,13 +1900,14 @@ Object x() => [if (showExtras) 1, 2];
   );
 ''');
 
-    expect(result.issues, isEmpty);
-    expect(
-      result.widgetDefinitions['Probe'],
-      'Column(children: [Text(text: "loop"), Text(text: "spread"), '
-      'Text(text: "if")])',
-    );
-  });
+      expect(result.issues, isEmpty);
+      expect(
+        result.widgetDefinitions['Probe'],
+        'Column(children: [Text(text: "loop"), Text(text: "spread"), '
+        'Text(text: "if")])',
+      );
+    },
+  );
 
   test('nested iterables resolve through active loop bindings', () async {
     final result = _scalarTranslator().translate(
@@ -1885,35 +1936,39 @@ Object x() => [if (showExtras) 1, 2];
     expect(result.dsl, '[1, 2, 3]');
   });
 
-  test('collection-if conditions resolve through active loop bindings',
-      () async {
-    final result = _scalarTranslator().translate(
-      await parseExpressionFromSourceForTest('''
+  test(
+    'collection-if conditions resolve through active loop bindings',
+    () async {
+      final result = _scalarTranslator().translate(
+        await parseExpressionFromSourceForTest('''
         Object x() => [
           for (final include in const [true, false, true])
             if (include) include,
         ];
       '''),
-    );
+      );
 
-    expect(result.issues, isEmpty);
-    expect(result.dsl, '[true, true]');
-  });
+      expect(result.issues, isEmpty);
+      expect(result.dsl, '[true, true]');
+    },
+  );
 
-  test('nested loop bindings shadow without corrupting the outer iterable',
-      () async {
-    final result = _scalarTranslator().translate(
-      await parseExpressionFromSourceForTest('''
+  test(
+    'nested loop bindings shadow without corrupting the outer iterable',
+    () async {
+      final result = _scalarTranslator().translate(
+        await parseExpressionFromSourceForTest('''
         Object x() => [
           for (final value in const [[1, 2], [3]])
             for (final value in value) value,
         ];
       '''),
-    );
+      );
 
-    expect(result.issues, isEmpty);
-    expect(result.dsl, '[1, 2, 3]');
-  });
+      expect(result.issues, isEmpty);
+      expect(result.dsl, '[1, 2, 3]');
+    },
+  );
 
   test('a null-aware spread preserves resolved lists and omits null', () async {
     final result = _scalarTranslator().translate(
@@ -1979,9 +2034,10 @@ Object x() => [if (showExtras) 1, 2];
     expect(result.dsl, '[1, 2]');
   });
 
-  test('a const non-list alias reports its shape in a collection-for',
-      () async {
-    final expression = await parseExpressionFromSourceForTest('''
+  test(
+    'a const non-list alias reports its shape in a collection-for',
+    () async {
+      final expression = await parseExpressionFromSourceForTest('''
       class Items extends Iterable<int> {
         const Items();
 
@@ -1992,17 +2048,21 @@ Object x() => [if (showExtras) 1, 2];
       const items = Items();
       Object x() => [for (final item in items) item];
     ''');
-    final result = _scalarTranslator().translate(expression);
+      final result = _scalarTranslator().translate(expression);
 
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-    expect(result.issues.single.message, contains('statically known non-list'));
-    expect(
-      result.issues.single.message,
-      isNot(contains('known only at run time')),
-    );
-    expect(result.dsl, '[]');
-  });
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        result.issues.single.message,
+        contains('statically known non-list'),
+      );
+      expect(
+        result.issues.single.message,
+        isNot(contains('known only at run time')),
+      );
+      expect(result.dsl, '[]');
+    },
+  );
 
   test('a const non-list alias reports its shape in a spread', () async {
     final expression = await parseExpressionFromSourceForTest('''
@@ -2076,9 +2136,10 @@ Object x() => [
     );
   });
 
-  test('a loop over a resolved Iterable construction reports its shape',
-      () async {
-    const source = '''
+  test(
+    'a loop over a resolved Iterable construction reports its shape',
+    () async {
+      const source = '''
 class Items extends Iterable<int> {
   const Items();
 
@@ -2089,28 +2150,30 @@ class Items extends Iterable<int> {
 Object x() => [
   for (final item in const Items()) item,
 ];''';
-    final result = _scalarTranslator().translate(
-      await parseExpressionFromSourceForTest(source),
-      sourcePath: 'lib/static_iterable_collection.dart',
-      lineInfo: LineInfo.fromContent(source),
-    );
+      final result = _scalarTranslator().translate(
+        await parseExpressionFromSourceForTest(source),
+        sourcePath: 'lib/static_iterable_collection.dart',
+        lineInfo: LineInfo.fromContent(source),
+      );
 
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-    expect(
-      result.issues.single.message,
-      'A collection-for requires a list literal, but this iterable is a '
-      'statically known non-list value.',
-    );
-    expect(
-      result.issues.single.location,
-      startsWith('lib/static_iterable_collection.dart:9:'),
-    );
-  });
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        result.issues.single.message,
+        'A collection-for requires a list literal, but this iterable is a '
+        'statically known non-list value.',
+      );
+      expect(
+        result.issues.single.location,
+        startsWith('lib/static_iterable_collection.dart:9:'),
+      );
+    },
+  );
 
-  test('a spread of a resolved Iterable construction reports its shape',
-      () async {
-    const source = '''
+  test(
+    'a spread of a resolved Iterable construction reports its shape',
+    () async {
+      const source = '''
 class Items extends Iterable<int> {
   const Items();
 
@@ -2121,24 +2184,25 @@ class Items extends Iterable<int> {
 Object x() => [
   ...const Items(),
 ];''';
-    final result = _scalarTranslator().translate(
-      await parseExpressionFromSourceForTest(source),
-      sourcePath: 'lib/static_iterable_spread.dart',
-      lineInfo: LineInfo.fromContent(source),
-    );
+      final result = _scalarTranslator().translate(
+        await parseExpressionFromSourceForTest(source),
+        sourcePath: 'lib/static_iterable_spread.dart',
+        lineInfo: LineInfo.fromContent(source),
+      );
 
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-    expect(
-      result.issues.single.message,
-      'A spread requires a list literal, but this value is a statically known '
-      'non-list value.',
-    );
-    expect(
-      result.issues.single.location,
-      startsWith('lib/static_iterable_spread.dart:9:'),
-    );
-  });
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        result.issues.single.message,
+        'A spread requires a list literal, but this value is a statically known '
+        'non-list value.',
+      );
+      expect(
+        result.issues.single.location,
+        startsWith('lib/static_iterable_spread.dart:9:'),
+      );
+    },
+  );
 
   test('an uncertain Iterable value retains the run-time diagnostic', () async {
     final expression = await parseExpressionFromSourceForTest('''
@@ -2283,19 +2347,21 @@ Object x() => [
     expect(result.dsl, '[]');
   });
 
-  test('1000 expanded children plus a trailing plain child are refused',
-      () async {
-    final values = _integerSequence(1000);
-    final result = _scalarTranslator().translate(
-      await parseExpressionFromSourceForTest(
-        'Object x() => [for (final value in const [$values]) value, 1000];',
-      ),
-    );
+  test(
+    '1000 expanded children plus a trailing plain child are refused',
+    () async {
+      final values = _integerSequence(1000);
+      final result = _scalarTranslator().translate(
+        await parseExpressionFromSourceForTest(
+          'Object x() => [for (final value in const [$values]) value, 1000];',
+        ),
+      );
 
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.message, contains('1000'));
-    expect(result.dsl, '[${_integerSequence(1000)}]');
-  });
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.message, contains('1000'));
+      expect(result.dsl, '[${_integerSequence(1000)}]');
+    },
+  );
 
   test('sibling collection lists keep independent emission ceilings', () async {
     final values = _integerSequence(1000);
@@ -2320,97 +2386,105 @@ Object x() => Column(
     expect(RegExp(r'SizedBox\(').allMatches(result.dsl), hasLength(1001));
   });
 
-  test('a leading plain child is charged before a 1000-child expansion',
-      () async {
-    final values = _integerSequence(1000);
-    final result = _scalarTranslator().translate(
-      await parseExpressionFromSourceForTest(
-        'Object x() => [-1, '
-        'for (final value in const [$values]) value];',
-      ),
-    );
+  test(
+    'a leading plain child is charged before a 1000-child expansion',
+    () async {
+      final values = _integerSequence(1000);
+      final result = _scalarTranslator().translate(
+        await parseExpressionFromSourceForTest(
+          'Object x() => [-1, '
+          'for (final value in const [$values]) value];',
+        ),
+      );
 
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.message, contains('1000'));
-    expect(result.dsl, '[-1]');
-  });
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.message, contains('1000'));
+      expect(result.dsl, '[-1]');
+    },
+  );
 
-  test('plain children after a false collection-if still use the list budget',
-      () async {
-    final values = _integerSequence(1001);
-    final result = _scalarTranslator().translate(
-      await parseExpressionFromSourceForTest(
-        'Object x() => [if (false) -1, $values];',
-      ),
-    );
+  test(
+    'plain children after a false collection-if still use the list budget',
+    () async {
+      final values = _integerSequence(1001);
+      final result = _scalarTranslator().translate(
+        await parseExpressionFromSourceForTest(
+          'Object x() => [if (false) -1, $values];',
+        ),
+      );
 
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.message, contains('1000'));
-    expect(result.dsl, '[${_integerSequence(1000)}]');
-  });
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.message, contains('1000'));
+      expect(result.dsl, '[${_integerSequence(1000)}]');
+    },
+  );
 
-  test('callback inspection shares traversal work across repeated expressions',
-      () async {
-    final expression = await parseExpressionFromSourceForTest('''
+  test(
+    'callback inspection shares traversal work across repeated expressions',
+    () async {
+      final expression = await parseExpressionFromSourceForTest('''
       Object x() => [
         for (final item in const [1, 2, 3]) [item, item],
       ];
     ''');
-    final result = expandCollectionElement(
-      _singleCollectionElement(expression),
-      budget: CollectionUnrollBudget(emittedCeiling: 100, workCeiling: 8),
-      semantics: CollectionSemanticProbe(),
-    );
+      final result = expandCollectionElement(
+        _singleCollectionElement(expression),
+        budget: CollectionUnrollBudget(emittedCeiling: 100, workCeiling: 8),
+        semantics: CollectionSemanticProbe(),
+      );
 
-    expect(result, isA<CollectionUnrollRefused>());
-    expect(
-      (result as CollectionUnrollRefused).reason,
-      CollectionUnrollRefusal.workLimitExceeded,
-    );
-  });
+      expect(result, isA<CollectionUnrollRefused>());
+      expect(
+        (result as CollectionUnrollRefused).reason,
+        CollectionUnrollRefusal.workLimitExceeded,
+      );
+    },
+  );
 
-  test('one list budget counts collection, source, binding, and callback work',
-      () async {
-    final expression = await parseExpressionFromSourceForTest('''
+  test(
+    'one list budget counts collection, source, binding, and callback work',
+    () async {
+      final expression = await parseExpressionFromSourceForTest('''
       Object x() => [for (final item in items) item];
     ''');
-    final source = await parseExpressionForTest('alias');
-    final extra = await parseExpressionForTest('extra');
-    final list = await parseExpressionForTest('[1]');
-    final semantics = CollectionSemanticProbe(
-      sourceFor: (expression) => switch (expression.toSource()) {
-        'items' => source,
-        'alias' => list,
-        _ => null,
-      },
-    );
-
-    final atLimit = expandCollectionElement(
-      _singleCollectionElement(expression),
-      semantics: semantics,
-      budget: CollectionUnrollBudget(workCeiling: 8),
-    );
-    final overLimit = expandCollectionElement(
-      _singleCollectionElement(expression),
-      semantics: CollectionSemanticProbe(
+      final source = await parseExpressionForTest('alias');
+      final extra = await parseExpressionForTest('extra');
+      final list = await parseExpressionForTest('[1]');
+      final semantics = CollectionSemanticProbe(
         sourceFor: (expression) => switch (expression.toSource()) {
           'items' => source,
-          'alias' => extra,
-          'extra' => list,
+          'alias' => list,
           _ => null,
         },
-      ),
-      budget: CollectionUnrollBudget(workCeiling: 8),
-    );
+      );
 
-    expect(atLimit, isA<CollectionUnrollExpansion>());
-    expect((atLimit as CollectionUnrollExpansion).occurrences, hasLength(1));
-    expect(overLimit, isA<CollectionUnrollRefused>());
-    expect(
-      (overLimit as CollectionUnrollRefused).reason,
-      CollectionUnrollRefusal.workLimitExceeded,
-    );
-  });
+      final atLimit = expandCollectionElement(
+        _singleCollectionElement(expression),
+        semantics: semantics,
+        budget: CollectionUnrollBudget(workCeiling: 8),
+      );
+      final overLimit = expandCollectionElement(
+        _singleCollectionElement(expression),
+        semantics: CollectionSemanticProbe(
+          sourceFor: (expression) => switch (expression.toSource()) {
+            'items' => source,
+            'alias' => extra,
+            'extra' => list,
+            _ => null,
+          },
+        ),
+        budget: CollectionUnrollBudget(workCeiling: 8),
+      );
+
+      expect(atLimit, isA<CollectionUnrollExpansion>());
+      expect((atLimit as CollectionUnrollExpansion).occurrences, hasLength(1));
+      expect(overLimit, isA<CollectionUnrollRefused>());
+      expect(
+        (overLimit as CollectionUnrollRefused).reason,
+        CollectionUnrollRefusal.workLimitExceeded,
+      );
+    },
+  );
 
   test('callback AST nodes consume semantic work', () async {
     final expression = await parseExpressionForTest('1');
@@ -2542,7 +2616,8 @@ Object x() => Column(
   test(
     'a refusal points at the offending element rather than its list',
     () async {
-      const source = 'final values = <int>[];\n'
+      const source =
+          'final values = <int>[];\n'
           'Object x() => [\n'
           '  for (final value in values) value,\n'
           '];';
@@ -2709,9 +2784,9 @@ class Probe extends StatelessWidget {
 }
 
 ExpressionTranslator _scalarTranslator() => ExpressionTranslator(
-      catalog: kEmptyCatalog,
-      helpers: HelperRegistry(),
-    );
+  catalog: kEmptyCatalog,
+  helpers: HelperRegistry(),
+);
 
 ExpressionTranslator _widgetTranslator(HelperRegistry helpers) {
   final widgets = [
@@ -3007,8 +3082,9 @@ Future<_ResolvedBuildProbe> _parseResolvedProbeBuildForTest(
         final probe = library.classes.firstWhere(
           (element) => element.name == 'Probe',
         );
-        final declaration =
-            resolved.getFragmentDeclaration(probe.firstFragment)?.node;
+        final declaration = resolved
+            .getFragmentDeclaration(probe.firstFragment)
+            ?.node;
         if (declaration is! ClassDeclaration) return;
         final build = declaration.body.members
             .whereType<MethodDeclaration>()
@@ -3094,8 +3170,8 @@ final class _BuildExpressionCapturingBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        '.dart': ['.collectionprobe'],
-      };
+    '.dart': ['.collectionprobe'],
+  };
 
   @override
   Future<void> build(BuildStep step) async {

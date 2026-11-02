@@ -23,25 +23,25 @@ const _customLibrary = WidgetLibrary.custom('acme.design');
 final _sourceId = AssetId('app', 'lib/surface.dart');
 
 Catalog _catalog({bool publishWidgets = true}) => catalogWith([
-      entry(
-        name: 'Text',
-        flutterType: 'package:flutter/widgets.dart#Text',
-        properties: [prop('data', PropertyType.string, positional: true)],
-      ),
-      entry(
-        name: 'Column',
-        flutterType: 'package:flutter/widgets.dart#Column',
-        childrenSlot: ChildrenSlot.list,
-        properties: [prop('children', PropertyType.widgetList)],
-      ),
-      if (publishWidgets)
-        entry(
-          name: 'Badge',
-          library: _customLibrary,
-          flutterType: 'package:acme_kit/kit.dart#Badge',
-          properties: const [],
-        ),
-    ]);
+  entry(
+    name: 'Text',
+    flutterType: 'package:flutter/widgets.dart#Text',
+    properties: [prop('data', PropertyType.string, positional: true)],
+  ),
+  entry(
+    name: 'Column',
+    flutterType: 'package:flutter/widgets.dart#Column',
+    childrenSlot: ChildrenSlot.list,
+    properties: [prop('children', PropertyType.widgetList)],
+  ),
+  if (publishWidgets)
+    entry(
+      name: 'Badge',
+      library: _customLibrary,
+      flutterType: 'package:acme_kit/kit.dart#Badge',
+      properties: const [],
+    ),
+]);
 
 void main() {
   test('only custom widget packages admit dependency helpers', () {
@@ -121,22 +121,27 @@ void main() {
     });
   });
 
-  test('admitted dependency helpers explain unsupported return types',
-      () async {
-    await _resolve((resolver, library) async {
-      final expression = await _build(resolver, library, 'ReturnTypeProbe');
-      final result = ExpressionTranslator(
-        catalog: _catalog(),
-        helpers: HelperRegistry(),
-      ).translate(expression);
-      expect(result.issues.single.code, IssueCode.customWidgetInliningDeferred);
-      expect(
-        result.issues.single.message,
-        "The helper 'Kit.dynamicValue' cannot be inlined: "
-        'a helper must return a widget or a value of a class type.',
-      );
-    });
-  });
+  test(
+    'admitted dependency helpers explain unsupported return types',
+    () async {
+      await _resolve((resolver, library) async {
+        final expression = await _build(resolver, library, 'ReturnTypeProbe');
+        final result = ExpressionTranslator(
+          catalog: _catalog(),
+          helpers: HelperRegistry(),
+        ).translate(expression);
+        expect(
+          result.issues.single.code,
+          IssueCode.customWidgetInliningDeferred,
+        );
+        expect(
+          result.issues.single.message,
+          "The helper 'Kit.dynamicValue' cannot be inlined: "
+          'a helper must return a widget or a value of a class type.',
+        );
+      });
+    },
+  );
 
   test('reachable helpers retain dependency elements and refusals', () async {
     await _resolve((resolver, library) async {
@@ -253,65 +258,69 @@ void main() {
     });
   });
 
-  test('custom widget catalogs preserve dedicated SDK event lowering',
-      () async {
-    final expression = await parseExpressionFromSourceForTest(
-      """
+  test(
+    'custom widget catalogs preserve dedicated SDK event lowering',
+    () async {
+      final expression = await parseExpressionFromSourceForTest(
+        """
 import 'package:restage/restage.dart';
 abstract final class Events {
   static const next = SurfaceEvent<void>('next');
 }
 Object x() => surfaceEvent(Events.next);
 """,
-      rootPackage: 'apps_examples',
-    );
-    expect(
-      isArtifactHelperInvocation(
-        expression as MethodInvocation,
-        admittedHelperPackages: artifactHelperPackages(_catalog()),
-      ),
-      isFalse,
-    );
-    final result = ExpressionTranslator(
-      catalog: _catalog(),
-      helpers: HelperRegistry()..registerAll(onboardingHelpers),
-    ).translate(expression);
-    expect(result.issues, isEmpty);
-    expect(result.dsl, 'event "next" {}');
-  });
+        rootPackage: 'apps_examples',
+      );
+      expect(
+        isArtifactHelperInvocation(
+          expression as MethodInvocation,
+          admittedHelperPackages: artifactHelperPackages(_catalog()),
+        ),
+        isFalse,
+      );
+      final result = ExpressionTranslator(
+        catalog: _catalog(),
+        helpers: HelperRegistry()..registerAll(onboardingHelpers),
+      ).translate(expression);
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'event "next" {}');
+    },
+  );
 
-  test('measurement derives admission and keeps helper occurrence identity',
-      () async {
-    await _resolve((resolver, library) async {
-      final build = await _blueprint(resolver, library, 'Welcome');
-      MeasurementSourceDiscoveryResult discover(Catalog catalog) =>
-          MeasurementSourceDiscovery.discover(
-            MeasurementSourceDiscoveryInput(
-              authority: MeasurementSourceAuthority.screen,
-              sourceClass: library.getClass('Welcome')!,
-              rootExpression: build.rootExpression,
-              catalog: catalog,
-              rootHelpers: build.helpers,
-            ),
-          );
-      final result = discover(_catalog());
-      expect(
-        result.disposition,
-        MeasurementSourceDiscoveryDisposition.accepted,
-        reason: result.rejectionReason,
-      );
-      expect(result.nodes, hasLength(3));
-      expect(
-        result.nodes.map((node) => node.structuralOccurrenceKey).toSet(),
-        hasLength(3),
-      );
-      expect(result.events, isEmpty);
-      expect(
-        discover(_catalog(publishWidgets: false)).disposition,
-        MeasurementSourceDiscoveryDisposition.rejected,
-      );
-    });
-  });
+  test(
+    'measurement derives admission and keeps helper occurrence identity',
+    () async {
+      await _resolve((resolver, library) async {
+        final build = await _blueprint(resolver, library, 'Welcome');
+        MeasurementSourceDiscoveryResult discover(Catalog catalog) =>
+            MeasurementSourceDiscovery.discover(
+              MeasurementSourceDiscoveryInput(
+                authority: MeasurementSourceAuthority.screen,
+                sourceClass: library.getClass('Welcome')!,
+                rootExpression: build.rootExpression,
+                catalog: catalog,
+                rootHelpers: build.helpers,
+              ),
+            );
+        final result = discover(_catalog());
+        expect(
+          result.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: result.rejectionReason,
+        );
+        expect(result.nodes, hasLength(3));
+        expect(
+          result.nodes.map((node) => node.structuralOccurrenceKey).toSet(),
+          hasLength(3),
+        );
+        expect(result.events, isEmpty);
+        expect(
+          discover(_catalog(publishWidgets: false)).disposition,
+          MeasurementSourceDiscoveryDisposition.rejected,
+        );
+      });
+    },
+  );
 }
 
 Future<T> _resolve<T>(Future<T> Function(Resolver, LibraryElement) action) =>
@@ -413,8 +422,9 @@ Future<Expression> _build(
       .singleWhere((method) => method.name == 'build');
   final node = await resolver.astNodeFor(method.firstFragment, resolve: true);
   expect(node, isA<MethodDeclaration>());
-  return extractInlinableBuildBody((node! as MethodDeclaration).body)!
-      .expression;
+  return extractInlinableBuildBody(
+    (node! as MethodDeclaration).body,
+  )!.expression;
 }
 
 Future<SourceBuildBlueprint> _blueprint(

@@ -124,7 +124,8 @@ final class MeasurementRouteEmissionPlan {
     final routeEvents = <String, MeasurementPublicationDraftEventV1>{
       for (final event in routePlan.events)
         '${event.nodeCodeIdentityId.value}\u0000'
-            '${event.sourceEventIdentity.value}': event,
+                '${event.sourceEventIdentity.value}':
+            event,
     };
     final routesByReference = <String, MeasurementPublicationDraftRouteV1>{
       for (final route in routePlan.routes)
@@ -132,15 +133,18 @@ final class MeasurementRouteEmissionPlan {
     };
     final bindings = <MeasurementRouteEmissionBinding>[];
     for (final discovered in discovery.events) {
-      final codeIdentity = codeIdentityByStructuralOccurrenceKey[
-          discovered.node.structuralOccurrenceKey];
+      final codeIdentity =
+          codeIdentityByStructuralOccurrenceKey[discovered
+              .node
+              .structuralOccurrenceKey];
       if (codeIdentity == null) {
         throw ArgumentError(
           'Every discovered measurement event must reconcile to one code '
           'identity before carrier emission',
         );
       }
-      final eventKey = '${codeIdentity.value}\u0000'
+      final eventKey =
+          '${codeIdentity.value}\u0000'
           '${discovered.resolvedEvent.sourceEventIdentity.value}';
       final event = routeEvents[eventKey];
       if (event == null) {
@@ -216,7 +220,7 @@ abstract final class MeasurementRouteEventMarkerEmitter {
     return '${dsl.substring(0, map.open + 1)}$body$separator'
         '$kMeasurementRouteReferenceMarkerKeyV1: ${_quote(marker)}'
         '${item == null ? '' : ', $kMeasurementPublicationItemArgumentKeyV1: '
-            '$item'}'
+                  '$item'}'
         '${dsl.substring(map.close)}';
   }
 

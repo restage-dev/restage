@@ -136,8 +136,9 @@ HoistTypeVerdict _classifyNonNull(InterfaceType type) {
     return HoistCrosses(
       HoistValueKind.dateTime,
       SurfaceScreenHostDataObjectShapeV1({
-        'microsecondsSinceEpoch':
-            scalar(SurfaceScreenHostDataScalarKind.integer),
+        'microsecondsSinceEpoch': scalar(
+          SurfaceScreenHostDataScalarKind.integer,
+        ),
         'isUtc': scalar(SurfaceScreenHostDataScalarKind.boolean),
       }),
     );
@@ -161,18 +162,22 @@ HoistTypeVerdict _classifyNonNull(InterfaceType type) {
     return HoistCrosses(
       HoistValueKind.edgeInsets,
       SurfaceScreenHostDataObjectShapeV1({
-        for (final key in type.element.name == 'EdgeInsetsDirectional'
-            ? ['start', 'top', 'end', 'bottom']
-            : ['left', 'top', 'right', 'bottom'])
+        for (final key
+            in type.element.name == 'EdgeInsetsDirectional'
+                ? ['start', 'top', 'end', 'bottom']
+                : ['left', 'top', 'right', 'bottom'])
           key: scalar(SurfaceScreenHostDataScalarKind.doubleValue),
       }),
     );
   }
   if (_isFramework(type, const {'TextScaler'})) {
     return HoistCrosses(
-        HoistValueKind.textScaler,
-        SurfaceScreenHostDataObjectShapeV1(
-            const {'kind': _string, 'key': _string}));
+      HoistValueKind.textScaler,
+      SurfaceScreenHostDataObjectShapeV1(const {
+        'kind': _string,
+        'key': _string,
+      }),
+    );
   }
   if (_isFramework(type, const {'TextStyle'})) {
     return HoistCrosses(HoistValueKind.textStyle, _textStyleShape);
@@ -276,17 +281,17 @@ final Map<String, SurfaceScreenHostDataShape> kHoistedTextStyleFields = {
 
 final SurfaceScreenHostDataShape _paintShape =
     SurfaceScreenHostDataObjectShapeV1(const {
-  'color': _int,
-  'blendMode': _string,
-  'filterQuality': _string,
-  'isAntiAlias': _bool,
-});
+      'color': _int,
+      'blendMode': _string,
+      'filterQuality': _string,
+      'isAntiAlias': _bool,
+    });
 
 final SurfaceScreenHostDataShape _textStyleShape =
     SurfaceScreenHostDataObjectShapeV1({
-  for (final MapEntry(:key, :value) in kHoistedTextStyleFields.entries)
-    key: SurfaceScreenHostDataNullableShapeV1(value),
-});
+      for (final MapEntry(:key, :value) in kHoistedTextStyleFields.entries)
+        key: SurfaceScreenHostDataNullableShapeV1(value),
+    });
 
 bool _isFramework(InterfaceType type, Set<String> names) =>
     [type, ...type.allSupertypes].any(
@@ -352,13 +357,12 @@ final class HoistedValue {
   String mountSource(
     String Function(String parameter) slotOf, {
     String? itemSource,
-  }) =>
-      _template
-          .replaceAllMapped(
-            _parameterMarker,
-            (match) => slotOf(match.group(1)!),
-          )
-          .replaceAll(_itemMarker, itemSource ?? '');
+  }) => _template
+      .replaceAllMapped(
+        _parameterMarker,
+        (match) => slotOf(match.group(1)!),
+      )
+      .replaceAll(_itemMarker, itemSource ?? '');
 
   @override
   bool operator ==(Object other) =>
@@ -407,8 +411,10 @@ final class HoistEvaluable extends HoistAnalysis {
   }) {
     final typeName = type.getDisplayString();
     final digest = crypto.sha256.convert(
-      utf8.encode('${_canonicalSource(template)}\n$typeName\n${item ?? ''}'
-          '${nativeContract == null ? '' : '\nnative:${jsonEncode(nativeContract.toJson())}'}'),
+      utf8.encode(
+        '${_canonicalSource(template)}\n$typeName\n${item ?? ''}'
+        '${nativeContract == null ? '' : '\nnative:${jsonEncode(nativeContract.toJson())}'}',
+      ),
     );
     return HoistedValue(
       key: '$kHoistedKeyPrefix${digest.toString().substring(0, 10)}',
@@ -462,8 +468,8 @@ String _labelOf(String source) {
   final declaration = result.unit.declarations.firstOrNull;
   final initializer =
       declaration is TopLevelVariableDeclaration && result.errors.isEmpty
-          ? declaration.variables.variables.single.initializer
-          : null;
+      ? declaration.variables.variables.single.initializer
+      : null;
   return initializer?.toSource() ?? source.replaceAll(RegExp(r'\s+'), ' ');
 }
 
@@ -477,9 +483,11 @@ String _canonicalSource(String template) {
     throwIfDiagnostics: false,
   ).unit;
   final tokens = <String>[];
-  for (Token? token = unit.beginToken;
-      token != null && !token.isEof;
-      token = token.next) {
+  for (
+    Token? token = unit.beginToken;
+    token != null && !token.isEof;
+    token = token.next
+  ) {
     final next = token.next?.lexeme;
     if (token.lexeme == ',' && (next == ')' || next == ']' || next == '}')) {
       continue;
@@ -585,8 +593,10 @@ final class _HoistWriter {
   String? render(Expression node, List<Element> active) {
     // Every eager host computation shares the installed callable boundary.
     try {
-      final calls = qualifyInstalledNativeCallables(node,
-          isDeclaredCallable: analyzer.isDeclaredCallable);
+      final calls = qualifyInstalledNativeCallables(
+        node,
+        isDeclaredCallable: analyzer.isDeclaredCallable,
+      );
       if (calls.any((call) => installedIntlLookupFamily(call.target) != null)) {
         failed = true;
         return null;
@@ -638,8 +648,10 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
   }
 
   void _surfaceOnly(String name, {bool isBuildArgument = false}) =>
-      writer.surfaceValue ??=
-          HoistNeedsSurfaceValue(name, isBuildArgument: isBuildArgument);
+      writer.surfaceValue ??= HoistNeedsSurfaceValue(
+        name,
+        isBuildArgument: isBuildArgument,
+      );
 
   bool _declaredInside(Element element) {
     final fragment = element.firstFragment;
@@ -745,8 +757,9 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
       _fail();
       return;
     }
-    final element =
-        raw is PropertyAccessorElement ? raw.variable : raw.baseElement;
+    final element = raw is PropertyAccessorElement
+        ? raw.variable
+        : raw.baseElement;
     if (_declaredInside(element)) return;
     final bound = analyzer.bindingFor(raw) ?? analyzer.bindingFor(element);
     if (bound != null) {
@@ -780,7 +793,8 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
       }
       _surfaceOnly(
         name,
-        isBuildArgument: root != null &&
+        isBuildArgument:
+            root != null &&
             identical(
               element.baseElement.enclosingElement,
               root.enclosingElement,
@@ -831,16 +845,15 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
 }
 
 bool _isSelector(SimpleIdentifier identifier) => switch (identifier.parent) {
-      ConstructorName(:final name) when identical(name, identifier) => true,
-      MethodInvocation(:final methodName)
-          when identical(methodName, identifier) =>
-        true,
-      PrefixedIdentifier(identifier: final selector)
-          when identical(selector, identifier) =>
-        true,
-      PropertyAccess(:final propertyName)
-          when identical(propertyName, identifier) =>
-        true,
-      Label() => true,
-      _ => false,
-    };
+  ConstructorName(:final name) when identical(name, identifier) => true,
+  MethodInvocation(:final methodName) when identical(methodName, identifier) =>
+    true,
+  PrefixedIdentifier(identifier: final selector)
+      when identical(selector, identifier) =>
+    true,
+  PropertyAccess(:final propertyName)
+      when identical(propertyName, identifier) =>
+    true,
+  Label() => true,
+  _ => false,
+};

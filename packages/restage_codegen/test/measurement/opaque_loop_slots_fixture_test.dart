@@ -44,8 +44,9 @@ void main() {
       ],
       {
         for (final path in _fixtureDartPaths)
-          '$_package|$path':
-              File(p.join(_fixtureRoot, path)).readAsStringSync(),
+          '$_package|$path': File(
+            p.join(_fixtureRoot, path),
+          ).readAsStringSync(),
       },
       rootPackage: _package,
       readerWriter: readerWriter,
@@ -60,19 +61,24 @@ void main() {
       ),
     );
     final publication = output.publications.single;
-    final taps = publication.routePlan.routes
-        .where((route) => route.orderedCaptureV1?.lifecycleChannel == null);
+    final taps = publication.routePlan.routes.where(
+      (route) => route.orderedCaptureV1?.lifecycleChannel == null,
+    );
     expect(taps, hasLength(8), reason: 'onReorder and the 7 day taps');
   });
 }
 
 BuilderOptions _builderOptions(String builderKey) {
-  final document = loadYaml(
-    File(p.join(_fixtureRoot, 'build.yaml')).readAsStringSync(),
-  ) as YamlMap;
+  final document =
+      loadYaml(
+            File(p.join(_fixtureRoot, 'build.yaml')).readAsStringSync(),
+          )
+          as YamlMap;
   final options =
       ((((document['targets'] as YamlMap)[r'$default'] as YamlMap)['builders']
-          as YamlMap)[builderKey] as YamlMap)['options'] as YamlMap;
+                  as YamlMap)[builderKey]
+              as YamlMap)['options']
+          as YamlMap;
   return BuilderOptions(
     {for (final entry in options.entries) entry.key as String: entry.value},
     isRoot: true,

@@ -84,8 +84,8 @@ List<Issue> neutralPartDirectiveIssues({
       message: superseded.isEmpty
           ? "Missing `part '$required';` directive."
           : "Replace `part '$superseded';` with `part '$required';` — one "
-              'generated part now carries every Restage declaration in this '
-              'library.',
+                'generated part now carries every Restage declaration in this '
+                'library.',
       location: libraryPath,
     ),
   ];
@@ -101,9 +101,8 @@ List<Issue> neutralPartDirectiveIssuesForSource({
   required String sourceText,
   required String libraryPath,
   required RestageOutputLocationPlan plan,
-}) =>
-    neutralPartDirectiveIssues(
-      unit: parseUnresolvedDart(sourceText, path: libraryPath),
-      libraryPath: libraryPath,
-      plan: plan,
-    );
+}) => neutralPartDirectiveIssues(
+  unit: parseUnresolvedDart(sourceText, path: libraryPath),
+  libraryPath: libraryPath,
+  plan: plan,
+);

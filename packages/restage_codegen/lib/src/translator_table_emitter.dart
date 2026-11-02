@@ -23,8 +23,10 @@ String emitTranslatorTableSource(List<TranslatorRecipe> recipes) {
     ..writeln("import 'package:restage_codegen/src/translator_recipe.dart';")
     ..writeln("import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';")
     ..writeln()
-    ..writeln('/// Translator recipes keyed by their (library, type, variant) '
-        'triple.')
+    ..writeln(
+      '/// Translator recipes keyed by their (library, type, variant) '
+      'triple.',
+    )
     ..writeln('const Map<String, TranslatorRecipe> kTranslatorRecipes = {');
   for (final recipe in recipes) {
     buf.writeln('  ${_string(recipe.key)}: ${_recipe(recipe)},');
@@ -54,58 +56,58 @@ String _validation(RecipeValidation v) =>
     'message: ${_string(v.message)})';
 
 String _check(ValidationCheck c) => switch (c) {
-      ArityExact(:final count) => 'ArityExact($count)',
-      PositionalsAreIntLiterals(:final start, :final endExclusive) =>
-        'PositionalsAreIntLiterals($start, $endExclusive)',
-      PositionalIntsHaveValue(:final start, :final endExclusive) =>
-        'PositionalIntsHaveValue($start, $endExclusive)',
-      PositionalIntsInRange(
-        :final start,
-        :final endExclusive,
-        :final min,
-        :final max,
-      ) =>
-        'PositionalIntsInRange($start, $endExclusive, $min, $max)',
-      PositionalNumLiteralInRange(:final index, :final min, :final max) =>
-        'PositionalNumLiteralInRange($index, $min, $max)',
-    };
+  ArityExact(:final count) => 'ArityExact($count)',
+  PositionalsAreIntLiterals(:final start, :final endExclusive) =>
+    'PositionalsAreIntLiterals($start, $endExclusive)',
+  PositionalIntsHaveValue(:final start, :final endExclusive) =>
+    'PositionalIntsHaveValue($start, $endExclusive)',
+  PositionalIntsInRange(
+    :final start,
+    :final endExclusive,
+    :final min,
+    :final max,
+  ) =>
+    'PositionalIntsInRange($start, $endExclusive, $min, $max)',
+  PositionalNumLiteralInRange(:final index, :final min, :final max) =>
+    'PositionalNumLiteralInRange($index, $min, $max)',
+};
 
 String _fragment(EmitFragment f) => switch (f) {
-      EmitFragmentLiteral(:final dsl) => 'EmitFragmentLiteral(${_string(dsl)})',
-      EmitFragmentArg(
-        :final arg,
-        :final ifUnset,
-        :final asLength,
-        :final asDoubleList,
-        :final propertyType,
-        :final itemPropertyType,
-      ) =>
-        _emitFragmentArg(
-          arg,
-          ifUnset,
-          asLength,
-          asDoubleList,
-          propertyType,
-          itemPropertyType,
-        ),
-      EmitFragmentList(:final items) =>
-        'EmitFragmentList([${items.map(_fragment).join(', ')}])',
-      EmitFragmentMap(:final entries) =>
-        'EmitFragmentMap([${entries.map(_mapEntry).join(', ')}])',
-      EmitFragmentKernel(:final kernel, :final inputs) =>
-        'EmitFragmentKernel(${_kernel(kernel)}, '
-            '[${inputs.map(_value).join(', ')}])',
-      EmitFragmentMemberTable(
-        :final memberArg,
-        :final members,
-        :final fallback,
-      ) =>
-        fallback == null
-            ? 'EmitFragmentMemberTable(${_argRef(memberArg)}, '
-                '{${_members(members)}})'
-            : 'EmitFragmentMemberTable(${_argRef(memberArg)}, '
-                '{${_members(members)}}, fallback: ${_fragment(fallback)})',
-    };
+  EmitFragmentLiteral(:final dsl) => 'EmitFragmentLiteral(${_string(dsl)})',
+  EmitFragmentArg(
+    :final arg,
+    :final ifUnset,
+    :final asLength,
+    :final asDoubleList,
+    :final propertyType,
+    :final itemPropertyType,
+  ) =>
+    _emitFragmentArg(
+      arg,
+      ifUnset,
+      asLength,
+      asDoubleList,
+      propertyType,
+      itemPropertyType,
+    ),
+  EmitFragmentList(:final items) =>
+    'EmitFragmentList([${items.map(_fragment).join(', ')}])',
+  EmitFragmentMap(:final entries) =>
+    'EmitFragmentMap([${entries.map(_mapEntry).join(', ')}])',
+  EmitFragmentKernel(:final kernel, :final inputs) =>
+    'EmitFragmentKernel(${_kernel(kernel)}, '
+        '[${inputs.map(_value).join(', ')}])',
+  EmitFragmentMemberTable(
+    :final memberArg,
+    :final members,
+    :final fallback,
+  ) =>
+    fallback == null
+        ? 'EmitFragmentMemberTable(${_argRef(memberArg)}, '
+              '{${_members(members)}})'
+        : 'EmitFragmentMemberTable(${_argRef(memberArg)}, '
+              '{${_members(members)}}, fallback: ${_fragment(fallback)})',
+};
 
 String _emitFragmentArg(
   ArgRef arg,
@@ -133,15 +135,15 @@ String _members(Map<String, EmitFragment> members) => members.entries
     .join(', ');
 
 String _value(EmitValue v) => switch (v) {
-      EmitValueArg(:final arg) => 'EmitValueArg(${_argRef(arg)})',
-      EmitValueKernel(:final kernel, :final inputs) =>
-        'EmitValueKernel(${_kernel(kernel)}, '
-            '[${inputs.map(_value).join(', ')}])',
-    };
+  EmitValueArg(:final arg) => 'EmitValueArg(${_argRef(arg)})',
+  EmitValueKernel(:final kernel, :final inputs) =>
+    'EmitValueKernel(${_kernel(kernel)}, '
+        '[${inputs.map(_value).join(', ')}])',
+};
 
 String _mapEntry(EmitMapEntry e) => e.omitWhenArgUnset
     ? 'EmitMapEntry(${_string(e.key)}, ${_fragment(e.value)}, '
-        'omitWhenArgUnset: true)'
+          'omitWhenArgUnset: true)'
     : 'EmitMapEntry(${_string(e.key)}, ${_fragment(e.value)})';
 
 String _argRef(ArgRef a) => a.index != null

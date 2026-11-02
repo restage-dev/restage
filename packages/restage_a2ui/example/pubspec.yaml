@@ -1,24 +1,24 @@
 name: restage_a2ui_example
 description: >-
   End-to-end example: annotate Flutter widgets with @RestageWidget, run
-  build_runner, and render the generated A2UI catalog with genui.
+  build_runner, and render the generated A2UI catalog with a2ui_flutter.
 publish_to: none
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
-  flutter: ">=3.35.0"
+  flutter: ">=3.38.0"
 
 resolution: workspace
 
 dependencies:
   flutter:
     sdk: flutter
-  # The genui runtime the generated catalog targets.
-  genui: ^0.10.1
-  # The A2UI message model relocated out of genui in 0.10.x.
-  a2ui_core: ^0.1.0
+  # The Flutter runtime the generated catalog targets.
+  a2ui_flutter: 0.0.1-wip003
+  # The pinned A2UI 1.0 candidate protocol model.
+  a2ui_core: ^0.4.0
   # The generated catalog's data schemas are built with json_schema_builder.
-  json_schema_builder: ^0.1.3
+  json_schema_builder: ^0.1.7
   # The app-side pre-render check + the capability sidecar.
   restage_a2ui:
     path: ../
@@ -37,5 +37,3 @@ dev_dependencies:
   # Tests build a capability sidecar (CapabilityManifest / LibraryRequirement).
   restage_shared:
     path: ../../restage_shared
-  # The fail-closed test reads genui's not-found log records.
-  logging: ^1.3.0

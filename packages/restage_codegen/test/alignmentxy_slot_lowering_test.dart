@@ -52,8 +52,10 @@ void main() {
     entry(name: 'SizedBox', properties: [prop('width', PropertyType.real)]),
   ]);
 
-  final translator =
-      ExpressionTranslator(catalog: catalog, helpers: HelperRegistry());
+  final translator = ExpressionTranslator(
+    catalog: catalog,
+    helpers: HelperRegistry(),
+  );
 
   Future<({String dsl, List<Issue> issues})> translateUnresolved(
     String source,
@@ -77,50 +79,52 @@ void main() {
     ].map((issue) => issue.code);
   }
 
-  group('alignmentXY slot lowers a framework Alignment value (value-asserted)',
-      () {
-    test('Alignment.center member -> {x: 0.0, y: 0.0}', () async {
-      final r = await translateUnresolved(
-        'AnimatedScale(scale: 1.0, alignment: Alignment.center, '
-        'child: SizedBox())',
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('alignment: {x: 0.0, y: 0.0}'));
-    });
+  group(
+    'alignmentXY slot lowers a framework Alignment value (value-asserted)',
+    () {
+      test('Alignment.center member -> {x: 0.0, y: 0.0}', () async {
+        final r = await translateUnresolved(
+          'AnimatedScale(scale: 1.0, alignment: Alignment.center, '
+          'child: SizedBox())',
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, contains('alignment: {x: 0.0, y: 0.0}'));
+      });
 
-    test('Alignment.topRight member -> {x: 1.0, y: -1.0}', () async {
-      final r = await translateUnresolved(
-        'AnimatedRotation(turns: 0.5, alignment: Alignment.topRight, '
-        'child: SizedBox())',
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('alignment: {x: 1.0, y: -1.0}'));
-    });
+      test('Alignment.topRight member -> {x: 1.0, y: -1.0}', () async {
+        final r = await translateUnresolved(
+          'AnimatedRotation(turns: 0.5, alignment: Alignment.topRight, '
+          'child: SizedBox())',
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, contains('alignment: {x: 1.0, y: -1.0}'));
+      });
 
-    test('Alignment(x, y) ctor -> {x: 0.5, y: 0.3}', () async {
-      final r = await translateUnresolved(
-        'AnimatedScale(scale: 1.0, alignment: Alignment(0.5, 0.3), '
-        'child: SizedBox())',
-      );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('alignment: {x: 0.5, y: 0.3}'));
-    });
+      test('Alignment(x, y) ctor -> {x: 0.5, y: 0.3}', () async {
+        final r = await translateUnresolved(
+          'AnimatedScale(scale: 1.0, alignment: Alignment(0.5, 0.3), '
+          'child: SizedBox())',
+        );
+        expect(r.issues, isEmpty);
+        expect(r.dsl, contains('alignment: {x: 0.5, y: 0.3}'));
+      });
 
-    test('a known alignmentXY slot no longer diagnoses a value-shape mismatch',
+      test(
+        'a known alignmentXY slot no longer diagnoses a value-shape mismatch',
         () async {
-      final codes = await issueCodesFor(
-        'AnimatedScale(scale: 1.0, alignment: Alignment.center, '
-        'child: SizedBox())',
+          final codes = await issueCodesFor(
+            'AnimatedScale(scale: 1.0, alignment: Alignment.center, '
+            'child: SizedBox())',
+          );
+          expect(codes, isNot(contains(IssueCode.unknownProperty)));
+          expect(codes, isNot(contains(IssueCode.propertyValueTypeMismatch)));
+        },
       );
-      expect(codes, isNot(contains(IssueCode.unknownProperty)));
-      expect(codes, isNot(contains(IssueCode.propertyValueTypeMismatch)));
-    });
 
-    test(
-        'a real-Flutter Alignment.bottomRight at the slot still lowers when '
-        'fully resolved -> {x: 1.0, y: 1.0}', () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+      test('a real-Flutter Alignment.bottomRight at the slot still lowers when '
+          'fully resolved -> {x: 1.0, y: 1.0}', () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/material.dart'
             show AnimatedScale, Alignment, SizedBox;
         Object x() => AnimatedScale(
@@ -129,17 +133,17 @@ void main() {
           child: SizedBox(),
         );
         ''',
-        rootPackage: 'apps_examples',
-      );
-      final r = translator.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(r.dsl, contains('alignment: {x: 1.0, y: 1.0}'));
-    });
-  });
+          rootPackage: 'apps_examples',
+        );
+        final r = translator.translate(expr);
+        expect(r.issues, isEmpty);
+        expect(r.dsl, contains('alignment: {x: 1.0, y: 1.0}'));
+      });
+    },
+  );
 
   group('alignmentXY slot diagnoses what it cannot provably lower', () {
-    test(
-        'a resolved custom Alignment look-alike DEFERS at the slot — '
+    test('a resolved custom Alignment look-alike DEFERS at the slot — '
         'no {x, y} substitution, no bare member string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -167,22 +171,24 @@ void main() {
       expect(r.dsl, isNot(contains('"topRight"')));
     });
 
-    test('AlignmentDirectional is not a concrete Alignment — diagnoses',
-        () async {
-      final r = await translateUnresolved(
-        'AnimatedScale(scale: 1.0, '
-        'alignment: AlignmentDirectional.centerStart, child: SizedBox())',
-      );
-      expect(r.issues, isNotEmpty);
-      expect(r.issues.first.code, IssueCode.propertyValueTypeMismatch);
-      expect(
-        r.issues.first.message,
-        'A concrete Alignment slot cannot accept AlignmentDirectional.',
-      );
-      // Never lowers a directional member to a bare string the floor would
-      // then have to catch.
-      expect(r.dsl, isNot(contains('"centerStart"')));
-    });
+    test(
+      'AlignmentDirectional is not a concrete Alignment — diagnoses',
+      () async {
+        final r = await translateUnresolved(
+          'AnimatedScale(scale: 1.0, '
+          'alignment: AlignmentDirectional.centerStart, child: SizedBox())',
+        );
+        expect(r.issues, isNotEmpty);
+        expect(r.issues.first.code, IssueCode.propertyValueTypeMismatch);
+        expect(
+          r.issues.first.message,
+          'A concrete Alignment slot cannot accept AlignmentDirectional.',
+        );
+        // Never lowers a directional member to a bare string the floor would
+        // then have to catch.
+        expect(r.dsl, isNot(contains('"centerStart"')));
+      },
+    );
 
     test('an unsupported Alignment member diagnoses', () async {
       final r = await translateUnresolved(
@@ -194,12 +200,14 @@ void main() {
       expect(r.dsl, isNot(contains('"bogus"')));
     });
 
-    test('a genuinely unknown property still diagnoses (regression guard)',
-        () async {
-      final codes = await issueCodesFor(
-        'AnimatedScale(scale: 1.0, bogus: 1, child: SizedBox())',
-      );
-      expect(codes, contains(IssueCode.unknownProperty));
-    });
+    test(
+      'a genuinely unknown property still diagnoses (regression guard)',
+      () async {
+        final codes = await issueCodesFor(
+          'AnimatedScale(scale: 1.0, bogus: 1, child: SizedBox())',
+        );
+        expect(codes, contains(IssueCode.unknownProperty));
+      },
+    );
   });
 }

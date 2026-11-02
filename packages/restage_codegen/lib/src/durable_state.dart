@@ -108,7 +108,7 @@ const String kUntrackedDurableStateAdvice =
 String durableRestageStateAdvice(String path) => path.startsWith('.restage/')
     ? kUntrackedDurableStateAdvice
     : '$kUntrackedDurableStateAdvice Also include `$path` in '
-        '`additional_public_assets` and any restricted target sources.';
+          '`additional_public_assets` and any restricted target sources.';
 
 /// The [paths] that exist on disk under [packageRoot] but are not build
 /// inputs, so an edit to them does not invalidate a cached build.
@@ -166,5 +166,5 @@ List<Glob> _buildYamlSourceGlobs(Uri packageRoot) {
 /// author to edit is untracked.
 String withUntrackedStateAdvice(String message, {required bool untracked}) =>
     untracked && message.endsWith('Then rebuild.')
-        ? '$message $kUntrackedDurableStateAdvice'
-        : message;
+    ? '$message $kUntrackedDurableStateAdvice'
+    : message;

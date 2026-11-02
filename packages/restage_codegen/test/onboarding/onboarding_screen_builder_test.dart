@@ -44,9 +44,10 @@ final class _WelcomeScreenState extends State<WelcomeScreen> {
       expect(sourceFound.build.state!.single.name, 'annual');
     });
 
-    test('valid @OnboardingSource emits descriptor and RFW artifacts',
-        () async {
-      const source = '''
+    test(
+      'valid @OnboardingSource emits descriptor and RFW artifacts',
+      () async {
+        const source = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -70,37 +71,38 @@ final class WelcomeScreen extends StatelessWidget {
 }
 ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/onboarding/screens/welcome.dart'),
-        source,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/onboarding/screens/welcome.dart'),
+          source,
+        );
 
-      await testBuilder(
-        onboardingScreenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/onboarding/screens/welcome.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
-              decodedMatches(
-            allOf(
-              contains('widget OnboardingScreen ='),
-              isNot(contains('widget Paywall =')),
-              contains('Center'),
-              contains('ElevatedButton'),
-              contains('Text'),
-            ),
-          ),
-          'apps_examples|assets/onboarding/screens/welcome.rfw':
-              _decodesAsRfwLibrary(),
-          'apps_examples|assets/onboarding/screens/welcome.capability.json':
-              anything,
-        },
-      );
-    });
+        await testBuilder(
+          onboardingScreenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/onboarding/screens/welcome.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
+                decodedMatches(
+                  allOf(
+                    contains('widget OnboardingScreen ='),
+                    isNot(contains('widget Paywall =')),
+                    contains('Center'),
+                    contains('ElevatedButton'),
+                    contains('Text'),
+                  ),
+                ),
+            'apps_examples|assets/onboarding/screens/welcome.rfw':
+                _decodesAsRfwLibrary(),
+            'apps_examples|assets/onboarding/screens/welcome.capability.json':
+                anything,
+          },
+        );
+      },
+    );
 
     test('generic @ScreenSource lowers neutral surfaceEvent helpers', () async {
       const source = '''
@@ -246,22 +248,22 @@ final class _WelcomeScreenState extends State<WelcomeScreen> {
         outputs: {
           'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
               decodedMatches(
-            allOf(
-              contains('widget OnboardingScreen { annual: false } ='),
-              contains(
-                'onTap: set state.annual = switch state.annual '
-                '{ true: false, false: true }',
+                allOf(
+                  contains('widget OnboardingScreen { annual: false } ='),
+                  contains(
+                    'onTap: set state.annual = switch state.annual '
+                    '{ true: false, false: true }',
+                  ),
+                  contains(
+                    'text: switch state.annual '
+                    '{ true: "Annual", false: "Monthly" }',
+                  ),
+                ),
               ),
-              contains(
-                'text: switch state.annual '
-                '{ true: "Annual", false: "Monthly" }',
-              ),
-            ),
-          ),
           'apps_examples|assets/onboarding/screens/welcome.rfw':
               const _StatefulRootMatcher('OnboardingScreen', {
-            'annual': false,
-          }),
+                'annual': false,
+              }),
           'apps_examples|assets/onboarding/screens/welcome.capability.json':
               anything,
         },
@@ -363,10 +365,10 @@ final class WelcomeScreen extends StatelessWidget {
         outputs: {
           'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
               decodedMatches(
-            contains(
-              'event "analyticsTap" { ctaId: "primary", secret: "internal" }',
-            ),
-          ),
+                contains(
+                  'event "analyticsTap" { ctaId: "primary", secret: "internal" }',
+                ),
+              ),
           'apps_examples|assets/onboarding/screens/welcome.rfw':
               _decodesAsRfwLibrary(),
           'apps_examples|assets/onboarding/screens/welcome.capability.json':
@@ -375,12 +377,13 @@ final class WelcomeScreen extends StatelessWidget {
       );
     });
 
-    test('onboardingEvent scalar value wraps under the reserved value key',
-        () async {
-      // The producer side of `.capture()`: a scalar event value must reach the
-      // RFW event as `{ value: <v> }` (not a bare scalar a runtime map-decode
-      // would drop), so a flow `.capture()` reading the reserved key resolves.
-      const source = '''
+    test(
+      'onboardingEvent scalar value wraps under the reserved value key',
+      () async {
+        // The producer side of `.capture()`: a scalar event value must reach the
+        // RFW event as `{ value: <v> }` (not a bare scalar a runtime map-decode
+        // would drop), so a flow `.capture()` reading the reserved key resolves.
+        const source = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -404,29 +407,30 @@ final class WelcomeScreen extends StatelessWidget {
 }
 ''';
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/onboarding/screens/welcome.dart'),
-        source,
-      );
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/onboarding/screens/welcome.dart'),
+          source,
+        );
 
-      await testBuilder(
-        onboardingScreenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/onboarding/screens/welcome.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
-              decodedMatches(contains('event "rating" { value: 42 }')),
-          'apps_examples|assets/onboarding/screens/welcome.rfw':
-              _decodesAsRfwLibrary(),
-          'apps_examples|assets/onboarding/screens/welcome.capability.json':
-              anything,
-        },
-      );
-    });
+        await testBuilder(
+          onboardingScreenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/onboarding/screens/welcome.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
+                decodedMatches(contains('event "rating" { value: 42 }')),
+            'apps_examples|assets/onboarding/screens/welcome.rfw':
+                _decodesAsRfwLibrary(),
+            'apps_examples|assets/onboarding/screens/welcome.capability.json':
+                anything,
+          },
+        );
+      },
+    );
 
     test('filename / id mismatch rejects outputs with a diagnostic', () async {
       const source = '''
@@ -547,9 +551,10 @@ final class WelcomeScreen extends StatelessWidget {
       );
     }
 
-    test('more than one ScreenSource rejects the complete RFW output family',
-        () async {
-      const source = '''
+    test(
+      'more than one ScreenSource rejects the complete RFW output family',
+      () async {
+        const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -572,30 +577,31 @@ final class AdditionalWelcomeScreen extends StatelessWidget {
 }
 ''';
 
-      final logs = <LogRecord>[];
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/onboarding/screens/welcome.dart'),
-        source,
-      );
+        final logs = <LogRecord>[];
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'lib/onboarding/screens/welcome.dart'),
+          source,
+        );
 
-      final result = await testBuilder(
-        onboardingScreenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/onboarding/screens/welcome.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        onLog: logs.add,
-        outputs: const {},
-      );
+        final result = await testBuilder(
+          onboardingScreenBuilder(BuilderOptions.empty),
+          {'apps_examples|lib/onboarding/screens/welcome.dart': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          onLog: logs.add,
+          outputs: const {},
+        );
 
-      expect(result.succeeded, isFalse);
-      expect(
-        logs.map((log) => log.message).join('\n'),
-        contains('[invalidScreenSourceCount]'),
-      );
-    });
+        expect(result.succeeded, isFalse);
+        expect(
+          logs.map((log) => log.message).join('\n'),
+          contains('[invalidScreenSourceCount]'),
+        );
+      },
+    );
 
     test('local OnboardingSource annotation lookalikes are ignored', () async {
       const source = '''
@@ -698,7 +704,8 @@ Text(paywallPriceFor(slot: 'primary'))
       };
 
       for (final entry in cases.entries) {
-        final source = '''
+        final source =
+            '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -850,8 +857,7 @@ final class OnboardingEvent<T> {
       );
     });
 
-    test(
-        'a malformed token in a screen source fails the build instead of '
+    test('a malformed token in a screen source fails the build instead of '
         'shipping a silently-recovered blob', () async {
       // The builder resolves with `allowSyntaxErrors: true`. An incomplete
       // hex literal `0x` is a scanner error whose parser recovery would
@@ -897,8 +903,7 @@ final class WelcomeScreen extends StatelessWidget {
       );
     });
 
-    test(
-        'a syntax error that prevents screen discovery still fails the build '
+    test('a syntax error that prevents screen discovery still fails the build '
         'instead of silently skipping', () async {
       // A top-level syntactic error severe enough that no `@OnboardingSource`
       // class is discovered would otherwise hit the no-sources early-return
@@ -946,7 +951,8 @@ final class extends StatelessWidget {
   });
 }
 
-String _screenWithPartDirectiveDecoy(String decoy) => '''
+String _screenWithPartDirectiveDecoy(String decoy) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -967,7 +973,8 @@ const _partDirectiveDecoys = <String, String>{
       "const partDirectiveText = \"part 'restage.generated/part_decoy.restage.g.dart';\";",
 };
 
-String _screenWithBody(String body) => '''
+String _screenWithBody(String body) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -989,12 +996,12 @@ final class WelcomeScreen extends StatelessWidget {
 ''';
 
 Matcher _decodesAsRfwLibrary() => predicate<List<int>>(
-      (bytes) {
-        fmt.decodeLibraryBlob(Uint8List.fromList(bytes));
-        return true;
-      },
-      'RFW library bytes decodable by decodeLibraryBlob',
-    );
+  (bytes) {
+    fmt.decodeLibraryBlob(Uint8List.fromList(bytes));
+    return true;
+  },
+  'RFW library bytes decodable by decodeLibraryBlob',
+);
 
 class _StatefulRootMatcher extends Matcher {
   const _StatefulRootMatcher(this.name, this.expectedState);
@@ -1023,13 +1030,15 @@ class _StatefulRootMatcher extends Matcher {
     }
     final initialState = root.initialState ?? const <String, Object?>{};
     if (initialState.length != expectedState.length) {
-      matchState['shape'] = 'expected state $expectedState, got '
+      matchState['shape'] =
+          'expected state $expectedState, got '
           '$initialState';
       return false;
     }
     for (final entry in expectedState.entries) {
       if (initialState[entry.key] != entry.value) {
-        matchState['shape'] = 'expected state ${entry.key}=${entry.value}, '
+        matchState['shape'] =
+            'expected state ${entry.key}=${entry.value}, '
             'got ${initialState[entry.key]}';
         return false;
       }

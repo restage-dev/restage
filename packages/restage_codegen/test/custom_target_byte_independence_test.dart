@@ -38,104 +38,110 @@ const _widgetbookBuilders = <Builder>[
 ];
 
 void main() {
-  test('solo and mixed target configurations emit identical sibling bytes',
-      () async {
-    final rfwOnly = await _build(
-      builders: _rfwBuilders,
-      outputs: _rfwOutputs,
-    );
-    final a2uiOnly = await _build(
-      builders: _a2uiBuilders,
-      outputs: _a2uiOutputs,
-    );
-    final widgetbookOnly = await _build(
-      builders: _widgetbookBuilders,
-      outputs: _widgetbookOutputs,
-    );
-    final mixed = await _build(
-      builders: [
+  test(
+    'solo and mixed target configurations emit identical sibling bytes',
+    () async {
+      final rfwOnly = await _build(
+        builders: _rfwBuilders,
+        outputs: _rfwOutputs,
+      );
+      final a2uiOnly = await _build(
+        builders: _a2uiBuilders,
+        outputs: _a2uiOutputs,
+      );
+      final widgetbookOnly = await _build(
+        builders: _widgetbookBuilders,
+        outputs: _widgetbookOutputs,
+      );
+      final mixed = await _build(
+        builders: [
+          ..._rfwBuilders,
+          ..._a2uiBuilders,
+          ..._widgetbookBuilders,
+        ],
+        outputs: const [
+          ..._rfwOutputs,
+          ..._a2uiOutputs,
+          ..._widgetbookOutputs,
+        ],
+      );
+
+      expect(_family(mixed, _rfwOutputs), rfwOnly);
+      expect(_family(mixed, _a2uiOutputs), a2uiOnly);
+      expect(_family(mixed, _widgetbookOutputs), widgetbookOnly);
+    },
+  );
+
+  test(
+    'an A2UI-only pairing mutation changes no sibling output family',
+    () async {
+      final primary = await _build(
+        builders: [
+          ..._rfwBuilders,
+          ..._a2uiBuilders,
+          ..._widgetbookBuilders,
+        ],
+        outputs: const [
+          ..._rfwOutputs,
+          ..._a2uiOutputs,
+          ..._widgetbookOutputs,
+        ],
+      );
+      final secondary = await _build(
+        builders: [
+          ..._rfwBuilders,
+          ..._a2uiBuilders,
+          ..._widgetbookBuilders,
+        ],
+        outputs: const [
+          ..._rfwOutputs,
+          ..._a2uiOutputs,
+          ..._widgetbookOutputs,
+        ],
+        writeBackTarget: 'secondary',
+      );
+
+      expect(_family(primary, _rfwOutputs), _family(secondary, _rfwOutputs));
+      expect(
+        _family(primary, _widgetbookOutputs),
+        _family(secondary, _widgetbookOutputs),
+      );
+      expect(
+        primary['lib/generated/restage_a2ui_catalog.g.dart'],
+        isNot(secondary['lib/generated/restage_a2ui_catalog.g.dart']),
+      );
+    },
+  );
+
+  test(
+    'redundant explicit name and library are byte-neutral for every target',
+    () async {
+      final builders = [
         ..._rfwBuilders,
         ..._a2uiBuilders,
         ..._widgetbookBuilders,
-      ],
-      outputs: const [
+      ];
+      const outputs = [
         ..._rfwOutputs,
         ..._a2uiOutputs,
         ..._widgetbookOutputs,
-      ],
-    );
+      ];
+      final explicit = await _build(builders: builders, outputs: outputs);
+      final inferredName = await _build(
+        builders: builders,
+        outputs: outputs,
+        includeName: false,
+      );
+      final inferredLibrary = await _build(
+        builders: builders,
+        outputs: outputs,
+        includeLibrary: false,
+      );
 
-    expect(_family(mixed, _rfwOutputs), rfwOnly);
-    expect(_family(mixed, _a2uiOutputs), a2uiOnly);
-    expect(_family(mixed, _widgetbookOutputs), widgetbookOnly);
-  });
-
-  test('an A2UI-only pairing mutation changes no sibling output family',
-      () async {
-    final primary = await _build(
-      builders: [
-        ..._rfwBuilders,
-        ..._a2uiBuilders,
-        ..._widgetbookBuilders,
-      ],
-      outputs: const [
-        ..._rfwOutputs,
-        ..._a2uiOutputs,
-        ..._widgetbookOutputs,
-      ],
-    );
-    final secondary = await _build(
-      builders: [
-        ..._rfwBuilders,
-        ..._a2uiBuilders,
-        ..._widgetbookBuilders,
-      ],
-      outputs: const [
-        ..._rfwOutputs,
-        ..._a2uiOutputs,
-        ..._widgetbookOutputs,
-      ],
-      writeBackTarget: 'secondary',
-    );
-
-    expect(_family(primary, _rfwOutputs), _family(secondary, _rfwOutputs));
-    expect(
-      _family(primary, _widgetbookOutputs),
-      _family(secondary, _widgetbookOutputs),
-    );
-    expect(
-      primary['lib/generated/restage_a2ui_catalog.g.dart'],
-      isNot(secondary['lib/generated/restage_a2ui_catalog.g.dart']),
-    );
-  });
-
-  test('redundant explicit name and library are byte-neutral for every target',
-      () async {
-    final builders = [
-      ..._rfwBuilders,
-      ..._a2uiBuilders,
-      ..._widgetbookBuilders,
-    ];
-    const outputs = [
-      ..._rfwOutputs,
-      ..._a2uiOutputs,
-      ..._widgetbookOutputs,
-    ];
-    final explicit = await _build(builders: builders, outputs: outputs);
-    final inferredName = await _build(
-      builders: builders,
-      outputs: outputs,
-      includeName: false,
-    );
-    final inferredLibrary = await _build(
-      builders: builders,
-      outputs: outputs,
-      includeLibrary: false,
-    );
-
-    expect(inferredName, explicit);
-    expect(inferredLibrary, explicit);
-  });
+      expect(inferredName, explicit);
+      expect(inferredLibrary, explicit);
+    },
+  );
 }
 
 Future<Map<String, String>> _build({
@@ -173,8 +179,7 @@ Future<Map<String, String>> _build({
 Map<String, String> _family(
   Map<String, String> outputs,
   List<String> paths,
-) =>
-    {for (final path in paths) path: outputs[path]!};
+) => {for (final path in paths) path: outputs[path]!};
 
 String _targetProbe(
   String writeBackTarget, {

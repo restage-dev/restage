@@ -26,104 +26,112 @@ const _policyOptions = BuilderOptions({
 });
 
 void main() {
-  test('a build refused on ledger review keeps the prior generated outputs',
-      () async {
-    final settled = await _build(_ledgerSource());
-    expect(
-      settled.result.succeeded,
-      isTrue,
-      reason: settled.result.errors.join('\n'),
-    );
-    final prior = <String, List<int>>{
-      for (final path in _priorOutputPaths)
-        path: settled.readerWriter.testing.readBytes(
-          AssetId(_package, path),
-        ),
-    };
-    prior['.restage/build/widget_catalog/catalog.json'] =
-        '{"previous":"catalog"}'.codeUnits;
-    final ledger = settled.readerWriter.testing.readString(
-      AssetId(_package, kRestageMeasurementCompilerOutputPath),
-    );
-
-    // The build system removes an output before re-running the step that owns
-    // it, so the refused build starts without any of them.
-    final refused = await _build(
-      _ledgerSource(reshaped: true),
-      ledger: ledger,
-      priorOutputs: prior,
-    );
-    expect(refused.result.succeeded, isFalse);
-    expect(
-      refused.result.errors.join('\n'),
-      contains("This build can't tell which earlier widget"),
-    );
-    final proposals = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-      refused.readerWriter.testing.readBytes(
-        AssetId(_package, kRestageMeasurementCompilerOutputPath),
-      ),
-    );
-    expect(proposals.valid, isFalse);
-    expect(proposals.proposals, isNotEmpty);
-    for (final entry in prior.entries) {
+  test(
+    'a build refused on ledger review keeps the prior generated outputs',
+    () async {
+      final settled = await _build(_ledgerSource());
       expect(
-        refused.readerWriter.testing.readBytes(AssetId(_package, entry.key)),
-        orderedEquals(entry.value),
-        reason: entry.key,
+        settled.result.succeeded,
+        isTrue,
+        reason: settled.result.errors.join('\n'),
       );
-    }
-  });
-
-  test('the refusal says how to resolve it, and resolving it rebuilds',
-      () async {
-    final settled = await _build(_ledgerSource());
-    expect(settled.result.succeeded, isTrue);
-    final ledger = settled.readerWriter.testing.readString(
-      AssetId(_package, kRestageMeasurementCompilerOutputPath),
-    );
-    final refused = await _build(_ledgerSource(reshaped: true), ledger: ledger);
-    expect(refused.result.succeeded, isFalse);
-    final message = refused.result.errors.join('\n');
-    expect(
-      message,
-      allOf([
-        contains("This build can't tell which earlier widget the one at "),
-        contains('.restage/measurement-state.json'),
-        contains('"acceptedRelocations"'),
-        contains('"codeIdentityId": "code.auto.'),
-        contains('"acceptedIntroductions"'),
-        contains('Then rebuild.'),
-      ]),
-    );
-
-    final proposals = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-      refused.readerWriter.testing.readBytes(
+      final prior = <String, List<int>>{
+        for (final path in _priorOutputPaths)
+          path: settled.readerWriter.testing.readBytes(
+            AssetId(_package, path),
+          ),
+      };
+      prior['.restage/build/widget_catalog/catalog.json'] =
+          '{"previous":"catalog"}'.codeUnits;
+      final ledger = settled.readerWriter.testing.readString(
         AssetId(_package, kRestageMeasurementCompilerOutputPath),
-      ),
-    ).proposals;
-    final edited = jsonDecode(ledger) as Map<String, Object?>;
-    edited['acceptedIntroductions'] = [
-      for (final proposal in proposals)
-        {'structuralOccurrenceKey': proposal.toStructuralOccurrenceKey},
-    ];
-    final resolved = await _build(
-      _ledgerSource(reshaped: true),
-      ledger: const JsonEncoder.withIndent('  ').convert(edited),
-    );
-    expect(
-      resolved.result.succeeded,
-      isTrue,
-      reason: resolved.result.errors.join('\n'),
-    );
-  });
+      );
+
+      // The build system removes an output before re-running the step that owns
+      // it, so the refused build starts without any of them.
+      final refused = await _build(
+        _ledgerSource(reshaped: true),
+        ledger: ledger,
+        priorOutputs: prior,
+      );
+      expect(refused.result.succeeded, isFalse);
+      expect(
+        refused.result.errors.join('\n'),
+        contains("This build can't tell which earlier widget"),
+      );
+      final proposals = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        refused.readerWriter.testing.readBytes(
+          AssetId(_package, kRestageMeasurementCompilerOutputPath),
+        ),
+      );
+      expect(proposals.valid, isFalse);
+      expect(proposals.proposals, isNotEmpty);
+      for (final entry in prior.entries) {
+        expect(
+          refused.readerWriter.testing.readBytes(AssetId(_package, entry.key)),
+          orderedEquals(entry.value),
+          reason: entry.key,
+        );
+      }
+    },
+  );
+
+  test(
+    'the refusal says how to resolve it, and resolving it rebuilds',
+    () async {
+      final settled = await _build(_ledgerSource());
+      expect(settled.result.succeeded, isTrue);
+      final ledger = settled.readerWriter.testing.readString(
+        AssetId(_package, kRestageMeasurementCompilerOutputPath),
+      );
+      final refused = await _build(
+        _ledgerSource(reshaped: true),
+        ledger: ledger,
+      );
+      expect(refused.result.succeeded, isFalse);
+      final message = refused.result.errors.join('\n');
+      expect(
+        message,
+        allOf([
+          contains("This build can't tell which earlier widget the one at "),
+          contains('.restage/measurement-state.json'),
+          contains('"acceptedRelocations"'),
+          contains('"codeIdentityId": "code.auto.'),
+          contains('"acceptedIntroductions"'),
+          contains('Then rebuild.'),
+        ]),
+      );
+
+      final proposals = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        refused.readerWriter.testing.readBytes(
+          AssetId(_package, kRestageMeasurementCompilerOutputPath),
+        ),
+      ).proposals;
+      final edited = jsonDecode(ledger) as Map<String, Object?>;
+      edited['acceptedIntroductions'] = [
+        for (final proposal in proposals)
+          {'structuralOccurrenceKey': proposal.toStructuralOccurrenceKey},
+      ];
+      final resolved = await _build(
+        _ledgerSource(reshaped: true),
+        ledger: const JsonEncoder.withIndent('  ').convert(edited),
+      );
+      expect(
+        resolved.result.succeeded,
+        isTrue,
+        reason: resolved.result.errors.join('\n'),
+      );
+    },
+  );
 
   test('a hand-formatted state file is accepted', () async {
     final settled = await _build(_ledgerSource());
     final ledger = settled.readerWriter.testing.readString(
       AssetId(_package, kRestageMeasurementCompilerOutputPath),
     );
-    final indented =
-        const JsonEncoder.withIndent('  ').convert(jsonDecode(ledger));
+    final indented = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(jsonDecode(ledger));
     final rebuilt = await _build(_ledgerSource(), ledger: indented);
     expect(
       rebuilt.result.succeeded,
@@ -155,7 +163,8 @@ Future<({TestBuilderResult result, TestReaderWriter readerWriter})> _build(
       '$_package|$_sourcePath': source,
       // The surface has been pushed, so ambiguous matches need review.
       '$_package|.restage/receipts/acme/main/app/surface/general/ledger/'
-          'production/push-r1.json': '{}',
+              'production/push-r1.json':
+          '{}',
       if (ledger != null)
         '$_package|$kRestageMeasurementCompilerLedgerSourcePath': ledger,
     },

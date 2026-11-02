@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui/genui.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:restage_widgetbook_example/onboarding/screens/restage.generated/get_started_screen.stories.dart'
     as story;
 import 'package:restage_widgetbook_example/generated/restage_a2ui_catalog.g.dart';
@@ -8,118 +9,91 @@ import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen
 import 'package:widgetbook/widgetbook.dart' as widgetbook;
 
 void main() {
-  test('GenUI catalog duplicate names require a generator-side guard', () {
-    final item = buildRestageCatalogItems().singleWhere(
+  testWidgets('A2UI installs and executes one opaque native screen component', (
+    tester,
+  ) async {
+    final catalog = buildRestageCatalog();
+    final item = catalog.components.values.singleWhere(
       (candidate) => candidate.name == 'get_started_screen',
     );
-    final catalog = Catalog(<CatalogItem>[item, item]);
-    final components = catalog.toCapabilitiesJson()['components']!;
-
-    expect(catalog.items, hasLength(2));
-    expect(components, isA<Map<String, Object?>>());
-    expect((components as Map<String, Object?>).keys, <String>[
-      'get_started_screen',
-    ]);
-  });
-
-  testWidgets(
-    'GenUI installs and executes one opaque native screen component',
-    (tester) async {
-      final catalog = buildRestageCatalog();
-      final item = catalog.items.singleWhere(
+    final schema = item.schema.value;
+    final properties = schema['properties'] as Map<String, Object?>;
+    final required = schema['required'] as List<Object?>;
+    final props = properties;
+    final dispatched = <A2uiRendererAction>[];
+    expect(item.name, 'get_started_screen');
+    expect(
+      props.keys,
+      containsAll(<String>[
+        'props_title',
+        'props_enabled',
+        'props_data',
+        'props_context',
+        'props_itemContext',
+        'props_restageA2uiStatus',
+        'props_description',
+        'props_usage',
+      ]),
+    );
+    expect(required, contains('props_title'));
+    expect(
+      catalog.components.values.where(
         (candidate) => candidate.name == 'get_started_screen',
-      );
-      final schema = item.dataSchema.value;
-      final properties = schema['properties'] as Map<String, Object?>;
-      final required = schema['required'] as List<Object?>;
-      final propsSchema = properties['props']! as Map<String, Object?>;
-      final props = propsSchema['properties']! as Map<String, Object?>;
-      final requiredProps = propsSchema['required']! as List<Object?>;
-      final dispatched = <UiEvent>[];
-      final dataContext = DataContext(InMemoryDataModel(), DataPath.root);
+      ),
+      hasLength(1),
+    );
 
-      expect(item.name, 'get_started_screen');
-      expect(
-        props.keys,
-        containsAll(<String>[
-          'title',
-          'enabled',
-          'data',
-          'context',
-          'itemContext',
-          'restageA2uiStatus',
-          'description',
-          'usage',
-        ]),
-      );
-      expect(properties.keys, containsAll(<String>['component', 'props']));
-      expect(required, containsAll(<String>['component', 'props']));
-      expect(requiredProps, contains('title'));
-      expect(
-        catalog.items.where(
-          (candidate) => candidate.name == 'get_started_screen',
-        ),
-        hasLength(1),
-      );
+    final processor = MessageProcessor<ComponentImplementation>(
+      catalogs: [catalog],
+      defaultVersion: A2uiProtocolVersion.v1_0,
+      validationConfig: ValidationConfig.strict,
+      onAction: dispatched.add,
+    );
+    addTearDown(processor.dispose);
+    processor.processMessages({
+      'version': 'v1.0',
+      'createSurface': {
+        'surfaceId': 's',
+        'catalogId': catalog.id,
+        'components': [
+          {
+            'id': 'root',
+            'component': 'get_started_screen',
+            'props_title': 'A2UI title',
+            'props_enabled': false,
+            'props_data': 'A2UI data',
+            'props_context': 'A2UI context',
+            'props_itemContext': 'A2UI item context',
+            'props_restageA2uiStatus': 'urgent',
+            'props_description': 'A2UI custom description',
+            'props_usage': 'A2UI example usage',
+          },
+        ],
+      },
+    });
+    await tester.pumpWidget(
+      MaterialApp(home: A2uiSurface(surface: processor.model.getSurface('s')!)),
+    );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => catalog.buildWidget(
-              CatalogItemContext(
-                data: const <String, Object?>{
-                  'props': <String, Object?>{
-                    'title': 'A2UI title',
-                    'enabled': false,
-                    'data': 'A2UI data',
-                    'context': 'A2UI context',
-                    'itemContext': 'A2UI item context',
-                    'restageA2uiStatus': 'urgent',
-                    'description': 'A2UI custom description',
-                    'usage': 'A2UI example usage',
-                  },
-                },
-                id: 'opaque-screen-instance',
-                type: 'get_started_screen',
-                buildChild: (_, [_]) => const SizedBox.shrink(),
-                dispatchEvent: dispatched.add,
-                buildContext: context,
-                dataContext: dataContext,
-                getComponent: (_) => null,
-                getCatalogItem: (type) => type == item.name ? item : null,
-                surfaceId: 'opaque-screen-surface',
-                reportError: (error, stackTrace) => Error.throwWithStackTrace(
-                  error,
-                  stackTrace ?? StackTrace.current,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
+    final screen = tester.widget<GetStartedScreen>(
+      find.byType(GetStartedScreen),
+    );
+    expect(screen.title, 'A2UI title');
+    expect(screen.enabled, isFalse);
+    expect(screen.data, 'A2UI data');
+    expect(screen.context, 'A2UI context');
+    expect(screen.itemContext, 'A2UI item context');
+    expect(screen.restageA2uiStatus, GetStartedScreenTone.urgent);
+    expect(screen.description, 'A2UI custom description');
+    expect(screen.usage, 'A2UI example usage');
 
-      final screen = tester.widget<GetStartedScreen>(
-        find.byType(GetStartedScreen),
-      );
-      expect(screen.title, 'A2UI title');
-      expect(screen.enabled, isFalse);
-      expect(screen.data, 'A2UI data');
-      expect(screen.context, 'A2UI context');
-      expect(screen.itemContext, 'A2UI item context');
-      expect(screen.restageA2uiStatus, GetStartedScreenTone.urgent);
-      expect(screen.description, 'A2UI custom description');
-      expect(screen.usage, 'A2UI example usage');
+    await tester.tap(find.byKey(const ValueKey('get-started-action')));
+    await tester.pump();
 
-      await tester.tap(find.byKey(const ValueKey('get-started-action')));
-      await tester.pump();
-
-      expect(dispatched, hasLength(1));
-      expect(dispatched.single.toMap()['name'], 'continue');
-      expect(dispatched.single.toMap()['context'], <String, Object?>{
-        'value': 'preview',
-      });
-    },
-  );
+    expect(dispatched, hasLength(1));
+    expect(dispatched.single.name, 'continue');
+    expect(dispatched.single.context, <String, Object?>{'value': 'preview'});
+  });
 
   testWidgets('Widgetbook v4 registered story setup records an event', (
     tester,

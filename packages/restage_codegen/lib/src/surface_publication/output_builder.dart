@@ -24,7 +24,7 @@ import 'package:restage_shared/restage_shared.dart';
 final class RestageOutputsBuilder implements Builder {
   /// Creates the builder, resolving and validating output location options once.
   RestageOutputsBuilder(BuilderOptions options)
-      : plan = RestageOutputLocationPlan.fromBuilderOptions(options);
+    : plan = RestageOutputLocationPlan.fromBuilderOptions(options);
 
   /// The resolved output location authority for this builder invocation.
   final RestageOutputLocationPlan plan;
@@ -126,8 +126,10 @@ final class RestageOutputsBuilder implements Builder {
     if (await buildStep.canRead(customCatalog)) {
       final bytes = await buildStep.readAsBytes(customCatalog);
       final catalog = decodeCatalog(utf8.decode(bytes));
-      if (!catalog.libraries.keys.any((library) =>
-          WidgetLibrary.builtInByNamespace(library.namespace) != null)) {
+      if (!catalog.libraries.keys.any(
+        (library) =>
+            WidgetLibrary.builtInByNamespace(library.namespace) != null,
+      )) {
         await buildStep.writeAsBytes(
           AssetId(buildStep.inputId.package, plan.customCatalogPath),
           bytes,
@@ -164,8 +166,8 @@ final class RestageOutputsBuilder implements Builder {
       try {
         measurementOutput =
             RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-          await buildStep.readAsBytes(measurementAsset),
-        );
+              await buildStep.readAsBytes(measurementAsset),
+            );
       } on Object catch (error) {
         log.severe(
           'The package Measurement compiler output is invalid; package-wide '
@@ -196,8 +198,9 @@ final class RestageOutputsBuilder implements Builder {
     // never manifest artifacts, so they never appear here — their physical
     // location is discoverable through the bundle's own META-INF records,
     // via the manifest artifact the index does locate for that library.
-    final entries = _entriesFor(bundle)
-        .where((entry) => entry.role != RestageBundleEntryRole.rfwText);
+    final entries = _entriesFor(
+      bundle,
+    ).where((entry) => entry.role != RestageBundleEntryRole.rfwText);
     final indexEntries = <Map<String, Object?>>[];
     for (final entry in entries) {
       final libraryPath = bundle.artifactLibraryPaths[entry.logicalPath];
@@ -287,7 +290,8 @@ final class RestageOutputsBuilder implements Builder {
     String? onlyLibrary,
   }) {
     final rolesByPath = <String, SurfacePublicationArtifactRole>{};
-    final publications = bundle.manifest?.publications ??
+    final publications =
+        bundle.manifest?.publications ??
         const <SurfacePublicationManifestEntry>[];
     for (final publication in publications) {
       for (final artifact in publication.artifacts) {
@@ -299,8 +303,9 @@ final class RestageOutputsBuilder implements Builder {
       ...bundle.artifacts,
       ...bundle.borrowedArtifacts,
     };
-    final rfwTextPaths =
-        bundle.ownedOutputs.keys.where((path) => path.endsWith('.rfwtxt'));
+    final rfwTextPaths = bundle.ownedOutputs.keys.where(
+      (path) => path.endsWith('.rfwtxt'),
+    );
 
     // A bundle's owned outputs never overlap its manifest artifacts, so every
     // logical path collected below is distinct and the one sort at the end is

@@ -7,16 +7,16 @@ typedef NativeBindingRoute = ({String dartType, String contractType});
 NativeBindingRoute? nativeBindingRoute(String sourceType) =>
     switch (sourceType) {
       'package:flutter/src/foundation/key.dart#Key' => (
-          dartType: 'Key',
-          contractType: 'flutter.Key',
-        ),
+        dartType: 'Key',
+        contractType: 'flutter.Key',
+      ),
       'package:flutter/src/widgets/scroll_controller.dart#ScrollController' => (
-          dartType: 'ScrollController',
-          contractType: 'flutter.ScrollController',
-        ),
+        dartType: 'ScrollController',
+        contractType: 'flutter.ScrollController',
+      ),
       'package:flutter/src/material/tab_controller.dart#TabController' => (
-          dartType: 'TabController',
-          contractType: 'flutter.TabController',
-        ),
+        dartType: 'TabController',
+        contractType: 'flutter.TabController',
+      ),
       _ => null,
     };

@@ -35,8 +35,7 @@ void main() {
     expect(build.output.publications.single.routePlan.routes, isNotEmpty);
   });
 
-  test('explicit false keeps ordinary artifacts and removes Measurement',
-      () async {
+  test('explicit false keeps ordinary artifacts and removes Measurement', () async {
     final build = await _compile('lib/config/explicit_off.dart');
 
     _expectSucceeded(build);
@@ -227,8 +226,9 @@ Future<_FixtureCompilation> _compile(
     sources['$_package|lib/config/generated_part.freezed.dart'] =
         _fixtureSource('lib/config/generated_part.freezed.dart');
   }
-  final compilerOptions =
-      _builderOptions('restage_codegen:restage_package_surface_compiler');
+  final compilerOptions = _builderOptions(
+    'restage_codegen:restage_package_surface_compiler',
+  );
   final packageSurfaceCompiler = ledgerWriter == null
       ? restagePackageSurfaceCompilerBuilder(compilerOptions)
       : PackageSurfaceCompilerBuilder(
@@ -277,8 +277,9 @@ BuilderOptions _builderOptions(String builderKey) {
   return BuilderOptions(
     {
       for (final entry in options.entries)
-        _stringKey(entry.key, 'builder $builderKey option'):
-            _yamlValue(entry.value),
+        _stringKey(entry.key, 'builder $builderKey option'): _yamlValue(
+          entry.value,
+        ),
     },
     isRoot: true,
   );
@@ -293,13 +294,13 @@ Map<Object?, Object?> _yamlMap(Object? value, String path) {
 }
 
 Object? _yamlValue(Object? value) => switch (value) {
-      YamlMap() => {
-          for (final entry in value.entries)
-            entry.key as String: _yamlValue(entry.value),
-        },
-      YamlList() => [for (final entry in value) _yamlValue(entry)],
-      _ => value,
-    };
+  YamlMap() => {
+    for (final entry in value.entries)
+      entry.key as String: _yamlValue(entry.value),
+  },
+  YamlList() => [for (final entry in value) _yamlValue(entry)],
+  _ => value,
+};
 
 String _stringKey(Object? value, String path) {
   if (value is! String) throw StateError('$path key must be a string.');
@@ -348,9 +349,11 @@ final class _PersistentMeasurementBuild {
       );
 
   static Future<_PersistentMeasurementBuild> create() async {
-    final readerWriter = (await readerWriterWithFilesystemSources(
-      rootPackage: _package,
-    )) as InternalTestReaderWriter;
+    final readerWriter =
+        (await readerWriterWithFilesystemSources(
+              rootPackage: _package,
+            ))
+            as InternalTestReaderWriter;
     readerWriter.testing.writeString(
       AssetId(_package, _screenPath),
       _fixtureSource(_screenPath),
@@ -360,46 +363,47 @@ final class _PersistentMeasurementBuild {
       _configurationSource(true),
     );
 
-    final dependencyPackages = readerWriter.testing.assets
-        .map((asset) => asset.package)
-        .where((package) => package != _package)
-        .toSet()
-        .toList()
-      ..sort();
+    final dependencyPackages =
+        readerWriter.testing.assets
+            .map((asset) => asset.package)
+            .where((package) => package != _package)
+            .toSet()
+            .toList()
+          ..sort();
     final buildPackages =
         build_runner_internal.BuildPackages.singlePackageBuild(
-      _package,
-      <build_runner_internal.BuildPackage>[
-        build_runner_internal.BuildPackage(
-          name: _package,
-          path: '/$_package',
-          watch: true,
-          isOutput: true,
-          dependencies: dependencyPackages.toSet(),
-        ),
-        for (final package in dependencyPackages)
-          build_runner_internal.BuildPackage(
-            name: package,
-            path: '/$package',
-            watch: true,
-          ),
-      ],
-    );
+          _package,
+          <build_runner_internal.BuildPackage>[
+            build_runner_internal.BuildPackage(
+              name: _package,
+              path: '/$_package',
+              watch: true,
+              isOutput: true,
+              dependencies: dependencyPackages.toSet(),
+            ),
+            for (final package in dependencyPackages)
+              build_runner_internal.BuildPackage(
+                name: package,
+                path: '/$package',
+                watch: true,
+              ),
+          ],
+        );
     final builderDefinitions =
         <build_runner_internal.AbstractBuilderDefinition>[
-      build_runner_internal.BuilderDefinition(
-        _cacheConsumerKey,
-        package: 'restage_codegen',
-        autoApply: build_config.AutoApply.none,
-        outputsToArtifactTree: false,
-      ),
-      build_runner_internal.BuilderDefinition(
-        _packageCompilerKey,
-        package: 'restage_codegen',
-        autoApply: build_config.AutoApply.none,
-        outputsToArtifactTree: false,
-      ),
-    ].build();
+          build_runner_internal.BuilderDefinition(
+            _cacheConsumerKey,
+            package: 'restage_codegen',
+            autoApply: build_config.AutoApply.none,
+            outputsToArtifactTree: false,
+          ),
+          build_runner_internal.BuilderDefinition(
+            _packageCompilerKey,
+            package: 'restage_codegen',
+            autoApply: build_config.AutoApply.none,
+            outputsToArtifactTree: false,
+          ),
+        ].build();
     final buildConfig = build_config.BuildConfig.fromMap(
       _package,
       dependencyPackages,
@@ -429,12 +433,12 @@ final class _PersistentMeasurementBuild {
         ],
         _packageCompilerKey: <BuilderFactory>[
           (options) => PackageSurfaceCompilerBuilder(
-                options,
-                ledgerWriter: ({required package, required output}) async {
-                  expect(package, _package);
-                  ledgerOutputs.add(output);
-                },
-              ),
+            options,
+            ledgerWriter: ({required package, required output}) async {
+              expect(package, _package);
+              ledgerOutputs.add(output);
+            },
+          ),
         ],
       },
     );
@@ -493,16 +497,17 @@ final class _MeasurementConfigurationConsumer implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const <String, List<String>>{
-        r'$package$': <String>[_cacheConsumerOutputPath],
-      };
+    r'$package$': <String>[_cacheConsumerOutputPath],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
       plan: RestageOutputLocationPlan.fromBuilderOptions(options),
-      measurementPolicy:
-          MeasurementCompilerPolicyInput.fromBuilderOptions(options),
+      measurementPolicy: MeasurementCompilerPolicyInput.fromBuilderOptions(
+        options,
+      ),
       builderKey: _cacheConsumerKey,
     );
     if (!compilation.isValid) {
@@ -515,7 +520,8 @@ final class _MeasurementConfigurationConsumer implements Builder {
   }
 }
 
-String _configurationSource(bool enabled) => '''
+String _configurationSource(bool enabled) =>
+    '''
 import 'package:restage/restage.dart';
 
 void configureApp() {

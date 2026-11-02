@@ -114,8 +114,7 @@ void main() {
       );
     });
 
-    test(
-        'stamps each screen its own derived capability floor and the flow '
+    test('stamps each screen its own derived capability floor and the flow '
         'document the max of its screens', () async {
       // The pushed `choose_plan` screen embeds a single-select picker — a
       // catalog widget introduced after the baseline content version (its
@@ -180,10 +179,11 @@ void main() {
       );
     });
 
-    test('configured aggregate owner suppresses the canonical static writer',
-        () async {
-      const sources = <String, String>{
-        'apps_examples|lib/paywalls/entry.dart': '''
+    test(
+      'configured aggregate owner suppresses the canonical static writer',
+      () async {
+        const sources = <String, String>{
+          'apps_examples|lib/paywalls/entry.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -195,33 +195,34 @@ final class Entry extends StatelessWidget {
   Widget build(BuildContext context) => const Text('Entry');
 }
 ''',
-      };
-      final readerWriter = await _readerWriterWith(sources);
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'assets/paywalls/entry.navplan.json'),
-        'not a navigation plan',
-      );
+        };
+        final readerWriter = await _readerWriterWith(sources);
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', 'assets/paywalls/entry.navplan.json'),
+          'not a navigation plan',
+        );
 
-      final result = await testBuilders(
-        [
-          paywallFlowBuilder(
-            const BuilderOptions({'aggregate_canonical_owner': true}),
+        final result = await testBuilders(
+          [
+            paywallFlowBuilder(
+              const BuilderOptions({'aggregate_canonical_owner': true}),
+            ),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        expect(
+          await result.readerWriter.canRead(
+            AssetId('apps_examples', 'assets/paywalls/entry.flow.json'),
           ),
-        ],
-        sources,
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
-
-      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      expect(
-        await result.readerWriter.canRead(
-          AssetId('apps_examples', 'assets/paywalls/entry.flow.json'),
-        ),
-        isFalse,
-      );
-    });
+          isFalse,
+        );
+      },
+    );
 
     test('missing referenced screen artifact fails before JSON emit', () async {
       final logs = <LogRecord>[];
@@ -316,7 +317,7 @@ Future<TestReaderWriter> _readerWriterWith(Map<String, String> sources) async {
 }
 
 Map<String, String> _navigationPaywallSources() => {
-      'apps_examples|lib/paywalls/entry.dart': '''
+  'apps_examples|lib/paywalls/entry.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -344,7 +345,7 @@ class EntryPaywall extends StatelessWidget {
   );
 }
 ''',
-      'apps_examples|lib/paywalls/choose_plan.dart': '''
+  'apps_examples|lib/paywalls/choose_plan.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -356,10 +357,10 @@ class ChoosePlanPaywall extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox();
 }
 ''',
-    };
+};
 
 Map<String, String> _nestedNavigationPaywallSources() => {
-      'apps_examples|lib/paywalls/entry.dart': '''
+  'apps_examples|lib/paywalls/entry.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -387,7 +388,7 @@ class EntryPaywall extends StatelessWidget {
   );
 }
 ''',
-      'apps_examples|lib/paywalls/choose_plan.dart': '''
+  'apps_examples|lib/paywalls/choose_plan.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -415,7 +416,7 @@ class ChoosePlanPaywall extends StatelessWidget {
   );
 }
 ''',
-      'apps_examples|lib/paywalls/confirm_plan.dart': '''
+  'apps_examples|lib/paywalls/confirm_plan.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -427,10 +428,10 @@ class ConfirmPlanPaywall extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox();
 }
 ''',
-    };
+};
 
 Map<String, String> _higherFloorNavigationPaywallSources() => {
-      'apps_examples|lib/paywalls/entry.dart': '''
+  'apps_examples|lib/paywalls/entry.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -458,9 +459,9 @@ class EntryPaywall extends StatelessWidget {
   );
 }
 ''',
-      // The pushed screen embeds a vanilla RadioGroup, which lowers to the
-      // single-select catalog widget whose content version is 2.
-      'apps_examples|lib/paywalls/choose_plan.dart': '''
+  // The pushed screen embeds a vanilla RadioGroup, which lowers to the
+  // single-select catalog widget whose content version is 2.
+  'apps_examples|lib/paywalls/choose_plan.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -480,10 +481,10 @@ class ChoosePlanPaywall extends StatelessWidget {
   );
 }
 ''',
-    };
+};
 
 Map<String, String> _plainPaywallSources() => {
-      'apps_examples|lib/paywalls/plain.dart': '''
+  'apps_examples|lib/paywalls/plain.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -495,4 +496,4 @@ class PlainPaywall extends StatelessWidget {
   Widget build(BuildContext context) => const Text('Plain');
 }
 ''',
-    };
+};

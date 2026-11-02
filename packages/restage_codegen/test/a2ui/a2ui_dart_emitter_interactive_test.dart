@@ -14,22 +14,21 @@ Catalog _toggleCatalog({
   bool valueRequired = true,
   bool callbackRequired = true,
   bool callbackPositional = false,
-}) =>
-    catalogWith([
-      entry(
-        name: 'Toggle',
-        flutterType: 'package:fixture/fixture.dart#Toggle',
-        properties: [
-          prop('value', PropertyType.boolean, required: valueRequired),
-          prop(
-            'onChanged',
-            PropertyType.event,
-            required: callbackRequired,
-            positional: callbackPositional,
-          ),
-        ],
+}) => catalogWith([
+  entry(
+    name: 'Toggle',
+    flutterType: 'package:fixture/fixture.dart#Toggle',
+    properties: [
+      prop('value', PropertyType.boolean, required: valueRequired),
+      prop(
+        'onChanged',
+        PropertyType.event,
+        required: callbackRequired,
+        positional: callbackPositional,
       ),
-    ]);
+    ],
+  ),
+]);
 
 A2uiEventSeam _writeBackSeam(
   A2uiScalarType type, {
@@ -37,11 +36,13 @@ A2uiEventSeam _writeBackSeam(
   String callback = 'onChanged',
   bool nullable = false,
   bool isList = false,
-}) =>
-    <(String, String), A2uiCallbackSignature>{
-      (widget, callback):
-          A2uiCallbackWriteBack(type, nullable: nullable, isList: isList),
-    };
+}) => <(String, String), A2uiCallbackSignature>{
+  (widget, callback): A2uiCallbackWriteBack(
+    type,
+    nullable: nullable,
+    isList: isList,
+  ),
+};
 
 void main() {
   group('event seam — byte-neutral without a seam', () {
@@ -91,12 +92,27 @@ void main() {
 
       // The shared controlled helper retains the raw producer descriptor, so
       // literal/path/call sources follow one state machine.
-      expect(source, contains("source: data['value']"));
-      expect(source, contains("sourcePresent: data.containsKey('value')"));
+      expect(
+        source,
+        contains(
+          "source: itemContext.componentModel.properties['props_value']",
+        ),
+      );
+      expect(
+        source,
+        contains(
+          "itemContext.componentModel.properties.containsKey('props_value')",
+        ),
+      );
 
       // Literal/call writes allocate the component-and-field self path; an
       // explicit producer path remains inside the raw source descriptor.
-      expect(source, contains(r"'${itemContext.id}.value'"));
+      expect(
+        source,
+        contains(
+          r"'/restage_${Uri.encodeComponent(itemContext.componentModel.id)}${itemContext.dataContext.path == '/' ? '' : '/context_${Uri.encodeComponent(itemContext.dataContext.path)}'}/props_value'",
+        ),
+      );
       expect(source, contains('selfPath: restageA2uiSelfPathValue'));
 
       expect(source, contains('onChanged: restageA2uiWriteValue'));
@@ -115,88 +131,97 @@ void main() {
       expect(plan.coverage.omittedFields, isEmpty);
     });
 
-    test('the write-back value prop schema is the genui value-reference shape',
-        () {
-      // genui's `A2uiSchemas.booleanReference()` shape (a2ui_schemas.dart:
-      // 299-356): a value that is a literal OR a `{path}` data binding OR a
-      // `{call}` function-call value source. We track genui (replicated raw,
-      // genui-free) so the generated catalog matches genui-native semantics.
-      final source = emitA2uiCatalogDart(
-        _toggleCatalog(),
-        eventSeam: _writeBackSeam(A2uiScalarType.boolean),
-      );
-      // The plain `'value': S.boolean()` is replaced by the reference shape.
-      expect(source, isNot(contains("'value': S.boolean()")));
-      expect(source, contains('oneOf:'));
-      // the literal option (a bool), the {path} binding option, the {call}
-      // function-call option.
-      expect(source, contains('S.boolean()'));
-      expect(source, contains("'path': S.string()"));
-      expect(source, contains("required: <String>['path']"));
-      // the {call} function-call value source (the formatter may wrap its
-      // `required` list, so assert its stable parts).
-      expect(source, contains("'call': S.string("));
-      expect(source, contains('additionalProperties: true'));
-    });
+    test(
+      'the write-back value prop schema is the v1 value-reference shape',
+      () {
+        // A literal, a `DataBinding` or a `FunctionCall`, as in the upstream
+        // v1 dynamic value schemas.
+        final source = emitA2uiCatalogDart(
+          _toggleCatalog(),
+          eventSeam: _writeBackSeam(A2uiScalarType.boolean),
+        );
+        // The plain `'value': S.boolean()` is replaced by the reference shape.
+        expect(source, isNot(contains("'value': S.boolean()")));
+        expect(source, contains('oneOf:'));
+        // the literal option (a bool), the {path} binding option, the {call}
+        // function-call option.
+        expect(source, contains('S.boolean()'));
+        expect(source, contains(r'common_types.json#/$defs/DataBinding'));
+        expect(source, contains(r'common_types.json#/$defs/DataBinding'));
+        // the {call} function-call value source (the formatter may wrap its
+        // `required` list, so assert its stable parts).
+        expect(source, contains(r'common_types.json#/$defs/FunctionCall'));
+        expect(source, contains(r'common_types.json#/$defs/FunctionCall'));
+      },
+    );
 
-    test('an integer write-back keeps integer in the value-reference literal',
-        () {
-      final catalog = catalogWith([
-        entry(
-          name: 'Counter',
-          flutterType: 'package:fixture/fixture.dart#Counter',
-          properties: [
-            prop('value', PropertyType.integer, required: true),
-            prop('onChanged', PropertyType.event, required: true),
-          ],
-        ),
-      ]);
-      const seam = <(String, String), A2uiCallbackSignature>{
-        ('Counter', 'onChanged'): A2uiCallbackWriteBack(
-          A2uiScalarType.integer,
-          nullable: false,
-          isList: false,
-        ),
-      };
-
-      final source = emitA2uiCatalogDart(catalog, eventSeam: seam);
-      expect(source, contains("'value': S.combined(oneOf:"));
-      expect(source, contains('S.integer()'));
-      expect(source, contains('_restageA2uiNumber(restageA2uiRawValue'));
-      expect(source, contains('return p0.Counter('));
-      expect(source, contains('value: (value ?? 0).toInt()'));
-
-      final standalone = emitA2uiCatalog(catalog, eventSeam: seam);
-      final schema = standalone.components.single.dataSchema;
-      final properties = schema['properties']! as Map<String, Object?>;
-      final value = properties['value']! as Map<String, Object?>;
-      final alternatives = value['oneOf']! as List<Object?>;
-      expect(alternatives.first, {'type': 'integer'});
-    });
-
-    test('the self-scoped path uses the value property name (allocation rule)',
-        () {
-      final source = emitA2uiCatalogDart(
-        catalogWith([
+    test(
+      'an integer write-back keeps integer in the value-reference literal',
+      () {
+        final catalog = catalogWith([
           entry(
-            name: 'Picker',
-            flutterType: 'package:fixture/fixture.dart#Picker',
+            name: 'Counter',
+            flutterType: 'package:fixture/fixture.dart#Counter',
             properties: [
-              prop('selected', PropertyType.string, required: true),
-              prop('onSelected', PropertyType.event, required: true),
+              prop('value', PropertyType.integer, required: true),
+              prop('onChanged', PropertyType.event, required: true),
             ],
           ),
-        ]),
-        eventSeam: _writeBackSeam(
-          A2uiScalarType.string,
-          widget: 'Picker',
-          callback: 'onSelected',
-        ),
-      );
-      // `${itemContext.id}.<valuePropertyName>`, not a hardcoded `.value`.
-      expect(source, contains(r"'${itemContext.id}.selected'"));
-      expect(source, contains('selfPath: restageA2uiSelfPathSelected'));
-    });
+        ]);
+        const seam = <(String, String), A2uiCallbackSignature>{
+          ('Counter', 'onChanged'): A2uiCallbackWriteBack(
+            A2uiScalarType.integer,
+            nullable: false,
+            isList: false,
+          ),
+        };
+
+        final source = emitA2uiCatalogDart(catalog, eventSeam: seam);
+        expect(source, contains("'props_value': S.combined(oneOf:"));
+        expect(source, contains('S.integer()'));
+        expect(source, contains('_restageA2uiNumber(restageA2uiRawValue'));
+        expect(source, contains('return p0.Counter('));
+        expect(source, contains('value: (value ?? 0).toInt()'));
+
+        final standalone = emitA2uiCatalog(catalog, eventSeam: seam);
+        final schema = standalone.components.single.dataSchema;
+        final properties = schema['properties']! as Map<String, Object?>;
+        final value = properties['props_value']! as Map<String, Object?>;
+        final alternatives = value['oneOf']! as List<Object?>;
+        expect(alternatives.first, {'type': 'integer'});
+      },
+    );
+
+    test(
+      'the self-scoped path uses the value property name (allocation rule)',
+      () {
+        final source = emitA2uiCatalogDart(
+          catalogWith([
+            entry(
+              name: 'Picker',
+              flutterType: 'package:fixture/fixture.dart#Picker',
+              properties: [
+                prop('selected', PropertyType.string, required: true),
+                prop('onSelected', PropertyType.event, required: true),
+              ],
+            ),
+          ]),
+          eventSeam: _writeBackSeam(
+            A2uiScalarType.string,
+            widget: 'Picker',
+            callback: 'onSelected',
+          ),
+        );
+        // `${itemContext.id}.<valuePropertyName>`, not a hardcoded `.value`.
+        expect(
+          source,
+          contains(
+            r"'/restage_${Uri.encodeComponent(itemContext.componentModel.id)}${itemContext.dataContext.path == '/' ? '' : '/context_${Uri.encodeComponent(itemContext.dataContext.path)}'}/props_selected'",
+          ),
+        );
+        expect(source, contains('selfPath: restageA2uiSelfPathSelected'));
+      },
+    );
 
     A2uiDartCatalogPlan scalarPairPlan({
       required bool valueNullable,
@@ -260,43 +285,42 @@ void main() {
 
   group('enum write-back lowering — exact nullability', () {
     Catalog enumCatalog() => catalogWith([
-          entry(
-            name: 'ChoicePicker',
-            flutterType: 'package:fixture/fixture.dart#ChoicePicker',
-            properties: [
-              const PropertyEntry(
-                wireId: WireId.unallocatedProperty,
-                name: 'choice',
-                type: PropertyType.enumValue,
-                description: '',
-                required: true,
-                enumType: 'Choice',
-              ),
-              prop('onChanged', PropertyType.event),
-            ],
+      entry(
+        name: 'ChoicePicker',
+        flutterType: 'package:fixture/fixture.dart#ChoicePicker',
+        properties: [
+          const PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'choice',
+            type: PropertyType.enumValue,
+            description: '',
+            required: true,
+            enumType: 'Choice',
           ),
-        ]);
+          prop('onChanged', PropertyType.event),
+        ],
+      ),
+    ]);
 
     A2uiDartCatalogPlan enumPairPlan({
       required bool valueNullable,
       required bool callbackNullable,
-    }) =>
-        classifyA2uiCatalogDart(
-          enumCatalog(),
-          richShapes: {
-            ('ChoicePicker', 'choice'): EnumNode(
-              members: const ['first', 'second'],
-              dartTypeName: 'Choice',
-              libraryUri: 'package:fixture/fixture.dart',
-              nullable: valueNullable,
-            ),
-          },
-          eventSeam: _writeBackSeam(
-            A2uiScalarType.string,
-            widget: 'ChoicePicker',
-            nullable: callbackNullable,
-          ),
-        );
+    }) => classifyA2uiCatalogDart(
+      enumCatalog(),
+      richShapes: {
+        ('ChoicePicker', 'choice'): EnumNode(
+          members: const ['first', 'second'],
+          dartTypeName: 'Choice',
+          libraryUri: 'package:fixture/fixture.dart',
+          nullable: valueNullable,
+        ),
+      },
+      eventSeam: _writeBackSeam(
+        A2uiScalarType.string,
+        widget: 'ChoicePicker',
+        nullable: callbackNullable,
+      ),
+    );
 
     test('a nullable enum write-back uses a null-safe wire member name', () {
       final source = emitA2uiCatalogDart(
@@ -322,29 +346,31 @@ void main() {
       );
     });
 
-    test('a non-nullable enum write-back keeps direct member-name lowering',
-        () {
-      final source = emitA2uiCatalogDart(
-        enumCatalog(),
-        richShapes: {
-          ('ChoicePicker', 'choice'): EnumNode(
-            members: const ['first', 'second'],
-            dartTypeName: 'Choice',
-            libraryUri: 'package:fixture/fixture.dart',
+    test(
+      'a non-nullable enum write-back keeps direct member-name lowering',
+      () {
+        final source = emitA2uiCatalogDart(
+          enumCatalog(),
+          richShapes: {
+            ('ChoicePicker', 'choice'): EnumNode(
+              members: const ['first', 'second'],
+              dartTypeName: 'Choice',
+              libraryUri: 'package:fixture/fixture.dart',
+            ),
+          },
+          eventSeam: _writeBackSeam(
+            A2uiScalarType.string,
+            widget: 'ChoicePicker',
           ),
-        },
-        eventSeam: _writeBackSeam(
-          A2uiScalarType.string,
-          widget: 'ChoicePicker',
-        ),
-      );
+        );
 
-      expect(
-        source,
-        contains('restageA2uiWriteChoice(restageA2uiNext.name)'),
-      );
-      expect(source, isNot(contains('restageA2uiNext?.name')));
-    });
+        expect(
+          source,
+          contains('restageA2uiWriteChoice(restageA2uiNext.name)'),
+        );
+        expect(source, isNot(contains('restageA2uiNext?.name')));
+      },
+    );
 
     void expectEnumNullabilityMismatchFailsClosed({
       required bool valueNullable,
@@ -380,33 +406,43 @@ void main() {
     /// A custom `@RestageWidget` chip group: a `List<String> selected`
     /// controlled component with a `ValueChanged<List<String>> onSelected`.
     Catalog chipsCatalog() => catalogWith([
-          entry(
-            name: 'Chips',
-            flutterType: 'package:fixture/fixture.dart#Chips',
-            properties: [
-              prop('selected', PropertyType.stringList, required: true),
-              prop('onSelected', PropertyType.event, required: true),
-            ],
-          ),
-        ]);
+      entry(
+        name: 'Chips',
+        flutterType: 'package:fixture/fixture.dart#Chips',
+        properties: [
+          prop('selected', PropertyType.stringList, required: true),
+          prop('onSelected', PropertyType.event, required: true),
+        ],
+      ),
+    ]);
 
     A2uiEventSeam listSeam() => <(String, String), A2uiCallbackSignature>{
-          ('Chips', 'onSelected'): const A2uiCallbackWriteBack(
-            A2uiScalarType.string,
-            nullable: false,
-            isList: true,
-          ),
-        };
+      ('Chips', 'onSelected'): const A2uiCallbackWriteBack(
+        A2uiScalarType.string,
+        nullable: false,
+        isList: true,
+      ),
+    };
 
     test('a ValueChanged<List<String>> + stringList value pair lowers', () {
       final source = emitA2uiCatalogDart(chipsCatalog(), eventSeam: listSeam());
 
       // The list value prop retains its raw source for the shared helper.
-      expect(source, contains("source: data['selected']"));
+      expect(
+        source,
+        contains(
+          "source: itemContext.componentModel.properties['props_selected']",
+        ),
+      );
 
       // The path is derived at runtime exactly as for a scalar (the producer's
       // `{path}` binding, else the self-scoped allocation rule).
-      expect(source, contains(r"'${itemContext.id}.selected'"));
+      expect(
+        source,
+        contains(
+          r"'/restage_${Uri.encodeComponent(itemContext.componentModel.id)}${itemContext.dataContext.path == '/' ? '' : '/context_${Uri.encodeComponent(itemContext.dataContext.path)}'}/props_selected'",
+        ),
+      );
 
       expect(source, contains('onSelected: restageA2uiWriteSelected'));
 
@@ -414,98 +450,110 @@ void main() {
       expect(source, isNot(contains("'onSelected':")));
 
       // Fully wired — no coverage omission/drop.
-      final plan =
-          classifyA2uiCatalogDart(chipsCatalog(), eventSeam: listSeam());
+      final plan = classifyA2uiCatalogDart(
+        chipsCatalog(),
+        eventSeam: listSeam(),
+      );
       expect(plan.widgets, hasLength(1));
       expect(plan.coverage.droppedWidgets, isEmpty);
       expect(plan.coverage.omittedFields, isEmpty);
     });
 
-    test('the list value prop schema is the genui list value-reference shape',
-        () {
-      // genui's `A2uiSchemas.listOrReference(items:)` / `stringArrayReference()`
-      // shape (a2ui_schemas.dart:418-428, 522-531): a value that is a literal
-      // list OR a `{path}` data binding OR a `{call}` function-call value
-      // source. Tracked raw (genui-free) so the catalog matches genui-native
-      // list-reference semantics.
-      final source = emitA2uiCatalogDart(chipsCatalog(), eventSeam: listSeam());
-      // The plain `'selected': S.list(items: S.string())` is replaced by the
-      // reference shape.
-      expect(source, contains('oneOf:'));
-      // the literal-list option, the {path} binding option, the {call} option.
-      expect(source, contains('S.list(items: S.string())'));
-      expect(source, contains("'path': S.string()"));
-      expect(source, contains("required: <String>['path']"));
-      expect(source, contains("'call': S.string("));
-      expect(source, contains('additionalProperties: true'));
-    });
+    test(
+      'the list value prop schema is the v1 list value-reference shape',
+      () {
+        // A literal list, a `DataBinding` or a `FunctionCall`, as in the
+        // upstream v1 dynamic list schemas.
+        final source = emitA2uiCatalogDart(
+          chipsCatalog(),
+          eventSeam: listSeam(),
+        );
+        // The plain `'selected': S.list(items: S.string())` is replaced by the
+        // reference shape.
+        expect(source, contains('oneOf:'));
+        // the literal-list option, the {path} binding option, the {call}
+        // option.
+        expect(source, contains('S.list(items: S.string())'));
+        expect(source, contains(r'common_types.json#/$defs/DataBinding'));
+        expect(source, contains(r'common_types.json#/$defs/DataBinding'));
+        expect(source, contains(r'common_types.json#/$defs/FunctionCall'));
+        expect(source, contains(r'common_types.json#/$defs/FunctionCall'));
+      },
+    );
 
     test(
-        'a matched nullable list write-back accepts null in its literal branch',
-        () {
-      final catalog = catalogWith([
-        entry(
-          name: 'NullableChoices',
-          flutterType: 'package:fixture/fixture.dart#NullableChoices',
-          properties: [
-            prop('selected', PropertyType.structured, required: true),
-            prop('onSelected', PropertyType.event, required: true),
+      'a matched nullable list write-back accepts null in its literal branch',
+      () {
+        final catalog = catalogWith([
+          entry(
+            name: 'NullableChoices',
+            flutterType: 'package:fixture/fixture.dart#NullableChoices',
+            properties: [
+              prop('selected', PropertyType.structured, required: true),
+              prop('onSelected', PropertyType.event, required: true),
+            ],
+          ),
+        ]);
+        const richShapes = <(String, String), A2uiSchemaNode>{
+          ('NullableChoices', 'selected'): ListNode(
+            element: ScalarNode(A2uiScalarType.integer),
+            nullable: true,
+          ),
+        };
+        const eventSeam = <(String, String), A2uiCallbackSignature>{
+          ('NullableChoices', 'onSelected'): A2uiCallbackWriteBack(
+            A2uiScalarType.integer,
+            nullable: true,
+            isList: true,
+          ),
+        };
+
+        final source = emitA2uiCatalogDart(
+          catalog,
+          richShapes: richShapes,
+          eventSeam: eventSeam,
+        );
+        final compactSource = source.replaceAll(RegExp(r'\s+'), ' ');
+
+        expect(
+          source,
+          contains(
+            "source: itemContext.componentModel.properties['props_selected']",
+          ),
+        );
+        expect(
+          compactSource,
+          contains(
+            "'props_selected': S.combined(oneOf: [ S.combined(anyOf: "
+            '[S.list(items: S.integer()), S.nil()])',
+          ),
+        );
+
+        final stamp = emitA2uiCatalog(
+          catalog,
+          richShapes: richShapes,
+          eventSeam: eventSeam,
+        ).toJson();
+        final a2uiCatalog = stamp['a2uiCatalog']! as Map<String, Object?>;
+        final components = a2uiCatalog['components']! as Map<String, Object?>;
+        final component =
+            components['NullableChoices']! as Map<String, Object?>;
+        final properties = component['properties']! as Map<String, Object?>;
+        final selected = properties['props_selected']! as Map<String, Object?>;
+        final alternatives = selected['oneOf']! as List<Object?>;
+
+        expect(alternatives, hasLength(3));
+        expect(alternatives.first, {
+          'anyOf': [
+            {
+              'type': 'array',
+              'items': {'type': 'integer'},
+            },
+            {'type': 'null'},
           ],
-        ),
-      ]);
-      const richShapes = <(String, String), A2uiSchemaNode>{
-        ('NullableChoices', 'selected'): ListNode(
-          element: ScalarNode(A2uiScalarType.integer),
-          nullable: true,
-        ),
-      };
-      const eventSeam = <(String, String), A2uiCallbackSignature>{
-        ('NullableChoices', 'onSelected'): A2uiCallbackWriteBack(
-          A2uiScalarType.integer,
-          nullable: true,
-          isList: true,
-        ),
-      };
-
-      final source = emitA2uiCatalogDart(
-        catalog,
-        richShapes: richShapes,
-        eventSeam: eventSeam,
-      );
-      final compactSource = source.replaceAll(RegExp(r'\s+'), ' ');
-
-      expect(source, contains("source: data['selected']"));
-      expect(
-        compactSource,
-        contains(
-          "'selected': S.combined(oneOf: [ S.combined(anyOf: "
-          '[S.list(items: S.integer()), S.nil()])',
-        ),
-      );
-
-      final stamp = emitA2uiCatalog(
-        catalog,
-        richShapes: richShapes,
-        eventSeam: eventSeam,
-      ).toJson();
-      final a2uiCatalog = stamp['a2uiCatalog']! as Map<String, Object?>;
-      final components = a2uiCatalog['components']! as Map<String, Object?>;
-      final component = components['NullableChoices']! as Map<String, Object?>;
-      final properties = component['properties']! as Map<String, Object?>;
-      final selected = properties['selected']! as Map<String, Object?>;
-      final alternatives = selected['oneOf']! as List<Object?>;
-
-      expect(alternatives, hasLength(3));
-      expect(alternatives.first, {
-        'anyOf': [
-          {
-            'type': 'array',
-            'items': {'type': 'integer'},
-          },
-          {'type': 'null'},
-        ],
-      });
-    });
+        });
+      },
+    );
 
     test('an analyzer-fed integer list remains a bindable write-back leaf', () {
       final catalog = catalogWith([
@@ -519,8 +567,9 @@ void main() {
         ),
       ]);
       const richShapes = <(String, String), A2uiSchemaNode>{
-        ('IntegerChoices', 'selected'):
-            ListNode(element: ScalarNode(A2uiScalarType.integer)),
+        ('IntegerChoices', 'selected'): ListNode(
+          element: ScalarNode(A2uiScalarType.integer),
+        ),
       };
       const eventSeam = <(String, String), A2uiCallbackSignature>{
         ('IntegerChoices', 'onSelected'): A2uiCallbackWriteBack(
@@ -536,7 +585,12 @@ void main() {
         eventSeam: eventSeam,
       );
 
-      expect(source, contains("source: data['selected']"));
+      expect(
+        source,
+        contains(
+          "source: itemContext.componentModel.properties['props_selected']",
+        ),
+      );
       expect(source, contains('value is num ? value.toInt() : null'));
       expect(source, contains('onSelected: restageA2uiWriteSelected'));
       final plan = classifyA2uiCatalogDart(
@@ -654,35 +708,37 @@ void main() {
     /// A custom `@RestageWidget` icon button: a required `VoidCallback
     /// onPressed` that dispatches an outward action (no value to control).
     Catalog buttonCatalog({bool callbackRequired = true}) => catalogWith([
-          entry(
-            name: 'IconButton',
-            flutterType: 'package:fixture/fixture.dart#IconButton',
-            properties: [
-              prop('icon', PropertyType.string, required: true),
-              prop('onPressed', PropertyType.event, required: callbackRequired),
-            ],
-          ),
-        ]);
+      entry(
+        name: 'IconButton',
+        flutterType: 'package:fixture/fixture.dart#IconButton',
+        properties: [
+          prop('icon', PropertyType.string, required: true),
+          prop('onPressed', PropertyType.event, required: callbackRequired),
+        ],
+      ),
+    ]);
 
     A2uiEventSeam dispatchSeam() => <(String, String), A2uiCallbackSignature>{
-          ('IconButton', 'onPressed'): const A2uiCallbackDispatch(),
-        };
+      ('IconButton', 'onPressed'): const A2uiCallbackDispatch(),
+    };
 
     test('a VoidCallback lowers to a compile-fixed dispatchEvent', () {
-      final source =
-          emitA2uiCatalogDart(buttonCatalog(), eventSeam: dispatchSeam());
+      final source = emitA2uiCatalogDart(
+        buttonCatalog(),
+        eventSeam: dispatchSeam(),
+      );
 
-      // The callback dispatches an outward event whose name is COMPILE-FIXED
+      // The callback dispatches an outward event whose name is COMPILE- FIXED
       // from the callback property name — the producer cannot repoint it
       // (load-bearing for inertness). The formatter may wrap the long
       // expression, so assert its stable parts.
-      expect(source, contains('onPressed: () => itemContext.dispatchEvent('));
-      expect(source, contains('UserActionEvent('));
-      expect(source, contains("name: 'onPressed'"));
-      expect(source, contains('sourceComponentId: itemContext.id'));
+      expect(source, contains('onPressed: () => itemContext.dispatchAction('));
+      expect(source, contains("'event': {"));
+      expect(source, contains("'name': 'onPressed'"));
+      expect(source, contains("'event':"));
 
-      // No genui `action()` schema / `functionCall` action is emitted — we wire
-      // dispatchEvent directly (more inert than genui's own Button).
+      // No producer-supplied action schema is emitted; the event is
+      // dispatched directly with a fixed name.
       expect(source, isNot(contains('A2uiSchemas')));
 
       // The callback is behaviour, not data — it never enters the data schema.
@@ -690,52 +746,56 @@ void main() {
 
       // Fully wired — no coverage omission/drop (the required callback no longer
       // drops the widget).
-      final plan =
-          classifyA2uiCatalogDart(buttonCatalog(), eventSeam: dispatchSeam());
+      final plan = classifyA2uiCatalogDart(
+        buttonCatalog(),
+        eventSeam: dispatchSeam(),
+      );
       expect(plan.widgets, hasLength(1));
       expect(plan.coverage.droppedWidgets, isEmpty);
       expect(plan.coverage.omittedFields, isEmpty);
     });
 
-    test('a POSITIONAL dispatch callback falls through (cannot be slotted)',
-        () {
-      // A positional callback cannot be wired without risking a positional
-      // shift, so it keeps the catalog-fed event path (drop required / omit
-      // optional) — same posture as a positional write-back.
-      final plan = classifyA2uiCatalogDart(
-        catalogWith([
-          entry(
-            name: 'IconButton',
-            flutterType: 'package:fixture/fixture.dart#IconButton',
-            properties: [
-              prop('icon', PropertyType.string),
-              prop('onPressed', PropertyType.event, positional: true),
-            ],
-          ),
-        ]),
-        eventSeam: <(String, String), A2uiCallbackSignature>{
-          ('IconButton', 'onPressed'): const A2uiCallbackDispatch(),
-        },
-      );
-      expect(plan.widgets.single.dispatches, isEmpty);
-      expect(
-        plan.coverage.omittedFields.single.reason,
-        A2uiDartCoverageReason.eventProperty,
-      );
-    });
+    test(
+      'a POSITIONAL dispatch callback falls through (cannot be slotted)',
+      () {
+        // A positional callback cannot be wired without risking a positional
+        // shift, so it keeps the catalog-fed event path (drop required / omit
+        // optional) — same posture as a positional write-back.
+        final plan = classifyA2uiCatalogDart(
+          catalogWith([
+            entry(
+              name: 'IconButton',
+              flutterType: 'package:fixture/fixture.dart#IconButton',
+              properties: [
+                prop('icon', PropertyType.string),
+                prop('onPressed', PropertyType.event, positional: true),
+              ],
+            ),
+          ]),
+          eventSeam: <(String, String), A2uiCallbackSignature>{
+            ('IconButton', 'onPressed'): const A2uiCallbackDispatch(),
+          },
+        );
+        expect(plan.widgets.single.dispatches, isEmpty);
+        expect(
+          plan.coverage.omittedFields.single.reason,
+          A2uiDartCoverageReason.eventProperty,
+        );
+      },
+    );
   });
 
   group('interactive census — unsupported callback (#sig / #L)', () {
     Catalog widgetWith({required bool callbackRequired}) => catalogWith([
-          entry(
-            name: 'Widget',
-            flutterType: 'package:fixture/fixture.dart#Widget',
-            properties: [
-              prop('label', PropertyType.string),
-              prop('onMulti', PropertyType.event, required: callbackRequired),
-            ],
-          ),
-        ]);
+      entry(
+        name: 'Widget',
+        flutterType: 'package:fixture/fixture.dart#Widget',
+        properties: [
+          prop('label', PropertyType.string),
+          prop('onMulti', PropertyType.event, required: callbackRequired),
+        ],
+      ),
+    ]);
 
     A2uiEventSeam unsupportedSeam() =>
         <(String, String), A2uiCallbackSignature>{
@@ -745,36 +805,41 @@ void main() {
           ),
         };
 
-    test('an OPTIONAL unsupported callback omits the field, loud + distinct',
-        () {
-      // An unsupported-signature callback (#sig: multi-arg; or #L: a non-scalar
-      // list element) scopes out LOUD with a DISTINCT reason — never the
-      // generic `eventProperty`, never a silent drop, never a mis-lowering.
-      final plan = classifyA2uiCatalogDart(
-        widgetWith(callbackRequired: false),
-        eventSeam: unsupportedSeam(),
-      );
-      expect(plan.widgets, hasLength(1));
-      expect(plan.widgets.single.writeBacks, isEmpty);
-      expect(plan.widgets.single.dispatches, isEmpty);
-      expect(
-        plan.coverage.omittedFields.single.reason,
-        A2uiDartCoverageReason.unsupportedInteractiveCallback,
-      );
-    });
+    test(
+      'an OPTIONAL unsupported callback omits the field, loud + distinct',
+      () {
+        // An unsupported-signature callback (#sig: multi-arg; or #L: a non-
+        // scalar list element) scopes out LOUD with a DISTINCT reason — never
+        // the generic `eventProperty`, never a silent drop, never a mis-
+        // lowering.
+        final plan = classifyA2uiCatalogDart(
+          widgetWith(callbackRequired: false),
+          eventSeam: unsupportedSeam(),
+        );
+        expect(plan.widgets, hasLength(1));
+        expect(plan.widgets.single.writeBacks, isEmpty);
+        expect(plan.widgets.single.dispatches, isEmpty);
+        expect(
+          plan.coverage.omittedFields.single.reason,
+          A2uiDartCoverageReason.unsupportedInteractiveCallback,
+        );
+      },
+    );
 
-    test('a REQUIRED unsupported callback drops the widget, loud + distinct',
-        () {
-      final plan = classifyA2uiCatalogDart(
-        widgetWith(callbackRequired: true),
-        eventSeam: unsupportedSeam(),
-      );
-      expect(plan.widgets, isEmpty);
-      expect(
-        plan.coverage.droppedWidgets.single.reason,
-        A2uiDartCoverageReason.unsupportedInteractiveCallback,
-      );
-    });
+    test(
+      'a REQUIRED unsupported callback drops the widget, loud + distinct',
+      () {
+        final plan = classifyA2uiCatalogDart(
+          widgetWith(callbackRequired: true),
+          eventSeam: unsupportedSeam(),
+        );
+        expect(plan.widgets, isEmpty);
+        expect(
+          plan.coverage.droppedWidgets.single.reason,
+          A2uiDartCoverageReason.unsupportedInteractiveCallback,
+        );
+      },
+    );
   });
 
   group('write-back lowering — fail-closed-LOUD census', () {
@@ -955,8 +1020,9 @@ void main() {
           isList: true,
         ),
         richShapes: <(String, String), A2uiSchemaNode>{
-          ('Picker', 'values'):
-              const ListNode(element: ScalarNode(A2uiScalarType.integer)),
+          ('Picker', 'values'): const ListNode(
+            element: ScalarNode(A2uiScalarType.integer),
+          ),
         },
       );
 
@@ -1010,30 +1076,30 @@ void main() {
     /// and each callback's omission reason can be inspected (a scoped-out
     /// REQUIRED callback drops the whole widget at the first one).
     Catalog rangeCatalog({bool callbackRequired = true}) => catalogWith([
-          entry(
-            name: 'Range',
-            flutterType: 'package:fixture/fixture.dart#Range',
-            properties: [
-              prop('low', PropertyType.integer, required: true),
-              prop('high', PropertyType.integer, required: true),
-              prop('onLow', PropertyType.event, required: callbackRequired),
-              prop('onHigh', PropertyType.event, required: callbackRequired),
-            ],
-          ),
-        ]);
+      entry(
+        name: 'Range',
+        flutterType: 'package:fixture/fixture.dart#Range',
+        properties: [
+          prop('low', PropertyType.integer, required: true),
+          prop('high', PropertyType.integer, required: true),
+          prop('onLow', PropertyType.event, required: callbackRequired),
+          prop('onHigh', PropertyType.event, required: callbackRequired),
+        ],
+      ),
+    ]);
 
     A2uiEventSeam rangeSeam() => <(String, String), A2uiCallbackSignature>{
-          ('Range', 'onLow'): const A2uiCallbackWriteBack(
-            A2uiScalarType.integer,
-            nullable: false,
-            isList: false,
-          ),
-          ('Range', 'onHigh'): const A2uiCallbackWriteBack(
-            A2uiScalarType.integer,
-            nullable: false,
-            isList: false,
-          ),
-        };
+      ('Range', 'onLow'): const A2uiCallbackWriteBack(
+        A2uiScalarType.integer,
+        nullable: false,
+        isList: false,
+      ),
+      ('Range', 'onHigh'): const A2uiCallbackWriteBack(
+        A2uiScalarType.integer,
+        nullable: false,
+        isList: false,
+      ),
+    };
 
     test('two explicit pairings → two write-backs with distinct paths', () {
       final catalog = rangeCatalog();
@@ -1070,7 +1136,12 @@ void main() {
           ('Toggle', 'onChanged'): 'value',
         },
       );
-      expect(source, contains("source: data['value']"));
+      expect(
+        source,
+        contains(
+          "source: itemContext.componentModel.properties['props_value']",
+        ),
+      );
       expect(source, contains('onChanged: restageA2uiWriteValue'));
     });
 
@@ -1085,7 +1156,7 @@ void main() {
         reasonFor(plan, 'Range', 'onHigh'),
         A2uiDartCoverageReason.ambiguousWritePairing,
       );
-      // The annotated callback still wires (multi-write-back is per-callback).
+      // The annotated callback still wires (multi-write-back is per- callback).
       expect(plan.widgets.single.writeBacks, hasLength(1));
     });
 
@@ -1154,36 +1225,38 @@ void main() {
       expect(plan.widgets.single.writeBacks, isEmpty);
     });
 
-    test('a pairing entry on a NON-write-back (dispatch) callback fails closed',
-        () {
-      // A `writeBackValue` pairing on a dispatch callback (no value to write)
-      // is incoherent → fail-closed-LOUD, never a silent no-op (the dispatch
-      // must NOT still lower).
-      final plan = classifyA2uiCatalogDart(
-        catalogWith([
-          entry(
-            name: 'Button',
-            flutterType: 'package:fixture/fixture.dart#Button',
-            properties: [
-              prop('label', PropertyType.string),
-              prop('onPressed', PropertyType.event),
-            ],
-          ),
-        ]),
-        eventSeam: <(String, String), A2uiCallbackSignature>{
-          ('Button', 'onPressed'): const A2uiCallbackDispatch(),
-        },
-        // Incoherent: a dispatch callback has no value to write back.
-        pairingSeam: <(String, String), String>{
-          ('Button', 'onPressed'): 'label',
-        },
-      );
-      expect(
-        reasonFor(plan, 'Button', 'onPressed'),
-        A2uiDartCoverageReason.invalidExplicitWritePairing,
-      );
-      expect(plan.widgets.single.dispatches, isEmpty);
-    });
+    test(
+      'a pairing entry on a NON-write-back (dispatch) callback fails closed',
+      () {
+        // A `writeBackValue` pairing on a dispatch callback (no value to write)
+        // is incoherent → fail-closed-LOUD, never a silent no-op (the dispatch
+        // must NOT still lower).
+        final plan = classifyA2uiCatalogDart(
+          catalogWith([
+            entry(
+              name: 'Button',
+              flutterType: 'package:fixture/fixture.dart#Button',
+              properties: [
+                prop('label', PropertyType.string),
+                prop('onPressed', PropertyType.event),
+              ],
+            ),
+          ]),
+          eventSeam: <(String, String), A2uiCallbackSignature>{
+            ('Button', 'onPressed'): const A2uiCallbackDispatch(),
+          },
+          // Incoherent: a dispatch callback has no value to write back.
+          pairingSeam: <(String, String), String>{
+            ('Button', 'onPressed'): 'label',
+          },
+        );
+        expect(
+          reasonFor(plan, 'Button', 'onPressed'),
+          A2uiDartCoverageReason.invalidExplicitWritePairing,
+        );
+        expect(plan.widgets.single.dispatches, isEmpty);
+      },
+    );
   });
 
   group('write-back lowering — scaffolding namespace hygiene', () {
@@ -1200,7 +1273,10 @@ void main() {
 
       expect(plan.widgets.single.fields, hasLength(1));
       expect(plan.coverage.omittedFields, isEmpty);
-      expect(source, contains("value: data['restageA2uiStatus']"));
+      expect(
+        source,
+        contains("ComponentProps.asString(data['props_restageA2uiStatus'])"),
+      );
       expect(source, contains('restageA2uiStatus: restageA2uiStatus ??'));
     });
 
@@ -1227,7 +1303,7 @@ void main() {
 
       expect(plan.widgets.single.writeBacks, hasLength(1));
       expect(plan.coverage.omittedFields, isEmpty);
-      expect(source, contains("source: data['restageA2uiValue']"));
+      expect(source, contains("properties['props_restageA2uiValue']"));
       expect(
         source,
         contains('onChanged: restageA2uiWriteRestageA2uiValue'),
@@ -1238,9 +1314,9 @@ void main() {
   group('write-back lowering — emitted source is well-formed', () {
     test('a complex interactive widget emits syntactically valid Dart', () {
       // A write-back pair alongside a leaf field and a child slot — exercises
-      // the path prelude, the `{path}` read-rewrite, the callback argument,
-      // and the child wiring together. The emitted source is genui-dependent
-      // and is exercised separately by render tests, so this probe
+      // the path prelude, the `{path}` read-rewrite, the callback argument, and
+      // the child wiring together. The emitted source depends on the A2UI
+      // runtime and is exercised separately by render tests, so this probe
       // confirms it is at least syntactically valid Dart (balanced, escaped).
       final source = emitA2uiCatalogDart(
         catalogWith([
@@ -1260,17 +1336,23 @@ void main() {
           widget: 'SettingsRow',
         ),
       );
-      // parseString only scans + parses (no resolution), so its diagnostics
-      // are purely syntactic — an empty list means the source is well-formed.
+      // parseString only scans + parses (no resolution), so its diagnostics are
+      // purely syntactic — an empty list means the source is well- formed.
       final parsed = parseString(content: source, throwIfDiagnostics: false);
       expect(
         parsed.errors,
         isEmpty,
-        reason: 'emitted source has syntax errors:\n'
+        reason:
+            'emitted source has syntax errors:\n'
             '${parsed.errors.join('\n')}',
       );
       // The controlled write-back wiring is present in the complex widget.
-      expect(source, contains("source: data['value']"));
+      expect(
+        source,
+        contains(
+          "source: itemContext.componentModel.properties['props_value']",
+        ),
+      );
       expect(source, contains('onChanged: restageA2uiWriteValue'));
     });
   });

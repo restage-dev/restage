@@ -383,16 +383,16 @@ final class WidgetbookNativeValuePlanner {
 
     final enumConstant =
         propertyType == PropertyType.enumValue && value is String
-            ? _enumConstant(dartType, value)
-            : null;
+        ? _enumConstant(dartType, value)
+        : null;
     return switch (propertyType) {
       PropertyType.structured => _lowerStructured(
-          ownerSourceType: ownerSourceType,
-          name: name,
-          dartType: dartType,
-          value: value,
-          path: path,
-        ),
+        ownerSourceType: ownerSourceType,
+        name: name,
+        dartType: dartType,
+        value: value,
+        path: path,
+      ),
       PropertyType.enumValue when enumConstant != null =>
         WidgetbookEnumValuePlan(
           type: type,
@@ -400,46 +400,52 @@ final class WidgetbookNativeValuePlanner {
           ordinal: enumConstant.ordinal,
         ),
       PropertyType.color => WidgetbookFrameworkValuePlan(
-          type: type,
-          kind: WidgetbookFrameworkLiteralKind.color,
-          value: value,
-        ),
+        type: type,
+        kind: WidgetbookFrameworkLiteralKind.color,
+        value: value,
+      ),
       PropertyType.edgeInsets => WidgetbookFrameworkValuePlan(
-          type: type,
-          kind: WidgetbookFrameworkLiteralKind.edgeInsets,
-          value: value,
-        ),
+        type: type,
+        kind: WidgetbookFrameworkLiteralKind.edgeInsets,
+        value: value,
+      ),
       PropertyType.alignment => WidgetbookFrameworkValuePlan(
-          type: type,
-          kind: WidgetbookFrameworkLiteralKind.alignment,
-          value: value,
-        ),
+        type: type,
+        kind: WidgetbookFrameworkLiteralKind.alignment,
+        value: value,
+      ),
       PropertyType.offset => WidgetbookFrameworkValuePlan(
-          type: type,
-          kind: WidgetbookFrameworkLiteralKind.offset,
-          value: value,
-        ),
+        type: type,
+        kind: WidgetbookFrameworkLiteralKind.offset,
+        value: value,
+      ),
       PropertyType.fontWeight => WidgetbookFrameworkValuePlan(
-          type: type,
-          kind: WidgetbookFrameworkLiteralKind.fontWeight,
-          value: value,
-        ),
+        type: type,
+        kind: WidgetbookFrameworkLiteralKind.fontWeight,
+        value: value,
+      ),
       PropertyType.duration => WidgetbookFrameworkValuePlan(
-          type: type,
-          kind: WidgetbookFrameworkLiteralKind.duration,
-          value: value,
-        ),
+        type: type,
+        kind: WidgetbookFrameworkLiteralKind.duration,
+        value: value,
+      ),
       PropertyType.curve => WidgetbookFrameworkValuePlan(
-          type: type,
-          kind: WidgetbookFrameworkLiteralKind.curve,
-          value: value,
-        ),
-      PropertyType.string when value is String =>
-        WidgetbookScalarValuePlan(type: type, value: value),
-      PropertyType.boolean when value is bool =>
-        WidgetbookScalarValuePlan(type: type, value: value),
-      PropertyType.integer when value is int =>
-        WidgetbookScalarValuePlan(type: type, value: value),
+        type: type,
+        kind: WidgetbookFrameworkLiteralKind.curve,
+        value: value,
+      ),
+      PropertyType.string when value is String => WidgetbookScalarValuePlan(
+        type: type,
+        value: value,
+      ),
+      PropertyType.boolean when value is bool => WidgetbookScalarValuePlan(
+        type: type,
+        value: value,
+      ),
+      PropertyType.integer when value is int => WidgetbookScalarValuePlan(
+        type: type,
+        value: value,
+      ),
       PropertyType.real when value is num && value.isFinite =>
         WidgetbookScalarValuePlan(type: type, value: value),
       PropertyType.stringList
@@ -489,11 +495,10 @@ final class WidgetbookNativeValuePlanner {
       PropertyType.inlineSpan ||
       PropertyType.decorationImage ||
       PropertyType.selectionOptionList ||
-      PropertyType.unknown =>
-        throw StateError(
-          'Widgetbook native value at $path has unsupported admitted type '
-          '${propertyType.name}.',
-        ),
+      PropertyType.unknown => throw StateError(
+        'Widgetbook native value at $path has unsupported admitted type '
+        '${propertyType.name}.',
+      ),
     };
   }
 
@@ -681,28 +686,28 @@ final class WidgetbookNativeValuePlanner {
       case PropertyType.real:
         return WidgetbookScalarValuePlan(type: type, value: 0.0);
       case PropertyType.widgetBuilder ||
-            PropertyType.scalarCallback ||
-            PropertyType.event ||
-            PropertyType.length ||
-            PropertyType.alignmentXY ||
-            PropertyType.booleanList ||
-            PropertyType.integerList ||
-            PropertyType.realList ||
-            PropertyType.dataReference ||
-            PropertyType.gradient ||
-            PropertyType.border ||
-            PropertyType.boxShadowList ||
-            PropertyType.locale ||
-            PropertyType.paint ||
-            PropertyType.shadowList ||
-            PropertyType.fontFeatureList ||
-            PropertyType.fontVariationList ||
-            PropertyType.textDecoration ||
-            PropertyType.shapeBorder ||
-            PropertyType.inlineSpan ||
-            PropertyType.decorationImage ||
-            PropertyType.selectionOptionList ||
-            PropertyType.unknown:
+          PropertyType.scalarCallback ||
+          PropertyType.event ||
+          PropertyType.length ||
+          PropertyType.alignmentXY ||
+          PropertyType.booleanList ||
+          PropertyType.integerList ||
+          PropertyType.realList ||
+          PropertyType.dataReference ||
+          PropertyType.gradient ||
+          PropertyType.border ||
+          PropertyType.boxShadowList ||
+          PropertyType.locale ||
+          PropertyType.paint ||
+          PropertyType.shadowList ||
+          PropertyType.fontFeatureList ||
+          PropertyType.fontVariationList ||
+          PropertyType.textDecoration ||
+          PropertyType.shapeBorder ||
+          PropertyType.inlineSpan ||
+          PropertyType.decorationImage ||
+          PropertyType.selectionOptionList ||
+          PropertyType.unknown:
         throw StateError(
           'Widgetbook preview at $path has no total synthesizer for '
           '${propertyType.name}. This is a Restage compiler capability gap.',
@@ -943,57 +948,57 @@ final class WidgetbookNativeDartRenderer {
 
   /// Renders one native expression.
   String renderValue(WidgetbookDartValuePlan value) => switch (value) {
-        WidgetbookNullValuePlan() => 'null',
-        WidgetbookScalarValuePlan(:final value) => _dartLiteral(value),
-        WidgetbookFunctionReferenceValuePlan(
-          :final libraryUri,
-          :final owner,
-          :final member,
-        ) =>
-          _imports.qualifyReference(
-            libraryUri: libraryUri,
-            owner: owner,
-            member: member,
-          ),
-        WidgetbookEnumValuePlan(:final type, :final member, :final ordinal) =>
-          member.startsWith('_')
-              ? '${renderType(type.nonNullable)}.values[$ordinal]'
-              : '${renderType(type.nonNullable)}.$member',
-        WidgetbookStaticMemberValuePlan(
-          :final libraryUri,
-          :final owner,
-          :final member,
-        ) =>
-          _imports.qualifyReference(
-            libraryUri: libraryUri,
-            owner: owner,
-            member: member,
-          ),
-        WidgetbookDartConstValuePlan(:final value) =>
-          renderDartConstValueFromPrefixes(
-            value,
-            _imports.prefixesBySourceUri,
-          ),
-        WidgetbookFrameworkValuePlan(
-          :final type,
-          :final kind,
-          :final value,
-        ) =>
-          _frameworkLiteral(type, kind, value),
-        WidgetbookListValuePlan(:final type, :final values) =>
-          '<${renderType(type.typeArguments.single)}>'
-              '[${values.map(renderValue).join(', ')}]',
-        WidgetbookPlaceholderWidgetValuePlan(:final type) =>
-          'const ${_imports.qualify(type.libraryUri, 'SizedBox')}.shrink()',
-        WidgetbookConstructorValuePlan(
-          :final type,
-          :final namedConstructor,
-          :final arguments,
-        ) =>
-          '${renderType(type.nonNullable)}'
-              '${namedConstructor == null ? '' : '.$namedConstructor'}('
-              '${arguments.map(_renderArgument).join(', ')})',
-      };
+    WidgetbookNullValuePlan() => 'null',
+    WidgetbookScalarValuePlan(:final value) => _dartLiteral(value),
+    WidgetbookFunctionReferenceValuePlan(
+      :final libraryUri,
+      :final owner,
+      :final member,
+    ) =>
+      _imports.qualifyReference(
+        libraryUri: libraryUri,
+        owner: owner,
+        member: member,
+      ),
+    WidgetbookEnumValuePlan(:final type, :final member, :final ordinal) =>
+      member.startsWith('_')
+          ? '${renderType(type.nonNullable)}.values[$ordinal]'
+          : '${renderType(type.nonNullable)}.$member',
+    WidgetbookStaticMemberValuePlan(
+      :final libraryUri,
+      :final owner,
+      :final member,
+    ) =>
+      _imports.qualifyReference(
+        libraryUri: libraryUri,
+        owner: owner,
+        member: member,
+      ),
+    WidgetbookDartConstValuePlan(:final value) =>
+      renderDartConstValueFromPrefixes(
+        value,
+        _imports.prefixesBySourceUri,
+      ),
+    WidgetbookFrameworkValuePlan(
+      :final type,
+      :final kind,
+      :final value,
+    ) =>
+      _frameworkLiteral(type, kind, value),
+    WidgetbookListValuePlan(:final type, :final values) =>
+      '<${renderType(type.typeArguments.single)}>'
+          '[${values.map(renderValue).join(', ')}]',
+    WidgetbookPlaceholderWidgetValuePlan(:final type) =>
+      'const ${_imports.qualify(type.libraryUri, 'SizedBox')}.shrink()',
+    WidgetbookConstructorValuePlan(
+      :final type,
+      :final namedConstructor,
+      :final arguments,
+    ) =>
+      '${renderType(type.nonNullable)}'
+          '${namedConstructor == null ? '' : '.$namedConstructor'}('
+          '${arguments.map(_renderArgument).join(', ')})',
+  };
 
   String _renderArgument(WidgetbookNativeArgumentPlan argument) {
     final value = renderValue(argument.value);
@@ -1008,27 +1013,36 @@ final class WidgetbookNativeDartRenderer {
     final renderedType = renderType(type.nonNullable);
     String owner(String symbol) => _imports.qualify(type.libraryUri, symbol);
     return switch (kind) {
-      WidgetbookFrameworkLiteralKind.color =>
-        _colorLiteral(value, renderedType),
+      WidgetbookFrameworkLiteralKind.color => _colorLiteral(
+        value,
+        renderedType,
+      ),
       WidgetbookFrameworkLiteralKind.edgeInsets => _edgeInsetsLiteral(
-          value,
-          type.symbol,
-          owner,
-        ),
-      WidgetbookFrameworkLiteralKind.alignment =>
-        _alignmentLiteral(value, type.symbol, owner),
-      WidgetbookFrameworkLiteralKind.offset =>
-        _offsetLiteral(value, renderedType),
-      WidgetbookFrameworkLiteralKind.fontWeight =>
-        _fontWeightLiteral(value, renderedType),
+        value,
+        type.symbol,
+        owner,
+      ),
+      WidgetbookFrameworkLiteralKind.alignment => _alignmentLiteral(
+        value,
+        type.symbol,
+        owner,
+      ),
+      WidgetbookFrameworkLiteralKind.offset => _offsetLiteral(
+        value,
+        renderedType,
+      ),
+      WidgetbookFrameworkLiteralKind.fontWeight => _fontWeightLiteral(
+        value,
+        renderedType,
+      ),
       WidgetbookFrameworkLiteralKind.duration =>
         'const $renderedType(milliseconds: $value)',
       WidgetbookFrameworkLiteralKind.curve
           when value is String && kSupportedCurveNames.contains(value) =>
         '${owner('Curves')}.$value',
       WidgetbookFrameworkLiteralKind.curve => throw StateError(
-          'unsupported framework curve literal: $value',
-        ),
+        'unsupported framework curve literal: $value',
+      ),
     };
   }
 }
@@ -1066,10 +1080,10 @@ void _collectValueUris(
         _collectValueUris(argument.value, uris);
       }
     case WidgetbookNullValuePlan() ||
-          WidgetbookScalarValuePlan() ||
-          WidgetbookEnumValuePlan() ||
-          WidgetbookFrameworkValuePlan() ||
-          WidgetbookPlaceholderWidgetValuePlan():
+        WidgetbookScalarValuePlan() ||
+        WidgetbookEnumValuePlan() ||
+        WidgetbookFrameworkValuePlan() ||
+        WidgetbookPlaceholderWidgetValuePlan():
       break;
   }
 }
@@ -1110,8 +1124,8 @@ String _colorLiteral(Object value, String type) {
     final normalized = value.startsWith('#')
         ? value.substring(1)
         : value.startsWith('0x') || value.startsWith('0X')
-            ? value.substring(2)
-            : '';
+        ? value.substring(2)
+        : '';
     final parsed = int.tryParse(normalized, radix: 16);
     if (parsed == null || normalized.length != 6 && normalized.length != 8) {
       throw StateError('invalid color literal $value');
@@ -1135,10 +1149,10 @@ String _edgeInsetsLiteral(
   final owner = qualify(directional ? 'EdgeInsetsDirectional' : 'EdgeInsets');
   final values = value is Map
       ? (directional
-              ? ['start', 'top', 'end', 'bottom']
-              : ['left', 'top', 'right', 'bottom'])
-          .map((key) => _number(value[key]))
-          .join(', ')
+                ? ['start', 'top', 'end', 'bottom']
+                : ['left', 'top', 'right', 'bottom'])
+            .map((key) => _number(value[key]))
+            .join(', ')
       : _numberList(value, 4).join(', ');
   return directional
       ? 'const $owner.fromSTEB($values)'
@@ -1152,7 +1166,8 @@ String _alignmentLiteral(
 ) {
   if (value is String) {
     final directional = value.contains('Start') || value.contains('End');
-    final owner = type == 'AlignmentDirectional' ||
+    final owner =
+        type == 'AlignmentDirectional' ||
             type == 'AlignmentGeometry' && directional
         ? qualify('AlignmentDirectional')
         : qualify('Alignment');
@@ -1249,8 +1264,7 @@ void _validateNativeInput(
     PropertyType.string ||
     PropertyType.stringList ||
     PropertyType.enumValue ||
-    PropertyType.structured =>
-      true,
+    PropertyType.structured => true,
     PropertyType.widgetBuilder ||
     PropertyType.scalarCallback ||
     PropertyType.event ||
@@ -1273,8 +1287,7 @@ void _validateNativeInput(
     PropertyType.inlineSpan ||
     PropertyType.decorationImage ||
     PropertyType.selectionOptionList ||
-    PropertyType.unknown =>
-      false,
+    PropertyType.unknown => false,
   };
   if (!valid) {
     throw StateError(
@@ -1290,8 +1303,8 @@ bool _isColorValue(Object value) {
   final normalized = value.startsWith('#')
       ? value.substring(1)
       : value.startsWith('0x') || value.startsWith('0X')
-          ? value.substring(2)
-          : '';
+      ? value.substring(2)
+      : '';
   return (normalized.length == 6 || normalized.length == 8) &&
       RegExp(r'^[0-9a-fA-F]+$').hasMatch(normalized);
 }
@@ -1421,9 +1434,10 @@ void _validatePropertyDartType(
 
   final valid = switch (propertyType) {
     PropertyType.widget => isWidgetType(dartType),
-    PropertyType.widgetList => isDartCore('List') &&
-        dartType.typeArguments.length == 1 &&
-        isWidgetType(dartType.typeArguments.single),
+    PropertyType.widgetList =>
+      isDartCore('List') &&
+          dartType.typeArguments.length == 1 &&
+          isWidgetType(dartType.typeArguments.single),
     PropertyType.string => isDartCore('String'),
     PropertyType.boolean => isDartCore('bool'),
     PropertyType.integer => isDartCore('int'),
@@ -1431,23 +1445,24 @@ void _validatePropertyDartType(
     // Classification in type_inference.dart decides whether a type is a
     // framework value type. This defensively verifies a pairing produced
     // elsewhere: lookalikes cannot reach here, but other disagreements can.
-    PropertyType.stringList => isDartCore('List') &&
-        dartType.typeArguments.length == 1 &&
-        dartType.typeArguments.single.element?.library?.identifier ==
-            'dart:core' &&
-        dartType.typeArguments.single.element?.name == 'String',
+    PropertyType.stringList =>
+      isDartCore('List') &&
+          dartType.typeArguments.length == 1 &&
+          dartType.typeArguments.single.element?.library?.identifier ==
+              'dart:core' &&
+          dartType.typeArguments.single.element?.name == 'String',
     PropertyType.enumValue => element is EnumElement,
     PropertyType.color => library == 'dart:ui' && name == 'Color',
     PropertyType.edgeInsets => isFlutterType(const {
-        'EdgeInsets',
-        'EdgeInsetsDirectional',
-        'EdgeInsetsGeometry',
-      }),
+      'EdgeInsets',
+      'EdgeInsetsDirectional',
+      'EdgeInsetsGeometry',
+    }),
     PropertyType.alignment => isFlutterType(const {
-        'Alignment',
-        'AlignmentDirectional',
-        'AlignmentGeometry',
-      }),
+      'Alignment',
+      'AlignmentDirectional',
+      'AlignmentGeometry',
+    }),
     PropertyType.offset => library == 'dart:ui' && name == 'Offset',
     PropertyType.fontWeight => library == 'dart:ui' && name == 'FontWeight',
     PropertyType.duration => isDartCore('Duration'),
@@ -1475,8 +1490,7 @@ void _validatePropertyDartType(
     PropertyType.inlineSpan ||
     PropertyType.decorationImage ||
     PropertyType.selectionOptionList ||
-    PropertyType.unknown =>
-      false,
+    PropertyType.unknown => false,
   };
   if (!valid) {
     throw StateError(

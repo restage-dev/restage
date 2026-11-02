@@ -9,17 +9,19 @@ import '../helpers.dart';
 
 void main() {
   group('PaywallSourceVisitor (LibraryVisitor wrapper)', () {
-    test('populates state.paywallSources for well-formed @PaywallSource',
-        () async {
-      final after = _StateCaptureVisitor();
+    test(
+      'populates state.paywallSources for well-formed @PaywallSource',
+      () async {
+        final after = _StateCaptureVisitor();
 
-      await testBuilder(
-        RestageCodegenBuilder(
-          BuilderOptions.empty,
-          visitors: [const PaywallSourceVisitor(), after],
-        ),
-        {
-          'pkg|lib/paywalls/hello.dart': '''
+        await testBuilder(
+          RestageCodegenBuilder(
+            BuilderOptions.empty,
+            visitors: [const PaywallSourceVisitor(), after],
+          ),
+          {
+            'pkg|lib/paywalls/hello.dart':
+                '''
             $kStubAnnotationsAndBases
 
             @PaywallSource(id: 'hello', slot: 'primary')
@@ -28,30 +30,33 @@ void main() {
               Widget build(BuildContext context) => 1;
             }
           ''',
-        },
-        rootPackage: 'pkg',
-        outputs: const {},
-      );
+          },
+          rootPackage: 'pkg',
+          outputs: const {},
+        );
 
-      expect(after.observed, hasLength(1));
-      final found = after.observed.single;
-      expect(found.id, 'hello');
-      expect(found.slot, 'primary');
-      expect(found.className, 'HelloPaywall');
-      expect(found.rootExpression, isNotNull);
-    });
+        expect(after.observed, hasLength(1));
+        final found = after.observed.single;
+        expect(found.id, 'hello');
+        expect(found.slot, 'primary');
+        expect(found.className, 'HelloPaywall');
+        expect(found.rootExpression, isNotNull);
+      },
+    );
 
-    test('leaves state.paywallSources empty when no @PaywallSource classes',
-        () async {
-      final after = _StateCaptureVisitor();
+    test(
+      'leaves state.paywallSources empty when no @PaywallSource classes',
+      () async {
+        final after = _StateCaptureVisitor();
 
-      await testBuilder(
-        RestageCodegenBuilder(
-          BuilderOptions.empty,
-          visitors: [const PaywallSourceVisitor(), after],
-        ),
-        {
-          'pkg|lib/paywalls/plain.dart': '''
+        await testBuilder(
+          RestageCodegenBuilder(
+            BuilderOptions.empty,
+            visitors: [const PaywallSourceVisitor(), after],
+          ),
+          {
+            'pkg|lib/paywalls/plain.dart':
+                '''
             $kStubAnnotationsAndBases
 
             class Plain extends StatelessWidget {
@@ -59,13 +64,14 @@ void main() {
               Widget build(BuildContext context) => 1;
             }
           ''',
-        },
-        rootPackage: 'pkg',
-        outputs: const {},
-      );
+          },
+          rootPackage: 'pkg',
+          outputs: const {},
+        );
 
-      expect(after.observed, isEmpty);
-    });
+        expect(after.observed, isEmpty);
+      },
+    );
   });
 }
 

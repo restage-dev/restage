@@ -75,7 +75,8 @@ String? numberFormatAdoptTarget(MethodInvocation expr) {
 /// catalog widget to adopt, and the pre-localized `localizedPrice` data
 /// reference for the store-price (currency) case.
 String numberFormatDeferMessage(String adoptTarget) {
-  const base = 'Number formatting with intl.NumberFormat is not a supported '
+  const base =
+      'Number formatting with intl.NumberFormat is not a supported '
       'paywall expression.';
   if (adoptTarget == kPriceLowering.name) {
     return '$base Use the catalog widget `RestagePrice(value:, numberLocale:, '

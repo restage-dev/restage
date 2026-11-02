@@ -35,8 +35,8 @@ final class ScreenSourceAdmission {
     required this.visitorResult,
     required List<ClassElement> annotatedClasses,
     required List<Issue> issues,
-  })  : annotatedClasses = List.unmodifiable(annotatedClasses),
-        issues = List.unmodifiable(issues);
+  }) : annotatedClasses = List.unmodifiable(annotatedClasses),
+       issues = List.unmodifiable(issues);
 
   final ResolvedLibraryResult? resolvedLibrary;
   final OnboardingVisitorResult visitorResult;
@@ -115,7 +115,8 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
     issues.add(
       Issue(
         code: IssueCode.invalidScreenSourceLocation,
-        message: '@ScreenSource libraries must be authored at exactly '
+        message:
+            '@ScreenSource libraries must be authored at exactly '
             '`lib/<onboarding|message|survey>/screens/<id>.dart`. Found '
             '`${assetId.path}`.',
         location: assetId.path,
@@ -135,7 +136,8 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
     issues.add(
       Issue(
         code: IssueCode.invalidScreenSourceCount,
-        message: 'A ScreenSource input library must declare exactly one '
+        message:
+            'A ScreenSource input library must declare exactly one '
             '@ScreenSource class; found ${annotatedClasses.length}.',
         location: assetId.path,
       ),
@@ -147,7 +149,8 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
     issues.add(
       Issue(
         code: IssueCode.filenameMismatch,
-        message: "Screen id '${source.id}' does not match the file name "
+        message:
+            "Screen id '${source.id}' does not match the file name "
             "'$stem.dart'.",
         location: '${assetId.path}#${source.className}',
       ),
@@ -162,7 +165,8 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
         issues.add(
           Issue(
             code: IssueCode.invalidTargetConfigPlacement,
-            message: '${target.name}.Config enabled is legal only on a '
+            message:
+                '${target.name}.Config enabled is legal only on a '
                 '@RestageWidget class and cannot change ScreenSource '
                 'admission or output topology.',
             location: location,

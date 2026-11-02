@@ -217,8 +217,7 @@ List<String>? themeReadSegments(
 bool isThemeReadChain(
   Expression expr, {
   Map<Element, Expression> bindings = const {},
-}) =>
-    themeReadSegments(expr, bindings: bindings) != null;
+}) => themeReadSegments(expr, bindings: bindings) != null;
 
 /// The `Brightness` members a brightness comparison may test against, mapped
 /// to the `data.theme.brightness` token the host publishes for each.

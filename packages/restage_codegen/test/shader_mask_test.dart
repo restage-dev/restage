@@ -23,12 +23,16 @@ const _canonicalRed = <String, Object?>{
 };
 
 void main() {
-  final catalog = decodeCatalog(File(
-    '../restage_core/lib/src/widget_catalog/catalog.json',
-  ).readAsStringSync());
+  final catalog = decodeCatalog(
+    File(
+      '../restage_core/lib/src/widget_catalog/catalog.json',
+    ).readAsStringSync(),
+  );
 
-  Future<TranslationResult> translate(String body,
-      {String declarations = ''}) async {
+  Future<TranslationResult> translate(
+    String body, {
+    String declarations = '',
+  }) async {
     final expression = await parseExpressionFromSourceForTest('''
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -39,8 +43,10 @@ class Palette {
 $declarations
 Widget x() => $body;
 ''', rootPackage: 'apps_examples');
-    return ExpressionTranslator(catalog: catalog, helpers: HelperRegistry())
-        .translate(expression);
+    return ExpressionTranslator(
+      catalog: catalog,
+      helpers: HelperRegistry(),
+    ).translate(expression);
   }
 
   const colors = 'colors: [Colors.red, Colors.blue]';
@@ -73,14 +79,17 @@ Widget x() => $body;
       final result = await translate(example.value);
       expect(result.issues.where((i) => !i.code.isInformational), isEmpty);
       final library = fmt.parseLibraryFile(
-          'import restage.core; widget main = ${result.dsl};');
+        'import restage.core; widget main = ${result.dsl};',
+      );
       final decoded = fmt.decodeLibraryBlob(fmt.encodeLibraryBlob(library));
       final root = decoded.widgets.single.root as fmt.ConstructorCall;
       expect(root.name, 'RestageShaderMask');
       expect(root.arguments['child'], isA<fmt.ConstructorCall>());
       if (example.key.contains('rotation')) {
-        expect(root.arguments['rotation'],
-            example.key == 'static const rotation' ? 0.5 : 0.25);
+        expect(
+          root.arguments['rotation'],
+          example.key == 'static const rotation' ? 0.5 : 0.25,
+        );
       }
       if (example.key == 'color filter') {
         expect(root.arguments['color'], _canonicalRed);
@@ -112,28 +121,41 @@ Widget x() => $body;
       final result = await translate(example.value);
       expect(result.dsl, isEmpty);
       expect(
-          result.issues,
-          contains(isA<Issue>()
+        result.issues,
+        contains(
+          isA<Issue>()
               .having(
-                  (i) => i.code, 'code', IssueCode.shaderMaskFormUnsupported)
-              .having(
-                  (i) => i.message, 'message', contains('@RestageWidget'))));
+                (i) => i.code,
+                'code',
+                IssueCode.shaderMaskFormUnsupported,
+              )
+              .having((i) => i.message, 'message', contains('@RestageWidget')),
+        ),
+      );
     });
   }
 
   for (final type in ['RadialGradient', 'SweepGradient']) {
     test('$type decorations preserve tileMode and defer transforms', () async {
       final result = await translate(
-          'DecoratedBox(decoration: BoxDecoration(gradient: $type($colors, tileMode: TileMode.repeated)), child: const SizedBox())');
+        'DecoratedBox(decoration: BoxDecoration(gradient: $type($colors, tileMode: TileMode.repeated)), child: const SizedBox())',
+      );
       expect(result.issues.where((i) => !i.code.isInformational), isEmpty);
       expect(result.dsl, contains('tileMode: "repeated"'));
 
       final transformed = await translate(
-          'DecoratedBox(decoration: BoxDecoration(gradient: $type($colors, transform: GradientRotation(0.5))), child: const SizedBox())');
+        'DecoratedBox(decoration: BoxDecoration(gradient: $type($colors, transform: GradientRotation(0.5))), child: const SizedBox())',
+      );
       expect(
-          transformed.issues,
-          contains(isA<Issue>().having((i) => i.message, 'message',
-              contains('$type field(s) not yet supported: transform'))));
+        transformed.issues,
+        contains(
+          isA<Issue>().having(
+            (i) => i.message,
+            'message',
+            contains('$type field(s) not yet supported: transform'),
+          ),
+        ),
+      );
       expect(transformed.issues.any((i) => !i.code.isInformational), isTrue);
     });
   }
@@ -145,11 +167,14 @@ class MissingWidget extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox();
 }
 ''';
-    final direct =
-        await translate('const MissingWidget()', declarations: declaration);
+    final direct = await translate(
+      'const MissingWidget()',
+      declarations: declaration,
+    );
     final nested = await translate(
-        'ShaderMask(shaderCallback: gradient.createShader, child: const MissingWidget())',
-        declarations: declaration);
+      'ShaderMask(shaderCallback: gradient.createShader, child: const MissingWidget())',
+      declarations: declaration,
+    );
     final original = direct.issues.singleWhere((i) => !i.code.isInformational);
     final issue = nested.issues.singleWhere((i) => !i.code.isInformational);
     expect(issue.code, original.code);
@@ -157,9 +182,10 @@ class MissingWidget extends StatelessWidget {
     expect(issue.message, original.message);
   });
 
-  test('the generated mount keeps the authored widget as its fallback',
-      () async {
-    const source = '''
+  test(
+    'the generated mount keeps the authored widget as its fallback',
+    () async {
+      const source = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -190,50 +216,70 @@ class GradientLabel extends StatelessWidget {
   );
 }
 ''';
-    final readerWriter =
-        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      {'apps_examples|lib/masked.dart': source},
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final bundle = RestageSurfacePublicationBundle.fromJson(jsonDecode(
-      readerWriter.testing.readString(AssetId(
-          'apps_examples', kRestageSurfacePublicationCompilerBundlePath)),
-    ));
-    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
-    final dsl = utf8
-        .decode(bundle.ownedOutputs['assets/general/screens/masked.rfwtxt']!);
-    final library = fmt.parseLibraryFile(dsl);
-    final root = library.widgets
-        .singleWhere((widget) => widget.name == 'OnboardingScreen')
-        .root as fmt.ConstructorCall;
-    expect(root.name, 'RestageShaderMask');
-    expect((root.arguments['gradient']! as Map)['type'], 'linear');
-    expect(root.arguments['rotation'], 0.25);
-    final label = library.widgets
-        .singleWhere((widget) => widget.name == 'GradientLabel')
-        .root as fmt.ConstructorCall;
-    expect(label.name, 'RestageShaderMask');
-    expect((label.arguments['gradient']! as fmt.ArgsReference).parts,
-        ['gradient']);
-    final generated = utf8.decode(
-        bundle.ownedOutputs['lib/restage.generated/masked.restage.g.dart']!);
-    expect(generated, contains('builder: (context, error) => Masked('));
-    expect(generated,
-        isNot(contains('builder: (context, error) => RestageShaderMask(')));
-  });
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/masked.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = RestageSurfacePublicationBundle.fromJson(
+        jsonDecode(
+          readerWriter.testing.readString(
+            AssetId(
+              'apps_examples',
+              kRestageSurfacePublicationCompilerBundlePath,
+            ),
+          ),
+        ),
+      );
+      expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+      final dsl = utf8.decode(
+        bundle.ownedOutputs['assets/general/screens/masked.rfwtxt']!,
+      );
+      final library = fmt.parseLibraryFile(dsl);
+      final root =
+          library.widgets
+                  .singleWhere((widget) => widget.name == 'OnboardingScreen')
+                  .root
+              as fmt.ConstructorCall;
+      expect(root.name, 'RestageShaderMask');
+      expect((root.arguments['gradient']! as Map)['type'], 'linear');
+      expect(root.arguments['rotation'], 0.25);
+      final label =
+          library.widgets
+                  .singleWhere((widget) => widget.name == 'GradientLabel')
+                  .root
+              as fmt.ConstructorCall;
+      expect(label.name, 'RestageShaderMask');
+      expect((label.arguments['gradient']! as fmt.ArgsReference).parts, [
+        'gradient',
+      ]);
+      final generated = utf8.decode(
+        bundle.ownedOutputs['lib/restage.generated/masked.restage.g.dart']!,
+      );
+      expect(generated, contains('builder: (context, error) => Masked('));
+      expect(
+        generated,
+        isNot(contains('builder: (context, error) => RestageShaderMask(')),
+      );
+    },
+  );
 
   test('a look-alike widget is never rewritten', () async {
-    final result = await translate('ShaderMask()', declarations: '''
+    final result = await translate(
+      'ShaderMask()',
+      declarations: '''
 class ShaderMask extends StatelessWidget {
   const ShaderMask();
   Widget build(BuildContext context) => const SizedBox();
 }
-''');
+''',
+    );
     expect(result.dsl, isNot(contains('RestageShaderMask')));
   });
 }
