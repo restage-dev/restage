@@ -1,9 +1,10 @@
 import 'dart:math';
 
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_shared/restage_shared.dart' show kRestageSdkVersion;
 
 /// Runtime-owned build metadata, kept aligned with this package's pubspec.
-const measurementReportedSdkVersion = '2.0.0';
+const measurementReportedSdkVersion = kRestageSdkVersion;
 
 /// Anonymous memory-only session shared by every root in one SDK target.
 /// Switching back to a previously visited target never recovers its old nonce.

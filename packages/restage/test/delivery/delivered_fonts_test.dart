@@ -7,6 +7,8 @@ import 'package:restage/src/delivery/delivered_fonts.dart';
 import 'package:restage/src/restage_rpc_client/surface_artifact_assembly.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../support/delivery_signing.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -98,7 +100,7 @@ void main() {
 
     SurfaceArtifactOutcome assembled(SurfacePayload payload) =>
         assembleSurfaceArtifact(
-          descriptor: SurfaceArtifactDescriptor(
+          descriptor: testDeliverySigner.signed(SurfaceArtifactDescriptor(
             payloadFormatVersion: payload.carriesSections
                 ? kSurfaceArtifactSectionsPayloadFormatVersion
                 : kSurfaceArtifactPayloadFormatVersion,
@@ -109,8 +111,11 @@ void main() {
             contentHash: payload.contentHash,
             artifactUrl: 'https://artifacts.test/artifacts/orgs/1/artifacts/1/'
                 '${payload.contentHash}',
+            signature: unsignedTestSignature,
+            authorizedAtMicros:
+                DateTime.utc(2026, 9, 29).microsecondsSinceEpoch,
             artifactPass: 'v1.k1.4102444800.${'a' * 64}',
-          ),
+          )),
           artifactBytes: payload.canonicalBytes,
         );
 

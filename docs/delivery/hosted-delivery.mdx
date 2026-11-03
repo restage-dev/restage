@@ -24,14 +24,20 @@ Restage.configureWithInstalledCatalog(
   surfaces: restageSurfaces,
   apiKey: apiKey,
   baseUrl: baseUrl,
+  // From `restage keys delivery`.
+  deliveryKeys: const ['42:Hx3...'],
 );
 ```
 
+Delivered content renders only when it is signed by one of `deliveryKeys`. See
+[Signed delivery](/trust/signing).
+
 Generated mounts install their required widgets. If you use direct mounts, call
 `registerRestageWidgets()` from generated `user_factories.g.dart` before configuring
-delivery. Passing `surfaces: restageSurfaces` prefetches known surfaces after the
-first frame. Prefetching gets later mounts ready; it doesn't assign anyone to an
-experiment. Hosted delivery covers flows by default, so leave `flowResolver` unset
+delivery. Passing `surfaces: restageSurfaces` adds the generated placements to the
+startup request, sent at startup. That request can assign an experiment arm.
+The other listed references are fetched after the first frame without an
+assignment, ready for later mounts. Hosted delivery covers flows by default, so leave `flowResolver` unset
 for ordinary generated mounts. A resolver you set replaces that default for flows.
 
 Use the public SDK key (`rs_pk_...`) for the environment you want to serve. Keys
@@ -51,18 +57,26 @@ You can also call `Restage.configure()` without an API key.
 Generated mounts then use their compiled fallbacks; optional bundled content
 can also render. Hosted delivery and measurement stay off.
 
-## Render deadline
+## First-launch wait
 
-A mount waits up to 300 ms by default for fresh content. After that it shows the
-best local content that is ready: a version it saved earlier or an optional bundle,
-otherwise its compiled fallback or unavailable policy. A saved version is used only
-if it matches the surface and the installed build, comes from the current delivery
-decision, and hasn't expired. A slow read from local storage can also miss the
-deadline. Set `renderDeadline:` at startup to change the wait.
+A mount with nothing saved waits up to 1 s for delivered content, then shows its
+compiled fallback or its unavailable policy. A mount with a saved version waits up
+to 150 ms for a newer one, then shows the saved version. A saved version is used
+only if it matches the surface and the installed build, comes from the current
+delivery decision, and hasn't expired. A slow read from local storage can also
+miss the wait. Set `firstLaunchWait:` and `freshWindow:` in `Restage.configure` to
+change the waits, or `firstLaunchWaits:` to set the first-launch wait for one
+placement by its id.
 
-The fetch continues in the background and can save the new version for later
-mounts. [Live refresh](/delivery/live-refresh) updates supported mounts when safe;
-a standalone screen already showing its compiled fallback needs a remount.
+An app built with `restage_codegen` sends its first request from the Android and
+iOS plugins, before Dart starts, from a template the build writes. Set `api_key`
+and `base_url` for the `restage_early_template` builder in `build.yaml` (`restage
+init --sdk-key rs_pk_...` writes them). The answer is usually on the device before
+the first mount, and the mount shows it at once.
+
+An answer that arrives after the wait is kept for the next mount.
+[Live refresh](/delivery/live-refresh) updates supported mounts when safe; a
+standalone screen already showing its compiled fallback needs a remount.
 
 A fallback shown before any assignment doesn't count as showing an experiment arm.
 Assignment and rendering are separate: a response that arrives late, or an
@@ -195,10 +209,10 @@ screens show but not the shape of the graph. To change the graph over the air, s
 
 ## When a version can't be shown
 
-Local content counts only if it is ready by the render deadline. Within that limit,
+Local content counts only if it is ready within the wait. Within that limit,
 the mount's resolver and fallback policy decide what appears:
 
-- **Paywalls** prefer fresh content ready before the deadline, then a saved version
+- **Paywalls** prefer fresh content ready within the wait, then a saved version
   that still qualifies or a bundle, then `fallbackBuilder`.
   Generated mounts supply the original widget. A direct mount without a usable
   fallback uses `errorBuilder` for a load failure.
@@ -251,7 +265,7 @@ to publish the exact version you reviewed.
 ## See a new version on a device
 
 A published version appears the next time the surface mounts. If that mount's fetch
-misses the [render deadline](#render-deadline), the mount shows saved or compiled
+misses the [first-launch wait](#first-launch-wait), the mount shows saved or compiled
 content and keeps the new version for the next mount. To see it, leave the screen and
 come back, or relaunch the app. To update a surface that's already on screen, turn on
 [live refresh](/delivery/live-refresh), which is off by default.

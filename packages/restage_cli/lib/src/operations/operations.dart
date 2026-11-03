@@ -6,6 +6,7 @@ import 'package:restage_cli/src/config/config_target_check.dart'
     show noOrganizationSentence;
 import 'package:restage_cli/src/api/app_admin_api.dart';
 import 'package:restage_cli/src/api/component_api.dart';
+import 'package:restage_cli/src/api/delivery_keys_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
@@ -809,6 +810,26 @@ final List<Operation> sharedOperations = [
       );
       return <String, Object?>{'deleted': true, 'app': target.app};
     },
+  ),
+  Operation(
+    cliPath: 'keys delivery',
+    mcpName: 'restage_delivery_keys',
+    description:
+        'Print the public keys delivered content is signed with, for '
+        'Restage.configure(deliveryKeys: ...).',
+    mcpDescription:
+        "List the public keys the app's delivered content is signed with, "
+        'each `<organizationId>:<base64url key>`, the signing key first. '
+        'Pass them to `Restage.configure(deliveryKeys: [...])`; content '
+        'signed by any other key never renders.',
+    scope: OperationScope.app,
+    resultKey: 'deliveryKeys',
+    render: (out, value, _, _) => (value! as List).forEach(out.writeln),
+    call: (target, _) => DeliveryKeysApi(target.api).list(
+      project: target.project!,
+      app: target.app!,
+      organizationId: target.organizationId,
+    ),
   ),
   Operation(
     cliPath: 'keys resolve',

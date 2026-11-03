@@ -93,4 +93,57 @@ additional_public_assets:
       });
     }
   });
+
+  group('planEarlyRequestOptions', () {
+    test('writes the service and key into a new build.yaml', () {
+      final plan = planEarlyRequestOptions(
+        null,
+        baseUrl: 'https://api.example.com',
+        apiKey: 'rs_pk_test',
+      );
+      expect(plan.action, StateBuildInputsAction.create);
+      final options = loadYaml(
+        plan.source,
+      )['targets'][r'$default']['builders'][earlyRequestBuilderKey]['options'];
+      expect(options['base_url'], 'https://api.example.com');
+      expect(options['api_key'], 'rs_pk_test');
+    });
+
+    test('keeps values already set and leaves other builders alone', () {
+      const source = '''
+targets:
+  \$default:
+    builders:
+      restage_codegen:user_factories:
+        options:
+          catalog: derived
+      restage_codegen:restage_early_template:
+        options:
+          api_key: rs_pk_mine
+''';
+      final plan = planEarlyRequestOptions(
+        source,
+        baseUrl: 'https://api.example.com',
+        apiKey: 'rs_pk_other',
+      );
+      final builders = loadYaml(
+        plan.source,
+      )['targets'][r'$default']['builders'];
+      expect(
+        builders['restage_codegen:user_factories']['options']['catalog'],
+        'derived',
+      );
+      final options = builders[earlyRequestBuilderKey]['options'];
+      expect(options['api_key'], 'rs_pk_mine');
+      expect(options['base_url'], 'https://api.example.com');
+    });
+
+    test('records an explicit opt-out', () {
+      final plan = planEarlyRequestOptions(null, enabled: false);
+      final options = loadYaml(
+        plan.source,
+      )['targets'][r'$default']['builders'][earlyRequestBuilderKey]['options'];
+      expect(options['early_request'], false);
+    });
+  });
 }

@@ -15,12 +15,12 @@ automatically.
 Keep analytics and measurement enabled for assignment. Installation is the
 default randomization unit; it is separate from your app's signed-in accounts.
 
-The render deadline limits how long a mount waits. If the app's assignment
-credentials aren't ready by then, that request can't assign the unit. A request
+The first-launch wait limits how long a mount waits. A mount request sent before
+the app's assignment credentials are ready can't assign the unit. A request
 with credentials can still return an assignment after the fallback appears, and
 content saved earlier can keep an earlier assignment. So what was on screen
-doesn't tell you on its own whether a unit was enrolled. Startup prefetch doesn't
-assign anyone.
+doesn't tell you on its own whether a unit was enrolled. The startup request assigns arms too. A device that qualifies gets its arm on
+its first launch, and later mounts keep it.
 
 ## Change delivery during an experiment
 

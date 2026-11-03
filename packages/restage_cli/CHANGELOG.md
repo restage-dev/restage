@@ -4,6 +4,9 @@
 
 Initial release of the `restage` command-line interface.
 
+`restage keys delivery` prints the public keys an app passes to
+`Restage.configure(deliveryKeys: ...)`.
+
 `restage login` signs in to Restage Cloud (`https://api.restage.dev/`) unless
 `--endpoint` or `RESTAGE_BACKEND_URL` names another backend.
 
@@ -29,8 +32,7 @@ without a deprecation.
 
 `restage experiment` has one subcommand per operation — `discover`, `create`,
 `read-draft`, `save`, `copy`, `validate`, `review`, `activate`, `pause`,
-`resume`, `conclude`, `list`, `read`, `results`, `archive`, `register-build`,
-`readiness`. They stay separate
+`resume`, `conclude`, `list`, `read`, `results`, `archive`, `readiness`. They stay separate
 because the operations are separate: reading a draft, reading an experiment,
 and reading its results are three different requests with three different
 results, and no flag turns one into another. `--json` prints the exact result

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 // Test-only transport and cache hooks keep hosted delivery deterministic.
 // ignore_for_file: invalid_use_of_internal_member
 
@@ -15,6 +16,22 @@ import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/src/surface_delivery/delivery_signing_testing.dart';
+
+// Stands in for the server's signing key; the app accepts its public half.
+final _deliverySigner = TestDeliverySigner();
+
+// The server authorizes a version again each time it starts serving it, as an
+// activation or rollback does.
+int? _servedVersion;
+var _authorizedAtMicros = 0;
+int _authorize(int version) {
+  if (version != _servedVersion) {
+    _servedVersion = version;
+    _authorizedAtMicros += 1;
+  }
+  return _authorizedAtMicros;
+}
 
 List<PlacementBatchRequestV1> configureHostedPaywall({
   required GeneratedPlacementDefinition definition,
@@ -34,6 +51,7 @@ List<PlacementBatchRequestV1> configureHostedPaywall({
   sharedSurfaceArtifactStore = MemorySurfaceArtifactStore();
   addTearDown(() => sharedSurfaceArtifactStore = null);
   Restage.configureWithInstalledCatalog(
+    deliveryKeys: [_deliverySigner.publicKey.toString()],
     apiKey: 'rs_pk_test',
     baseUrl: 'https://example.com',
     surfaces: [definition],
@@ -135,18 +153,42 @@ PlacementBatchResolvedV1 _response(
     payloadFormatVersion: 1,
     contentHash: CanonicalDigest(payload.contentHash.substring(7)),
   );
+  final fitRequirement = SurfaceFitRequirementV1(
+    hosting: SurfaceHostingRequirementV1(
+      contentKind: SurfaceContentKindV1.single,
+      allowedPresentations: {SurfacePresentationV1.inline},
+    ),
+    requiredContext: definition.hostContract.providedContext,
+    emittedEvents: definition.hostContract.handledEvents,
+    capabilities: sidecar.manifest,
+    requiredVocabulary: WidgetVocabulary(
+      widgetNames: {
+        'restage.core:Column',
+        'restage.core:Padding',
+        'restage.core:SizedBox',
+        'restage.core:Text',
+        'restage.material:FilledButton',
+        'restage.material:TextButton',
+      },
+    ),
+  );
   final reference = PlacementArtifactReferenceV1(
     publication: publication,
-    descriptor: SurfaceArtifactDescriptor(
-      payloadFormatVersion: 1,
-      payloadKind: payload.payloadKind,
-      surfaceType: Surface.paywall,
-      surfaceSlug: definition.defaultSurfaceLocator.slug,
-      version: version,
-      publishedAtMicros: 1,
-      contentHash: payload.contentHash,
-      artifactUrl: 'https://example.com/paywall/$fixture',
-      artifactPass: 'test-artifact',
+    descriptor: _deliverySigner.signed(
+      SurfaceArtifactDescriptor(
+        payloadFormatVersion: 1,
+        payloadKind: payload.payloadKind,
+        surfaceType: Surface.paywall,
+        surfaceSlug: definition.defaultSurfaceLocator.slug,
+        version: version,
+        publishedAtMicros: 1,
+        contentHash: payload.contentHash,
+        artifactUrl: 'https://example.com/paywall/$fixture',
+        signature: DeliverySignature(keyId: '0' * 16, bytes: Uint8List(64)),
+        authorizedAtMicros: _authorize(version),
+        artifactPass: 'test-artifact',
+        fitRequirementHash: fitRequirement.contentHash,
+      ),
     ),
   );
   return PlacementBatchResolvedV1(
@@ -198,25 +240,7 @@ PlacementBatchResolvedV1 _response(
                   request.buildContract.installedCapabilityHash,
               selectionIdentityDigest: path.selectionIdentityDigest,
             ),
-            fitRequirement: SurfaceFitRequirementV1(
-              hosting: SurfaceHostingRequirementV1(
-                contentKind: SurfaceContentKindV1.single,
-                allowedPresentations: {SurfacePresentationV1.inline},
-              ),
-              requiredContext: definition.hostContract.providedContext,
-              emittedEvents: definition.hostContract.handledEvents,
-              capabilities: sidecar.manifest,
-              requiredVocabulary: WidgetVocabulary(
-                widgetNames: {
-                  'restage.core:Column',
-                  'restage.core:Padding',
-                  'restage.core:SizedBox',
-                  'restage.core:Text',
-                  'restage.material:FilledButton',
-                  'restage.material:TextButton',
-                },
-              ),
-            ),
+            fitRequirement: fitRequirement,
             dependencyClosure: path.steps.map((step) => step.scope).toSet(),
           );
           return PlacementBatchAvailableV1(descriptor, delivery, [reference]);

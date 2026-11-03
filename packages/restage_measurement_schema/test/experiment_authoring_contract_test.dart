@@ -29,7 +29,6 @@ void main() {
           'readExperiment',
           'readExperimentResults',
           'setExperimentArchived',
-          'registerBuildCapabilities',
           'readExperimentReadiness',
           'readDeliveryOptions',
         ],
@@ -176,17 +175,6 @@ void main() {
             'archived': true,
             'expectedControlPlaneOrdinal': 8,
             'experimentId': 'experiment.checkout',
-          },
-        ),
-        'registerBuildCapabilities': _request(
-          operation: 'registerBuildCapabilities',
-          correlationId: 'correlation-register-1',
-          idempotencyKey: 'idempotency-register-1',
-          payload: {
-            'appBuildOrdinal': 412,
-            'contextSchemaRef': _contextSchemaRef(),
-            'platform': 'ios',
-            'sdkApiLevel': 3,
           },
         ),
         'readExperimentReadiness': _request(
@@ -2376,6 +2364,61 @@ void main() {
           ),
           throwsA(isA<CanonicalFormatException>()),
           reason: invalidSource.toString(),
+        );
+      }
+    });
+
+    test('lets a live surface candidate be its own server default', () {
+      Map<String, Object?> live(String surfaceName) => {
+            'kind': 'surfaceCandidate',
+            'label': 'Live candidate',
+            'surfaceReference': DeliverySurfaceReferenceV1(
+              surfaceIdentity: PublishedSurfaceIdentityV1.fromJson({
+                'kind': 'publishedSurfaceIdentity',
+                'schemaVersion': 1,
+                'surfaceId': _mintedSurfaceId(surfaceName),
+                'target': _target(),
+              }),
+              family: const DeliveryFamilySelectorV1.general(),
+            ).toJson(),
+          };
+      Map<String, Object?> view(Map<String, Object?> source) => {
+            ..._draftView(),
+            'choices': _draftChoices()
+              ..['memberNoTreatment'] = {
+                'kind': 'serverDefault',
+                'resolvedExactRef': live('surface.checkout'),
+                'source': source,
+              },
+          };
+
+      final source = _publicationCandidateDefaultSource(
+        live('surface.checkout'),
+      );
+      final decoded = ExperimentResolvedDefaultSourceV1.fromJson(
+        source,
+        path: 'source',
+      );
+      expect(
+        (decoded as ExperimentPublicationCandidateDefaultSourceV1).candidate,
+        isA<ExperimentSurfaceCandidateV1>(),
+      );
+      expect(decoded.toJson(), source);
+      expect(
+        ExperimentDraftViewV1.fromJson(view(source)).toJson(),
+        view(source),
+      );
+
+      for (final other in <Map<String, Object?>>[
+        _publicationCandidateDefaultSource(live('surface.other')),
+        _publicationCandidateDefaultSource(
+          _exactCandidate('surface.catalog.v4'),
+        ),
+      ]) {
+        expect(
+          () => ExperimentDraftViewV1.fromJson(view(other)),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: other.toString(),
         );
       }
     });
@@ -6280,154 +6323,69 @@ void main() {
     });
   });
 
-  group('build capability and audience readiness', () {
-    test('registration reports what one build supplies, in order', () {
-      final view = ExperimentBuildCapabilityViewV1.fromJson(
-        _buildCapabilityView(),
-      );
-
-      expect(view.platform.value, 'ios');
-      expect(view.appBuildOrdinal, 412);
-      expect(view.storedNow, isTrue);
-      expect(
-        view.providedAttributeIds.map((value) => value.value),
-        ['attr.country', 'attr.platform'],
-      );
-      expect(view.contextSchemaRef.revisionId.value,
-          'assignment.context.checkout.v2');
-      expect(view.target.organizationId.value, 11);
-    });
-
-    test('registration refuses an unordered or empty attribute list', () {
-      for (final invalid in <Map<String, Object?>>[
-        {
-          ..._buildCapabilityView(),
-          'providedAttributeIds': const ['attr.platform', 'attr.country'],
-        },
-        {..._buildCapabilityView(), 'providedAttributeIds': const <String>[]},
-      ]) {
-        expect(
-          () => ExperimentBuildCapabilityViewV1.fromJson(invalid),
-          throwsA(isA<CanonicalFormatException>()),
-        );
-      }
-    });
-
-    test('readiness separates missing registration from a run-time value', () {
+  group('audience readiness', () {
+    test('readiness reports a floor per platform that can be judged', () {
       final view = ExperimentReadinessViewV1.fromJson(_readinessView());
       final readiness = view.readiness!;
 
       expect(view.audiences.single.label, 'Sweden');
       expect(view.audiences.single.revisionOrdinal, 4);
       expect(view.nextPageCursor, isNull);
-      expect(readiness.activationBlocked, isTrue);
-      expect(
-        readiness.attributes.map(
-          (entry) => (entry.assignmentAttributeId.value, entry.supply),
-        ),
-        [
-          ('attr.country', ExperimentAttributeSupplyV1.registered),
-          ('attr.plan', ExperimentAttributeSupplyV1.appDeclaredValue),
-          ('attr.tenure', ExperimentAttributeSupplyV1.missingRegistration),
-        ],
-      );
-      expect(readiness.registeredBuilds.single.platform.value, 'ios');
-      // The one registered build supplies country, so nothing is named for it;
-      // it supplies neither of the other two, so it is named for both.
-      expect(readiness.buildsMissing(readiness.attributes.first), isEmpty);
-      expect(
-        readiness
-            .buildsMissing(readiness.attributes.last)
-            .single
-            .platform
-            .value,
-        'ios',
-      );
+      expect(readiness.activationBlocked, isFalse);
+      expect(readiness.floors, {'android': 3, 'ios': 3});
     });
 
-    test('a supply of registered must name at least one build', () {
+    test('readiness refuses floors that disagree with its schema or block', () {
       final readiness = _audienceReadiness();
-      final attributes = [
-        ...readiness['attributes']! as List<Object?>,
-      ];
-      attributes[0] = {
-        ...attributes[0]! as Map<String, Object?>,
-        'providingBuildCount': 0,
-      };
-
-      expect(
-        () => ExperimentAudienceReadinessV1.fromJson(
-          {...readiness, 'attributes': attributes},
-          path: 'readiness',
+      for (final (label, invalid) in <(String, Map<String, Object?>)>[
+        ('blocked with floors', {...readiness, 'activationBlocked': true}),
+        (
+          'open without floors',
+          {...readiness, 'floors': const <String, Object?>{}}
         ),
-        throwsA(isA<CanonicalFormatException>()),
-      );
-    });
-
-    test('an audience comparing nothing the SDK supplies reports no build', () {
+        ('floors without schema', {...readiness, 'contextSchemaRef': null}),
+        (
+          'level zero',
+          {
+            ...readiness,
+            'floors': const {'ios': 0},
+          }
+        ),
+        (
+          'bad platform',
+          {
+            ...readiness,
+            'floors': const {'iOS': 3},
+          }
+        ),
+      ]) {
+        expect(
+          () => ExperimentAudienceReadinessV1.fromJson(invalid, path: 'r'),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: label,
+        );
+      }
       expect(
         ExperimentAudienceReadinessV1.fromJson(
           {
-            ..._audienceReadiness(),
-            'activationBlocked': false,
-            'attributes': const <Object?>[],
-            'contextSchemaRef': null,
-            'registeredBuilds': const <Object?>[],
+            ...readiness,
+            'activationBlocked': true,
+            'floors': const <String, Object?>{},
           },
-          path: 'readiness',
+          path: 'r',
+        ).activationBlocked,
+        isTrue,
+      );
+      expect(
+        ExperimentAudienceReadinessV1.fromJson(
+          {
+            ...readiness,
+            'contextSchemaRef': null,
+            'floors': const <String, Object?>{},
+          },
+          path: 'r',
         ).contextSchemaRef,
         isNull,
-      );
-      expect(
-        () => ExperimentAudienceReadinessV1.fromJson(
-          {..._audienceReadiness(), 'contextSchemaRef': null},
-          path: 'readiness',
-        ),
-        throwsA(isA<CanonicalFormatException>()),
-      );
-    });
-
-    test('a fully registered attribute is covered by every build shown', () {
-      final readiness = _audienceReadiness();
-      final attributes = [...readiness['attributes']! as List<Object?>];
-
-      // More builds than the readiness reports.
-      expect(
-        () => ExperimentAudienceReadinessV1.fromJson(
-          {
-            ...readiness,
-            'attributes': [
-              {
-                ...attributes[2]! as Map<String, Object?>,
-                'providingBuildCount': 2,
-              },
-              ...attributes.skip(1),
-            ],
-          },
-          path: 'readiness',
-        ),
-        throwsA(isA<CanonicalFormatException>()),
-      );
-
-      // A second registered build that does not supply the country attribute
-      // leaves it partly covered, so the row may no longer read as registered.
-      expect(
-        () => ExperimentAudienceReadinessV1.fromJson(
-          {
-            ...readiness,
-            'registeredBuilds': [
-              ...readiness['registeredBuilds']! as List<Object?>,
-              {
-                'appBuildOrdinal': 96,
-                'kind': 'experimentRegisteredBuild',
-                'platform': 'android',
-                'providedAttributeIds': const <String>[],
-              },
-            ],
-          },
-          path: 'readiness',
-        ),
-        throwsA(isA<CanonicalFormatException>()),
       );
     });
 
@@ -6445,9 +6403,8 @@ void main() {
       );
     });
 
-    test('both operations decode through the accepted result union', () {
+    test('readiness decodes through the accepted result union', () {
       for (final (operation, response) in <(String, Map<String, Object?>)>[
-        ('registerBuildCapabilities', _buildCapabilityView()),
         ('readExperimentReadiness', _readinessView()),
       ]) {
         final result = ExperimentAuthoringResultV1.fromJson({
@@ -6467,12 +6424,7 @@ void main() {
       }
     });
 
-    test('registration carries a retry key and readiness refuses one', () {
-      expect(
-        ExperimentAuthoringOperationV1
-            .registerBuildCapabilities.requiresIdempotencyKey,
-        isTrue,
-      );
+    test('readiness refuses a retry key', () {
       expect(
         ExperimentAuthoringOperationV1
             .readExperimentReadiness.requiresIdempotencyKey,
@@ -6515,64 +6467,8 @@ void main() {
         );
       }
     });
-
-    test('registration closes its platform, build, and schema inputs', () {
-      for (final invalid in <Map<String, Object?>>[
-        {
-          'appBuildOrdinal': 412,
-          'contextSchemaRef': _contextSchemaRef(),
-          'platform': 'iOS',
-          'sdkApiLevel': 3,
-        },
-        {
-          'appBuildOrdinal': -1,
-          'contextSchemaRef': _contextSchemaRef(),
-          'platform': 'ios',
-          'sdkApiLevel': 3,
-        },
-        {
-          'appBuildOrdinal': 412,
-          'contextSchemaRef': _contextSchemaRef(),
-          'platform': 'ios',
-          'sdkApiLevel': 0,
-        },
-        {
-          'appBuildOrdinal': 412,
-          'contextSchemaRef': {
-            ..._contextSchemaRef(),
-            'semanticDigest': 'not-a-digest',
-          },
-          'platform': 'ios',
-          'sdkApiLevel': 3,
-        },
-      ]) {
-        expect(
-          () => ExperimentAuthoringRequestV1.fromJson(
-            _request(
-              operation: 'registerBuildCapabilities',
-              correlationId: 'correlation-minimal-1',
-              idempotencyKey: 'idempotency-minimal-1',
-              payload: invalid,
-            ),
-          ),
-          throwsA(isA<CanonicalFormatException>()),
-          reason: '$invalid',
-        );
-      }
-    });
   });
 }
-
-Map<String, Object?> _buildCapabilityView() => {
-      'appBuildOrdinal': 412,
-      'contextSchemaRef': _contextSchemaRef(),
-      'kind': 'experimentBuildCapabilityView',
-      'platform': 'ios',
-      'providedAttributeIds': const ['attr.country', 'attr.platform'],
-      'schemaVersion': 1,
-      'storedNow': true,
-      'target': _target(),
-    };
 
 Map<String, Object?> _audienceOption() => {
       'description': 'Requests reported from Sweden.',
@@ -6583,38 +6479,11 @@ Map<String, Object?> _audienceOption() => {
     };
 
 Map<String, Object?> _audienceReadiness() => {
-      'activationBlocked': true,
-      'attributes': [
-        {
-          'assignmentAttributeId': 'attr.country',
-          'kind': 'experimentAttributeReadiness',
-          'providingBuildCount': 1,
-          'supply': 'registered',
-        },
-        {
-          'assignmentAttributeId': 'attr.plan',
-          'kind': 'experimentAttributeReadiness',
-          'providingBuildCount': 0,
-          'supply': 'appDeclaredValue',
-        },
-        {
-          'assignmentAttributeId': 'attr.tenure',
-          'kind': 'experimentAttributeReadiness',
-          'providingBuildCount': 0,
-          'supply': 'missingRegistration',
-        },
-      ],
+      'activationBlocked': false,
       'contextSchemaRef': _contextSchemaRef(),
+      'floors': const {'android': 3, 'ios': 3},
       'kind': 'experimentAudienceReadiness',
       'reference': _audienceRef(),
-      'registeredBuilds': [
-        {
-          'appBuildOrdinal': 412,
-          'kind': 'experimentRegisteredBuild',
-          'platform': 'ios',
-          'providedAttributeIds': const ['attr.country'],
-        },
-      ],
     };
 
 Map<String, Object?> _readinessView() => {
@@ -6774,18 +6643,6 @@ Map<String, Object?> _minimalRequest(String operation) {
           'archived': true,
           'expectedControlPlaneOrdinal': 8,
           'experimentId': 'experiment.checkout',
-        },
-      );
-    case 'registerBuildCapabilities':
-      return _request(
-        operation: operation,
-        correlationId: 'correlation-minimal-1',
-        idempotencyKey: 'idempotency-minimal-1',
-        payload: {
-          'appBuildOrdinal': 412,
-          'contextSchemaRef': _contextSchemaRef(),
-          'platform': 'ios',
-          'sdkApiLevel': 3,
         },
       );
     case 'readExperimentReadiness':
@@ -8033,7 +7890,6 @@ Map<String, Map<String, Object?>> _acceptedResponses() => {
       'readExperiment': _detail(),
       'readExperimentResults': _results(),
       'setExperimentArchived': _detail(archived: true),
-      'registerBuildCapabilities': _buildCapabilityView(),
       'readExperimentReadiness': _readinessView(),
       'readDeliveryOptions': _deliveryOptions(),
     };

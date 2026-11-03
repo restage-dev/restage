@@ -1,3 +1,7 @@
+# The hosted demos read RESTAGE_BASE_URL and RESTAGE_API_KEY from --dart-define.
+# Run build_runner with the same two variables set so the startup request is
+# built into the app: RESTAGE_BASE_URL=... RESTAGE_API_KEY=... dart run build_runner build
+# (or `early_request: false` under the restage_early_template options).
 additional_public_assets:
   - .restage/measurement-state.json
   - .restage/wire-ids.events.jsonl

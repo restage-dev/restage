@@ -11,6 +11,7 @@ import '../restage_rpc_client/placement_delivery_adapter.dart';
 import '../restage_rpc_client/restage_rpc_client.dart'
     show storedSurfaceAssignmentKey;
 import 'decoded_surface_library.dart';
+import 'delivery_trust.dart';
 import 'placement_fit_verdicts.dart';
 import 'surface_artifact_store.dart';
 import 'raced_surface_resolver.dart';
@@ -45,6 +46,16 @@ final class SavedDecisions {
 
   /// The rows once the read ahead has loaded and while they follow the store.
   Map<SurfaceStoreKey, SavedRow>? get rowsNow => _dropped ? null : _loaded;
+
+  final _stale = <SurfaceStoreKey>{};
+
+  /// Whether the service signalled a change since this row was accepted: it
+  /// still paints, after the window for the new answer.
+  bool isStale(SurfaceStoreKey key) => _stale.contains(key);
+
+  void markStale(SurfaceStoreKey key) => _stale.add(key);
+
+  void _fresh(SurfaceStoreKey key) => _stale.remove(key);
 
   /// Counts changes, so a read can tell one landed while it ran.
   int get version => _version;
@@ -99,6 +110,13 @@ final class PlacementDecisionStore {
     final rows = <SurfaceStoreKey, SavedRow>{};
     for (final (key, value, decision, fit) in decisions) {
       if (decision != null) _decodedFrom[decision] = value.descriptorJson;
+      if (decision is PlacementBatchAvailableV1) {
+        for (final reference in decision.artifactClosure) {
+          if (reference.publication != null) {
+            DeliveryTrust.seed(reference.descriptor);
+          }
+        }
+      }
       if ((decision, fit, installed)
           case (
             final PlacementBatchAvailableV1 available,
@@ -227,6 +245,7 @@ final class PlacementDecisionStore {
         });
     // A remount reads what was just accepted from memory.
     saved?.update((rows) {
+      saved!._fresh(key);
       for (final MapEntry(:key, :value) in frames.entries) {
         rows[key] = (stored: value, decision: null);
       }
@@ -454,11 +473,13 @@ final class PlacementDecisionStore {
               ? PlacementBatchResolvedV1.fromBuiltRows(
                   request: request,
                   expectedTarget: target,
-                  decisions: [decision])
+                  decisions: [decision],
+                  heldBytes: true)
               : PlacementBatchResolvedV1(
                   request: request,
                   expectedTarget: target,
-                  decisions: [decision]),
+                  decisions: [decision],
+                  heldBytes: true),
           frames: frames,
         );
       } on Object {
@@ -473,23 +494,20 @@ final class PlacementDecisionStore {
     return store.remove(key);
   }
 
-  Future<void> removeAccepted(
-      SurfaceStoreKey key, PlacementBatchAvailableV1 accepted) {
-    bool matches(StoredSurface stored) {
-      final current =
-          PlacementBatchEntryV1.fromCanonicalBytes(stored.descriptorJson);
-      return current is PlacementBatchAvailableV1 &&
-          current.publicDelivery.publicProjectionDigest ==
-              accepted.publicDelivery.publicProjectionDigest &&
-          current.watch?.decisionIdentityDigest ==
-              accepted.watch?.decisionIdentityDigest;
+  /// Marks the saved copy of [accepted] stale. It is kept, and replaced only
+  /// by the next accepted answer or removed when the service says so.
+  void markStale(SurfaceStoreKey key, PlacementBatchAvailableV1 accepted) {
+    final row = saved?.rowsNow?[key];
+    if (row == null) return;
+    final current =
+        PlacementBatchEntryV1.fromCanonicalBytes(row.stored.descriptorJson);
+    if (current is PlacementBatchAvailableV1 &&
+        current.publicDelivery.publicProjectionDigest ==
+            accepted.publicDelivery.publicProjectionDigest &&
+        current.watch?.decisionIdentityDigest ==
+            accepted.watch?.decisionIdentityDigest) {
+      saved!.markStale(key);
     }
-
-    saved?.update((rows) {
-      final row = rows[key];
-      if (row != null && matches(row.stored)) rows.remove(key);
-    });
-    return evictAcceptedDelivery(store, key, matches);
   }
 
   static String _hash(List<int> bytes) =>

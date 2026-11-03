@@ -351,7 +351,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
               slug: widget.flow.id),
       invalidatePlacement: () async {
         final accepted = _renderedPlacementAdmission;
-        await accepted?.invalidateCache();
+        accepted?.markStale();
       },
       probePlacement: (rendered) => probeRenderedPlacement(
           _renderedPlacementAdmission, _placementResolver, rendered),
@@ -983,7 +983,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         commitPresentation?.call();
       },
       onPainted: () {
-        _placementDiscovery.markPainted();
+        _placementDiscovery.markPainted(controller.currentResolvedFlow);
         if (_refreshHandle case final handle?) {
           SurfaceRefreshRegistry.instance.localValidityChanged(handle);
         }

@@ -299,10 +299,7 @@ enum CanonicalHashDomain {
   /// Immutable assignment eligibility-policy revision.
   assignmentEligibilityPolicy('assignment-eligibility-policy'),
 
-  /// One installed-build assignment-context capability descriptor.
-  assignmentContextCapability('assignment-context-capability'),
-
-  /// One exact admitted-build assignment-context capability closure.
+  /// One exact assignment-context capability closure.
   assignmentContextCapabilityClosure('assignment-context-capability-closure'),
 
   /// One governed-subject link challenge.

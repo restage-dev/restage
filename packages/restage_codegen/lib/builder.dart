@@ -1,6 +1,7 @@
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/a2ui/user_a2ui_catalog_builder.dart';
 import 'package:restage_codegen/src/codegen_builder.dart';
+import 'package:restage_codegen/src/early_template_builder.dart';
 import 'package:restage_codegen/src/factory_function_builder.dart';
 import 'package:restage_codegen/src/generated_dart_builder.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
@@ -80,6 +81,11 @@ Builder restagePackageSurfaceCompilerBuilder(BuilderOptions options) =>
 /// list of every surface the package compiles.
 Builder restageSurfaceListBuilder(BuilderOptions options) =>
     _rootOnly(options, const RestageSurfaceListBuilder());
+
+/// build_runner factory entry point for the startup request templates the
+/// platform sends at app launch.
+Builder restageEarlyTemplateBuilder(BuilderOptions options) =>
+    _rootOnly(options, RestageEarlyTemplateBuilder(options));
 
 /// Build config enables every builder a target configures, so a dependency's
 /// placement options switch on its root-only builders in the consuming app's

@@ -4,6 +4,9 @@ additional_public_assets:
 targets:
   $default:
     builders:
+      restage_codegen:restage_early_template:
+        options:
+          early_request: false
       restage_codegen:user_a2ui_catalog:
         enabled: true
       restage_codegen:widgetbook_stories:

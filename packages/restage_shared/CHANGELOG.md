@@ -4,17 +4,34 @@
 
 **Breaking:** `DeviceContractValueKind` gains `boolean`; exhaustive switches must handle it.
 
+**Breaking:** `SurfaceArtifactDescriptor` is version 2 and carries a required
+Ed25519 `signature` and `authorizedAtMicros`. Version 1 descriptors no longer
+decode. `deliveryStatementBytes` defines what the signature covers, and
+`DeliveryKeyring` verifies it under one or more `DeliveryPublicKey`s.
+
+**Breaking:** the placement batch request's `holdsNoArtifacts` is replaced by
+`inlineMounts`, the indexes of the mounts whose content files the answer
+should carry in `inlineArtifacts`. A first launch can then show delivered
+content without a second download.
+
 **Breaking:** `SurfaceScreenHostDataShape` adds the exported
 `SurfaceScreenHostDataNativeBindingShapeV1` variant. Exhaustive switches must
 handle its installed native binding contract; native values cannot be sampled
 as JSON.
 
+- `startupTemplateJson` leaves an `@@mountedSince@@` token before the
+  request's `mounts` for the platform to fill with `mountedSinceTemplateFragment`
+  of its report, or nothing. `PlacementBatchRequestV1.withMountedSince` returns
+  a request with another report.
+- `PlacementBatchRequestV1.mountedSince` optionally lists the surfaces an
+  install mounted since its last acknowledged report, each with the UTC month
+  of the mount (`PlacementMountedSurfaceV1`). At most 64 entries, held in
+  canonical order; absent when empty.
+- `PlacementBatchRequestV1.startup` marks the batch an app sends at launch for
+  its declared placements. It is carried only when set, and only a prefetch can
+  carry it; a refresh of held content never does.
 - `SurfaceHostContractV1.withHosting` returns a copy with new hosting details,
   reusing the contract's held encoding.
-- A fresh install's first startup request can ask for its surfaces' content
-  files with `holdsNoArtifacts`, and the answer carries them in
-  `inlineArtifacts`. A first launch can then show delivered content without a
-  second download.
 - `PlacementBatchArtifactV1.payload` returns the artifact's verified payload
   bytes.
 - `surfaceTapElementName` names an element by its own literal `label`,

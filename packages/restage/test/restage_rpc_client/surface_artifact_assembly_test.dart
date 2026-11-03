@@ -18,6 +18,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/restage_rpc_client/surface_artifact_assembly.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../support/delivery_signing.dart';
+
 void main() {
   final blob = BlobSurfacePayload(
     minClient: 1,
@@ -30,7 +32,7 @@ void main() {
     String? contentHash,
     int payloadFormatVersion = kSurfaceArtifactPayloadFormatVersion,
   }) =>
-      SurfaceArtifactDescriptor(
+      testDeliverySigner.signed(SurfaceArtifactDescriptor(
         payloadFormatVersion: payloadFormatVersion,
         surfaceType: Surface.paywall,
         surfaceSlug: 'pro_upgrade',
@@ -39,9 +41,11 @@ void main() {
         contentHash: contentHash ?? payload.contentHash,
         artifactUrl: 'https://artifacts.test/artifacts/orgs/1/artifacts/1/'
             '${payload.contentHash}',
+        signature: unsignedTestSignature,
+        authorizedAtMicros: DateTime.utc(2026, 8, 13).microsecondsSinceEpoch,
         artifactPass: 'v1.k1.4102444800.${'a' * 64}',
         payloadKind: payloadKind,
-      );
+      ));
 
   group('the routing shape claim', () {
     test('an agreeing claim assembles', () {

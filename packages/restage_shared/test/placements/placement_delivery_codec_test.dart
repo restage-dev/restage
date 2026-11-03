@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
@@ -7,6 +8,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as rfw;
 import 'package:test/test.dart';
+import 'package:restage_shared/src/surface_delivery/delivery_signing_testing.dart';
 
 const _general = DeliveryFamilySelectorV1.general();
 final _screenType = DeliverySurfaceTypeId('screen');
@@ -1238,6 +1240,123 @@ void _batchContractTests() {
       expect(request.mounts[1].defaultSurface!.family.contractVersion, 3);
     });
 
+    test('the request a build writes for its first launch is the startup batch',
+        () {
+      final (fixtureRequest, _, __, ___) = _batchFixture();
+      final built = startupRequestFor(
+        platform: 'android',
+        mounts: fixtureRequest.mounts,
+        contractsByHash: fixtureRequest.buildContract.contractsByHash,
+        capability: fixtureRequest.buildContract.installedCapability,
+        builtIns: const {'platform': 'android'},
+      );
+      expect(built.mode, PlacementBatchModeV1.prefetch);
+      expect(built.startup, isTrue);
+    });
+
+    test(
+        'the startup mark is only ever on a prefetch and is carried only when set',
+        () {
+      final (request, _, __, ___) = _batchFixture();
+      final prefetch = {...request.toJson(), 'mode': 'prefetch'};
+      expect(request.startup, isFalse);
+      expect(request.toJson().containsKey('startup'), isFalse);
+      final marked = PlacementBatchRequestV1.fromJson({
+        ...prefetch,
+        'startup': true,
+      });
+      expect(marked.startup, isTrue);
+      expect(marked.toJson()['startup'], isTrue);
+      expect(marked.canonicalBytes,
+          isNot(PlacementBatchRequestV1.fromJson(prefetch).canonicalBytes));
+      expect(PlacementBatchRequestV1.fromCanonicalBytes(marked.canonicalBytes),
+          marked);
+      expect(marked.withBuildContract(carried: false).startup, isTrue);
+      // Any other mode is refused, and so is an explicit false.
+      for (final mode in ['mount', 'refresh']) {
+        expect(
+          () => PlacementBatchRequestV1.fromJson(
+              {...request.toJson(), 'mode': mode, 'startup': true}),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: mode,
+        );
+      }
+      expect(
+        () => PlacementBatchRequestV1.fromJson({...prefetch, 'startup': false}),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
+    test('the mounted-surface report is optional, canonical and bounded', () {
+      final (request, _, __, ___) = _batchFixture();
+      final placement = request.mounts.first.key;
+      PlacementMountedSurfaceV1 entry(String slug,
+              [String month = '2026-11']) =>
+          PlacementMountedSurfaceV1(
+            placement: placement,
+            surfaceType: _screenType,
+            slug: slug,
+            month: month,
+          );
+      expect(request.mountedSince, isEmpty);
+      expect(request.toJson().containsKey('mountedSince'), isFalse);
+
+      PlacementBatchRequestV1 withReport(
+              List<PlacementMountedSurfaceV1> list) =>
+          PlacementBatchRequestV1(
+            mounts: request.mounts,
+            buildContract: request.buildContract,
+            appBuildContractHash: request.appBuildContractHash,
+            mode: request.mode,
+            mountedSince: list,
+          );
+
+      final reported = withReport([entry('beta'), entry('alpha')]);
+      // Entries are held in canonical order, and the wire form round-trips.
+      expect(
+          [for (final e in reported.mountedSince) e.slug], ['alpha', 'beta']);
+      expect(reported.toJson()['mountedSince'], hasLength(2));
+      expect(reported.canonicalBytes, isNot(request.canonicalBytes));
+      expect(
+        PlacementBatchRequestV1.fromCanonicalBytes(reported.canonicalBytes),
+        reported,
+      );
+      expect(
+        reported.withBuildContract(carried: false).mountedSince,
+        reported.mountedSince,
+      );
+      expect(
+        reported.mountedSince.first.toJson()['surface'],
+        {'surfaceType': 'screen', 'slug': 'alpha'},
+      );
+
+      // The same surface in different months is two entries; a repeat is not.
+      expect(
+          withReport([entry('alpha'), entry('alpha', '2026-12')]).mountedSince,
+          hasLength(2));
+      expect(() => withReport([entry('alpha'), entry('alpha')]),
+          throwsA(_refusal));
+
+      // A request in another order than canonical is refused on decode.
+      final unsorted = {
+        ...reported.toJson(),
+        'mountedSince': reported.toJson()['mountedSince'] is List
+            ? (reported.toJson()['mountedSince']! as List).reversed.toList()
+            : null,
+      };
+      expect(
+          () => PlacementBatchRequestV1.fromJson(unsorted), throwsA(_refusal));
+
+      // At most 64 entries, and months are YYYY-MM.
+      final full = [for (var i = 0; i < 64; i++) entry('surface-$i')];
+      expect(withReport(full).mountedSince, hasLength(64));
+      expect(() => withReport([...full, entry('surface-extra')]),
+          throwsA(_refusal));
+      for (final month in ['2026-13', '2026-1', '26-11', '2026-11-01']) {
+        expect(() => entry('alpha', month), throwsA(_refusal), reason: month);
+      }
+    });
+
     test('an answer carries closure bytes only to a client that holds none',
         () {
       final (request, response, target, fixture) = _batchFixture();
@@ -1246,15 +1365,31 @@ void _batchContractTests() {
           () => PlacementBatchRequestV1.fromJson({
                 ...request.toJson(),
                 'mode': 'mount',
-                'holdsNoArtifacts': true,
+                'inlineMounts': [0, 1],
               }),
           throwsA(isA<CanonicalFormatException>()));
+      for (final bad in [
+        [2],
+        [-1],
+        [1, 0],
+        [0, 0],
+      ]) {
+        expect(
+          () => PlacementBatchRequestV1.fromJson({
+            ...request.toJson(),
+            'mode': 'prefetch',
+            'inlineMounts': bad,
+          }),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: '$bad',
+        );
+      }
       final flagged = PlacementBatchRequestV1.fromJson({
         ...request.toJson(),
         'mode': 'prefetch',
-        'holdsNoArtifacts': true,
+        'inlineMounts': [0, 1],
       });
-      expect(flagged.holdsNoArtifacts, isTrue);
+      expect(flagged.inlineMounts, [0, 1]);
       expect(flagged.canonicalBytes, isNot(request.canonicalBytes));
       final inlined = PlacementBatchResolvedV1.fromBuiltRows(
         request: flagged,
@@ -1268,6 +1403,140 @@ void _batchContractTests() {
         expectedTarget: target,
       ) as PlacementBatchResolvedV1;
       expect(decoded.inlineArtifacts[artifact.identity], artifact.bytes);
+      // An inlined artifact goes without a pass; every other one keeps it.
+      for (final row
+          in decoded.decisions.whereType<PlacementBatchAvailableV1>()) {
+        for (final reference in row.artifactClosure) {
+          expect(
+            reference.descriptor.artifactPass == null,
+            reference.identity == artifact.identity,
+          );
+        }
+      }
+      final first = response.decisions.first as PlacementBatchAvailableV1;
+      final held = PlacementBatchAvailableV1(
+        first.descriptor,
+        PublicPlacementDeliveryV1.fromJson({
+          ...first.publicDelivery.toJson(),
+          'assignment': PresentationAssignmentCarrierV2(
+            owner: PresentationAssignmentOwnerV2.path,
+            outcomeLinkCarrier: _base64(List.filled(32, 7)),
+          ).toJson(),
+        }),
+        first.artifactClosure,
+        watch: first.watch,
+        heldProof: 'hp1.proof',
+      );
+      final heldInlined = PlacementBatchResolvedV1.fromBuiltRows(
+        request: flagged,
+        expectedTarget: target,
+        decisions: [held, ...response.decisions.skip(1)],
+        inlineArtifacts: {artifact.identity: artifact.bytes},
+      );
+      expect(
+        (heldInlined.decisions.first as PlacementBatchAvailableV1).heldProof,
+        'hp1.proof',
+        reason: 'dropping a pass keeps the held proof',
+      );
+      // A row's closure sorts by what its references name, so no pass, minted
+      // or dropped or minted again in place, reorders it.
+      final random = Random(7);
+      String hex() => [
+            for (var i = 0; i < 32; i++)
+              random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+          ].join();
+      final dependency = SurfaceArtifactDescriptorV1Codec.decode({
+        ...first.artifactClosure.single.descriptor.toJson(),
+        'surfaceSlug': 'dependency',
+        'contentHash': 'sha256:${hex()}',
+        'artifactUrl': 'https://artifacts.example/dependency',
+      });
+      final dependencyIdentity = ArtifactIdentityV1.fromDescriptor(dependency);
+      final orders = <String>{};
+      for (var round = 0; round < 64; round++) {
+        final passed = PlacementBatchAvailableV1(
+          first.descriptor,
+          first.publicDelivery,
+          [
+            PlacementArtifactReferenceV1(
+              publication: first.artifactClosure.single.publication!,
+              descriptor: SurfaceArtifactDescriptorV1Codec.decode({
+                ...first.artifactClosure.single.descriptor.toJson(),
+                'artifactPass': 'v1.k1.1.${hex()}',
+              }),
+            ),
+            PlacementArtifactReferenceV1.dependency(
+              descriptor: SurfaceArtifactDescriptorV1Codec.decode({
+                ...dependency.toJson(),
+                'artifactPass': 'v1.k1.1.${hex()}',
+              }),
+            ),
+          ],
+          watch: first.watch,
+        );
+        orders.add(passed.artifactClosure
+            .map((reference) => reference.descriptor.surfaceSlug)
+            .join(','));
+        final both = PlacementBatchResolvedV1.fromBuiltRows(
+          request: flagged,
+          expectedTarget: target,
+          decisions: [passed, ...response.decisions.skip(1)],
+          inlineArtifacts: {
+            artifact.identity: artifact.bytes,
+            dependencyIdentity: [1, 2, 3],
+          },
+        );
+        final decoded = PlacementBatchResponseV1.fromCanonicalBytes(
+          both.canonicalBytes,
+          request: flagged,
+          expectedTarget: target,
+        ) as PlacementBatchResolvedV1;
+        expect(decoded.inlineArtifacts.keys, both.inlineArtifacts.keys);
+        // Passes minted again in the sent bytes, as a stored answer and a
+        // template serve them, leave the answer canonical.
+        final unflagged = PlacementBatchResolvedV1.fromBuiltRows(
+          request: request,
+          expectedTarget: target,
+          decisions: [passed, ...response.decisions.skip(1)],
+        );
+        var reminted = utf8.decode(unflagged.canonicalBytes);
+        for (final reference in passed.artifactClosure) {
+          reminted = reminted.replaceAll(
+            reference.descriptor.artifactPass!,
+            'v1.k1.2.${hex()}',
+          );
+        }
+        expect(
+          () => PlacementBatchResponseV1.fromCanonicalBytes(
+            utf8.encode(reminted),
+            request: request,
+            expectedTarget: target,
+          ),
+          returnsNormally,
+        );
+      }
+      expect(orders, hasLength(1), reason: 'no pass reorders the closure');
+      final withPass = jsonDecode(utf8.decode(inlined.canonicalBytes))
+          as Map<String, Object?>;
+      final withoutBytes = {...withPass}..remove('inlineArtifacts');
+      expect(
+        () => PlacementBatchResponseV1.fromJson(withoutBytes,
+            request: flagged, expectedTarget: target),
+        throwsA(_refusal),
+        reason: 'a passless artifact must come with its bytes',
+      );
+      final passed = PlacementBatchResolvedV1.fromBuiltRows(
+        request: flagged,
+        expectedTarget: target,
+        decisions: response.decisions,
+      ).toJson();
+      expect(
+        () => PlacementBatchResponseV1.fromJson(
+            {...passed, 'inlineArtifacts': withPass['inlineArtifacts']},
+            request: flagged, expectedTarget: target),
+        throwsA(_refusal),
+        reason: 'an inlined artifact must not carry a pass',
+      );
       expect(
         () => PlacementBatchResponseV1.fromCanonicalBytes(
           inlined.canonicalBytes,
@@ -1780,8 +2049,7 @@ void _batchContractTests() {
       );
     });
 
-    test('prefetch stays keyless and permits current metering and analytics',
-        () {
+    test('prefetch is keyless by default and permits enrollment inputs', () {
       final request = _batch(
         meteringKey: '00000000-0000-4000-8000-000000000001',
         analyticsAnonymousId: '00000000-0000-4000-8000-000000000002',
@@ -1804,7 +2072,11 @@ void _batchContractTests() {
         () => _batch(registration: _registrationTuple()),
         () => _batch(heldAssignments: [proof]),
       ]) {
-        expect(create, throwsA(_refusal));
+        final accepted = create();
+        expect(
+          PlacementBatchRequestV1.fromCanonicalBytes(accepted.canonicalBytes),
+          accepted,
+        );
       }
       final mounting = _batch(
         mode: PlacementBatchModeV1.mount,
@@ -1815,6 +2087,29 @@ void _batchContractTests() {
         PlacementBatchRequestV1.fromCanonicalBytes(mounting.canonicalBytes),
         mounting,
       );
+    });
+
+    test('a held assignment may carry the service proof, opaque and bounded',
+        () {
+      final request = _batch();
+      final held = PlacementHeldAssignmentV1(
+        key: request.mounts.single.key,
+        hostContractHash: _host.contentHash,
+        retainedPathHandle: _base64(List.filled(32, 7)),
+        proof: 'hp1.payload.mac',
+      );
+      expect(PlacementHeldAssignmentV1.fromJson(held.toJson()), held);
+      expect(held.toJson()['proof'], 'hp1.payload.mac');
+      for (final bad in ['', 'has space', 'x' * 4097]) {
+        expect(
+          () => PlacementHeldAssignmentV1.fromJson({
+            ...held.toJson(),
+            'proof': bad,
+          }),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: bad,
+        );
+      }
     });
 
     test('held proofs bind only requested key and host without global replay',
@@ -3709,7 +4004,8 @@ PlacementBatchAvailableV1 _entryFor(
     payloadFormatVersion: surfaceArtifactPayloadFormatVersionFor(payload),
     contentHash: CanonicalDigest(payload.contentHash.substring(7)),
   );
-  final artifactDescriptor = SurfaceArtifactDescriptor(
+  final artifactDescriptor =
+      TestDeliverySigner().signed(SurfaceArtifactDescriptor(
     payloadFormatVersion: publication.payloadFormatVersion,
     surfaceType: Surface.general,
     surfaceSlug: slug,
@@ -3718,8 +4014,11 @@ PlacementBatchAvailableV1 _entryFor(
     contentHash: payload.contentHash,
     artifactUrl: 'https://content.example/$slug',
     artifactPass: 'opaque.pass',
+    signature: DeliverySignature.parse('ed25519:${'0' * 16}:${'A' * 86}=='),
+    authorizedAtMicros: publishedAtMicros,
     payloadKind: payload.payloadKind,
-  );
+    fitRequirementHash: _fitRequirement(payload).contentHash,
+  ));
   final path = PublicDeliveryDecisionPathV1(
     steps: [
       PublicDeliveryDecisionStepV1(
@@ -3828,7 +4127,7 @@ PlacementArtifactReferenceV1 _dependencyFor(
   int publishedAtMicros = 1791072000000000,
 }) =>
     PlacementArtifactReferenceV1.dependency(
-      descriptor: SurfaceArtifactDescriptor(
+      descriptor: TestDeliverySigner().signed(SurfaceArtifactDescriptor(
         payloadFormatVersion: surfaceArtifactPayloadFormatVersionFor(payload),
         surfaceType: Surface.general,
         surfaceSlug: payload.flowDocument.flow,
@@ -3837,8 +4136,10 @@ PlacementArtifactReferenceV1 _dependencyFor(
         contentHash: payload.contentHash,
         artifactUrl: 'https://content.example/${payload.flowDocument.flow}',
         artifactPass: 'opaque.pass',
+        signature: DeliverySignature.parse('ed25519:${'0' * 16}:${'A' * 86}=='),
+        authorizedAtMicros: publishedAtMicros,
         payloadKind: payload.payloadKind,
-      ),
+      )),
     );
 
 (

@@ -82,6 +82,7 @@
         { "title": "App Store compliance", "href": "/app-store-compliance" },
         { "title": "How it works", "href": "/concepts/how-it-works" },
         { "title": "Telemetry and data", "href": "/trust/telemetry" },
+        { "title": "Signed delivery", "href": "/trust/signing" },
         { "title": "Licensing", "href": "/trust/licensing" }
       ]
     }

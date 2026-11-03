@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart'
@@ -11,6 +12,7 @@ import '../delivery/placement_decision_store.dart';
 import '../delivery/placement_fit_verdicts.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../delivery/surface_artifact_store.dart';
+import '../delivery/mounted_surface_report.dart';
 import '../resolver/delivery_input_budget.dart';
 import '../resolver/placement_fallback_log.dart'
     show
@@ -116,6 +118,8 @@ final class PlacementRegistry {
       _accepted.remove(mount);
       return null;
     }
+    // A stale decision waits for its new answer before it paints.
+    if (_saved?.isStale(key) ?? false) return null;
     return accepted;
   }
 
@@ -199,6 +203,79 @@ final class PlacementRegistry {
                 installedCapabilityHash: build.installed.contentHash,
                 target: target)]
         ?.decision is PlacementBatchAvailableV1));
+  }
+
+  /// The indexes of [mounts] whose closure the answer should carry: those
+  /// this device holds no saved decision for.
+  Future<List<int>> _mountsNeedingArtifacts(
+      List<PlacementMountRequestV1> mounts) async {
+    final saved = _saved?.rowsNow ?? _readAheadDone?.saved;
+    if (saved == null) {
+      final none = await decisions.holdsNoArtifacts().catchError((_) => false);
+      return none ? [for (var i = 0; i < mounts.length; i++) i] : const [];
+    }
+    // A mount's decision may name another placement than the mount's own key,
+    // as a default mount does, so its host contract identifies it.
+    final held = <String>{};
+    for (final row in saved.values) {
+      if (row.decision case PlacementBatchAvailableV1(:final descriptor)) {
+        held.add(descriptor.hostContractHash);
+      }
+    }
+    return [
+      for (var i = 0; i < mounts.length; i++)
+        if (!held.contains(mounts[i].hostContractHash)) i,
+    ];
+  }
+
+  List<PlacementMountRequestV1> _startupRoster = const [];
+  bool _remembering = false;
+  bool _rememberAgain = false;
+
+  /// The saved decisions changed, so the request the next launch sends
+  /// changes with them; the platform's copy is renewed, one at a time.
+  void savedChanged() {
+    if (_startupRoster.isEmpty) return;
+    if (_remembering) {
+      _rememberAgain = true;
+      return;
+    }
+    _remembering = true;
+    unawaited(_rememberNextLaunch(_startupRoster).whenComplete(() {
+      _remembering = false;
+      if (_rememberAgain) {
+        _rememberAgain = false;
+        savedChanged();
+      }
+    }));
+  }
+
+  /// Keeps the request the next launch will send, so the platform's early
+  /// request equals it: the confirmed handle, the held paths, and no tuple.
+  /// After an identity reset the platform's copy is renewed with the request
+  /// the next launch sends, which registers again.
+  Future<void> rememberAfterReset() =>
+      _rememberNextLaunch(_startupRoster, registering: true);
+
+  Future<void> _rememberNextLaunch(List<PlacementMountRequestV1> mounts,
+      {bool registering = false}) async {
+    try {
+      await PlacementDecisionStore.writesSettled(sharedSurfaceArtifactStore);
+      final next = await capture(
+          mounts: mounts,
+          sendAssignmentKey: true,
+          mode: PlacementBatchModeV1.prefetch,
+          inlineMounts: await _mountsNeedingArtifacts(mounts),
+          startup: true);
+      if (next == null ||
+          (next.request.assignmentKey == null &&
+              !(registering && next.request.registration != null))) {
+        return;
+      }
+      client().rememberStartupRequest(next.request);
+    } on Object {
+      // The next launch's early request then differs and Dart sends it.
+    }
   }
 
   /// Generated definitions whose host contracts and screen schemas the read
@@ -328,7 +405,8 @@ final class PlacementRegistry {
       PlacementBatchModeV1 mode = PlacementBatchModeV1.mount,
       Set<String> deferFacts = const {},
       bool inMemory = false,
-      bool holdsNoArtifacts = false,
+      List<int> inlineMounts = const [],
+      bool startup = false,
       void Function(String reason, [PlacementNoAnswerCause? cause])?
           onDeclined}) async {
     final declarations =
@@ -416,18 +494,48 @@ final class PlacementRegistry {
                     final assignment =
                         PresentationAssignmentCarrierV2.fromCanonicalBytes(
                             base64Url.decode(base64Url.normalize(carrier)));
-                    return assignment.owner ==
-                            PresentationAssignmentOwnerV2.path
-                        ? PlacementHeldAssignmentV1(
+                    if (assignment.owner !=
+                        PresentationAssignmentOwnerV2.path) {
+                      return Future<PlacementHeldAssignmentV1?>.value(null);
+                    }
+                    return SurfaceCanonicalCarrierProvider.heldPlacementProof(
+                            mount: mount, assignmentKey: assignmentKey)
+                        .then((proof) => PlacementHeldAssignmentV1(
                             key: mount.key,
                             hostContractHash: mount.hostContractHash,
-                            retainedPathHandle: assignment.outcomeLinkCarrier)
-                        : null;
+                            retainedPathHandle: assignment.outcomeLinkCarrier,
+                            proof: proof));
                   })
               ]))
               .then((values) =>
                   values?.whereType<PlacementHeldAssignmentV1>().toList() ??
                   <PlacementHeldAssignmentV1>[]);
+      // A mount the service declined for this credential presents its proof.
+      final registering = mode != PlacementBatchModeV1.refresh &&
+          sendAssignmentKey &&
+          registration != null &&
+          registration.credentialHandle == null;
+      final declines = assignmentKey == null || registering
+          ? <PlacementHeldDeclineV1>[]
+          : await budget
+              .bound(Future.wait([
+                for (final mount in mounts)
+                  SurfaceCanonicalCarrierProvider.heldDecline(
+                          mount: mount, assignmentKey: assignmentKey)
+                      .then((proof) => proof == null
+                          ? null
+                          : PlacementHeldDeclineV1(
+                              key: mount.key,
+                              hostContractHash: mount.hostContractHash,
+                              proof: proof))
+              ]))
+              .then((values) =>
+                  values?.whereType<PlacementHeldDeclineV1>().toList() ??
+                  <PlacementHeldDeclineV1>[]);
+      // Surfaces mounted since the service last answered ride this request.
+      final mounted =
+          await budget.bound(MountedSurfaceReport.instance.pending()) ??
+              const <PlacementMountedSurfaceV1>[];
       final request = PlacementBatchRequestV1(
           mounts: mounts,
           buildContract: build,
@@ -439,16 +547,16 @@ final class PlacementRegistry {
           sdkSupportedPolicyRevisions: supportedPolicyRevisionsCarrier(),
           assignmentKey: assignmentKey,
           heldAssignments: held,
+          heldDeclines: declines,
+          mountedSince: mounted,
           // A confirmed handle travels as the assignment key alone.
-          registration: mode == PlacementBatchModeV1.refresh ||
-                  !sendAssignmentKey ||
-                  registration == null ||
-                  registration.credentialHandle != null
-              ? null
-              : SurfaceRegistrationTupleV1.fromJson(registration.tuple),
+          registration: registering
+              ? SurfaceRegistrationTupleV1.fromJson(registration.tuple)
+              : null,
           meteringKey: inputs.meteringKey,
           analyticsAnonymousId: inputs.analyticsAnonymousId,
-          holdsNoArtifacts: holdsNoArtifacts);
+          inlineMounts: inlineMounts,
+          startup: startup);
       return PlacementRequestContext(
           request: request,
           lease: lease,
@@ -471,12 +579,74 @@ final class PlacementRegistry {
   }
 
   Future<void>? _startup;
+  Set<PlacementMountRequestV1> _startupMounts = const {};
+  final _startupAnswers = <PlacementMountRequestV1,
+      ({
+    PlacementBatchEntryV1 entry,
+    PlacementDeliveryArtifacts artifacts,
+    PlacementRequestContext context,
+    int index
+  })>{};
+
+  /// The startup batch's answer for [waiter]'s mount, taken once, or null
+  /// when the mount needs a request of its own.
+  ({
+    PlacementBatchEntryV1 entry,
+    PlacementDeliveryArtifacts artifacts,
+    PlacementRequestContext context
+  })? _takeStartupAnswer(_MountWaiter waiter, bool sendAssignmentKey) {
+    final answer = _startupAnswers[waiter.mount];
+    if (answer == null) return null;
+    final request = answer.context.request;
+    // A batch sent without the key cannot answer a mount that wants one.
+    if (!answer.context.isCurrent() ||
+        (sendAssignmentKey &&
+            request.assignmentKey == null &&
+            request.registration == null) ||
+        !waiter.guard() ||
+        now().toUtc().difference(answer.context.capturedAt) >
+            const Duration(seconds: 30)) {
+      _startupAnswers.remove(waiter.mount);
+      return null;
+    }
+    _startupAnswers.remove(waiter.mount);
+    return (
+      entry: answer.entry,
+      artifacts: answer.artifacts,
+      context: _mountContext(answer.context, waiter),
+    );
+  }
 
   /// The startup batch in flight, if any.
   Future<void>? get startup => _startup;
 
   /// Marks the startup batch as in flight until the returned one completes.
-  Completer<void> beginStartup() {
+  /// Mounts in [answering] wait for the batch and take its answers.
+  /// Holds every mount's request until the startup batch has answered or
+  /// failed, from configuration on; the batch names its mounts later, when
+  /// their contracts are decoded.
+  Completer<void> expectStartup() {
+    _startupRosterKnown = false;
+    final done = _startupGate = Completer<void>();
+    final future = _startup = done.future;
+    unawaited(future.whenComplete(() {
+      if (identical(_startup, future)) _startup = null;
+    }));
+    return done;
+  }
+
+  Completer<void>? _startupGate;
+  bool _startupRosterKnown = true;
+
+  Completer<void> beginStartup(
+      [Iterable<PlacementMountRequestV1> answering = const []]) {
+    _startupMounts = answering.toSet();
+    _startupRosterKnown = true;
+    final gate = _startupGate;
+    if (gate != null) {
+      _startupGate = null;
+      return gate;
+    }
     final done = Completer<void>();
     final future = _startup = done.future;
     unawaited(future.whenComplete(() {
@@ -487,8 +657,15 @@ final class PlacementRegistry {
 
   /// Sends [declarations] in one prefetch; [inMemory] sends only the facts
   /// this process holds without a platform read.
+  /// An [assigned] batch carries the assignment key and keeps assigned
+  /// decisions, as a mount's request does.
+  ///
+  /// The startup batch publishes its answers: a mount of one of its
+  /// placements takes its answer instead of sending a request of its own.
   Future<void> prefetch(Iterable<PlacementDeclaration> declarations,
-      {bool inMemory = false}) async {
+      {bool inMemory = false,
+      bool assigned = false,
+      bool publishAnswers = false}) async {
     final roster = declarations.toList(growable: false);
     if (!isCurrent() || roster.isEmpty) return;
     // A mount batch already on its way answers its own mounts; the startup
@@ -502,21 +679,36 @@ final class PlacementRegistry {
     }.toList();
     if (mounts.isEmpty) return;
     // A client holding no artifact is sent the closure with the answer.
-    final holdsNothing =
-        inMemory && await decisions.holdsNoArtifacts().catchError((_) => false);
+    final inline = await _mountsNeedingArtifacts(mounts);
     final context = await capture(
         mounts: mounts,
-        sendAssignmentKey: false,
+        sendAssignmentKey: assigned,
         mode: PlacementBatchModeV1.prefetch,
         inMemory: inMemory,
-        holdsNoArtifacts: holdsNothing);
+        inlineMounts: inline,
+        startup: publishAnswers);
     if (context == null) return;
+    if (publishAnswers) _startupRoster = mounts;
     // Most installs run a build the service already holds.
-    if (inMemory) {
+    if (inMemory || publishAnswers) {
       client().expectHeldBuildContract(context.request.appBuildContractHash);
     }
     final response = await fetch(context);
     if (response == null) return;
+    if (publishAnswers) {
+      // The startup answer is kept: the platform needs the request the next
+      // launch will send, which a registering request's handle, the held
+      // paths and the saved decisions all change.
+      savedChanged();
+      for (var index = 0; index < mounts.length; index++) {
+        _startupAnswers[mounts[index]] = (
+          entry: response.response.decisions[index],
+          artifacts: response.artifacts,
+          context: context,
+          index: index,
+        );
+      }
+    }
     // The answer is usable now; remembering the mounts runs behind it.
     unawaited(() async {
       for (final declaration in roster) {
@@ -527,6 +719,16 @@ final class PlacementRegistry {
       }
     }());
   }
+
+  /// Fetches every mount this process knows so saved
+  /// content is current the next time the app opens.
+  Future<void> refreshKnown() => _startup != null
+      // The startup batch in flight asks for every mount already.
+      ? Future<void>.value()
+      : prefetch([
+          for (final entry in _mounts.entries)
+            (mount: entry.key, host: entry.value),
+        ], assigned: true);
 
   /// Checks the accepted decision through the same side-effect-free batch route.
   Future<PlacementRefreshProbeV1> probe(PlacementDeliveryAdmission accepted,
@@ -573,7 +775,8 @@ final class PlacementRegistry {
       {TargetCoordinate? expectedTarget,
       void Function(Duration retryAfter)? onRateLimited,
       void Function(String reason, [PlacementNoAnswerCause? cause])? onNoAnswer,
-      void Function()? onStaleBeforeSend}) async {
+      void Function()? onStaleBeforeSend,
+      void Function()? onDecoded}) async {
     if (!context.isCurrent()) {
       if (context.superseded()) {
         onNoAnswer?.call(placementSupersededReason);
@@ -587,6 +790,11 @@ final class PlacementRegistry {
     }
     try {
       return await client().fetchPlacements(context.request,
+          savedArtifacts: savedFrames,
+          onDecoded: () {
+            arrivals++;
+            onDecoded?.call();
+          },
           publicationGuard: context.isCurrent,
           registrationLease: context.lease,
           expectedTarget: expectedTarget,
@@ -603,6 +811,10 @@ final class PlacementRegistry {
       return null;
     }
   }
+
+  /// Placement responses decoded so far; a mount compares it with its value
+  /// when it asked, to know whether its answer is on the device.
+  int arrivals = 0;
 
   final _pendingMounts = <bool, List<_MountWaiter>>{};
 
@@ -629,6 +841,24 @@ final class PlacementRegistry {
           void Function()? onStaleBeforeSend}) {
     final waiter = _MountWaiter(mount, keyDeadline, publicationGuard, onRefused,
         onNoAnswer, onStaleBeforeSend);
+    // A mount of a placement the startup batch asked about waits for that
+    // answer instead of sending its own request.
+    final startup = _startup;
+    if (startup != null &&
+        (!_startupRosterKnown || _startupMounts.contains(mount))) {
+      return startup.then((_) => _joinOrQueue(waiter, sendAssignmentKey));
+    }
+    return _joinOrQueue(waiter, sendAssignmentKey);
+  }
+
+  Future<
+      ({
+        PlacementBatchEntryV1 entry,
+        PlacementDeliveryArtifacts artifacts,
+        PlacementRequestContext context
+      })?> _joinOrQueue(_MountWaiter waiter, bool sendAssignmentKey) {
+    final taken = _takeStartupAnswer(waiter, sendAssignmentKey);
+    if (taken != null) return Future.value(taken);
     final pending = _pendingMounts[sendAssignmentKey];
     if (pending != null) {
       pending.add(waiter);
@@ -778,6 +1008,28 @@ final class PlacementRegistry {
     }
   }
 
+  /// The artifact bytes this device saved, so an answer naming content it
+  /// already holds does not download it again.
+  Map<ArtifactIdentityV1, Uint8List> savedFrames() {
+    final rows = _saved?.rowsNow;
+    if (rows == null) return const {};
+    final held = <ArtifactIdentityV1, Uint8List>{};
+    for (final MapEntry(:key, :value) in rows.entries) {
+      if (key.surfaceType != 'placementArtifact') continue;
+      try {
+        held[ArtifactIdentityV1.fromCanonicalBytes(
+            value.stored.descriptorJson)] = value.stored.artifactBytes;
+      } on Object {
+        // A frame whose identity cannot be read is fetched like any other.
+      }
+    }
+    return held;
+  }
+
+  /// Answers decoded on this device and still being checked and stored; a mount
+  /// whose window ends meanwhile waits for them.
+  int processing = 0;
+
   Future<
           ({
             PlacementBatchResolvedV1 response,
@@ -788,10 +1040,39 @@ final class PlacementRegistry {
           void Function(String reason, [PlacementNoAnswerCause? cause])?
               onNoAnswer,
           void Function()? onStaleBeforeSend}) async {
+    var counted = false;
+    try {
+      final answered = await _fetchChecked(context, onDecoded: () {
+        counted = true;
+        processing++;
+      },
+          onRefused: onRefused,
+          onNoAnswer: onNoAnswer,
+          onStaleBeforeSend: onStaleBeforeSend);
+      // What this device saves changes with every answer it keeps.
+      if (answered != null) savedChanged();
+      return answered;
+    } finally {
+      if (counted) processing--;
+    }
+  }
+
+  Future<
+          ({
+            PlacementBatchResolvedV1 response,
+            PlacementDeliveryArtifacts artifacts
+          })?>
+      _fetchChecked(PlacementRequestContext context,
+          {void Function()? onDecoded,
+          void Function(PlacementBatchRefusalReasonV1 reason)? onRefused,
+          void Function(String reason, [PlacementNoAnswerCause? cause])?
+              onNoAnswer,
+          void Function()? onStaleBeforeSend}) async {
     final response = await fetchBatch(context,
         expectedTarget: target,
         onNoAnswer: onNoAnswer,
-        onStaleBeforeSend: onStaleBeforeSend);
+        onStaleBeforeSend: onStaleBeforeSend,
+        onDecoded: onDecoded);
     if (response == null) return null;
     // The answer is stored with the facts its request carried. Acceptance
     // judges the facts it read against them.
@@ -810,6 +1091,17 @@ final class PlacementRegistry {
     }
     for (var index = 0; index < response.decisions.length; index++) {
       final entry = response.decisions[index];
+      // A saved decision is removed only when the service says it no longer
+      // holds: the content is unavailable. A refused request proof says
+      // nothing about the device's arm.
+      if (entry is PlacementBatchUseFallbackV1 &&
+          entry.reason == PlacementBatchRefusalReasonV1.unavailable) {
+        final mount = context.request.mounts[index];
+        _accepted.remove(mount);
+        await decisions.remove(decisions.decisionKey(context.request, mount,
+            target: entry.descriptor.placement.target));
+        savedChanged();
+      }
       if (entry is! PlacementBatchAvailableV1) continue;
       // A row whose content could not be fetched is not stored.
       if (!artifacts.publications
@@ -822,9 +1114,7 @@ final class PlacementRegistry {
         continue;
       }
       if (entry.publicDelivery.assignment != null &&
-          (!context.lease.assignmentsAllowed ||
-              context.request.assignmentKey == null ||
-              context.request.assignmentKey != context.lease.assignmentKey)) {
+          !answeredUnderLeaseKey(context)) {
         continue;
       }
       final host = context.request.buildContract
@@ -856,7 +1146,14 @@ final class PlacementRegistry {
           await SurfaceCanonicalCarrierProvider.retainPlacement(
               mount: context.request.mounts[index],
               lease: context.lease,
-              assignment: assignment);
+              assignment: assignment,
+              proof: entry.heldProof);
+        } // A declined device keeps the proof; any other answer drops it.
+        if (assignment == null) {
+          await SurfaceCanonicalCarrierProvider.retainDecline(
+              mount: context.request.mounts[index],
+              lease: context.lease,
+              proof: entry.declineProof);
         }
         // The verified answer is returned now; keeping it runs behind it.
         unawaited(decisions
@@ -896,7 +1193,9 @@ final class PlacementRegistry {
 
   Future<void> _forgetUnprovenCarriers(PlacementRequestContext context,
       PlacementBatchResolvedV1 response) async {
-    final key = context.request.assignmentKey;
+    final key = answeredUnderLeaseKey(context)
+        ? context.lease.assignmentKey
+        : context.request.assignmentKey;
     if (key == null) return;
     for (var index = 0; index < response.decisions.length; index++) {
       final entry = response.decisions[index];
@@ -909,6 +1208,7 @@ final class PlacementRegistry {
         _accepted.remove(mount);
         await decisions.remove(decisions.decisionKey(context.request, mount,
             target: entry.descriptor.placement.target));
+        savedChanged();
       }
     }
   }
@@ -966,7 +1266,8 @@ final class PlacementRegistry {
     final response = stored.response;
     final artifacts = await assemblePlacementDeliveryArtifacts(response,
         heldArtifactBytes: stored.frames,
-        publicationGuard: localContext.isCurrent);
+        publicationGuard: localContext.isCurrent,
+        fresh: false);
     if (artifacts == null ||
         artifacts.publications.isEmpty ||
         !localContext.isCurrent()) {
@@ -1123,3 +1424,18 @@ PlacementNoAnswerStale placementStaleCause(PlacementRequestContext context) =>
     PlacementNoAnswerStale(context.capabilityChanged()
         ? PlacementStaleChange.installedWidgets
         : PlacementStaleChange.configuration);
+
+/// Whether [context]'s answer was served under the key its lease now holds: the
+/// key the request carried, or the handle a registering request just had
+/// confirmed. An assignment answered under either is kept and shown.
+@internal
+bool answeredUnderLeaseKey(PlacementRequestContext context) {
+  final lease = context.lease;
+  final key = lease.assignmentKey;
+  if (!lease.assignmentsAllowed || key == null) return false;
+  final sent = context.request.assignmentKey;
+  return sent == key ||
+      (sent == null &&
+          context.request.registration != null &&
+          lease.sentAssignmentKey == null);
+}

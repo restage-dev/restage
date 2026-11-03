@@ -1,0 +1,22 @@
+version: 1
+transforms:
+  - title: "Rename 'renderDeadline' to 'firstLaunchWait'"
+    date: 2026-10-28
+    element:
+      uris: ['restage.dart', 'src/runtime/restage.dart']
+      method: 'configure'
+      inClass: 'Restage'
+    changes:
+      - kind: 'renameParameter'
+        oldName: 'renderDeadline'
+        newName: 'firstLaunchWait'
+  - title: "Rename 'renderDeadline' to 'firstLaunchWait'"
+    date: 2026-10-28
+    element:
+      uris: ['restage.dart', 'src/runtime/restage.dart']
+      method: 'configureWithInstalledCatalog'
+      inClass: 'Restage'
+    changes:
+      - kind: 'renameParameter'
+        oldName: 'renderDeadline'
+        newName: 'firstLaunchWait'

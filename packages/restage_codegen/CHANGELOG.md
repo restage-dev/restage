@@ -4,6 +4,10 @@
 
 - **Breaking:** `A2uiDartCoverageReason` gains `unsupportedScalarCallback`; exhaustive switches must handle it.
 - **Breaking:** `A2uiDartWidgetPlan.usesPropsNamespace` is removed; A2UI 1.0 components carry their properties at the top level.
+- **Breaking:** the `restage_early_template` builder requires `api_key` and
+  `base_url` options in `build.yaml`. Without them the build stops and prints
+  the lines to add. `early_request: false` under the options opts out; the first
+  request is then sent from Dart.
 - **Breaking, unreleased A2UI 1.0 candidate migration:** generate
   `ComponentImplementation` / `CatalogImplementation` for
   `a2ui_flutter 0.0.1-wip003` and `a2ui_core ^0.4.0` (Dart >=3.11.0,

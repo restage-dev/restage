@@ -81,3 +81,7 @@ restage_config.yaml
 
 # Written for your own target by `restage surface push`.
 assets/restage/measurement/target-profile.v1.json*
+
+# Startup request template written by build_runner
+android/app/src/main/assets/restage_early.json
+ios/Runner/restage_early.json

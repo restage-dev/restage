@@ -24,7 +24,10 @@
 ///      rather than reading as "requires nothing".
 ///   4. **The record's shape claim, if it made one, is checked against the kind
 ///      the frame declares.**
-///   5. The document is assembled, with the capability facts read from the
+///   5. **The descriptor's signature is verified** under a key the app was
+///      configured with, and an older version than the last accepted one is
+///      refused unless the server signed a newer authorization for it.
+///   6. The document is assembled, with the capability facts read from the
 ///      FRAME, never from the description. They are covered by the content
 ///      hash there; a second copy alongside could only agree or disagree, and
 ///      this design removes the disagreement by not carrying one.
@@ -41,6 +44,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../delivery/delivered_fonts.dart';
+import '../delivery/delivery_trust.dart';
 
 /// What the artifact half of one delivery produced.
 @internal
@@ -109,7 +113,17 @@ enum SurfaceArtifactFetchFailure {
   contentHashMismatch('content_hash_mismatch'),
 
   /// An icon font delivered with the surface could not be loaded.
-  iconFontLoad('icon_font_load');
+  iconFontLoad('icon_font_load'),
+
+  /// The signature names a key this app was not configured with.
+  unknownDeliveryKey('unknown_delivery_key'),
+
+  /// The signature does not verify under its key.
+  invalidSignature('invalid_signature'),
+
+  /// An older version than the last accepted one, without a newer signed
+  /// authorization.
+  rollback('rollback');
 
   const SurfaceArtifactFetchFailure(this.wireName);
 
@@ -127,6 +141,7 @@ SurfaceArtifactOutcome assembleSurfaceArtifact({
   required Uint8List? artifactBytes,
   SurfaceArtifactFetchFailure fetchFailure =
       SurfaceArtifactFetchFailure.transport,
+  bool fresh = true,
 }) {
   if (descriptor.payloadFormatVersion >
       kMaxSupportedSurfaceArtifactPayloadFormatVersion) {
@@ -165,15 +180,21 @@ SurfaceArtifactOutcome assembleSurfaceArtifact({
     return SurfaceArtifactUndecodable(error);
   }
 
-  return assembleDecodedSurfaceArtifact(descriptor, payload);
+  return assembleDecodedSurfaceArtifact(descriptor, payload, fresh: fresh);
 }
 
 /// Assembles [payload], already verified and decoded from [descriptor]'s frame.
+///
+/// Nothing renders without passing here: the descriptor's signature must
+/// verify under a configured key, and a [root] delivery that is [fresh] from
+/// the network must not roll back.
 @internal
 SurfaceArtifactOutcome assembleDecodedSurfaceArtifact(
   SurfaceArtifactDescriptor descriptor,
-  SurfacePayload payload,
-) {
+  SurfacePayload payload, {
+  bool root = true,
+  bool fresh = true,
+}) {
   if (descriptor.payloadFormatVersion >
       kMaxSupportedSurfaceArtifactPayloadFormatVersion) {
     return const SurfaceArtifactUnavailable(
@@ -195,13 +216,27 @@ SurfaceArtifactOutcome assembleDecodedSurfaceArtifact(
     );
   }
 
+  // Step 5. Signed by a configured key, and not a rollback.
+  switch (DeliveryTrust.admit(descriptor, root: root, fresh: fresh)) {
+    case DeliveryTrustRefusal.unknownKey:
+      return const SurfaceArtifactUnavailable(
+          SurfaceArtifactFetchFailure.unknownDeliveryKey);
+    case DeliveryTrustRefusal.invalidSignature:
+      return const SurfaceArtifactUnavailable(
+          SurfaceArtifactFetchFailure.invalidSignature);
+    case DeliveryTrustRefusal.rollback:
+      return const SurfaceArtifactUnavailable(
+          SurfaceArtifactFetchFailure.rollback);
+    case null:
+      break;
+  }
   try {
     return SurfaceArtifactAssembled(
       SurfaceDocument(
         surfaceType: descriptor.surfaceType,
         surfaceSlug: descriptor.surfaceSlug,
         version: descriptor.version,
-        // Step 5. Both read off the frame, which is what the content hash
+        // Step 6. Both read off the frame, which is what the content hash
         // covers. There is no second copy to disagree with.
         minClient: payload.minClient,
         requiredLibraries: payload.requiredLibraries,

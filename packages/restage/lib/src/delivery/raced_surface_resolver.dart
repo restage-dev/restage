@@ -47,6 +47,10 @@ abstract interface class RacedSurfaceResolver<T> {
   /// Drops the stored delivery for [key], for a candidate that failed to
   /// render, so the next mount falls back.
   Future<void> forgetStored(SurfaceStoreKey key);
+
+  /// Whether the answer to the latest [fresh] has reached the device and is
+  /// being checked.
+  bool get freshAnswerArrived;
 }
 
 final Expando<RacedSurfaceResolver<Object?>> _racedResolvers =
@@ -326,27 +330,6 @@ Future<bool> persistAcceptedDelivery(
 final Expando<Map<SurfaceStoreKey, Future<void>>> _persists =
     Expando<Map<SurfaceStoreKey, Future<void>>>('surface persists');
 
-/// Removes one still-matching accepted row in the same queue as its writes.
-@internal
-Future<void> evictAcceptedDelivery(SurfaceArtifactStore store,
-    SurfaceStoreKey key, bool Function(StoredSurface) matches) {
-  final pending = _persists[store] ??= <SurfaceStoreKey, Future<void>>{};
-  final previous = pending[key] ?? Future<void>.value();
-  final next = previous.then((_) async {
-    try {
-      final stored = await store.read(key);
-      if (stored != null && matches(stored)) await store.remove(key);
-    } on Object {
-      // A failed eviction remains a miss when the decision is re-gated.
-    }
-  });
-  pending[key] = next;
-  unawaited(next.whenComplete(() {
-    if (identical(pending[key], next)) pending.remove(key);
-  }));
-  return next;
-}
-
 Future<bool> _persist(
   SurfaceArtifactStore store,
   SurfaceStoreKey key,
@@ -378,6 +361,9 @@ Future<bool> _persist(
 /// Fresh-fetch bookkeeping shared by the built-in raced resolvers.
 @internal
 mixin RacedSurfaceReporting<T> {
+  /// Whether the latest fresh answer has reached the device.
+  bool get freshAnswerArrived => false;
+
   final Map<SurfaceStoreKey, SurfaceDeliveryReceiptReason?> _freshRefusals =
       <SurfaceStoreKey, SurfaceDeliveryReceiptReason?>{};
 

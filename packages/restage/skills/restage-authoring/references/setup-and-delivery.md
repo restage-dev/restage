@@ -152,8 +152,9 @@ selection, refresh triggers, reporting controls and resolution diagnostics.
 
 ## When delivery fails
 
-A mount waits up to the render deadline for fresh content: 300 ms by default,
-set with `Restage.configure(renderDeadline: ...)`. It then uses an eligible local
+A mount with nothing saved waits up to `firstLaunchWait` (1 s by default, set
+with `Restage.configure(firstLaunchWait: ...)`); a mount with saved content
+waits up to `freshWindow` (150 ms). It then uses an eligible local
 candidate ready by that time: retained content or an optional bundle, otherwise
 the generated mount's compiled fallback. Retained content must match the target,
 installed build and identity, and remain unexpired. A slow local read can also

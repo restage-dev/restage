@@ -4,7 +4,11 @@ import 'package:meta/meta.dart' show internal;
 import 'package:restage_core/restage_core.dart'
     show InstalledIconTable, RestageIconTable;
 import 'package:restage_shared/restage_shared.dart'
-    show InstalledCapability, WidgetLibrary, WidgetVocabulary;
+    show
+        InstalledCapability,
+        WidgetLibrary,
+        WidgetVocabulary,
+        computeInstalledCapability;
 
 import 'builtin_catalog_capabilities.dart';
 import 'library_runtime_registry.dart';
@@ -71,10 +75,11 @@ InstalledCapability currentInstalledCapability() {
       when identical(v, vocabulary) && r == revision) {
     return capability;
   }
-  final capability = InstalledCapability(
+  final capability = computeInstalledCapability(
     builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
     installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
-    vocabulary: vocabulary,
+    widgetNames: vocabulary.widgetNames,
+    iconCodePoints: vocabulary.iconCodePoints,
   );
   _capability = (vocabulary, revision, capability);
   return capability;

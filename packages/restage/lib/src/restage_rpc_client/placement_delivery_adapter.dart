@@ -42,6 +42,7 @@ Future<PlacementDeliveryArtifacts?> assemblePlacementDeliveryArtifacts(
   Map<ArtifactIdentityV1, List<int>> inlineArtifactBytes = const {},
   Future<Uint8List?> Function(PlacementArtifactReferenceV1 reference)? fetch,
   required bool Function() publicationGuard,
+  bool fresh = true,
 }) async {
   final rows =
       response.decisions.whereType<PlacementBatchAvailableV1>().toList();
@@ -99,7 +100,8 @@ Future<PlacementDeliveryArtifacts?> assemblePlacementDeliveryArtifacts(
       final outcome = await loadSurfaceArtifactIconFonts(
         reference.descriptor.contentHash == artifact.identity.contentHash
             ? assembleDecodedSurfaceArtifact(
-                reference.descriptor, artifact.payload)
+                reference.descriptor, artifact.payload,
+                root: reference.publication != null, fresh: fresh)
             : const SurfaceArtifactUnavailable(
                 SurfaceArtifactFetchFailure.contentHashMismatch),
       );

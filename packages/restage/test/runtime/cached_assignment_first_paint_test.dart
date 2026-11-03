@@ -108,7 +108,7 @@ void main() {
       expect(observed.local!.assignmentLease!.isCurrent, isTrue);
       expect(fetches, 2);
       credentials.now += Duration.microsecondsPerHour;
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(seconds: 1));
       await tester.pump();
       await tester.pump();
       final local = observed.local;
@@ -152,7 +152,10 @@ void main() {
     testWidgets('cached typed screen preserves authority across $mode',
         (tester) async {
       final reports = <SurfaceResolutionReport>[];
-      Restage.configure(onSurfaceResolution: reports.add);
+      Restage.configure(
+          onSurfaceResolution: reports.add,
+          firstLaunchWait: const Duration(milliseconds: 300),
+          freshWindow: const Duration(milliseconds: 300));
       SurfaceCanonicalCarrierProvider.enableAssignmentRetention('cached-paint');
       final batch = SurfaceDeliveryReceiptBatch.instance
         ..enabled = true

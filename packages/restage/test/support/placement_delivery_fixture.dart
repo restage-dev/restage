@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'delivery_signing.dart';
 
 /// The shared wire corpus decoded through the actual public codecs.
 ({
@@ -100,7 +101,8 @@ PlacementBatchResolvedV1 placementFixtureResponse(
           contentHash: CanonicalDigest(identity.contentHash.substring(7)));
   final reference = PlacementArtifactReferenceV1(
       publication: publication,
-      descriptor: SurfaceArtifactDescriptorV1Codec.decode({
+      descriptor:
+          SurfaceArtifactDescriptorV1Codec.decode(testDeliverySigner.signJson({
         ...originalReference.descriptor.toJson(),
         'payloadFormatVersion': identity.payloadFormatVersion,
         'contentHash': identity.contentHash,
@@ -111,7 +113,9 @@ PlacementBatchResolvedV1 placementFixtureResponse(
         if (payload is FlowSurfacePayload)
           'surfaceSlug': payload.flowDocument.flow,
         if (payload is FlowSurfacePayload) 'surfaceType': flowSurfaceType,
-      }));
+        'fitRequirementHash':
+            (requirement ?? base.publicDelivery.fitRequirement).contentHash,
+      })));
   return PlacementBatchResolvedV1(
       request: request,
       expectedTarget: target,

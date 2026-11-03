@@ -29,7 +29,6 @@ const _routes = <String, String>{
   'conclude': 'concludeExperiment',
   'read': 'readExperiment',
   'archive': 'setExperimentArchived',
-  'register-build': 'registerBuildCapabilities',
   'readiness': 'readExperimentReadiness',
   'delivery-options': 'readDeliveryOptions',
 };
@@ -78,20 +77,9 @@ const _selectors = <String, List<String>>{
     '--experiment-id=experiment.checkout',
     '--expected-control-plane-ordinal=8',
   ],
-  'register-build': _buildRegistration,
   'readiness': [],
   'delivery-options': ['--experiment-id=experiment.checkout'],
 };
-
-const _buildRegistration = [
-  '--platform=ios',
-  '--app-build-ordinal=412',
-  '--sdk-api-level=3',
-  '--context-schema-id=assignment.context.checkout',
-  '--context-schema-revision-id=assignment.context.checkout.v2',
-  '--context-schema-digest=cccccccccccccccccccccccccccccccc'
-      'cccccccccccccccccccccccccccccccc',
-];
 
 const _draftBinding = [
   '--draft-id=experiment-draft-checkout',
@@ -110,96 +98,55 @@ const _audienceDigest =
 const _schemaDigest =
     'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
 
-/// One accepted registration, as the route answers it.
-Uint8List _registrationAccepted(
+/// One accepted readiness read, with or without an assessment.
+Uint8List _readinessAccepted(
   String correlationId, {
-  bool storedNow = true,
+  bool assessed = true,
+  bool blocked = false,
 }) => ExperimentAuthoringResultV1.fromJson({
   'correlationId': correlationId,
   'kind': 'accepted',
-  'operation': 'registerBuildCapabilities',
+  'operation': 'readExperimentReadiness',
   'response': {
-    'appBuildOrdinal': 412,
-    'contextSchemaRef': {
-      'contextSchemaId': 'assignment.context.checkout',
-      'revisionId': 'assignment.context.checkout.v2',
-      'semanticDigest': _schemaDigest,
-    },
-    'kind': 'experimentBuildCapabilityView',
-    'platform': 'ios',
-    'providedAttributeIds': const ['attr.country', 'attr.platform'],
-    'schemaVersion': kMeasurementSchemaVersion,
-    'storedNow': storedNow,
-    'target': fixtureTarget.toJson(),
-  },
-  'schemaVersion': kMeasurementSchemaVersion,
-}).canonicalBytes;
-
-/// One accepted readiness read, with or without an assessment.
-Uint8List _readinessAccepted(String correlationId, {bool assessed = true}) =>
-    ExperimentAuthoringResultV1.fromJson({
-      'correlationId': correlationId,
-      'kind': 'accepted',
-      'operation': 'readExperimentReadiness',
-      'response': {
-        'audiences': [
-          {
-            'description': null,
-            'kind': 'experimentAudienceOption',
-            'label': 'Sweden',
+    'audiences': [
+      {
+        'description': null,
+        'kind': 'experimentAudienceOption',
+        'label': 'Sweden',
+        'reference': {
+          'policyId': 'audience.sweden',
+          'revisionId': 'audience.sweden.v4',
+          'semanticDigest': _audienceDigest,
+        },
+        'revisionOrdinal': 4,
+      },
+    ],
+    'kind': 'experimentReadinessView',
+    'nextPageCursor': null,
+    'readiness': assessed
+        ? {
+            'activationBlocked': blocked,
+            'contextSchemaRef': {
+              'contextSchemaId': 'assignment.context.checkout',
+              'revisionId': 'assignment.context.checkout.v2',
+              'semanticDigest': _schemaDigest,
+            },
+            'floors': blocked
+                ? const <String, int>{}
+                : const {'android': 3, 'ios': 3},
+            'kind': 'experimentAudienceReadiness',
             'reference': {
               'policyId': 'audience.sweden',
               'revisionId': 'audience.sweden.v4',
               'semanticDigest': _audienceDigest,
             },
-            'revisionOrdinal': 4,
-          },
-        ],
-        'kind': 'experimentReadinessView',
-        'nextPageCursor': null,
-        'readiness': assessed
-            ? {
-                'activationBlocked': true,
-                'attributes': [
-                  {
-                    'assignmentAttributeId': 'attr.country',
-                    'kind': 'experimentAttributeReadiness',
-                    'providingBuildCount': 1,
-                    'supply': 'missingRegistration',
-                  },
-                ],
-                'contextSchemaRef': {
-                  'contextSchemaId': 'assignment.context.checkout',
-                  'revisionId': 'assignment.context.checkout.v2',
-                  'semanticDigest': _schemaDigest,
-                },
-                'kind': 'experimentAudienceReadiness',
-                'reference': {
-                  'policyId': 'audience.sweden',
-                  'revisionId': 'audience.sweden.v4',
-                  'semanticDigest': _audienceDigest,
-                },
-                'registeredBuilds': [
-                  {
-                    'appBuildOrdinal': 412,
-                    'kind': 'experimentRegisteredBuild',
-                    'platform': 'ios',
-                    'providedAttributeIds': const ['attr.country'],
-                  },
-                  {
-                    'appBuildOrdinal': 96,
-                    'kind': 'experimentRegisteredBuild',
-                    'platform': 'android',
-                    'providedAttributeIds': const <String>[],
-                  },
-                ],
-              }
-            : null,
-        'schemaVersion': kMeasurementSchemaVersion,
-        'target': fixtureTarget.toJson(),
-      },
-      'schemaVersion': kMeasurementSchemaVersion,
-    }).canonicalBytes;
+          }
+        : null,
+    'schemaVersion': kMeasurementSchemaVersion,
+    'target': fixtureTarget.toJson(),
+  },
+  'schemaVersion': kMeasurementSchemaVersion,
+}).canonicalBytes;
 
 void main() {
   late Directory home;
@@ -312,14 +259,16 @@ void main() {
       }
     });
 
-    test('the eighteen semantic subcommands cover the operations they own', () {
-      expect(_routes, hasLength(18));
-      expect({
-        ..._routes.values,
-        'listExperiments',
-        'readExperimentResults',
-      }, ExperimentAuthoringOperationV1.values.map((e) => e.wireName).toSet());
-    });
+    test(
+      'the seventeen semantic subcommands cover the operations they own',
+      () {
+        expect(_routes, hasLength(17));
+        expect(
+          {..._routes.values, 'listExperiments', 'readExperimentResults'},
+          ExperimentAuthoringOperationV1.values.map((e) => e.wireName).toSet(),
+        );
+      },
+    );
 
     test('draft and experiment reads stay separate routes', () async {
       final resolved = await run([
@@ -1275,49 +1224,8 @@ void main() {
     });
   });
 
-  group('build capability and readiness', () {
-    test(
-      'register-build sends the build and schema the operator named',
-      () async {
-        ExperimentAuthoringRequestV1? sentRequest;
-        final result = await run(
-          const ['register-build', ..._buildRegistration],
-          reply: (method, sent) {
-            sentRequest = sent;
-            return _registrationAccepted(sent.correlationId);
-          },
-        );
-
-        expect(result.code, 0);
-        expect(result.methods, ['registerBuildCapabilities']);
-        final payload = sentRequest!.payload;
-        expect(payload['platform'], 'ios');
-        expect(payload['appBuildOrdinal'], 412);
-        expect(payload['sdkApiLevel'], 3);
-        expect(payload['contextSchemaRef'], {
-          'contextSchemaId': 'assignment.context.checkout',
-          'revisionId': 'assignment.context.checkout.v2',
-          'semanticDigest': 'c' * 64,
-        });
-        // A write carries retry identity; a read is refused one.
-        expect(sentRequest!.idempotencyKey, isNotNull);
-        expect(result.out, contains('Registered ios 412'));
-        expect(result.out, contains('attr.country'));
-      },
-    );
-
-    test('a repeat registration reports that nothing was stored', () async {
-      final result = await run(
-        const ['register-build', ..._buildRegistration],
-        reply: (method, sent) =>
-            _registrationAccepted(sent.correlationId, storedNow: false),
-      );
-
-      expect(result.code, 0);
-      expect(result.out, contains('Already registered ios 412'));
-    });
-
-    test('readiness lists the audiences and names what blocks one', () async {
+  group('readiness', () {
+    test('readiness lists the audiences and the SDK floors of one', () async {
       ExperimentAuthoringRequestV1? sentRequest;
       final result = await run(
         <String>[
@@ -1343,9 +1251,34 @@ void main() {
       expect(sentRequest!.idempotencyKey, isNull);
       expect(result.out, contains('Sweden'));
       expect(result.out, contains('revision 4'));
-      expect(result.out, contains('Cannot be activated yet.'));
-      expect(result.out, contains('not reported by android 96'));
+      expect(result.out, contains('Ready to activate.'));
+      expect(result.out, contains('Android: restage 3.0 or later'));
     });
+
+    test(
+      'readiness says an audience nothing can report cannot start',
+      () async {
+        final result = await run(
+          <String>[
+            'readiness',
+            '--audience-id=audience.sweden',
+            '--audience-revision-id=audience.sweden.v4',
+            '--audience-digest=$_audienceDigest',
+          ],
+          reply: (method, sent) =>
+              _readinessAccepted(sent.correlationId, blocked: true),
+        );
+
+        expect(result.code, 0);
+        expect(
+          result.out,
+          contains(
+            "Can't start. This audience checks something the app can't "
+            'report. Pick another audience.',
+          ),
+        );
+      },
+    );
 
     test(
       'readiness reads the roster alone when no audience is named',
@@ -1363,7 +1296,7 @@ void main() {
         expect(sentRequest!.payload.containsKey('audienceRef'), isFalse);
         expect(sentRequest!.payload['pageSize'], 100);
         expect(result.out, contains('Sweden'));
-        expect(result.out, isNot(contains('Cannot be activated')));
+        expect(result.out, isNot(contains("Can't start.")));
       },
     );
 
@@ -1406,7 +1339,7 @@ void main() {
       'a key the route will not accept is reported, never widened',
       () async {
         final result = await run(
-          const ['register-build', ..._buildRegistration],
+          const ['readiness'],
           reply: (method, sent) => refusalFor(
             method,
             ExperimentAuthoringRefusalCodeV1.deniedAction,

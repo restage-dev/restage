@@ -6,7 +6,7 @@ import 'package:flutter/widgets.dart'
     show BuildContext, View, WidgetsBinding, WidgetsFlutterBinding;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
-import '../delivery/render_deadline.dart';
+import '../runtime/native_facts.dart';
 import '../runtime/first_launch_store.dart';
 import 'platform_app_build_stub.dart'
     if (dart.library.io) 'platform_app_build_io.dart' as app_build;
@@ -46,9 +46,7 @@ String? normalizeDeliveryChannel(String? value) {
 void configureSurfaceDeliveryObservations({
   String? channel,
   bool initializeFirstLaunch = true,
-  Duration renderDeadline = RenderDeadline.defaultDuration,
 }) {
-  _installDateWait = renderDeadline ~/ 3;
   if (!initializeFirstLaunch && _firstLaunchRead != null) {
     // A read left in flight is dropped with the store it waits on.
     _firstLaunchGeneration += 1;
@@ -83,13 +81,30 @@ Future<void>? _readFirstLaunch(int generation, DateTime nowUtc) {
 }
 
 /// The longest a request waits for the install date before reporting none:
-/// a third of the render deadline, leaving the rest for the answer.
-Duration _installDateWait = RenderDeadline.defaultDuration ~/ 3;
+/// a fixed 100 ms, leaving the rest for the answer.
+const Duration _installDateWait = Duration(milliseconds: 100);
 
 // A request reports the install age the device knows, waiting briefly for a
 // read in flight; a slow store costs only the age.
 Future<void> _installFactsSettled() {
   if (!_firstLaunchEnabled) return Future<void>.value();
+  // The platform always knows the age; it answers before the store does.
+  if (_nativeDaysSinceInstall == null && NativeFacts.available) {
+    final days = NativeFacts.fact('daysSinceInstall');
+    return days.then((value) {
+      if (value is int && value >= 0) {
+        _nativeDaysSinceInstall = value;
+        return Future<void>.value();
+      }
+      return _settleFirstLaunchRead();
+    });
+  }
+  return _settleFirstLaunchRead();
+}
+
+int? _nativeDaysSinceInstall;
+
+Future<void> _settleFirstLaunchRead() {
   final read = _readFirstLaunch(_firstLaunchGeneration, _utcNow());
   if (read == null || identical(read, _timedOutFirstLaunchRead)) {
     return Future<void>.value();
@@ -101,7 +116,8 @@ Future<void> _installFactsSettled() {
 
 (String?, int?) _installObservationStamp() => (
       _channel,
-      daysSinceInstall(nowUtc: _utcNow(), firstLaunchUtc: _firstLaunchUtc),
+      _nativeDaysSinceInstall ??
+          daysSinceInstall(nowUtc: _utcNow(), firstLaunchUtc: _firstLaunchUtc),
     );
 
 /// Replaces optional storage and clock sources without deleting persisted data.
@@ -301,11 +317,18 @@ Future<int?> _appBuildOrdinal(Future<String?> Function()? source) =>
     _appBuildOrdinalRead ??= () async {
       final read = source ?? debugAppBuildNumberSource;
       try {
-        final ordinal = normalizeAppBuildOrdinal(
-          read == null
-              ? await _platformRead(app_build.readPlatformAppBuildNumber)
-              : await read(),
-        );
+        final native = read == null
+            ? (NativeFacts.available
+                ? await NativeFacts.fact('appBuildOrdinal')
+                : null)
+            : null;
+        final ordinal = native is int
+            ? native
+            : normalizeAppBuildOrdinal(
+                read == null
+                    ? await _platformRead(app_build.readPlatformAppBuildNumber)
+                    : await read(),
+              );
         _appBuildOrdinalKnown = true;
         return _appBuildOrdinalValue = ordinal;
       } on Object {
@@ -344,8 +367,12 @@ Future<String?> readDeliveryAppVersion() {
   if (_appVersionKnown) return Future<String?>.value(_appVersionValue);
   return _appVersionRead ??= () async {
     try {
-      final version =
-          (await _platformRead(app_build.readPlatformAppVersion))?.trim();
+      final native =
+          (NativeFacts.available ? await NativeFacts.fact('appVersion') : null);
+      final version = (native is String
+              ? native
+              : await _platformRead(app_build.readPlatformAppVersion))
+          ?.trim();
       _appVersionValue = version == null ||
               version.isEmpty ||
               version.length > 64 ||
@@ -366,6 +393,8 @@ Future<String?> readDeliveryAppVersion() {
 /// a new process would.
 @visibleForTesting
 void debugResetAppBuildOrdinal() {
+  NativeFacts.reset();
+  _nativeDaysSinceInstall = null;
   _firstPresentation = Completer<void>();
   _appBuildOrdinalRead = null;
   _appBuildOrdinalKnown = false;
@@ -400,9 +429,14 @@ Future<int?> _osVersion(
   if (_osVersionKnown) return Future<int?>.value(_osVersionValue);
   return _osVersionRead ??= () async {
     try {
-      final version = source == null
-          ? await _platformRead(() => readPlatformOsVersion(platform))
-          : await source(platform);
+      final native = source == null
+          ? (NativeFacts.available ? await NativeFacts.fact('osVersion') : null)
+          : null;
+      final version = native is int
+          ? native
+          : source == null
+              ? await _platformRead(() => readPlatformOsVersion(platform))
+              : await source(platform);
       _osVersionKnown = true;
       _osVersionValue = version;
       _osVersionRead = null;
@@ -470,15 +504,19 @@ Future<SurfaceDeliveryObservations> readSurfaceDeliveryObservations({
   );
   final ordinal = await ordinalRead;
   final osVersion = await osVersionRead;
+  final nativeClass =
+      (NativeFacts.available ? await NativeFacts.fact('deviceClass') : null);
+  final nativeDeviceClass = nativeClass is String ? nativeClass : null;
   return SurfaceDeliveryObservations(
     presentationCountry: country,
     presentationLanguage: language,
     platform: platform,
     appBuildOrdinal: ordinal,
-    deviceClass: classifyDeliveryDevice(
-      isWeb: web,
-      shortestLogicalSide: shortestLogicalSide,
-    ),
+    deviceClass: nativeDeviceClass ??
+        classifyDeliveryDevice(
+          isWeb: web,
+          shortestLogicalSide: shortestLogicalSide,
+        ),
     osVersion: osVersion,
     sdkApiLevel: assignmentSdkApiLevel,
     channel: channel,

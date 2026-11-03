@@ -89,7 +89,6 @@ final _cliToMcp = <String, Set<String>>{
   'experiment read': {'restage_experiment_apply'},
   'experiment read-draft': {'restage_experiment_apply'},
   'experiment readiness': {'restage_experiment_apply'},
-  'experiment register-build': {'restage_experiment_apply'},
   'experiment resolve-draft': {'restage_experiment_apply'},
   'experiment results': {'restage_read_experiment'},
   'experiment resume': {'restage_experiment_apply'},

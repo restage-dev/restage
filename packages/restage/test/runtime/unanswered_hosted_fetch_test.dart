@@ -59,7 +59,7 @@ void main() {
   }
 
   Future<void> passDeadline(WidgetTester tester) async {
-    await tester.pump(Restage.renderDeadline);
+    await tester.pump(Restage.firstLaunchWaitFor(""));
     await tester.pump();
   }
 

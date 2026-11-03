@@ -92,6 +92,19 @@ class InitCommand extends Command<int> {
             'Default runtime plane: sandbox or live. Without it, the plane '
             'the environment is on, sandbox first.',
       )
+      ..addOption(
+        'sdk-key',
+        help:
+            'Your app\'s publishable key (rs_pk_...). Written to build.yaml so '
+            'the startup request is built into the app.',
+      )
+      ..addFlag(
+        'early-request',
+        help:
+            'Build the startup request into the app so it is sent before '
+            'Dart starts. Turn off only for an app that cannot use it.',
+        defaultsTo: true,
+      )
       ..addFlag(
         'starter',
         help: 'Write a starter `@Paywall` to `lib/paywalls/`.',
@@ -199,9 +212,26 @@ class InitCommand extends Command<int> {
         : '';
     final gitignorePlan = planPortableOutputIgnores(gitignoreSource);
     final buildYamlFile = File(p.join(root.path, 'build.yaml'));
-    final buildYamlPlan = planStateBuildInputs(
-      buildYamlFile.existsSync() ? await buildYamlFile.readAsString() : null,
+    final buildYamlSource = buildYamlFile.existsSync()
+        ? await buildYamlFile.readAsString()
+        : null;
+    final stateInputsPlan = planStateBuildInputs(buildYamlSource);
+    final earlyPlan = planEarlyRequestOptions(
+      stateInputsPlan.source,
+      baseUrl: context.endpoint,
+      apiKey: results['sdk-key'] as String?,
+      enabled: results['early-request'] as bool,
     );
+    final buildYamlPlan = earlyPlan.action == StateBuildInputsAction.keep
+        ? stateInputsPlan
+        : StateBuildInputsPlan(
+            earlyPlan.action == StateBuildInputsAction.manual
+                ? StateBuildInputsAction.manual
+                : stateInputsPlan.action == StateBuildInputsAction.create
+                ? StateBuildInputsAction.create
+                : StateBuildInputsAction.update,
+            earlyPlan.source,
+          );
 
     final manifestFile = File(p.join(root.path, androidMainManifestPath));
     final manifestUpdate = manifestFile.existsSync()
@@ -247,6 +277,15 @@ class InitCommand extends Command<int> {
     }
 
     await _applyBuildYaml(buildYamlFile, buildYamlPlan);
+    if (results['early-request'] as bool && results['sdk-key'] == null) {
+      _stdout.writeln(
+        'Next: add your publishable key under '
+        'targets.\$default.builders.$earlyRequestBuilderKey.options in '
+        'build.yaml as api_key (the key you pass to Restage.configure), or '
+        're-run with --sdk-key rs_pk_... Builds stop until it is set, '
+        'unless you pass --no-early-request.',
+      );
+    }
 
     if (manifestUpdate != null) {
       await manifestFile.writeAsString(manifestUpdate);

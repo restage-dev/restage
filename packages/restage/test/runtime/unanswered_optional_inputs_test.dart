@@ -47,7 +47,7 @@ void main() {
       final harness = _Harness(tester, silent: {silent});
 
       await harness.mount();
-      await tester.pump(Restage.renderDeadline);
+      await tester.pump(Restage.firstLaunchWaitFor(""));
       await tester.pump();
       expect(find.text('Bundled screen'), findsOneWidget);
 
@@ -58,7 +58,7 @@ void main() {
       expect(harness.surfaceRequests, hasLength(1));
 
       await harness.remount();
-      await tester.pump(Restage.renderDeadline);
+      await tester.pump(Restage.firstLaunchWaitFor(""));
       await tester.pump();
       expect(find.text('Hosted screen'), findsOneWidget);
       await harness.unmount();
@@ -78,7 +78,7 @@ void main() {
     );
 
     await harness.mount();
-    await tester.pump(Restage.renderDeadline);
+    await tester.pump(Restage.firstLaunchWaitFor(""));
     await tester.pump();
 
     expect(find.text('Bundled screen'), findsOneWidget);

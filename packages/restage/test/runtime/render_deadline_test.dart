@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/delivery/surface_artifact_store.dart'
     show MemorySurfaceArtifactStore;
@@ -22,13 +23,20 @@ import '../measurement/measurement_host_construction_test_support.dart';
 import '../flow/flow_test_support.dart' as flows;
 import '../surface_screen/surface_screen_test_support.dart';
 import 'package:restage/src/delivery/raced_surface_resolver.dart';
+import 'package:restage/src/delivery/surface_race.dart' show markHeldDecision;
 import 'package:restage/src/delivery/surface_artifact_store.dart';
+
+const _wait = Duration(milliseconds: 300);
+
+void _configureFast() =>
+    Restage.configure(firstLaunchWait: _wait, freshWindow: _wait);
 
 void main() {
   setUp(Restage.debugReset);
   tearDown(Restage.debugReset);
 
   group('paywall', () {
+    setUp(_configureFast);
     testWidgets('fresh content before the deadline renders', (tester) async {
       final resolver = _PaywallResolver();
       await tester.pumpWidget(_paywall(resolver));
@@ -50,6 +58,39 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();
       expect(find.text('Disk'), findsOneWidget);
+    });
+
+    testWidgets('saved content renders at the fresh window, not the first wait',
+        (tester) async {
+      Restage.configure(
+        firstLaunchWait: const Duration(seconds: 1),
+        freshWindow: const Duration(milliseconds: 100),
+      );
+      final saved = _blob('Disk');
+      markHeldDecision(saved);
+      final resolver = _PaywallResolver(local: saved);
+      await tester.pumpWidget(_paywall(resolver));
+      await tester.pump(const Duration(milliseconds: 99));
+      expect(find.text('Disk'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(find.text('Disk'), findsOneWidget);
+    });
+
+    testWidgets('nothing saved renders its original only at the first wait',
+        (tester) async {
+      Restage.configure(
+        firstLaunchWait: const Duration(seconds: 1),
+        freshWindow: const Duration(milliseconds: 100),
+      );
+      final resolver = _PaywallResolver();
+      await tester.pumpWidget(_paywall(resolver));
+      await tester.pump(const Duration(milliseconds: 999));
+      await tester.pump();
+      expect(find.text('Compiled'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(find.text('Compiled'), findsOneWidget);
     });
 
     testWidgets('nothing local renders the compiled widget and keeps it',
@@ -81,7 +122,10 @@ void main() {
     testWidgets('late fresh content swaps in when live refresh is on',
         (tester) async {
       final reports = <SurfaceResolutionReport>[];
-      Restage.configure(onSurfaceResolution: reports.add);
+      Restage.configure(
+          firstLaunchWait: _wait,
+          freshWindow: _wait,
+          onSurfaceResolution: reports.add);
       final resolver = _PaywallResolver();
       await tester.pumpWidget(_paywall(
         resolver,
@@ -103,7 +147,10 @@ void main() {
     testWidgets('a late swap the gate rejects at paint is not reported',
         (tester) async {
       final reports = <SurfaceResolutionReport>[];
-      Restage.configure(onSurfaceResolution: reports.add);
+      Restage.configure(
+          firstLaunchWait: _wait,
+          freshWindow: _wait,
+          onSurfaceResolution: reports.add);
       final resolver = _PaywallResolver(local: _tappableBlob('Disk'));
       await tester.pumpWidget(_paywall(
         resolver,
@@ -208,7 +255,10 @@ void main() {
     testWidgets('a late fresh render on an empty mount is reported',
         (tester) async {
       final reports = <SurfaceResolutionReport>[];
-      Restage.configure(onSurfaceResolution: reports.add);
+      Restage.configure(
+          firstLaunchWait: _wait,
+          freshWindow: _wait,
+          onSurfaceResolution: reports.add);
       final resolver = _PaywallResolver();
       await tester.pumpWidget(MaterialApp(
         home: RestagePaywall(id: 'pro', resolver: resolver),
@@ -226,7 +276,10 @@ void main() {
     testWidgets('a mount gone before the race settles reports nothing',
         (tester) async {
       final reports = <SurfaceResolutionReport>[];
-      Restage.configure(onSurfaceResolution: reports.add);
+      Restage.configure(
+          firstLaunchWait: _wait,
+          freshWindow: _wait,
+          onSurfaceResolution: reports.add);
       final resolver = _PaywallResolver(local: _blob('Disk'));
       await tester.pumpWidget(_paywall(resolver));
       await tester.pumpWidget(const SizedBox());
@@ -279,6 +332,7 @@ void main() {
   });
 
   group('screen', () {
+    setUp(_configureFast);
     testWidgets('fresh content before the deadline renders', (tester) async {
       final fixture = stringScreenFixture(text: 'Hosted screen');
       final resolver = _ScreenResolver();
@@ -422,6 +476,7 @@ widget OnboardingScreen = ThrowingWidget();
   });
 
   group('flow', () {
+    setUp(_configureFast);
     testWidgets('a pending resolver renders the compiled flow at the deadline',
         (tester) async {
       final controller = _flowController(
@@ -500,7 +555,10 @@ widget OnboardingScreen = ThrowingWidget();
           'late fresh content swaps in only with live refresh: '
           '$liveRefresh', (tester) async {
         final reports = <SurfaceResolutionReport>[];
-        Restage.configure(onSurfaceResolution: reports.add);
+        Restage.configure(
+            firstLaunchWait: _wait,
+            freshWindow: _wait,
+            onSurfaceResolution: reports.add);
         final resolver = _FlowRacer(
           local: flows.resolvedFlow(welcomeText: 'Stored'),
         );
@@ -544,7 +602,10 @@ widget OnboardingScreen = ThrowingWidget();
     testWidgets('a late flow root the gate rejects is not reported',
         (tester) async {
       final reports = <SurfaceResolutionReport>[];
-      Restage.configure(onSurfaceResolution: reports.add);
+      Restage.configure(
+          firstLaunchWait: _wait,
+          freshWindow: _wait,
+          onSurfaceResolution: reports.add);
       final resolver = _FlowRacer(
         local: flows.resolvedFlow(welcomeText: 'Stored'),
       );
@@ -663,6 +724,9 @@ widget OnboardingScreen = ThrowingWidget();
     // Configuring without a credential purges persisted measurement files,
     // and that purge can outlive the test that started it.
     late Directory support;
+    // Configuring reads the first-launch date in the background; without a
+    // store that read fails after the test that started it.
+    setUp(() => SharedPreferences.setMockInitialValues({}));
     setUpAll(() {
       support = Directory.systemTemp.createTempSync('restage_deadline');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -674,18 +738,21 @@ widget OnboardingScreen = ThrowingWidget();
       support.deleteSync(recursive: true);
     });
 
-    test('the render deadline defaults to 300 ms', () {
+    test('the first-launch wait defaults to 1 s and the fresh window to 150 ms',
+        () {
+      Restage.debugReset();
       Restage.configure();
-      expect(Restage.renderDeadline, const Duration(milliseconds: 300));
+      expect(Restage.freshWindow, const Duration(milliseconds: 150));
+      expect(Restage.firstLaunchWaitFor(""), const Duration(seconds: 1));
     });
 
     test('configure sets the render deadline', () {
-      Restage.configure(renderDeadline: const Duration(milliseconds: 120));
-      expect(Restage.renderDeadline, const Duration(milliseconds: 120));
+      Restage.configure(firstLaunchWait: const Duration(milliseconds: 120));
+      expect(Restage.firstLaunchWaitFor(""), const Duration(milliseconds: 120));
       Restage.configureWithInstalledCatalog(
-        renderDeadline: const Duration(milliseconds: 80),
+        firstLaunchWait: const Duration(milliseconds: 80),
       );
-      expect(Restage.renderDeadline, const Duration(milliseconds: 80));
+      expect(Restage.firstLaunchWaitFor(""), const Duration(milliseconds: 80));
     });
 
     testWidgets(
@@ -693,6 +760,8 @@ widget OnboardingScreen = ThrowingWidget();
         (tester) async {
       final resolver = _RacedPaywallResolver();
       Restage.configure(
+        firstLaunchWait: _wait,
+        freshWindow: _wait,
         apiKey: 'key',
         baseUrl: 'https://example.test',
         measurementEnabled: false,
@@ -739,6 +808,8 @@ widget OnboardingScreen = ThrowingWidget();
 
       final resolver = _RacedPaywallResolver();
       Restage.configure(
+        firstLaunchWait: _wait,
+        freshWindow: _wait,
         apiKey: 'key',
         baseUrl: 'https://example.test',
         measurementEnabled: false,
@@ -752,6 +823,8 @@ widget OnboardingScreen = ThrowingWidget();
         (tester) async {
       final resolver = _RacedPaywallResolver();
       Restage.configure(
+        firstLaunchWait: _wait,
+        freshWindow: _wait,
         resolver: resolver,
         surfaces: const [PaywallRef('pro')],
       );
@@ -762,6 +835,8 @@ widget OnboardingScreen = ThrowingWidget();
     testWidgets('a failed prefetch stays in the background', (tester) async {
       final resolver = _RacedPaywallResolver(fail: true);
       Restage.configure(
+        firstLaunchWait: _wait,
+        freshWindow: _wait,
         apiKey: 'key',
         baseUrl: 'https://example.test',
         measurementEnabled: false,
@@ -775,6 +850,8 @@ widget OnboardingScreen = ThrowingWidget();
     testWidgets('prefetch starts after the first frame', (tester) async {
       final resolver = _RacedPaywallResolver();
       Restage.configure(
+        firstLaunchWait: _wait,
+        freshWindow: _wait,
         apiKey: 'key',
         baseUrl: 'https://example.test',
         measurementEnabled: false,
@@ -790,6 +867,8 @@ widget OnboardingScreen = ThrowingWidget();
     testWidgets('prefetch runs at most four fetches at once', (tester) async {
       final resolver = _RacedPaywallResolver(hold: true);
       Restage.configure(
+        firstLaunchWait: _wait,
+        freshWindow: _wait,
         apiKey: 'key',
         baseUrl: 'https://example.test',
         measurementEnabled: false,
@@ -818,6 +897,8 @@ widget OnboardingScreen = ThrowingWidget();
       await Restage.surfaceArtifactStore.write(storedFlow, _stored);
       final flowResolver = _FlowRacer();
       Restage.configure(
+        firstLaunchWait: _wait,
+        freshWindow: _wait,
         apiKey: 'key',
         baseUrl: 'https://example.test',
         measurementEnabled: false,
@@ -842,6 +923,8 @@ widget OnboardingScreen = ThrowingWidget();
       await Restage.surfaceArtifactStore.write(storedFlow, _stored);
       final flowResolver = _FlowRacer();
       Restage.configure(
+        firstLaunchWait: _wait,
+        freshWindow: _wait,
         apiKey: 'key',
         baseUrl: 'https://example.test',
         measurementEnabled: false,
@@ -866,9 +949,9 @@ widget OnboardingScreen = ThrowingWidget();
     });
 
     test('a reset restores the default deadline', () {
-      Restage.configure(renderDeadline: const Duration(milliseconds: 120));
+      Restage.configure(firstLaunchWait: const Duration(milliseconds: 120));
       Restage.debugReset();
-      expect(Restage.renderDeadline, const Duration(milliseconds: 300));
+      expect(Restage.firstLaunchWaitFor(""), const Duration(seconds: 1));
     });
   });
 }
@@ -882,6 +965,9 @@ final class _RacedPaywallResolver extends VariantResolver
     implements RacedSurfaceResolver<ResolvedVariant> {
   @override
   Future<void> forgetStored(SurfaceStoreKey key) async {}
+
+  @override
+  bool get freshAnswerArrived => false;
 
   _RacedPaywallResolver({this.fail = false, this.hold = false});
 

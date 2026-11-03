@@ -456,8 +456,9 @@ final class RestageFlowController<R> extends ChangeNotifier {
     final raced = active ? racedResolverOf<ResolvedFlow>(resolver) : null;
     final key =
         raced == null ? null : Restage.storeKeyFor(flow, resolver: resolver);
-    final deadline =
-        _rootDeadline = RenderDeadline.start(Restage.renderDeadline);
+    final deadline = _rootDeadline = RenderDeadline.start(
+        Restage.firstLaunchWaitFor(flow.id),
+        window: Restage.freshWindow);
     late final Future<ResolvedFlow?> freshFuture;
     Future<ResolvedFlow?> fresh() => freshFuture = raced != null
         ? raced.fresh(
@@ -476,6 +477,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     final RaceOutcome<ResolvedFlow> outcome;
     try {
       outcome = await raceSurface<ResolvedFlow>(
+        answerArrived: raced == null ? null : () => raced.freshAnswerArrived,
         deadline: deadline,
         fresh: fresh,
         bestLocal:
